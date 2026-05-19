@@ -631,6 +631,10 @@ type PropertyTypeResolver = (
     enumOutput: string[]
 ) => string;
 
+interface DiscriminatedUnionGenerationOptions {
+    sealLeafTypes?: boolean;
+}
+
 function isBooleanDiscriminator(discriminatorInfo: DiscriminatorInfo): boolean {
     return Array.from(discriminatorInfo.mapping.values()).every((variant) => typeof variant.value === "boolean");
 }
@@ -648,13 +652,14 @@ function generateDiscriminatedUnionClass(
     enumOutput: string[],
     description?: string,
     propertyResolver?: PropertyTypeResolver,
-    experimental = false
+    experimental = false,
+    options: DiscriminatedUnionGenerationOptions = {}
 ): string {
     if (isBooleanDiscriminator(discriminatorInfo)) {
-        return generateFlattenedBooleanDiscriminatedClass(baseClassName, discriminatorInfo, knownTypes, nestedClasses, enumOutput, description, propertyResolver, experimental);
+        return generateFlattenedBooleanDiscriminatedClass(baseClassName, discriminatorInfo, knownTypes, nestedClasses, enumOutput, description, propertyResolver, experimental, options);
     }
 
-    return generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput, description, propertyResolver, experimental);
+    return generatePolymorphicClasses(baseClassName, discriminatorInfo.property, variants, knownTypes, nestedClasses, enumOutput, description, propertyResolver, experimental, options);
 }
 
 function generateFlattenedBooleanDiscriminatedClass(
@@ -665,7 +670,8 @@ function generateFlattenedBooleanDiscriminatedClass(
     enumOutput: string[],
     description?: string,
     propertyResolver?: PropertyTypeResolver,
-    experimental = false
+    experimental = false,
+    options: DiscriminatedUnionGenerationOptions = {}
 ): string {
     const resolver = propertyResolver ?? resolveSessionPropertyType;
     const renamedBase = applyTypeRename(baseClassName);
@@ -695,7 +701,7 @@ function generateFlattenedBooleanDiscriminatedClass(
 
     lines.push(...xmlDocCommentWithFallback(description, `Data type discriminated by <c>${escapeXml(discriminatorInfo.property)}</c>.`, ""));
     if (experimental) pushExperimentalAttribute(lines);
-    lines.push(`public partial class ${renamedBase}`);
+    lines.push(`public ${options.sealLeafTypes ? "sealed " : ""}partial class ${renamedBase}`);
     lines.push(`{`);
     lines.push(`    /// <summary>The boolean discriminator.</summary>`);
     lines.push(`    [JsonPropertyName("${discriminatorInfo.property}")]`);
@@ -734,7 +740,8 @@ function generatePolymorphicClasses(
     enumOutput: string[],
     description?: string,
     propertyResolver?: PropertyTypeResolver,
-    experimental = false
+    experimental = false,
+    options: DiscriminatedUnionGenerationOptions = {}
 ): string {
     const resolver = propertyResolver ?? resolveSessionPropertyType;
     const lines: string[] = [];
@@ -764,7 +771,7 @@ function generatePolymorphicClasses(
     for (const { value, schema } of discriminatorInfo.mapping.values()) {
         const constValue = String(value);
         const derivedClassName = applyTypeRename(`${baseClassName}${toPascalCase(constValue)}`);
-        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, schema, knownTypes, nestedClasses, enumOutput, resolver);
+        const derivedCode = generateDerivedClass(derivedClassName, renamedBase, discriminatorProperty, constValue, schema, knownTypes, nestedClasses, enumOutput, resolver, options);
         nestedClasses.set(derivedClassName, derivedCode);
     }
 
@@ -783,7 +790,8 @@ function generateDerivedClass(
     knownTypes: Map<string, string>,
     nestedClasses: Map<string, string>,
     enumOutput: string[],
-    propertyResolver: PropertyTypeResolver
+    propertyResolver: PropertyTypeResolver,
+    options: DiscriminatedUnionGenerationOptions = {}
 ): string {
     const lines: string[] = [];
     const required = new Set(schema.required || []);
@@ -791,7 +799,7 @@ function generateDerivedClass(
     lines.push(...xmlDocCommentWithFallback(schema.description, `The <c>${escapeXml(discriminatorValue)}</c> variant of <see cref="${baseClassName}"/>.`, ""));
     if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
     if (isSchemaDeprecated(schema)) pushObsoleteAttributes(lines);
-    lines.push(`public partial class ${className} : ${baseClassName}`);
+    lines.push(`public ${options.sealLeafTypes ? "sealed " : ""}partial class ${className} : ${baseClassName}`);
     lines.push(`{`);
     lines.push(`    /// <inheritdoc />`);
     lines.push(`    [JsonIgnore]`);
@@ -1023,7 +1031,7 @@ function generateNestedClass(
     lines.push(...xmlDocCommentWithFallback(schema.description, `Nested data type for <c>${className}</c>.`, ""));
     if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
     if (isSchemaDeprecated(schema)) pushObsoleteAttributes(lines);
-    lines.push(`public partial class ${className}`, `{`);
+    lines.push(`public sealed partial class ${className}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
@@ -1098,7 +1106,7 @@ function resolveSessionPropertyType(
                 const hasNull = propSchema.anyOf.length > nonNull.length;
                 const baseClassName = (propSchema.title as string) ?? `${parentClassName}${propName}`;
                 const renamedBase = applyTypeRename(baseClassName);
-                const polymorphicCode = generateDiscriminatedUnionClass(baseClassName, discriminatorInfo, variants, knownTypes, nestedClasses, enumOutput, propSchema.description, undefined, isSchemaExperimental(propSchema));
+                const polymorphicCode = generateDiscriminatedUnionClass(baseClassName, discriminatorInfo, variants, knownTypes, nestedClasses, enumOutput, propSchema.description, undefined, isSchemaExperimental(propSchema), { sealLeafTypes: true });
                 nestedClasses.set(renamedBase, polymorphicCode);
                 return isRequired && !hasNull ? renamedBase : `${renamedBase}?`;
             }
@@ -1151,7 +1159,7 @@ function resolveSessionPropertyType(
 }
 
 function generateDataClass(variant: EventVariant, knownTypes: Map<string, string>, nestedClasses: Map<string, string>, enumOutput: string[]): string {
-    if (!variant.dataSchema?.properties) return `public partial class ${variant.dataClassName} { }`;
+    if (!variant.dataSchema?.properties) return `public sealed partial class ${variant.dataClassName} { }`;
 
     const required = new Set(variant.dataSchema.required || []);
     const lines: string[] = [];
@@ -1166,7 +1174,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     if (isSchemaDeprecated(variant.dataSchema)) {
         pushObsoleteAttributes(lines);
     }
-    lines.push(`public partial class ${variant.dataClassName}`, `{`);
+    lines.push(`public sealed partial class ${variant.dataClassName}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
@@ -1279,7 +1287,7 @@ namespace GitHub.Copilot.SDK;
         if (variant.eventExperimental) {
             pushExperimentalAttribute(lines);
         }
-        lines.push(`public partial class ${variant.className} : SessionEvent`, `{`);
+        lines.push(`public sealed partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);
         lines.push(`    [JsonIgnore]`, `    public override string Type => "${variant.typeName}";`, "");
         lines.push(`    /// <summary>The <c>${escapeXml(variant.typeName)}</c> event payload.</summary>`);
@@ -1302,7 +1310,7 @@ namespace GitHub.Copilot.SDK;
     lines.push(`[JsonSourceGenerationOptions(`, `    JsonSerializerDefaults.Web,`, `    AllowOutOfOrderMetadataProperties = true,`, `    NumberHandling = JsonNumberHandling.AllowReadingFromString,`, `    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]`);
     for (const t of types) lines.push(`[JsonSerializable(typeof(${t}))]`);
     lines.push(`[JsonSerializable(typeof(JsonElement))]`);
-    lines.push(`internal partial class SessionEventsJsonContext : JsonSerializerContext;`);
+    lines.push(`internal sealed partial class SessionEventsJsonContext : JsonSerializerContext;`);
 
     return lines.join("\n");
 }
