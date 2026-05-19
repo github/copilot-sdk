@@ -241,6 +241,7 @@ func assistantContent(t *testing.T, event *copilot.SessionEvent) string {
 
 	if event == nil {
 		t.Fatal("Expected assistant message, got nil")
+		return ""
 	}
 	data, ok := event.Data.(*copilot.AssistantMessageData)
 	if !ok {

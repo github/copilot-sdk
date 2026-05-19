@@ -75,6 +75,7 @@ func TestSubagentHooksE2E(t *testing.T) {
 		}
 		if taskPre == nil {
 			t.Fatal("preToolUse should fire for the parent's 'task' tool call")
+			return
 		}
 
 		// Sub-agent tool hooks fire for "view"

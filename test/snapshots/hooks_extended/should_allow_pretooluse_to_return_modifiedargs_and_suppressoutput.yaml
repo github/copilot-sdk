@@ -48,3 +48,29 @@ conversations:
         content: modified by hook
       - role: assistant
         content: 'The echo_value returned: **"modified by hook"**'
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call echo_value with value 'original', then reply with the result.
+      - role: assistant
+        content: I'll call echo_value with 'original' for you.
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: report_intent
+              arguments: '{"intent":"Calling echo_value"}'
+          - id: toolcall_1
+            type: function
+            function:
+              name: echo_value
+              arguments: '{"value":"original"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Intent logged
+      - role: tool
+        tool_call_id: toolcall_1
+        content: modified by hook
+      - role: assistant
+        content: 'The echo_value returned: **"modified by hook"**'

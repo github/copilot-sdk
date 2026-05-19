@@ -298,6 +298,7 @@ func TestSkillsE2E(t *testing.T) {
 		}
 		if discovered == nil {
 			t.Fatalf("Expected to discover skill %q via EnableConfigDiscovery", skillName)
+			return
 		}
 		if !discovered.Enabled {
 			t.Error("Expected discovered skill to be Enabled=true")

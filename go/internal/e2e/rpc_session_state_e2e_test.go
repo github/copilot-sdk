@@ -319,6 +319,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		}
 		if fork == nil {
 			t.Fatal("Expected non-nil fork result")
+			return
 		}
 		if strings.TrimSpace(fork.SessionID) == "" {
 			t.Fatal("Expected non-empty fork session id")
@@ -379,6 +380,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		}
 		if secondUserEvent == nil {
 			t.Fatal("Expected the second user.message in persisted history")
+			return
 		}
 		boundaryEventID := secondUserEvent.ID
 

@@ -989,6 +989,7 @@ func TestSessionE2E(t *testing.T) {
 
 		if metadata == nil {
 			t.Fatal("Expected metadata to be non-nil")
+			return
 		}
 
 		if metadata.SessionID != session.SessionID {
@@ -1043,6 +1044,7 @@ func TestSessionE2E(t *testing.T) {
 
 		if lastSessionID == nil {
 			t.Fatal("Expected last session ID to be non-nil")
+			return
 		}
 
 		if *lastSessionID != session.SessionID {
@@ -1561,6 +1563,7 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		}
 		if userMsg == nil {
 			t.Fatal("No user.message event found")
+			return
 		}
 		if userMsg.Content != "Say mode ok." {
 			t.Errorf("Expected Content 'Say mode ok.', got %q", userMsg.Content)
