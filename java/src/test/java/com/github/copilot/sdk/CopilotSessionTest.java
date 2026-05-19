@@ -760,12 +760,23 @@ public class CopilotSessionTest {
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
-
-            String lastId = client.getLastSessionId().get(30, TimeUnit.SECONDS);
-            assertNotNull(lastId, "Last session ID should not be null");
-            assertEquals(session.getSessionId(), lastId, "Last session ID should match the current session ID");
-
+            String sessionId = session.getSessionId();
             session.close();
+
+            // Poll until getLastSessionId returns the expected value.
+            // Session state is persisted asynchronously; polling keeps fast
+            // machines fast and slow CI safe (mirrors Node.js/.NET patterns).
+            String lastId = null;
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (System.currentTimeMillis() < deadline) {
+                lastId = client.getLastSessionId().get(30, TimeUnit.SECONDS);
+                if (sessionId.equals(lastId)) {
+                    break;
+                }
+                Thread.sleep(50);
+            }
+            assertNotNull(lastId, "Last session ID should not be null");
+            assertEquals(sessionId, lastId, "Last session ID should match the current session ID");
         }
     }
 
@@ -840,11 +851,24 @@ public class CopilotSessionTest {
             var session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
+            // Send a message to persist the session to disk
             session.sendAndWait(new MessageOptions().setPrompt("Say hello")).get(60, TimeUnit.SECONDS);
 
-            var metadata = client.getSessionMetadata(session.getSessionId()).get(30, TimeUnit.SECONDS);
-            assertNotNull(metadata, "Metadata should not be null for known session");
-            assertEquals(session.getSessionId(), metadata.getSessionId(), "Metadata session ID should match");
+            // Poll until metadata becomes available; the CLI persists session
+            // state asynchronously so it may not be queryable immediately
+            // (mirrors .NET WaitForConditionAsync pattern).
+            var sessionId = session.getSessionId();
+            com.github.copilot.sdk.json.SessionMetadata metadata = null;
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (System.currentTimeMillis() < deadline) {
+                metadata = client.getSessionMetadata(sessionId).get(30, TimeUnit.SECONDS);
+                if (metadata != null) {
+                    break;
+                }
+                Thread.sleep(50);
+            }
+            assertNotNull(metadata, "Timed out waiting for getSessionMetadata() to return the persisted session");
+            assertEquals(sessionId, metadata.getSessionId(), "Metadata session ID should match");
 
             // A non-existent session should return null
             var notFound = client.getSessionMetadata("non-existent-session-id").get(30, TimeUnit.SECONDS);
