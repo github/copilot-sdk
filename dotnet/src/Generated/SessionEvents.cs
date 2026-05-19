@@ -1395,7 +1395,7 @@ public sealed partial class SessionScheduleCreatedData
     /// <summary>Interval between ticks in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("intervalMs")]
-    public required TimeSpan IntervalMs { get; set; }
+    public required TimeSpan Interval { get; set; }
 
     /// <summary>Prompt text that gets enqueued on every tick.</summary>
     [JsonPropertyName("prompt")]
@@ -1672,7 +1672,7 @@ public sealed partial class SessionShutdownData
     /// <summary>Cumulative time spent in API calls during the session, in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("totalApiDurationMs")]
-    public required TimeSpan TotalApiDurationMs { get; set; }
+    public required TimeSpan TotalApiDuration { get; set; }
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2157,7 +2157,7 @@ public sealed partial class AssistantUsageData
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interTokenLatencyMs")]
-    public TimeSpan? InterTokenLatencyMs { get; set; }
+    public TimeSpan? InterTokenLatency { get; set; }
 
     /// <summary>Model identifier used for this API call.</summary>
     [JsonPropertyName("model")]
@@ -2199,7 +2199,7 @@ public sealed partial class AssistantUsageData
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ttftMs")]
-    public TimeSpan? TtftMs { get; set; }
+    public TimeSpan? Ttft { get; set; }
 }
 
 /// <summary>Failed LLM API call metadata for telemetry.</summary>
@@ -2214,7 +2214,7 @@ public sealed partial class ModelCallFailureData
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
-    public TimeSpan? DurationMs { get; set; }
+    public TimeSpan? Duration { get; set; }
 
     /// <summary>Raw provider/runtime error message for restricted telemetry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2464,7 +2464,7 @@ public sealed partial class SubagentCompletedData
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
-    public TimeSpan? DurationMs { get; set; }
+    public TimeSpan? Duration { get; set; }
 
     /// <summary>Model used by the sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2501,7 +2501,7 @@ public sealed partial class SubagentFailedData
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
-    public TimeSpan? DurationMs { get; set; }
+    public TimeSpan? Duration { get; set; }
 
     /// <summary>Error message describing why the sub-agent failed.</summary>
     [JsonPropertyName("error")]

@@ -217,6 +217,17 @@ function toPascalCase(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+function stripDurationMillisecondsSuffix(name: string): string {
+    if (name.length > 2 && name.endsWith("Ms") && /[a-z]/.test(name.charAt(name.length - 3))) {
+        return name.slice(0, -2);
+    }
+    return name;
+}
+
+function toCSharpPropertyName(propName: string, schema: JSONSchema7): string {
+    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(propName) : propName);
+}
+
 function typeToClassName(typeName: string): string {
     return splitCSharpIdentifierParts(typeName).map(toPascalCasePart).join("");
 }
@@ -441,6 +452,11 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
  * milliseconds-based JSON converter rather than expecting ISO 8601 strings.
  */
 function isDurationProperty(schema: JSONSchema7): boolean {
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        return isDurationProperty(nullableInner);
+    }
+
     if (schema.format === "duration") {
         const t = schema.type;
         if (t === "number" || t === "integer") return true;
@@ -736,7 +752,7 @@ function generateFlattenedBooleanDiscriminatedClass(
     const propertyEntries = Array.from(flattenedProperties.entries()).sort(([a], [b]) => a.localeCompare(b));
     for (const [propName, info] of propertyEntries) {
         const isReq = info.variantCount === variants.length && info.requiredCount === variants.length;
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, info.schema);
         const csharpType = resolver(info.schema, renamedBase, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push("");
@@ -839,13 +855,14 @@ function generateDerivedClass(
             if (propName === discriminatorProperty) continue;
 
             const isReq = required.has(propName);
-            const csharpName = toPascalCase(propName);
-            const csharpType = propertyResolver(propSchema as JSONSchema7, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+            const prop = propSchema as JSONSchema7;
+            const csharpName = toCSharpPropertyName(propName, prop);
+            const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
-            lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
-            lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-            if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
-            if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+            lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+            lines.push(...emitDataAnnotations(prop, "    "));
+            if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
+            if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
             lines.push(`    [JsonPropertyName("${propName}")]`);
             const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -1064,7 +1081,7 @@ function generateNestedClass(
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, prop);
         const csharpType = resolveSessionPropertyType(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
@@ -1206,13 +1223,14 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const isReq = required.has(propName);
-        const csharpName = toPascalCase(propName);
-        const csharpType = resolveSessionPropertyType(propSchema as JSONSchema7, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+        const prop = propSchema as JSONSchema7;
+        const csharpName = toCSharpPropertyName(propName, prop);
+        const csharpType = resolveSessionPropertyType(prop, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
-        lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
-        lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-        if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        lines.push(...emitDataAnnotations(prop, "    "));
+        if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
+        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -1229,7 +1247,7 @@ function emitSessionEventEnvelopeProperty(
     nestedClasses: Map<string, string>,
     enumOutput: string[]
 ): string[] {
-    const csharpName = toPascalCase(property.name);
+    const csharpName = toCSharpPropertyName(property.name, property.schema);
     const csharpType = resolveSessionPropertyType(
         property.schema,
         "SessionEvent",
@@ -1591,7 +1609,7 @@ function emitRpcClass(
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = requiredSet.has(propName);
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, prop);
         const csharpType = resolveRpcType(prop, isReq, className, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
@@ -1790,11 +1808,14 @@ function emitServerInstanceMethod(
         if (typeof pSchema !== "object") continue;
         const isReq = requiredSet.has(pName);
         const jsonSchema = pSchema as JSONSchema7;
+        const csharpName = requestClassName
+            ? toCSharpPropertyName(pName, jsonSchema)
+            : toPascalCase(pName);
         const csType = requestClassName
-            ? resolveRpcType(jsonSchema, isReq, requestClassName, toPascalCase(pName), classes)
+            ? resolveRpcType(jsonSchema, isReq, requestClassName, csharpName, classes)
             : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+        bodyAssignments.push(`${csharpName} = ${pName}`);
         if (requiresArgumentNullCheck(csType, isReq)) {
             argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
         }
@@ -1938,16 +1959,19 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     if (useRequestParameter) {
         sigParams.push(`${requestClassName}? request = null`);
         parameterDescriptions.push({ name: "request", description: rpcParamsDescription(method, effectiveParams) });
-        for (const [pName] of paramEntries) {
-            bodyAssignments.push(`${toPascalCase(pName)} = request?.${toPascalCase(pName)}`);
+        for (const [pName, pSchema] of paramEntries) {
+            if (typeof pSchema !== "object") continue;
+            const csharpName = toCSharpPropertyName(pName, pSchema as JSONSchema7);
+            bodyAssignments.push(`${csharpName} = request?.${csharpName}`);
         }
     } else {
         for (const [pName, pSchema] of paramEntries) {
             if (typeof pSchema !== "object") continue;
             const isReq = requiredSet.has(pName);
-            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+            const csharpName = toCSharpPropertyName(pName, pSchema as JSONSchema7);
+            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, csharpName, classes);
             sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+            bodyAssignments.push(`${csharpName} = ${pName}`);
             if (requiresArgumentNullCheck(csType, isReq)) {
                 argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
             }
