@@ -53,6 +53,7 @@ type AgentGetCurrentResult struct {
 }
 
 // Schema for the `AgentInfo` type.
+// Experimental: AgentInfo is part of an experimental API and may change or be removed.
 type AgentInfo struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
@@ -150,6 +151,8 @@ type CommandsRespondToQueuedCommandResult struct {
 }
 
 // Metadata for a connected remote session.
+// Experimental: ConnectedRemoteSessionMetadata is part of an experimental API and may
+// change or be removed.
 type ConnectedRemoteSessionMetadata struct {
 	// Neutral SDK discriminator for the connected remote session kind.
 	Kind ConnectedRemoteSessionMetadataKind `json:"kind"`
@@ -176,6 +179,8 @@ type ConnectedRemoteSessionMetadata struct {
 }
 
 // Repository associated with the connected remote session.
+// Experimental: ConnectedRemoteSessionMetadataRepository is part of an experimental API and
+// may change or be removed.
 type ConnectedRemoteSessionMetadataRepository struct {
 	// Branch associated with the remote session.
 	Branch string `json:"branch"`
@@ -230,6 +235,7 @@ type DiscoveredMcpServer struct {
 }
 
 // Schema for the `Extension` type.
+// Experimental: Extension is part of an experimental API and may change or be removed.
 type Extension struct {
 	// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
 	ID string `json:"id"`
@@ -491,6 +497,8 @@ type HandlePendingToolCallResult struct {
 }
 
 // Post-compaction context window usage breakdown
+// Experimental: HistoryCompactContextWindow is part of an experimental API and may change
+// or be removed.
 type HistoryCompactContextWindow struct {
 	// Token count from non-system messages (user, assistant, tool)
 	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
@@ -705,6 +713,7 @@ type McpOauthLoginResult struct {
 }
 
 // Schema for the `McpServer` type.
+// Experimental: McpServer is part of an experimental API and may change or be removed.
 type McpServer struct {
 	// Error message if the server failed to connect
 	Error *string `json:"error,omitempty"`
@@ -1364,6 +1373,7 @@ type PlanUpdateRequest struct {
 }
 
 // Schema for the `Plugin` type.
+// Experimental: Plugin is part of an experimental API and may change or be removed.
 type Plugin struct {
 	// Whether the plugin is currently enabled
 	Enabled bool `json:"enabled"`
@@ -1786,6 +1796,7 @@ type ShellKillResult struct {
 }
 
 // Schema for the `Skill` type.
+// Experimental: Skill is part of an experimental API and may change or be removed.
 type Skill struct {
 	// Description of what the skill does
 	Description string `json:"description"`
@@ -1952,6 +1963,7 @@ func (SlashCommandTextResult) Kind() SlashCommandInvocationResultKind {
 }
 
 // Schema for the `TaskInfo` type.
+// Experimental: TaskInfo is part of an experimental API and may change or be removed.
 type TaskInfo interface {
 	taskInfo()
 	Type() TaskInfoType
@@ -1968,6 +1980,7 @@ func (r RawTaskInfoData) Type() TaskInfoType {
 }
 
 // Schema for the `TaskAgentInfo` type.
+// Experimental: TaskAgentInfo is part of an experimental API and may change or be removed.
 type TaskAgentInfo struct {
 	// ISO 8601 timestamp when the current active period began
 	ActiveStartedAt *time.Time `json:"activeStartedAt,omitempty"`
@@ -2013,6 +2026,7 @@ func (TaskAgentInfo) Type() TaskInfoType {
 }
 
 // Schema for the `TaskShellInfo` type.
+// Experimental: TaskShellInfo is part of an experimental API and may change or be removed.
 type TaskShellInfo struct {
 	// Whether the shell runs inside a managed PTY session or as an independent background
 	// process
@@ -2456,6 +2470,8 @@ type UsageGetMetricsResult struct {
 }
 
 // Aggregated code change metrics
+// Experimental: UsageMetricsCodeChanges is part of an experimental API and may change or be
+// removed.
 type UsageMetricsCodeChanges struct {
 	// Number of distinct files modified
 	FilesModifiedCount int64 `json:"filesModifiedCount"`
@@ -2466,6 +2482,8 @@ type UsageMetricsCodeChanges struct {
 }
 
 // Schema for the `UsageMetricsModelMetric` type.
+// Experimental: UsageMetricsModelMetric is part of an experimental API and may change or be
+// removed.
 type UsageMetricsModelMetric struct {
 	// Request count and cost metrics for this model
 	Requests UsageMetricsModelMetricRequests `json:"requests"`
@@ -2478,6 +2496,8 @@ type UsageMetricsModelMetric struct {
 }
 
 // Request count and cost metrics for this model
+// Experimental: UsageMetricsModelMetricRequests is part of an experimental API and may
+// change or be removed.
 type UsageMetricsModelMetricRequests struct {
 	// User-initiated premium request cost (with multiplier applied)
 	Cost float64 `json:"cost"`
@@ -2486,12 +2506,16 @@ type UsageMetricsModelMetricRequests struct {
 }
 
 // Schema for the `UsageMetricsModelMetricTokenDetail` type.
+// Experimental: UsageMetricsModelMetricTokenDetail is part of an experimental API and may
+// change or be removed.
 type UsageMetricsModelMetricTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
 }
 
 // Token usage metrics for this model
+// Experimental: UsageMetricsModelMetricUsage is part of an experimental API and may change
+// or be removed.
 type UsageMetricsModelMetricUsage struct {
 	// Total tokens read from prompt cache
 	CacheReadTokens int64 `json:"cacheReadTokens"`
@@ -2506,6 +2530,8 @@ type UsageMetricsModelMetricUsage struct {
 }
 
 // Schema for the `UsageMetricsTokenDetail` type.
+// Experimental: UsageMetricsTokenDetail is part of an experimental API and may change or be
+// removed.
 type UsageMetricsTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
@@ -2576,6 +2602,8 @@ const (
 )
 
 // Neutral SDK discriminator for the connected remote session kind.
+// Experimental: ConnectedRemoteSessionMetadataKind is part of an experimental API and may
+// change or be removed.
 type ConnectedRemoteSessionMetadataKind string
 
 const (
@@ -2604,6 +2632,7 @@ const (
 )
 
 // Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+// Experimental: ExtensionSource is part of an experimental API and may change or be removed.
 type ExtensionSource string
 
 const (
@@ -2612,6 +2641,7 @@ const (
 )
 
 // Current status: running, disabled, failed, or starting
+// Experimental: ExtensionStatus is part of an experimental API and may change or be removed.
 type ExtensionStatus string
 
 const (
@@ -2705,6 +2735,7 @@ const (
 )
 
 // Configuration source: user, workspace, plugin, or builtin
+// Experimental: McpServerSource is part of an experimental API and may change or be removed.
 type McpServerSource string
 
 const (
@@ -2715,6 +2746,7 @@ const (
 )
 
 // Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+// Experimental: McpServerStatus is part of an experimental API and may change or be removed.
 type McpServerStatus string
 
 const (
@@ -2798,6 +2830,8 @@ const (
 
 // Per-session remote mode. "off" disables remote, "export" exports session events to GitHub
 // without enabling remote steering, "on" enables both export and remote steering.
+// Experimental: RemoteSessionMode is part of an experimental API and may change or be
+// removed.
 type RemoteSessionMode string
 
 const (
@@ -2894,6 +2928,8 @@ const (
 )
 
 // How the agent is currently being managed by the runtime
+// Experimental: TaskAgentInfoExecutionMode is part of an experimental API and may change or
+// be removed.
 type TaskAgentInfoExecutionMode string
 
 const (
@@ -2902,6 +2938,8 @@ const (
 )
 
 // Current lifecycle status of the task
+// Experimental: TaskAgentInfoStatus is part of an experimental API and may change or be
+// removed.
 type TaskAgentInfoStatus string
 
 const (
@@ -2922,6 +2960,8 @@ const (
 
 // Whether the shell runs inside a managed PTY session or as an independent background
 // process
+// Experimental: TaskShellInfoAttachmentMode is part of an experimental API and may change
+// or be removed.
 type TaskShellInfoAttachmentMode string
 
 const (
@@ -2930,6 +2970,8 @@ const (
 )
 
 // Whether the shell command is currently sync-waited or background-managed
+// Experimental: TaskShellInfoExecutionMode is part of an experimental API and may change or
+// be removed.
 type TaskShellInfoExecutionMode string
 
 const (
@@ -2938,6 +2980,8 @@ const (
 )
 
 // Current lifecycle status of the task
+// Experimental: TaskShellInfoStatus is part of an experimental API and may change or be
+// removed.
 type TaskShellInfoStatus string
 
 const (

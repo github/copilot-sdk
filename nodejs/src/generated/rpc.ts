@@ -41,6 +41,7 @@ export type QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ConnectedRemoteSessionMetadataKind".
  */
+/** @experimental */
 export type ConnectedRemoteSessionMetadataKind = "remote-session" | "coding-agent";
 /**
  * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
@@ -62,6 +63,7 @@ export type DiscoveredMcpServerSource = "user" | "workspace" | "plugin" | "built
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionSource".
  */
+/** @experimental */
 export type ExtensionSource = "project" | "user";
 /**
  * Current status: running, disabled, failed, or starting
@@ -69,6 +71,7 @@ export type ExtensionSource = "project" | "user";
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExtensionStatus".
  */
+/** @experimental */
 export type ExtensionStatus = "running" | "disabled" | "failed" | "starting";
 /**
  * Tool call result (string or expanded result object)
@@ -186,6 +189,7 @@ export type McpServerConfigHttpOauthGrantType = "authorization_code" | "client_c
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerStatus".
  */
+/** @experimental */
 export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
 /**
  * Configuration source: user, workspace, plugin, or builtin
@@ -193,6 +197,7 @@ export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" 
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerSource".
  */
+/** @experimental */
 export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
 /**
  * Model capability category for grouping in the model picker
@@ -266,6 +271,7 @@ export type PermissionDecisionApproveForLocationApproval =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "RemoteSessionMode".
  */
+/** @experimental */
 export type RemoteSessionMode = "off" | "export" | "on";
 /**
  * Error classification
@@ -318,6 +324,7 @@ export type SlashCommandInvocationResult =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskAgentInfoStatus".
  */
+/** @experimental */
 export type TaskAgentInfoStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
 /**
  * How the agent is currently being managed by the runtime
@@ -325,6 +332,7 @@ export type TaskAgentInfoStatus = "running" | "idle" | "completed" | "failed" | 
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskAgentInfoExecutionMode".
  */
+/** @experimental */
 export type TaskAgentInfoExecutionMode = "sync" | "background";
 /**
  * Schema for the `TaskInfo` type.
@@ -332,6 +340,7 @@ export type TaskAgentInfoExecutionMode = "sync" | "background";
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskInfo".
  */
+/** @experimental */
 export type TaskInfo = TaskAgentInfo | TaskShellInfo;
 /**
  * Current lifecycle status of the task
@@ -339,6 +348,7 @@ export type TaskInfo = TaskAgentInfo | TaskShellInfo;
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskShellInfoStatus".
  */
+/** @experimental */
 export type TaskShellInfoStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
 /**
  * Whether the shell runs inside a managed PTY session or as an independent background process
@@ -346,6 +356,7 @@ export type TaskShellInfoStatus = "running" | "idle" | "completed" | "failed" | 
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskShellInfoAttachmentMode".
  */
+/** @experimental */
 export type TaskShellInfoAttachmentMode = "attached" | "detached";
 /**
  * Whether the shell command is currently sync-waited or background-managed
@@ -353,6 +364,7 @@ export type TaskShellInfoAttachmentMode = "attached" | "detached";
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskShellInfoExecutionMode".
  */
+/** @experimental */
 export type TaskShellInfoExecutionMode = "sync" | "background";
 /**
  * Schema for the `UIElicitationFieldValue` type.
@@ -476,6 +488,7 @@ export interface AgentGetCurrentResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AgentInfo".
  */
+/** @experimental */
 export interface AgentInfo {
   /**
    * Unique identifier of the custom agent
@@ -729,6 +742,7 @@ export interface CommandsRespondToQueuedCommandResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ConnectedRemoteSessionMetadata".
  */
+/** @experimental */
 export interface ConnectedRemoteSessionMetadata {
   /**
    * SDK session ID for the connected remote session.
@@ -775,6 +789,7 @@ export interface ConnectedRemoteSessionMetadata {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ConnectedRemoteSessionMetadataRepository".
  */
+/** @experimental */
 export interface ConnectedRemoteSessionMetadataRepository {
   /**
    * Repository owner or organization login.
@@ -872,6 +887,7 @@ export interface DiscoveredMcpServer {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Extension".
  */
+/** @experimental */
 export interface Extension {
   /**
    * Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
@@ -1177,6 +1193,7 @@ export interface HandlePendingToolCallResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "HistoryCompactContextWindow".
  */
+/** @experimental */
 export interface HistoryCompactContextWindow {
   /**
    * Maximum token count for the model's context window
@@ -1581,6 +1598,7 @@ export interface McpOauthLoginResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServer".
  */
+/** @experimental */
 export interface McpServer {
   /**
    * Server name (config key)
@@ -2404,6 +2422,7 @@ export interface PlanUpdateRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Plugin".
  */
+/** @experimental */
 export interface Plugin {
   /**
    * Plugin name
@@ -2985,6 +3004,7 @@ export interface ShellKillResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "Skill".
  */
+/** @experimental */
 export interface Skill {
   /**
    * Unique identifier for the skill
@@ -3174,6 +3194,7 @@ export interface SlashCommandTextResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskAgentInfo".
  */
+/** @experimental */
 export interface TaskAgentInfo {
   /**
    * Task kind
@@ -3248,6 +3269,7 @@ export interface TaskAgentInfo {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "TaskShellInfo".
  */
+/** @experimental */
 export interface TaskShellInfo {
   /**
    * Task kind
@@ -3925,6 +3947,7 @@ export interface UsageGetMetricsResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsTokenDetail".
  */
+/** @experimental */
 export interface UsageMetricsTokenDetail {
   /**
    * Accumulated token count for this token type
@@ -3937,6 +3960,7 @@ export interface UsageMetricsTokenDetail {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsCodeChanges".
  */
+/** @experimental */
 export interface UsageMetricsCodeChanges {
   /**
    * Total lines of code added
@@ -3957,6 +3981,7 @@ export interface UsageMetricsCodeChanges {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsModelMetric".
  */
+/** @experimental */
 export interface UsageMetricsModelMetric {
   requests: UsageMetricsModelMetricRequests;
   usage: UsageMetricsModelMetricUsage;
@@ -3977,6 +4002,7 @@ export interface UsageMetricsModelMetric {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsModelMetricRequests".
  */
+/** @experimental */
 export interface UsageMetricsModelMetricRequests {
   /**
    * Number of API requests made with this model
@@ -3993,6 +4019,7 @@ export interface UsageMetricsModelMetricRequests {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsModelMetricUsage".
  */
+/** @experimental */
 export interface UsageMetricsModelMetricUsage {
   /**
    * Total input tokens consumed
@@ -4021,6 +4048,7 @@ export interface UsageMetricsModelMetricUsage {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UsageMetricsModelMetricTokenDetail".
  */
+/** @experimental */
 export interface UsageMetricsModelMetricTokenDetail {
   /**
    * Accumulated token count for this token type
