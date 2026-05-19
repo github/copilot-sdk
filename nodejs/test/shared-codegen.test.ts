@@ -6,6 +6,7 @@ import {
     collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
     findSharedSchemaDefinitions,
+    getEnumValueDescriptions,
     inlineExternalSchemaDefinitions,
     isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
@@ -59,6 +60,22 @@ describe("shared schema definition codegen utilities", () => {
         ).toBe(false);
     });
 
+    it("extracts non-empty enum value descriptions from schema extensions", () => {
+        expect(
+            getEnumValueDescriptions({
+                type: "string",
+                enum: ["start", "stop"],
+                "x-enumDescriptions": {
+                    start: " Start the operation. ",
+                    stop: "",
+                    ignored: 42,
+                },
+            } as JSONSchema7)
+        ).toEqual({ start: "Start the operation." });
+
+        expect(getEnumValueDescriptions({ type: "string", enum: ["start"] })).toBeUndefined();
+    });
+
     it("rewrites reachable identical shared definitions without enum-only assumptions", () => {
         const sessionSchema: JSONSchema7 = {
             definitions: {
@@ -87,6 +104,10 @@ describe("shared schema definition codegen utilities", () => {
                     type: "string",
                     enum: ["concise", "detailed"],
                     description: "Reasoning summary mode used for model calls.",
+                    "x-enumDescriptions": {
+                        concise: "Use concise session reasoning summaries.",
+                        detailed: "Use detailed session reasoning summaries.",
+                    },
                 },
                 SharedPayload: {
                     type: "object",
@@ -126,6 +147,10 @@ describe("shared schema definition codegen utilities", () => {
                     type: "string",
                     enum: ["concise", "detailed"],
                     description: "Reasoning summary mode to request for supported model clients.",
+                    "x-enumDescriptions": {
+                        concise: "Request concise model reasoning summaries.",
+                        detailed: "Request detailed model reasoning summaries.",
+                    },
                 },
                 SharedPayload: {
                     type: "object",

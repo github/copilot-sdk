@@ -9,6 +9,7 @@
 import { execFile } from "child_process";
 import fs from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7 } from "json-schema";
 import {
@@ -38,12 +39,14 @@ import {
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
+    getEnumValueDescriptions,
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
     rewriteSharedDefinitionReferences,
     REPO_ROOT,
     type ApiSchema,
     type DefinitionCollections,
+    type EnumValueDescriptions,
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
@@ -200,6 +203,12 @@ function xmlDocPropertyComment(description: string | undefined, jsonPropName: st
 function xmlDocEnumComment(description: string | undefined, indent: string): string[] {
     if (description) return xmlDocComment(description, indent);
     return rawXmlDocSummary(`Defines the allowed values.`, indent);
+}
+
+function xmlDocEnumMemberComment(enumValueDescriptions: EnumValueDescriptions | undefined, value: string): string[] {
+    const description = enumValueDescriptions?.[value];
+    if (description) return xmlDocComment(description, "    ");
+    return rawXmlDocSummary(`Gets the <c>${escapeXml(value)}</c> value.`, "    ");
 }
 
 function toPascalCase(name: string): string {
@@ -500,6 +509,7 @@ function getOrCreateEnum(
     values: string[],
     enumOutput: string[],
     description?: string,
+    enumValueDescriptions?: EnumValueDescriptions,
     explicitName?: string,
     deprecated?: boolean,
     experimental?: boolean
@@ -531,7 +541,7 @@ function getOrCreateEnum(
     const usedMemberNames = new Set(STRING_ENUM_RESERVED_MEMBER_NAMES);
     for (const value of values) {
         const memberName = uniqueCSharpIdentifier(value, usedMemberNames, "Value");
-        lines.push(`    /// <summary>Gets the <c>${escapeXml(value)}</c> value.</summary>`);
+        lines.push(...xmlDocEnumMemberComment(enumValueDescriptions, value));
         lines.push(`    public static ${enumName} ${memberName} { get; } = new("${escapeCSharpStringLiteral(value)}");`, "");
     }
     lines.push(`    /// <summary>Returns a value indicating whether two <see cref="${enumName}"/> instances are equivalent.</summary>`);
@@ -1087,7 +1097,7 @@ function resolveSessionPropertyType(
         }
 
         if (refSchema.enum && Array.isArray(refSchema.enum)) {
-            const enumName = getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput, refSchema.description, undefined, isSchemaDeprecated(refSchema), isSchemaExperimental(refSchema));
+            const enumName = getOrCreateEnum(className, "", refSchema.enum as string[], enumOutput, refSchema.description, getEnumValueDescriptions(refSchema), undefined, isSchemaDeprecated(refSchema), isSchemaExperimental(refSchema));
             return isRequired ? enumName : `${enumName}?`;
         }
 
@@ -1136,7 +1146,7 @@ function resolveSessionPropertyType(
         return !isRequired ? "object?" : "object";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
-        const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, propSchema.title as string | undefined, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
+        const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, getEnumValueDescriptions(propSchema), propSchema.title as string | undefined, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
         return isRequired ? enumName : `${enumName}?`;
     }
     if (propSchema.type === "object" && propSchema.properties) {
@@ -1240,7 +1250,7 @@ function emitSessionEventEnvelopeProperty(
     return lines;
 }
 
-function generateSessionEventsCode(schema: JSONSchema7): string {
+export function generateSessionEventsCode(schema: JSONSchema7): string {
     generatedEnums.clear();
     sessionDefinitions = collectDefinitionCollections(schema as Record<string, unknown>);
     const variants = extractEventVariants(schema);
@@ -1438,7 +1448,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         }
 
         if (refSchema.enum && Array.isArray(refSchema.enum)) {
-            const enumName = getOrCreateEnum(typeName, "", refSchema.enum as string[], rpcEnumOutput, refSchema.description, undefined, isSchemaDeprecated(refSchema), isSchemaExperimental(refSchema) || experimentalRpcTypes.has(typeName));
+            const enumName = getOrCreateEnum(typeName, "", refSchema.enum as string[], rpcEnumOutput, refSchema.description, getEnumValueDescriptions(refSchema), undefined, isSchemaDeprecated(refSchema), isSchemaExperimental(refSchema) || experimentalRpcTypes.has(typeName));
             return isRequired ? enumName : `${enumName}?`;
         }
 
@@ -1499,6 +1509,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
             schema.enum as string[],
             rpcEnumOutput,
             schema.description,
+            getEnumValueDescriptions(schema),
             explicitName,
             isSchemaDeprecated(schema),
             isSchemaExperimental(schema) || experimentalRpcTypes.has(generatedEnumName),
@@ -2320,9 +2331,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("C# generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("C# generation failed:", err);
+        process.exit(1);
+    });
+}

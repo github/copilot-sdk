@@ -9,6 +9,8 @@
 import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
 import { compile } from "json-schema-to-typescript";
+import path from "path";
+import { fileURLToPath } from "url";
 import {
     getApiSchemaPath,
     fixNullableRequiredRefsInApiSchema,
@@ -34,6 +36,7 @@ import {
     isNodeFullyDeprecated,
     isVoidSchema,
     isSchemaExperimental,
+    getEnumValueDescriptions,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
@@ -50,6 +53,12 @@ function tsExperimentalJSDoc(indent = ""): string {
 
 function sanitizeJsDocText(text: string): string {
     return text.trim().replace(/\*\//g, "* /");
+}
+
+function tsDocCommentText(text: string): string {
+    const lines = sanitizeJsDocText(text).split(/\r?\n/);
+    if (lines.length === 1) return `/** ${lines[0]} */`;
+    return ["/**", ...lines.map((line) => ` * ${line}`), " */"].join("\n");
 }
 
 function pushTsJsDoc(lines: string[], indent: string, entries: string[]): void {
@@ -237,7 +246,7 @@ function collectRpcMethods(node: Record<string, unknown>): RpcMethod[] {
     return results;
 }
 
-function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
+export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
     const root = structuredClone(schema) as JSONSchema7 & {
         definitions?: Record<string, unknown>;
         $defs?: Record<string, unknown>;
@@ -270,6 +279,20 @@ function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
         const rewritten = Object.fromEntries(
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
+
+        const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
+        if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
+            rewritten.tsType = (rewritten.enum as string[])
+                .map((entry) => {
+                    const comment = enumValueDescriptions[entry];
+                    const literal = JSON.stringify(entry);
+                    return comment ? `${tsDocCommentText(comment)}\n| ${literal}` : `| ${literal}`;
+                })
+                .join("\n");
+            delete rewritten.type;
+            delete rewritten.enum;
+            delete rewritten["x-enumDescriptions"];
+        }
 
         if (typeof rewritten.$ref === "string") {
             const externalRef = parseExternalSchemaRef(rewritten.$ref);
@@ -881,9 +904,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("TypeScript generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("TypeScript generation failed:", err);
+        process.exit(1);
+    });
+}

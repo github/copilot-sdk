@@ -29,6 +29,8 @@ export interface DefinitionCollections {
     $defs?: Record<string, JSONSchema7Definition>;
 }
 
+export type EnumValueDescriptions = Record<string, string>;
+
 export interface SessionEventEnvelopeProperty {
     name: string;
     schema: JSONSchema7;
@@ -324,6 +326,25 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     }
 
     return value;
+}
+
+export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
+    if (!schema || typeof schema !== "object") return undefined;
+
+    const rawDescriptions = (schema as Record<string, unknown>)["x-enumDescriptions"];
+    if (!rawDescriptions || typeof rawDescriptions !== "object" || Array.isArray(rawDescriptions)) return undefined;
+
+    const descriptions: EnumValueDescriptions = {};
+    for (const [value, description] of Object.entries(rawDescriptions)) {
+        if (typeof description !== "string") continue;
+
+        const trimmedDescription = description.trim();
+        if (trimmedDescription.length > 0) {
+            descriptions[value] = trimmedDescription;
+        }
+    }
+
+    return Object.keys(descriptions).length > 0 ? descriptions : undefined;
 }
 
 const INT32_MIN = -(2 ** 31);
@@ -1091,7 +1112,7 @@ function normalizeDefinitionForComparison(definition: JSONSchema7Definition): un
 
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(definition as Record<string, unknown>)) {
-        if (key === "description" || key === "markdownDescription") {
+        if (key === "description" || key === "markdownDescription" || key === "x-enumDescriptions") {
             continue;
         } else if (key === "$ref" && typeof value === "string") {
             const localRef = parseLocalDefinitionRef(value);
