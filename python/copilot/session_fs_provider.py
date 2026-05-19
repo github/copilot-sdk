@@ -162,7 +162,7 @@ class _SessionFsAdapter:
 
     async def read_file(self, params: Any) -> SessionFSReadFileResult:
         try:
-            content = await self._p.read_file(params.path)  # type: ignore[attr-defined]
+            content = await self._p.read_file(params.path)
             return SessionFSReadFileResult.from_dict({"content": content})
         except Exception as exc:
             err = _to_session_fs_error(exc)
@@ -170,28 +170,28 @@ class _SessionFsAdapter:
 
     async def write_file(self, params: Any) -> SessionFSError | None:
         try:
-            await self._p.write_file(params.path, params.content, getattr(params, "mode", None))  # type: ignore[attr-defined]
+            await self._p.write_file(params.path, params.content, getattr(params, "mode", None))
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
 
     async def append_file(self, params: Any) -> SessionFSError | None:
         try:
-            await self._p.append_file(params.path, params.content, getattr(params, "mode", None))  # type: ignore[attr-defined]
+            await self._p.append_file(params.path, params.content, getattr(params, "mode", None))
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
 
     async def exists(self, params: Any) -> SessionFSExistsResult:
         try:
-            result = await self._p.exists(params.path)  # type: ignore[attr-defined]
+            result = await self._p.exists(params.path)
             return SessionFSExistsResult.from_dict({"exists": result})
         except Exception:
             return SessionFSExistsResult.from_dict({"exists": False})
 
     async def stat(self, params: Any) -> SessionFSStatResult:
         try:
-            info = await self._p.stat(params.path)  # type: ignore[attr-defined]
+            info = await self._p.stat(params.path)
             return SessionFSStatResult(
                 is_file=info.is_file,
                 is_directory=info.is_directory,
@@ -214,7 +214,7 @@ class _SessionFsAdapter:
     async def mkdir(self, params: Any) -> SessionFSError | None:
         try:
             await self._p.mkdir(
-                params.path,  # type: ignore[attr-defined]
+                params.path,
                 getattr(params, "recursive", False),
                 getattr(params, "mode", None),
             )
@@ -224,7 +224,7 @@ class _SessionFsAdapter:
 
     async def readdir(self, params: Any) -> SessionFSReaddirResult:
         try:
-            entries = await self._p.readdir(params.path)  # type: ignore[attr-defined]
+            entries = await self._p.readdir(params.path)
             return SessionFSReaddirResult.from_dict({"entries": entries})
         except Exception as exc:
             err = _to_session_fs_error(exc)
@@ -232,7 +232,7 @@ class _SessionFsAdapter:
 
     async def readdir_with_types(self, params: Any) -> SessionFSReaddirWithTypesResult:
         try:
-            entries = await self._p.readdir_with_types(params.path)  # type: ignore[attr-defined]
+            entries = await self._p.readdir_with_types(params.path)
             return SessionFSReaddirWithTypesResult(entries=list(entries))
         except Exception as exc:
             err = _to_session_fs_error(exc)
@@ -243,7 +243,7 @@ class _SessionFsAdapter:
     async def rm(self, params: Any) -> SessionFSError | None:
         try:
             await self._p.rm(
-                params.path,  # type: ignore[attr-defined]
+                params.path,
                 getattr(params, "recursive", False),
                 getattr(params, "force", False),
             )
@@ -253,7 +253,7 @@ class _SessionFsAdapter:
 
     async def rename(self, params: Any) -> SessionFSError | None:
         try:
-            await self._p.rename(params.src, params.dest)  # type: ignore[attr-defined]
+            await self._p.rename(params.src, params.dest)
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
