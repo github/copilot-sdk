@@ -25,6 +25,20 @@ namespace System
         }
     }
 
+    internal static class DownlevelObjectDisposedExceptionExtensions
+    {
+        extension(ObjectDisposedException)
+        {
+            public static void ThrowIf(bool condition, object instance)
+            {
+                if (condition)
+                {
+                    throw new ObjectDisposedException(instance?.GetType().FullName);
+                }
+            }
+        }
+    }
+
     internal static class DownlevelArgumentExceptionExtensions
     {
         extension(ArgumentException)
@@ -528,6 +542,20 @@ namespace System.Net.Sockets
         private sealed record CancellationState(TaskCompletionSource<object?> Completion, Action CancellationAction);
 
         private sealed record SocketConnectState(Socket Socket, TaskCompletionSource<object?> Completion);
+    }
+}
+
+namespace System.Runtime.ExceptionServices
+{
+    internal static class DownlevelExceptionDispatchInfoExtensions
+    {
+        extension(ExceptionDispatchInfo)
+        {
+            public static void Throw(Exception exception)
+            {
+                ExceptionDispatchInfo.Capture(exception).Throw();
+            }
+        }
     }
 }
 
