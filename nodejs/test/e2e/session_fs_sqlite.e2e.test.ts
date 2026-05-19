@@ -95,7 +95,7 @@ describe("Session Fs SQLite", async () => {
         });
 
         // Ask the agent to use the task tool to spawn a subagent that uses SQL
-        const msg = await session.sendAndWait({
+        await session.sendAndWait({
             prompt:
                 'Use the task tool to ask a task agent to do the following: ' +
                 'Use the sql tool to run this query: INSERT INTO todos (id, title, status) VALUES (\'subagent-test\', \'Created by subagent\', \'done\')',
