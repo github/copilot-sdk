@@ -211,27 +211,13 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Resume_A_Session_Using_The_Same_Client()
+    public async Task Should_Reject_Resuming_Active_Session_Using_The_Same_Client()
     {
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
-        await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session1);
-        Assert.NotNull(answer);
-        Assert.Contains("2", answer!.Data.Content ?? string.Empty);
-
-        var session2 = await ResumeSessionAsync(sessionId);
-        Assert.Equal(sessionId, session2.SessionId);
-
-        var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2, alreadyIdle: true);
-        Assert.NotNull(answer2);
-        Assert.Contains("2", answer2!.Data.Content ?? string.Empty);
-
-        // Can continue the conversation statefully
-        var answer3 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
-        Assert.NotNull(answer3);
-        Assert.Contains("4", answer3!.Data.Content ?? string.Empty);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => ResumeSessionAsync(sessionId));
+        Assert.Contains(sessionId, exception.Message);
     }
 
     [Fact]

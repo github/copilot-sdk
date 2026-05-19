@@ -597,6 +597,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         RegisterSession(session);
+        session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.CreateSessionAsync local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
             setupTimestamp,
@@ -762,6 +763,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
         RegisterSession(session);
+        session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.ResumeSessionAsync local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
             setupTimestamp,
@@ -1749,7 +1751,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private void RegisterSession(CopilotSession session)
     {
-        _sessions[session.SessionId] = session;
+        if (!_sessions.TryAdd(session.SessionId, session))
+        {
+            throw new InvalidOperationException($"Session '{session.SessionId}' is already tracked by this client.");
+        }
     }
 
     private void RemoveSession(string sessionId)

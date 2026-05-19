@@ -159,8 +159,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _parentClient = client;
         WorkspacePath = workspacePath;
 
-        // Start the asynchronous processing loop.
-        _ = ProcessEventsAsync();
     }
 
     /// <summary>
@@ -178,6 +176,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     internal void RemoveFromClient()
     {
         ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
+    }
+
+    internal void StartProcessingEvents()
+    {
+        _ = ProcessEventsAsync();
     }
 
     private Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)

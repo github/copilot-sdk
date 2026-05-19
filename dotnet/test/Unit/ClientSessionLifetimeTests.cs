@@ -115,30 +115,25 @@ public sealed class ClientSessionLifetimeTests
     }
 
     [Fact]
-    public async Task Disposing_Replaced_Session_Does_Not_Remove_Current_SameId_Session()
+    public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();
         await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
 
         var sessionId = "same-session-id";
-        var oldSession = await client.CreateSessionAsync(new SessionConfig
+        await using var session = await client.CreateSessionAsync(new SessionConfig
         {
             SessionId = sessionId,
             OnPermissionRequest = PermissionHandler.ApproveAll
         });
         AssertSessionCount(client, sessions: 1);
 
-        var currentSession = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll
-        });
+        }));
+        Assert.Contains(sessionId, exception.Message);
         AssertSessionCount(client, sessions: 1);
-
-        await oldSession.DisposeAsync();
-        AssertSessionCount(client, sessions: 1);
-
-        await currentSession.DisposeAsync();
-        AssertSessionCount(client, sessions: 0);
     }
 
     [Fact]
