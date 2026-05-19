@@ -124,27 +124,76 @@ function placeholderToQuicktypeIdentifier(placeholder: string): string {
         .join("");
 }
 
-function postProcessExternalRefsForPython(code: string, placeholderToReal: Map<string, string>): string {
+function placeholderToQuicktypeIdentifiers(placeholder: string): string[] {
+    const basic = placeholderToQuicktypeIdentifier(placeholder);
+    return [...new Set([basic, basic.replace(/Mcp/g, "MCP")])];
+}
+
+function postProcessExternalRefsForPython(
+    code: string,
+    placeholderToReal: Map<string, string>,
+    externalEnumNames: Set<string> = new Set()
+): string {
     for (const [placeholder, realName] of placeholderToReal) {
-        const quicktypeName = placeholderToQuicktypeIdentifier(placeholder);
-        code = code.replace(
-            new RegExp(
-                `(?:^|\\n)@dataclass\\r?\\nclass ${quicktypeName}\\b[\\s\\S]*?(?=\\n@dataclass\\b|\\nclass\\s+\\w|\\ndef\\s+\\w|$)`,
-                "g"
-            ),
-            "\n"
-        );
-        code = code.replace(
-            new RegExp(
-                `(?:^|\\n)class ${quicktypeName}\\w*\\(Enum\\):[\\s\\S]*?(?=\\nclass\\s+\\w|\\n@dataclass\\b|\\ndef\\s+\\w|$)`,
-                "g"
-            ),
-            "\n"
-        );
-        code = code.replace(new RegExp(`\\b${quicktypeName}\\b`, "g"), realName);
+        for (const quicktypeName of placeholderToQuicktypeIdentifiers(placeholder)) {
+            code = code.replace(
+                new RegExp(
+                    `(?:^|\\n)@dataclass\\r?\\nclass ${quicktypeName}\\b[\\s\\S]*?(?=\\n@dataclass\\b|\\nclass\\s+\\w|\\ndef\\s+\\w|$)`,
+                    "g"
+                ),
+                "\n"
+            );
+            code = code.replace(
+                new RegExp(
+                    `(?:^|\\n)class ${quicktypeName}\\w*\\(Enum\\):[\\s\\S]*?(?=\\nclass\\s+\\w|\\n@dataclass\\b|\\ndef\\s+\\w|$)`,
+                    "g"
+                ),
+                "\n"
+            );
+            code = code.replace(new RegExp(`\\b${quicktypeName}\\b`, "g"), realName);
+        }
+        if (externalEnumNames.has(realName)) {
+            code = code.replace(new RegExp(`\\b${realName}\\.from_dict\\b`, "g"), realName);
+            code = code.replace(
+                new RegExp(`to_class\\(${realName},\\s*([^)]+)\\)`, "g"),
+                `to_enum(${realName}, $1)`
+            );
+        }
     }
 
     return code.replace(/\n{3,}/g, "\n\n");
+}
+
+function collectPythonExternalEnumNames(
+    schema: JSONSchema7 | undefined,
+    placeholderToReal: Map<string, string>
+): Set<string> {
+    const enumNames = new Set<string>();
+    if (!schema) return enumNames;
+
+    const definitions = collectDefinitionCollections(schema as Record<string, unknown>);
+    for (const realName of placeholderToReal.values()) {
+        const definition = definitions.definitions[realName] ?? definitions.$defs[realName];
+        const resolved = definition ? resolveSchema(definition, definitions) ?? definition : undefined;
+        if (
+            resolved?.enum &&
+            Array.isArray(resolved.enum) &&
+            resolved.enum.every((value) => typeof value === "string")
+        ) {
+            enumNames.add(realName);
+        }
+    }
+
+    return enumNames;
+}
+
+function preservePythonRpcStringDateFields(definitions: Record<string, JSONSchema7>): void {
+    const quotaSnapshot = definitions.AccountQuotaSnapshot;
+    const resetDate = quotaSnapshot?.properties?.resetDate as JSONSchema7 | undefined;
+    if (resetDate?.type === "string" && resetDate.format === "date-time") {
+        // Keep the existing Python API shape: AccountQuotaSnapshot.reset_date is an ISO string.
+        delete resetDate.format;
+    }
 }
 
 function collectExternalUnionAliasesForPython(
@@ -2081,6 +2130,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     }
 
     const allDefinitions = combinedSchema.definitions! as Record<string, JSONSchema7>;
+    preservePythonRpcStringDateFields(allDefinitions);
     const allDefinitionCollections: DefinitionCollections = {
         definitions: { ...(combinedSchema.$defs ?? {}), ...allDefinitions },
         $defs: { ...allDefinitions, ...(combinedSchema.$defs ?? {}) },
@@ -2099,6 +2149,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         required: Object.keys(allDefinitions),
     };
     const externalRefs = rewriteExternalRefsForPython(singleSchema as JSONSchema7 & { definitions?: Record<string, JSONSchema7> });
+    const externalEnumNames = collectPythonExternalEnumNames(sessionEventsSchema, externalRefs.placeholderNames);
     const externalUnionAliases = collectExternalUnionAliasesForPython(
         singleSchema.definitions as Record<string, JSONSchema7>,
         externalRefs.placeholderNames
@@ -2126,7 +2177,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const knownDefNames = new Set(Object.keys(allDefinitions).map((n) => n.toLowerCase()));
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
     typesCode = postProcessExternalUnionAliasesForPython(typesCode, externalUnionAliases);
-    typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames);
+    typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames, externalEnumNames);
     typesCode = modernizePython(typesCode);
 
     // Fix quicktype's Enum-suffix renaming: quicktype sometimes renames "Xyz" to
@@ -2244,6 +2295,15 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
             if (actualName !== defName && !actualTypeNames.has(defName.toLowerCase()) && /^[A-Za-z_]\w*$/.test(defName)) {
                 publicTypeAliases.set(defName, actualName);
             }
+        }
+    }
+    const compatibilityTypeAliases = new Map([
+        ["TaskInfoExecutionMode", "TaskExecutionMode"],
+        ["TaskInfoStatus", "TaskStatus"],
+    ]);
+    for (const [aliasName, targetName] of compatibilityTypeAliases) {
+        if (actualTypeNames.has(targetName.toLowerCase()) && !actualTypeNames.has(aliasName.toLowerCase())) {
+            publicTypeAliases.set(aliasName, actualTypeNames.get(targetName.toLowerCase()) ?? targetName);
         }
     }
 

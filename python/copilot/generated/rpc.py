@@ -51,9 +51,6 @@ def from_float(x: Any) -> float:
     assert isinstance(x, (float, int)) and not isinstance(x, bool)
     return float(x)
 
-def from_datetime(x: Any) -> datetime:
-    return dateutil.parser.parse(x)
-
 def to_float(x: Any) -> float:
     assert isinstance(x, (int, float))
     return x
@@ -73,6 +70,9 @@ def from_list(f: Callable[[Any], T], x: Any) -> list[T]:
 def to_enum(c: type[EnumT], x: Any) -> EnumT:
     assert isinstance(x, c)
     return x.value
+
+def from_datetime(x: Any) -> datetime:
+    return dateutil.parser.parse(x)
 
 @dataclass
 class AccountGetQuotaRequest:
@@ -118,7 +118,7 @@ class AccountQuotaSnapshot:
     used_requests: int
     """Number of requests used so far this period"""
 
-    reset_date: datetime | None = None
+    reset_date: str | None = None
     """Date when the quota resets (ISO 8601 string)"""
 
     @staticmethod
@@ -131,7 +131,7 @@ class AccountQuotaSnapshot:
         remaining_percentage = from_float(obj.get("remainingPercentage"))
         usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
         used_requests = from_int(obj.get("usedRequests"))
-        reset_date = from_union([from_datetime, from_none], obj.get("resetDate"))
+        reset_date = from_union([from_str, from_none], obj.get("resetDate"))
         return AccountQuotaSnapshot(entitlement_requests, is_unlimited_entitlement, overage, overage_allowed_with_exhausted_quota, remaining_percentage, usage_allowed_with_exhausted_quota, used_requests, reset_date)
 
     def to_dict(self) -> dict:
@@ -144,7 +144,7 @@ class AccountQuotaSnapshot:
         result["usageAllowedWithExhaustedQuota"] = from_bool(self.usage_allowed_with_exhausted_quota)
         result["usedRequests"] = from_int(self.used_requests)
         if self.reset_date is not None:
-            result["resetDate"] = from_union([lambda x: x.isoformat(), from_none], self.reset_date)
+            result["resetDate"] = from_union([from_str, from_none], self.reset_date)
         return result
 
 @dataclass
@@ -473,23 +473,6 @@ class CurrentModel:
         result: dict = {}
         if self.model_id is not None:
             result["modelId"] = from_union([from_str, from_none], self.model_id)
-        return result
-
-@dataclass
-class ExternalRefMCPServerSource:
-    """Configuration source: user, workspace, plugin, or builtin"""
-
-    external_ref_marker_external_ref_mcp_server_source: str
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'ExternalRefMCPServerSource':
-        assert isinstance(obj, dict)
-        external_ref_marker_external_ref_mcp_server_source = from_str(obj.get("__externalRefMarker___ExternalRef_McpServerSource"))
-        return ExternalRefMCPServerSource(external_ref_marker_external_ref_mcp_server_source)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["__externalRefMarker___ExternalRef_McpServerSource"] = from_str(self.external_ref_marker_external_ref_mcp_server_source)
         return result
 
 class DiscoveredMCPServerType(Enum):
@@ -992,20 +975,38 @@ class MCPOauthLoginResult:
         return result
 
 @dataclass
-class ExternalRefMCPServerStatus:
+class MCPServer:
+    """Schema for the `McpServer` type."""
+
+    name: str
+    """Server name (config key)"""
+
+    status: McpServerStatus
     """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
 
-    external_ref_marker_external_ref_mcp_server_status: str
+    error: str | None = None
+    """Error message if the server failed to connect"""
+
+    source: McpServerSource | None = None
+    """Configuration source: user, workspace, plugin, or builtin"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalRefMCPServerStatus':
+    def from_dict(obj: Any) -> 'MCPServer':
         assert isinstance(obj, dict)
-        external_ref_marker_external_ref_mcp_server_status = from_str(obj.get("__externalRefMarker___ExternalRef_McpServerStatus"))
-        return ExternalRefMCPServerStatus(external_ref_marker_external_ref_mcp_server_status)
+        name = from_str(obj.get("name"))
+        status = McpServerStatus(obj.get("status"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        source = from_union([McpServerSource, from_none], obj.get("source"))
+        return MCPServer(name, status, error, source)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["__externalRefMarker___ExternalRef_McpServerStatus"] = from_str(self.external_ref_marker_external_ref_mcp_server_status)
+        result["name"] = from_str(self.name)
+        result["status"] = to_enum(McpServerStatus, self.status)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.source is not None:
+            result["source"] = from_union([lambda x: to_enum(McpServerSource, x), from_none], self.source)
         return result
 
 @dataclass
@@ -1018,12 +1019,12 @@ class ModeSetRequest:
     @staticmethod
     def from_dict(obj: Any) -> 'ModeSetRequest':
         assert isinstance(obj, dict)
-        mode = SessionMode.from_dict(obj.get("mode"))
+        mode = SessionMode(obj.get("mode"))
         return ModeSetRequest(mode)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["mode"] = to_class(SessionMode, self.mode)
+        result["mode"] = to_enum(SessionMode, self.mode)
         return result
 
 @dataclass
@@ -1648,7 +1649,7 @@ class ServerSkill:
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
-        source = SkillSource.from_dict(obj.get("source"))
+        source = SkillSource(obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
         path = from_union([from_str, from_none], obj.get("path"))
         project_path = from_union([from_str, from_none], obj.get("projectPath"))
@@ -1659,7 +1660,7 @@ class ServerSkill:
         result["description"] = from_str(self.description)
         result["enabled"] = from_bool(self.enabled)
         result["name"] = from_str(self.name)
-        result["source"] = to_class(SkillSource, self.source)
+        result["source"] = to_enum(SkillSource, self.source)
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.path is not None:
             result["path"] = from_union([from_str, from_none], self.path)
@@ -2232,7 +2233,7 @@ class Skill:
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
-        source = SkillSource.from_dict(obj.get("source"))
+        source = SkillSource(obj.get("source"))
         user_invocable = from_bool(obj.get("userInvocable"))
         path = from_union([from_str, from_none], obj.get("path"))
         return Skill(description, enabled, name, source, user_invocable, path)
@@ -2242,7 +2243,7 @@ class Skill:
         result["description"] = from_str(self.description)
         result["enabled"] = from_bool(self.enabled)
         result["name"] = from_str(self.name)
-        result["source"] = to_class(SkillSource, self.source)
+        result["source"] = to_enum(SkillSource, self.source)
         result["userInvocable"] = from_bool(self.user_invocable)
         if self.path is not None:
             result["path"] = from_union([from_str, from_none], self.path)
@@ -3317,7 +3318,7 @@ class DiscoveredMCPServer:
     name: str
     """Server name (config key)"""
 
-    source: ExternalRefMCPServerSource
+    source: McpServerSource
     """Configuration source: user, workspace, plugin, or builtin"""
 
     type: DiscoveredMCPServerType | None = None
@@ -3328,7 +3329,7 @@ class DiscoveredMCPServer:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
-        source = ExternalRefMCPServerSource.from_dict(obj.get("source"))
+        source = McpServerSource(obj.get("source"))
         type = from_union([DiscoveredMCPServerType, from_none], obj.get("type"))
         return DiscoveredMCPServer(enabled, name, source, type)
 
@@ -3336,7 +3337,7 @@ class DiscoveredMCPServer:
         result: dict = {}
         result["enabled"] = from_bool(self.enabled)
         result["name"] = from_str(self.name)
-        result["source"] = to_class(ExternalRefMCPServerSource, self.source)
+        result["source"] = to_enum(McpServerSource, self.source)
         if self.type is not None:
             result["type"] = from_union([lambda x: to_enum(DiscoveredMCPServerType, x), from_none], self.type)
         return result
@@ -3951,38 +3952,21 @@ class MCPServerConfigHTTP:
         return result
 
 @dataclass
-class MCPServer:
-    """Schema for the `McpServer` type."""
+class MCPServerList:
+    """MCP servers configured for the session, with their connection status."""
 
-    name: str
-    """Server name (config key)"""
-
-    status: ExternalRefMCPServerStatus
-    """Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"""
-
-    error: str | None = None
-    """Error message if the server failed to connect"""
-
-    source: ExternalRefMCPServerSource | None = None
-    """Configuration source: user, workspace, plugin, or builtin"""
+    servers: list[MCPServer]
+    """Configured MCP servers"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServer':
+    def from_dict(obj: Any) -> 'MCPServerList':
         assert isinstance(obj, dict)
-        name = from_str(obj.get("name"))
-        status = ExternalRefMCPServerStatus.from_dict(obj.get("status"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        source = from_union([ExternalRefMCPServerSource.from_dict, from_none], obj.get("source"))
-        return MCPServer(name, status, error, source)
+        servers = from_list(MCPServer.from_dict, obj.get("servers"))
+        return MCPServerList(servers)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["name"] = from_str(self.name)
-        result["status"] = to_class(ExternalRefMCPServerStatus, self.status)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.source is not None:
-            result["source"] = from_union([lambda x: to_class(ExternalRefMCPServerSource, x), from_none], self.source)
+        result["servers"] = from_list(lambda x: to_class(MCPServer, x), self.servers)
         return result
 
 @dataclass
@@ -4841,7 +4825,7 @@ class SlashCommandAgentPromptResult:
         display_prompt = from_str(obj.get("displayPrompt"))
         kind = SlashCommandAgentPromptResultKind(obj.get("kind"))
         prompt = from_str(obj.get("prompt"))
-        mode = from_union([SessionMode.from_dict, from_none], obj.get("mode"))
+        mode = from_union([SessionMode, from_none], obj.get("mode"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
         return SlashCommandAgentPromptResult(display_prompt, kind, prompt, mode, runtime_settings_changed)
 
@@ -4851,7 +4835,7 @@ class SlashCommandAgentPromptResult:
         result["kind"] = to_enum(SlashCommandAgentPromptResultKind, self.kind)
         result["prompt"] = from_str(self.prompt)
         if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_class(SessionMode, x), from_none], self.mode)
+            result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
         if self.runtime_settings_changed is not None:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
@@ -5830,24 +5814,6 @@ class MCPConfigUpdateRequest:
         return result
 
 @dataclass
-class MCPServerList:
-    """MCP servers configured for the session, with their connection status."""
-
-    servers: list[MCPServer]
-    """Configured MCP servers"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerList':
-        assert isinstance(obj, dict)
-        servers = from_list(MCPServer.from_dict, obj.get("servers"))
-        return MCPServerList(servers)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["servers"] = from_list(lambda x: to_class(MCPServer, x), self.servers)
-        return result
-
-@dataclass
 class ModelCapabilitiesOverride:
     """Override individual model capabilities resolved by the runtime"""
 
@@ -6105,7 +6071,7 @@ class SlashCommandInvocationResult:
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
         text = from_union([from_str, from_none], obj.get("text"))
         display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
-        mode = from_union([SessionMode.from_dict, from_none], obj.get("mode"))
+        mode = from_union([SessionMode, from_none], obj.get("mode"))
         prompt = from_union([from_str, from_none], obj.get("prompt"))
         message = from_union([from_str, from_none], obj.get("message"))
         return SlashCommandInvocationResult(kind, markdown, preserve_ansi, runtime_settings_changed, text, display_prompt, mode, prompt, message)
@@ -6124,7 +6090,7 @@ class SlashCommandInvocationResult:
         if self.display_prompt is not None:
             result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
         if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_class(SessionMode, x), from_none], self.mode)
+            result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
         if self.prompt is not None:
             result["prompt"] = from_union([from_str, from_none], self.prompt)
         if self.message is not None:
@@ -7200,7 +7166,7 @@ class ModelSwitchToRequest:
         model_id = from_str(obj.get("modelId"))
         model_capabilities = from_union([ModelCapabilitiesOverride.from_dict, from_none], obj.get("modelCapabilities"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
-        reasoning_summary = from_union([ReasoningSummary.from_dict, from_none], obj.get("reasoningSummary"))
+        reasoning_summary = from_union([ReasoningSummary, from_none], obj.get("reasoningSummary"))
         return ModelSwitchToRequest(model_id, model_capabilities, reasoning_effort, reasoning_summary)
 
     def to_dict(self) -> dict:
@@ -7211,7 +7177,7 @@ class ModelSwitchToRequest:
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_str, from_none], self.reasoning_effort)
         if self.reasoning_summary is not None:
-            result["reasoningSummary"] = from_union([lambda x: to_class(ReasoningSummary, x), from_none], self.reasoning_summary)
+            result["reasoningSummary"] = from_union([lambda x: to_enum(ReasoningSummary, x), from_none], self.reasoning_summary)
         return result
 
 @dataclass
@@ -7944,7 +7910,7 @@ class RPC:
         session_fs_stat_result = SessionFSStatResult.from_dict(obj.get("SessionFsStatResult"))
         session_fs_write_file_request = SessionFSWriteFileRequest.from_dict(obj.get("SessionFsWriteFileRequest"))
         session_log_level = SessionLogLevel(obj.get("SessionLogLevel"))
-        session_mode = SessionMode.from_dict(obj.get("SessionMode"))
+        session_mode = SessionMode(obj.get("SessionMode"))
         sessions_fork_request = SessionsForkRequest.from_dict(obj.get("SessionsForkRequest"))
         sessions_fork_result = SessionsForkResult.from_dict(obj.get("SessionsForkResult"))
         shell_exec_request = ShellExecRequest.from_dict(obj.get("ShellExecRequest"))
@@ -8207,7 +8173,7 @@ class RPC:
         result["SessionFsStatResult"] = to_class(SessionFSStatResult, self.session_fs_stat_result)
         result["SessionFsWriteFileRequest"] = to_class(SessionFSWriteFileRequest, self.session_fs_write_file_request)
         result["SessionLogLevel"] = to_enum(SessionLogLevel, self.session_log_level)
-        result["SessionMode"] = to_class(SessionMode, self.session_mode)
+        result["SessionMode"] = to_enum(SessionMode, self.session_mode)
         result["SessionsForkRequest"] = to_class(SessionsForkRequest, self.sessions_fork_request)
         result["SessionsForkResult"] = to_class(SessionsForkResult, self.sessions_fork_result)
         result["ShellExecRequest"] = to_class(ShellExecRequest, self.shell_exec_request)
@@ -8295,6 +8261,8 @@ def rpc_to_dict(x: RPC) -> Any:
 
 ExternalToolResult = ExternalToolTextResultForLlm
 FilterMapping = dict
+TaskInfoExecutionMode = TaskExecutionMode
+TaskInfoStatus = TaskStatus
 
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""

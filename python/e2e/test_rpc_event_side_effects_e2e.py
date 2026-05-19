@@ -69,8 +69,8 @@ class TestRpcEventSideEffects:
                 event = await asyncio.wait_for(changed_future, timeout=15.0)
 
                 assert isinstance(event.data, SessionModeChangedData)
-                assert event.data.new_mode == SessionMode.PLAN.value
-                assert event.data.previous_mode == SessionMode.INTERACTIVE.value
+                assert event.data.new_mode == SessionMode.PLAN
+                assert event.data.previous_mode == SessionMode.INTERACTIVE
             finally:
                 unsubscribe()
         finally:
