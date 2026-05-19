@@ -187,6 +187,11 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
                 return toSessionFsError(err);
             }
         },
+        // Unlike the FS methods above, SQLite methods let errors propagate to the JSON-RPC layer
+        // rather than catching and mapping via toSessionFsError. The FS error mapping is specifically
+        // for translating Node.js errno codes (e.g., ENOENT) into SessionFsError, which isn't
+        // meaningful for SQL errors. Letting exceptions propagate preserves the original error
+        // message in the JSON-RPC error response.
         sqliteQuery: async ({ queryType, query, params: bindParams }) => {
             if (!provider.sqlite) {
                 throw new Error("SQLite is not supported by this provider");
