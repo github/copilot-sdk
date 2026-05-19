@@ -13,6 +13,7 @@
 import { execFile } from "child_process";
 import fs from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
@@ -28,6 +29,7 @@ import {
 	collectRpcMethodReferencedDefinitionNames,
 	findSharedSchemaDefinitions,
 	getApiSchemaPath,
+	getEnumValueDescriptions,
 	getNullableInner,
 	getRpcSchemaTypeName,
 	getSessionEventsSchemaPath,
@@ -45,6 +47,7 @@ import {
 	resolveSchema,
 	rewriteSharedDefinitionReferences,
 	stripBooleanLiterals,
+	type EnumValueDescriptions,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
@@ -523,6 +526,7 @@ function resolveRustType(
 					resolved.enum as string[],
 					ctx,
 					resolved.description,
+					getEnumValueDescriptions(resolved),
 					isSchemaExperimental(resolved),
 				);
 				return wrapOption(typeName, isRequired);
@@ -625,6 +629,7 @@ function resolveRustType(
 			propSchema.enum as string[],
 			ctx,
 			propSchema.description,
+			getEnumValueDescriptions(propSchema),
 			isSchemaExperimental(propSchema),
 		);
 		return wrapOption(enumName, isRequired);
@@ -854,6 +859,7 @@ function emitRustStringEnum(
 	values: string[],
 	ctx: RustCodegenCtx,
 	description?: string,
+	enumValueDescriptions?: EnumValueDescriptions,
 	experimental = false,
 ): void {
 	if (ctx.generatedNames.has(enumName)) return;
@@ -880,6 +886,7 @@ function emitRustStringEnum(
 			"Value",
 			reservedVariantNames,
 		);
+		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
 		if (variantName !== value) {
 			lines.push(`    #[serde(rename = "${value}")]`);
 		}
@@ -995,7 +1002,7 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 		.filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
 }
 
-function generateSessionEventsCode(schema: JSONSchema7): string {
+export function generateSessionEventsCode(schema: JSONSchema7): string {
 	const variants = extractEventVariants(schema);
 	const ctx = makeCtx(
 		collectDefinitionCollections(schema as Record<string, unknown>),
@@ -1361,6 +1368,7 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				schema.enum as string[],
 				ctx,
 				schema.description,
+				getEnumValueDescriptions(schema),
 				isSchemaExperimental(schema),
 			);
 		} else if (asGeneratedObjectSchema(schema, defCollections)) {
@@ -2025,7 +2033,11 @@ async function generate(): Promise<void> {
 	console.log(`Done! Generated files in ${GENERATED_DIR}`);
 }
 
-generate().catch((err) => {
-	console.error("Code generation failed:", err);
-	process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+	generate().catch((err) => {
+		console.error("Code generation failed:", err);
+		process.exit(1);
+	});
+}

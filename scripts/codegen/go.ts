@@ -9,6 +9,8 @@
 import { execFile } from "child_process";
 import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
+import path from "path";
+import { fileURLToPath } from "url";
 import { promisify } from "util";
 import wordwrap from "wordwrap";
 import {
@@ -23,6 +25,7 @@ import {
     findSharedSchemaDefinitions,
     getApiSchemaPath,
     getNullableInner,
+    getEnumValueDescriptions,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     getSessionEventVariantSchemas,
@@ -45,6 +48,7 @@ import {
     writeGeneratedFile,
     type ApiSchema,
     type DefinitionCollections,
+    type EnumValueDescriptions,
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
@@ -630,6 +634,7 @@ function getOrCreateGoEnum(
     values: string[],
     ctx: GoCodegenCtx,
     description?: string,
+    enumValueDescriptions?: EnumValueDescriptions,
     deprecated?: boolean,
     experimental?: boolean
 ): string {
@@ -662,6 +667,10 @@ function getOrCreateGoEnum(
             );
         }
         usedConstNames.set(constName, value);
+        const valueDescription = enumValueDescriptions?.[value];
+        if (valueDescription) {
+            pushGoCommentForContext(lines, valueDescription, ctx, "\t");
+        }
         lines.push(`\t${constName} ${enumName} = "${value}"`);
     }
     lines.push(`)`);
@@ -754,7 +763,7 @@ function resolveGoPropertyType(
         if (resolved) {
             if (resolved.enum) {
                 if ((resolved.enum as unknown[]).every((value) => typeof value === "string")) {
-                    const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
+                    const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, getEnumValueDescriptions(resolved), isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
                     return isRequired ? enumType : `*${enumType}`;
                 }
                 if (resolved.enum.length === 1) {
@@ -814,7 +823,7 @@ function resolveGoPropertyType(
     // Handle enum
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
         if ((propSchema.enum as unknown[]).every((value) => typeof value === "string")) {
-            const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
+            const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, getEnumValueDescriptions(propSchema), isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
             return isRequired ? enumType : `*${enumType}`;
         }
         if (propSchema.enum.length === 1) {
@@ -829,7 +838,7 @@ function resolveGoPropertyType(
         if (typeof propSchema.const !== "string") {
             return resolveGoPropertyType(schemaForConstValue(propSchema.const), parentTypeName, jsonPropName, isRequired, ctx);
         }
-        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, [propSchema.const], ctx, propSchema.description, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, [propSchema.const], ctx, propSchema.description, getEnumValueDescriptions(propSchema), isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -1612,6 +1621,7 @@ function emitGoFlatDiscriminatedUnion(
             discValues,
             ctx,
             `${discGoName} discriminator for ${typeName}.`,
+            undefined,
             false,
             experimental
         );
@@ -2479,7 +2489,7 @@ function goUntaggedUnionVariant(typeName: string, member: JSONSchema7, ctx: GoCo
     }
 
     if (resolved.enum && Array.isArray(resolved.enum)) {
-        const enumType = getOrCreateGoEnum((resolved.title as string) || `${typeName}Enum`, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
+        const enumType = getOrCreateGoEnum((resolved.title as string) || `${typeName}Enum`, resolved.enum as string[], ctx, resolved.description, getEnumValueDescriptions(resolved), isSchemaDeprecated(resolved));
         return { typeName: enumType, goType: enumType, jsonKind, returnExpr: "value" };
     }
 
@@ -2785,7 +2795,7 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
     const effectiveSchema = resolveObjectSchema(schema, ctx.definitions) ?? resolveSchema(schema, ctx.definitions) ?? schema;
 
     if (isStringEnumDefinition(effectiveSchema)) {
-        getOrCreateGoEnum(typeName, effectiveSchema.enum, ctx, effectiveSchema.description, isSchemaDeprecated(effectiveSchema), isSchemaExperimental(effectiveSchema));
+        getOrCreateGoEnum(typeName, effectiveSchema.enum, ctx, effectiveSchema.description, getEnumValueDescriptions(effectiveSchema), isSchemaDeprecated(effectiveSchema), isSchemaExperimental(effectiveSchema));
         return typeName;
     }
 
@@ -2918,7 +2928,7 @@ function goDeclaredTypeName(code: string): string {
 /**
  * Generate the complete Go session-events file content.
  */
-function generateGoSessionEventsCode(schema: JSONSchema7, packageName: string): GoGeneratedTypeCode {
+export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: string): GoGeneratedTypeCode {
     const variants = extractGoEventVariants(schema);
     const ctx: GoCodegenCtx = {
         structs: [],
@@ -4006,9 +4016,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("Go generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("Go generation failed:", err);
+        process.exit(1);
+    });
+}

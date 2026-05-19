@@ -42,8 +42,10 @@ import {
     withSharedDefinitions,
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
+    getEnumValueDescriptions,
     type ApiSchema,
     type DefinitionCollections,
+    type EnumValueDescriptions,
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
@@ -1045,6 +1047,7 @@ function getPyNamedSchemaType(
             resolved.enum as string[],
             ctx,
             resolved.description,
+            getEnumValueDescriptions(resolved),
             isSchemaDeprecated(resolved),
             isSchemaExperimental(resolved)
         );
@@ -1126,6 +1129,7 @@ function getOrCreatePyEnum(
     values: string[],
     ctx: PyCodegenCtx,
     description?: string,
+    enumValueDescriptions?: EnumValueDescriptions,
     deprecated?: boolean,
     experimental?: boolean
 ): string {
@@ -1148,6 +1152,12 @@ function getOrCreatePyEnum(
         lines.push(`class ${enumName}(Enum):`);
     }
     for (const value of values) {
+        const valueDescription = enumValueDescriptions?.[value];
+        if (valueDescription) {
+            for (const line of valueDescription.split(/\r?\n/)) {
+                lines.push(`    # ${line.trimEnd()}`);
+            }
+        }
         lines.push(`    ${toEnumMemberName(value)} = ${JSON.stringify(value)}`);
     }
     ctx.enumsByName.set(enumName, enumName);
@@ -1170,7 +1180,7 @@ function resolvePyPropertyType(
         const resolved = resolveSchema(propSchema, ctx.definitions);
         if (resolved && resolved !== propSchema) {
             if (resolved.enum && Array.isArray(resolved.enum) && resolved.enum.every((value) => typeof value === "string")) {
-                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
+                const enumType = getOrCreatePyEnum(typeName, resolved.enum as string[], ctx, resolved.description, getEnumValueDescriptions(resolved), isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
                 const enumResolved: PyResolvedType = {
                     annotation: enumType,
                     fromExpr: (expr) => `parse_enum(${enumType}, ${expr})`,
@@ -1262,6 +1272,7 @@ function resolvePyPropertyType(
             propSchema.enum as string[],
             ctx,
             propSchema.description,
+            getEnumValueDescriptions(propSchema),
             isSchemaDeprecated(propSchema),
             isSchemaExperimental(propSchema)
         );
@@ -1603,6 +1614,7 @@ function emitPyFlatDiscriminatedUnion(
         [...mapping.keys()],
         ctx,
         description ? `${description} discriminator` : `${typeName} discriminator`,
+        undefined,
         false,
         experimental
     );
