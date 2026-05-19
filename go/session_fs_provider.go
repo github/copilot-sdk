@@ -44,6 +44,10 @@ type SessionFsProvider interface {
 	Rm(path string, recursive bool, force bool) error
 	// Rename moves/renames a file or directory.
 	Rename(src string, dest string) error
+	// SqliteQuery executes a SQLite query against the provider's per-session database.
+	SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error)
+	// SqliteExists checks whether the provider has a SQLite database for the session.
+	SqliteExists(sessionID string) (bool, error)
 }
 
 // SessionFsFileInfo holds file metadata returned by SessionFsProvider.Stat.
@@ -162,6 +166,27 @@ func (a *sessionFsAdapter) Rename(request *rpc.SessionFsRenameRequest) (*rpc.Ses
 		return toSessionFsError(err), nil
 	}
 	return nil, nil
+}
+
+func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest) (*rpc.SessionFsSqliteQueryResult, error) {
+	result, err := a.provider.SqliteQuery(request.SessionID, request.Query, request.QueryType, request.Params)
+	if err != nil {
+		return &rpc.SessionFsSqliteQueryResult{
+			Columns:      []string{},
+			Rows:         []map[string]any{},
+			RowsAffected: 0,
+			Error:        toSessionFsError(err),
+		}, nil
+	}
+	return result, nil
+}
+
+func (a *sessionFsAdapter) SqliteExists(request *rpc.SessionFsSqliteExistsRequest) (*rpc.SessionFsSqliteExistsResult, error) {
+	exists, err := a.provider.SqliteExists(request.SessionID)
+	if err != nil {
+		return &rpc.SessionFsSqliteExistsResult{Exists: false}, nil
+	}
+	return &rpc.SessionFsSqliteExistsResult{Exists: exists}, nil
 }
 
 func toSessionFsError(err error) *rpc.SessionFsError {

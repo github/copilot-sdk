@@ -2,6 +2,7 @@
 
 import pytest
 
+from copilot.client import CopilotClient, SubprocessConfig
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -93,18 +94,32 @@ class TestPerSessionAuth:
     async def test_should_return_unauthenticated_when_no_token_provided(
         self, auth_ctx: E2ETestContext
     ):
-        session = await auth_ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all,
+        env = without_auth_env(auth_ctx.get_env())
+        env["COPILOT_DEBUG_GITHUB_API_URL"] = auth_ctx.proxy_url
+        no_token_client = CopilotClient(
+            SubprocessConfig(
+                cli_path=auth_ctx.cli_path,
+                cwd=auth_ctx.work_dir,
+                env=env,
+                use_logged_in_user=False,
+            )
         )
 
-        auth_status = await session.rpc.auth.get_status()
-        # Without a per-session token, there is no per-session identity.
-        # In CI the process-level fake token may still authenticate globally,
-        # so we check login rather than is_authenticated. On some platforms
-        # the absence of a login may surface as None, on others as an empty string.
-        assert not auth_status.login
+        try:
+            session = await no_token_client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
 
-        await session.disconnect()
+            auth_status = await session.rpc.auth.get_status()
+            # Without a per-session token, there is no per-session identity.
+            # In CI the process-level fake token may still authenticate globally,
+            # so we check login rather than is_authenticated. On some platforms
+            # the absence of a login may surface as None, on others as an empty string.
+            assert not auth_status.login
+
+            await session.disconnect()
+        finally:
+            await no_token_client.stop()
 
     async def test_should_error_when_creating_session_with_invalid_token(
         self, auth_ctx: E2ETestContext
@@ -114,3 +129,12 @@ class TestPerSessionAuth:
                 on_permission_request=PermissionHandler.approve_all,
                 github_token="invalid-token-12345",
             )
+
+
+def without_auth_env(env: dict[str, str]) -> dict[str, str]:
+    return {
+        **env,
+        "COPILOT_SDK_AUTH_TOKEN": "",
+        "GH_TOKEN": "",
+        "GITHUB_TOKEN": "",
+    }

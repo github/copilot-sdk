@@ -90,7 +90,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         Assert.Equal(2, chatQuota.Overage);
         Assert.True(chatQuota.UsageAllowedWithExhaustedQuota);
         Assert.True(chatQuota.OverageAllowedWithExhaustedQuota);
-        Assert.Equal("2026-04-30T00:00:00Z", chatQuota.ResetDate);
+        Assert.Equal(DateTimeOffset.Parse("2026-04-30T00:00:00Z"), chatQuota.ResetDate);
     }
 
     [Fact]

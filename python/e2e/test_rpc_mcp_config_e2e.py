@@ -19,7 +19,7 @@ from copilot.generated.rpc import (
     MCPConfigUpdateRequest,
     MCPServerConfig,
     MCPServerConfigHTTPOauthGrantType,
-    MCPServerConfigType,
+    MCPServerConfigHTTPType,
 )
 
 from .testharness import E2ETestContext
@@ -71,7 +71,7 @@ class TestRpcMcpConfig:
 
         server_name = f"sdk-http-oauth-{uuid.uuid4().hex}"
         config = MCPServerConfig(
-            type=MCPServerConfigType.HTTP,
+            type=MCPServerConfigHTTPType.HTTP,
             url="https://example.com/mcp",
             headers={"Authorization": "Bearer token"},
             oauth_client_id="client-id",
@@ -81,7 +81,7 @@ class TestRpcMcpConfig:
             timeout=3000,
         )
         updated_config = MCPServerConfig(
-            type=MCPServerConfigType.HTTP,
+            type=MCPServerConfigHTTPType.HTTP,
             url="https://example.com/updated-mcp",
             oauth_client_id="updated-client-id",
             oauth_public_client=True,
@@ -96,7 +96,7 @@ class TestRpcMcpConfig:
             )
             after_add = await ctx.client.rpc.mcp.config.list()
             added = _server_config(after_add.servers, server_name)
-            assert added.type == MCPServerConfigType.HTTP
+            assert added.type == MCPServerConfigHTTPType.HTTP
             assert added.url == "https://example.com/mcp"
             assert added.headers is not None
             assert added.headers["Authorization"] == "Bearer token"

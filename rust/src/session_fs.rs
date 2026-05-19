@@ -9,10 +9,9 @@
 //! # Concurrency
 //!
 //! Each inbound `sessionFs.*` request is dispatched on its own spawned task,
-//! matching Node's behavior. Provider implementations MUST be safe for
-//! concurrent invocation across distinct paths. Use internal synchronization
-//! (e.g. [`tokio::sync::Mutex`] keyed by path) if your backing store needs
-//! ordering.
+//! so provider implementations MUST be safe for concurrent invocation across
+//! distinct paths. Use internal synchronization (e.g. [`tokio::sync::Mutex`]
+//! keyed by path) if your backing store needs ordering.
 //!
 //! # Errors
 //!
@@ -41,12 +40,15 @@
 //! }
 //! ```
 
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 
 use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
 };
+pub use crate::generated::api_types::{SessionFsSqliteQueryResult, SessionFsSqliteQueryType};
 
 /// Configuration for a custom session filesystem provider.
 ///
@@ -343,6 +345,24 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     async fn rename(&self, src: &str, dest: &str) -> Result<(), FsError> {
         let _ = (src, dest);
         Err(FsError::Other("rename not supported".to_string()))
+    }
+
+    /// Execute a SQLite query against the provider's per-session database.
+    async fn sqlite_query(
+        &self,
+        session_id: &str,
+        query: &str,
+        query_type: SessionFsSqliteQueryType,
+        params: Option<&HashMap<String, serde_json::Value>>,
+    ) -> Result<SessionFsSqliteQueryResult, FsError> {
+        let _ = (session_id, query, query_type, params);
+        Err(FsError::Other("sqlite_query not supported".to_string()))
+    }
+
+    /// Check whether the provider has a SQLite database for the session.
+    async fn sqlite_exists(&self, session_id: &str) -> Result<bool, FsError> {
+        let _ = session_id;
+        Err(FsError::Other("sqlite_exists not supported".to_string()))
     }
 }
 

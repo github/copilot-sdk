@@ -9,6 +9,8 @@ import pytest
 from copilot.generated.session_events import (
     AutoModeSwitchCompletedData,
     AutoModeSwitchRequestedData,
+    AutoModeSwitchResponse,
+    ExitPlanModeAction,
     ExitPlanModeCompletedData,
     ExitPlanModeRequestedData,
     SessionIdleData,
@@ -104,7 +106,7 @@ class TestModeHandlers:
                     lambda event: (
                         isinstance(event.data, ExitPlanModeCompletedData)
                         and event.data.approved is True
-                        and event.data.selected_action == "interactive"
+                        and event.data.selected_action == ExitPlanModeAction.INTERACTIVE
                     ),
                 )
             )
@@ -126,7 +128,7 @@ class TestModeHandlers:
 
             completed = await completed_event
             assert completed.data.approved is True
-            assert completed.data.selected_action == "interactive"
+            assert completed.data.selected_action == ExitPlanModeAction.INTERACTIVE
             assert completed.data.feedback == "Approved by the Python E2E test"
             assert response is not None
         finally:
@@ -164,7 +166,7 @@ class TestModeHandlers:
                     session,
                     lambda event: (
                         isinstance(event.data, AutoModeSwitchCompletedData)
-                        and event.data.response == "yes"
+                        and event.data.response == AutoModeSwitchResponse.YES
                     ),
                 )
             )
@@ -192,7 +194,7 @@ class TestModeHandlers:
             assert requested.data.retry_after_seconds == 1
 
             completed = await completed_event
-            assert completed.data.response == "yes"
+            assert completed.data.response == AutoModeSwitchResponse.YES
 
             model_change = await model_change_event
             assert model_change.data.cause == "rate_limit_auto_switch"

@@ -1,7 +1,8 @@
+use github_copilot_sdk::generated::SessionMode;
 use github_copilot_sdk::generated::api_types::{
     HistoryTruncateRequest, McpOauthLoginRequest, ModeSetRequest, ModelSwitchToRequest,
-    NameSetRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest, SessionMode,
-    SessionsForkRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    NameSetRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest, SessionsForkRequest,
+    WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
 use github_copilot_sdk::generated::session_events::{
     AssistantMessageData, SessionEventType, SessionTitleChangedData,

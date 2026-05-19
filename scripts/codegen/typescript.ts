@@ -497,7 +497,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
     for (const method of rpcMethods) {
         const resultSchema = getMethodResultSchema(method);
-        if (!isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
+        const resultExternalRef = method.result?.$ref ? parseExternalSchemaRef(method.result.$ref) : undefined;
+        if (!resultExternalRef && !isVoidSchema(resultSchema) && !getNullableInner(resultSchema)) {
             const resultSource = schemaSourceForNamedDefinition(method.result, resultSchema);
             combinedSchema.definitions![resultTypeName(method)] = withRootTitle(
                 resultSource,
@@ -513,6 +514,10 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
         const resolvedParams = getMethodParamsSchema(method);
         if (method.params && hasSchemaPayload(resolvedParams)) {
+            const paramsExternalRef = method.params.$ref ? parseExternalSchemaRef(method.params.$ref) : undefined;
+            if (paramsExternalRef) {
+                continue;
+            }
             if (method.rpcMethod.startsWith("session.") && resolvedParams?.properties) {
                 const filtered: JSONSchema7 = {
                     ...resolvedParams,

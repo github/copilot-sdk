@@ -269,6 +269,16 @@ describe("Session Fs Adapter", () => {
             async rename(src: string, dest: string): Promise<void> {
                 await provider.rename(src, dest);
             },
+            async sqliteQuery(sessionId, query, queryType, params) {
+                return {
+                    columns: ["sessionId", "query", "queryType", "answer"],
+                    rows: [{ sessionId, query, queryType, answer: params?.answer }],
+                    rowsAffected: 0,
+                };
+            },
+            async sqliteExists(sessionId) {
+                return sessionId === "handler-session";
+            },
         };
         const handler = createSessionFsAdapter(userProvider);
 
@@ -339,6 +349,25 @@ describe("Session Fs Adapter", () => {
 
         const missing = await handler.stat(params({ path: "/workspace/nested/missing.txt" }));
         expect(missing.error?.code).toBe("ENOENT");
+
+        const sqliteQuery = await handler.sqliteQuery({
+            sessionId,
+            query: "select :answer as answer",
+            queryType: "query",
+            params: { answer: 42 },
+        });
+        expect(sqliteQuery.columns).toContain("answer");
+        expect(sqliteQuery.rows[0]).toMatchObject({
+            sessionId,
+            query: "select :answer as answer",
+            queryType: "query",
+            answer: 42,
+        });
+        expect(sqliteQuery.rowsAffected).toBe(0);
+        expect(sqliteQuery.error).toBeUndefined();
+
+        const sqliteExists = await handler.sqliteExists({ sessionId });
+        expect(sqliteExists.exists).toBe(true);
     });
 
     it("converts provider exceptions to RPC errors", async () => {
@@ -376,6 +405,12 @@ describe("Session Fs Adapter", () => {
             rename: async () => {
                 throw enoent;
             },
+            sqliteQuery: async () => {
+                throw enoent;
+            },
+            sqliteExists: async () => {
+                throw enoent;
+            },
         };
 
         const handler = createSessionFsAdapter(throwing);
@@ -410,6 +445,18 @@ describe("Session Fs Adapter", () => {
         assertEnoent((await handler.readdirWithTypes({ path: "missing-dir" } as never)).error);
         assertEnoent(await handler.rm({ path: "missing.txt" } as never));
         assertEnoent(await handler.rename({ src: "missing.txt", dest: "dest.txt" } as never));
+        const sqliteQuery = await handler.sqliteQuery({
+            sessionId: "throw-session",
+            query: "select 1",
+            queryType: "query",
+        });
+        assertEnoent(sqliteQuery.error);
+        expect(sqliteQuery.columns).toEqual([]);
+        expect(sqliteQuery.rows).toEqual([]);
+        expect(sqliteQuery.rowsAffected).toBe(0);
+
+        const sqliteExistsResult = await handler.sqliteExists({ sessionId: "throw-session" });
+        expect(sqliteExistsResult.exists).toBe(false);
 
         // Non-ENOENT errors map to UNKNOWN.
         const unknown: SessionFsProvider = {
@@ -507,6 +554,16 @@ function createTestSessionFsHandler(
         },
         async rename(src: string, dest: string): Promise<void> {
             await provider.rename(sp(src), sp(dest));
+        },
+        async sqliteQuery() {
+            return {
+                columns: [],
+                rows: [],
+                rowsAffected: 0,
+            };
+        },
+        async sqliteExists(sessionId) {
+            return sessionId === session.sessionId;
         },
     };
 }

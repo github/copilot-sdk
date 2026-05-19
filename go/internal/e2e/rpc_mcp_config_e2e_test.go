@@ -21,11 +21,11 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 
 		serverName := fmt.Sprintf("sdk-test-%s", randomHex(t))
 
-		baseConfig := &rpc.McpServerConfigLocal{
+		baseConfig := &rpc.McpServerConfigStdio{
 			Command: "node",
 			Args:    []string{"-v"},
 		}
-		updatedConfig := &rpc.McpServerConfigLocal{
+		updatedConfig := &rpc.McpServerConfigStdio{
 			Command: "node",
 			Args:    []string{"--version"},
 		}
@@ -73,7 +73,7 @@ func TestRpcMcpConfigE2E(t *testing.T) {
 		if !present {
 			t.Fatalf("Expected %q to still be present after Update", serverName)
 		}
-		updatedLocal, ok := updated.(*rpc.McpServerConfigLocal)
+		updatedLocal, ok := updated.(*rpc.McpServerConfigStdio)
 		if !ok {
 			t.Fatalf("Expected local MCP config, got %T", updated)
 		}

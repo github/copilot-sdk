@@ -5,7 +5,7 @@
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 
-import type { EmbeddedBlobResourceContents, EmbeddedTextResourceContents, ReasoningSummary } from "./session-events.js";
+import type { EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, ReasoningSummary, SessionMode, SkillSource } from "./session-events.js";
 
 /**
  * Authentication type
@@ -44,19 +44,19 @@ export type QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled
 /** @experimental */
 export type ConnectedRemoteSessionMetadataKind = "remote-session" | "coding-agent";
 /**
- * Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+ * Controls how MCP tool result content is filtered: none leaves content unchanged, markdown sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes characters that can hide directives.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ContentFilterMode".
+ */
+export type ContentFilterMode = "none" | "markdown" | "hidden_characters";
+/**
+ * Server transport type: stdio, http, sse, or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DiscoveredMcpServerType".
  */
 export type DiscoveredMcpServerType = "stdio" | "http" | "sse" | "memory";
-/**
- * Configuration source
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "DiscoveredMcpServerSource".
- */
-export type DiscoveredMcpServerSource = "user" | "workspace" | "plugin" | "builtin";
 /**
  * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
  *
@@ -80,6 +80,13 @@ export type ExtensionStatus = "running" | "disabled" | "failed" | "starting";
  * via the `definition` "ExternalToolResult".
  */
 export type ExternalToolResult = string | ExternalToolTextResultForLlm;
+/**
+ * Binary result type discriminator. Use "image" for images and "resource" for other binary data.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmBinaryResultsForLlmType".
+ */
+export type ExternalToolTextResultForLlmBinaryResultsForLlmType = "image" | "resource";
 /**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  *
@@ -117,23 +124,9 @@ export type ExternalToolTextResultForLlmContentResourceDetails =
  */
 export type FilterMapping =
   | {
-      [k: string]: FilterMappingValue;
+      [k: string]: ContentFilterMode;
     }
-  | FilterMappingString;
-/**
- * Allowed values for the `FilterMappingValue` enumeration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FilterMappingValue".
- */
-export type FilterMappingValue = "none" | "markdown" | "hidden_characters";
-/**
- * Allowed values for the `FilterMappingString` enumeration.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "FilterMappingString".
- */
-export type FilterMappingString = "none" | "markdown" | "hidden_characters";
+  | ContentFilterMode;
 /**
  * Category of instruction source — used for merge logic
  *
@@ -156,19 +149,12 @@ export type InstructionsSourcesLocation = "user" | "repository" | "working-direc
  */
 export type SessionLogLevel = "info" | "warning" | "error";
 /**
- * MCP server configuration (local/stdio or remote/http)
+ * MCP server configuration (stdio process or remote HTTP/SSE)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfig".
  */
-export type McpServerConfig = McpServerConfigLocal | McpServerConfigHttp;
-/**
- * Local transport type. Defaults to "local".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerConfigLocalType".
- */
-export type McpServerConfigLocalType = "local" | "stdio";
+export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
 /**
  * Remote transport type. Defaults to "http" when omitted.
  *
@@ -184,21 +170,12 @@ export type McpServerConfigHttpType = "http" | "sse";
  */
 export type McpServerConfigHttpOauthGrantType = "authorization_code" | "client_credentials";
 /**
- * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+ * Current policy state for this model
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerStatus".
+ * via the `definition` "ModelPolicyState".
  */
-/** @experimental */
-export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
-/**
- * Configuration source: user, workspace, plugin, or builtin
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerSource".
- */
-/** @experimental */
-export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
+export type ModelPolicyState = "enabled" | "disabled" | "unconfigured";
 /**
  * Model capability category for grouping in the model picker
  *
@@ -213,13 +190,6 @@ export type ModelPickerCategory = "lightweight" | "versatile" | "powerful";
  * via the `definition` "ModelPickerPriceCategory".
  */
 export type ModelPickerPriceCategory = "low" | "medium" | "high" | "very_high";
-/**
- * The agent mode. Valid values: "interactive", "plan", "autopilot".
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SessionMode".
- */
-export type SessionMode = "interactive" | "plan" | "autopilot";
 /**
  * Decision to apply to a pending permission request.
  *
@@ -295,19 +265,19 @@ export type SessionFsReaddirWithTypesEntryType = "file" | "directory";
  */
 export type SessionFsSetProviderConventions = "windows" | "posix";
 /**
+ * How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteQueryType".
+ */
+export type SessionFsSqliteQueryType = "exec" | "query" | "run";
+/**
  * Signal to send (default: SIGTERM)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ShellKillSignal".
  */
 export type ShellKillSignal = "SIGTERM" | "SIGKILL" | "SIGINT";
-/**
- * Optional target session mode
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "SlashCommandAgentPromptMode".
- */
-export type SlashCommandAgentPromptMode = "interactive" | "plan" | "autopilot";
 /**
  * Result of invoking the slash command (text output, prompt to send to the agent, or completion).
  *
@@ -322,18 +292,18 @@ export type SlashCommandInvocationResult =
  * Current lifecycle status of the task
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "TaskAgentInfoStatus".
+ * via the `definition` "TaskStatus".
  */
 /** @experimental */
-export type TaskAgentInfoStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
+export type TaskStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
 /**
- * How the agent is currently being managed by the runtime
+ * Whether task execution is synchronously awaited or managed in the background
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "TaskAgentInfoExecutionMode".
+ * via the `definition` "TaskExecutionMode".
  */
 /** @experimental */
-export type TaskAgentInfoExecutionMode = "sync" | "background";
+export type TaskExecutionMode = "sync" | "background";
 /**
  * Schema for the `TaskInfo` type.
  *
@@ -343,14 +313,6 @@ export type TaskAgentInfoExecutionMode = "sync" | "background";
 /** @experimental */
 export type TaskInfo = TaskAgentInfo | TaskShellInfo;
 /**
- * Current lifecycle status of the task
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "TaskShellInfoStatus".
- */
-/** @experimental */
-export type TaskShellInfoStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
-/**
  * Whether the shell runs inside a managed PTY session or as an independent background process
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -358,14 +320,6 @@ export type TaskShellInfoStatus = "running" | "idle" | "completed" | "failed" | 
  */
 /** @experimental */
 export type TaskShellInfoAttachmentMode = "attached" | "detached";
-/**
- * Whether the shell command is currently sync-waited or background-managed
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "TaskShellInfoExecutionMode".
- */
-/** @experimental */
-export type TaskShellInfoExecutionMode = "sync" | "background";
 /**
  * Schema for the `UIElicitationFieldValue` type.
  *
@@ -441,7 +395,7 @@ export interface AccountQuotaSnapshot {
    */
   isUnlimitedEntitlement: boolean;
   /**
-   * Number of requests included in the entitlement
+   * Number of requests included in the entitlement, or -1 for unlimited entitlements
    */
   entitlementRequests: number;
   /**
@@ -875,7 +829,7 @@ export interface DiscoveredMcpServer {
    */
   name: string;
   type?: DiscoveredMcpServerType;
-  source: DiscoveredMcpServerSource;
+  source: McpServerSource;
   /**
    * Whether the server is enabled (not in the disabled list)
    */
@@ -973,10 +927,35 @@ export interface ExternalToolTextResultForLlm {
     [k: string]: unknown;
   };
   /**
+   * Base64-encoded binary results returned to the model
+   */
+  binaryResultsForLlm?: ExternalToolTextResultForLlmBinaryResultsForLlm[];
+  /**
    * Structured content blocks from the tool
    */
   contents?: ExternalToolTextResultForLlmContent[];
   [k: string]: unknown;
+}
+/**
+ * Binary result returned by a tool for the model
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ExternalToolTextResultForLlmBinaryResultsForLlm".
+ */
+export interface ExternalToolTextResultForLlmBinaryResultsForLlm {
+  type: ExternalToolTextResultForLlmBinaryResultsForLlmType;
+  /**
+   * Base64-encoded binary data
+   */
+  data: string;
+  /**
+   * MIME type of the binary data
+   */
+  mimeType: string;
+  /**
+   * Human-readable description of the binary data
+   */
+  description?: string;
 }
 /**
  * Plain text content block
@@ -1361,17 +1340,16 @@ export interface McpConfigAddRequest {
   config: McpServerConfig;
 }
 /**
- * Local MCP server configuration launched as a child process.
+ * Stdio MCP server configuration launched as a child process.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerConfigLocal".
+ * via the `definition` "McpServerConfigStdio".
  */
-export interface McpServerConfigLocal {
+export interface McpServerConfigStdio {
   /**
    * Tools to include. Defaults to all tools if not specified.
    */
   tools?: string[];
-  type?: McpServerConfigLocalType;
   /**
    * Whether this server is a built-in fallback used when the user has not configured their own server.
    */
@@ -1382,19 +1360,19 @@ export interface McpServerConfigLocal {
    */
   timeout?: number;
   /**
-   * Executable command used to start the local MCP server process.
+   * Executable command used to start the Stdio MCP server process.
    */
   command: string;
   /**
-   * Command-line arguments passed to the local MCP server process.
+   * Command-line arguments passed to the Stdio MCP server process.
    */
-  args: string[];
+  args?: string[];
   /**
-   * Working directory for the local MCP server process.
+   * Working directory for the Stdio MCP server process.
    */
   cwd?: string;
   /**
-   * Environment variables to pass to the local MCP server process.
+   * Environment variables to pass to the Stdio MCP server process.
    */
   env?: {
     [k: string]: string;
@@ -1440,6 +1418,19 @@ export interface McpServerConfigHttp {
    */
   oauthPublicClient?: boolean;
   oauthGrantType?: McpServerConfigHttpOauthGrantType;
+  auth?: McpServerConfigHttpAuth;
+}
+/**
+ * Additional authentication configuration for this server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigHttpAuth".
+ */
+export interface McpServerConfigHttpAuth {
+  /**
+   * Fixed port for the OAuth redirect callback server.
+   */
+  redirectPort?: number;
 }
 /**
  * MCP server names to disable for new sessions.
@@ -1727,10 +1718,7 @@ export interface ModelCapabilitiesLimitsVision {
  * via the `definition` "ModelPolicy".
  */
 export interface ModelPolicy {
-  /**
-   * Current policy state for this model
-   */
-  state: string;
+  state: ModelPolicyState;
   /**
    * Usage terms or conditions for this model
    */
@@ -2510,10 +2498,7 @@ export interface ServerSkill {
    * Description of what the skill does
    */
   description: string;
-  /**
-   * Source location type (e.g., project, personal-copilot, plugin, builtin)
-   */
-  source: string;
+  source: SkillSource;
   /**
    * Whether the skill can be invoked by the user as a slash command
    */
@@ -2806,6 +2791,18 @@ export interface SessionFsRmRequest {
   force?: boolean;
 }
 /**
+ * Optional capabilities declared by the provider
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSetProviderCapabilities".
+ */
+export interface SessionFsSetProviderCapabilities {
+  /**
+   * Whether the provider supports SQLite query/exists operations
+   */
+  sqlite?: boolean;
+}
+/**
  * Initial working directory, session-state path layout, and path conventions used to register the calling SDK client as the session filesystem provider.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2821,6 +2818,7 @@ export interface SessionFsSetProviderRequest {
    */
   sessionStatePath: string;
   conventions: SessionFsSetProviderConventions;
+  capabilities?: SessionFsSetProviderCapabilities;
 }
 /**
  * Indicates whether the calling client was registered as the session filesystem provider.
@@ -2833,6 +2831,68 @@ export interface SessionFsSetProviderResult {
    * Whether the provider was set successfully
    */
   success: boolean;
+}
+/**
+ * Indicates whether the per-session SQLite database already exists.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteExistsResult".
+ */
+export interface SessionFsSqliteExistsResult {
+  /**
+   * Whether the session database already exists
+   */
+  exists: boolean;
+}
+/**
+ * SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteQueryRequest".
+ */
+export interface SessionFsSqliteQueryRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * SQL query to execute
+   */
+  query: string;
+  queryType: SessionFsSqliteQueryType;
+  /**
+   * Optional named bind parameters
+   */
+  params?: {
+    [k: string]: string | number | null;
+  };
+}
+/**
+ * Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteQueryResult".
+ */
+export interface SessionFsSqliteQueryResult {
+  /**
+   * For SELECT: array of row objects. For others: empty array.
+   */
+  rows: {
+    [k: string]: unknown;
+  }[];
+  /**
+   * Column names from the result set
+   */
+  columns: string[];
+  /**
+   * Number of rows affected (for INSERT/UPDATE/DELETE)
+   */
+  rowsAffected: number;
+  /**
+   * Last inserted row ID (for INSERT)
+   */
+  lastInsertRowid?: number;
+  error?: SessionFsError;
 }
 /**
  * Path whose metadata should be returned from the client-provided session filesystem.
@@ -3014,10 +3074,7 @@ export interface Skill {
    * Description of what the skill does
    */
   description: string;
-  /**
-   * Source location type (e.g., project, personal, plugin)
-   */
-  source: string;
+  source: SkillSource;
   /**
    * Whether the skill can be invoked by the user as a slash command
    */
@@ -3134,7 +3191,7 @@ export interface SlashCommandAgentPromptResult {
    * Prompt text to display to the user
    */
   displayPrompt: string;
-  mode?: SlashCommandAgentPromptMode;
+  mode?: SessionMode;
   /**
    * True when the invocation mutated user runtime settings; consumers caching settings should refresh
    */
@@ -3212,7 +3269,7 @@ export interface TaskAgentInfo {
    * Short description of the task
    */
   description: string;
-  status: TaskAgentInfoStatus;
+  status: TaskStatus;
   /**
    * ISO 8601 timestamp when the task was started
    */
@@ -3249,7 +3306,7 @@ export interface TaskAgentInfo {
    * Model used for the task when specified
    */
   model?: string;
-  executionMode?: TaskAgentInfoExecutionMode;
+  executionMode?: TaskExecutionMode;
   /**
    * Whether the task is currently in the original sync wait and can be moved to background mode. False once it is already backgrounded, idle, finished, or no longer has a promotable sync waiter.
    */
@@ -3283,7 +3340,7 @@ export interface TaskShellInfo {
    * Short description of the task
    */
   description: string;
-  status: TaskShellInfoStatus;
+  status: TaskStatus;
   /**
    * ISO 8601 timestamp when the task was started
    */
@@ -3297,7 +3354,7 @@ export interface TaskShellInfo {
    */
   command: string;
   attachmentMode: TaskShellInfoAttachmentMode;
-  executionMode?: TaskShellInfoExecutionMode;
+  executionMode?: TaskExecutionMode;
   /**
    * Whether this shell task can be promoted to background mode
    */
@@ -4136,6 +4193,18 @@ export interface WorkspacesReadFileResult {
    */
   content: string;
 }
+/**
+ * Identifies the target session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionFsSqliteExistsRequest".
+ */
+export interface SessionFsSqliteExistsRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+}
 
 /** Create typed server-scoped RPC methods (no session required). */
 export function createServerRpc(connection: MessageConnection) {
@@ -4350,7 +4419,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Gets the current agent interaction mode.
              *
-             * @returns The agent mode. Valid values: "interactive", "plan", "autopilot".
+             * @returns The session mode the agent is operating in
              */
             get: async (): Promise<SessionMode> =>
                 connection.sendRequest("session.mode.get", { sessionId }),
@@ -4912,6 +4981,22 @@ export interface SessionFsHandler {
      * @returns Describes a filesystem error.
      */
     rename(params: SessionFsRenameRequest): Promise<SessionFsError | undefined>;
+    /**
+     * Executes a SQLite query against the per-session database.
+     *
+     * @param params SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+     *
+     * @returns Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
+     */
+    sqliteQuery(params: SessionFsSqliteQueryRequest): Promise<SessionFsSqliteQueryResult>;
+    /**
+     * Checks whether the per-session SQLite database already exists, without creating it.
+     *
+     * @param params Identifies the target session.
+     *
+     * @returns Indicates whether the per-session SQLite database already exists.
+     */
+    sqliteExists(params: SessionFsSqliteExistsRequest): Promise<SessionFsSqliteExistsResult>;
 }
 
 /** All client session API handler groups. */
@@ -4978,5 +5063,15 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.rename(params);
+    });
+    connection.onRequest("sessionFs.sqliteQuery", async (params: SessionFsSqliteQueryRequest) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.sqliteQuery(params);
+    });
+    connection.onRequest("sessionFs.sqliteExists", async (params: SessionFsSqliteExistsRequest) => {
+        const handler = getHandlers(params.sessionId).sessionFs;
+        if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
+        return handler.sqliteExists(params);
     });
 }

@@ -26,7 +26,7 @@ type AccountGetQuotaResult struct {
 
 // Schema for the `AccountQuotaSnapshot` type.
 type AccountQuotaSnapshot struct {
-	// Number of requests included in the entitlement
+	// Number of requests included in the entitlement, or -1 for unlimited entitlements
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
@@ -37,7 +37,7 @@ type AccountQuotaSnapshot struct {
 	// Percentage of entitlement remaining
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets (ISO 8601 string)
-	ResetDate *string `json:"resetDate,omitempty"`
+	ResetDate *time.Time `json:"resetDate,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests used so far this period
@@ -157,7 +157,7 @@ type ConnectedRemoteSessionMetadata struct {
 	// Neutral SDK discriminator for the connected remote session kind.
 	Kind ConnectedRemoteSessionMetadataKind `json:"kind"`
 	// Last session update time as an ISO 8601 string.
-	ModifiedTime string `json:"modifiedTime"`
+	ModifiedTime time.Time `json:"modifiedTime"`
 	// Optional friendly session name.
 	Name *string `json:"name,omitempty"`
 	// Pull request number associated with the session.
@@ -169,9 +169,9 @@ type ConnectedRemoteSessionMetadata struct {
 	// SDK session ID for the connected remote session.
 	SessionID string `json:"sessionId"`
 	// Remote session staleness deadline as an ISO 8601 string.
-	StaleAt *string `json:"staleAt,omitempty"`
+	StaleAt *time.Time `json:"staleAt,omitempty"`
 	// Session start time as an ISO 8601 string.
-	StartTime string `json:"startTime"`
+	StartTime time.Time `json:"startTime"`
 	// Remote session state returned by the backing service.
 	State *string `json:"state,omitempty"`
 	// Optional session summary.
@@ -228,9 +228,9 @@ type DiscoveredMcpServer struct {
 	Enabled bool `json:"enabled"`
 	// Server name (config key)
 	Name string `json:"name"`
-	// Configuration source
-	Source DiscoveredMcpServerSource `json:"source"`
-	// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+	// Configuration source: user, workspace, plugin, or builtin
+	Source McpServerSource `json:"source"`
+	// Server transport type: stdio, http, sse, or memory
 	Type *DiscoveredMcpServerType `json:"type,omitempty"`
 }
 
@@ -285,6 +285,8 @@ func (ExternalToolTextResultForLlm) externalToolResult() {}
 
 // Expanded external tool result payload
 type ExternalToolTextResultForLlm struct {
+	// Base64-encoded binary results returned to the model
+	BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitempty"`
 	// Structured content blocks from the tool
 	Contents []ExternalToolTextResultForLlmContent `json:"contents,omitempty"`
 	// Optional error message for failed executions
@@ -298,6 +300,19 @@ type ExternalToolTextResultForLlm struct {
 	TextResultForLlm string `json:"textResultForLlm"`
 	// Optional tool-specific telemetry
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
+}
+
+// Binary result returned by a tool for the model
+type ExternalToolTextResultForLlmBinaryResultsForLlm struct {
+	// Base64-encoded binary data
+	Data string `json:"data"`
+	// Human-readable description of the binary data
+	Description *string `json:"description,omitempty"`
+	// MIME type of the binary data
+	MIMEType string `json:"mimeType"`
+	// Binary result type discriminator. Use "image" for images and "resource" for other binary
+	// data.
+	Type ExternalToolTextResultForLlmBinaryResultsForLlmType `json:"type"`
 }
 
 // A content block within a tool result, which may be text, terminal output, image, audio,
@@ -457,11 +472,11 @@ type FilterMapping interface {
 	filterMapping()
 }
 
-type FilterMappingEnumMap map[string]FilterMappingValue
+func (ContentFilterMode) filterMapping() {}
+
+type FilterMappingEnumMap map[string]ContentFilterMode
 
 func (FilterMappingEnumMap) filterMapping() {}
-
-func (FilterMappingString) filterMapping() {}
 
 // Optional user prompt to combine with the fleet orchestration instructions.
 // Experimental: FleetStartRequest is part of an experimental API and may change or be
@@ -592,7 +607,7 @@ type LogResult struct {
 
 // MCP server name and configuration to add to user configuration.
 type McpConfigAddRequest struct {
-	// MCP server configuration (local/stdio or remote/http)
+	// MCP server configuration (stdio process or remote HTTP/SSE)
 	Config McpServerConfig `json:"config"`
 	// Unique name for the MCP server
 	Name string `json:"name"`
@@ -639,7 +654,7 @@ type McpConfigRemoveResult struct {
 
 // MCP server name and replacement configuration to write to user configuration.
 type McpConfigUpdateRequest struct {
-	// MCP server configuration (local/stdio or remote/http)
+	// MCP server configuration (stdio process or remote HTTP/SSE)
 	Config McpServerConfig `json:"config"`
 	// Name of the MCP server to update
 	Name string `json:"name"`
@@ -725,7 +740,7 @@ type McpServer struct {
 	Status McpServerStatus `json:"status"`
 }
 
-// MCP server configuration (local/stdio or remote/http)
+// MCP server configuration (stdio process or remote HTTP/SSE)
 type McpServerConfig interface {
 	mcpServerConfig()
 }
@@ -738,6 +753,8 @@ func (RawMcpServerConfigData) mcpServerConfig() {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
 type McpServerConfigHTTP struct {
+	// Additional authentication configuration for this server.
+	Auth *McpServerConfigHTTPAuth `json:"auth,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
@@ -764,15 +781,15 @@ type McpServerConfigHTTP struct {
 
 func (McpServerConfigHTTP) mcpServerConfig() {}
 
-// Local MCP server configuration launched as a child process.
-type McpServerConfigLocal struct {
-	// Command-line arguments passed to the local MCP server process.
-	Args []string `json:"args"`
-	// Executable command used to start the local MCP server process.
+// Stdio MCP server configuration launched as a child process.
+type McpServerConfigStdio struct {
+	// Command-line arguments passed to the Stdio MCP server process.
+	Args []string `json:"args,omitempty"`
+	// Executable command used to start the Stdio MCP server process.
 	Command string `json:"command"`
-	// Working directory for the local MCP server process.
+	// Working directory for the Stdio MCP server process.
 	Cwd *string `json:"cwd,omitempty"`
-	// Environment variables to pass to the local MCP server process.
+	// Environment variables to pass to the Stdio MCP server process.
 	Env map[string]string `json:"env,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
@@ -784,11 +801,15 @@ type McpServerConfigLocal struct {
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
 	Tools []string `json:"tools,omitempty"`
-	// Local transport type. Defaults to "local".
-	Type *McpServerConfigLocalType `json:"type,omitempty"`
 }
 
-func (McpServerConfigLocal) mcpServerConfig() {}
+func (McpServerConfigStdio) mcpServerConfig() {}
+
+// Additional authentication configuration for this server.
+type McpServerConfigHTTPAuth struct {
+	// Fixed port for the OAuth redirect callback server.
+	RedirectPort *int32 `json:"redirectPort,omitempty"`
+}
 
 // MCP servers configured for the session, with their connection status.
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
@@ -928,7 +949,7 @@ type ModelList struct {
 // Policy state (if applicable)
 type ModelPolicy struct {
 	// Current policy state for this model
-	State string `json:"state"`
+	State ModelPolicyState `json:"state"`
 	// Usage terms or conditions for this model
 	Terms *string `json:"terms,omitempty"`
 }
@@ -959,7 +980,7 @@ type ModelSwitchToResult struct {
 
 // Agent interaction mode to apply to the session.
 type ModeSetRequest struct {
-	// The agent mode. Valid values: "interactive", "plan", "autopilot".
+	// The session mode the agent is operating in
 	Mode SessionMode `json:"mode"`
 }
 
@@ -1461,7 +1482,7 @@ type ServerSkill struct {
 	// The project path this skill belongs to (only for project/inherited skills)
 	ProjectPath *string `json:"projectPath,omitempty"`
 	// Source location type (e.g., project, personal-copilot, plugin, builtin)
-	Source string `json:"source"`
+	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
 }
@@ -1638,9 +1659,17 @@ type SessionFsRmRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
+// Optional capabilities declared by the provider
+type SessionFsSetProviderCapabilities struct {
+	// Whether the provider supports SQLite query/exists operations
+	Sqlite *bool `json:"sqlite,omitempty"`
+}
+
 // Initial working directory, session-state path layout, and path conventions used to
 // register the calling SDK client as the session filesystem provider.
 type SessionFsSetProviderRequest struct {
+	// Optional capabilities declared by the provider
+	Capabilities *SessionFsSetProviderCapabilities `json:"capabilities,omitempty"`
 	// Path conventions used by this filesystem
 	Conventions SessionFsSetProviderConventions `json:"conventions"`
 	// Initial working directory for sessions
@@ -1653,6 +1682,47 @@ type SessionFsSetProviderRequest struct {
 type SessionFsSetProviderResult struct {
 	// Whether the provider was set successfully
 	Success bool `json:"success"`
+}
+
+// Identifies the target session.
+type SessionFsSqliteExistsRequest struct {
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Indicates whether the per-session SQLite database already exists.
+type SessionFsSqliteExistsResult struct {
+	// Whether the session database already exists
+	Exists bool `json:"exists"`
+}
+
+// SQL query, query type, and optional bind parameters for executing a SQLite query against
+// the per-session database.
+type SessionFsSqliteQueryRequest struct {
+	// Optional named bind parameters
+	Params map[string]any `json:"params,omitempty"`
+	// SQL query to execute
+	Query string `json:"query"`
+	// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
+	// (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+	QueryType SessionFsSqliteQueryType `json:"queryType"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Query results including rows, columns, and rows affected, or a filesystem error if
+// execution failed.
+type SessionFsSqliteQueryResult struct {
+	// Column names from the result set
+	Columns []string `json:"columns"`
+	// Describes a filesystem error.
+	Error *SessionFsError `json:"error,omitempty"`
+	// Last inserted row ID (for INSERT)
+	LastInsertRowid *float64 `json:"lastInsertRowid,omitempty"`
+	// For SELECT: array of row objects. For others: empty array.
+	Rows []map[string]any `json:"rows"`
+	// Number of rows affected (for INSERT/UPDATE/DELETE)
+	RowsAffected int64 `json:"rowsAffected"`
 }
 
 // Path whose metadata should be returned from the client-provided session filesystem.
@@ -1806,8 +1876,8 @@ type Skill struct {
 	Name string `json:"name"`
 	// Absolute path to the skill file
 	Path *string `json:"path,omitempty"`
-	// Source location type (e.g., project, personal, plugin)
-	Source string `json:"source"`
+	// Source location type (e.g., project, personal-copilot, plugin, builtin)
+	Source SkillSource `json:"source"`
 	// Whether the skill can be invoked by the user as a slash command
 	UserInvocable bool `json:"userInvocable"`
 }
@@ -1916,8 +1986,8 @@ func (r RawSlashCommandInvocationResultData) Kind() SlashCommandInvocationResult
 type SlashCommandAgentPromptResult struct {
 	// Prompt text to display to the user
 	DisplayPrompt string `json:"displayPrompt"`
-	// Optional target session mode
-	Mode *SlashCommandAgentPromptMode `json:"mode,omitempty"`
+	// Optional target session mode for the agent prompt
+	Mode *SessionMode `json:"mode,omitempty"`
 	// Prompt to submit to the agent
 	Prompt string `json:"prompt"`
 	// True when the invocation mutated user runtime settings; consumers caching settings should
@@ -1998,8 +2068,8 @@ type TaskAgentInfo struct {
 	Description string `json:"description"`
 	// Error message when the task failed
 	Error *string `json:"error,omitempty"`
-	// How the agent is currently being managed by the runtime
-	ExecutionMode *TaskAgentInfoExecutionMode `json:"executionMode,omitempty"`
+	// Whether task execution is synchronously awaited or managed in the background
+	ExecutionMode *TaskExecutionMode `json:"executionMode,omitempty"`
 	// Unique task identifier
 	ID string `json:"id"`
 	// ISO 8601 timestamp when the agent entered idle state
@@ -2015,7 +2085,7 @@ type TaskAgentInfo struct {
 	// ISO 8601 timestamp when the task was started
 	StartedAt time.Time `json:"startedAt"`
 	// Current lifecycle status of the task
-	Status TaskAgentInfoStatus `json:"status"`
+	Status TaskStatus `json:"status"`
 	// Tool call ID associated with this agent task
 	ToolCallID string `json:"toolCallId"`
 }
@@ -2039,8 +2109,8 @@ type TaskShellInfo struct {
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 	// Short description of the task
 	Description string `json:"description"`
-	// Whether the shell command is currently sync-waited or background-managed
-	ExecutionMode *TaskShellInfoExecutionMode `json:"executionMode,omitempty"`
+	// Whether task execution is synchronously awaited or managed in the background
+	ExecutionMode *TaskExecutionMode `json:"executionMode,omitempty"`
 	// Unique task identifier
 	ID string `json:"id"`
 	// Path to the detached shell log, when available
@@ -2050,7 +2120,7 @@ type TaskShellInfo struct {
 	// ISO 8601 timestamp when the task was started
 	StartedAt time.Time `json:"startedAt"`
 	// Current lifecycle status of the task
-	Status TaskShellInfoStatus `json:"status"`
+	Status TaskStatus `json:"status"`
 }
 
 func (TaskShellInfo) taskInfo() {}
@@ -2611,17 +2681,18 @@ const (
 	ConnectedRemoteSessionMetadataKindRemoteSession ConnectedRemoteSessionMetadataKind = "remote-session"
 )
 
-// Configuration source
-type DiscoveredMcpServerSource string
+// Controls how MCP tool result content is filtered: none leaves content unchanged, markdown
+// sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes
+// characters that can hide directives.
+type ContentFilterMode string
 
 const (
-	DiscoveredMcpServerSourceBuiltin   DiscoveredMcpServerSource = "builtin"
-	DiscoveredMcpServerSourcePlugin    DiscoveredMcpServerSource = "plugin"
-	DiscoveredMcpServerSourceUser      DiscoveredMcpServerSource = "user"
-	DiscoveredMcpServerSourceWorkspace DiscoveredMcpServerSource = "workspace"
+	ContentFilterModeHiddenCharacters ContentFilterMode = "hidden_characters"
+	ContentFilterModeMarkdown         ContentFilterMode = "markdown"
+	ContentFilterModeNone             ContentFilterMode = "none"
 )
 
-// Server transport type: stdio, http, sse, or memory (local configs are normalized to stdio)
+// Server transport type: stdio, http, sse, or memory
 type DiscoveredMcpServerType string
 
 const (
@@ -2651,6 +2722,15 @@ const (
 	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
+// Binary result type discriminator. Use "image" for images and "resource" for other binary
+// data.
+type ExternalToolTextResultForLlmBinaryResultsForLlmType string
+
+const (
+	ExternalToolTextResultForLlmBinaryResultsForLlmTypeImage    ExternalToolTextResultForLlmBinaryResultsForLlmType = "image"
+	ExternalToolTextResultForLlmBinaryResultsForLlmTypeResource ExternalToolTextResultForLlmBinaryResultsForLlmType = "resource"
+)
+
 // Theme variant this icon is intended for
 type ExternalToolTextResultForLlmContentResourceLinkIconTheme string
 
@@ -2669,24 +2749,6 @@ const (
 	ExternalToolTextResultForLlmContentTypeResourceLink ExternalToolTextResultForLlmContentType = "resource_link"
 	ExternalToolTextResultForLlmContentTypeTerminal     ExternalToolTextResultForLlmContentType = "terminal"
 	ExternalToolTextResultForLlmContentTypeText         ExternalToolTextResultForLlmContentType = "text"
-)
-
-// Allowed values for the `FilterMappingString` enumeration.
-type FilterMappingString string
-
-const (
-	FilterMappingStringHiddenCharacters FilterMappingString = "hidden_characters"
-	FilterMappingStringMarkdown         FilterMappingString = "markdown"
-	FilterMappingStringNone             FilterMappingString = "none"
-)
-
-// Allowed values for the `FilterMappingValue` enumeration.
-type FilterMappingValue string
-
-const (
-	FilterMappingValueHiddenCharacters FilterMappingValue = "hidden_characters"
-	FilterMappingValueMarkdown         FilterMappingValue = "markdown"
-	FilterMappingValueNone             FilterMappingValue = "none"
 )
 
 // Where this source lives — used for UI grouping
@@ -2726,16 +2788,7 @@ const (
 	McpServerConfigHTTPTypeSse  McpServerConfigHTTPType = "sse"
 )
 
-// Local transport type. Defaults to "local".
-type McpServerConfigLocalType string
-
-const (
-	McpServerConfigLocalTypeLocal McpServerConfigLocalType = "local"
-	McpServerConfigLocalTypeStdio McpServerConfigLocalType = "stdio"
-)
-
 // Configuration source: user, workspace, plugin, or builtin
-// Experimental: McpServerSource is part of an experimental API and may change or be removed.
 type McpServerSource string
 
 const (
@@ -2775,6 +2828,15 @@ const (
 	ModelPickerPriceCategoryLow      ModelPickerPriceCategory = "low"
 	ModelPickerPriceCategoryMedium   ModelPickerPriceCategory = "medium"
 	ModelPickerPriceCategoryVeryHigh ModelPickerPriceCategory = "very_high"
+)
+
+// Current policy state for this model
+type ModelPolicyState string
+
+const (
+	ModelPolicyStateDisabled     ModelPolicyState = "disabled"
+	ModelPolicyStateEnabled      ModelPolicyState = "enabled"
+	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
 )
 
 // Kind discriminator for PermissionDecisionApproveForLocationApproval.
@@ -2864,6 +2926,16 @@ const (
 	SessionFsSetProviderConventionsWindows SessionFsSetProviderConventions = "windows"
 )
 
+// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
+// (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+type SessionFsSqliteQueryType string
+
+const (
+	SessionFsSqliteQueryTypeExec  SessionFsSqliteQueryType = "exec"
+	SessionFsSqliteQueryTypeQuery SessionFsSqliteQueryType = "query"
+	SessionFsSqliteQueryTypeRun   SessionFsSqliteQueryType = "run"
+)
+
 // Log severity level. Determines how the message is displayed in the timeline. Defaults to
 // "info".
 type SessionLogLevel string
@@ -2874,7 +2946,7 @@ const (
 	SessionLogLevelWarning SessionLogLevel = "warning"
 )
 
-// The agent mode. Valid values: "interactive", "plan", "autopilot".
+// The session mode the agent is operating in
 type SessionMode string
 
 const (
@@ -2892,13 +2964,17 @@ const (
 	ShellKillSignalSIGTERM ShellKillSignal = "SIGTERM"
 )
 
-// Optional target session mode
-type SlashCommandAgentPromptMode string
+// Source location type (e.g., project, personal-copilot, plugin, builtin)
+type SkillSource string
 
 const (
-	SlashCommandAgentPromptModeAutopilot   SlashCommandAgentPromptMode = "autopilot"
-	SlashCommandAgentPromptModeInteractive SlashCommandAgentPromptMode = "interactive"
-	SlashCommandAgentPromptModePlan        SlashCommandAgentPromptMode = "plan"
+	SkillSourceBuiltin         SkillSource = "builtin"
+	SkillSourceCustom          SkillSource = "custom"
+	SkillSourceInherited       SkillSource = "inherited"
+	SkillSourcePersonalAgents  SkillSource = "personal-agents"
+	SkillSourcePersonalCopilot SkillSource = "personal-copilot"
+	SkillSourcePlugin          SkillSource = "plugin"
+	SkillSourceProject         SkillSource = "project"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
@@ -2927,27 +3003,14 @@ const (
 	SlashCommandKindSkill   SlashCommandKind = "skill"
 )
 
-// How the agent is currently being managed by the runtime
-// Experimental: TaskAgentInfoExecutionMode is part of an experimental API and may change or
-// be removed.
-type TaskAgentInfoExecutionMode string
-
-const (
-	TaskAgentInfoExecutionModeBackground TaskAgentInfoExecutionMode = "background"
-	TaskAgentInfoExecutionModeSync       TaskAgentInfoExecutionMode = "sync"
-)
-
-// Current lifecycle status of the task
-// Experimental: TaskAgentInfoStatus is part of an experimental API and may change or be
+// Whether task execution is synchronously awaited or managed in the background
+// Experimental: TaskExecutionMode is part of an experimental API and may change or be
 // removed.
-type TaskAgentInfoStatus string
+type TaskExecutionMode string
 
 const (
-	TaskAgentInfoStatusCancelled TaskAgentInfoStatus = "cancelled"
-	TaskAgentInfoStatusCompleted TaskAgentInfoStatus = "completed"
-	TaskAgentInfoStatusFailed    TaskAgentInfoStatus = "failed"
-	TaskAgentInfoStatusIdle      TaskAgentInfoStatus = "idle"
-	TaskAgentInfoStatusRunning   TaskAgentInfoStatus = "running"
+	TaskExecutionModeBackground TaskExecutionMode = "background"
+	TaskExecutionModeSync       TaskExecutionMode = "sync"
 )
 
 // Type discriminator for TaskInfo.
@@ -2969,27 +3032,16 @@ const (
 	TaskShellInfoAttachmentModeDetached TaskShellInfoAttachmentMode = "detached"
 )
 
-// Whether the shell command is currently sync-waited or background-managed
-// Experimental: TaskShellInfoExecutionMode is part of an experimental API and may change or
-// be removed.
-type TaskShellInfoExecutionMode string
-
-const (
-	TaskShellInfoExecutionModeBackground TaskShellInfoExecutionMode = "background"
-	TaskShellInfoExecutionModeSync       TaskShellInfoExecutionMode = "sync"
-)
-
 // Current lifecycle status of the task
-// Experimental: TaskShellInfoStatus is part of an experimental API and may change or be
-// removed.
-type TaskShellInfoStatus string
+// Experimental: TaskStatus is part of an experimental API and may change or be removed.
+type TaskStatus string
 
 const (
-	TaskShellInfoStatusCancelled TaskShellInfoStatus = "cancelled"
-	TaskShellInfoStatusCompleted TaskShellInfoStatus = "completed"
-	TaskShellInfoStatusFailed    TaskShellInfoStatus = "failed"
-	TaskShellInfoStatusIdle      TaskShellInfoStatus = "idle"
-	TaskShellInfoStatusRunning   TaskShellInfoStatus = "running"
+	TaskStatusCancelled TaskStatus = "cancelled"
+	TaskStatusCompleted TaskStatus = "completed"
+	TaskStatusFailed    TaskStatus = "failed"
+	TaskStatusIdle      TaskStatus = "idle"
+	TaskStatusRunning   TaskStatus = "running"
 )
 
 // Type discriminator. Always "string".
@@ -3987,7 +4039,7 @@ type ModeApi sessionApi
 //
 // RPC method: session.mode.get.
 //
-// Returns: The agent mode. Valid values: "interactive", "plan", "autopilot".
+// Returns: The session mode the agent is operating in
 func (a *ModeApi) Get(ctx context.Context) (*SessionMode, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.mode.get", req)
@@ -4978,6 +5030,25 @@ type SessionFsHandler interface {
 	//
 	// Returns: Describes a filesystem error.
 	Rm(request *SessionFsRmRequest) (*SessionFsError, error)
+	// SqliteExists checks whether the per-session SQLite database already exists, without
+	// creating it.
+	//
+	// RPC method: sessionFs.sqliteExists.
+	//
+	// Parameters: Identifies the target session.
+	//
+	// Returns: Indicates whether the per-session SQLite database already exists.
+	SqliteExists(request *SessionFsSqliteExistsRequest) (*SessionFsSqliteExistsResult, error)
+	// SqliteQuery executes a SQLite query against the per-session database.
+	//
+	// RPC method: sessionFs.sqliteQuery.
+	//
+	// Parameters: SQL query, query type, and optional bind parameters for executing a SQLite
+	// query against the per-session database.
+	//
+	// Returns: Query results including rows, columns, and rows affected, or a filesystem error
+	// if execution failed.
+	SqliteQuery(request *SessionFsSqliteQueryRequest) (*SessionFsSqliteQueryResult, error)
 	// Stat gets metadata for a path in the client-provided session filesystem.
 	//
 	// RPC method: sessionFs.stat.
@@ -5161,6 +5232,44 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
 		}
 		result, err := handlers.SessionFs.Rm(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.sqliteExists", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsSqliteExistsRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.SqliteExists(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("sessionFs.sqliteQuery", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request SessionFsSqliteQueryRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.SessionFs == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No sessionFs handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.SessionFs.SqliteQuery(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

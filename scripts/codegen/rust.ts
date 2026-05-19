@@ -1285,6 +1285,43 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 		}
 	}
 	const allMethods = methodEntries.map(({ method }) => method);
+	const inlineMethodParamSchemas = new Map<string, JSONSchema7>();
+	const sortedNames = (names: Iterable<string> | undefined): string[] =>
+		[...(names ?? [])].sort();
+	const schemaPropertyNames = (schema: JSONSchema7): string[] =>
+		sortedNames(Object.keys(schema.properties ?? {}));
+	const shouldPreferMethodParamSchema = (
+		typeName: string,
+		paramsSchema: JSONSchema7,
+	): boolean => {
+		const definition = definitions[typeName];
+		if (typeof definition !== "object" || definition === null) return false;
+		const definitionSchema = asGeneratedObjectSchema(
+			definition as JSONSchema7,
+			defCollections,
+		);
+		if (!definitionSchema) return false;
+
+		return (
+			JSON.stringify(schemaPropertyNames(paramsSchema)) !==
+				JSON.stringify(schemaPropertyNames(definitionSchema)) ||
+			JSON.stringify(sortedNames(paramsSchema.required)) !==
+				JSON.stringify(sortedNames(definitionSchema.required))
+		);
+	};
+	for (const { method, isSession } of methodEntries) {
+		const params = method.params as (JSONSchema7 & { $ref?: string }) | undefined;
+		if (!params || typeof params.$ref === "string") continue;
+		const paramsSchema = getMethodParamsObjectSchema(
+			method,
+			defCollections,
+			isSession,
+		);
+		const paramsName = rustParamsTypeName(method, defCollections);
+		if (paramsSchema && shouldPreferMethodParamSchema(paramsName, paramsSchema)) {
+			inlineMethodParamSchemas.set(paramsName, paramsSchema);
+		}
+	}
 	for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(allMethods, defCollections)) {
 		ctx.experimentalTypeNames.add(toPascalCase(name));
 	}
@@ -1316,7 +1353,7 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	// Generate shared definitions (structs & enums)
 	for (const [name, def] of Object.entries(definitions)) {
 		if (typeof def !== "object" || def === null) continue;
-		const schema = def as JSONSchema7;
+		const schema = inlineMethodParamSchemas.get(name) ?? (def as JSONSchema7);
 
 		if (schema.enum && Array.isArray(schema.enum)) {
 			emitRustStringEnum(
@@ -1422,9 +1459,6 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 		left.localeCompare(right),
 	)) {
 		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
-	}
-	if (externalImports.size > 0) {
-		out.push("");
 	}
 	out.push("use crate::types::{RequestId, SessionId};");
 	out.push("");
@@ -1791,6 +1825,43 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("#![allow(clippy::too_many_arguments)]");
 	out.push("");
 	out.push("use super::api_types::{rpc_methods, *};");
+	const externalTypeRefs = new Map<string, Set<string>>();
+	const recordExternalTypeRef = (ref: string | undefined): void => {
+		if (!ref) return;
+		const externalRef = parseExternalSchemaRef(ref);
+		if (!externalRef) return;
+		let typeNames = externalTypeRefs.get(externalRef.schemaFile);
+		if (!typeNames) {
+			typeNames = new Set<string>();
+			externalTypeRefs.set(externalRef.schemaFile, typeNames);
+		}
+		typeNames.add(externalRef.definitionName);
+	};
+	for (const method of [...serverMethods, ...sessionMethods]) {
+		recordExternalTypeRef(method.params?.$ref);
+		recordExternalTypeRef(method.result?.$ref);
+		recordExternalTypeRef(getNullableInner(method.result)?.$ref);
+	}
+	const externalImports = new Map<string, Set<string>>();
+	for (const [schemaFile, typeNames] of externalTypeRefs) {
+		const defaultModule = EXTERNAL_SCHEMA_RUST_MODULE[schemaFile];
+		const typeModules = EXTERNAL_SCHEMA_RUST_TYPE_MODULE[schemaFile] ?? {};
+		for (const typeName of typeNames) {
+			const module = typeModules[typeName] ?? defaultModule;
+			if (!module) continue;
+			let names = externalImports.get(module);
+			if (!names) {
+				names = new Set<string>();
+				externalImports.set(module, names);
+			}
+			names.add(typeName);
+		}
+	}
+	for (const [module, typeNames] of [...externalImports].sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
+	}
 	out.push("use crate::session::Session;");
 	out.push("use crate::{Client, Error};");
 	out.push("");

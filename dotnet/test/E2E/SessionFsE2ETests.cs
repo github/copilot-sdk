@@ -294,6 +294,10 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         AssertFsError((await handler.ReaddirWithTypesAsync(new SessionFsReaddirWithTypesRequest { Path = "missing-dir" })).Error);
         AssertFsError(await handler.RmAsync(new SessionFsRmRequest { Path = "missing.txt" }));
         AssertFsError(await handler.RenameAsync(new SessionFsRenameRequest { Src = "missing.txt", Dest = "dest.txt" }));
+        AssertFsError((await handler.SqliteQueryAsync(new SessionFsSqliteQueryRequest { Query = "select 1" })).Error);
+
+        var sqliteExists = await handler.SqliteExistsAsync(new SessionFsSqliteExistsRequest());
+        Assert.False(sqliteExists.Exists);
 
         var unknown = (ISessionFsHandler)new ThrowingSessionFsProvider(new InvalidOperationException("bad path"));
         var unknownError = await unknown.WriteFileAsync(new SessionFsWriteFileRequest { Path = "bad.txt", Content = "content" });
@@ -603,6 +607,17 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
             Task.FromException(exception);
+
+        protected override Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
+            string sessionId,
+            string query,
+            SessionFsSqliteQueryType queryType,
+            IDictionary<string, object>? parameters,
+            CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsSqliteQueryResult>(exception);
+
+        protected override Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken) =>
+            Task.FromException<bool>(exception);
     }
 
     private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider
@@ -735,6 +750,18 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
             return Task.CompletedTask;
         }
+
+        protected override Task<SessionFsSqliteQueryResult> SqliteQueryAsync(
+            string sessionId,
+            string query,
+            SessionFsSqliteQueryType queryType,
+            IDictionary<string, object>? parameters,
+            CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsSqliteQueryResult>(
+                new NotSupportedException("SQLite session filesystem operations are not supported by this provider."));
+
+        protected override Task<bool> SqliteExistsAsync(string sessionId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
 
         private string ResolvePath(string sessionPath)
         {

@@ -799,25 +799,6 @@ public class AutoModeSwitchRequest
 }
 
 /// <summary>
-/// Response to an auto-mode-switch request.
-/// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<AutoModeSwitchResponse>))]
-public enum AutoModeSwitchResponse
-{
-    /// <summary>Approve the switch for this rate-limit cycle.</summary>
-    [JsonStringEnumMemberName("yes")]
-    Yes,
-
-    /// <summary>Approve and remember the choice for this session.</summary>
-    [JsonStringEnumMemberName("yes_always")]
-    YesAlways,
-
-    /// <summary>Decline the switch.</summary>
-    [JsonStringEnumMemberName("no")]
-    No
-}
-
-/// <summary>
 /// Context for an auto-mode-switch request invocation.
 /// </summary>
 public class AutoModeSwitchInvocation

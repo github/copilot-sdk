@@ -7,6 +7,8 @@ import type {
     SessionFsError,
     SessionFsStatResult,
     SessionFsReaddirWithTypesEntry,
+    SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
 } from "./generated/rpc.js";
 
 /**
@@ -55,6 +57,17 @@ export interface SessionFsProvider {
 
     /** Renames/moves a file or directory. */
     rename(src: string, dest: string): Promise<void>;
+
+    /** Executes a SQLite query against the provider's per-session database. */
+    sqliteQuery(
+        sessionId: string,
+        query: string,
+        queryType: SessionFsSqliteQueryType,
+        params?: Record<string, string | number | null>
+    ): Promise<SessionFsSqliteQueryResult>;
+
+    /** Checks whether the provider has a SQLite database for the session. */
+    sqliteExists(sessionId: string): Promise<boolean>;
 }
 
 /**
@@ -147,6 +160,25 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
                 return undefined;
             } catch (err) {
                 return toSessionFsError(err);
+            }
+        },
+        sqliteQuery: async ({ sessionId, query, queryType, params }) => {
+            try {
+                return await provider.sqliteQuery(sessionId, query, queryType, params);
+            } catch (err) {
+                return {
+                    columns: [],
+                    rows: [],
+                    rowsAffected: 0,
+                    error: toSessionFsError(err),
+                };
+            }
+        },
+        sqliteExists: async ({ sessionId }) => {
+            try {
+                return { exists: await provider.sqliteExists(sessionId) };
+            } catch {
+                return { exists: false };
             }
         },
     };

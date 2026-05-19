@@ -16,7 +16,7 @@ use crate::handler::SessionHandler;
 use crate::hooks::SessionHooks;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConfig, SessionFsConventions,
-    SessionFsProvider,
+    SessionFsProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
 };
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;

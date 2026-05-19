@@ -1329,7 +1329,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             _options.SessionFs.InitialCwd,
             _options.SessionFs.SessionStatePath,
             _options.SessionFs.Conventions,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
     private void ConfigureSessionFsHandlers(CopilotSession session, Func<CopilotSession, SessionFsProvider>? createSessionFsHandler)

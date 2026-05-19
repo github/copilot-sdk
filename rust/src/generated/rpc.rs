@@ -9,6 +9,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use super::api_types::{rpc_methods, *};
+use super::session_events::SessionMode;
 use crate::session::Session;
 use crate::{Client, Error};
 
@@ -1419,7 +1420,7 @@ impl<'a> SessionRpcMode<'a> {
     ///
     /// # Returns
     ///
-    /// The agent mode. Valid values: "interactive", "plan", "autopilot".
+    /// The session mode the agent is operating in
     pub async fn get(&self) -> Result<SessionMode, Error> {
         let wire_params = serde_json::json!({ "sessionId": self.session.id() });
         let _value = self

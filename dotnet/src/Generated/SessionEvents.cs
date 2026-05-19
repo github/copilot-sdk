@@ -1226,7 +1226,7 @@ public sealed partial class SessionStartData
     [JsonPropertyName("producer")]
     public required string Producer { get; set; }
 
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh").</summary>
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -1281,7 +1281,7 @@ public sealed partial class SessionResumeData
     [JsonPropertyName("eventCount")]
     public required double EventCount { get; set; }
 
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh").</summary>
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -1393,8 +1393,9 @@ public sealed partial class SessionScheduleCreatedData
     public required long Id { get; set; }
 
     /// <summary>Interval between ticks in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("intervalMs")]
-    public required long IntervalMs { get; set; }
+    public required TimeSpan IntervalMs { get; set; }
 
     /// <summary>Prompt text that gets enqueued on every tick.</summary>
     [JsonPropertyName("prompt")]
@@ -1498,13 +1499,13 @@ public sealed partial class SessionModelChangeData
 /// <summary>Agent mode change details including previous and new modes.</summary>
 public sealed partial class SessionModeChangedData
 {
-    /// <summary>Agent mode after the change (e.g., "interactive", "plan", "autopilot").</summary>
+    /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("newMode")]
-    public required string NewMode { get; set; }
+    public required SessionMode NewMode { get; set; }
 
-    /// <summary>Agent mode before the change (e.g., "interactive", "plan", "autopilot").</summary>
+    /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("previousMode")]
-    public required string PreviousMode { get; set; }
+    public required SessionMode PreviousMode { get; set; }
 }
 
 /// <summary>Plan file operation details indicating what changed.</summary>
@@ -1540,6 +1541,8 @@ public sealed partial class SessionHandoffData
     public required DateTimeOffset HandoffTime { get; set; }
 
     /// <summary>GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com).</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("host")]
     public string? Host { get; set; }
@@ -1667,8 +1670,9 @@ public sealed partial class SessionShutdownData
     public double? ToolDefinitionsTokens { get; set; }
 
     /// <summary>Cumulative time spent in API calls during the session, in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("totalApiDurationMs")]
-    public required double TotalApiDurationMs { get; set; }
+    public required TimeSpan TotalApiDurationMs { get; set; }
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2134,9 +2138,10 @@ public sealed partial class AssistantUsageData
     public double? Cost { get; set; }
 
     /// <summary>Duration of the API call in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("duration")]
-    public double? Duration { get; set; }
+    public TimeSpan? Duration { get; set; }
 
     /// <summary>What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2149,9 +2154,10 @@ public sealed partial class AssistantUsageData
     public double? InputTokens { get; set; }
 
     /// <summary>Average inter-token latency in milliseconds. Only available for streaming requests.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("interTokenLatencyMs")]
-    public double? InterTokenLatencyMs { get; set; }
+    public TimeSpan? InterTokenLatencyMs { get; set; }
 
     /// <summary>Model identifier used for this API call.</summary>
     [JsonPropertyName("model")]
@@ -2179,7 +2185,7 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("quotaSnapshots")]
     public IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
 
-    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh").</summary>
+    /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("reasoningEffort")]
     public string? ReasoningEffort { get; set; }
@@ -2190,9 +2196,10 @@ public sealed partial class AssistantUsageData
     public double? ReasoningTokens { get; set; }
 
     /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("ttftMs")]
-    public double? TtftMs { get; set; }
+    public TimeSpan? TtftMs { get; set; }
 }
 
 /// <summary>Failed LLM API call metadata for telemetry.</summary>
@@ -2204,9 +2211,10 @@ public sealed partial class ModelCallFailureData
     public string? ApiCallId { get; set; }
 
     /// <summary>Duration of the failed API call in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
-    public double? DurationMs { get; set; }
+    public TimeSpan? DurationMs { get; set; }
 
     /// <summary>Raw provider/runtime error message for restricted telemetry.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2453,9 +2461,10 @@ public sealed partial class SubagentCompletedData
     public required string AgentName { get; set; }
 
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
-    public double? DurationMs { get; set; }
+    public TimeSpan? DurationMs { get; set; }
 
     /// <summary>Model used by the sub-agent.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2489,9 +2498,10 @@ public sealed partial class SubagentFailedData
     public required string AgentName { get; set; }
 
     /// <summary>Wall-clock duration of the sub-agent execution in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("durationMs")]
-    public double? DurationMs { get; set; }
+    public TimeSpan? DurationMs { get; set; }
 
     /// <summary>Error message describing why the sub-agent failed.</summary>
     [JsonPropertyName("error")]
@@ -2790,6 +2800,8 @@ public sealed partial class McpOauthRequiredData
     public required string ServerName { get; set; }
 
     /// <summary>URL of the MCP server that requires OAuth.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("serverUrl")]
     public required string ServerUrl { get; set; }
 
@@ -2945,9 +2957,9 @@ public sealed partial class AutoModeSwitchCompletedData
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
 
-    /// <summary>The user's choice: 'yes', 'yes_always', or 'no'.</summary>
+    /// <summary>The user's auto-mode-switch choice.</summary>
     [JsonPropertyName("response")]
-    public required string Response { get; set; }
+    public required AutoModeSwitchResponse Response { get; set; }
 }
 
 /// <summary>SDK command registration change notification.</summary>
@@ -2970,17 +2982,17 @@ public sealed partial class CapabilitiesChangedData
 /// <summary>Plan approval request with plan content and available user actions.</summary>
 public sealed partial class ExitPlanModeRequestedData
 {
-    /// <summary>Available actions the user can take (e.g., approve, edit, reject).</summary>
+    /// <summary>Available actions the user can take.</summary>
     [JsonPropertyName("actions")]
-    public required string[] Actions { get; set; }
+    public required ExitPlanModeAction[] Actions { get; set; }
 
     /// <summary>Full content of the plan file.</summary>
     [JsonPropertyName("planContent")]
     public required string PlanContent { get; set; }
 
-    /// <summary>The recommended action for the user to take.</summary>
+    /// <summary>Recommended action to preselect for the user.</summary>
     [JsonPropertyName("recommendedAction")]
-    public required string RecommendedAction { get; set; }
+    public required ExitPlanModeAction RecommendedAction { get; set; }
 
     /// <summary>Unique identifier for this request; used to respond via session.respondToExitPlanMode().</summary>
     [JsonPropertyName("requestId")]
@@ -3013,10 +3025,10 @@ public sealed partial class ExitPlanModeCompletedData
     [JsonPropertyName("requestId")]
     public required string RequestId { get; set; }
 
-    /// <summary>Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only').</summary>
+    /// <summary>Action selected by the user.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("selectedAction")]
-    public string? SelectedAction { get; set; }
+    public ExitPlanModeAction? SelectedAction { get; set; }
 }
 
 /// <summary>Schema for the `ToolsUpdatedData` type.</summary>
@@ -3071,9 +3083,9 @@ public sealed partial class SessionMcpServerStatusChangedData
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
 
-    /// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+    /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public required McpServerStatusChangedStatus Status { get; set; }
+    public required McpServerStatus Status { get; set; }
 }
 
 /// <summary>Schema for the `ExtensionsLoadedData` type.</summary>
@@ -3297,9 +3309,10 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
     public CompactionCompleteCompactionTokensUsedCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Duration of the compaction LLM call in milliseconds.</summary>
+    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("duration")]
-    public double? Duration { get; set; }
+    public TimeSpan? Duration { get; set; }
 
     /// <summary>Input tokens consumed by the compaction LLM call.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3458,6 +3471,8 @@ public sealed partial class UserMessageAttachmentGithubReference : UserMessageAt
     public required string Title { get; set; }
 
     /// <summary>URL to the referenced item on GitHub.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -4147,6 +4162,8 @@ public sealed partial class PermissionRequestShellCommand
 public sealed partial class PermissionRequestShellPossibleUrl
 {
     /// <summary>URL that may be accessed by the command.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -4308,6 +4325,8 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     public string? ToolCallId { get; set; }
 
     /// <summary>URL to be fetched.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -4619,6 +4638,8 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     public string? ToolCallId { get; set; }
 
     /// <summary>URL to be fetched.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -4634,7 +4655,7 @@ public sealed partial class PermissionPromptRequestMemory : PermissionPromptRequ
     /// <summary>Whether this is a store or vote memory operation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("action")]
-    public PermissionPromptRequestMemoryAction? Action { get; set; }
+    public PermissionRequestMemoryAction? Action { get; set; }
 
     /// <summary>Source references for the stored fact (store only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4644,7 +4665,7 @@ public sealed partial class PermissionPromptRequestMemory : PermissionPromptRequ
     /// <summary>Vote direction (vote only).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("direction")]
-    public PermissionPromptRequestMemoryDirection? Direction { get; set; }
+    public PermissionRequestMemoryDirection? Direction { get; set; }
 
     /// <summary>The fact being stored or voted on.</summary>
     [JsonPropertyName("fact")]
@@ -5177,9 +5198,9 @@ public sealed partial class SkillsLoadedSkill
     [JsonPropertyName("path")]
     public string? Path { get; set; }
 
-    /// <summary>Source location type of the skill (e.g., project, personal, plugin).</summary>
+    /// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
     [JsonPropertyName("source")]
-    public required string Source { get; set; }
+    public required SkillSource Source { get; set; }
 
     /// <summary>Whether the skill can be invoked by the user as a slash command.</summary>
     [JsonPropertyName("userInvocable")]
@@ -5240,11 +5261,11 @@ public sealed partial class McpServersLoadedServer
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
-    public string? Source { get; set; }
+    public McpServerSource? Source { get; set; }
 
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
-    public required McpServersLoadedServerStatus Status { get; set; }
+    public required McpServerStatus Status { get; set; }
 }
 
 /// <summary>Schema for the `ExtensionsLoadedExtension` type.</summary>
@@ -5389,6 +5410,70 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
         public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
         {
             GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
+        }
+    }
+}
+
+/// <summary>The session mode the agent is operating in.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionMode : IEquatable<SessionMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionMode"/>.</param>
+    [JsonConstructor]
+    public SessionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>interactive</c> value.</summary>
+    public static SessionMode Interactive { get; } = new("interactive");
+
+    /// <summary>Gets the <c>plan</c> value.</summary>
+    public static SessionMode Plan { get; } = new("plan");
+
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    public static SessionMode Autopilot { get; } = new("autopilot");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionMode left, SessionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionMode left, SessionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionMode}"/> for serializing <see cref="SessionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionMode>
+    {
+        /// <inheritdoc />
+        public override SessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
         }
     }
 }
@@ -6332,128 +6417,6 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
     }
 }
 
-/// <summary>Whether this is a store or vote memory operation.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionPromptRequestMemoryAction : IEquatable<PermissionPromptRequestMemoryAction>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestMemoryAction"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestMemoryAction"/>.</param>
-    [JsonConstructor]
-    public PermissionPromptRequestMemoryAction(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryAction"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>store</c> value.</summary>
-    public static PermissionPromptRequestMemoryAction Store { get; } = new("store");
-
-    /// <summary>Gets the <c>vote</c> value.</summary>
-    public static PermissionPromptRequestMemoryAction Vote { get; } = new("vote");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestMemoryAction"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionPromptRequestMemoryAction left, PermissionPromptRequestMemoryAction right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestMemoryAction"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionPromptRequestMemoryAction left, PermissionPromptRequestMemoryAction right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionPromptRequestMemoryAction other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionPromptRequestMemoryAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionPromptRequestMemoryAction}"/> for serializing <see cref="PermissionPromptRequestMemoryAction"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionPromptRequestMemoryAction>
-    {
-        /// <inheritdoc />
-        public override PermissionPromptRequestMemoryAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionPromptRequestMemoryAction value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestMemoryAction));
-        }
-    }
-}
-
-/// <summary>Vote direction (vote only).</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionPromptRequestMemoryDirection : IEquatable<PermissionPromptRequestMemoryDirection>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionPromptRequestMemoryDirection"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionPromptRequestMemoryDirection"/>.</param>
-    [JsonConstructor]
-    public PermissionPromptRequestMemoryDirection(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestMemoryDirection"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Gets the <c>upvote</c> value.</summary>
-    public static PermissionPromptRequestMemoryDirection Upvote { get; } = new("upvote");
-
-    /// <summary>Gets the <c>downvote</c> value.</summary>
-    public static PermissionPromptRequestMemoryDirection Downvote { get; } = new("downvote");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestMemoryDirection"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionPromptRequestMemoryDirection left, PermissionPromptRequestMemoryDirection right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestMemoryDirection"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionPromptRequestMemoryDirection left, PermissionPromptRequestMemoryDirection right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionPromptRequestMemoryDirection other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionPromptRequestMemoryDirection other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionPromptRequestMemoryDirection}"/> for serializing <see cref="PermissionPromptRequestMemoryDirection"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionPromptRequestMemoryDirection>
-    {
-        /// <inheritdoc />
-        public override PermissionPromptRequestMemoryDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionPromptRequestMemoryDirection value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestMemoryDirection));
-        }
-    }
-}
-
 /// <summary>Underlying permission kind that needs path approval.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -6643,54 +6606,45 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     }
 }
 
-/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+/// <summary>The user's auto-mode-switch choice.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoadedServerStatus>
+public readonly struct AutoModeSwitchResponse : IEquatable<AutoModeSwitchResponse>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="McpServersLoadedServerStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServersLoadedServerStatus"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="AutoModeSwitchResponse"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutoModeSwitchResponse"/>.</param>
     [JsonConstructor]
-    public McpServersLoadedServerStatus(string value)
+    public AutoModeSwitchResponse(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="McpServersLoadedServerStatus"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="AutoModeSwitchResponse"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>connected</c> value.</summary>
-    public static McpServersLoadedServerStatus Connected { get; } = new("connected");
+    /// <summary>Gets the <c>yes</c> value.</summary>
+    public static AutoModeSwitchResponse Yes { get; } = new("yes");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
-    public static McpServersLoadedServerStatus Failed { get; } = new("failed");
+    /// <summary>Gets the <c>yes_always</c> value.</summary>
+    public static AutoModeSwitchResponse YesAlways { get; } = new("yes_always");
 
-    /// <summary>Gets the <c>needs-auth</c> value.</summary>
-    public static McpServersLoadedServerStatus NeedsAuth { get; } = new("needs-auth");
+    /// <summary>Gets the <c>no</c> value.</summary>
+    public static AutoModeSwitchResponse No { get; } = new("no");
 
-    /// <summary>Gets the <c>pending</c> value.</summary>
-    public static McpServersLoadedServerStatus Pending { get; } = new("pending");
+    /// <summary>Returns a value indicating whether two <see cref="AutoModeSwitchResponse"/> instances are equivalent.</summary>
+    public static bool operator ==(AutoModeSwitchResponse left, AutoModeSwitchResponse right) => left.Equals(right);
 
-    /// <summary>Gets the <c>disabled</c> value.</summary>
-    public static McpServersLoadedServerStatus Disabled { get; } = new("disabled");
-
-    /// <summary>Gets the <c>not_configured</c> value.</summary>
-    public static McpServersLoadedServerStatus NotConfigured { get; } = new("not_configured");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServersLoadedServerStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServersLoadedServerStatus left, McpServersLoadedServerStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServersLoadedServerStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServersLoadedServerStatus left, McpServersLoadedServerStatus right) => !(left == right);
+    /// <summary>Returns a value indicating whether two <see cref="AutoModeSwitchResponse"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutoModeSwitchResponse left, AutoModeSwitchResponse right) => !(left == right);
 
     /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServersLoadedServerStatus other && Equals(other);
+    public override bool Equals(object? obj) => obj is AutoModeSwitchResponse other && Equals(other);
 
     /// <inheritdoc />
-    public bool Equals(McpServersLoadedServerStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(AutoModeSwitchResponse other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -6698,72 +6652,66 @@ public readonly struct McpServersLoadedServerStatus : IEquatable<McpServersLoade
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{McpServersLoadedServerStatus}"/> for serializing <see cref="McpServersLoadedServerStatus"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{AutoModeSwitchResponse}"/> for serializing <see cref="AutoModeSwitchResponse"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServersLoadedServerStatus>
+    public sealed class Converter : JsonConverter<AutoModeSwitchResponse>
     {
         /// <inheritdoc />
-        public override McpServersLoadedServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override AutoModeSwitchResponse Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServersLoadedServerStatus value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, AutoModeSwitchResponse value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServersLoadedServerStatus));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoModeSwitchResponse));
         }
     }
 }
 
-/// <summary>New connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+/// <summary>Exit plan mode action.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatusChangedStatus>
+public readonly struct ExitPlanModeAction : IEquatable<ExitPlanModeAction>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="McpServerStatusChangedStatus"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="McpServerStatusChangedStatus"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="ExitPlanModeAction"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ExitPlanModeAction"/>.</param>
     [JsonConstructor]
-    public McpServerStatusChangedStatus(string value)
+    public ExitPlanModeAction(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="McpServerStatusChangedStatus"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="ExitPlanModeAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>connected</c> value.</summary>
-    public static McpServerStatusChangedStatus Connected { get; } = new("connected");
+    /// <summary>Gets the <c>exit_only</c> value.</summary>
+    public static ExitPlanModeAction ExitOnly { get; } = new("exit_only");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
-    public static McpServerStatusChangedStatus Failed { get; } = new("failed");
+    /// <summary>Gets the <c>interactive</c> value.</summary>
+    public static ExitPlanModeAction Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>needs-auth</c> value.</summary>
-    public static McpServerStatusChangedStatus NeedsAuth { get; } = new("needs-auth");
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    public static ExitPlanModeAction Autopilot { get; } = new("autopilot");
 
-    /// <summary>Gets the <c>pending</c> value.</summary>
-    public static McpServerStatusChangedStatus Pending { get; } = new("pending");
+    /// <summary>Gets the <c>autopilot_fleet</c> value.</summary>
+    public static ExitPlanModeAction AutopilotFleet { get; } = new("autopilot_fleet");
 
-    /// <summary>Gets the <c>disabled</c> value.</summary>
-    public static McpServerStatusChangedStatus Disabled { get; } = new("disabled");
+    /// <summary>Returns a value indicating whether two <see cref="ExitPlanModeAction"/> instances are equivalent.</summary>
+    public static bool operator ==(ExitPlanModeAction left, ExitPlanModeAction right) => left.Equals(right);
 
-    /// <summary>Gets the <c>not_configured</c> value.</summary>
-    public static McpServerStatusChangedStatus NotConfigured { get; } = new("not_configured");
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerStatusChangedStatus"/> instances are equivalent.</summary>
-    public static bool operator ==(McpServerStatusChangedStatus left, McpServerStatusChangedStatus right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="McpServerStatusChangedStatus"/> instances are not equivalent.</summary>
-    public static bool operator !=(McpServerStatusChangedStatus left, McpServerStatusChangedStatus right) => !(left == right);
+    /// <summary>Returns a value indicating whether two <see cref="ExitPlanModeAction"/> instances are not equivalent.</summary>
+    public static bool operator !=(ExitPlanModeAction left, ExitPlanModeAction right) => !(left == right);
 
     /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is McpServerStatusChangedStatus other && Equals(other);
+    public override bool Equals(object? obj) => obj is ExitPlanModeAction other && Equals(other);
 
     /// <inheritdoc />
-    public bool Equals(McpServerStatusChangedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public bool Equals(ExitPlanModeAction other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -6771,20 +6719,236 @@ public readonly struct McpServerStatusChangedStatus : IEquatable<McpServerStatus
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{McpServerStatusChangedStatus}"/> for serializing <see cref="McpServerStatusChangedStatus"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{ExitPlanModeAction}"/> for serializing <see cref="ExitPlanModeAction"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<McpServerStatusChangedStatus>
+    public sealed class Converter : JsonConverter<ExitPlanModeAction>
     {
         /// <inheritdoc />
-        public override McpServerStatusChangedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override ExitPlanModeAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, McpServerStatusChangedStatus value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, ExitPlanModeAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatusChangedStatus));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExitPlanModeAction));
+        }
+    }
+}
+
+/// <summary>Source location type (e.g., project, personal-copilot, plugin, builtin).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillSource : IEquatable<SkillSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillSource"/>.</param>
+    [JsonConstructor]
+    public SkillSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>project</c> value.</summary>
+    public static SkillSource Project { get; } = new("project");
+
+    /// <summary>Gets the <c>inherited</c> value.</summary>
+    public static SkillSource Inherited { get; } = new("inherited");
+
+    /// <summary>Gets the <c>personal-copilot</c> value.</summary>
+    public static SkillSource PersonalCopilot { get; } = new("personal-copilot");
+
+    /// <summary>Gets the <c>personal-agents</c> value.</summary>
+    public static SkillSource PersonalAgents { get; } = new("personal-agents");
+
+    /// <summary>Gets the <c>plugin</c> value.</summary>
+    public static SkillSource Plugin { get; } = new("plugin");
+
+    /// <summary>Gets the <c>custom</c> value.</summary>
+    public static SkillSource Custom { get; } = new("custom");
+
+    /// <summary>Gets the <c>builtin</c> value.</summary>
+    public static SkillSource Builtin { get; } = new("builtin");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillSource"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillSource left, SkillSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillSource left, SkillSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillSource}"/> for serializing <see cref="SkillSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillSource>
+    {
+        /// <inheritdoc />
+        public override SkillSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillSource value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillSource));
+        }
+    }
+}
+
+/// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerSource : IEquatable<McpServerSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerSource"/>.</param>
+    [JsonConstructor]
+    public McpServerSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>user</c> value.</summary>
+    public static McpServerSource User { get; } = new("user");
+
+    /// <summary>Gets the <c>workspace</c> value.</summary>
+    public static McpServerSource Workspace { get; } = new("workspace");
+
+    /// <summary>Gets the <c>plugin</c> value.</summary>
+    public static McpServerSource Plugin { get; } = new("plugin");
+
+    /// <summary>Gets the <c>builtin</c> value.</summary>
+    public static McpServerSource Builtin { get; } = new("builtin");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerSource left, McpServerSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerSource left, McpServerSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerSource}"/> for serializing <see cref="McpServerSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerSource>
+    {
+        /// <inheritdoc />
+        public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
+        }
+    }
+}
+
+/// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerStatus : IEquatable<McpServerStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerStatus"/>.</param>
+    [JsonConstructor]
+    public McpServerStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Gets the <c>connected</c> value.</summary>
+    public static McpServerStatus Connected { get; } = new("connected");
+
+    /// <summary>Gets the <c>failed</c> value.</summary>
+    public static McpServerStatus Failed { get; } = new("failed");
+
+    /// <summary>Gets the <c>needs-auth</c> value.</summary>
+    public static McpServerStatus NeedsAuth { get; } = new("needs-auth");
+
+    /// <summary>Gets the <c>pending</c> value.</summary>
+    public static McpServerStatus Pending { get; } = new("pending");
+
+    /// <summary>Gets the <c>disabled</c> value.</summary>
+    public static McpServerStatus Disabled { get; } = new("disabled");
+
+    /// <summary>Gets the <c>not_configured</c> value.</summary>
+    public static McpServerStatus NotConfigured { get; } = new("not_configured");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerStatus left, McpServerStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerStatus left, McpServerStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerStatus}"/> for serializing <see cref="McpServerStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerStatus>
+    {
+        /// <inheritdoc />
+        public override McpServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerStatus value, JsonSerializerOptions options)
+        {
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatus));
         }
     }
 }

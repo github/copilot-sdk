@@ -289,17 +289,19 @@ func (r ExternalToolTextResultForLlmContentText) MarshalJSON() ([]byte, error) {
 
 func (r *ExternalToolTextResultForLlm) UnmarshalJSON(data []byte) error {
 	type rawExternalToolTextResultForLlm struct {
-		Contents         []json.RawMessage `json:"contents,omitempty"`
-		Error            *string           `json:"error,omitempty"`
-		ResultType       *string           `json:"resultType,omitempty"`
-		SessionLog       *string           `json:"sessionLog,omitempty"`
-		TextResultForLlm string            `json:"textResultForLlm"`
-		ToolTelemetry    map[string]any    `json:"toolTelemetry,omitempty"`
+		BinaryResultsForLlm []ExternalToolTextResultForLlmBinaryResultsForLlm `json:"binaryResultsForLlm,omitempty"`
+		Contents            []json.RawMessage                                 `json:"contents,omitempty"`
+		Error               *string                                           `json:"error,omitempty"`
+		ResultType          *string                                           `json:"resultType,omitempty"`
+		SessionLog          *string                                           `json:"sessionLog,omitempty"`
+		TextResultForLlm    string                                            `json:"textResultForLlm"`
+		ToolTelemetry       map[string]any                                    `json:"toolTelemetry,omitempty"`
 	}
 	var raw rawExternalToolTextResultForLlm
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.BinaryResultsForLlm = raw.BinaryResultsForLlm
 	if raw.Contents != nil {
 		r.Contents = make([]ExternalToolTextResultForLlmContent, 0, len(raw.Contents))
 		for _, rawItem := range raw.Contents {
@@ -348,7 +350,7 @@ func unmarshalFilterMapping(data []byte) (FilterMapping, error) {
 		}
 	}
 	{
-		var value FilterMappingString
+		var value ContentFilterMode
 		if err := json.Unmarshal(data, &value); err == nil {
 			return value, nil
 		}
@@ -380,7 +382,6 @@ func (r *HandlePendingToolCallRequest) UnmarshalJSON(data []byte) error {
 
 func matchesMcpServerConfigHTTP(data []byte) bool {
 	var rawGroup0 struct {
-		Args    json.RawMessage `json:"args"`
 		Command json.RawMessage `json:"command"`
 		URL     json.RawMessage `json:"url"`
 	}
@@ -390,22 +391,15 @@ func matchesMcpServerConfigHTTP(data []byte) bool {
 	if rawGroup0.URL == nil {
 		return false
 	}
-	if rawGroup0.Args != nil {
-		return false
-	}
 	return rawGroup0.Command == nil
 }
 
-func matchesMcpServerConfigLocal(data []byte) bool {
+func matchesMcpServerConfigStdio(data []byte) bool {
 	var rawGroup0 struct {
-		Args    json.RawMessage `json:"args"`
 		Command json.RawMessage `json:"command"`
 		URL     json.RawMessage `json:"url"`
 	}
 	if err := json.Unmarshal(data, &rawGroup0); err != nil {
-		return false
-	}
-	if rawGroup0.Args == nil {
 		return false
 	}
 	if rawGroup0.Command == nil {
@@ -425,8 +419,8 @@ func unmarshalMcpServerConfig(data []byte) (McpServerConfig, error) {
 		}
 		return &d, nil
 	}
-	if matchesMcpServerConfigLocal(data) {
-		var d McpServerConfigLocal
+	if matchesMcpServerConfigStdio(data) {
+		var d McpServerConfigStdio
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
@@ -444,6 +438,7 @@ func (r RawMcpServerConfigData) MarshalJSON() ([]byte, error) {
 
 func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	type rawMcpServerConfigHTTP struct {
+		Auth              *McpServerConfigHTTPAuth           `json:"auth,omitempty"`
 		FilterMapping     json.RawMessage                    `json:"filterMapping,omitempty"`
 		Headers           map[string]string                  `json:"headers,omitempty"`
 		IsDefaultServer   *bool                              `json:"isDefaultServer,omitempty"`
@@ -459,6 +454,7 @@ func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	r.Auth = raw.Auth
 	if raw.FilterMapping != nil {
 		value, err := unmarshalFilterMapping(raw.FilterMapping)
 		if err != nil {
@@ -478,19 +474,18 @@ func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r *McpServerConfigLocal) UnmarshalJSON(data []byte) error {
-	type rawMcpServerConfigLocal struct {
-		Args            []string                  `json:"args"`
-		Command         string                    `json:"command"`
-		Cwd             *string                   `json:"cwd,omitempty"`
-		Env             map[string]string         `json:"env,omitempty"`
-		FilterMapping   json.RawMessage           `json:"filterMapping,omitempty"`
-		IsDefaultServer *bool                     `json:"isDefaultServer,omitempty"`
-		Timeout         *int64                    `json:"timeout,omitempty"`
-		Tools           []string                  `json:"tools,omitempty"`
-		Type            *McpServerConfigLocalType `json:"type,omitempty"`
+func (r *McpServerConfigStdio) UnmarshalJSON(data []byte) error {
+	type rawMcpServerConfigStdio struct {
+		Args            []string          `json:"args,omitempty"`
+		Command         string            `json:"command"`
+		Cwd             *string           `json:"cwd,omitempty"`
+		Env             map[string]string `json:"env,omitempty"`
+		FilterMapping   json.RawMessage   `json:"filterMapping,omitempty"`
+		IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
+		Timeout         *int64            `json:"timeout,omitempty"`
+		Tools           []string          `json:"tools,omitempty"`
 	}
-	var raw rawMcpServerConfigLocal
+	var raw rawMcpServerConfigStdio
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
@@ -508,7 +503,6 @@ func (r *McpServerConfigLocal) UnmarshalJSON(data []byte) error {
 	r.IsDefaultServer = raw.IsDefaultServer
 	r.Timeout = raw.Timeout
 	r.Tools = raw.Tools
-	r.Type = raw.Type
 	return nil
 }
 

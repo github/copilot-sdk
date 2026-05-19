@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll } from "../../src/index.js";
+import { approveAll, CopilotClient } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Per-session GitHub auth", async () => {
-    const { copilotClient: client, openAiEndpoint, env } = await createSdkTestContext();
+    const { copilotClient: client, openAiEndpoint, env, workDir } = await createSdkTestContext();
 
     // Redirect GitHub API calls (e.g., fetchCopilotUser) to the proxy
     // so per-session auth token resolution can be tested
@@ -76,17 +76,32 @@ describe("Per-session GitHub auth", async () => {
     });
 
     it("should return unauthenticated when no token is provided", async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
+        const noTokenClient = new CopilotClient({
+            cwd: workDir,
+            env: withoutAuthEnv({
+                ...env,
+                COPILOT_DEBUG_GITHUB_API_URL: env.COPILOT_API_URL,
+            }),
+            logLevel: "error",
+            cliPath: process.env.COPILOT_CLI_PATH,
+            useLoggedInUser: false,
         });
 
-        const authStatus = await session.rpc.auth.getStatus();
-        // Without a per-session GitHub token, there is no per-session identity.
-        // In CI the process-level fake token may still authenticate globally,
-        // so we check login rather than isAuthenticated.
-        expect(authStatus.login).toBeFalsy();
+        try {
+            const session = await noTokenClient.createSession({
+                onPermissionRequest: approveAll,
+            });
 
-        await session.disconnect();
+            const authStatus = await session.rpc.auth.getStatus();
+            // Without a per-session GitHub token, there is no per-session identity.
+            // In CI the process-level fake token may still authenticate globally,
+            // so we check login rather than isAuthenticated.
+            expect(authStatus.login).toBeFalsy();
+
+            await session.disconnect();
+        } finally {
+            await noTokenClient.stop();
+        }
     });
 
     it("should error when creating session with invalid token", async () => {
@@ -98,3 +113,12 @@ describe("Per-session GitHub auth", async () => {
         ).rejects.toThrow(/401|Unauthorized/i);
     });
 });
+
+function withoutAuthEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    return {
+        ...env,
+        COPILOT_SDK_AUTH_TOKEN: "",
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
+    };
+}

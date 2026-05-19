@@ -1,6 +1,7 @@
+use github_copilot_sdk::generated::SessionMode;
 use github_copilot_sdk::generated::api_types::{
     ModeSetRequest, NameSetRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
-    SessionMode, ShellExecRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    ShellExecRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
 
 use super::support::{wait_for_condition, with_e2e_context};
