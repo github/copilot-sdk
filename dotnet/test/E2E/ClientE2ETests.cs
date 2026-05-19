@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.SDK.Test.Harness;
 using Xunit;
 
 namespace GitHub.Copilot.SDK.Test.E2E;
@@ -194,9 +195,9 @@ public class ClientE2ETests
     {
         const string connectionToken = "client-e2e-resume-token";
 
-        await using var client = new CopilotClient(new CopilotClientOptions
+        await using var ctx = await E2ETestContext.CreateAsync();
+        await using var client = ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
         {
-            UseStdio = false,
             TcpConnectionToken = connectionToken,
         });
         await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
@@ -204,7 +205,7 @@ public class ClientE2ETests
         var port = client.ActualPort
             ?? throw new InvalidOperationException("Client must be using TCP transport to support multi-client resume.");
 
-        await using var resumeClient = new CopilotClient(new CopilotClientOptions
+        await using var resumeClient = ctx.CreateClient(options: new CopilotClientOptions
         {
             CliUrl = $"localhost:{port}",
             TcpConnectionToken = connectionToken,
