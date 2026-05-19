@@ -63,9 +63,7 @@ describe("SessionFsAdapter", () => {
                 async query(queryType, query, params) {
                     return {
                         columns: ["sessionId", "query", "queryType", "answer"],
-                        rows: [
-                            { sessionId, query, queryType, answer: params?.answer },
-                        ],
+                        rows: [{ sessionId, query, queryType, answer: params?.answer }],
                         rowsAffected: 0,
                     };
                 },

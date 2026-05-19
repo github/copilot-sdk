@@ -42,7 +42,7 @@ export interface SessionFsSqliteProvider {
     query(
         queryType: SessionFsSqliteQueryType,
         query: string,
-        params?: Record<string, string | number | null>,
+        params?: Record<string, string | number | null>
     ): Promise<SessionFsSqliteQueryResult | undefined>;
 
     /**

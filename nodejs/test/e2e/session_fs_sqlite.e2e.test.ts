@@ -52,76 +52,88 @@ describe("Session Fs SQLite", async () => {
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
-    it("should route SQL queries through the sessionFs sqlite handler", { timeout: 60000 }, async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            createSessionFsHandler,
-        });
+    it(
+        "should route SQL queries through the sessionFs sqlite handler",
+        { timeout: 60000 },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                createSessionFsHandler,
+            });
 
-        // Ask the agent to create a table and insert data using the SQL tool
-        const msg = await session.sendAndWait({
-            prompt:
-                'Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). ' +
-                'Then insert a row with id "a1" and name "Widget". ' +
-                "Then select all rows from items and tell me what you find.",
-        });
+            // Ask the agent to create a table and insert data using the SQL tool
+            const msg = await session.sendAndWait({
+                prompt:
+                    'Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). ' +
+                    'Then insert a row with id "a1" and name "Widget". ' +
+                    "Then select all rows from items and tell me what you find.",
+            });
 
-        expect(msg?.data.content).toContain("Widget");
+            expect(msg?.data.content).toContain("Widget");
 
-        // Verify the sqlite handler was called
-        const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
-        expect(sessionCalls.length).toBeGreaterThan(0);
-        expect(sessionCalls.some((c) => c.query.toUpperCase().includes("CREATE TABLE"))).toBe(true);
-        expect(sessionCalls.some((c) => c.query.toUpperCase().includes("INSERT"))).toBe(true);
-        expect(sessionCalls.some((c) => c.query.toUpperCase().includes("SELECT"))).toBe(true);
+            // Verify the sqlite handler was called
+            const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
+            expect(sessionCalls.length).toBeGreaterThan(0);
+            expect(sessionCalls.some((c) => c.query.toUpperCase().includes("CREATE TABLE"))).toBe(
+                true
+            );
+            expect(sessionCalls.some((c) => c.query.toUpperCase().includes("INSERT"))).toBe(true);
+            expect(sessionCalls.some((c) => c.query.toUpperCase().includes("SELECT"))).toBe(true);
 
-        // Verify queryType is set correctly
-        expect(sessionCalls.some((c) => c.queryType === "exec")).toBe(true);
-        expect(sessionCalls.some((c) => c.queryType === "query")).toBe(true);
-        expect(sessionCalls.some((c) => c.queryType === "run")).toBe(true);
+            // Verify queryType is set correctly
+            expect(sessionCalls.some((c) => c.queryType === "exec")).toBe(true);
+            expect(sessionCalls.some((c) => c.queryType === "query")).toBe(true);
+            expect(sessionCalls.some((c) => c.queryType === "run")).toBe(true);
 
-        await session.disconnect();
-    });
+            await session.disconnect();
+        }
+    );
 
-    it("should allow subagents to use SQL tool via inherited sessionFs", { timeout: 60000 }, async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            createSessionFsHandler,
-        });
+    it(
+        "should allow subagents to use SQL tool via inherited sessionFs",
+        { timeout: 60000 },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                createSessionFsHandler,
+            });
 
-        const events: SessionEvent[] = [];
-        session.on((event) => {
-            events.push(event);
-        });
+            const events: SessionEvent[] = [];
+            session.on((event) => {
+                events.push(event);
+            });
 
-        // Ask the agent to use the task tool to spawn a subagent that uses SQL
-        await session.sendAndWait({
-            prompt:
-                'Use the task tool to ask a task agent to do the following: ' +
-                'Use the sql tool to run this query: INSERT INTO todos (id, title, status) VALUES (\'subagent-test\', \'Created by subagent\', \'done\')',
-        });
+            // Ask the agent to use the task tool to spawn a subagent that uses SQL
+            await session.sendAndWait({
+                prompt:
+                    "Use the task tool to ask a task agent to do the following: " +
+                    "Use the sql tool to run this query: INSERT INTO todos (id, title, status) VALUES ('subagent-test', 'Created by subagent', 'done')",
+            });
 
-        await session.disconnect();
+            await session.disconnect();
 
-        // Verify that the subagent's SQL queries were routed through the sessionFs sqlite handler
-        const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
-        const insertCalls = sessionCalls.filter((c) => c.query.toUpperCase().includes("INSERT"));
-        expect(insertCalls.length).toBeGreaterThan(0);
+            // Verify that the subagent's SQL queries were routed through the sessionFs sqlite handler
+            const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
+            const insertCalls = sessionCalls.filter((c) =>
+                c.query.toUpperCase().includes("INSERT")
+            );
+            expect(insertCalls.length).toBeGreaterThan(0);
 
-        // Verify that the sql tool execution in events.jsonl came from the subagent (has agentId)
-        const buf = await provider.readFile(
-            p(session.sessionId, `${sessionStatePath}/events.jsonl`)
-        );
-        const content = buf.toString("utf8");
-        const lines = content.split("\n").filter(Boolean);
-        const parsed = lines.map((line) => JSON.parse(line));
-        const sqlToolEvents = parsed.filter(
-            (e: { type?: string; data?: { toolName?: string } }) =>
-                e.type === "tool.execution_start" && e.data?.toolName === "sql"
-        );
-        expect(sqlToolEvents.length).toBeGreaterThan(0);
-        expect(sqlToolEvents.every((e: { agentId?: string }) => !!e.agentId)).toBe(true);
-    });
+            // Verify that the sql tool execution in events.jsonl came from the subagent (has agentId)
+            const buf = await provider.readFile(
+                p(session.sessionId, `${sessionStatePath}/events.jsonl`)
+            );
+            const content = buf.toString("utf8");
+            const lines = content.split("\n").filter(Boolean);
+            const parsed = lines.map((line) => JSON.parse(line));
+            const sqlToolEvents = parsed.filter(
+                (e: { type?: string; data?: { toolName?: string } }) =>
+                    e.type === "tool.execution_start" && e.data?.toolName === "sql"
+            );
+            expect(sqlToolEvents.length).toBeGreaterThan(0);
+            expect(sqlToolEvents.every((e: { agentId?: string }) => !!e.agentId)).toBe(true);
+        }
+    );
 });
 
 function createTestSessionFsHandlerWithSqlite(
@@ -129,8 +141,7 @@ function createTestSessionFsHandlerWithSqlite(
     provider: VirtualProvider,
     sqliteCalls: { sessionId: string; queryType: string; query: string }[]
 ): SessionFsProvider {
-    const sp = (path: string) =>
-        `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
+    const sp = (path: string) => `/${session.sessionId}${path.startsWith("/") ? path : "/" + path}`;
 
     // Per-session SQLite database (in-memory)
     let db: DatabaseSync | undefined;
@@ -172,18 +183,14 @@ function createTestSessionFsHandlerWithSqlite(
         async readdir(path: string): Promise<string[]> {
             return (await provider.readdir(sp(path))) as string[];
         },
-        async readdirWithTypes(
-            path: string
-        ): Promise<SessionFsReaddirWithTypesEntry[]> {
+        async readdirWithTypes(path: string): Promise<SessionFsReaddirWithTypesEntry[]> {
             const names = (await provider.readdir(sp(path))) as string[];
             return Promise.all(
                 names.map(async (name) => {
                     const st = await provider.stat(sp(`${path}/${name}`));
                     return {
                         name,
-                        type: st.isDirectory()
-                            ? ("directory" as const)
-                            : ("file" as const),
+                        type: st.isDirectory() ? ("directory" as const) : ("file" as const),
                     };
                 })
             );
@@ -215,19 +222,17 @@ function createTestSessionFsHandlerWithSqlite(
 
                     case "query": {
                         const stmt = database.prepare(trimmed);
-                        const rows = (
-                            params ? stmt.all(params) : stmt.all()
-                        ) as Record<string, unknown>[];
-                        const columns =
-                            rows.length > 0 ? Object.keys(rows[0]) : [];
+                        const rows = (params ? stmt.all(params) : stmt.all()) as Record<
+                            string,
+                            unknown
+                        >[];
+                        const columns = rows.length > 0 ? Object.keys(rows[0]) : [];
                         return { rows, columns, rowsAffected: 0 };
                     }
 
                     case "run": {
                         const stmt = database.prepare(trimmed);
-                        const result = params
-                            ? stmt.run(params)
-                            : stmt.run();
+                        const result = params ? stmt.run(params) : stmt.run();
                         return {
                             rows: [],
                             columns: [],

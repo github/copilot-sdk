@@ -45,32 +45,36 @@ describe("Session Fs", async () => {
         copilotClientOptions: { sessionFs: sessionFsConfig },
     });
 
-    it("should route file operations through the session fs provider", { timeout: 60000 }, async () => {
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            createSessionFsHandler,
-        });
+    it(
+        "should route file operations through the session fs provider",
+        { timeout: 60000 },
+        async () => {
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                createSessionFsHandler,
+            });
 
-        const errors: SessionEvent[] = [];
-        session.on((event) => {
-            if (event.type === "session.error") {
-                errors.push(event);
-            }
-        });
+            const errors: SessionEvent[] = [];
+            session.on((event) => {
+                if (event.type === "session.error") {
+                    errors.push(event);
+                }
+            });
 
-        const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
-        expect(msg?.data.content).toContain("300");
-        await session.disconnect();
+            const msg = await session.sendAndWait({ prompt: "What is 100 + 200?" });
+            expect(msg?.data.content).toContain("300");
+            await session.disconnect();
 
-        const buf = await provider.readFile(
-            p(session.sessionId, `${sessionStatePath}/events.jsonl`)
-        );
-        const content = buf.toString("utf8");
-        expect(content).toContain("300");
+            const buf = await provider.readFile(
+                p(session.sessionId, `${sessionStatePath}/events.jsonl`)
+            );
+            const content = buf.toString("utf8");
+            expect(content).toContain("300");
 
-        // No sqlite capabilities declared — verify no errors from missing sqlite
-        expect(errors).toHaveLength(0);
-    });
+            // No sqlite capabilities declared — verify no errors from missing sqlite
+            expect(errors).toHaveLength(0);
+        }
+    );
 
     it("should load session data from fs provider on resume", async () => {
         const session1 = await client.createSession({
@@ -283,7 +287,14 @@ describe("Session Fs Adapter", () => {
                 async query(queryType, query, params) {
                     return {
                         columns: ["sessionId", "query", "queryType", "answer"],
-                        rows: [{ sessionId: "handler-session", query, queryType, answer: params?.answer }],
+                        rows: [
+                            {
+                                sessionId: "handler-session",
+                                query,
+                                queryType,
+                                answer: params?.answer,
+                            },
+                        ],
                         rowsAffected: 0,
                     };
                 },

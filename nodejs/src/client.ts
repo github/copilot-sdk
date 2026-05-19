@@ -450,7 +450,10 @@ export class CopilotClient {
         }
     }
 
-    private setupSessionFs(session: CopilotSession, config: { createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider }): void {
+    private setupSessionFs(
+        session: CopilotSession,
+        config: { createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider }
+    ): void {
         if (!this.sessionFsConfig) {
             return;
         }
