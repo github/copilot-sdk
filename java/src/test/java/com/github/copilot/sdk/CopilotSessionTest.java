@@ -769,7 +769,8 @@ public class CopilotSessionTest {
             String lastId = null;
             long deadline = System.currentTimeMillis() + 10_000;
             while (System.currentTimeMillis() < deadline) {
-                lastId = client.getLastSessionId().get(30, TimeUnit.SECONDS);
+                long remaining = Math.max(1, deadline - System.currentTimeMillis());
+                lastId = client.getLastSessionId().get(remaining, TimeUnit.MILLISECONDS);
                 if (sessionId.equals(lastId)) {
                     break;
                 }
@@ -861,7 +862,8 @@ public class CopilotSessionTest {
             com.github.copilot.sdk.json.SessionMetadata metadata = null;
             long deadline = System.currentTimeMillis() + 10_000;
             while (System.currentTimeMillis() < deadline) {
-                metadata = client.getSessionMetadata(sessionId).get(30, TimeUnit.SECONDS);
+                long remaining = Math.max(1, deadline - System.currentTimeMillis());
+                metadata = client.getSessionMetadata(sessionId).get(remaining, TimeUnit.MILLISECONDS);
                 if (metadata != null) {
                     break;
                 }
