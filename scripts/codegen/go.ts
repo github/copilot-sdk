@@ -26,6 +26,7 @@ import {
     getSessionEventVariantSchemas,
     getSharedSessionEventEnvelopeProperties,
     hasSchemaPayload,
+    isIntegerSchemaBoundedToInt32,
     isNodeFullyDeprecated,
     isNodeFullyExperimental,
     isRpcMethod,
@@ -852,7 +853,10 @@ function resolveGoPropertyType(
         return isRequired ? "string" : "*string";
     }
     if (type === "number") return isRequired ? "float64" : "*float64";
-    if (type === "integer") return isRequired ? "int64" : "*int64";
+    if (type === "integer") {
+        const integerType = isIntegerSchemaBoundedToInt32(propSchema) ? "int32" : "int64";
+        return isRequired ? integerType : `*${integerType}`;
+    }
     if (type === "boolean") return isRequired ? "bool" : "*bool";
 
     // Array type
@@ -2294,7 +2298,7 @@ function goPrimitiveSchemaGoType(schema: JSONSchema7, ctx: GoCodegenCtx): string
     const resolved = resolveSchema(schema, ctx.definitions) ?? schema;
     switch (resolved.type) {
         case "boolean": return "bool";
-        case "integer": return "int64";
+        case "integer": return isIntegerSchemaBoundedToInt32(resolved) ? "int32" : "int64";
         case "number": return "float64";
         case "string": return "string";
         default: return undefined;
