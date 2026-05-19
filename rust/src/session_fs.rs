@@ -410,8 +410,8 @@ pub trait SessionFsSqliteProvider: Send + Sync {
     /// Execute a SQLite query against the provider's per-session database.
     async fn sqlite_query(
         &self,
-        query: &str,
         query_type: SessionFsSqliteQueryType,
+        query: &str,
         params: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<SessionFsSqliteQueryResult, FsError>;
 

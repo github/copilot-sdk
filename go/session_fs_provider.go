@@ -57,7 +57,7 @@ type SessionFsProvider interface {
 // so these methods do not take a session ID parameter.
 type SessionFsSqliteProvider interface {
 	// SqliteQuery executes a SQLite query against the provider's per-session database.
-	SqliteQuery(query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*SessionFsSqliteQueryResult, error)
+	SqliteQuery(queryType rpc.SessionFsSqliteQueryType, query string, params map[string]any) (*SessionFsSqliteQueryResult, error)
 	// SqliteExists checks whether the provider has a SQLite database for the session.
 	SqliteExists() (bool, error)
 }
@@ -201,7 +201,7 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 			Error:        &rpc.SessionFsError{Code: rpc.SessionFsErrorCodeUNKNOWN, Message: &msg},
 		}, nil
 	}
-	result, err := sp.SqliteQuery(request.Query, request.QueryType, request.Params)
+	result, err := sp.SqliteQuery(request.QueryType, request.Query, request.Params)
 	if err != nil {
 		return &rpc.SessionFsSqliteQueryResult{
 			Columns:      []string{},

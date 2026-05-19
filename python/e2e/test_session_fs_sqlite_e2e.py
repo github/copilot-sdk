@@ -148,8 +148,8 @@ class _InMemorySessionFsSqliteProvider(SessionFsProvider, SessionFsSqliteProvide
 
     async def sqlite_query(
         self,
-        query: str,
         query_type: SessionFSSqliteQueryType,
+        query: str,
         params: dict[str, float | str | None] | None = None,
     ) -> SessionFsSqliteQueryResult:
         self._sqlite_calls.append(

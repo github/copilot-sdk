@@ -195,7 +195,7 @@ func (p *inMemorySqliteProvider) Rename(src string, dest string) error {
 	return nil
 }
 
-func (p *inMemorySqliteProvider) SqliteQuery(query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*copilot.SessionFsSqliteQueryResult, error) {
+func (p *inMemorySqliteProvider) SqliteQuery(queryType rpc.SessionFsSqliteQueryType, query string, params map[string]any) (*copilot.SessionFsSqliteQueryResult, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.hadQuery = true

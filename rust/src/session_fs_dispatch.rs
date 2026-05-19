@@ -342,8 +342,8 @@ pub(crate) async fn sqlite_query(
     let sqlite_params = (!params.params.is_empty()).then_some(&params.params);
     let result = match sqlite
         .sqlite_query(
-            &params.query,
             params.query_type,
+            &params.query,
             sqlite_params,
         )
         .await

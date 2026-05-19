@@ -211,8 +211,8 @@ impl SessionFsProvider for InMemorySqliteProvider {
 impl SessionFsSqliteProvider for InMemorySqliteProvider {
     async fn sqlite_query(
         &self,
-        query: &str,
         query_type: SessionFsSqliteQueryType,
+        query: &str,
         _params: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<SessionFsSqliteQueryResult, FsError> {
         let qt_str = match query_type {

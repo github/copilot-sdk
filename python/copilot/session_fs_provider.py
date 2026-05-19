@@ -120,8 +120,8 @@ class SessionFsSqliteProvider(abc.ABC):
     @abc.abstractmethod
     async def sqlite_query(
         self,
-        query: str,
         query_type: SessionFSSqliteQueryType,
+        query: str,
         params: dict[str, float | str | None] | None = None,
     ) -> SessionFsSqliteQueryResult:
         """Execute a SQLite query against the provider's per-session database."""
@@ -273,8 +273,8 @@ class _SessionFsAdapter:
                 ),
             )
         result = await self._p.sqlite_query(
-            params.query,
             params.query_type,
+            params.query,
             getattr(params, "params", None),
         )
         return _GeneratedSqliteQueryResult(
