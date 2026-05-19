@@ -5245,3 +5245,4 @@ def session_event_from_dict(s: Any) -> SessionEvent:
 
 def session_event_to_dict(x: SessionEvent) -> Any:
     return x.to_dict()
+
