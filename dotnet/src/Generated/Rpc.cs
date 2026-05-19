@@ -14,6 +14,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace GitHub.Copilot.SDK.Rpc;
 
@@ -4930,13 +4931,6 @@ public sealed class ServerRpc
     internal ServerRpc(JsonRpc rpc)
     {
         _rpc = rpc;
-        Models = new ServerModelsApi(rpc);
-        Tools = new ServerToolsApi(rpc);
-        Account = new ServerAccountApi(rpc);
-        Mcp = new ServerMcpApi(rpc);
-        Skills = new ServerSkillsApi(rpc);
-        SessionFs = new ServerSessionFsApi(rpc);
-        Sessions = new ServerSessionsApi(rpc);
     }
 
     /// <summary>Checks server responsiveness and returns protocol information.</summary>
@@ -4960,25 +4954,46 @@ public sealed class ServerRpc
     }
 
     /// <summary>Models APIs.</summary>
-    public ServerModelsApi Models { get; }
+    public ServerModelsApi Models =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 
     /// <summary>Tools APIs.</summary>
-    public ServerToolsApi Tools { get; }
+    public ServerToolsApi Tools =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 
     /// <summary>Account APIs.</summary>
-    public ServerAccountApi Account { get; }
+    public ServerAccountApi Account =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 
     /// <summary>Mcp APIs.</summary>
-    public ServerMcpApi Mcp { get; }
+    public ServerMcpApi Mcp =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 
     /// <summary>Skills APIs.</summary>
-    public ServerSkillsApi Skills { get; }
+    public ServerSkillsApi Skills =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 
     /// <summary>SessionFs APIs.</summary>
-    public ServerSessionFsApi SessionFs { get; }
+    public ServerSessionFsApi SessionFs =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 
     /// <summary>Sessions APIs.</summary>
-    public ServerSessionsApi Sessions { get; }
+    public ServerSessionsApi Sessions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
@@ -5052,7 +5067,6 @@ public sealed class ServerMcpApi
     internal ServerMcpApi(JsonRpc rpc)
     {
         _rpc = rpc;
-        Config = new ServerMcpConfigApi(rpc);
     }
 
     /// <summary>Discovers MCP servers from user, workspace, plugin, and builtin sources.</summary>
@@ -5066,7 +5080,10 @@ public sealed class ServerMcpApi
     }
 
     /// <summary>Config APIs.</summary>
-    public ServerMcpConfigApi Config { get; }
+    public ServerMcpConfigApi Config =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 }
 
 /// <summary>Provides server-scoped McpConfig APIs.</summary>
@@ -5093,6 +5110,9 @@ public sealed class ServerMcpConfigApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task AddAsync(string name, object config, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(config);
+
         var request = new McpConfigAddRequest { Name = name, Config = config };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.add", [request], cancellationToken);
     }
@@ -5103,6 +5123,9 @@ public sealed class ServerMcpConfigApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task UpdateAsync(string name, object config, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(config);
+
         var request = new McpConfigUpdateRequest { Name = name, Config = config };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.update", [request], cancellationToken);
     }
@@ -5112,6 +5135,8 @@ public sealed class ServerMcpConfigApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task RemoveAsync(string name, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(name);
+
         var request = new McpConfigRemoveRequest { Name = name };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.remove", [request], cancellationToken);
     }
@@ -5121,6 +5146,8 @@ public sealed class ServerMcpConfigApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(IList<string> names, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(names);
+
         var request = new McpConfigEnableRequest { Names = names };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.enable", [request], cancellationToken);
     }
@@ -5130,6 +5157,8 @@ public sealed class ServerMcpConfigApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(IList<string> names, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(names);
+
         var request = new McpConfigDisableRequest { Names = names };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.disable", [request], cancellationToken);
     }
@@ -5143,7 +5172,6 @@ public sealed class ServerSkillsApi
     internal ServerSkillsApi(JsonRpc rpc)
     {
         _rpc = rpc;
-        Config = new ServerSkillsConfigApi(rpc);
     }
 
     /// <summary>Discovers skills across global and project sources.</summary>
@@ -5158,7 +5186,10 @@ public sealed class ServerSkillsApi
     }
 
     /// <summary>Config APIs.</summary>
-    public ServerSkillsConfigApi Config { get; }
+    public ServerSkillsConfigApi Config =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 }
 
 /// <summary>Provides server-scoped SkillsConfig APIs.</summary>
@@ -5176,6 +5207,8 @@ public sealed class ServerSkillsConfigApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetDisabledSkillsAsync(IList<string> disabledSkills, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(disabledSkills);
+
         var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
         await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setDisabledSkills", [request], cancellationToken);
     }
@@ -5200,6 +5233,9 @@ public sealed class ServerSessionFsApi
     /// <returns>Indicates whether the calling client was registered as the session filesystem provider.</returns>
     public async Task<SessionFsSetProviderResult> SetProviderAsync(string initialCwd, string sessionStatePath, SessionFsSetProviderConventions conventions, SessionFsSetProviderCapabilities? capabilities = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(initialCwd);
+        ArgumentNullException.ThrowIfNull(sessionStatePath);
+
         var request = new SessionFsSetProviderRequest { InitialCwd = initialCwd, SessionStatePath = sessionStatePath, Conventions = conventions, Capabilities = capabilities };
         return await CopilotClient.InvokeRpcAsync<SessionFsSetProviderResult>(_rpc, "sessionFs.setProvider", [request], cancellationToken);
     }
@@ -5224,6 +5260,8 @@ public sealed class ServerSessionsApi
     /// <returns>Identifier and optional friendly name assigned to the newly forked session.</returns>
     public async Task<SessionsForkResult> ForkAsync(string sessionId, string? toEventId = null, string? name = null, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
         var request = new SessionsForkRequest { SessionId = sessionId, ToEventId = toEventId, Name = name };
         return await CopilotClient.InvokeRpcAsync<SessionsForkResult>(_rpc, "sessions.fork", [request], cancellationToken);
     }
@@ -5234,6 +5272,8 @@ public sealed class ServerSessionsApi
     /// <returns>Remote session connection result.</returns>
     public async Task<RemoteSessionConnectionResult> ConnectAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(sessionId);
+
         var request = new ConnectRemoteSessionParams { SessionId = sessionId };
         return await CopilotClient.InvokeRpcAsync<RemoteSessionConnectionResult>(_rpc, "sessions.connect", [request], cancellationToken);
     }
@@ -5242,109 +5282,155 @@ public sealed class ServerSessionsApi
 /// <summary>Provides typed session-scoped RPC methods.</summary>
 public sealed class SessionRpc
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal SessionRpc(JsonRpc rpc, string sessionId)
+    internal SessionRpc(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
-        Auth = new AuthApi(rpc, sessionId);
-        Model = new ModelApi(rpc, sessionId);
-        Mode = new ModeApi(rpc, sessionId);
-        Name = new NameApi(rpc, sessionId);
-        Plan = new PlanApi(rpc, sessionId);
-        Workspaces = new WorkspacesApi(rpc, sessionId);
-        Instructions = new InstructionsApi(rpc, sessionId);
-        Fleet = new FleetApi(rpc, sessionId);
-        Agent = new AgentApi(rpc, sessionId);
-        Tasks = new TasksApi(rpc, sessionId);
-        Skills = new SkillsApi(rpc, sessionId);
-        Mcp = new McpApi(rpc, sessionId);
-        Plugins = new PluginsApi(rpc, sessionId);
-        Extensions = new ExtensionsApi(rpc, sessionId);
-        Tools = new ToolsApi(rpc, sessionId);
-        Commands = new CommandsApi(rpc, sessionId);
-        Ui = new UiApi(rpc, sessionId);
-        Permissions = new PermissionsApi(rpc, sessionId);
-        Shell = new ShellApi(rpc, sessionId);
-        History = new HistoryApi(rpc, sessionId);
-        Usage = new UsageApi(rpc, sessionId);
-        Remote = new RemoteApi(rpc, sessionId);
+        _session = session;
     }
 
+    internal CopilotSession Session => _session;
+
     /// <summary>Auth APIs.</summary>
-    public AuthApi Auth { get; }
+    public AuthApi Auth =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Model APIs.</summary>
-    public ModelApi Model { get; }
+    public ModelApi Model =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Mode APIs.</summary>
-    public ModeApi Mode { get; }
+    public ModeApi Mode =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Name APIs.</summary>
-    public NameApi Name { get; }
+    public NameApi Name =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Plan APIs.</summary>
-    public PlanApi Plan { get; }
+    public PlanApi Plan =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Workspaces APIs.</summary>
-    public WorkspacesApi Workspaces { get; }
+    public WorkspacesApi Workspaces =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Instructions APIs.</summary>
-    public InstructionsApi Instructions { get; }
+    public InstructionsApi Instructions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Fleet APIs.</summary>
-    public FleetApi Fleet { get; }
+    public FleetApi Fleet =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Agent APIs.</summary>
-    public AgentApi Agent { get; }
+    public AgentApi Agent =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Tasks APIs.</summary>
-    public TasksApi Tasks { get; }
+    public TasksApi Tasks =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Skills APIs.</summary>
-    public SkillsApi Skills { get; }
+    public SkillsApi Skills =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Mcp APIs.</summary>
-    public McpApi Mcp { get; }
+    public McpApi Mcp =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Plugins APIs.</summary>
-    public PluginsApi Plugins { get; }
+    public PluginsApi Plugins =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Extensions APIs.</summary>
-    public ExtensionsApi Extensions { get; }
+    public ExtensionsApi Extensions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Tools APIs.</summary>
-    public ToolsApi Tools { get; }
+    public ToolsApi Tools =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Commands APIs.</summary>
-    public CommandsApi Commands { get; }
+    public CommandsApi Commands =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Ui APIs.</summary>
-    public UiApi Ui { get; }
+    public UiApi Ui =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Permissions APIs.</summary>
-    public PermissionsApi Permissions { get; }
+    public PermissionsApi Permissions =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Shell APIs.</summary>
-    public ShellApi Shell { get; }
+    public ShellApi Shell =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>History APIs.</summary>
-    public HistoryApi History { get; }
+    public HistoryApi History =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Usage APIs.</summary>
-    public UsageApi Usage { get; }
+    public UsageApi Usage =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Remote APIs.</summary>
-    public RemoteApi Remote { get; }
+    public RemoteApi Remote =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 
     /// <summary>Suspends the session while preserving persisted state for later resume.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionSuspendRequest { SessionId = _sessionId };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.suspend", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionSuspendRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.suspend", [request], cancellationToken);
     }
 
     /// <summary>Emits a user-visible session log event.</summary>
@@ -5356,21 +5442,22 @@ public sealed class SessionRpc
     /// <returns>Identifier of the session event that was emitted for the log message.</returns>
     public async Task<LogResult> LogAsync(string message, SessionLogLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
-        var request = new LogRequest { SessionId = _sessionId, Message = message, Level = level, Ephemeral = ephemeral, Url = url };
-        return await CopilotClient.InvokeRpcAsync<LogResult>(_rpc, "session.log", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(message);
+        _session.ThrowIfDisposed();
+
+        var request = new LogRequest { SessionId = _session.SessionId, Message = message, Level = level, Ephemeral = ephemeral, Url = url };
+        return await CopilotClient.InvokeRpcAsync<LogResult>(_session.Rpc, "session.log", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Auth APIs.</summary>
 public sealed class AuthApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal AuthApi(JsonRpc rpc, string sessionId)
+    internal AuthApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets authentication status and account metadata for the session.</summary>
@@ -5378,21 +5465,21 @@ public sealed class AuthApi
     /// <returns>Authentication status and account metadata for the session.</returns>
     public async Task<SessionAuthStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionAuthGetStatusRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<SessionAuthStatus>(_rpc, "session.auth.getStatus", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAuthGetStatusRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionAuthStatus>(_session.Rpc, "session.auth.getStatus", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Model APIs.</summary>
 public sealed class ModelApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal ModelApi(JsonRpc rpc, string sessionId)
+    internal ModelApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets the currently selected model for the session.</summary>
@@ -5400,8 +5487,10 @@ public sealed class ModelApi
     /// <returns>The currently selected model for the session.</returns>
     public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionModelGetCurrentRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<CurrentModel>(_rpc, "session.model.getCurrent", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionModelGetCurrentRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<CurrentModel>(_session.Rpc, "session.model.getCurrent", [request], cancellationToken);
     }
 
     /// <summary>Switches the session to a model and optional reasoning configuration.</summary>
@@ -5413,21 +5502,22 @@ public sealed class ModelApi
     /// <returns>The model identifier active on the session after the switch.</returns>
     public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
-        var request = new ModelSwitchToRequest { SessionId = _sessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ModelCapabilities = modelCapabilities };
-        return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_rpc, "session.model.switchTo", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(modelId);
+        _session.ThrowIfDisposed();
+
+        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ModelCapabilities = modelCapabilities };
+        return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Mode APIs.</summary>
 public sealed class ModeApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal ModeApi(JsonRpc rpc, string sessionId)
+    internal ModeApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets the current agent interaction mode.</summary>
@@ -5435,8 +5525,10 @@ public sealed class ModeApi
     /// <returns>The session mode the agent is operating in.</returns>
     public async Task<SessionMode> GetAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionModeGetRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<SessionMode>(_rpc, "session.mode.get", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionModeGetRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SessionMode>(_session.Rpc, "session.mode.get", [request], cancellationToken);
     }
 
     /// <summary>Sets the current agent interaction mode.</summary>
@@ -5444,21 +5536,21 @@ public sealed class ModeApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(SessionMode mode, CancellationToken cancellationToken = default)
     {
-        var request = new ModeSetRequest { SessionId = _sessionId, Mode = mode };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.mode.set", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new ModeSetRequest { SessionId = _session.SessionId, Mode = mode };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mode.set", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Name APIs.</summary>
 public sealed class NameApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal NameApi(JsonRpc rpc, string sessionId)
+    internal NameApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets the session's friendly name.</summary>
@@ -5466,8 +5558,10 @@ public sealed class NameApi
     /// <returns>The session's friendly name, or null when not yet set.</returns>
     public async Task<NameGetResult> GetAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionNameGetRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<NameGetResult>(_rpc, "session.name.get", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionNameGetRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<NameGetResult>(_session.Rpc, "session.name.get", [request], cancellationToken);
     }
 
     /// <summary>Sets the session's friendly name.</summary>
@@ -5475,21 +5569,22 @@ public sealed class NameApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task SetAsync(string name, CancellationToken cancellationToken = default)
     {
-        var request = new NameSetRequest { SessionId = _sessionId, Name = name };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.name.set", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(name);
+        _session.ThrowIfDisposed();
+
+        var request = new NameSetRequest { SessionId = _session.SessionId, Name = name };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.name.set", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Plan APIs.</summary>
 public sealed class PlanApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal PlanApi(JsonRpc rpc, string sessionId)
+    internal PlanApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Reads the session plan file from the workspace.</summary>
@@ -5497,8 +5592,10 @@ public sealed class PlanApi
     /// <returns>Existence, contents, and resolved path of the session plan file.</returns>
     public async Task<PlanReadResult> ReadAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionPlanReadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<PlanReadResult>(_rpc, "session.plan.read", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionPlanReadRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<PlanReadResult>(_session.Rpc, "session.plan.read", [request], cancellationToken);
     }
 
     /// <summary>Writes new content to the session plan file.</summary>
@@ -5506,29 +5603,32 @@ public sealed class PlanApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task UpdateAsync(string content, CancellationToken cancellationToken = default)
     {
-        var request = new PlanUpdateRequest { SessionId = _sessionId, Content = content };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.plan.update", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(content);
+        _session.ThrowIfDisposed();
+
+        var request = new PlanUpdateRequest { SessionId = _session.SessionId, Content = content };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.plan.update", [request], cancellationToken);
     }
 
     /// <summary>Deletes the session plan file from the workspace.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DeleteAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionPlanDeleteRequest { SessionId = _sessionId };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.plan.delete", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionPlanDeleteRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.plan.delete", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Workspaces APIs.</summary>
 public sealed class WorkspacesApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal WorkspacesApi(JsonRpc rpc, string sessionId)
+    internal WorkspacesApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets current workspace metadata for the session.</summary>
@@ -5536,8 +5636,10 @@ public sealed class WorkspacesApi
     /// <returns>Current workspace metadata for the session, or null when not available.</returns>
     public async Task<WorkspacesGetWorkspaceResult> GetWorkspaceAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionWorkspacesGetWorkspaceRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<WorkspacesGetWorkspaceResult>(_rpc, "session.workspaces.getWorkspace", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionWorkspacesGetWorkspaceRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesGetWorkspaceResult>(_session.Rpc, "session.workspaces.getWorkspace", [request], cancellationToken);
     }
 
     /// <summary>Lists files stored in the session workspace files directory.</summary>
@@ -5545,8 +5647,10 @@ public sealed class WorkspacesApi
     /// <returns>Relative paths of files stored in the session workspace files directory.</returns>
     public async Task<WorkspacesListFilesResult> ListFilesAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionWorkspacesListFilesRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<WorkspacesListFilesResult>(_rpc, "session.workspaces.listFiles", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionWorkspacesListFilesRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesListFilesResult>(_session.Rpc, "session.workspaces.listFiles", [request], cancellationToken);
     }
 
     /// <summary>Reads a file from the session workspace files directory.</summary>
@@ -5555,8 +5659,11 @@ public sealed class WorkspacesApi
     /// <returns>Contents of the requested workspace file as a UTF-8 string.</returns>
     public async Task<WorkspacesReadFileResult> ReadFileAsync(string path, CancellationToken cancellationToken = default)
     {
-        var request = new WorkspacesReadFileRequest { SessionId = _sessionId, Path = path };
-        return await CopilotClient.InvokeRpcAsync<WorkspacesReadFileResult>(_rpc, "session.workspaces.readFile", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesReadFileRequest { SessionId = _session.SessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<WorkspacesReadFileResult>(_session.Rpc, "session.workspaces.readFile", [request], cancellationToken);
     }
 
     /// <summary>Creates or overwrites a file in the session workspace files directory.</summary>
@@ -5565,21 +5672,23 @@ public sealed class WorkspacesApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task CreateFileAsync(string path, string content, CancellationToken cancellationToken = default)
     {
-        var request = new WorkspacesCreateFileRequest { SessionId = _sessionId, Path = path, Content = content };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.workspaces.createFile", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(content);
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesCreateFileRequest { SessionId = _session.SessionId, Path = path, Content = content };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.workspaces.createFile", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Instructions APIs.</summary>
 public sealed class InstructionsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal InstructionsApi(JsonRpc rpc, string sessionId)
+    internal InstructionsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets instruction sources loaded for the session.</summary>
@@ -5587,8 +5696,10 @@ public sealed class InstructionsApi
     /// <returns>Instruction sources loaded for the session, in merge order.</returns>
     public async Task<InstructionsGetSourcesResult> GetSourcesAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionInstructionsGetSourcesRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<InstructionsGetSourcesResult>(_rpc, "session.instructions.getSources", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionInstructionsGetSourcesRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<InstructionsGetSourcesResult>(_session.Rpc, "session.instructions.getSources", [request], cancellationToken);
     }
 }
 
@@ -5596,13 +5707,11 @@ public sealed class InstructionsApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class FleetApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal FleetApi(JsonRpc rpc, string sessionId)
+    internal FleetApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Starts fleet mode by submitting the fleet orchestration prompt to the session.</summary>
@@ -5611,8 +5720,10 @@ public sealed class FleetApi
     /// <returns>Indicates whether fleet mode was successfully activated.</returns>
     public async Task<FleetStartResult> StartAsync(string? prompt = null, CancellationToken cancellationToken = default)
     {
-        var request = new FleetStartRequest { SessionId = _sessionId, Prompt = prompt };
-        return await CopilotClient.InvokeRpcAsync<FleetStartResult>(_rpc, "session.fleet.start", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new FleetStartRequest { SessionId = _session.SessionId, Prompt = prompt };
+        return await CopilotClient.InvokeRpcAsync<FleetStartResult>(_session.Rpc, "session.fleet.start", [request], cancellationToken);
     }
 }
 
@@ -5620,13 +5731,11 @@ public sealed class FleetApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class AgentApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal AgentApi(JsonRpc rpc, string sessionId)
+    internal AgentApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Lists custom agents available to the session.</summary>
@@ -5634,8 +5743,10 @@ public sealed class AgentApi
     /// <returns>Custom agents available to the session.</returns>
     public async Task<AgentList> ListAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionAgentListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<AgentList>(_rpc, "session.agent.list", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAgentListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AgentList>(_session.Rpc, "session.agent.list", [request], cancellationToken);
     }
 
     /// <summary>Gets the currently selected custom agent for the session.</summary>
@@ -5643,8 +5754,10 @@ public sealed class AgentApi
     /// <returns>The currently selected custom agent, or null when using the default agent.</returns>
     public async Task<AgentGetCurrentResult> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionAgentGetCurrentRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<AgentGetCurrentResult>(_rpc, "session.agent.getCurrent", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAgentGetCurrentRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AgentGetCurrentResult>(_session.Rpc, "session.agent.getCurrent", [request], cancellationToken);
     }
 
     /// <summary>Selects a custom agent for subsequent turns in the session.</summary>
@@ -5653,16 +5766,21 @@ public sealed class AgentApi
     /// <returns>The newly selected custom agent.</returns>
     public async Task<AgentSelectResult> SelectAsync(string name, CancellationToken cancellationToken = default)
     {
-        var request = new AgentSelectRequest { SessionId = _sessionId, Name = name };
-        return await CopilotClient.InvokeRpcAsync<AgentSelectResult>(_rpc, "session.agent.select", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(name);
+        _session.ThrowIfDisposed();
+
+        var request = new AgentSelectRequest { SessionId = _session.SessionId, Name = name };
+        return await CopilotClient.InvokeRpcAsync<AgentSelectResult>(_session.Rpc, "session.agent.select", [request], cancellationToken);
     }
 
     /// <summary>Clears the selected custom agent and returns the session to the default agent.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DeselectAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionAgentDeselectRequest { SessionId = _sessionId };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.agent.deselect", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAgentDeselectRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.agent.deselect", [request], cancellationToken);
     }
 
     /// <summary>Reloads custom agent definitions and returns the refreshed list.</summary>
@@ -5670,8 +5788,10 @@ public sealed class AgentApi
     /// <returns>Custom agents available to the session after reloading definitions from disk.</returns>
     public async Task<AgentReloadResult> ReloadAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionAgentReloadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<AgentReloadResult>(_rpc, "session.agent.reload", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionAgentReloadRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AgentReloadResult>(_session.Rpc, "session.agent.reload", [request], cancellationToken);
     }
 }
 
@@ -5679,13 +5799,11 @@ public sealed class AgentApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal TasksApi(JsonRpc rpc, string sessionId)
+    internal TasksApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Starts a background agent task in the session.</summary>
@@ -5698,8 +5816,13 @@ public sealed class TasksApi
     /// <returns>Identifier assigned to the newly started background agent task.</returns>
     public async Task<TasksStartAgentResult> StartAgentAsync(string agentType, string prompt, string name, string? description = null, string? model = null, CancellationToken cancellationToken = default)
     {
-        var request = new TasksStartAgentRequest { SessionId = _sessionId, AgentType = agentType, Prompt = prompt, Name = name, Description = description, Model = model };
-        return await CopilotClient.InvokeRpcAsync<TasksStartAgentResult>(_rpc, "session.tasks.startAgent", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(agentType);
+        ArgumentNullException.ThrowIfNull(prompt);
+        ArgumentNullException.ThrowIfNull(name);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksStartAgentRequest { SessionId = _session.SessionId, AgentType = agentType, Prompt = prompt, Name = name, Description = description, Model = model };
+        return await CopilotClient.InvokeRpcAsync<TasksStartAgentResult>(_session.Rpc, "session.tasks.startAgent", [request], cancellationToken);
     }
 
     /// <summary>Lists background tasks tracked by the session.</summary>
@@ -5707,8 +5830,10 @@ public sealed class TasksApi
     /// <returns>Background tasks currently tracked by the session.</returns>
     public async Task<TaskList> ListAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionTasksListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<TaskList>(_rpc, "session.tasks.list", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionTasksListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<TaskList>(_session.Rpc, "session.tasks.list", [request], cancellationToken);
     }
 
     /// <summary>Promotes an eligible synchronously-waited task so it continues running in the background.</summary>
@@ -5717,8 +5842,11 @@ public sealed class TasksApi
     /// <returns>Indicates whether the task was successfully promoted to background mode.</returns>
     public async Task<TasksPromoteToBackgroundResult> PromoteToBackgroundAsync(string id, CancellationToken cancellationToken = default)
     {
-        var request = new TasksPromoteToBackgroundRequest { SessionId = _sessionId, Id = id };
-        return await CopilotClient.InvokeRpcAsync<TasksPromoteToBackgroundResult>(_rpc, "session.tasks.promoteToBackground", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(id);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksPromoteToBackgroundRequest { SessionId = _session.SessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<TasksPromoteToBackgroundResult>(_session.Rpc, "session.tasks.promoteToBackground", [request], cancellationToken);
     }
 
     /// <summary>Cancels a background task.</summary>
@@ -5727,8 +5855,11 @@ public sealed class TasksApi
     /// <returns>Indicates whether the background task was successfully cancelled.</returns>
     public async Task<TasksCancelResult> CancelAsync(string id, CancellationToken cancellationToken = default)
     {
-        var request = new TasksCancelRequest { SessionId = _sessionId, Id = id };
-        return await CopilotClient.InvokeRpcAsync<TasksCancelResult>(_rpc, "session.tasks.cancel", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(id);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksCancelRequest { SessionId = _session.SessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<TasksCancelResult>(_session.Rpc, "session.tasks.cancel", [request], cancellationToken);
     }
 
     /// <summary>Removes a completed or cancelled background task from tracking.</summary>
@@ -5737,8 +5868,11 @@ public sealed class TasksApi
     /// <returns>Indicates whether the task was removed. False when the task does not exist or is still running/idle.</returns>
     public async Task<TasksRemoveResult> RemoveAsync(string id, CancellationToken cancellationToken = default)
     {
-        var request = new TasksRemoveRequest { SessionId = _sessionId, Id = id };
-        return await CopilotClient.InvokeRpcAsync<TasksRemoveResult>(_rpc, "session.tasks.remove", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(id);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksRemoveRequest { SessionId = _session.SessionId, Id = id };
+        return await CopilotClient.InvokeRpcAsync<TasksRemoveResult>(_session.Rpc, "session.tasks.remove", [request], cancellationToken);
     }
 
     /// <summary>Sends a message to a background agent task.</summary>
@@ -5749,8 +5883,12 @@ public sealed class TasksApi
     /// <returns>Indicates whether the message was delivered, with an error message when delivery failed.</returns>
     public async Task<TasksSendMessageResult> SendMessageAsync(string id, string message, string? fromAgentId = null, CancellationToken cancellationToken = default)
     {
-        var request = new TasksSendMessageRequest { SessionId = _sessionId, Id = id, Message = message, FromAgentId = fromAgentId };
-        return await CopilotClient.InvokeRpcAsync<TasksSendMessageResult>(_rpc, "session.tasks.sendMessage", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentNullException.ThrowIfNull(message);
+        _session.ThrowIfDisposed();
+
+        var request = new TasksSendMessageRequest { SessionId = _session.SessionId, Id = id, Message = message, FromAgentId = fromAgentId };
+        return await CopilotClient.InvokeRpcAsync<TasksSendMessageResult>(_session.Rpc, "session.tasks.sendMessage", [request], cancellationToken);
     }
 }
 
@@ -5758,13 +5896,11 @@ public sealed class TasksApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class SkillsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal SkillsApi(JsonRpc rpc, string sessionId)
+    internal SkillsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Lists skills available to the session.</summary>
@@ -5772,8 +5908,10 @@ public sealed class SkillsApi
     /// <returns>Skills available to the session, with their enabled state.</returns>
     public async Task<SkillList> ListAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionSkillsListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<SkillList>(_rpc, "session.skills.list", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionSkillsListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillList>(_session.Rpc, "session.skills.list", [request], cancellationToken);
     }
 
     /// <summary>Enables a skill for the session.</summary>
@@ -5781,8 +5919,11 @@ public sealed class SkillsApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string name, CancellationToken cancellationToken = default)
     {
-        var request = new SkillsEnableRequest { SessionId = _sessionId, Name = name };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.enable", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(name);
+        _session.ThrowIfDisposed();
+
+        var request = new SkillsEnableRequest { SessionId = _session.SessionId, Name = name };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.skills.enable", [request], cancellationToken);
     }
 
     /// <summary>Disables a skill for the session.</summary>
@@ -5790,8 +5931,11 @@ public sealed class SkillsApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string name, CancellationToken cancellationToken = default)
     {
-        var request = new SkillsDisableRequest { SessionId = _sessionId, Name = name };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.skills.disable", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(name);
+        _session.ThrowIfDisposed();
+
+        var request = new SkillsDisableRequest { SessionId = _session.SessionId, Name = name };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.skills.disable", [request], cancellationToken);
     }
 
     /// <summary>Reloads skill definitions for the session.</summary>
@@ -5799,8 +5943,10 @@ public sealed class SkillsApi
     /// <returns>Diagnostics from reloading skill definitions, with warnings and errors as separate lists.</returns>
     public async Task<SkillsLoadDiagnostics> ReloadAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionSkillsReloadRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<SkillsLoadDiagnostics>(_rpc, "session.skills.reload", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionSkillsReloadRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<SkillsLoadDiagnostics>(_session.Rpc, "session.skills.reload", [request], cancellationToken);
     }
 }
 
@@ -5808,14 +5954,11 @@ public sealed class SkillsApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal McpApi(JsonRpc rpc, string sessionId)
+    internal McpApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
-        Oauth = new McpOauthApi(rpc, sessionId);
+        _session = session;
     }
 
     /// <summary>Lists MCP servers configured for the session and their connection status.</summary>
@@ -5823,8 +5966,10 @@ public sealed class McpApi
     /// <returns>MCP servers configured for the session, with their connection status.</returns>
     public async Task<McpServerList> ListAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionMcpListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<McpServerList>(_rpc, "session.mcp.list", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<McpServerList>(_session.Rpc, "session.mcp.list", [request], cancellationToken);
     }
 
     /// <summary>Enables an MCP server for the session.</summary>
@@ -5832,8 +5977,11 @@ public sealed class McpApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string serverName, CancellationToken cancellationToken = default)
     {
-        var request = new McpEnableRequest { SessionId = _sessionId, ServerName = serverName };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.enable", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpEnableRequest { SessionId = _session.SessionId, ServerName = serverName };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.enable", [request], cancellationToken);
     }
 
     /// <summary>Disables an MCP server for the session.</summary>
@@ -5841,33 +5989,39 @@ public sealed class McpApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string serverName, CancellationToken cancellationToken = default)
     {
-        var request = new McpDisableRequest { SessionId = _sessionId, ServerName = serverName };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.disable", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpDisableRequest { SessionId = _session.SessionId, ServerName = serverName };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.disable", [request], cancellationToken);
     }
 
     /// <summary>Reloads MCP server connections for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionMcpReloadRequest { SessionId = _sessionId };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.mcp.reload", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpReloadRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.reload", [request], cancellationToken);
     }
 
     /// <summary>Oauth APIs.</summary>
-    public McpOauthApi Oauth { get; }
+    public McpOauthApi Oauth =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 }
 
 /// <summary>Provides session-scoped McpOauth APIs.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class McpOauthApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal McpOauthApi(JsonRpc rpc, string sessionId)
+    internal McpOauthApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Starts OAuth authentication for a remote MCP server.</summary>
@@ -5879,8 +6033,11 @@ public sealed class McpOauthApi
     /// <returns>OAuth authorization URL the caller should open, or empty when cached tokens already authenticated the server.</returns>
     public async Task<McpOauthLoginResult> LoginAsync(string serverName, bool? forceReauth = null, string? clientName = null, string? callbackSuccessMessage = null, CancellationToken cancellationToken = default)
     {
-        var request = new McpOauthLoginRequest { SessionId = _sessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
-        return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_rpc, "session.mcp.oauth.login", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
+        return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
     }
 }
 
@@ -5888,13 +6045,11 @@ public sealed class McpOauthApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class PluginsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal PluginsApi(JsonRpc rpc, string sessionId)
+    internal PluginsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Lists plugins installed for the session.</summary>
@@ -5902,8 +6057,10 @@ public sealed class PluginsApi
     /// <returns>Plugins installed for the session, with their enabled state and version metadata.</returns>
     public async Task<PluginList> ListAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionPluginsListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<PluginList>(_rpc, "session.plugins.list", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionPluginsListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<PluginList>(_session.Rpc, "session.plugins.list", [request], cancellationToken);
     }
 }
 
@@ -5911,13 +6068,11 @@ public sealed class PluginsApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class ExtensionsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal ExtensionsApi(JsonRpc rpc, string sessionId)
+    internal ExtensionsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Lists extensions discovered for the session and their current status.</summary>
@@ -5925,8 +6080,10 @@ public sealed class ExtensionsApi
     /// <returns>Extensions discovered for the session, with their current status.</returns>
     public async Task<ExtensionList> ListAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionExtensionsListRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<ExtensionList>(_rpc, "session.extensions.list", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionExtensionsListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ExtensionList>(_session.Rpc, "session.extensions.list", [request], cancellationToken);
     }
 
     /// <summary>Enables an extension for the session.</summary>
@@ -5934,8 +6091,11 @@ public sealed class ExtensionsApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task EnableAsync(string id, CancellationToken cancellationToken = default)
     {
-        var request = new ExtensionsEnableRequest { SessionId = _sessionId, Id = id };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.enable", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(id);
+        _session.ThrowIfDisposed();
+
+        var request = new ExtensionsEnableRequest { SessionId = _session.SessionId, Id = id };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.extensions.enable", [request], cancellationToken);
     }
 
     /// <summary>Disables an extension for the session.</summary>
@@ -5943,29 +6103,32 @@ public sealed class ExtensionsApi
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(string id, CancellationToken cancellationToken = default)
     {
-        var request = new ExtensionsDisableRequest { SessionId = _sessionId, Id = id };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.disable", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(id);
+        _session.ThrowIfDisposed();
+
+        var request = new ExtensionsDisableRequest { SessionId = _session.SessionId, Id = id };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.extensions.disable", [request], cancellationToken);
     }
 
     /// <summary>Reloads extension definitions and processes for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionExtensionsReloadRequest { SessionId = _sessionId };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.extensions.reload", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionExtensionsReloadRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.extensions.reload", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Tools APIs.</summary>
 public sealed class ToolsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal ToolsApi(JsonRpc rpc, string sessionId)
+    internal ToolsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Provides the result for a pending external tool call.</summary>
@@ -5976,21 +6139,22 @@ public sealed class ToolsApi
     /// <returns>Indicates whether the external tool call result was handled successfully.</returns>
     public async Task<HandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
     {
-        var request = new HandlePendingToolCallRequest { SessionId = _sessionId, RequestId = requestId, Result = result, Error = error };
-        return await CopilotClient.InvokeRpcAsync<HandlePendingToolCallResult>(_rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(requestId);
+        _session.ThrowIfDisposed();
+
+        var request = new HandlePendingToolCallRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result, Error = error };
+        return await CopilotClient.InvokeRpcAsync<HandlePendingToolCallResult>(_session.Rpc, "session.tools.handlePendingToolCall", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Commands APIs.</summary>
 public sealed class CommandsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal CommandsApi(JsonRpc rpc, string sessionId)
+    internal CommandsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Lists slash commands available in the session.</summary>
@@ -5999,8 +6163,10 @@ public sealed class CommandsApi
     /// <returns>Slash commands available in the session, after applying any include/exclude filters.</returns>
     public async Task<CommandList> ListAsync(CommandsListRequest? request = null, CancellationToken cancellationToken = default)
     {
-        var rpcRequest = new CommandsListRequestWithSession { SessionId = _sessionId, IncludeBuiltins = request?.IncludeBuiltins, IncludeSkills = request?.IncludeSkills, IncludeClientCommands = request?.IncludeClientCommands };
-        return await CopilotClient.InvokeRpcAsync<CommandList>(_rpc, "session.commands.list", [rpcRequest], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var rpcRequest = new CommandsListRequestWithSession { SessionId = _session.SessionId, IncludeBuiltins = request?.IncludeBuiltins, IncludeSkills = request?.IncludeSkills, IncludeClientCommands = request?.IncludeClientCommands };
+        return await CopilotClient.InvokeRpcAsync<CommandList>(_session.Rpc, "session.commands.list", [rpcRequest], cancellationToken);
     }
 
     /// <summary>Invokes a slash command in the session.</summary>
@@ -6010,8 +6176,11 @@ public sealed class CommandsApi
     /// <returns>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</returns>
     public async Task<SlashCommandInvocationResult> InvokeAsync(string name, string? input = null, CancellationToken cancellationToken = default)
     {
-        var request = new CommandsInvokeRequest { SessionId = _sessionId, Name = name, Input = input };
-        return await CopilotClient.InvokeRpcAsync<SlashCommandInvocationResult>(_rpc, "session.commands.invoke", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(name);
+        _session.ThrowIfDisposed();
+
+        var request = new CommandsInvokeRequest { SessionId = _session.SessionId, Name = name, Input = input };
+        return await CopilotClient.InvokeRpcAsync<SlashCommandInvocationResult>(_session.Rpc, "session.commands.invoke", [request], cancellationToken);
     }
 
     /// <summary>Reports completion of a pending client-handled slash command.</summary>
@@ -6021,8 +6190,11 @@ public sealed class CommandsApi
     /// <returns>Indicates whether the pending client-handled command was completed successfully.</returns>
     public async Task<CommandsHandlePendingCommandResult> HandlePendingCommandAsync(string requestId, string? error = null, CancellationToken cancellationToken = default)
     {
-        var request = new CommandsHandlePendingCommandRequest { SessionId = _sessionId, RequestId = requestId, Error = error };
-        return await CopilotClient.InvokeRpcAsync<CommandsHandlePendingCommandResult>(_rpc, "session.commands.handlePendingCommand", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(requestId);
+        _session.ThrowIfDisposed();
+
+        var request = new CommandsHandlePendingCommandRequest { SessionId = _session.SessionId, RequestId = requestId, Error = error };
+        return await CopilotClient.InvokeRpcAsync<CommandsHandlePendingCommandResult>(_session.Rpc, "session.commands.handlePendingCommand", [request], cancellationToken);
     }
 
     /// <summary>Responds to a queued command request from the session.</summary>
@@ -6032,21 +6204,23 @@ public sealed class CommandsApi
     /// <returns>Indicates whether the queued-command response was accepted by the session.</returns>
     public async Task<CommandsRespondToQueuedCommandResult> RespondToQueuedCommandAsync(string requestId, QueuedCommandResult result, CancellationToken cancellationToken = default)
     {
-        var request = new CommandsRespondToQueuedCommandRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
-        return await CopilotClient.InvokeRpcAsync<CommandsRespondToQueuedCommandResult>(_rpc, "session.commands.respondToQueuedCommand", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(result);
+        _session.ThrowIfDisposed();
+
+        var request = new CommandsRespondToQueuedCommandRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<CommandsRespondToQueuedCommandResult>(_session.Rpc, "session.commands.respondToQueuedCommand", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Ui APIs.</summary>
 public sealed class UiApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal UiApi(JsonRpc rpc, string sessionId)
+    internal UiApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Requests structured input from a UI-capable client.</summary>
@@ -6056,8 +6230,12 @@ public sealed class UiApi
     /// <returns>The elicitation response (accept with form values, decline, or cancel).</returns>
     public async Task<UIElicitationResponse> ElicitationAsync(string message, UIElicitationSchema requestedSchema, CancellationToken cancellationToken = default)
     {
-        var request = new UIElicitationRequest { SessionId = _sessionId, Message = message, RequestedSchema = requestedSchema };
-        return await CopilotClient.InvokeRpcAsync<UIElicitationResponse>(_rpc, "session.ui.elicitation", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(requestedSchema);
+        _session.ThrowIfDisposed();
+
+        var request = new UIElicitationRequest { SessionId = _session.SessionId, Message = message, RequestedSchema = requestedSchema };
+        return await CopilotClient.InvokeRpcAsync<UIElicitationResponse>(_session.Rpc, "session.ui.elicitation", [request], cancellationToken);
     }
 
     /// <summary>Provides the user response for a pending elicitation request.</summary>
@@ -6067,21 +6245,23 @@ public sealed class UiApi
     /// <returns>Indicates whether the elicitation response was accepted; false if it was already resolved by another client.</returns>
     public async Task<UIElicitationResult> HandlePendingElicitationAsync(string requestId, UIElicitationResponse result, CancellationToken cancellationToken = default)
     {
-        var request = new UIHandlePendingElicitationRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
-        return await CopilotClient.InvokeRpcAsync<UIElicitationResult>(_rpc, "session.ui.handlePendingElicitation", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(result);
+        _session.ThrowIfDisposed();
+
+        var request = new UIHandlePendingElicitationRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<UIElicitationResult>(_session.Rpc, "session.ui.handlePendingElicitation", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Permissions APIs.</summary>
 public sealed class PermissionsApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal PermissionsApi(JsonRpc rpc, string sessionId)
+    internal PermissionsApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Provides a decision for a pending tool permission request.</summary>
@@ -6091,8 +6271,12 @@ public sealed class PermissionsApi
     /// <returns>Indicates whether the permission decision was applied; false when the request was already resolved.</returns>
     public async Task<PermissionRequestResult> HandlePendingPermissionRequestAsync(string requestId, PermissionDecision result, CancellationToken cancellationToken = default)
     {
-        var request = new PermissionDecisionRequest { SessionId = _sessionId, RequestId = requestId, Result = result };
-        return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(requestId);
+        ArgumentNullException.ThrowIfNull(result);
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionDecisionRequest { SessionId = _session.SessionId, RequestId = requestId, Result = result };
+        return await CopilotClient.InvokeRpcAsync<PermissionRequestResult>(_session.Rpc, "session.permissions.handlePendingPermissionRequest", [request], cancellationToken);
     }
 
     /// <summary>Enables or disables automatic approval of tool permission requests for the session.</summary>
@@ -6101,8 +6285,10 @@ public sealed class PermissionsApi
     /// <returns>Indicates whether the operation succeeded.</returns>
     public async Task<PermissionsSetApproveAllResult> SetApproveAllAsync(bool enabled, CancellationToken cancellationToken = default)
     {
-        var request = new PermissionsSetApproveAllRequest { SessionId = _sessionId, Enabled = enabled };
-        return await CopilotClient.InvokeRpcAsync<PermissionsSetApproveAllResult>(_rpc, "session.permissions.setApproveAll", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionsSetApproveAllRequest { SessionId = _session.SessionId, Enabled = enabled };
+        return await CopilotClient.InvokeRpcAsync<PermissionsSetApproveAllResult>(_session.Rpc, "session.permissions.setApproveAll", [request], cancellationToken);
     }
 
     /// <summary>Clears session-scoped tool permission approvals.</summary>
@@ -6110,21 +6296,21 @@ public sealed class PermissionsApi
     /// <returns>Indicates whether the operation succeeded.</returns>
     public async Task<PermissionsResetSessionApprovalsResult> ResetSessionApprovalsAsync(CancellationToken cancellationToken = default)
     {
-        var request = new PermissionsResetSessionApprovalsRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<PermissionsResetSessionApprovalsResult>(_rpc, "session.permissions.resetSessionApprovals", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionsResetSessionApprovalsRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<PermissionsResetSessionApprovalsResult>(_session.Rpc, "session.permissions.resetSessionApprovals", [request], cancellationToken);
     }
 }
 
 /// <summary>Provides session-scoped Shell APIs.</summary>
 public sealed class ShellApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal ShellApi(JsonRpc rpc, string sessionId)
+    internal ShellApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Starts a shell command and streams output through session notifications.</summary>
@@ -6135,8 +6321,11 @@ public sealed class ShellApi
     /// <returns>Identifier of the spawned process, used to correlate streamed output and exit notifications.</returns>
     public async Task<ShellExecResult> ExecAsync(string command, string? cwd = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        var request = new ShellExecRequest { SessionId = _sessionId, Command = command, Cwd = cwd, Timeout = timeout };
-        return await CopilotClient.InvokeRpcAsync<ShellExecResult>(_rpc, "session.shell.exec", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(command);
+        _session.ThrowIfDisposed();
+
+        var request = new ShellExecRequest { SessionId = _session.SessionId, Command = command, Cwd = cwd, Timeout = timeout };
+        return await CopilotClient.InvokeRpcAsync<ShellExecResult>(_session.Rpc, "session.shell.exec", [request], cancellationToken);
     }
 
     /// <summary>Sends a signal to a shell process previously started via "shell.exec".</summary>
@@ -6146,8 +6335,11 @@ public sealed class ShellApi
     /// <returns>Indicates whether the signal was delivered; false if the process was unknown or already exited.</returns>
     public async Task<ShellKillResult> KillAsync(string processId, ShellKillSignal? signal = null, CancellationToken cancellationToken = default)
     {
-        var request = new ShellKillRequest { SessionId = _sessionId, ProcessId = processId, Signal = signal };
-        return await CopilotClient.InvokeRpcAsync<ShellKillResult>(_rpc, "session.shell.kill", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(processId);
+        _session.ThrowIfDisposed();
+
+        var request = new ShellKillRequest { SessionId = _session.SessionId, ProcessId = processId, Signal = signal };
+        return await CopilotClient.InvokeRpcAsync<ShellKillResult>(_session.Rpc, "session.shell.kill", [request], cancellationToken);
     }
 }
 
@@ -6155,13 +6347,11 @@ public sealed class ShellApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class HistoryApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal HistoryApi(JsonRpc rpc, string sessionId)
+    internal HistoryApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Compacts the session history to reduce context usage.</summary>
@@ -6169,8 +6359,10 @@ public sealed class HistoryApi
     /// <returns>Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown.</returns>
     public async Task<HistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionHistoryCompactRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_rpc, "session.history.compact", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionHistoryCompactRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_session.Rpc, "session.history.compact", [request], cancellationToken);
     }
 
     /// <summary>Truncates persisted session history to a specific event.</summary>
@@ -6179,8 +6371,11 @@ public sealed class HistoryApi
     /// <returns>Number of events that were removed by the truncation.</returns>
     public async Task<HistoryTruncateResult> TruncateAsync(string eventId, CancellationToken cancellationToken = default)
     {
-        var request = new HistoryTruncateRequest { SessionId = _sessionId, EventId = eventId };
-        return await CopilotClient.InvokeRpcAsync<HistoryTruncateResult>(_rpc, "session.history.truncate", [request], cancellationToken);
+        ArgumentNullException.ThrowIfNull(eventId);
+        _session.ThrowIfDisposed();
+
+        var request = new HistoryTruncateRequest { SessionId = _session.SessionId, EventId = eventId };
+        return await CopilotClient.InvokeRpcAsync<HistoryTruncateResult>(_session.Rpc, "session.history.truncate", [request], cancellationToken);
     }
 }
 
@@ -6188,13 +6383,11 @@ public sealed class HistoryApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class UsageApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal UsageApi(JsonRpc rpc, string sessionId)
+    internal UsageApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Gets accumulated usage metrics for the session.</summary>
@@ -6202,8 +6395,10 @@ public sealed class UsageApi
     /// <returns>Accumulated session usage metrics, including premium request cost, token counts, model breakdown, and code-change totals.</returns>
     public async Task<UsageGetMetricsResult> GetMetricsAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionUsageGetMetricsRequest { SessionId = _sessionId };
-        return await CopilotClient.InvokeRpcAsync<UsageGetMetricsResult>(_rpc, "session.usage.getMetrics", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionUsageGetMetricsRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<UsageGetMetricsResult>(_session.Rpc, "session.usage.getMetrics", [request], cancellationToken);
     }
 }
 
@@ -6211,13 +6406,11 @@ public sealed class UsageApi
 [Experimental(Diagnostics.Experimental)]
 public sealed class RemoteApi
 {
-    private readonly JsonRpc _rpc;
-    private readonly string _sessionId;
+    private readonly CopilotSession _session;
 
-    internal RemoteApi(JsonRpc rpc, string sessionId)
+    internal RemoteApi(CopilotSession session)
     {
-        _rpc = rpc;
-        _sessionId = sessionId;
+        _session = session;
     }
 
     /// <summary>Enables remote session export or steering.</summary>
@@ -6226,16 +6419,20 @@ public sealed class RemoteApi
     /// <returns>GitHub URL for the session and a flag indicating whether remote steering is enabled.</returns>
     public async Task<RemoteEnableResult> EnableAsync(RemoteSessionMode? mode = null, CancellationToken cancellationToken = default)
     {
-        var request = new RemoteEnableRequest { SessionId = _sessionId, Mode = mode };
-        return await CopilotClient.InvokeRpcAsync<RemoteEnableResult>(_rpc, "session.remote.enable", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new RemoteEnableRequest { SessionId = _session.SessionId, Mode = mode };
+        return await CopilotClient.InvokeRpcAsync<RemoteEnableResult>(_session.Rpc, "session.remote.enable", [request], cancellationToken);
     }
 
     /// <summary>Disables remote session export and steering.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     public async Task DisableAsync(CancellationToken cancellationToken = default)
     {
-        var request = new SessionRemoteDisableRequest { SessionId = _sessionId };
-        await CopilotClient.InvokeRpcAsync(_rpc, "session.remote.disable", [request], cancellationToken);
+        _session.ThrowIfDisposed();
+
+        var request = new SessionRemoteDisableRequest { SessionId = _session.SessionId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.remote.disable", [request], cancellationToken);
     }
 }
 

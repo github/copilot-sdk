@@ -11,7 +11,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
-using static GitHub.Copilot.SDK.LoggingHelpers;
 
 namespace GitHub.Copilot.SDK;
 
@@ -58,8 +57,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
 {
     private readonly Dictionary<string, AIFunction> _toolHandlers = [];
     private readonly Dictionary<string, CommandHandler> _commandHandlers = [];
-    private readonly JsonRpc _rpc;
     private readonly ILogger _logger;
+    private readonly CopilotClient _parentClient;
 
     private volatile PermissionRequestHandler? _permissionHandler;
     private volatile UserInputHandler? _userInputHandler;
@@ -70,9 +69,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
+
     private Dictionary<string, Func<string, Task<string>>>? _transformCallbacks;
     private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
-    private SessionRpc? _sessionRpc;
+
     private int _isDisposed;
 
     /// <summary>
@@ -92,7 +92,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Gets the typed RPC client for session-scoped methods.
     /// </summary>
-    public SessionRpc Rpc => _sessionRpc ??= new SessionRpc(_rpc, SessionId);
+    public SessionRpc Rpc => field ?? Interlocked.CompareExchange(ref field, new(this), null) ?? field;
+
+    internal JsonRpc JsonRpc { get; }
 
     /// <summary>
     /// Gets the path to the session workspace directory when infinite sessions are enabled.
@@ -111,7 +113,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Capabilities are populated from the session create/resume response and updated
     /// in real time via <c>capabilities.changed</c> events.
     /// </value>
-    public SessionCapabilities Capabilities { get; private set; } = new();
+    public SessionCapabilities Capabilities
+    {
+        get => field ?? Interlocked.CompareExchange(ref field, new(), null) ?? field;
+        private set;
+    }
 
     /// <summary>
     /// Gets the UI API for eliciting information from the user during this session.
@@ -125,7 +131,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// if the host does not report elicitation support via <see cref="Capabilities"/>.
     /// Check <c>session.Capabilities.Ui?.Elicitation == true</c> before calling.
     /// </remarks>
-    public ISessionUiApi Ui { get; }
+    public ISessionUiApi Ui => field ?? Interlocked.CompareExchange(ref field, new SessionUiApiImpl(this), null) ?? field;
 
     internal ClientSessionApiHandlers ClientSessionApis { get; } = new();
 
@@ -135,25 +141,51 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <param name="sessionId">The unique identifier for this session.</param>
     /// <param name="rpc">The JSON-RPC connection to the Copilot CLI.</param>
     /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="client">The owning client used to route session events.</param>
     /// <param name="workspacePath">The workspace path if infinite sessions are enabled.</param>
     /// <remarks>
     /// This constructor is internal. Use <see cref="CopilotClient.CreateSessionAsync"/> to create sessions.
     /// </remarks>
-    internal CopilotSession(string sessionId, JsonRpc rpc, ILogger logger, string? workspacePath = null)
+    internal CopilotSession(
+        string sessionId,
+        JsonRpc rpc,
+        ILogger logger,
+        CopilotClient client,
+        string? workspacePath = null)
     {
         SessionId = sessionId;
-        _rpc = rpc;
+        JsonRpc = rpc;
         _logger = logger;
+        _parentClient = client;
         WorkspacePath = workspacePath;
-        Ui = new SessionUiApiImpl(this);
 
-        // Start the asynchronous processing loop.
+    }
+
+    /// <summary>
+    /// Finalizes the session and releases the client's references to it.
+    /// </summary>
+    ~CopilotSession()
+    {
+        RemoveFromClient();
+    }
+
+    /// <summary>
+    /// Removes the current session from its parent client if it is no longer referenced or if the reference points to
+    /// this instance.
+    /// </summary>
+    internal void RemoveFromClient()
+    {
+        ((ICollection<KeyValuePair<string, CopilotSession>>)_parentClient._sessions).Remove(new(SessionId, this));
+    }
+
+    internal void StartProcessingEvents()
+    {
         _ = ProcessEventsAsync();
     }
 
     private Task<T> InvokeRpcAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
     {
-        return CopilotClient.InvokeRpcAsync<T>(_rpc, method, args, cancellationToken);
+        return CopilotClient.InvokeRpcAsync<T>(JsonRpc, method, args, cancellationToken);
     }
 
     /// <summary>
@@ -187,6 +219,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     public async Task<string> SendAsync(MessageOptions options, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ThrowIfDisposed();
 
         var (traceparent, tracestate) = TelemetryHelpers.GetTraceContext();
 
@@ -204,7 +237,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var rpcTimestamp = Stopwatch.GetTimestamp();
         var response = await InvokeRpcAsync<SendMessageResponse>(
             "session.send", [request], cancellationToken);
-        LogTiming(_logger, LogLevel.Debug, null,
+        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.SendAsync completed successfully. Elapsed={Elapsed}, SessionId={SessionId}, MessageId={MessageId}",
             rpcTimestamp,
             SessionId,
@@ -246,6 +279,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ThrowIfDisposed();
 
         var totalTimestamp = Stopwatch.GetTimestamp();
         var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(60);
@@ -262,7 +296,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     if (!firstAssistantMessageLogged)
                     {
                         firstAssistantMessageLogged = true;
-                        LogTiming(_logger, LogLevel.Debug, null,
+                        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                             "CopilotSession.SendAndWaitAsync first assistant message. Elapsed={Elapsed}, SessionId={SessionId}",
                             totalTimestamp,
                             SessionId);
@@ -270,7 +304,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     break;
 
                 case SessionIdleEvent:
-                    LogTiming(_logger, LogLevel.Debug, null,
+                    LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                         "CopilotSession.SendAndWaitAsync idle received. Elapsed={Elapsed}, SessionId={SessionId}",
                         totalTimestamp,
                         SessionId);
@@ -301,7 +335,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         try
         {
             var result = await tcs.Task;
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.SendAndWaitAsync complete. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}, AssistantMessageReceived={AssistantMessageReceived}",
                 totalTimestamp,
                 SessionId,
@@ -311,7 +345,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         catch (Exception ex) when (ex is TimeoutException)
         {
-            LogTiming(_logger, LogLevel.Warning, ex,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
                 "CopilotSession.SendAndWaitAsync failed. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}",
                 totalTimestamp,
                 SessionId,
@@ -320,7 +354,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            LogTiming(_logger, LogLevel.Warning, ex,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
                 "CopilotSession.SendAndWaitAsync failed. Elapsed={Elapsed}, SessionId={SessionId}, CompletedBy={CompletedBy}",
                 totalTimestamp,
                 SessionId,
@@ -366,6 +400,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     public IDisposable On(SessionEventHandler handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
+        ThrowIfDisposed();
 
         ImmutableInterlocked.Update(ref _eventHandlers, array => array.Add(handler));
         return new ActionDisposable(() => ImmutableInterlocked.Update(ref _eventHandlers, array => array.Remove(handler)));
@@ -414,7 +449,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     LogEventHandlerError(ex);
                 }
             }
-            LogTiming(_logger, LogLevel.Debug, null,
+
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ProcessEventsAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, EventType={EventType}",
                 dispatchTimestamp,
                 SessionId,
@@ -492,7 +528,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var permissionTimestamp = Stopwatch.GetTimestamp();
         var result = await handler(request, invocation);
-        LogTiming(_logger, LogLevel.Debug, null,
+        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandlePermissionRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             permissionTimestamp,
             SessionId);
@@ -604,7 +640,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         finally
         {
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleBroadcastEventAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, EventType={EventType}",
                 dispatchTimestamp,
                 SessionId,
@@ -650,7 +686,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             var toolTimestamp = Stopwatch.GetTimestamp();
             var result = await tool.InvokeAsync(aiFunctionArgs);
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 toolTimestamp,
                 SessionId,
@@ -662,7 +698,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 responseRpcTimestamp,
                 SessionId,
@@ -701,7 +737,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
             var permissionTimestamp = Stopwatch.GetTimestamp();
             var result = await handler(permissionRequest, invocation);
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 permissionTimestamp,
                 SessionId,
@@ -712,7 +748,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionDecision { Kind = result.Kind.Value });
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 responseRpcTimestamp,
                 SessionId,
@@ -826,7 +862,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 CommandName = commandName,
                 Args = args
             });
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteCommandAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}",
                 commandTimestamp,
                 SessionId,
@@ -834,7 +870,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 commandName);
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
             await Rpc.Commands.HandlePendingCommandAsync(requestId);
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteCommandAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, Command={CommandName}",
                 responseRpcTimestamp,
                 SessionId,
@@ -870,7 +906,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             var elicitationTimestamp = Stopwatch.GetTimestamp();
             var result = await handler(context);
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 elicitationTimestamp,
                 SessionId,
@@ -881,7 +917,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Action = result.Action,
                 Content = result.Content
             });
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 responseRpcTimestamp,
                 SessionId,
@@ -924,20 +960,27 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         public async Task<ElicitationResult> ElicitationAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(elicitationParams);
+            session.ThrowIfDisposed();
             session.AssertElicitation();
+
             var schema = new UIElicitationSchema
             {
                 Type = elicitationParams.RequestedSchema.Type,
                 Properties = elicitationParams.RequestedSchema.Properties,
                 Required = elicitationParams.RequestedSchema.Required
             };
+
             var result = await session.Rpc.Ui.ElicitationAsync(elicitationParams.Message, schema, cancellationToken);
             return new ElicitationResult { Action = result.Action, Content = result.Content };
         }
 
         public async Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(message);
+            session.ThrowIfDisposed();
             session.AssertElicitation();
+
             var schema = new UIElicitationSchema
             {
                 Type = "object",
@@ -947,6 +990,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 },
                 Required = ["confirmed"]
             };
+
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
             if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
@@ -960,12 +1004,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     _ => false
                 };
             }
+
             return false;
         }
 
         public async Task<string?> SelectAsync(string message, string[] options, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(message);
+            ArgumentNullException.ThrowIfNull(options);
+            session.ThrowIfDisposed();
             session.AssertElicitation();
+
             var schema = new UIElicitationSchema
             {
                 Type = "object",
@@ -975,6 +1024,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 },
                 Required = ["selection"]
             };
+
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
             if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
@@ -987,12 +1037,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     _ => val.ToString()
                 };
             }
+
             return null;
         }
 
         public async Task<string?> InputAsync(string message, InputOptions? options, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(message);
+            session.ThrowIfDisposed();
             session.AssertElicitation();
+
             var field = new Dictionary<string, object> { ["type"] = "string" };
             if (options?.Title != null) field["title"] = options.Title;
             if (options?.Description != null) field["description"] = options.Description;
@@ -1007,6 +1061,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 Properties = new Dictionary<string, object> { ["value"] = field },
                 Required = ["value"]
             };
+
             var result = await session.Rpc.Ui.ElicitationAsync(message, schema, cancellationToken);
             if (result.Action == UIElicitationResponseAction.Accept
                 && result.Content != null
@@ -1019,6 +1074,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                     _ => val.ToString()
                 };
             }
+
             return null;
         }
     }
@@ -1038,7 +1094,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
         var userInputTimestamp = Stopwatch.GetTimestamp();
         var response = await handler(request, invocation);
-        LogTiming(_logger, LogLevel.Debug, null,
+        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandleUserInputRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             userInputTimestamp,
             SessionId);
@@ -1061,7 +1117,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var invocation = new ExitPlanModeInvocation { SessionId = SessionId };
         var timestamp = Stopwatch.GetTimestamp();
         var response = await handler(request, invocation);
-        LogTiming(_logger, LogLevel.Debug, null,
+        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandleExitPlanModeRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             timestamp,
             SessionId);
@@ -1084,7 +1140,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         var invocation = new AutoModeSwitchInvocation { SessionId = SessionId };
         var timestamp = Stopwatch.GetTimestamp();
         var response = await handler(request, invocation);
-        LogTiming(_logger, LogLevel.Debug, null,
+        LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotSession.HandleAutoModeSwitchRequestAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}",
             timestamp,
             SessionId);
@@ -1177,7 +1233,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         finally
         {
-            LogTiming(_logger, LogLevel.Debug, null,
+            LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleHooksInvokeAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, Hook={HookType}",
                 hookTimestamp,
                 SessionId,
@@ -1275,11 +1331,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task<IReadOnlyList<SessionEvent>> GetMessagesAsync(CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
+
         var response = await InvokeRpcAsync<GetMessagesResponse>(
             "session.getMessages", [new GetMessagesRequest { SessionId = SessionId }], cancellationToken);
 
         return response.Events
-            .Select(e => SessionEvent.FromJson(e.ToJsonString()))
+            .Select(static e => SessionEvent.FromJson(e.ToJsonString()))
             .OfType<SessionEvent>()
             .ToList();
     }
@@ -1309,8 +1367,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </example>
     public async Task AbortAsync(CancellationToken cancellationToken = default)
     {
-        await InvokeRpcAsync<object>(
-            "session.abort", [new SessionAbortRequest { SessionId = SessionId }], cancellationToken);
+        ThrowIfDisposed();
+
+        await InvokeRpcAsync<object>("session.abort", [new SessionAbortRequest { SessionId = SessionId }], cancellationToken);
     }
 
     /// <summary>
@@ -1330,6 +1389,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     public async Task SetModelAsync(string model, string? reasoningEffort, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(model);
+        ThrowIfDisposed();
 
         await Rpc.Model.SwitchToAsync(model, reasoningEffort, reasoningSummary: null, modelCapabilities: modelCapabilities, cancellationToken: cancellationToken);
     }
@@ -1339,6 +1399,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     public Task SetModelAsync(string model, CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
+
         return SetModelAsync(model, reasoningEffort: null, modelCapabilities: null, cancellationToken);
     }
 
@@ -1363,6 +1425,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     public async Task LogAsync(string message, SessionLogLevel? level = null, bool? ephemeral = null, string? url = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
+        ThrowIfDisposed();
 
         await Rpc.LogAsync(message, level, ephemeral, url, cancellationToken);
     }
@@ -1422,6 +1485,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             // Connection is broken or closed
         }
+        finally
+        {
+            RemoveFromClient();
+            GC.SuppressFinalize(this);
+        }
 
         _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);
         _toolHandlers.Clear();
@@ -1476,36 +1544,41 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string SessionId { get; init; } = string.Empty;
     }
 
+    internal void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _isDisposed) != 0, this);
+    }
+
     [JsonSourceGenerationOptions(
         JsonSerializerDefaults.Web,
         AllowOutOfOrderMetadataProperties = true,
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonSerializable(typeof(AutoModeSwitchRequest))]
+    [JsonSerializable(typeof(AutoModeSwitchResponse))]
+    [JsonSerializable(typeof(Dictionary<string, SystemMessageTransformSection>))]
+    [JsonSerializable(typeof(ErrorOccurredHookInput))]
+    [JsonSerializable(typeof(ErrorOccurredHookOutput))]
+    [JsonSerializable(typeof(ExitPlanModeRequest))]
+    [JsonSerializable(typeof(ExitPlanModeResult))]
     [JsonSerializable(typeof(GetMessagesRequest))]
     [JsonSerializable(typeof(GetMessagesResponse))]
+    [JsonSerializable(typeof(PostToolUseHookInput))]
+    [JsonSerializable(typeof(PostToolUseHookOutput))]
+    [JsonSerializable(typeof(PreToolUseHookInput))]
+    [JsonSerializable(typeof(PreToolUseHookOutput))]
     [JsonSerializable(typeof(SendMessageRequest))]
     [JsonSerializable(typeof(SendMessageResponse))]
     [JsonSerializable(typeof(SessionAbortRequest))]
     [JsonSerializable(typeof(SessionDestroyRequest))]
-    [JsonSerializable(typeof(UserMessageAttachment))]
-    [JsonSerializable(typeof(AutoModeSwitchRequest))]
-    [JsonSerializable(typeof(AutoModeSwitchResponse))]
-    [JsonSerializable(typeof(ExitPlanModeRequest))]
-    [JsonSerializable(typeof(ExitPlanModeResult))]
-    [JsonSerializable(typeof(PreToolUseHookInput))]
-    [JsonSerializable(typeof(PreToolUseHookOutput))]
-    [JsonSerializable(typeof(PostToolUseHookInput))]
-    [JsonSerializable(typeof(PostToolUseHookOutput))]
-    [JsonSerializable(typeof(UserPromptSubmittedHookInput))]
-    [JsonSerializable(typeof(UserPromptSubmittedHookOutput))]
-    [JsonSerializable(typeof(SessionStartHookInput))]
-    [JsonSerializable(typeof(SessionStartHookOutput))]
     [JsonSerializable(typeof(SessionEndHookInput))]
     [JsonSerializable(typeof(SessionEndHookOutput))]
-    [JsonSerializable(typeof(ErrorOccurredHookInput))]
-    [JsonSerializable(typeof(ErrorOccurredHookOutput))]
-    [JsonSerializable(typeof(SystemMessageTransformSection))]
+    [JsonSerializable(typeof(SessionStartHookInput))]
+    [JsonSerializable(typeof(SessionStartHookOutput))]
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
-    [JsonSerializable(typeof(Dictionary<string, SystemMessageTransformSection>))]
+    [JsonSerializable(typeof(SystemMessageTransformSection))]
+    [JsonSerializable(typeof(UserMessageAttachment))]
+    [JsonSerializable(typeof(UserPromptSubmittedHookInput))]
+    [JsonSerializable(typeof(UserPromptSubmittedHookOutput))]
     internal partial class SessionJsonContext : JsonSerializerContext;
 }

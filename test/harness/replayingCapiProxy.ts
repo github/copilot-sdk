@@ -55,6 +55,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
+    { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
   ];
 
   /**
@@ -1119,6 +1120,12 @@ function normalizeGh401AuthMessages(result: string): string {
   }
 
   return changed ? normalizedLines.join("\n") : result;
+}
+
+function normalizeReadAgentTimings(result: string): string {
+  return result
+    .replace(/\belapsed: \d+(?:\.\d+)?s\b/g, "elapsed: 0s")
+    .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form

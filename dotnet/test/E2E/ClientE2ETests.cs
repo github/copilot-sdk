@@ -189,14 +189,27 @@ public class ClientE2ETests
         Assert.NotNull(session.SessionId);
     }
 
-    [Theory]
-    [InlineData(true)]   // stdio transport
-    [InlineData(false)]  // TCP transport
-    public async Task Should_Allow_ResumeSession_Called_Without_PermissionHandler(bool useStdio)
+    [Fact]
+    public async Task Should_Allow_ResumeSession_Called_Without_PermissionHandler()
     {
-        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        const string connectionToken = "client-e2e-resume-token";
+
+        await using var client = new CopilotClient(new CopilotClientOptions
+        {
+            UseStdio = false,
+            TcpConnectionToken = connectionToken,
+        });
         await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
-        await using var resumedSession = await client.ResumeSessionAsync(originalSession.SessionId, new());
+
+        var port = client.ActualPort
+            ?? throw new InvalidOperationException("Client must be using TCP transport to support multi-client resume.");
+
+        await using var resumeClient = new CopilotClient(new CopilotClientOptions
+        {
+            CliUrl = $"localhost:{port}",
+            TcpConnectionToken = connectionToken,
+        });
+        await using var resumedSession = await resumeClient.ResumeSessionAsync(originalSession.SessionId, new());
 
         Assert.Equal(originalSession.SessionId, resumedSession.SessionId);
     }

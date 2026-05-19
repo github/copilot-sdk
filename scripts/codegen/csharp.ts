@@ -254,6 +254,10 @@ function isNonNullableCSharpValueType(typeName: string): boolean {
     ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName) || externalRpcValueTypes.has(typeName);
 }
 
+function requiresArgumentNullCheck(typeName: string, isRequired: boolean): boolean {
+    return isRequired && !typeName.endsWith("?") && !isNonNullableCSharpValueType(typeName);
+}
+
 async function formatCSharpFile(filePath: string): Promise<void> {
     try {
         const projectFile = path.join(REPO_ROOT, "dotnet/src/GitHub.Copilot.SDK.csproj");
@@ -1637,9 +1641,6 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
     srLines.push(`    internal ServerRpc(JsonRpc rpc)`);
     srLines.push(`    {`);
     srLines.push(`        _rpc = rpc;`);
-    for (const [groupName] of groups) {
-        srLines.push(`        ${toPascalCase(groupName)} = new Server${toPascalCase(groupName)}Api(rpc);`);
-    }
     srLines.push(`    }`);
 
     // Top-level methods (like ping)
@@ -1650,9 +1651,15 @@ function emitServerRpcClasses(node: Record<string, unknown>, classes: string[]):
 
     // Group properties
     for (const [groupName] of groups) {
+        const propertyName = toPascalCase(groupName);
         srLines.push("");
-        srLines.push(`    /// <summary>${toPascalCase(groupName)} APIs.</summary>`);
-        srLines.push(`    public Server${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+        srLines.push(`    /// <summary>${propertyName} APIs.</summary>`);
+        srLines.push(
+            `    public Server${propertyName}Api ${propertyName} =>`,
+            `        field ??`,
+            `        Interlocked.CompareExchange(ref field, new(_rpc), null) ??`,
+            `        field;`
+        );
     }
 
     srLines.push(`}`);
@@ -1688,10 +1695,6 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
     lines.push(`    internal ${className}(JsonRpc rpc)`);
     lines.push(`    {`);
     lines.push(`        _rpc = rpc;`);
-    for (const [subGroupName] of subGroups) {
-        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
-        lines.push(`        ${toPascalCase(subGroupName)} = new ${subClassName}(rpc);`);
-    }
     lines.push(`    }`);
 
     for (const [key, value] of Object.entries(node)) {
@@ -1701,9 +1704,15 @@ function emitServerApiClass(className: string, node: Record<string, unknown>, cl
 
     for (const [subGroupName] of subGroups) {
         const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        const propertyName = toPascalCase(subGroupName);
         lines.push("");
-        lines.push(`    /// <summary>${toPascalCase(subGroupName)} APIs.</summary>`);
-        lines.push(`    public ${subClassName} ${toPascalCase(subGroupName)} { get; }`);
+        lines.push(`    /// <summary>${propertyName} APIs.</summary>`);
+        lines.push(
+            `    public ${subClassName} ${propertyName} =>`,
+            `        field ??`,
+            `        Interlocked.CompareExchange(ref field, new(_rpc), null) ??`,
+            `        field;`
+        );
     }
 
     lines.push(`}`);
@@ -1761,6 +1770,7 @@ function emitServerInstanceMethod(
 
     const sigParams: string[] = [];
     const bodyAssignments: string[] = [];
+    const argumentNullChecks: string[] = [];
     const parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }> = [];
 
     for (const [pName, pSchema] of paramEntries) {
@@ -1772,6 +1782,9 @@ function emitServerInstanceMethod(
             : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
         bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+        if (requiresArgumentNullCheck(csType, isReq)) {
+            argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
+        }
         parameterDescriptions.push({ name: pName, description: jsonSchema.description });
     }
     sigParams.push("CancellationToken cancellationToken = default");
@@ -1793,6 +1806,10 @@ function emitServerInstanceMethod(
     }
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
     lines.push(`${indent}{`);
+    lines.push(...argumentNullChecks);
+    if (argumentNullChecks.length > 0) {
+        lines.push("");
+    }
     if (requestClassName && bodyAssignments.length > 0) {
         lines.push(`${indent}    var ${localRequestName} = new ${requestClassName} { ${bodyAssignments.join(", ")} };`);
         if (!isVoidSchema(resultSchema)) {
@@ -1815,11 +1832,21 @@ function emitSessionRpcClasses(node: Record<string, unknown>, classes: string[])
     const groups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
     const topLevelMethods = Object.entries(node).filter(([, v]) => isRpcMethod(v));
 
-    const srLines = [`/// <summary>Provides typed session-scoped RPC methods.</summary>`, `public sealed class SessionRpc`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
-    srLines.push(`    internal SessionRpc(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
-    for (const [groupName] of groups) srLines.push(`        ${toPascalCase(groupName)} = new ${toPascalCase(groupName)}Api(rpc, sessionId);`);
+    const srLines = [`/// <summary>Provides typed session-scoped RPC methods.</summary>`, `public sealed class SessionRpc`, `{`, `    private readonly CopilotSession _session;`, ""];
+    srLines.push(`    internal SessionRpc(CopilotSession session)`, `    {`, `        _session = session;`);
     srLines.push(`    }`);
-    for (const [groupName] of groups) srLines.push("", `    /// <summary>${toPascalCase(groupName)} APIs.</summary>`, `    public ${toPascalCase(groupName)}Api ${toPascalCase(groupName)} { get; }`);
+    srLines.push("", `    internal CopilotSession Session => _session;`);
+    for (const [groupName] of groups) {
+        const propertyName = toPascalCase(groupName);
+        srLines.push(
+            "",
+            `    /// <summary>${propertyName} APIs.</summary>`,
+            `    public ${propertyName}Api ${propertyName} =>`,
+            `        field ??`,
+            `        Interlocked.CompareExchange(ref field, new(_session), null) ??`,
+            `        field;`
+        );
+    }
 
     // Emit top-level session RPC methods directly on the SessionRpc class
     const topLevelLines: string[] = [];
@@ -1891,7 +1918,8 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     }
 
     const sigParams: string[] = [];
-    const bodyAssignments = [`SessionId = _sessionId`];
+    const bodyAssignments = [`SessionId = _session.SessionId`];
+    const argumentNullChecks: string[] = [];
     const parameterDescriptions: Array<{ name: string; description?: string; escapeDescription?: boolean }> = [];
 
     if (useRequestParameter) {
@@ -1907,6 +1935,9 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
             const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
             sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
             bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+            if (requiresArgumentNullCheck(csType, isReq)) {
+                argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
+            }
             parameterDescriptions.push({ name: pName, description: (pSchema as JSONSchema7).description });
         }
     }
@@ -1928,11 +1959,15 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
         pushObsoleteAttributes(lines, indent);
     }
     lines.push(`${indent}${methodVisibility} async ${taskType} ${methodName}Async(${sigParams.join(", ")})`);
-    lines.push(`${indent}{`, `${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
+    lines.push(`${indent}{`);
+    lines.push(...argumentNullChecks);
+    lines.push(`${indent}    _session.ThrowIfDisposed();`);
+    lines.push("");
+    lines.push(`${indent}    var ${localRequestName} = new ${wireRequestClassName} { ${bodyAssignments.join(", ")} };`);
     if (!isVoidSchema(resultSchema)) {
-        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
+        lines.push(`${indent}    return await CopilotClient.InvokeRpcAsync<${resultClassName}>(_session.Rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     } else {
-        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
+        lines.push(`${indent}    await CopilotClient.InvokeRpcAsync(_session.Rpc, "${method.rpcMethod}", [${localRequestName}], cancellationToken);`, `${indent}}`);
     }
 }
 
@@ -1945,12 +1980,8 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
     const deprecatedAttr = groupDeprecated ? `${obsoleteAttributeBlock()}\n` : "";
     const subGroups = Object.entries(node).filter(([, v]) => typeof v === "object" && v !== null && !isRpcMethod(v));
 
-    const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}${deprecatedAttr}public sealed class ${className}`, `{`, `    private readonly JsonRpc _rpc;`, `    private readonly string _sessionId;`, ""];
-    lines.push(`    internal ${className}(JsonRpc rpc, string sessionId)`, `    {`, `        _rpc = rpc;`, `        _sessionId = sessionId;`);
-    for (const [subGroupName] of subGroups) {
-        const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
-        lines.push(`        ${toPascalCase(subGroupName)} = new ${subClassName}(rpc, sessionId);`);
-    }
+    const lines = [`/// <summary>Provides session-scoped ${displayName} APIs.</summary>`, `${experimentalAttr}${deprecatedAttr}public sealed class ${className}`, `{`, `    private readonly CopilotSession _session;`, ""];
+    lines.push(`    internal ${className}(CopilotSession session)`, `    {`, `        _session = session;`);
     lines.push(`    }`);
 
     for (const [key, value] of Object.entries(node)) {
@@ -1960,9 +1991,15 @@ function emitSessionApiClass(className: string, node: Record<string, unknown>, c
 
     for (const [subGroupName] of subGroups) {
         const subClassName = className.replace(/Api$/, "") + toPascalCase(subGroupName) + "Api";
+        const propertyName = toPascalCase(subGroupName);
         lines.push("");
-        lines.push(`    /// <summary>${toPascalCase(subGroupName)} APIs.</summary>`);
-        lines.push(`    public ${subClassName} ${toPascalCase(subGroupName)} { get; }`);
+        lines.push(`    /// <summary>${propertyName} APIs.</summary>`);
+        lines.push(
+            `    public ${subClassName} ${propertyName} =>`,
+            `        field ??`,
+            `        Interlocked.CompareExchange(ref field, new(_session), null) ??`,
+            `        field;`
+        );
     }
 
     lines.push(`}`);
@@ -2179,6 +2216,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 
 namespace GitHub.Copilot.SDK.Rpc;
 `);
