@@ -48,6 +48,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session1.DisposeAsync();
 
         // Resume with MCP servers
         var mcpServers = new Dictionary<string, McpServerConfig>
@@ -141,6 +142,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session1.DisposeAsync();
 
         // Resume with custom agents
         var customAgents = new List<CustomAgentConfig>

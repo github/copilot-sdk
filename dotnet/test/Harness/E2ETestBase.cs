@@ -82,11 +82,21 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
     /// Resumes a session with a default config that approves all permissions.
     /// Convenience wrapper for E2E tests.
     /// </summary>
-    protected Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null)
+    protected async Task<CopilotSession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null)
     {
         config ??= new ResumeSessionConfig();
         config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
-        return Client.ResumeSessionAsync(sessionId, config);
+
+        await Client.StartAsync();
+        var port = Client.ActualPort
+            ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
+
+        var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            CliUrl = $"localhost:{port}",
+            TcpConnectionToken = E2ETestFixture.SharedTcpConnectionToken,
+        });
+        return await client.ResumeSessionAsync(sessionId, config);
     }
 
     protected static string GetSystemMessage(ParsedHttpExchange exchange)

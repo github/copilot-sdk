@@ -204,9 +204,10 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session1.DisposeAsync();
 
         // Resume with permission handler
-        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
@@ -221,6 +222,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         });
 
         Assert.True(permissionRequestReceived, "Permission request should have been received");
+        await session2.DisposeAsync();
     }
 
     [Fact]
@@ -255,8 +257,9 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         });
         var sessionId = session1.SessionId;
         await session1.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+        await session1.DisposeAsync();
 
-        var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
                 Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
@@ -279,6 +282,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         });
 
         Assert.True(permissionDenied, "Expected a tool.execution_complete event with Permission denied result");
+        await session2.DisposeAsync();
     }
 
     [Fact]
