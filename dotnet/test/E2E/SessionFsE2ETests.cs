@@ -576,7 +576,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         return normalized;
     }
 
-    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider
+    private sealed class ThrowingSessionFsProvider(Exception exception) : SessionFsProvider, ISessionFsSqliteProvider
     {
         protected override Task<string> ReadFileAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<string>(exception);
@@ -607,6 +607,12 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
             Task.FromException(exception);
+
+        Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object>? bindParams, CancellationToken cancellationToken) =>
+            Task.FromException<SessionFsSqliteResult?>(exception);
+
+        Task<bool> ISessionFsSqliteProvider.ExistsAsync(CancellationToken cancellationToken) =>
+            Task.FromException<bool>(exception);
     }
 
     private sealed class TestSessionFsHandler(string sessionId, string rootDir) : SessionFsProvider

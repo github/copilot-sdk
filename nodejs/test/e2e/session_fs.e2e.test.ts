@@ -279,15 +279,17 @@ describe("Session Fs Adapter", () => {
             async rename(src: string, dest: string): Promise<void> {
                 await provider.rename(src, dest);
             },
-            async sqliteQuery(sessionId, query, queryType, params) {
-                return {
-                    columns: ["sessionId", "query", "queryType", "answer"],
-                    rows: [{ sessionId, query, queryType, answer: params?.answer }],
-                    rowsAffected: 0,
-                };
-            },
-            async sqliteExists(sessionId) {
-                return sessionId === "handler-session";
+            sqlite: {
+                async query(queryType, query, params) {
+                    return {
+                        columns: ["sessionId", "query", "queryType", "answer"],
+                        rows: [{ sessionId: "handler-session", query, queryType, answer: params?.answer }],
+                        rowsAffected: 0,
+                    };
+                },
+                async exists() {
+                    return true;
+                },
             },
         };
         const handler = createSessionFsAdapter(userProvider);
@@ -415,11 +417,13 @@ describe("Session Fs Adapter", () => {
             rename: async () => {
                 throw enoent;
             },
-            sqliteQuery: async () => {
-                throw enoent;
-            },
-            sqliteExists: async () => {
-                throw enoent;
+            sqlite: {
+                query: async () => {
+                    throw enoent;
+                },
+                exists: async () => {
+                    throw enoent;
+                },
             },
         };
 
@@ -565,15 +569,17 @@ function createTestSessionFsHandler(
         async rename(src: string, dest: string): Promise<void> {
             await provider.rename(sp(src), sp(dest));
         },
-        async sqliteQuery() {
-            return {
-                columns: [],
-                rows: [],
-                rowsAffected: 0,
-            };
-        },
-        async sqliteExists(sessionId) {
-            return sessionId === session.sessionId;
+        sqlite: {
+            async query() {
+                return {
+                    columns: [],
+                    rows: [],
+                    rowsAffected: 0,
+                };
+            },
+            async exists() {
+                return true;
+            },
         },
     };
 }

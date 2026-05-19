@@ -59,17 +59,19 @@ describe("SessionFsAdapter", () => {
             async rename(src, dest) {
                 await memoryProvider.rename(sp(src), sp(dest));
             },
-            async sqliteQuery(actualSessionId, query, queryType, params) {
-                return {
-                    columns: ["sessionId", "query", "queryType", "answer"],
-                    rows: [
-                        { sessionId: actualSessionId, query, queryType, answer: params?.answer },
-                    ],
-                    rowsAffected: 0,
-                };
-            },
-            async sqliteExists(actualSessionId) {
-                return actualSessionId === sessionId;
+            sqlite: {
+                async query(queryType, query, params) {
+                    return {
+                        columns: ["sessionId", "query", "queryType", "answer"],
+                        rows: [
+                            { sessionId, query, queryType, answer: params?.answer },
+                        ],
+                        rowsAffected: 0,
+                    };
+                },
+                async exists() {
+                    return true;
+                },
             },
         };
 
@@ -203,8 +205,10 @@ describe("SessionFsAdapter", () => {
                 readdirWithTypes: () => Promise.reject(error),
                 rm: () => Promise.reject(error),
                 rename: () => Promise.reject(error),
-                sqliteQuery: () => Promise.reject(error),
-                sqliteExists: () => Promise.reject(error),
+                sqlite: {
+                    query: () => Promise.reject(error),
+                    exists: () => Promise.reject(error),
+                },
             };
         }
 
