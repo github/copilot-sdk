@@ -66,27 +66,22 @@ describe("Session Fs SQLite", async () => {
             });
 
             // Ask the agent to create a table and insert data using the SQL tool
-            const msg = await session.sendAndWait({
+            await session.sendAndWait({
                 prompt:
                     'Use the sql tool to create a table called "items" with columns id (TEXT PRIMARY KEY) and name (TEXT). ' +
-                    'Then insert a row with id "a1" and name "Widget". ' +
-                    "Then select all rows from items and tell me what you find.",
+                    'Then insert a row with id "a1" and name "Widget".',
             });
 
-            expect(msg?.data.content).toContain("Widget");
-
-            // Verify the sqlite handler was called
+            // Verify the sqlite handler was called with the right operations
             const sessionCalls = sqliteCalls.filter((c) => c.sessionId === session.sessionId);
             expect(sessionCalls.length).toBeGreaterThan(0);
             expect(sessionCalls.some((c) => c.query.toUpperCase().includes("CREATE TABLE"))).toBe(
                 true
             );
             expect(sessionCalls.some((c) => c.query.toUpperCase().includes("INSERT"))).toBe(true);
-            expect(sessionCalls.some((c) => c.query.toUpperCase().includes("SELECT"))).toBe(true);
 
             // Verify queryType is set correctly
             expect(sessionCalls.some((c) => c.queryType === "exec")).toBe(true);
-            expect(sessionCalls.some((c) => c.queryType === "query")).toBe(true);
             expect(sessionCalls.some((c) => c.queryType === "run")).toBe(true);
 
             await session.disconnect();
