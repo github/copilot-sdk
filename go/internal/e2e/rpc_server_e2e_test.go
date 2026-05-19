@@ -180,6 +180,7 @@ func TestRpcServerE2E(t *testing.T) {
 		discovered := findServerSkill(skills.Skills, skillName)
 		if discovered == nil {
 			t.Fatalf("Expected to discover skill %q", skillName)
+			return
 		}
 		if discovered.Description != "Skill discovered by server-scoped RPC tests." {
 			t.Errorf("Expected description to match, got %q", discovered.Description)
@@ -211,6 +212,7 @@ func TestRpcServerE2E(t *testing.T) {
 		disabledSkill := findServerSkill(disabled.Skills, skillName)
 		if disabledSkill == nil {
 			t.Fatalf("Expected to find skill %q after disable", skillName)
+			return
 		}
 		if disabledSkill.Enabled {
 			t.Errorf("Expected skill %q to be Enabled=false after global disable", skillName)

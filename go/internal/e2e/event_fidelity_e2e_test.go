@@ -54,6 +54,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		if usageEvent == nil {
 			t.Fatalf("Expected at least one assistant.usage event; events=%v", eventFidelityTypes(snapshot))
+			return
 		}
 		if usageEvent.Model == "" {
 			t.Errorf("Expected assistant.usage event to have a non-empty model field, got %#v", usageEvent)
@@ -110,6 +111,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		if usageInfo == nil {
 			t.Fatalf("Expected at least one session.usage_info event; events=%v", eventFidelityTypes(snapshot))
+			return
 		}
 		if usageInfo.CurrentTokens <= 0 {
 			t.Errorf("Expected session.usage_info.currentTokens > 0, got %v", usageInfo.CurrentTokens)
@@ -460,6 +462,7 @@ func TestEventFidelityE2E(t *testing.T) {
 		assistantEvent := firstAssistantMessageEventFidelityData(snapshot)
 		if assistantEvent == nil {
 			t.Fatalf("Expected at least one assistant.message event; events=%v", eventFidelityTypes(snapshot))
+			return
 		}
 		if assistantEvent.MessageID == "" {
 			t.Fatalf("Expected assistant.message messageId, got %#v", assistantEvent)

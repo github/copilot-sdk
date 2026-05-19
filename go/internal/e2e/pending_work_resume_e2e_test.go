@@ -539,6 +539,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 		if resumeEvent == nil {
 			t.Fatal("Expected a session.resume event")
+			return
 		}
 		if resumeEvent.ContinuePendingWork == nil || *resumeEvent.ContinuePendingWork != false {
 			t.Errorf("Expected ContinuePendingWork=false in resume event, got %v", resumeEvent.ContinuePendingWork)
@@ -634,6 +635,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 		if resumeEvent == nil {
 			t.Fatal("Expected a session.resume event")
+			return
 		}
 		if resumeEvent.ContinuePendingWork == nil || *resumeEvent.ContinuePendingWork != true {
 			t.Errorf("Expected ContinuePendingWork=true in resume event, got %v", resumeEvent.ContinuePendingWork)

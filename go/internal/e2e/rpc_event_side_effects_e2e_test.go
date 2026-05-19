@@ -175,6 +175,7 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 		userEvent := firstUserMessageEvent(messages)
 		if userEvent == nil {
 			t.Fatal("Expected at least one user.message in persisted history")
+			return
 		}
 		targetEventID := userEvent.ID
 
@@ -230,6 +231,7 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 		userEvent := firstUserMessageEvent(messages)
 		if userEvent == nil {
 			t.Fatal("Expected at least one user.message in persisted history")
+			return
 		}
 
 		truncateResult, err := session.RPC.History.Truncate(t.Context(), &rpc.HistoryTruncateRequest{EventID: userEvent.ID})

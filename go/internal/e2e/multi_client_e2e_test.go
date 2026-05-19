@@ -377,6 +377,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if response1 == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		rd1, ok := response1.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -394,6 +395,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if response2 == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		rd2, ok := response2.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -450,6 +452,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if stableResponse == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		srd, ok := stableResponse.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -467,6 +470,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if ephemeralResponse == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		erd, ok := ephemeralResponse.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -497,6 +501,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if afterResponse == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		ard, ok := afterResponse.Data.(*copilot.AssistantMessageData)
 		if !ok {

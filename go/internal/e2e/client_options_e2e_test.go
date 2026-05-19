@@ -217,6 +217,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 		if createReq == nil {
 			t.Fatalf("session.create request was not captured. Captured requests: %+v", updated.Requests)
+			return
 		}
 		params, ok := createReq.Params.(map[string]any)
 		if !ok {
