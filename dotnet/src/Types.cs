@@ -109,7 +109,7 @@ public readonly struct CopilotLogLevel : IEquatable<CopilotLogLevel>
 /// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
-public class CopilotClientOptions
+public sealed class CopilotClientOptions
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="CopilotClientOptions"/> class.
@@ -120,7 +120,7 @@ public class CopilotClientOptions
     /// Initializes a new instance of the <see cref="CopilotClientOptions"/> class
     /// by copying the properties of the specified instance.
     /// </summary>
-    protected CopilotClientOptions(CopilotClientOptions? other)
+    private CopilotClientOptions(CopilotClientOptions? other)
     {
         if (other is null) return;
 
@@ -224,7 +224,7 @@ public class CopilotClientOptions
     /// Custom session filesystem provider configuration.
     /// When set, the client registers as the session filesystem provider on connect,
     /// routing session-scoped file I/O through per-session handlers created via
-    /// <see cref="SessionConfig.CreateSessionFsProvider"/> or <see cref="ResumeSessionConfig.CreateSessionFsProvider"/>.
+    /// <see cref="SessionConfigBase.CreateSessionFsProvider"/>.
     /// </summary>
     public SessionFsConfig? SessionFs { get; set; }
 
@@ -268,7 +268,7 @@ public class CopilotClientOptions
     /// Other reference-type properties (for example delegates and the logger) are not
     /// deep-cloned; the original and the clone will share those objects.
     /// </remarks>
-    public virtual CopilotClientOptions Clone()
+    public CopilotClientOptions Clone()
     {
         return new(this);
     }
@@ -1813,7 +1813,7 @@ public sealed class ProviderConfig
     /// Well-known model name used by the runtime to look up agent configuration
     /// (tools, prompts, reasoning behavior) and default token limits. Also used
     /// as the wire model when <see cref="WireModel"/> is not set.
-    /// Falls back to <see cref="SessionConfig.Model"/>.
+    /// Falls back to <see cref="SessionConfigBase.Model"/>.
     /// </summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
@@ -1822,7 +1822,7 @@ public sealed class ProviderConfig
     /// Model name sent to the provider API for inference. Use this when the
     /// provider's model name (e.g. an Azure deployment name or a custom
     /// fine-tune name) differs from <see cref="ModelId"/>.
-    /// Falls back to <see cref="ModelId"/>, then <see cref="SessionConfig.Model"/>.
+    /// Falls back to <see cref="ModelId"/>, then <see cref="SessionConfigBase.Model"/>.
     /// </summary>
     [JsonPropertyName("wireModel")]
     public string? WireModel { get; set; }
@@ -2037,7 +2037,7 @@ public sealed class CustomAgentConfig
     /// List of skill names to preload into this agent's context.
     /// When set, the full content of each listed skill is eagerly injected into
     /// the agent's context at startup. Skills are resolved by name from the
-    /// session's configured skill directories (<see cref="SessionConfig.SkillDirectories"/>).
+    /// session's configured skill directories (<see cref="SessionConfigBase.SkillDirectories"/>).
     /// When omitted, no skills are injected (opt-in model).
     /// </summary>
     [JsonPropertyName("skills")]
@@ -2124,20 +2124,20 @@ public sealed class CloudSessionOptions
 }
 
 /// <summary>
-/// Configuration options for creating a new Copilot session.
+/// Shared configuration properties for creating or resuming a Copilot session.
+/// Use <see cref="SessionConfig"/> when creating a new session, or
+/// <see cref="ResumeSessionConfig"/> when resuming an existing one.
 /// </summary>
-public class SessionConfig
+public abstract class SessionConfigBase
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SessionConfig"/> class.
-    /// </summary>
-    public SessionConfig() { }
+    /// <summary>Initializes a new instance of the <see cref="SessionConfigBase"/> class.</summary>
+    protected SessionConfigBase() { }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SessionConfig"/> class
-    /// by copying the properties of the specified instance.
+    /// Initializes a new instance of <see cref="SessionConfigBase"/> by copying the
+    /// properties of the specified instance.
     /// </summary>
-    protected SessionConfig(SessionConfig? other)
+    protected SessionConfigBase(SessionConfigBase? other)
     {
         if (other is null) return;
 
@@ -2172,8 +2172,6 @@ public class SessionConfig
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
-        Cloud = other.Cloud;
-        SessionId = other.SessionId;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
@@ -2183,20 +2181,10 @@ public class SessionConfig
         WorkingDirectory = other.WorkingDirectory;
     }
 
-    /// <summary>
-    /// Optional session identifier; a new ID is generated if not provided.
-    /// </summary>
-    public string? SessionId { get; set; }
-
-    /// <summary>
-    /// Client name to identify the application using the SDK.
-    /// Included in the User-Agent header for API requests.
-    /// </summary>
+    /// <summary>Client name to identify the application using the SDK.</summary>
     public string? ClientName { get; set; }
 
-    /// <summary>
-    /// Model identifier to use for this session (e.g., "gpt-4o").
-    /// </summary>
+    /// <summary>Model identifier to use for this session (e.g., "gpt-4o").</summary>
     public string? Model { get; set; }
 
     /// <summary>
@@ -2206,9 +2194,7 @@ public class SessionConfig
     /// </summary>
     public string? ReasoningEffort { get; set; }
 
-    /// <summary>
-    /// Per-property overrides for model capabilities, deep-merged over runtime defaults.
-    /// </summary>
+    /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
     /// <summary>
@@ -2236,21 +2222,17 @@ public class SessionConfig
     /// are left for the client to handle via external tool request events.
     /// </summary>
     public ICollection<AIFunctionDeclaration>? Tools { get; set; }
-    /// <summary>
-    /// System message configuration for the session.
-    /// </summary>
+
+    /// <summary>System message configuration for the session.</summary>
     public SystemMessageConfig? SystemMessage { get; set; }
-    /// <summary>
-    /// List of tool names to allow; only these tools will be available when specified.
-    /// </summary>
+
+    /// <summary>List of tool names to allow; only these tools will be available when specified.</summary>
     public IList<string>? AvailableTools { get; set; }
-    /// <summary>
-    /// List of tool names to exclude from the session.
-    /// </summary>
+
+    /// <summary>List of tool names to exclude from the session.</summary>
     public IList<string>? ExcludedTools { get; set; }
-    /// <summary>
-    /// Custom model provider configuration for the session.
-    /// </summary>
+
+    /// <summary>Custom model provider configuration for the session.</summary>
     public ProviderConfig? Provider { get; set; }
 
     /// <summary>
@@ -2264,52 +2246,28 @@ public class SessionConfig
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
 
-    /// <summary>
-    /// Handler for permission requests from the server.
-    /// When provided, the server will call this handler to request permission for operations.
-    /// </summary>
+    /// <summary>Handler for permission requests from the server.</summary>
     public PermissionRequestHandler? OnPermissionRequest { get; set; }
 
-    /// <summary>
-    /// Handler for user input requests from the agent.
-    /// When provided, enables the ask_user tool for the agent to request user input.
-    /// </summary>
+    /// <summary>Handler for user input requests from the agent.</summary>
     public UserInputHandler? OnUserInputRequest { get; set; }
 
-    /// <summary>
-    /// Slash commands registered for this session.
-    /// When the CLI has a TUI, each command appears as <c>/name</c> for the user to invoke.
-    /// The handler is called when the user executes the command.
-    /// </summary>
+    /// <summary>Slash commands registered for this session.</summary>
     public IList<CommandDefinition>? Commands { get; set; }
 
-    /// <summary>
-    /// Handler for elicitation requests from the server or MCP tools.
-    /// When provided, the server will route elicitation requests to this handler
-    /// and report elicitation as a supported capability.
-    /// </summary>
+    /// <summary>Handler for elicitation requests from the server or MCP tools.</summary>
     public ElicitationHandler? OnElicitationRequest { get; set; }
 
-    /// <summary>
-    /// Handler for exit-plan-mode requests from the server.
-    /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
-    /// </summary>
+    /// <summary>Handler for exit-plan-mode requests from the server.</summary>
     public ExitPlanModeHandler? OnExitPlanModeRequest { get; set; }
 
-    /// <summary>
-    /// Handler for auto-mode-switch requests from the server.
-    /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
-    /// </summary>
+    /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public AutoModeSwitchHandler? OnAutoModeSwitchRequest { get; set; }
 
-    /// <summary>
-    /// Hook handlers for session lifecycle events.
-    /// </summary>
+    /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }
 
-    /// <summary>
-    /// Working directory for the session.
-    /// </summary>
+    /// <summary>Working directory for the session.</summary>
     public string? WorkingDirectory { get; set; }
 
     /// <summary>
@@ -2337,9 +2295,7 @@ public class SessionConfig
     /// </summary>
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
-    /// <summary>
-    /// Custom agent configurations for the session.
-    /// </summary>
+    /// <summary>Custom agent configurations for the session.</summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
     /// <summary>
@@ -2355,19 +2311,13 @@ public class SessionConfig
     /// </summary>
     public string? Agent { get; set; }
 
-    /// <summary>
-    /// Directories to load skills from.
-    /// </summary>
+    /// <summary>Directories to load skills from.</summary>
     public IList<string>? SkillDirectories { get; set; }
 
-    /// <summary>
-    /// Additional directories to search for custom instruction files.
-    /// </summary>
+    /// <summary>Additional directories to search for custom instruction files.</summary>
     public IList<string>? InstructionDirectories { get; set; }
 
-    /// <summary>
-    /// List of skill names to disable.
-    /// </summary>
+    /// <summary>List of skill names to disable.</summary>
     public IList<string>? DisabledSkills { get; set; }
 
     /// <summary>
@@ -2377,15 +2327,9 @@ public class SessionConfig
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
 
     /// <summary>
-    /// Optional event handler that is registered on the session before the
-    /// session.create RPC is issued.
+    /// Optional event handler registered on the session before the session.create / session.resume
+    /// RPC is issued, ensuring early events are delivered.
     /// </summary>
-    /// <remarks>
-    /// Equivalent to calling <see cref="CopilotSession.On"/> immediately
-    /// after creation, but executes earlier in the lifecycle so no events are missed.
-    /// Using this property rather than <see cref="CopilotSession.On"/> guarantees that early events emitted 
-    /// by the CLI during session creation (e.g. session.start) are delivered to the handler.
-    /// </remarks>
     public Action<SessionEvent>? OnEvent { get; set; }
 
     /// <summary>
@@ -2410,6 +2354,30 @@ public class SessionConfig
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
+}
+
+/// <summary>
+/// Configuration options for creating a new Copilot session.
+/// </summary>
+public sealed class SessionConfig : SessionConfigBase
+{
+    /// <summary>Initializes a new instance of the <see cref="SessionConfig"/> class.</summary>
+    public SessionConfig() { }
+
+    /// <summary>
+    /// Initializes a new instance of <see cref="SessionConfig"/> by copying the
+    /// properties of the specified instance.
+    /// </summary>
+    private SessionConfig(SessionConfig? other) : base(other)
+    {
+        if (other is null) return;
+
+        SessionId = other.SessionId;
+        Cloud = other.Cloud;
+    }
+
+    /// <summary>Optional session identifier; a new ID is generated if not provided.</summary>
+    public string? SessionId { get; set; }
 
     /// <summary>
     /// Creates a remote session in the cloud instead of a local session.
@@ -2427,199 +2395,28 @@ public class SessionConfig
     /// hooks, infinite session configuration, and delegates) are not deep-cloned; the original
     /// and the clone will share those nested objects, and changes to them may affect both.
     /// </remarks>
-    public virtual SessionConfig Clone()
-    {
-        return new(this);
-    }
+    public SessionConfig Clone() => new(this);
 }
 
 /// <summary>
 /// Configuration options for resuming an existing Copilot session.
 /// </summary>
-public class ResumeSessionConfig
+public sealed class ResumeSessionConfig : SessionConfigBase
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ResumeSessionConfig"/> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="ResumeSessionConfig"/> class.</summary>
     public ResumeSessionConfig() { }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ResumeSessionConfig"/> class
-    /// by copying the properties of the specified instance.
+    /// Initializes a new instance of <see cref="ResumeSessionConfig"/> by copying the
+    /// properties of the specified instance.
     /// </summary>
-    protected ResumeSessionConfig(ResumeSessionConfig? other)
+    private ResumeSessionConfig(ResumeSessionConfig? other) : base(other)
     {
         if (other is null) return;
 
-        AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
-        ClientName = other.ClientName;
-        Commands = other.Commands is not null ? [.. other.Commands] : null;
-        ConfigDir = other.ConfigDir;
-        CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
-        DefaultAgent = other.DefaultAgent;
-        Agent = other.Agent;
-        DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         SuppressResumeEvent = other.SuppressResumeEvent;
-        EnableConfigDiscovery = other.EnableConfigDiscovery;
         ContinuePendingWork = other.ContinuePendingWork;
-        ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
-        Hooks = other.Hooks;
-        InfiniteSessions = other.InfiniteSessions;
-        McpServers = other.McpServers is not null
-            ? (other.McpServers is Dictionary<string, McpServerConfig> dict
-                ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
-                : new Dictionary<string, McpServerConfig>(other.McpServers))
-            : null;
-        Model = other.Model;
-        ModelCapabilities = other.ModelCapabilities;
-        OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
-        OnElicitationRequest = other.OnElicitationRequest;
-        OnEvent = other.OnEvent;
-        OnExitPlanModeRequest = other.OnExitPlanModeRequest;
-        OnPermissionRequest = other.OnPermissionRequest;
-        OnUserInputRequest = other.OnUserInputRequest;
-        Provider = other.Provider;
-        EnableSessionTelemetry = other.EnableSessionTelemetry;
-        ReasoningEffort = other.ReasoningEffort;
-        CreateSessionFsProvider = other.CreateSessionFsProvider;
-        GitHubToken = other.GitHubToken;
-        RemoteSession = other.RemoteSession;
-        SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
-        InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
-        Streaming = other.Streaming;
-        IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
-        SystemMessage = other.SystemMessage;
-        Tools = other.Tools is not null ? [.. other.Tools] : null;
-        WorkingDirectory = other.WorkingDirectory;
     }
-
-    /// <summary>
-    /// Client name to identify the application using the SDK.
-    /// Included in the User-Agent header for API requests.
-    /// </summary>
-    public string? ClientName { get; set; }
-
-    /// <summary>
-    /// Model to use for this session. Can change the model when resuming.
-    /// </summary>
-    public string? Model { get; set; }
-
-    /// <summary>
-    /// Custom tool declarations available to the language model during the resumed session.
-    /// Declarations backed by an <see cref="AIFunction"/> are invoked automatically; declarations without one
-    /// are left for the client to handle via external tool request events.
-    /// </summary>
-    public ICollection<AIFunctionDeclaration>? Tools { get; set; }
-
-    /// <summary>
-    /// System message configuration.
-    /// </summary>
-    public SystemMessageConfig? SystemMessage { get; set; }
-
-    /// <summary>
-    /// List of tool names to allow. When specified, only these tools will be available.
-    /// Takes precedence over ExcludedTools.
-    /// </summary>
-    public IList<string>? AvailableTools { get; set; }
-
-    /// <summary>
-    /// List of tool names to disable. All other tools remain available.
-    /// Ignored if AvailableTools is specified.
-    /// </summary>
-    public IList<string>? ExcludedTools { get; set; }
-
-    /// <summary>
-    /// Custom model provider configuration for the resumed session.
-    /// </summary>
-    public ProviderConfig? Provider { get; set; }
-
-    /// <summary>
-    /// Enables or disables internal session telemetry for this session.
-    /// When <c>false</c>, disables session telemetry. When <c>null</c> (the default) or <c>true</c>,
-    /// telemetry is enabled for GitHub-authenticated sessions.
-    /// When a custom <see cref="Provider"/> (BYOK) is configured, session telemetry is
-    /// always disabled regardless of this setting.
-    /// This is independent of <see cref="CopilotClientOptions.Telemetry"/>, which configures
-    /// OpenTelemetry export for observability.
-    /// </summary>
-    public bool? EnableSessionTelemetry { get; set; }
-
-    /// <summary>
-    /// Reasoning effort level for models that support it.
-    /// Valid values: "low", "medium", "high", "xhigh".
-    /// </summary>
-    public string? ReasoningEffort { get; set; }
-
-    /// <summary>
-    /// Per-property overrides for model capabilities, deep-merged over runtime defaults.
-    /// </summary>
-    public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
-
-    /// <summary>
-    /// Handler for permission requests from the server.
-    /// When provided, the server will call this handler to request permission for operations.
-    /// </summary>
-    public PermissionRequestHandler? OnPermissionRequest { get; set; }
-
-    /// <summary>
-    /// Handler for user input requests from the agent.
-    /// When provided, enables the ask_user tool for the agent to request user input.
-    /// </summary>
-    public UserInputHandler? OnUserInputRequest { get; set; }
-
-    /// <summary>
-    /// Slash commands registered for this session.
-    /// When the CLI has a TUI, each command appears as <c>/name</c> for the user to invoke.
-    /// The handler is called when the user executes the command.
-    /// </summary>
-    public IList<CommandDefinition>? Commands { get; set; }
-
-    /// <summary>
-    /// Handler for elicitation requests from the server or MCP tools.
-    /// When provided, the server will route elicitation requests to this handler
-    /// and report elicitation as a supported capability.
-    /// </summary>
-    public ElicitationHandler? OnElicitationRequest { get; set; }
-
-    /// <summary>
-    /// Handler for exit-plan-mode requests from the server.
-    /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
-    /// </summary>
-    public ExitPlanModeHandler? OnExitPlanModeRequest { get; set; }
-
-    /// <summary>
-    /// Handler for auto-mode-switch requests from the server.
-    /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
-    /// </summary>
-    public AutoModeSwitchHandler? OnAutoModeSwitchRequest { get; set; }
-
-    /// <summary>
-    /// Hook handlers for session lifecycle events.
-    /// </summary>
-    public SessionHooks? Hooks { get; set; }
-
-    /// <summary>
-    /// Working directory for the session.
-    /// </summary>
-    public string? WorkingDirectory { get; set; }
-
-    /// <summary>
-    /// Override the default configuration directory location.
-    /// </summary>
-    public string? ConfigDir { get; set; }
-
-    /// <summary>
-    /// When <see langword="true"/>, automatically discovers MCP server configurations
-    /// (e.g. <c>.mcp.json</c>, <c>.vscode/mcp.json</c>) and skill directories from
-    /// the working directory and merges them with any explicitly provided
-    /// <see cref="McpServers"/> and <see cref="SkillDirectories"/>, with explicit
-    /// values taking precedence on name collision.
-    /// <para>
-    /// Custom instruction files (<c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>, etc.)
-    /// are always loaded from the working directory regardless of this setting.
-    /// </para>
-    /// </summary>
-    public bool? EnableConfigDiscovery { get; set; }
 
     /// <summary>
     /// When true, the session.resume event is not emitted.
@@ -2634,100 +2431,12 @@ public class ResumeSessionConfig
     /// interrupted on resume.
     /// <para>
     /// For permission requests, the runtime re-emits <c>permission.requested</c> so the
-    /// registered <see cref="OnPermissionRequest"/> handler can re-prompt; for external
-    /// tool calls, the consumer is expected to supply the result via the corresponding
-    /// low-level RPC method.
+    /// registered <see cref="SessionConfigBase.OnPermissionRequest"/> handler can re-prompt;
+    /// for external tool calls, the consumer is expected to supply the result via the
+    /// corresponding low-level RPC method.
     /// </para>
     /// </summary>
     public bool? ContinuePendingWork { get; set; }
-
-    /// <summary>
-    /// Enable streaming of assistant message and reasoning chunks.
-    /// When true, assistant.message_delta and assistant.reasoning_delta events
-    /// with deltaContent are sent as the response is generated.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public bool? Streaming { get; set; }
-
-    /// <summary>
-    /// Include sub-agent streaming events in the event stream. When true, streaming
-    /// delta events from sub-agents (e.g., <c>assistant.message_delta</c>,
-    /// <c>assistant.reasoning_delta</c>, <c>assistant.streaming_delta</c> with
-    /// <c>agentId</c> set) are forwarded to this connection. When false, only
-    /// non-streaming sub-agent events and <c>subagent.*</c> lifecycle events are
-    /// forwarded; streaming deltas from sub-agents are suppressed.
-    /// Default: true.
-    /// </summary>
-    public bool IncludeSubAgentStreamingEvents { get; set; } = true;
-
-    /// <summary>
-    /// MCP server configurations for the session.
-    /// Keys are server names, values are server configurations (<see cref="McpStdioServerConfig"/> or <see cref="McpHttpServerConfig"/>).
-    /// </summary>
-    public IDictionary<string, McpServerConfig>? McpServers { get; set; }
-
-    /// <summary>
-    /// Custom agent configurations for the session.
-    /// </summary>
-    public IList<CustomAgentConfig>? CustomAgents { get; set; }
-
-    /// <summary>
-    /// Configuration for the default agent (the built-in agent that handles turns when no custom agent is selected).
-    /// Use <see cref="DefaultAgentConfig.ExcludedTools"/> to hide specific tools from the default agent
-    /// while keeping them available to custom sub-agents.
-    /// </summary>
-    public DefaultAgentConfig? DefaultAgent { get; set; }
-
-    /// <summary>
-    /// Name of the custom agent to activate when the session starts.
-    /// Must match the <see cref="CustomAgentConfig.Name"/> of one of the agents in <see cref="CustomAgents"/>.
-    /// </summary>
-    public string? Agent { get; set; }
-
-    /// <summary>
-    /// Directories to load skills from.
-    /// </summary>
-    public IList<string>? SkillDirectories { get; set; }
-
-    /// <summary>
-    /// Additional directories to search for custom instruction files.
-    /// </summary>
-    public IList<string>? InstructionDirectories { get; set; }
-
-    /// <summary>
-    /// List of skill names to disable.
-    /// </summary>
-    public IList<string>? DisabledSkills { get; set; }
-
-    /// <summary>
-    /// Infinite session configuration for persistent workspaces and automatic compaction.
-    /// </summary>
-    public InfiniteSessionConfig? InfiniteSessions { get; set; }
-
-    /// <summary>
-    /// Optional event handler registered before the session.resume RPC is issued,
-    /// ensuring early events are delivered. See <see cref="SessionConfig.OnEvent"/>.
-    /// </summary>
-    public Action<SessionEvent>? OnEvent { get; set; }
-
-    /// <summary>
-    /// Supplies a handler for session filesystem operations.
-    /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
-    /// </summary>
-    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsProvider { get; set; }
-
-    /// <summary>
-    /// GitHub token for per-session authentication.
-    /// When provided, the runtime resolves this token into a full GitHub identity
-    /// and stores it on the session for content exclusion, model routing, and quota checks.
-    /// </summary>
-    public string? GitHubToken { get; set; }
-
-    /// <summary>
-    /// Per-session remote behavior control.
-    /// See <see cref="SessionConfig.RemoteSession"/> for details.
-    /// </summary>
-    public RemoteSessionMode? RemoteSession { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.
@@ -2739,16 +2448,13 @@ public class ResumeSessionConfig
     /// hooks, infinite session configuration, and delegates) are not deep-cloned; the original
     /// and the clone will share those nested objects, and changes to them may affect both.
     /// </remarks>
-    public virtual ResumeSessionConfig Clone()
-    {
-        return new(this);
-    }
+    public ResumeSessionConfig Clone() => new(this);
 }
 
 /// <summary>
 /// Options for sending a message in a Copilot session.
 /// </summary>
-public class MessageOptions
+public sealed class MessageOptions
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="MessageOptions"/> class.
@@ -2759,7 +2465,7 @@ public class MessageOptions
     /// Initializes a new instance of the <see cref="MessageOptions"/> class
     /// by copying the properties of the specified instance.
     /// </summary>
-    protected MessageOptions(MessageOptions? other)
+    private MessageOptions(MessageOptions? other)
     {
         if (other is null) return;
 
@@ -2797,7 +2503,7 @@ public class MessageOptions
     /// Other reference-type properties (for example attachment items) are not deep-cloned;
     /// the original and the clone will share those nested objects.
     /// </remarks>
-    public virtual MessageOptions Clone()
+    public MessageOptions Clone()
     {
         return new(this);
     }

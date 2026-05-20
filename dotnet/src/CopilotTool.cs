@@ -23,7 +23,7 @@ public static class CopilotTool
     /// <param name="method">The delegate to invoke when the tool is called.</param>
     /// <param name="factoryOptions">The Microsoft.Extensions.AI options used to create the function.</param>
     /// <param name="toolOptions">Copilot-specific tool options.</param>
-    /// <returns>An <see cref="AIFunction"/> that can be added to <see cref="SessionConfig.Tools"/> or <see cref="ResumeSessionConfig.Tools"/>.</returns>
+    /// <returns>An <see cref="AIFunction"/> that can be added to <see cref="SessionConfigBase.Tools"/>.</returns>
     /// <remarks>
     /// This is a helper on top of <see cref="AIFunctionFactory.Create(Delegate, AIFunctionFactoryOptions)"/> that applies additional configuration to support
     /// Copilot tools, such as binding a <see cref="ToolInvocation"/> parameter and adding Copilot-specific metadata properties based on the provided
