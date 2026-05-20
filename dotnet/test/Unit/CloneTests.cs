@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -109,8 +109,8 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
-            OnExitPlanMode = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
-            OnAutoModeSwitch = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
+            OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
+            OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
 
         var clone = original.Clone();
@@ -135,8 +135,8 @@ public class CloneTests
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
-        Assert.Same(original.OnExitPlanMode, clone.OnExitPlanMode);
-        Assert.Same(original.OnAutoModeSwitch, clone.OnAutoModeSwitch);
+        Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
+        Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
 
     [Fact]
@@ -315,14 +315,14 @@ public class CloneTests
     {
         var original = new ResumeSessionConfig
         {
-            OnExitPlanMode = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
-            OnAutoModeSwitch = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
+            OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
+            OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
 
         var clone = original.Clone();
 
-        Assert.Same(original.OnExitPlanMode, clone.OnExitPlanMode);
-        Assert.Same(original.OnAutoModeSwitch, clone.OnAutoModeSwitch);
+        Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
+        Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -21,14 +21,14 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         Assert.NotEmpty(messages);
         var startEvent = Assert.IsType<SessionStartEvent>(messages[0]);
         Assert.Equal(session.SessionId, startEvent.Data.SessionId);
 
         await session.DisposeAsync();
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetMessagesAsync());
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetEventsAsync());
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
         Assert.Equal(sessionId, session2.SessionId);
 
-        var messages = await session2.GetMessagesAsync();
+        var messages = await session2.GetEventsAsync();
         Assert.Contains(messages, m => m is UserMessageEvent);
         var resumeEvent = Assert.Single(messages.OfType<SessionResumeEvent>());
         Assert.True(resumeEvent.Data.ContinuePendingWork);
@@ -284,7 +284,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await sessionIdleTask;
 
         // The session should still be alive and usable after abort
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         Assert.NotEmpty(messages);
 
         // Verify an abort event exists in messages
@@ -371,7 +371,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.Contains(observedEvents, evt => evt is AssistantMessageEvent);
         Assert.Contains(observedEvents, evt => evt is SessionIdleEvent);
 
-        // Events must be dispatched serially — never more than one handler invocation at a time.
+        // Events must be dispatched serially â€” never more than one handler invocation at a time.
         Assert.Equal(1, maxConcurrent);
 
         // Verify the assistant response contains the expected answer.
@@ -670,7 +670,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             if (evt is UserMessageEvent)
             {
-                // Call DisposeAsync from within a handler — must not deadlock.
+                // Call DisposeAsync from within a handler â€” must not deadlock.
                 session.DisposeAsync().AsTask().ContinueWith(_ => disposed.TrySetResult());
             }
         });
@@ -728,7 +728,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentFile>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("attached-file.txt", attachment.DisplayName);
         Assert.Equal(filePath, attachment.Path);
@@ -758,7 +758,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentDirectory>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("attached-directory", attachment.DisplayName);
         Assert.Equal(directoryPath, attachment.Path);
@@ -791,7 +791,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentSelection>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("selected-file.cs", attachment.DisplayName);
         Assert.Equal(filePath, attachment.FilePath);
@@ -823,7 +823,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentGithubReference>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal(1234, attachment.Number);
         Assert.Equal(UserMessageAttachmentGithubReferenceType.Issue, attachment.ReferenceType);
@@ -843,7 +843,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Mode = "plan",
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         Assert.Equal("Say mode ok.", userMessage.Data.Content);
         // The current runtime accepts the per-message mode option but does not echo it on user.message.
         Assert.Null(userMessage.Data.AgentMode);

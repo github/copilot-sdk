@@ -207,7 +207,7 @@ public class CopilotClientOptions
     /// Custom session filesystem provider configuration.
     /// When set, the client registers as the session filesystem provider on connect,
     /// routing session-scoped file I/O through per-session handlers created via
-    /// <see cref="SessionConfig.CreateSessionFsHandler"/> or <see cref="ResumeSessionConfig.CreateSessionFsHandler"/>.
+    /// <see cref="SessionConfig.CreateSessionFsProvider"/> or <see cref="ResumeSessionConfig.CreateSessionFsProvider"/>.
     /// </summary>
     public SessionFsConfig? SessionFs { get; set; }
 
@@ -940,7 +940,7 @@ public sealed class ElicitationResult
 /// <summary>
 /// Options for the <see cref="ISessionUiApi.InputAsync"/> convenience method.
 /// </summary>
-public sealed class InputOptions
+public sealed class UiInputOptions
 {
     /// <summary>Title label for the input field.</summary>
     public string? Title { get; set; }
@@ -973,7 +973,7 @@ public interface ISessionUiApi
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The <see cref="ElicitationResult"/> with the user's response.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the host does not support elicitation.</exception>
-    Task<ElicitationResult> ElicitationAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken = default);
+    Task<ElicitationResult> ElicitAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Shows a confirmation dialog and returns the user's boolean answer.
@@ -1005,7 +1005,7 @@ public interface ISessionUiApi
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>The entered string, or <c>null</c> if the user declined/cancelled.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the host does not support elicitation.</exception>
-    Task<string?> InputAsync(string message, InputOptions? options = null, CancellationToken cancellationToken = default);
+    Task<string?> InputAsync(string message, UiInputOptions? options = null, CancellationToken cancellationToken = default);
 }
 
 // ============================================================================
@@ -1751,7 +1751,7 @@ public sealed class ProviderConfig
     /// exceed this limit.
     /// </summary>
     [JsonPropertyName("maxPromptTokens")]
-    public int? MaxInputTokens { get; set; }
+    public int? MaxPromptTokens { get; set; }
 
     /// <summary>
     /// Overrides the resolved model's default max output tokens. When hit, the
@@ -2075,16 +2075,16 @@ public class SessionConfig
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
-        OnAutoModeSwitch = other.OnAutoModeSwitch;
+        OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
-        OnExitPlanMode = other.OnExitPlanMode;
+        OnExitPlanModeRequest = other.OnExitPlanModeRequest;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
-        CreateSessionFsHandler = other.CreateSessionFsHandler;
+        CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         Cloud = other.Cloud;
@@ -2209,13 +2209,13 @@ public class SessionConfig
     /// Handler for exit-plan-mode requests from the server.
     /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
     /// </summary>
-    public ExitPlanModeHandler? OnExitPlanMode { get; set; }
+    public ExitPlanModeHandler? OnExitPlanModeRequest { get; set; }
 
     /// <summary>
     /// Handler for auto-mode-switch requests from the server.
     /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
     /// </summary>
-    public AutoModeSwitchHandler? OnAutoModeSwitch { get; set; }
+    public AutoModeSwitchHandler? OnAutoModeSwitchRequest { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.
@@ -2306,7 +2306,7 @@ public class SessionConfig
     /// Supplies a handler for session filesystem operations.
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
-    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
+    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsProvider { get; set; }
 
     /// <summary>
     /// GitHub token for per-session authentication.
@@ -2373,7 +2373,7 @@ public class ResumeSessionConfig
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
-        DisableResume = other.DisableResume;
+        SuppressResumeEvent = other.SuppressResumeEvent;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         ContinuePendingWork = other.ContinuePendingWork;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
@@ -2386,16 +2386,16 @@ public class ResumeSessionConfig
             : null;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
-        OnAutoModeSwitch = other.OnAutoModeSwitch;
+        OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
         OnElicitationRequest = other.OnElicitationRequest;
         OnEvent = other.OnEvent;
-        OnExitPlanMode = other.OnExitPlanMode;
+        OnExitPlanModeRequest = other.OnExitPlanModeRequest;
         OnPermissionRequest = other.OnPermissionRequest;
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
         ReasoningEffort = other.ReasoningEffort;
-        CreateSessionFsHandler = other.CreateSessionFsHandler;
+        CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
@@ -2499,13 +2499,13 @@ public class ResumeSessionConfig
     /// Handler for exit-plan-mode requests from the server.
     /// When provided, the server will route <c>exitPlanMode.request</c> callbacks to this handler.
     /// </summary>
-    public ExitPlanModeHandler? OnExitPlanMode { get; set; }
+    public ExitPlanModeHandler? OnExitPlanModeRequest { get; set; }
 
     /// <summary>
     /// Handler for auto-mode-switch requests from the server.
     /// When provided, the server will route <c>autoModeSwitch.request</c> callbacks to this handler.
     /// </summary>
-    public AutoModeSwitchHandler? OnAutoModeSwitch { get; set; }
+    public AutoModeSwitchHandler? OnAutoModeSwitchRequest { get; set; }
 
     /// <summary>
     /// Hook handlers for session lifecycle events.
@@ -2539,7 +2539,7 @@ public class ResumeSessionConfig
     /// When true, the session.resume event is not emitted.
     /// Default: false (resume event is emitted).
     /// </summary>
-    public bool DisableResume { get; set; }
+    public bool SuppressResumeEvent { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, instructs the runtime to continue any tool calls
@@ -2627,7 +2627,7 @@ public class ResumeSessionConfig
     /// Supplies a handler for session filesystem operations.
     /// This is used only when <see cref="CopilotClientOptions.SessionFs"/> is configured.
     /// </summary>
-    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsHandler { get; set; }
+    public Func<CopilotSession, SessionFsProvider>? CreateSessionFsProvider { get; set; }
 
     /// <summary>
     /// GitHub token for per-session authentication.

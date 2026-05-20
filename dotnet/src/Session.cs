@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -31,7 +31,7 @@ namespace GitHub.Copilot.SDK;
 /// <see cref="CopilotSession"/> implements <see cref="IAsyncDisposable"/>. Use the
 /// <c>await using</c> pattern for automatic cleanup, or call <see cref="DisposeAsync"/>
 /// explicitly. Disposing a session releases in-memory resources but preserves session data
-/// on disk — the conversation can be resumed later via
+/// on disk â€” the conversation can be resumed later via
 /// <see cref="CopilotClient.ResumeSessionAsync"/>. To permanently delete session data,
 /// use <see cref="CopilotClient.DeleteSessionAsync"/>.
 /// </para>
@@ -421,7 +421,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         // Fire broadcast work concurrently (fire-and-forget with error logging).
         // This is done outside the channel so broadcast handlers don't block the
-        // consumer loop — important when a secondary client's handler intentionally
+        // consumer loop â€” important when a secondary client's handler intentionally
         // never completes (multi-client permission scenario).
         _ = HandleBroadcastEventAsync(sessionEvent);
 
@@ -710,11 +710,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (IOException)
             {
-                // Connection lost or RPC error — nothing we can do
+                // Connection lost or RPC error â€” nothing we can do
             }
             catch (ObjectDisposedException)
             {
-                // Connection already disposed — nothing we can do
+                // Connection already disposed â€” nothing we can do
             }
         }
     }
@@ -761,11 +761,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (IOException)
             {
-                // Connection lost or RPC error — nothing we can do
+                // Connection lost or RPC error â€” nothing we can do
             }
             catch (ObjectDisposedException)
             {
-                // Connection already disposed — nothing we can do
+                // Connection already disposed â€” nothing we can do
             }
         }
     }
@@ -843,7 +843,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
-                // Connection lost — nothing we can do
+                // Connection lost â€” nothing we can do
             }
             return;
         }
@@ -875,7 +875,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            // User handler can throw any exception — report the error back to the server
+            // User handler can throw any exception â€” report the error back to the server
             // so the pending command doesn't hang.
             var message = error.Message;
             try
@@ -884,7 +884,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException)
             {
-                // Connection lost — nothing we can do
+                // Connection lost â€” nothing we can do
             }
         }
     }
@@ -923,7 +923,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // User handler can throw any exception — attempt to cancel so the request doesn't hang.
+            // User handler can throw any exception â€” attempt to cancel so the request doesn't hang.
             try
             {
                 await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
@@ -933,7 +933,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
             catch (Exception innerEx) when (innerEx is IOException or ObjectDisposedException)
             {
-                // Connection lost — nothing we can do
+                // Connection lost â€” nothing we can do
             }
         }
     }
@@ -956,7 +956,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private sealed class SessionUiApiImpl(CopilotSession session) : ISessionUiApi
     {
-        public async Task<ElicitationResult> ElicitationAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken)
+        public async Task<ElicitationResult> ElicitAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(elicitationParams);
             session.ThrowIfDisposed();
@@ -1040,7 +1040,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             return null;
         }
 
-        public async Task<string?> InputAsync(string message, InputOptions? options, CancellationToken cancellationToken)
+        public async Task<string?> InputAsync(string message, UiInputOptions? options, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(message);
             session.ThrowIfDisposed();
@@ -1316,7 +1316,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     /// <example>
     /// <code>
-    /// var events = await session.GetMessagesAsync();
+    /// var events = await session.GetEventsAsync();
     /// foreach (var evt in events)
     /// {
     ///     if (evt is AssistantMessageEvent)
@@ -1326,7 +1326,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// }
     /// </code>
     /// </example>
-    public async Task<IReadOnlyList<SessionEvent>> GetMessagesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SessionEvent>> GetEventsAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
@@ -1451,7 +1451,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     /// <example>
     /// <code>
-    /// // Using 'await using' for automatic disposal — session can still be resumed later
+    /// // Using 'await using' for automatic disposal â€” session can still be resumed later
     /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
     ///
     /// // Or manually dispose

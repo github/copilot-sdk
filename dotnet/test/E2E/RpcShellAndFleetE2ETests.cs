@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -118,7 +118,7 @@ public class RpcShellAndFleetE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         await TestHelper.WaitForConditionAsync(
             async () =>
             {
-                messages = (await session.GetMessagesAsync()).ToList();
+                messages = (await session.GetEventsAsync()).ToList();
                 return predicate(messages);
             },
             timeout: TimeSpan.FromSeconds(120),

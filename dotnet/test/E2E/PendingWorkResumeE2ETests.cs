@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -452,7 +452,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
     private static async Task<SessionResumeEvent> GetSingleResumeEventAsync(CopilotSession session)
     {
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         return Assert.Single(messages.OfType<SessionResumeEvent>());
     }
 }

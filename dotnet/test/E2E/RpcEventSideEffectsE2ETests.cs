@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -30,7 +30,7 @@ public class RpcEventSideEffectsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             session,
             evt => evt.Data.NewMode == SessionMode.Plan && evt.Data.PreviousMode == SessionMode.Interactive,
             EventTimeout,
-            timeoutDescription: "session.mode_changed event for interactive→plan");
+            timeoutDescription: "session.mode_changed event for interactiveâ†’plan");
 
         await session.Rpc.Mode.SetAsync(SessionMode.Plan);
 
@@ -140,7 +140,7 @@ public class RpcEventSideEffectsE2ETests(E2ETestFixture fixture, ITestOutputHelp
         // gates flushing on shouldSaveSession, which flips on the first user.message).
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say SNAPSHOT_REWIND_TARGET exactly." });
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var userEvent = messages.OfType<UserMessageEvent>().FirstOrDefault()
             ?? throw new InvalidOperationException("Expected at least one user.message in persisted history");
         var targetEventId = userEvent.Id.ToString();
@@ -161,7 +161,7 @@ public class RpcEventSideEffectsE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.Equal(truncateResult.EventsRemoved, (long)rewindEvent.Data.EventsRemoved);
 
         // Verify the truncated event is no longer in persisted history.
-        var messagesAfter = await session.GetMessagesAsync();
+        var messagesAfter = await session.GetEventsAsync();
         Assert.DoesNotContain(messagesAfter, e => e.Id == userEvent.Id);
     }
 
@@ -172,7 +172,7 @@ public class RpcEventSideEffectsE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say SNAPSHOT_REWIND_TARGET exactly." });
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var userEvent = messages.OfType<UserMessageEvent>().FirstOrDefault()
             ?? throw new InvalidOperationException("Expected at least one user.message in persisted history");
 

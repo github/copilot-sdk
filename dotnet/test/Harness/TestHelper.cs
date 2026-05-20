@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -21,7 +21,7 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
-        // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
+        // Both `finalAssistantMessage` and `sawIdle` are set from two threads â€” the
         // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
         // We complete only once we've observed both, regardless of which path saw which.
         var stateLock = new object();
@@ -91,7 +91,7 @@ public static class TestHelper
 
     private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle)
     {
-        var messages = (await session.GetMessagesAsync()).ToList();
+        var messages = (await session.GetEventsAsync()).ToList();
 
         var lastUserIdx = messages.FindLastIndex(m => m is UserMessageEvent);
         var currentTurn = lastUserIdx < 0 ? messages : messages.Skip(lastUserIdx).ToList();

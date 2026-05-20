@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -32,7 +32,7 @@ public class ErrorResilienceE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await CreateSessionAsync();
         await session.DisposeAsync();
 
-        await Assert.ThrowsAnyAsync<Exception>(() => session.GetMessagesAsync());
+        await Assert.ThrowsAnyAsync<Exception>(() => session.GetEventsAsync());
     }
 
     [Fact]

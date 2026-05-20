@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -30,7 +30,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            CreateSessionFsHandler = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
+            CreateSessionFsProvider = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
         });
 
         var msg = await session.SendAndWaitAsync(new MessageOptions
@@ -60,7 +60,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            CreateSessionFsHandler = s =>
+            CreateSessionFsProvider = s =>
             {
                 handler = new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls);
                 return handler;

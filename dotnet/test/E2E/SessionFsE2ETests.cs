@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -31,7 +31,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 100 + 200?" });
@@ -61,7 +61,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session1 = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = createSessionFsHandler,
+                CreateSessionFsProvider = createSessionFsHandler,
             });
             var sessionId = session1.SessionId;
 
@@ -75,7 +75,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session2 = await client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = createSessionFsHandler,
+                CreateSessionFsProvider = createSessionFsHandler,
             });
 
             var msg2 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is that times 3?" });
@@ -100,7 +100,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             _ = await client1.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = createSessionFsHandler,
+                CreateSessionFsProvider = createSessionFsHandler,
             });
 
             var port = client1.ActualPort
@@ -324,7 +324,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
                 Tools =
                 [
                     AIFunctionFactory.Create(() => suppliedFileContent, "get_big_string", "Returns a large string")
@@ -336,7 +336,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 Prompt = "Call the get_big_string tool and reply with the word DONE only.",
             });
 
-            var messages = await session.GetMessagesAsync();
+            var messages = await session.GetEventsAsync();
             var toolResult = FindToolCallResult(messages, "get_big_string");
             Assert.NotNull(toolResult);
             Assert.Contains($"{SessionFsConfig.SessionStatePath}/temp/", toolResult);
@@ -366,7 +366,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             SessionCompactionCompleteEvent? compactionEvent = null;
@@ -405,7 +405,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             var msg = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 7 * 8?" });
@@ -436,7 +436,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             var session = await client.CreateSessionAsync(new SessionConfig
             {
                 OnPermissionRequest = PermissionHandler.ApproveAll,
-                CreateSessionFsHandler = s => new TestSessionFsHandler(s.SessionId, providerRoot),
+                CreateSessionFsProvider = s => new TestSessionFsHandler(s.SessionId, providerRoot),
             });
 
             // Write a plan via the session RPC

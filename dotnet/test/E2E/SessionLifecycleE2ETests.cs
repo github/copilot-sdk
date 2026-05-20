@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -84,7 +84,7 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             Prompt = "What is 2+2? Reply with just the number.",
         });
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         Assert.NotEmpty(messages);
 
         // Should have at least session.start, user.message, assistant.message

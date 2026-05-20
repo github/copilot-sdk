@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -570,8 +570,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
-        session.RegisterExitPlanModeHandler(config.OnExitPlanMode);
-        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitch);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -588,7 +588,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.On(config.OnEvent);
         }
-        ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -616,8 +616,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableSessionTelemetry,
                 (bool?)true,
                 config.OnUserInputRequest != null ? true : null,
-                config.OnExitPlanMode != null ? true : null,
-                config.OnAutoModeSwitch != null ? true : null,
+                config.OnExitPlanModeRequest != null ? true : null,
+                config.OnAutoModeSwitchRequest != null ? true : null,
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.Streaming is true ? true : null,
@@ -728,8 +728,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
-        session.RegisterExitPlanModeHandler(config.OnExitPlanMode);
-        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitch);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -746,7 +746,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             session.On(config.OnEvent);
         }
-        ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -774,13 +774,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableSessionTelemetry,
                 (bool?)true,
                 config.OnUserInputRequest != null ? true : null,
-                config.OnExitPlanMode != null ? true : null,
-                config.OnAutoModeSwitch != null ? true : null,
+                config.OnExitPlanModeRequest != null ? true : null,
+                config.OnAutoModeSwitchRequest != null ? true : null,
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.ConfigDir,
                 config.EnableConfigDiscovery,
-                config.DisableResume is true ? true : null,
+                config.SuppressResumeEvent is true ? true : null,
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
@@ -1343,11 +1343,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (createSessionFsHandler is null)
         {
             throw new InvalidOperationException(
-                "CreateSessionFsHandler is required in the session config when CopilotClientOptions.SessionFs is configured.");
+                "CreateSessionFsProvider is required in the session config when CopilotClientOptions.SessionFs is configured.");
         }
 
         var provider = createSessionFsHandler(session)
-            ?? throw new InvalidOperationException("CreateSessionFsHandler returned null.");
+            ?? throw new InvalidOperationException("CreateSessionFsProvider returned null.");
 
         if (_options.SessionFs.Capabilities?.Sqlite == true && provider is not ISessionFsSqliteProvider)
         {
@@ -1373,7 +1373,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
         {
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
-            // is silently dropped — the legacy server can't enforce one.
+            // is silently dropped â€” the legacy server can't enforce one.
             usedFallbackPing = true;
             var pingResponse = await InvokeRpcAsync<PingResponse>(
                 connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);
@@ -2078,7 +2078,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkingDirectory,
         string? ConfigDir,
         bool? EnableConfigDiscovery,
-        bool? DisableResume,
+        bool? SuppressResumeEvent,
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,

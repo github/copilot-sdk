@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -142,7 +142,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
     public async Task Should_Emit_Streaming_Deltas_With_Reasoning_Effort_Configured()
     {
         // Verifies that setting ReasoningEffort alongside Streaming=true does not break
-        // the streaming pipeline — deltas still arrive and complete successfully.
+        // the streaming pipeline â€” deltas still arrive and complete successfully.
         var session = await CreateSessionAsync(new SessionConfig
         {
             Streaming = true,
@@ -167,7 +167,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         Assert.Contains("255", assistantEvents.Last().Data.Content ?? string.Empty);
 
         // Verify the session was created with reasoning effort via GetMessages
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var startEvent = Assert.Single(messages.OfType<SessionStartEvent>());
         Assert.Equal("high", startEvent.Data.ReasoningEffort);
 

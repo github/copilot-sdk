@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -225,11 +225,11 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Prompt = "Read the file 'order.txt' and tell me what the number is.",
         });
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var types = messages.Select(m => m.Type).ToList();
 
         // Verify complete event ordering contract:
-        // session.start → user.message → tool.execution_start → tool.execution_complete → assistant.message
+        // session.start â†’ user.message â†’ tool.execution_start â†’ tool.execution_complete â†’ assistant.message
         var sessionStartIdx = types.IndexOf("session.start");
         var userMsgIdx = types.IndexOf("user.message");
         var toolStartIdx = types.IndexOf("tool.execution_start");

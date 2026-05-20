@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -28,7 +28,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnExitPlanMode = (request, invocation) =>
+            OnExitPlanModeRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(new ExitPlanModeResult
@@ -96,7 +96,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnAutoModeSwitch = (request, invocation) =>
+            OnAutoModeSwitchRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(AutoModeSwitchResponse.Yes);

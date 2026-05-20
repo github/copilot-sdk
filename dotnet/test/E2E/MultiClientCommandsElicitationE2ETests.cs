@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -133,7 +133,7 @@ public class MultiClientCommandsElicitationE2ETests
                     Handler = _ => Task.CompletedTask,
                 },
             ],
-            DisableResume = true,
+            SuppressResumeEvent = true,
         });
 
         var commandsChanged = await commandsChangedTcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -168,7 +168,7 @@ public class MultiClientCommandsElicitationE2ETests
             }
         });
 
-        // Client2 joins WITH elicitation handler — triggers capabilities.changed
+        // Client2 joins WITH elicitation handler â€” triggers capabilities.changed
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -177,7 +177,7 @@ public class MultiClientCommandsElicitationE2ETests
                 Action = Rpc.UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
-            DisableResume = true,
+            SuppressResumeEvent = true,
         });
 
         var capEvent = await capChangedTcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -232,7 +232,7 @@ public class MultiClientCommandsElicitationE2ETests
                 Action = Rpc.UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
-            DisableResume = true,
+            SuppressResumeEvent = true,
         });
 
         await capEnabledTcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -250,7 +250,7 @@ public class MultiClientCommandsElicitationE2ETests
             }
         });
 
-        // Force-stop client3 — destroys the socket, triggering server-side cleanup
+        // Force-stop client3 â€” destroys the socket, triggering server-side cleanup
         await _client3.ForceStopAsync();
         _client3 = null;
 

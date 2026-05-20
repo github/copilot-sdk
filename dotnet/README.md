@@ -1,4 +1,4 @@
-# Copilot SDK
+﻿# Copilot SDK
 
 SDK for programmatic control of GitHub Copilot CLI.
 
@@ -85,7 +85,7 @@ new CopilotClient(CopilotClientOptions? options = null)
 - `Logger` - `ILogger` instance for SDK logging
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CliUrl`.
-- `Telemetry` - OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `Telemetry` - OpenTelemetry configuration for the CLI process. Providing this enables telemetry â€” no separate flag needed. See [Telemetry](#telemetry) below.
 
 #### Methods
 
@@ -226,13 +226,13 @@ subscription.Dispose();
 
 Abort the currently processing message in this session.
 
-##### `GetMessagesAsync(): Task<IReadOnlyList<SessionEvent>>`
+##### `GetEventsAsync(): Task<IReadOnlyList<SessionEvent>>`
 
 Get all events/messages from this session.
 
 ##### `DisposeAsync(): ValueTask`
 
-Close the session and release in-memory resources. Session data on disk is preserved — the conversation can be resumed later via `ResumeSessionAsync()`. To permanently delete session data, use `client.DeleteSessionAsync()`.
+Close the session and release in-memory resources. Session data on disk is preserved â€” the conversation can be resumed later via `ResumeSessionAsync()`. To permanently delete session data, use `client.DeleteSessionAsync()`.
 
 ```csharp
 // Preferred: automatic cleanup via await using
@@ -281,7 +281,7 @@ session.On(evt =>
 The SDK supports image attachments via the `Attachments` parameter. You can attach images by providing their file path, or by passing base64-encoded data directly using a blob attachment:
 
 ```csharp
-// File attachment — runtime reads from disk
+// File attachment â€” runtime reads from disk
 await session.SendAsync(new MessageOptions
 {
     Prompt = "What's in this image?",
@@ -295,7 +295,7 @@ await session.SendAsync(new MessageOptions
     }
 });
 
-// Blob attachment — provide base64 data directly
+// Blob attachment â€” provide base64 data directly
 await session.SendAsync(new MessageOptions
 {
     Prompt = "What's in this image?",
@@ -524,7 +524,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
             Handler = async (context) =>
             {
                 Console.WriteLine($"Deploying with args: {context.Args}");
-                // Do work here — any thrown error is reported back to the CLI
+                // Do work here â€” any thrown error is reported back to the CLI
             },
         },
     ],
@@ -537,9 +537,9 @@ Commands are sent to the CLI on both `CreateSessionAsync` and `ResumeSessionAsyn
 
 ## UI Elicitation
 
-When the session has elicitation support — either from the CLI's TUI or from another client that registered an `OnElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)) — the SDK can request interactive form dialogs from the user. The `session.Ui` object provides convenience methods built on a single generic elicitation RPC.
+When the session has elicitation support â€” either from the CLI's TUI or from another client that registered an `OnElicitationRequest` handler (see [Elicitation Requests](#elicitation-requests)) â€” the SDK can request interactive form dialogs from the user. The `session.Ui` object provides convenience methods built on a single generic elicitation RPC.
 
-> **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.Capabilities.Ui?.Elicitation` before calling UI methods — this property updates automatically as participants join and leave.
+> **Capability check:** Elicitation is only available when at least one connected participant advertises support. Always check `session.Capabilities.Ui?.Elicitation` before calling UI methods â€” this property updates automatically as participants join and leave.
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -550,15 +550,15 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 if (session.Capabilities.Ui?.Elicitation == true)
 {
-    // Confirm dialog — returns boolean
+    // Confirm dialog â€” returns boolean
     bool ok = await session.Ui.ConfirmAsync("Deploy to production?");
 
-    // Selection dialog — returns selected value or null
+    // Selection dialog â€” returns selected value or null
     string? env = await session.Ui.SelectAsync("Pick environment",
         ["production", "staging", "dev"]);
 
-    // Text input — returns string or null
-    string? name = await session.Ui.InputAsync("Project name:", new InputOptions
+    // Text input â€” returns string or null
+    string? name = await session.Ui.InputAsync("Project name:", new UiInputOptions
     {
         Title = "Name",
         MinLength = 1,
@@ -566,7 +566,7 @@ if (session.Capabilities.Ui?.Elicitation == true)
     });
 
     // Generic elicitation with full schema control
-    ElicitationResult result = await session.Ui.ElicitationAsync(new ElicitationParams
+    ElicitationResult result = await session.Ui.ElicitAsync(new ElicitationParams
     {
         Message = "Configure deployment",
         RequestedSchema = new ElicitationSchema
@@ -727,7 +727,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
 Trace context (`traceparent`/`tracestate`) is automatically propagated between the SDK and CLI on `CreateSessionAsync`, `ResumeSessionAsync`, and `SendAsync` calls, and inbound when the CLI invokes tool handlers.
 
-No extra dependencies — uses built-in `System.Diagnostics.Activity`.
+No extra dependencies â€” uses built-in `System.Diagnostics.Activity`.
 
 ## Permission Handling
 
@@ -757,19 +757,19 @@ var session = await client.CreateSessionAsync(new SessionConfig
     Model = "gpt-5",
     OnPermissionRequest = async (request, invocation) =>
     {
-        // request.Kind — string discriminator for the type of operation being requested:
-        //   "shell"       — executing a shell command
-        //   "write"       — writing or editing a file
-        //   "read"        — reading a file
-        //   "mcp"         — calling an MCP tool
-        //   "custom_tool" — calling one of your registered tools
-        //   "url"         — fetching a URL
-        //   "memory"      — accessing or modifying assistant memory
-        //   "hook"        — invoking a registered hook
-        // request.ToolCallId      — the tool call that triggered this request
-        // request.ToolName        — name of the tool (for custom-tool / mcp)
-        // request.FileName        — file being written (for write)
-        // request.FullCommandText — full shell command text (for shell)
+        // request.Kind â€” string discriminator for the type of operation being requested:
+        //   "shell"       â€” executing a shell command
+        //   "write"       â€” writing or editing a file
+        //   "read"        â€” reading a file
+        //   "mcp"         â€” calling an MCP tool
+        //   "custom_tool" â€” calling one of your registered tools
+        //   "url"         â€” fetching a URL
+        //   "memory"      â€” accessing or modifying assistant memory
+        //   "hook"        â€” invoking a registered hook
+        // request.ToolCallId      â€” the tool call that triggered this request
+        // request.ToolName        â€” name of the tool (for custom-tool / mcp)
+        // request.FileName        â€” file being written (for write)
+        // request.FullCommandText â€” full shell command text (for shell)
 
         if (request.Kind == "shell")
         {
@@ -784,7 +784,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Permission Result Kinds
 
-The `Kind` property must be one of the canonical `PermissionRequestResultKind` values. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+The `Kind` property must be one of the canonical `PermissionRequestResultKind` values. Approval decisions are present-tense â€” they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
 
 | Value                                       | Wire value             | Meaning                                                                                                                                                |
 | ------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -793,7 +793,7 @@ The `Kind` property must be one of the canonical `PermissionRequestResultKind` v
 | `PermissionRequestResultKind.UserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                                                                            |
 | `PermissionRequestResultKind.NoResult`      | `"no-result"`          | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
 
-> The past-tense names `PermissionRequestResultKind.DeniedInteractivelyByUser`, `PermissionRequestResultKind.DeniedCouldNotRequestFromUser`, and `PermissionRequestResultKind.DeniedByRules` remain as `[Obsolete]` aliases for backward compatibility — prefer the canonical members above in new code.
+> The past-tense names `PermissionRequestResultKind.DeniedInteractivelyByUser`, `PermissionRequestResultKind.DeniedCouldNotRequestFromUser`, and `PermissionRequestResultKind.DeniedByRules` remain as `[Obsolete]` aliases for backward compatibility â€” prefer the canonical members above in new code.
 
 ### Resuming Sessions
 
@@ -924,7 +924,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ## Elicitation Requests
 
-Register an `OnElicitationRequest` handler to let your client act as an elicitation provider — presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
+Register an `OnElicitationRequest` handler to let your client act as an elicitation provider â€” presenting form-based UI dialogs on behalf of the agent. When provided, the server notifies your client whenever a tool or MCP server needs structured user input.
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -964,7 +964,7 @@ In multi-client scenarios:
 
 - If no connected client was previously providing an elicitation capability, but a new client joins that can, all clients will receive a `capabilities.changed` event to notify them that elicitation is now possible. The SDK automatically updates `session.Capabilities` when these events arrive.
 - Similarly, if the last elicitation provider disconnects, all clients receive a `capabilities.changed` event indicating elicitation is no longer available.
-- The server fans out elicitation requests to **all** connected clients that registered a handler — the first response wins.
+- The server fans out elicitation requests to **all** connected clients that registered a handler â€” the first response wins.
 
 ## Error Handling
 
