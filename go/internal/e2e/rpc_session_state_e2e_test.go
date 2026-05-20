@@ -473,7 +473,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Errorf("Expected non-zero sessionStartTime, got %s", metrics.SessionStartTime)
 		}
 		if metrics.TotalNanoAiu != nil && *metrics.TotalNanoAiu < 0 {
-			t.Errorf("Expected non-negative totalNanoAiu, got %d", *metrics.TotalNanoAiu)
+			t.Errorf("Expected non-negative totalNanoAiu, got %f", *metrics.TotalNanoAiu)
 		}
 		for k, detail := range metrics.TokenDetails {
 			if detail.TokenCount < 0 {
@@ -482,7 +482,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		}
 		for modelName, modelMetric := range metrics.ModelMetrics {
 			if modelMetric.TotalNanoAiu != nil && *modelMetric.TotalNanoAiu < 0 {
-				t.Errorf("Expected non-negative totalNanoAiu for model %q, got %d", modelName, *modelMetric.TotalNanoAiu)
+				t.Errorf("Expected non-negative totalNanoAiu for model %q, got %f", modelName, *modelMetric.TotalNanoAiu)
 			}
 			for tokenType, detail := range modelMetric.TokenDetails {
 				if detail.TokenCount < 0 {

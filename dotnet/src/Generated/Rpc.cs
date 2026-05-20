@@ -6056,7 +6056,7 @@ public sealed class UsageMetricsModelMetric
 
     /// <summary>Accumulated nano-AI units cost for this model.</summary>
     [JsonPropertyName("totalNanoAiu")]
-    public long? TotalNanoAiu { get; set; }
+    public double? TotalNanoAiu { get; set; }
 
     /// <summary>Token usage metrics for this model.</summary>
     [JsonPropertyName("usage")]
@@ -6111,7 +6111,7 @@ public sealed class UsageGetMetricsResult
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
     [JsonPropertyName("totalNanoAiu")]
-    public long? TotalNanoAiu { get; set; }
+    public double? TotalNanoAiu { get; set; }
 
     /// <summary>Total user-initiated premium request cost across all models (may be fractional due to multipliers).</summary>
     [JsonPropertyName("totalPremiumRequestCost")]

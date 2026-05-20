@@ -622,13 +622,13 @@ class AssistantTurnStartData:
 class AssistantUsageCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[AssistantUsageCopilotUsageTokenDetail]
-    total_nano_aiu: int
+    total_nano_aiu: float
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
         assert isinstance(obj, dict)
         token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
-        total_nano_aiu = from_int(obj.get("totalNanoAiu"))
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
         return AssistantUsageCopilotUsage(
             token_details=token_details,
             total_nano_aiu=total_nano_aiu,
@@ -637,7 +637,7 @@ class AssistantUsageCopilotUsage:
     def to_dict(self) -> dict:
         result: dict = {}
         result["tokenDetails"] = from_list(lambda x: to_class(AssistantUsageCopilotUsageTokenDetail, x), self.token_details)
-        result["totalNanoAiu"] = to_int(self.total_nano_aiu)
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
         return result
 
 
@@ -1087,13 +1087,13 @@ class CompactionCompleteCompactionTokensUsed:
 class CompactionCompleteCompactionTokensUsedCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
-    total_nano_aiu: int
+    total_nano_aiu: float
 
     @staticmethod
     def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsage":
         assert isinstance(obj, dict)
         token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
-        total_nano_aiu = from_int(obj.get("totalNanoAiu"))
+        total_nano_aiu = from_float(obj.get("totalNanoAiu"))
         return CompactionCompleteCompactionTokensUsedCopilotUsage(
             token_details=token_details,
             total_nano_aiu=total_nano_aiu,
@@ -1102,7 +1102,7 @@ class CompactionCompleteCompactionTokensUsedCopilotUsage:
     def to_dict(self) -> dict:
         result: dict = {}
         result["tokenDetails"] = from_list(lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail, x), self.token_details)
-        result["totalNanoAiu"] = to_int(self.total_nano_aiu)
+        result["totalNanoAiu"] = to_float(self.total_nano_aiu)
         return result
 
 
@@ -3087,7 +3087,7 @@ class SessionShutdownData:
     session_start_time: int
     shutdown_type: ShutdownType
     total_api_duration: timedelta
-    total_premium_requests: int
+    total_premium_requests: float
     conversation_tokens: int | None = None
     current_model: str | None = None
     current_tokens: int | None = None
@@ -3095,7 +3095,7 @@ class SessionShutdownData:
     system_tokens: int | None = None
     token_details: dict[str, ShutdownTokenDetail] | None = None
     tool_definitions_tokens: int | None = None
-    total_nano_aiu: int | None = None
+    total_nano_aiu: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionShutdownData":
@@ -3105,7 +3105,7 @@ class SessionShutdownData:
         session_start_time = from_int(obj.get("sessionStartTime"))
         shutdown_type = parse_enum(ShutdownType, obj.get("shutdownType"))
         total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
-        total_premium_requests = from_int(obj.get("totalPremiumRequests"))
+        total_premium_requests = from_float(obj.get("totalPremiumRequests"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
@@ -3113,7 +3113,7 @@ class SessionShutdownData:
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
-        total_nano_aiu = from_union([from_none, from_int], obj.get("totalNanoAiu"))
+        total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
         return SessionShutdownData(
             code_changes=code_changes,
             model_metrics=model_metrics,
@@ -3138,7 +3138,7 @@ class SessionShutdownData:
         result["sessionStartTime"] = to_int(self.session_start_time)
         result["shutdownType"] = to_enum(ShutdownType, self.shutdown_type)
         result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
-        result["totalPremiumRequests"] = to_int(self.total_premium_requests)
+        result["totalPremiumRequests"] = to_float(self.total_premium_requests)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.current_model is not None:
@@ -3154,7 +3154,7 @@ class SessionShutdownData:
         if self.tool_definitions_tokens is not None:
             result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         if self.total_nano_aiu is not None:
-            result["totalNanoAiu"] = from_union([from_none, to_int], self.total_nano_aiu)
+            result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
         return result
 
 
@@ -3511,7 +3511,7 @@ class ShutdownModelMetric:
     requests: ShutdownModelMetricRequests
     usage: ShutdownModelMetricUsage
     token_details: dict[str, ShutdownModelMetricTokenDetail] | None = None
-    total_nano_aiu: int | None = None
+    total_nano_aiu: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetric":
@@ -3519,7 +3519,7 @@ class ShutdownModelMetric:
         requests = ShutdownModelMetricRequests.from_dict(obj.get("requests"))
         usage = ShutdownModelMetricUsage.from_dict(obj.get("usage"))
         token_details = from_union([from_none, lambda x: from_dict(ShutdownModelMetricTokenDetail.from_dict, x)], obj.get("tokenDetails"))
-        total_nano_aiu = from_union([from_none, from_int], obj.get("totalNanoAiu"))
+        total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
         return ShutdownModelMetric(
             requests=requests,
             usage=usage,
@@ -3534,7 +3534,7 @@ class ShutdownModelMetric:
         if self.token_details is not None:
             result["tokenDetails"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(ShutdownModelMetricTokenDetail, x), x)], self.token_details)
         if self.total_nano_aiu is not None:
-            result["totalNanoAiu"] = from_union([from_none, to_int], self.total_nano_aiu)
+            result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
         return result
 
 

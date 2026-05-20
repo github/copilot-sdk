@@ -764,7 +764,7 @@ pub struct ShutdownModelMetric {
     pub token_details: HashMap<String, ShutdownModelMetricTokenDetail>,
     /// Accumulated nano-AI units cost for this model
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<i64>,
+    pub total_nano_aiu: Option<f64>,
     /// Token usage breakdown
     pub usage: ShutdownModelMetricUsage,
 }
@@ -814,9 +814,9 @@ pub struct SessionShutdownData {
     pub total_api_duration_ms: i64,
     /// Session-wide accumulated nano-AI units cost
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<i64>,
+    pub total_nano_aiu: Option<f64>,
     /// Total number of premium API requests used during the session
-    pub total_premium_requests: i64,
+    pub total_premium_requests: f64,
 }
 
 /// Session event "session.context_changed". Updated working directory and git context after the change
@@ -908,7 +908,7 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsage {
     /// Itemized token usage breakdown
     pub token_details: Vec<CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail>,
     /// Total cost in nano-AI units for this request
-    pub total_nano_aiu: i64,
+    pub total_nano_aiu: f64,
 }
 
 /// Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
@@ -1221,7 +1221,7 @@ pub struct AssistantUsageCopilotUsage {
     /// Itemized token usage breakdown
     pub token_details: Vec<AssistantUsageCopilotUsageTokenDetail>,
     /// Total cost in nano-AI units for this request
-    pub total_nano_aiu: i64,
+    pub total_nano_aiu: f64,
 }
 
 /// Schema for the `AssistantUsageQuotaSnapshot` type.

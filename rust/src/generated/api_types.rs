@@ -6308,7 +6308,7 @@ pub struct UsageMetricsModelMetric {
     pub token_details: HashMap<String, UsageMetricsModelMetricTokenDetail>,
     /// Accumulated nano-AI units cost for this model
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<i64>,
+    pub total_nano_aiu: Option<f64>,
     /// Token usage metrics for this model
     pub usage: UsageMetricsModelMetricUsage,
 }
@@ -6359,7 +6359,7 @@ pub struct UsageGetMetricsResult {
     pub total_api_duration_ms: i64,
     /// Session-wide accumulated nano-AI units cost
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<i64>,
+    pub total_nano_aiu: Option<f64>,
     /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
     pub total_premium_request_cost: f64,
     /// Raw count of user-initiated API requests
@@ -8578,7 +8578,7 @@ pub struct SessionUsageGetMetricsResult {
     pub total_api_duration_ms: i64,
     /// Session-wide accumulated nano-AI units cost
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_nano_aiu: Option<i64>,
+    pub total_nano_aiu: Option<f64>,
     /// Total user-initiated premium request cost across all models (may be fractional due to multipliers)
     pub total_premium_request_cost: f64,
     /// Raw count of user-initiated API requests
