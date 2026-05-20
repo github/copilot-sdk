@@ -4,10 +4,10 @@
 
 using Xunit;
 using Xunit.Abstractions;
-using RpcSkill = GitHub.Copilot.SDK.Rpc.Skill;
-using RpcSkillList = GitHub.Copilot.SDK.Rpc.SkillList;
+using RpcSkill = GitHub.Copilot.Rpc.Skill;
+using RpcSkillList = GitHub.Copilot.Rpc.SkillList;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_mcp_and_skills", output)

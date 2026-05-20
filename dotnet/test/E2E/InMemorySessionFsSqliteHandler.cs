@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Collections.Concurrent;
-using GitHub.Copilot.SDK;
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Microsoft.Data.Sqlite;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 internal record SqliteCall(string SessionId, string QueryType, string Query);
 

@@ -6,7 +6,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 
 /// <summary>Converts between JSON numeric milliseconds-since-Unix-epoch and <see cref="DateTimeOffset"/>.</summary>
 [EditorBrowsable(EditorBrowsableState.Never)]

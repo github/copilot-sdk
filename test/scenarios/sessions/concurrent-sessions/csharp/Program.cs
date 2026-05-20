@@ -1,4 +1,4 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 const string PiratePrompt = "You are a pirate. Always say Arrr!";
 const string RobotPrompt = "You are a robot. Always say BEEP BOOP!";

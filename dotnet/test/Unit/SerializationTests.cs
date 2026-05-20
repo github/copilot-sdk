@@ -7,9 +7,9 @@ using System.Text.Json;
 #if !NET8_0_OR_GREATER
 using System.Runtime.Serialization;
 #endif
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot.Rpc;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 /// <summary>
 /// Tests for JSON serialization compatibility with the SDK's configured options.

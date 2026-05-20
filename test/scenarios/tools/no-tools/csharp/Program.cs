@@ -1,4 +1,4 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 const string SystemPrompt = """
     You are a minimal assistant with no tools available.

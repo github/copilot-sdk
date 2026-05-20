@@ -11,7 +11,7 @@ using System.Text;
 using System.Text.Json;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public sealed class ClientSessionLifetimeTests
 {

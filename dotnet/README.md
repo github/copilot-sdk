@@ -7,7 +7,7 @@ SDK for programmatic control of GitHub Copilot CLI.
 ## Installation
 
 ```bash
-dotnet add package GitHub.Copilot.SDK
+dotnet add package GitHub.Copilot
 ```
 
 ## Run the Samples
@@ -27,7 +27,7 @@ dotnet run --file dotnet/samples/ManualToolResume.cs
 ## Quick Start
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 // Create and start client
 await using var client = new CopilotClient();
@@ -738,7 +738,7 @@ An `OnPermissionRequest` handler is optional when you create or resume a session
 Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var session = await client.CreateSessionAsync(new SessionConfig
 {

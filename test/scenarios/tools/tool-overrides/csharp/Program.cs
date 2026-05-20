@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 
 using var client = new CopilotClient(new CopilotClientOptions

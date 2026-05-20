@@ -7,7 +7,7 @@ using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Verifies that <see cref="CopilotSession.AbortAsync"/> cleanly interrupts an active

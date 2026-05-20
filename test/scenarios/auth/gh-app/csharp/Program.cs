@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 // GitHub OAuth Device Flow
 var clientId = Environment.GetEnvironmentVariable("GITHUB_OAUTH_CLIENT_ID")

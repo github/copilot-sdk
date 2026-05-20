@@ -73,7 +73,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <!-- docs-validate: skip -->
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.Logging;
 
 // Using ILogger

@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test;
+namespace GitHub.Copilot.Test;
 
 public class E2ETestFixture : IAsyncLifetime
 {

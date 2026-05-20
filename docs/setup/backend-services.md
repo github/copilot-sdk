@@ -215,7 +215,7 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var userId = "user1";
 var message = "Hello";

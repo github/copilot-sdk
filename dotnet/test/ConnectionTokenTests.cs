@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test;
+namespace GitHub.Copilot.Test;
 
 /// <summary>
 /// Custom fixture that spawns a CLI in TCP mode with an explicit connection token, so

@@ -1,4 +1,4 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "claude-haiku-4.5";

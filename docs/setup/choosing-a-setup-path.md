@@ -133,7 +133,7 @@ All guides assume you have:
   * Node.js: `npm install @github/copilot-sdk`
   * Python: `pip install github-copilot-sdk`
   * Go: `go get github.com/github/copilot-sdk/go` (requires separate CLI installation)
-  * .NET: `dotnet add package GitHub.Copilot.SDK`
+  * .NET: `dotnet add package GitHub.Copilot`
 
 If you're brand new, start with the **[Getting Started tutorial](../getting-started.md)** first, then come back here for production configuration.
 

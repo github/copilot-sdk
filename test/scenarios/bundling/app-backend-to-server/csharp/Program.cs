@@ -1,5 +1,5 @@
 using System.Text.Json;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 var cliUrl = Environment.GetEnvironmentVariable("CLI_URL")

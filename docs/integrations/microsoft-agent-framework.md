@@ -32,7 +32,7 @@ Install the Copilot SDK alongside the MAF integration package for your language:
 <summary><strong>.NET</strong></summary>
 
 ```shell
-dotnet add package GitHub.Copilot.SDK
+dotnet add package GitHub.Copilot
 dotnet add package Microsoft.Agents.AI.GitHub.Copilot --prerelease
 ```
 
@@ -74,7 +74,7 @@ Wrap the Copilot SDK client as a MAF agent with a single method call. The result
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 
 await using var copilotClient = new CopilotClient();
@@ -146,7 +146,7 @@ Extend your Copilot agent with custom function tools. Tools defined through the 
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using Microsoft.Agents.AI;
 
@@ -282,7 +282,7 @@ Run agents one after another, passing output from one to the next:
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Orchestration;
 
@@ -395,7 +395,7 @@ Run multiple agents in parallel and aggregate their results:
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Orchestration;
 
@@ -472,7 +472,7 @@ When building interactive applications, stream agent responses to show real-time
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 
 await using var copilotClient = new CopilotClient();

@@ -109,7 +109,7 @@ dotnet new console -n CopilotDemo && cd CopilotDemo
 Then add the SDK:
 
 ```bash
-dotnet add package GitHub.Copilot.SDK
+dotnet add package GitHub.Copilot
 ```
 
 </details>
@@ -299,7 +299,7 @@ cargo run
 Create a new console project and add this to `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -557,7 +557,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -800,7 +800,7 @@ tokio::spawn(async move {
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class EventSubscriptionExample
 {
@@ -1159,7 +1159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
@@ -1647,7 +1647,7 @@ cargo run
 Create a new console project and update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
@@ -2067,7 +2067,7 @@ let session = client
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {

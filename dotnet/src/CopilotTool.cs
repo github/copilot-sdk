@@ -4,7 +4,7 @@
 
 using Microsoft.Extensions.AI;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 
 /// <summary>
 /// Provides helpers for defining Copilot tools.

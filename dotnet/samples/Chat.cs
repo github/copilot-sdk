@@ -1,6 +1,6 @@
 #:project ../src/GitHub.Copilot.SDK.csproj
 
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig

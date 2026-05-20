@@ -236,7 +236,7 @@ cd /expected/working/dir
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class McpDotnetConfigExample
 {
@@ -287,7 +287,7 @@ public static class McpDotnetConfigExample
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class McpNpxConfigExample
 {

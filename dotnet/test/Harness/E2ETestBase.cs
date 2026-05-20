@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Reflection;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test;
+namespace GitHub.Copilot.Test;
 
 public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetime
 {
