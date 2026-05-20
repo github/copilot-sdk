@@ -8,7 +8,7 @@ import pytest
 
 from copilot.session import CustomAgentConfig, MCPServerConfig, PermissionHandler
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 
 TEST_MCP_SERVER = str(
     (Path(__file__).parents[2] / "test" / "harness" / "test-mcp-server.mjs").resolve()
