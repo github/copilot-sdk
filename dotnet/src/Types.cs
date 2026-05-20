@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -335,7 +335,7 @@ public sealed class SessionFsConfig
 /// <summary>
 /// Represents a binary result returned by a tool invocation.
 /// </summary>
-public class ToolBinaryResult
+public sealed class ToolBinaryResult
 {
     /// <summary>
     /// Base64-encoded binary data.
@@ -365,7 +365,7 @@ public class ToolBinaryResult
 /// <summary>
 /// Represents the structured result of a tool execution.
 /// </summary>
-public class ToolResultObject
+public sealed class ToolResultObject
 {
     /// <summary>
     /// Text result to be consumed by the language model.
@@ -382,10 +382,10 @@ public class ToolResultObject
     /// <summary>
     /// Result type indicator.
     /// <list type="bullet">
-    /// <item><description><c>"success"</c> — the tool executed successfully.</description></item>
-    /// <item><description><c>"failure"</c> — the tool encountered an error.</description></item>
-    /// <item><description><c>"rejected"</c> — the tool invocation was rejected.</description></item>
-    /// <item><description><c>"denied"</c> — the tool invocation was denied by a permission check.</description></item>
+    /// <item><description><c>"success"</c> â€” the tool executed successfully.</description></item>
+    /// <item><description><c>"failure"</c> â€” the tool encountered an error.</description></item>
+    /// <item><description><c>"rejected"</c> â€” the tool invocation was rejected.</description></item>
+    /// <item><description><c>"denied"</c> â€” the tool invocation was denied by a permission check.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("resultType")]
@@ -502,7 +502,7 @@ public class ToolResultObject
 /// <summary>
 /// Contains context for a tool invocation callback.
 /// </summary>
-public class ToolInvocation
+public sealed class ToolInvocation
 {
     /// <summary>
     /// Identifier of the session that triggered the tool call.
@@ -617,16 +617,16 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
 /// <summary>
 /// Result of a permission request evaluation.
 /// </summary>
-public class PermissionRequestResult
+public sealed class PermissionRequestResult
 {
     /// <summary>
     /// Permission decision kind. Use the static members of <see cref="PermissionRequestResultKind"/>
     /// to construct values. Valid kinds are:
     /// <list type="bullet">
-    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) — allow this single request.</description></item>
-    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) — deny the request.</description></item>
-    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) — deny because no user is available to confirm.</description></item>
-    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
+    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) â€” allow this single request.</description></item>
+    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) â€” deny the request.</description></item>
+    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) â€” deny because no user is available to confirm.</description></item>
+    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) â€” leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]
@@ -642,7 +642,7 @@ public class PermissionRequestResult
 /// <summary>
 /// Contains context for a permission request callback.
 /// </summary>
-public class PermissionInvocation
+public sealed class PermissionInvocation
 {
     /// <summary>
     /// Identifier of the session that triggered the permission request.
@@ -662,7 +662,7 @@ public delegate Task<PermissionRequestResult> PermissionRequestHandler(Permissio
 /// <summary>
 /// Request for user input from the agent.
 /// </summary>
-public class UserInputRequest
+public sealed class UserInputRequest
 {
     /// <summary>
     /// The question to ask the user.
@@ -686,7 +686,7 @@ public class UserInputRequest
 /// <summary>
 /// Response to a user input request.
 /// </summary>
-public class UserInputResponse
+public sealed class UserInputResponse
 {
     /// <summary>
     /// The user's answer.
@@ -704,7 +704,7 @@ public class UserInputResponse
 /// <summary>
 /// Context for a user input request invocation.
 /// </summary>
-public class UserInputInvocation
+public sealed class UserInputInvocation
 {
     /// <summary>
     /// Identifier of the session that triggered the user input request.
@@ -720,7 +720,7 @@ public delegate Task<UserInputResponse> UserInputHandler(UserInputRequest reques
 /// <summary>
 /// Request to exit plan mode and continue with a selected action.
 /// </summary>
-public class ExitPlanModeRequest
+public sealed class ExitPlanModeRequest
 {
     /// <summary>
     /// Summary of the plan or proposed next step.
@@ -750,7 +750,7 @@ public class ExitPlanModeRequest
 /// <summary>
 /// Response to an exit-plan-mode request.
 /// </summary>
-public class ExitPlanModeResult
+public sealed class ExitPlanModeResult
 {
     /// <summary>
     /// Whether the user approved exiting plan mode.
@@ -774,7 +774,7 @@ public class ExitPlanModeResult
 /// <summary>
 /// Context for an exit-plan-mode request invocation.
 /// </summary>
-public class ExitPlanModeInvocation
+public sealed class ExitPlanModeInvocation
 {
     /// <summary>
     /// Identifier of the session that triggered the request.
@@ -790,7 +790,7 @@ public delegate Task<ExitPlanModeResult> ExitPlanModeHandler(ExitPlanModeRequest
 /// <summary>
 /// Request to switch to auto mode after an eligible rate limit.
 /// </summary>
-public class AutoModeSwitchRequest
+public sealed class AutoModeSwitchRequest
 {
     /// <summary>
     /// The rate-limit error code that triggered the request.
@@ -808,7 +808,7 @@ public class AutoModeSwitchRequest
 /// <summary>
 /// Context for an auto-mode-switch request invocation.
 /// </summary>
-public class AutoModeSwitchInvocation
+public sealed class AutoModeSwitchInvocation
 {
     /// <summary>
     /// Identifier of the session that triggered the request.
@@ -828,7 +828,7 @@ public delegate Task<AutoModeSwitchResponse> AutoModeSwitchHandler(AutoModeSwitc
 /// <summary>
 /// Defines a slash-command that users can invoke from the CLI TUI.
 /// </summary>
-public class CommandDefinition
+public sealed class CommandDefinition
 {
     /// <summary>
     /// Command name (without leading <c>/</c>). For example, <c>"deploy"</c>.
@@ -849,7 +849,7 @@ public class CommandDefinition
 /// <summary>
 /// Context passed to a <see cref="CommandHandler"/> when a command is executed.
 /// </summary>
-public class CommandContext
+public sealed class CommandContext
 {
     /// <summary>
     /// Session ID where the command was invoked.
@@ -878,13 +878,13 @@ public class CommandContext
 public delegate Task CommandHandler(CommandContext context);
 
 // ============================================================================
-// Elicitation Types (UI — client → server)
+// Elicitation Types (UI â€” client â†’ server)
 // ============================================================================
 
 /// <summary>
 /// JSON Schema describing the form fields to present for an elicitation dialog.
 /// </summary>
-public class ElicitationSchema
+public sealed class ElicitationSchema
 {
     /// <summary>
     /// Schema type indicator (always <c>"object"</c>).
@@ -908,7 +908,7 @@ public class ElicitationSchema
 /// <summary>
 /// Parameters for an elicitation request sent from the SDK to the server.
 /// </summary>
-public class ElicitationParams
+public sealed class ElicitationParams
 {
     /// <summary>
     /// Message describing what information is needed from the user.
@@ -924,7 +924,7 @@ public class ElicitationParams
 /// <summary>
 /// Result returned from an elicitation dialog.
 /// </summary>
-public class ElicitationResult
+public sealed class ElicitationResult
 {
     /// <summary>
     /// User action: <c>"accept"</c> (submitted), <c>"decline"</c> (rejected), or <c>"cancel"</c> (dismissed).
@@ -940,7 +940,7 @@ public class ElicitationResult
 /// <summary>
 /// Options for the <see cref="ISessionUiApi.InputAsync"/> convenience method.
 /// </summary>
-public class InputOptions
+public sealed class InputOptions
 {
     /// <summary>Title label for the input field.</summary>
     public string? Title { get; set; }
@@ -1009,14 +1009,14 @@ public interface ISessionUiApi
 }
 
 // ============================================================================
-// Elicitation Types (server → client callback)
+// Elicitation Types (server â†’ client callback)
 // ============================================================================
 
 /// <summary>
 /// Context for an elicitation handler invocation, combining the request data
 /// with session context. Mirrors the single-argument pattern of <see cref="CommandContext"/>.
 /// </summary>
-public class ElicitationContext
+public sealed class ElicitationContext
 {
     /// <summary>Identifier of the session that triggered the elicitation request.</summary>
     public string SessionId { get; set; } = string.Empty;
@@ -1049,7 +1049,7 @@ public delegate Task<ElicitationResult> ElicitationHandler(ElicitationContext co
 /// <summary>
 /// Represents the capabilities reported by the host for a session.
 /// </summary>
-public class SessionCapabilities
+public sealed class SessionCapabilities
 {
     /// <summary>
     /// UI-related capabilities.
@@ -1060,7 +1060,7 @@ public class SessionCapabilities
 /// <summary>
 /// UI-specific capability flags for a session.
 /// </summary>
-public class SessionUiCapabilities
+public sealed class SessionUiCapabilities
 {
     /// <summary>
     /// Whether the host supports interactive elicitation dialogs.
@@ -1075,7 +1075,7 @@ public class SessionUiCapabilities
 /// <summary>
 /// Context for a hook invocation.
 /// </summary>
-public class HookInvocation
+public sealed class HookInvocation
 {
     /// <summary>
     /// Identifier of the session that triggered the hook.
@@ -1086,7 +1086,7 @@ public class HookInvocation
 /// <summary>
 /// Input for a pre-tool-use hook.
 /// </summary>
-public class PreToolUseHookInput
+public sealed class PreToolUseHookInput
 {
     /// <summary>
     /// The runtime session ID of the session that triggered the hook.
@@ -1122,14 +1122,14 @@ public class PreToolUseHookInput
 /// <summary>
 /// Output for a pre-tool-use hook.
 /// </summary>
-public class PreToolUseHookOutput
+public sealed class PreToolUseHookOutput
 {
     /// <summary>
     /// Permission decision for the pending tool call.
     /// <list type="bullet">
-    /// <item><description><c>"allow"</c> — permit the tool to execute.</description></item>
-    /// <item><description><c>"deny"</c> — block the tool from executing.</description></item>
-    /// <item><description><c>"ask"</c> — fall through to the normal permission prompt.</description></item>
+    /// <item><description><c>"allow"</c> â€” permit the tool to execute.</description></item>
+    /// <item><description><c>"deny"</c> â€” block the tool from executing.</description></item>
+    /// <item><description><c>"ask"</c> â€” fall through to the normal permission prompt.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("permissionDecision")]
@@ -1168,7 +1168,7 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(PreToolUseHookInpu
 /// <summary>
 /// Input for a post-tool-use hook.
 /// </summary>
-public class PostToolUseHookInput
+public sealed class PostToolUseHookInput
 {
     /// <summary>
     /// The runtime session ID of the session that triggered the hook.
@@ -1210,7 +1210,7 @@ public class PostToolUseHookInput
 /// <summary>
 /// Output for a post-tool-use hook.
 /// </summary>
-public class PostToolUseHookOutput
+public sealed class PostToolUseHookOutput
 {
     /// <summary>
     /// Modified result to replace the original tool result.
@@ -1239,7 +1239,7 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(PostToolUseHookI
 /// <summary>
 /// Input for a user-prompt-submitted hook.
 /// </summary>
-public class UserPromptSubmittedHookInput
+public sealed class UserPromptSubmittedHookInput
 {
     /// <summary>
     /// The runtime session ID of the session that triggered the hook.
@@ -1269,7 +1269,7 @@ public class UserPromptSubmittedHookInput
 /// <summary>
 /// Output for a user-prompt-submitted hook.
 /// </summary>
-public class UserPromptSubmittedHookOutput
+public sealed class UserPromptSubmittedHookOutput
 {
     /// <summary>
     /// Modified prompt to use instead of the original user prompt.
@@ -1298,7 +1298,7 @@ public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(
 /// <summary>
 /// Input for a session-start hook.
 /// </summary>
-public class SessionStartHookInput
+public sealed class SessionStartHookInput
 {
     /// <summary>
     /// The runtime session ID of the session that triggered the hook.
@@ -1321,9 +1321,9 @@ public class SessionStartHookInput
     /// <summary>
     /// Source of the session start.
     /// <list type="bullet">
-    /// <item><description><c>"startup"</c> — initial application startup.</description></item>
-    /// <item><description><c>"resume"</c> — resuming a previous session.</description></item>
-    /// <item><description><c>"new"</c> — starting a brand new session.</description></item>
+    /// <item><description><c>"startup"</c> â€” initial application startup.</description></item>
+    /// <item><description><c>"resume"</c> â€” resuming a previous session.</description></item>
+    /// <item><description><c>"new"</c> â€” starting a brand new session.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("source")]
@@ -1339,7 +1339,7 @@ public class SessionStartHookInput
 /// <summary>
 /// Output for a session-start hook.
 /// </summary>
-public class SessionStartHookOutput
+public sealed class SessionStartHookOutput
 {
     /// <summary>
     /// Additional context to inject into the session for the language model.
@@ -1362,7 +1362,7 @@ public delegate Task<SessionStartHookOutput?> SessionStartHandler(SessionStartHo
 /// <summary>
 /// Input for a session-end hook.
 /// </summary>
-public class SessionEndHookInput
+public sealed class SessionEndHookInput
 {
     /// <summary>
     /// The runtime session ID of the session that triggered the hook.
@@ -1385,11 +1385,11 @@ public class SessionEndHookInput
     /// <summary>
     /// Reason for session end.
     /// <list type="bullet">
-    /// <item><description><c>"complete"</c> — the session finished normally.</description></item>
-    /// <item><description><c>"error"</c> — the session ended due to an error.</description></item>
-    /// <item><description><c>"abort"</c> — the session was aborted.</description></item>
-    /// <item><description><c>"timeout"</c> — the session timed out.</description></item>
-    /// <item><description><c>"user_exit"</c> — the user exited the session.</description></item>
+    /// <item><description><c>"complete"</c> â€” the session finished normally.</description></item>
+    /// <item><description><c>"error"</c> â€” the session ended due to an error.</description></item>
+    /// <item><description><c>"abort"</c> â€” the session was aborted.</description></item>
+    /// <item><description><c>"timeout"</c> â€” the session timed out.</description></item>
+    /// <item><description><c>"user_exit"</c> â€” the user exited the session.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("reason")]
@@ -1411,7 +1411,7 @@ public class SessionEndHookInput
 /// <summary>
 /// Output for a session-end hook.
 /// </summary>
-public class SessionEndHookOutput
+public sealed class SessionEndHookOutput
 {
     /// <summary>
     /// Whether to suppress the session end output from the conversation.
@@ -1440,7 +1440,7 @@ public delegate Task<SessionEndHookOutput?> SessionEndHandler(SessionEndHookInpu
 /// <summary>
 /// Input for an error-occurred hook.
 /// </summary>
-public class ErrorOccurredHookInput
+public sealed class ErrorOccurredHookInput
 {
     /// <summary>
     /// The runtime session ID of the session that triggered the hook.
@@ -1469,10 +1469,10 @@ public class ErrorOccurredHookInput
     /// <summary>
     /// Context of the error.
     /// <list type="bullet">
-    /// <item><description><c>"model_call"</c> — error during a model API call.</description></item>
-    /// <item><description><c>"tool_execution"</c> — error during tool execution.</description></item>
-    /// <item><description><c>"system"</c> — internal system error.</description></item>
-    /// <item><description><c>"user_input"</c> — error processing user input.</description></item>
+    /// <item><description><c>"model_call"</c> â€” error during a model API call.</description></item>
+    /// <item><description><c>"tool_execution"</c> â€” error during tool execution.</description></item>
+    /// <item><description><c>"system"</c> â€” internal system error.</description></item>
+    /// <item><description><c>"user_input"</c> â€” error processing user input.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("errorContext")]
@@ -1488,7 +1488,7 @@ public class ErrorOccurredHookInput
 /// <summary>
 /// Output for an error-occurred hook.
 /// </summary>
-public class ErrorOccurredHookOutput
+public sealed class ErrorOccurredHookOutput
 {
     /// <summary>
     /// Whether to suppress the error output from the conversation.
@@ -1499,9 +1499,9 @@ public class ErrorOccurredHookOutput
     /// <summary>
     /// Error handling strategy.
     /// <list type="bullet">
-    /// <item><description><c>"retry"</c> — retry the failed operation.</description></item>
-    /// <item><description><c>"skip"</c> — skip the failed operation and continue.</description></item>
-    /// <item><description><c>"abort"</c> — abort the session.</description></item>
+    /// <item><description><c>"retry"</c> â€” retry the failed operation.</description></item>
+    /// <item><description><c>"skip"</c> â€” skip the failed operation and continue.</description></item>
+    /// <item><description><c>"abort"</c> â€” abort the session.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("errorHandling")]
@@ -1528,7 +1528,7 @@ public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(ErrorOccurre
 /// <summary>
 /// Hook handlers configuration for a session.
 /// </summary>
-public class SessionHooks
+public sealed class SessionHooks
 {
     /// <summary>
     /// Handler called before a tool is executed.
@@ -1604,7 +1604,7 @@ public enum SectionOverrideAction
 /// <summary>
 /// Override operation for a single system prompt section.
 /// </summary>
-public class SectionOverride
+public sealed class SectionOverride
 {
     /// <summary>
     /// The operation to perform on this section. Ignored when Transform is set.
@@ -1621,7 +1621,7 @@ public class SectionOverride
     /// <summary>
     /// Transform callback. When set, takes precedence over Action.
     /// Receives current section content, returns transformed content.
-    /// Not serialized — the SDK handles this locally.
+    /// Not serialized â€” the SDK handles this locally.
     /// </summary>
     [JsonIgnore]
     public Func<string, Task<string>>? Transform { get; set; }
@@ -1657,7 +1657,7 @@ public static class SystemPromptSections
 /// <summary>
 /// Configuration for the system message used in a session.
 /// </summary>
-public class SystemMessageConfig
+public sealed class SystemMessageConfig
 {
     /// <summary>
     /// How the system message is applied (append, replace, or customize).
@@ -1680,7 +1680,7 @@ public class SystemMessageConfig
 /// <summary>
 /// Configuration for a custom model provider.
 /// </summary>
-public class ProviderConfig
+public sealed class ProviderConfig
 {
     /// <summary>
     /// Provider type identifier (e.g., "openai", "azure").
@@ -1764,7 +1764,7 @@ public class ProviderConfig
 /// <summary>
 /// Azure OpenAI-specific provider options.
 /// </summary>
-public class AzureOptions
+public sealed class AzureOptions
 {
     /// <summary>
     /// Azure OpenAI API version to use (e.g., "2024-02-01").
@@ -1904,7 +1904,7 @@ public sealed class McpHttpServerConfig : McpServerConfig
 /// <summary>
 /// Configuration for a custom agent.
 /// </summary>
-public class CustomAgentConfig
+public sealed class CustomAgentConfig
 {
     /// <summary>
     /// Unique name of the custom agent.
@@ -1972,7 +1972,7 @@ public class CustomAgentConfig
 /// Use <see cref="ExcludedTools"/> to hide specific tools from the default agent
 /// while keeping them available to custom sub-agents.
 /// </summary>
-public class DefaultAgentConfig
+public sealed class DefaultAgentConfig
 {
     /// <summary>
     /// List of tool names to exclude from the default agent.
@@ -1987,7 +1987,7 @@ public class DefaultAgentConfig
 /// When enabled, sessions automatically manage context window limits through background compaction
 /// and persist state to a workspace directory.
 /// </summary>
-public class InfiniteSessionConfig
+public sealed class InfiniteSessionConfig
 {
     /// <summary>
     /// Whether infinite sessions are enabled. Default: true
@@ -2015,7 +2015,7 @@ public class InfiniteSessionConfig
 /// <summary>
 /// GitHub repository metadata to associate with a cloud session.
 /// </summary>
-public class CloudSessionRepository
+public sealed class CloudSessionRepository
 {
     /// <summary>Repository owner.</summary>
     public required string Owner { get; set; }
@@ -2030,7 +2030,7 @@ public class CloudSessionRepository
 /// <summary>
 /// Options for creating a remote session in the cloud.
 /// </summary>
-public class CloudSessionOptions
+public sealed class CloudSessionOptions
 {
     /// <summary>
     /// Optional GitHub repository metadata to associate with the cloud session.
@@ -2318,9 +2318,9 @@ public class SessionConfig
     /// <summary>
     /// Per-session remote behavior control:
     /// <list type="bullet">
-    /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
-    /// <item><description><c>"export"</c> — export session events to GitHub without enabling remote steering</description></item>
-    /// <item><description><c>"on"</c> — export to GitHub AND enable remote steering</description></item>
+    /// <item><description><c>"off"</c> â€” local only, no remote export (default)</description></item>
+    /// <item><description><c>"export"</c> â€” export session events to GitHub without enabling remote steering</description></item>
+    /// <item><description><c>"on"</c> â€” export to GitHub AND enable remote steering</description></item>
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
@@ -2724,7 +2724,7 @@ public delegate void SessionEventHandler(SessionEvent sessionEvent);
 /// <summary>
 /// Working directory context for a session.
 /// </summary>
-public class SessionContext
+public sealed class SessionContext
 {
     /// <summary>Working directory where the session was created.</summary>
     public string Cwd { get; set; } = string.Empty;
@@ -2739,7 +2739,7 @@ public class SessionContext
 /// <summary>
 /// Filter options for listing sessions.
 /// </summary>
-public class SessionListFilter
+public sealed class SessionListFilter
 {
     /// <summary>Filter by exact cwd match.</summary>
     public string? Cwd { get; set; }
@@ -2754,7 +2754,7 @@ public class SessionListFilter
 /// <summary>
 /// Metadata describing a Copilot session.
 /// </summary>
-public class SessionMetadata
+public sealed class SessionMetadata
 {
     /// <summary>
     /// Unique identifier of the session.
@@ -2788,7 +2788,7 @@ internal class PingRequest
 /// <summary>
 /// Response from a server ping request.
 /// </summary>
-public class PingResponse
+public sealed class PingResponse
 {
     /// <summary>
     /// Echo of the ping message.
@@ -2807,7 +2807,7 @@ public class PingResponse
 /// <summary>
 /// Response from status.get
 /// </summary>
-public class GetStatusResponse
+public sealed class GetStatusResponse
 {
     /// <summary>Package version (e.g., "1.0.0")</summary>
     [JsonPropertyName("version")]
@@ -2821,7 +2821,7 @@ public class GetStatusResponse
 /// <summary>
 /// Response from auth.getStatus
 /// </summary>
-public class GetAuthStatusResponse
+public sealed class GetAuthStatusResponse
 {
     /// <summary>Whether the user is authenticated</summary>
     [JsonPropertyName("isAuthenticated")]
@@ -2830,12 +2830,12 @@ public class GetAuthStatusResponse
     /// <summary>
     /// Authentication type.
     /// <list type="bullet">
-    /// <item><description><c>"user"</c> — authenticated via user login.</description></item>
-    /// <item><description><c>"env"</c> — authenticated via environment variable.</description></item>
-    /// <item><description><c>"gh-cli"</c> — authenticated via the GitHub CLI.</description></item>
-    /// <item><description><c>"hmac"</c> — authenticated via HMAC signature.</description></item>
-    /// <item><description><c>"api-key"</c> — authenticated via API key.</description></item>
-    /// <item><description><c>"token"</c> — authenticated via explicit token.</description></item>
+    /// <item><description><c>"user"</c> â€” authenticated via user login.</description></item>
+    /// <item><description><c>"env"</c> â€” authenticated via environment variable.</description></item>
+    /// <item><description><c>"gh-cli"</c> â€” authenticated via the GitHub CLI.</description></item>
+    /// <item><description><c>"hmac"</c> â€” authenticated via HMAC signature.</description></item>
+    /// <item><description><c>"api-key"</c> â€” authenticated via API key.</description></item>
+    /// <item><description><c>"token"</c> â€” authenticated via explicit token.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("authType")]
@@ -2857,7 +2857,7 @@ public class GetAuthStatusResponse
 /// <summary>
 /// Model vision-specific limits
 /// </summary>
-public class ModelVisionLimits
+public sealed class ModelVisionLimits
 {
     /// <summary>
     /// List of supported image MIME types (e.g., "image/png", "image/jpeg").
@@ -2881,7 +2881,7 @@ public class ModelVisionLimits
 /// <summary>
 /// Model limits
 /// </summary>
-public class ModelLimits
+public sealed class ModelLimits
 {
     /// <summary>
     /// Maximum number of tokens allowed in the prompt.
@@ -2905,7 +2905,7 @@ public class ModelLimits
 /// <summary>
 /// Model support flags
 /// </summary>
-public class ModelSupports
+public sealed class ModelSupports
 {
     /// <summary>
     /// Whether this model supports image/vision inputs.
@@ -2923,7 +2923,7 @@ public class ModelSupports
 /// <summary>
 /// Model capabilities and limits
 /// </summary>
-public class ModelCapabilities
+public sealed class ModelCapabilities
 {
     /// <summary>
     /// Feature support flags for the model.
@@ -2941,7 +2941,7 @@ public class ModelCapabilities
 /// <summary>
 /// Model policy state
 /// </summary>
-public class ModelPolicy
+public sealed class ModelPolicy
 {
     /// <summary>
     /// Policy state of the model (e.g., "enabled", "disabled").
@@ -2959,7 +2959,7 @@ public class ModelPolicy
 /// <summary>
 /// Model billing information
 /// </summary>
-public class ModelBilling
+public sealed class ModelBilling
 {
     /// <summary>
     /// Billing cost multiplier relative to the base model rate.
@@ -2971,7 +2971,7 @@ public class ModelBilling
 /// <summary>
 /// Information about an available model
 /// </summary>
-public class ModelInfo
+public sealed class ModelInfo
 {
     /// <summary>Model identifier (e.g., "claude-sonnet-4.5")</summary>
     [JsonPropertyName("id")]
@@ -3005,7 +3005,7 @@ public class ModelInfo
 /// <summary>
 /// Response from models.list
 /// </summary>
-public class GetModelsResponse
+public sealed class GetModelsResponse
 {
     /// <summary>
     /// List of available models.
@@ -3038,7 +3038,7 @@ public static class SessionLifecycleEventTypes
 /// <summary>
 /// Metadata for session lifecycle events
 /// </summary>
-public class SessionLifecycleEventMetadata
+public sealed class SessionLifecycleEventMetadata
 {
     /// <summary>
     /// ISO 8601 timestamp when the session was created.
@@ -3086,7 +3086,7 @@ public class SessionLifecycleEvent
 /// <summary>
 /// Response from session.getForeground
 /// </summary>
-public class GetForegroundSessionResponse
+public sealed class GetForegroundSessionResponse
 {
     /// <summary>
     /// Identifier of the current foreground session, or null if none.
@@ -3104,7 +3104,7 @@ public class GetForegroundSessionResponse
 /// <summary>
 /// Response from session.setForeground
 /// </summary>
-public class SetForegroundSessionResponse
+public sealed class SetForegroundSessionResponse
 {
     /// <summary>
     /// Whether the foreground session was set successfully.
@@ -3122,7 +3122,7 @@ public class SetForegroundSessionResponse
 /// <summary>
 /// Content data for a single system prompt section in a transform RPC call.
 /// </summary>
-public class SystemMessageTransformSection
+public sealed class SystemMessageTransformSection
 {
     /// <summary>
     /// The content of the section.
@@ -3134,7 +3134,7 @@ public class SystemMessageTransformSection
 /// <summary>
 /// Response to a systemMessage.transform RPC call.
 /// </summary>
-public class SystemMessageTransformRpcResponse
+public sealed class SystemMessageTransformRpcResponse
 {
     /// <summary>
     /// The transformed sections keyed by section identifier.

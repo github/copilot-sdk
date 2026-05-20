@@ -2209,7 +2209,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 /// back through Microsoft.Extensions.AI without JSON serialization.
 /// </summary>
 /// <param name="toolResult">The tool result to wrap.</param>
-public class ToolResultAIContent(ToolResultObject toolResult) : AIContent
+public sealed class ToolResultAIContent(ToolResultObject toolResult) : AIContent
 {
     /// <summary>
     /// Gets the underlying <see cref="ToolResultObject"/>.

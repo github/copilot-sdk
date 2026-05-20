@@ -12,7 +12,7 @@ namespace GitHub.Copilot.SDK;
 /// Same shape as <see cref="SessionFsSqliteQueryResult"/> but without the <c>Error</c> field,
 /// since providers signal errors by throwing.
 /// </summary>
-public class SessionFsSqliteResult
+public sealed class SessionFsSqliteResult
 {
     /// <summary>Column names from the result set.</summary>
     public IList<string> Columns { get; set; } = [];
