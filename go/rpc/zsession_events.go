@@ -1050,9 +1050,9 @@ type SessionShutdownData struct {
 	// Cumulative time spent in API calls during the session, in milliseconds
 	TotalAPIDurationMs int64 `json:"totalApiDurationMs"`
 	// Session-wide accumulated nano-AI units cost
-	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
-	TotalPremiumRequests int64 `json:"totalPremiumRequests"`
+	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
 }
 
 func (*SessionShutdownData) sessionEventData()      {}
@@ -1465,7 +1465,7 @@ type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
 	// Total cost in nano-AI units for this request
-	TotalNanoAiu int64 `json:"totalNanoAiu"`
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
 // Token usage detail for a single billing category
@@ -1537,7 +1537,7 @@ type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
 	// Total cost in nano-AI units for this request
-	TotalNanoAiu int64 `json:"totalNanoAiu"`
+	TotalNanoAiu float64 `json:"totalNanoAiu"`
 }
 
 // Token usage detail for a single billing category
@@ -2225,7 +2225,7 @@ type ShutdownModelMetric struct {
 	// Token count details per type
 	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
 	// Accumulated nano-AI units cost for this model
-	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Token usage breakdown
 	Usage ShutdownModelMetricUsage `json:"usage"`
 }
