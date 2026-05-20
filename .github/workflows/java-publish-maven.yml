@@ -35,6 +35,10 @@ jobs:
   publish-maven:
     name: Publish Java SDK to Maven Central
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
     outputs:
       version: ${{ steps.versions.outputs.release_version }}
     steps:
@@ -121,7 +125,7 @@ jobs:
           echo "Reference implementation SDK sync: ${REFERENCE_IMPL_SHORT} (${REFERENCE_IMPL_URL})"
 
           # Update CHANGELOG.md with release version and Reference implementation sync hash
-          ../.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
+          $GITHUB_WORKSPACE/.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
 
           # Update version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
           sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*</version>|<version>${VERSION}</version>|g" README.md
@@ -185,6 +189,10 @@ jobs:
     needs: publish-maven
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -203,7 +211,7 @@ jobs:
 
           # Generate release notes from template
           export VERSION GROUP_ID ARTIFACT_ID
-          RELEASE_NOTES=$(envsubst < .github/workflows/notes.template)
+          RELEASE_NOTES=$(envsubst < $GITHUB_WORKSPACE/.github/workflows/notes.template)
 
           # Get the previous tag for generating notes
           PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
@@ -235,22 +243,5 @@ jobs:
           VERSION="${{ needs.publish-maven.outputs.version }}"
           git tag -f latest "v${VERSION}"
           git push origin latest --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy-site:
-    name: Deploy Documentation
-    needs: [publish-maven, github-release]
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Trigger site deployment
-        run: |
-          gh workflow run deploy-site.yml \
-            --repo ${{ github.repository }} \
-            -f version="${{ needs.publish-maven.outputs.version }}" \
-            -f publish_as_latest=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
