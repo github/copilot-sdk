@@ -14,7 +14,19 @@ import type { AbortReason, EmbeddedBlobResourceContents, EmbeddedTextResourceCon
  * via the `definition` "AgentInfoSource".
  */
 /** @experimental */
-export type AgentInfoSource = "user" | "project" | "inherited" | "remote" | "plugin" | "builtin";
+export type AgentInfoSource =
+  /** Agent loaded from the user's personal agent configuration. */
+  | "user"
+  /** Agent loaded from the current project's repository configuration. */
+  | "project"
+  /** Agent inherited from a parent project or workspace. */
+  | "inherited"
+  /** Agent provided by a remote runtime or service. */
+  | "remote"
+  /** Agent contributed by an installed plugin. */
+  | "plugin"
+  /** Agent built into the Copilot runtime. */
+  | "builtin";
 /**
  * The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
  *
@@ -35,21 +47,41 @@ export type AuthInfo =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "AuthInfoType".
  */
-export type AuthInfoType = "hmac" | "env" | "user" | "gh-cli" | "api-key" | "token" | "copilot-api-token";
+export type AuthInfoType =
+  /** Authentication provided by a GitHub App HMAC credential. */
+  | "hmac"
+  /** Authentication resolved from environment-provided credentials. */
+  | "env"
+  /** Authentication from an interactive user sign-in. */
+  | "user"
+  /** Authentication delegated to the GitHub CLI. */
+  | "gh-cli"
+  /** Authentication from an API key credential. */
+  | "api-key"
+  /** Authentication from a GitHub token. */
+  | "token"
+  /** Authentication from a Copilot API token. */
+  | "copilot-api-token";
 /**
  * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandKind".
  */
-export type SlashCommandKind = "builtin" | "skill" | "client";
+export type SlashCommandKind =
+  /** Command implemented by the runtime. */
+  | "builtin"
+  /** Command backed by a skill. */
+  | "skill"
+  /** Command registered by an SDK client or extension. */
+  | "client";
 /**
  * Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SlashCommandInputCompletion".
  */
-export type SlashCommandInputCompletion = "directory";
+export type SlashCommandInputCompletion = /** Input should complete filesystem directories. */ "directory";
 /**
  * Result of the queued command execution.
  *
@@ -64,21 +96,39 @@ export type QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled
  * via the `definition` "ConnectedRemoteSessionMetadataKind".
  */
 /** @experimental */
-export type ConnectedRemoteSessionMetadataKind = "remote-session" | "coding-agent";
+export type ConnectedRemoteSessionMetadataKind =
+  /** Remote CLI session. */
+  | "remote-session"
+  /** GitHub Copilot coding agent session. */
+  | "coding-agent";
 /**
  * Controls how MCP tool result content is filtered: none leaves content unchanged, markdown sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes characters that can hide directives.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ContentFilterMode".
  */
-export type ContentFilterMode = "none" | "markdown" | "hidden_characters";
+export type ContentFilterMode =
+  /** Leave MCP tool result content unchanged. */
+  | "none"
+  /** Sanitize HTML while preserving Markdown-friendly output. */
+  | "markdown"
+  /** Remove characters that can hide directives. */
+  | "hidden_characters";
 /**
  * Server transport type: stdio, http, sse, or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DiscoveredMcpServerType".
  */
-export type DiscoveredMcpServerType = "stdio" | "http" | "sse" | "memory";
+export type DiscoveredMcpServerType =
+  /** Server communicates over stdio with a local child process. */
+  | "stdio"
+  /** Server communicates over streamable HTTP. */
+  | "http"
+  /** Server communicates over Server-Sent Events. */
+  | "sse"
+  /** Server is backed by an in-memory runtime implementation. */
+  | "memory";
 /**
  * Either '*' to receive all event types, or a non-empty list of event types to receive
  *
@@ -94,7 +144,11 @@ export type EventLogTypes = "*" | [string, ...string[]];
  * via the `definition` "EventsAgentScope".
  */
 /** @experimental */
-export type EventsAgentScope = "primary" | "all";
+export type EventsAgentScope =
+  /** Return main-agent events and typed subagent lifecycle events. */
+  | "primary"
+  /** Return events from all agents. */
+  | "all";
 /**
  * Cursor status: 'ok' means the cursor was applied successfully; 'expired' means the cursor referred to an event that no longer exists in history (e.g. truncated or compacted away) and the read started from the beginning of the remaining history.
  *
@@ -102,7 +156,11 @@ export type EventsAgentScope = "primary" | "all";
  * via the `definition` "EventsCursorStatus".
  */
 /** @experimental */
-export type EventsCursorStatus = "ok" | "expired";
+export type EventsCursorStatus =
+  /** The cursor was applied successfully. */
+  | "ok"
+  /** The cursor referred to history that is no longer available. */
+  | "expired";
 /**
  * Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
  *
@@ -110,7 +168,11 @@ export type EventsCursorStatus = "ok" | "expired";
  * via the `definition` "ExtensionSource".
  */
 /** @experimental */
-export type ExtensionSource = "project" | "user";
+export type ExtensionSource =
+  /** Extension discovered from the current project's .github/extensions directory. */
+  | "project"
+  /** Extension discovered from the user's ~/.copilot/extensions directory. */
+  | "user";
 /**
  * Current status: running, disabled, failed, or starting
  *
@@ -118,7 +180,15 @@ export type ExtensionSource = "project" | "user";
  * via the `definition` "ExtensionStatus".
  */
 /** @experimental */
-export type ExtensionStatus = "running" | "disabled" | "failed" | "starting";
+export type ExtensionStatus =
+  /** The extension process is running. */
+  | "running"
+  /** The extension is installed but disabled. */
+  | "disabled"
+  /** The extension failed to start or crashed. */
+  | "failed"
+  /** The extension process is starting. */
+  | "starting";
 /**
  * Tool call result (string or expanded result object)
  *
@@ -132,7 +202,11 @@ export type ExternalToolResult = string | ExternalToolTextResultForLlm;
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExternalToolTextResultForLlmBinaryResultsForLlmType".
  */
-export type ExternalToolTextResultForLlmBinaryResultsForLlmType = "image" | "resource";
+export type ExternalToolTextResultForLlmBinaryResultsForLlmType =
+  /** Binary image data. */
+  | "image"
+  /** Other binary resource data. */
+  | "resource";
 /**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  *
@@ -152,7 +226,11 @@ export type ExternalToolTextResultForLlmContent =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ExternalToolTextResultForLlmContentResourceLinkIconTheme".
  */
-export type ExternalToolTextResultForLlmContentResourceLinkIconTheme = "light" | "dark";
+export type ExternalToolTextResultForLlmContentResourceLinkIconTheme =
+  /** Icon intended for light themes. */
+  | "light"
+  /** Icon intended for dark themes. */
+  | "dark";
 /**
  * The embedded resource contents, either text or base64-encoded binary
  *
@@ -192,12 +270,19 @@ export type InstalledPluginSource =
  * via the `definition` "InstructionsSourcesType".
  */
 export type InstructionsSourcesType =
+  /** Instructions loaded from the user's home configuration. */
   | "home"
+  /** Instructions loaded from repository-scoped files. */
   | "repo"
+  /** Instructions loaded from model-specific files. */
   | "model"
+  /** Instructions loaded from VS Code instruction files. */
   | "vscode"
+  /** Instructions discovered from nested agent files. */
   | "nested-agents"
+  /** Instructions inherited from child instruction files. */
   | "child-instructions"
+  /** Instructions supplied by an installed plugin. */
   | "plugin";
 /**
  * Where this source lives — used for UI grouping
@@ -205,14 +290,28 @@ export type InstructionsSourcesType =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "InstructionsSourcesLocation".
  */
-export type InstructionsSourcesLocation = "user" | "repository" | "working-directory" | "plugin";
+export type InstructionsSourcesLocation =
+  /** Instructions live in user-level configuration. */
+  | "user"
+  /** Instructions live in repository-level configuration. */
+  | "repository"
+  /** Instructions live under the current working directory. */
+  | "working-directory"
+  /** Instructions live in plugin-provided configuration. */
+  | "plugin";
 /**
  * Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionLogLevel".
  */
-export type SessionLogLevel = "info" | "warning" | "error";
+export type SessionLogLevel =
+  /** Informational message. */
+  | "info"
+  /** Warning message that may require attention. */
+  | "warning"
+  /** Error message describing a failure. */
+  | "error";
 /**
  * MCP server configuration (stdio process or remote HTTP/SSE)
  *
@@ -226,14 +325,22 @@ export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigHttpType".
  */
-export type McpServerConfigHttpType = "http" | "sse";
+export type McpServerConfigHttpType =
+  /** Streamable HTTP transport. */
+  | "http"
+  /** Server-Sent Events transport. */
+  | "sse";
 /**
  * OAuth grant type to use when authenticating to the remote MCP server.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "McpServerConfigHttpOauthGrantType".
  */
-export type McpServerConfigHttpOauthGrantType = "authorization_code" | "client_credentials";
+export type McpServerConfigHttpOauthGrantType =
+  /** Interactive browser-based authorization code flow with PKCE. */
+  | "authorization_code"
+  /** Headless client credentials flow using the configured OAuth client. */
+  | "client_credentials";
 /**
  * Outcome of the sampling inference. 'success' produced a response; 'failure' encountered an error (including agent-side rejection by content filter or criteria); 'cancelled' the caller cancelled this execution via cancelSamplingExecution.
  *
@@ -241,7 +348,13 @@ export type McpServerConfigHttpOauthGrantType = "authorization_code" | "client_c
  * via the `definition` "McpSamplingExecutionAction".
  */
 /** @experimental */
-export type McpSamplingExecutionAction = "success" | "failure" | "cancelled";
+export type McpSamplingExecutionAction =
+  /** The sampling inference completed and produced a result. */
+  | "success"
+  /** The sampling inference failed or was rejected. */
+  | "failure"
+  /** The sampling inference was cancelled before completion. */
+  | "cancelled";
 /**
  * How environment-variable values supplied to MCP servers are resolved. "direct" passes literal string values; "indirect" treats values as references (e.g. names of environment variables on the host) that the runtime resolves before launch. Defaults to the runtime's startup mode; clients that intentionally launch MCP servers with literal values (e.g. CLI prompt mode and ACP) set this to "direct".
  *
@@ -249,7 +362,11 @@ export type McpSamplingExecutionAction = "success" | "failure" | "cancelled";
  * via the `definition` "McpSetEnvValueModeDetails".
  */
 /** @experimental */
-export type McpSetEnvValueModeDetails = "direct" | "indirect";
+export type McpSetEnvValueModeDetails =
+  /** Treat MCP server environment values as literal strings. */
+  | "direct"
+  /** Treat MCP server environment values as host-side references to resolve before launch. */
+  | "indirect";
 /**
  * Token breakdown for the current context window, or null if the session has not yet been initialized (no system prompt or tool metadata cached).
  *
@@ -302,7 +419,11 @@ export type SessionContextInfo = {
  * via the `definition` "SessionWorkingDirectoryContextHostType".
  */
 /** @experimental */
-export type SessionWorkingDirectoryContextHostType = "github" | "ado";
+export type SessionWorkingDirectoryContextHostType =
+  /** The working directory repository is hosted on GitHub. */
+  | "github"
+  /** The working directory repository is hosted on Azure DevOps. */
+  | "ado";
 /**
  * The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
  *
@@ -310,7 +431,13 @@ export type SessionWorkingDirectoryContextHostType = "github" | "ado";
  * via the `definition` "MetadataSnapshotCurrentMode".
  */
 /** @experimental */
-export type MetadataSnapshotCurrentMode = "interactive" | "plan" | "autopilot";
+export type MetadataSnapshotCurrentMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot";
 /**
  * Whether the remote task originated from Copilot Coding Agent (cca) or a CLI `--remote` invocation.
  *
@@ -318,28 +445,52 @@ export type MetadataSnapshotCurrentMode = "interactive" | "plan" | "autopilot";
  * via the `definition` "MetadataSnapshotRemoteMetadataTaskType".
  */
 /** @experimental */
-export type MetadataSnapshotRemoteMetadataTaskType = "cca" | "cli";
+export type MetadataSnapshotRemoteMetadataTaskType =
+  /** Remote task originated from Copilot Coding Agent. */
+  | "cca"
+  /** Remote task originated from a CLI remote-session invocation. */
+  | "cli";
 /**
  * Current policy state for this model
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPolicyState".
  */
-export type ModelPolicyState = "enabled" | "disabled" | "unconfigured";
+export type ModelPolicyState =
+  /** The model is enabled by policy. */
+  | "enabled"
+  /** The model is disabled by policy. */
+  | "disabled"
+  /** No explicit policy is configured for the model. */
+  | "unconfigured";
 /**
  * Model capability category for grouping in the model picker
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPickerCategory".
  */
-export type ModelPickerCategory = "lightweight" | "versatile" | "powerful";
+export type ModelPickerCategory =
+  /** Lightweight model category optimized for faster, lower-cost interactions. */
+  | "lightweight"
+  /** Versatile model category suitable for a broad range of tasks. */
+  | "versatile"
+  /** Powerful model category optimized for complex tasks. */
+  | "powerful";
 /**
  * Relative cost tier for token-based billing users
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelPickerPriceCategory".
  */
-export type ModelPickerPriceCategory = "low" | "medium" | "high" | "very_high";
+export type ModelPickerPriceCategory =
+  /** Lowest relative token cost tier. */
+  | "low"
+  /** Medium relative token cost tier. */
+  | "medium"
+  /** High relative token cost tier. */
+  | "high"
+  /** Highest relative token cost tier. */
+  | "very_high";
 /**
  * How env values are passed to MCP servers (`direct` inlines literal values; `indirect` resolves at launch).
  *
@@ -347,7 +498,11 @@ export type ModelPickerPriceCategory = "low" | "medium" | "high" | "very_high";
  * via the `definition` "OptionsUpdateEnvValueMode".
  */
 /** @experimental */
-export type OptionsUpdateEnvValueMode = "direct" | "indirect";
+export type OptionsUpdateEnvValueMode =
+  /** Pass MCP server environment values as literal strings. */
+  | "direct"
+  /** Resolve MCP server environment values from host-side references. */
+  | "indirect";
 /**
  * The client's response to the pending permission prompt
  *
@@ -408,21 +563,37 @@ export type PermissionDecisionApproveForLocationApproval =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsConfigureAdditionalContentExclusionPolicyScope".
  */
-export type PermissionsConfigureAdditionalContentExclusionPolicyScope = "repo" | "all";
+export type PermissionsConfigureAdditionalContentExclusionPolicyScope =
+  /** The content exclusion policy applies to the current repository. */
+  | "repo"
+  /** The content exclusion policy applies across all repositories. */
+  | "all";
 /**
  * Whether the change applies to ephemeral session-scoped rules (cleared at session end) or to location-scoped rules persisted via the location-permissions config file.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsModifyRulesScope".
  */
-export type PermissionsModifyRulesScope = "session" | "location";
+export type PermissionsModifyRulesScope =
+  /** Apply the rule change only to this session. */
+  | "session"
+  /** Persist the rule change for this project location. */
+  | "location";
 /**
  * Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsSetApproveAllSource".
  */
-export type PermissionsSetApproveAllSource = "cli_flag" | "slash_command" | "autopilot_confirmation" | "rpc";
+export type PermissionsSetApproveAllSource =
+  /** Allow-all was enabled from a CLI command-line flag. */
+  | "cli_flag"
+  /** Allow-all was enabled by a slash command. */
+  | "slash_command"
+  /** Allow-all was enabled by confirming autopilot behavior. */
+  | "autopilot_confirmation"
+  /** Allow-all was enabled through an RPC caller. */
+  | "rpc";
 /**
  * Whether this item is a queued user message or a queued slash command / model change
  *
@@ -430,7 +601,11 @@ export type PermissionsSetApproveAllSource = "cli_flag" | "slash_command" | "aut
  * via the `definition` "QueuePendingItemsKind".
  */
 /** @experimental */
-export type QueuePendingItemsKind = "message" | "command";
+export type QueuePendingItemsKind =
+  /** A queued user message. */
+  | "message"
+  /** A queued slash command or model-change command. */
+  | "command";
 /**
  * Per-session remote mode. "off" disables remote, "export" exports session events to GitHub without enabling remote steering, "on" enables both export and remote steering.
  *
@@ -438,14 +613,28 @@ export type QueuePendingItemsKind = "message" | "command";
  * via the `definition` "RemoteSessionMode".
  */
 /** @experimental */
-export type RemoteSessionMode = "off" | "export" | "on";
+export type RemoteSessionMode =
+  /** Disable remote session export and steering. */
+  | "off"
+  /** Export session events to GitHub without enabling remote steering. */
+  | "export"
+  /** Enable both remote session export and remote steering. */
+  | "on";
 /**
  * The UI mode the agent was in when this message was sent. Defaults to the session's current mode.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SendAgentMode".
  */
-export type SendAgentMode = "interactive" | "plan" | "autopilot" | "shell";
+export type SendAgentMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot"
+  /** The agent is in shell-focused UI mode. */
+  | "shell";
 /**
  * A user message attachment — a file, directory, code selection, blob, or GitHub reference
  *
@@ -464,14 +653,24 @@ export type SendAttachment =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SendAttachmentGithubReferenceType".
  */
-export type SendAttachmentGithubReferenceType = "issue" | "pr" | "discussion";
+export type SendAttachmentGithubReferenceType =
+  /** GitHub issue reference. */
+  | "issue"
+  /** GitHub pull request reference. */
+  | "pr"
+  /** GitHub discussion reference. */
+  | "discussion";
 /**
  * How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SendMode".
  */
-export type SendMode = "enqueue" | "immediate";
+export type SendMode =
+  /** Append the message to the normal session queue. */
+  | "enqueue"
+  /** Interject the message during the in-progress turn. */
+  | "immediate";
 /**
  * Repository host type
  *
@@ -479,35 +678,57 @@ export type SendMode = "enqueue" | "immediate";
  * via the `definition` "SessionContextHostType".
  */
 /** @experimental */
-export type SessionContextHostType = "github" | "ado";
+export type SessionContextHostType =
+  /** Session repository is hosted on GitHub. */
+  | "github"
+  /** Session repository is hosted on Azure DevOps. */
+  | "ado";
 /**
  * Error classification
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsErrorCode".
  */
-export type SessionFsErrorCode = "ENOENT" | "UNKNOWN";
+export type SessionFsErrorCode =
+  /** The requested path does not exist. */
+  | "ENOENT"
+  /** The filesystem operation failed for an unspecified reason. */
+  | "UNKNOWN";
 /**
  * Entry type
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirWithTypesEntryType".
  */
-export type SessionFsReaddirWithTypesEntryType = "file" | "directory";
+export type SessionFsReaddirWithTypesEntryType =
+  /** The entry is a file. */
+  | "file"
+  /** The entry is a directory. */
+  | "directory";
 /**
  * Path conventions used by this filesystem
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSetProviderConventions".
  */
-export type SessionFsSetProviderConventions = "windows" | "posix";
+export type SessionFsSetProviderConventions =
+  /** Paths use Windows path conventions. */
+  | "windows"
+  /** Paths use POSIX path conventions. */
+  | "posix";
 /**
  * How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteQueryType".
  */
-export type SessionFsSqliteQueryType = "exec" | "query" | "run";
+export type SessionFsSqliteQueryType =
+  /** Execute DDL or multi-statement SQL without returning rows. */
+  | "exec"
+  /** Execute a SELECT-style query and return rows. */
+  | "query"
+  /** Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata. */
+  | "run";
 /**
  * Source descriptor for direct repo installs (when marketplace is empty)
  *
@@ -547,7 +768,10 @@ export type WorkspaceSummary = {
   /**
    * Repository host type, if known
    */
-  host_type?: "github" | "ado";
+  host_type?: /** Workspace summary repository is hosted on GitHub. */
+    | "github"
+    /** Workspace summary repository is hosted on Azure DevOps. */
+    | "ado";
   /**
    * Branch checked out at session start, if any
    */
@@ -571,7 +795,13 @@ export type WorkspaceSummary = {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ShellKillSignal".
  */
-export type ShellKillSignal = "SIGTERM" | "SIGKILL" | "SIGINT";
+export type ShellKillSignal =
+  /** Request graceful process termination. */
+  | "SIGTERM"
+  /** Forcefully terminate the process. */
+  | "SIGKILL"
+  /** Send an interrupt signal to the process. */
+  | "SIGINT";
 /**
  * Result of invoking the slash command (text output, prompt to send to the agent, or completion).
  *
@@ -581,7 +811,8 @@ export type ShellKillSignal = "SIGTERM" | "SIGKILL" | "SIGINT";
 export type SlashCommandInvocationResult =
   | SlashCommandTextResult
   | SlashCommandAgentPromptResult
-  | SlashCommandCompletedResult;
+  | SlashCommandCompletedResult
+  | SlashCommandSelectSubcommandResult;
 /**
  * Current lifecycle status of the task
  *
@@ -589,7 +820,17 @@ export type SlashCommandInvocationResult =
  * via the `definition` "TaskStatus".
  */
 /** @experimental */
-export type TaskStatus = "running" | "idle" | "completed" | "failed" | "cancelled";
+export type TaskStatus =
+  /** The task is actively executing. */
+  | "running"
+  /** The task is waiting for additional input. */
+  | "idle"
+  /** The task finished successfully. */
+  | "completed"
+  /** The task finished with an error. */
+  | "failed"
+  /** The task was cancelled before completion. */
+  | "cancelled";
 /**
  * Whether task execution is synchronously awaited or managed in the background
  *
@@ -597,7 +838,11 @@ export type TaskStatus = "running" | "idle" | "completed" | "failed" | "cancelle
  * via the `definition` "TaskExecutionMode".
  */
 /** @experimental */
-export type TaskExecutionMode = "sync" | "background";
+export type TaskExecutionMode =
+  /** The task was started with synchronous waiting. */
+  | "sync"
+  /** The task is managed in the background. */
+  | "background";
 /**
  * Schema for the `TaskAgentProgress` type.
  *
@@ -658,7 +903,11 @@ export type TaskInfo = TaskAgentInfo | TaskShellInfo;
  * via the `definition` "TaskShellInfoAttachmentMode".
  */
 /** @experimental */
-export type TaskShellInfoAttachmentMode = "attached" | "detached";
+export type TaskShellInfoAttachmentMode =
+  /** The shell runs in a managed PTY session. */
+  | "attached"
+  /** The shell runs as an independent background process. */
+  | "detached";
 /**
  * Progress information for the task, discriminated by type. Returns null when no task with this ID is currently tracked.
  *
@@ -681,7 +930,13 @@ export type TaskShellProgress = null;
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIAutoModeSwitchResponse".
  */
-export type UIAutoModeSwitchResponse = "yes" | "yes_always" | "no";
+export type UIAutoModeSwitchResponse =
+  /** Allow the automatic mode switch for this turn. */
+  | "yes"
+  /** Allow this mode switch and persist the preference. */
+  | "yes_always"
+  /** Decline the automatic mode switch. */
+  | "no";
 /**
  * Schema for the `UIElicitationFieldValue` type.
  *
@@ -712,28 +967,54 @@ export type UIElicitationSchemaProperty =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationSchemaPropertyStringFormat".
  */
-export type UIElicitationSchemaPropertyStringFormat = "email" | "uri" | "date" | "date-time";
+export type UIElicitationSchemaPropertyStringFormat =
+  /** Email address string format. */
+  | "email"
+  /** URI string format. */
+  | "uri"
+  /** Calendar date string format. */
+  | "date"
+  /** Date-time string format. */
+  | "date-time";
 /**
  * Numeric type accepted by the field.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationSchemaPropertyNumberType".
  */
-export type UIElicitationSchemaPropertyNumberType = "number" | "integer";
+export type UIElicitationSchemaPropertyNumberType =
+  /** Any JSON number. */
+  | "number"
+  /** Integer JSON number. */
+  | "integer";
 /**
  * The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIElicitationResponseAction".
  */
-export type UIElicitationResponseAction = "accept" | "decline" | "cancel";
+export type UIElicitationResponseAction =
+  /** The user submitted the requested form values. */
+  | "accept"
+  /** The user explicitly declined to provide the requested input. */
+  | "decline"
+  /** The user dismissed the elicitation request. */
+  | "cancel";
 /**
  * The action the user selected. Defaults to 'autopilot' when autoApproveEdits is true, otherwise 'interactive'.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "UIExitPlanModeAction".
  */
-export type UIExitPlanModeAction = "exit_only" | "interactive" | "autopilot" | "autopilot_fleet";
+export type UIExitPlanModeAction =
+  /** Exit plan mode without starting implementation. */
+  | "exit_only"
+  /** Exit plan mode and continue interactively. */
+  | "interactive"
+  /** Exit plan mode and continue in autopilot mode. */
+  | "autopilot"
+  /** Exit plan mode and continue in autopilot mode with parallel subagent execution. */
+  | "autopilot_fleet";
 
 /**
  * Parameters for aborting the current turn
@@ -6507,6 +6788,54 @@ export interface SlashCommandTextResult {
   runtimeSettingsChanged?: boolean;
 }
 /**
+ * Schema for the `SlashCommandSelectSubcommandResult` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandSelectSubcommandResult".
+ */
+export interface SlashCommandSelectSubcommandResult {
+  /**
+   * Select subcommand result discriminator
+   */
+  kind: "select-subcommand";
+  /**
+   * Parent command name that requires subcommand selection
+   */
+  command: string;
+  /**
+   * Human-readable title for the selection UI
+   */
+  title: string;
+  /**
+   * Available subcommand options for the client to present
+   */
+  options: SlashCommandSelectSubcommandOption[];
+  /**
+   * True when the invocation mutated user runtime settings; consumers caching settings should refresh
+   */
+  runtimeSettingsChanged?: boolean;
+}
+/**
+ * Schema for the `SlashCommandSelectSubcommandOption` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SlashCommandSelectSubcommandOption".
+ */
+export interface SlashCommandSelectSubcommandOption {
+  /**
+   * Subcommand name to invoke
+   */
+  name: string;
+  /**
+   * Human-readable description of the subcommand
+   */
+  description: string;
+  /**
+   * Optional group label for organizing options
+   */
+  group?: string;
+}
+/**
  * Schema for the `TaskAgentInfo` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -7658,7 +7987,10 @@ export interface WorkspacesGetWorkspaceResult {
     cwd?: string;
     git_root?: string;
     repository?: string;
-    host_type?: "github" | "ado";
+    host_type?: /** Workspace repository is hosted on GitHub. */
+      | "github"
+      /** Workspace repository is hosted on Azure DevOps. */
+      | "ado";
     branch?: string;
     name?: string;
     user_named?: boolean;

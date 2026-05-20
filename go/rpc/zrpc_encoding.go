@@ -1964,6 +1964,12 @@ func unmarshalSlashCommandInvocationResult(data []byte) (SlashCommandInvocationR
 			return nil, err
 		}
 		return &d, nil
+	case SlashCommandInvocationResultKindSelectSubcommand:
+		var d SlashCommandSelectSubcommandResult
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
 	case SlashCommandInvocationResultKindText:
 		var d SlashCommandTextResult
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -1999,6 +2005,17 @@ func (r SlashCommandAgentPromptResult) MarshalJSON() ([]byte, error) {
 
 func (r SlashCommandCompletedResult) MarshalJSON() ([]byte, error) {
 	type alias SlashCommandCompletedResult
+	return json.Marshal(struct {
+		Kind SlashCommandInvocationResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r SlashCommandSelectSubcommandResult) MarshalJSON() ([]byte, error) {
+	type alias SlashCommandSelectSubcommandResult
 	return json.Marshal(struct {
 		Kind SlashCommandInvocationResultKind `json:"kind"`
 		alias
