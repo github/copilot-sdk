@@ -45,6 +45,7 @@ import type {
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
+    MCPServerConfig,
     ModelInfo,
     ProviderConfig,
     ResumeSessionConfig,
@@ -78,6 +79,26 @@ function toWireProviderConfig(provider: ProviderConfig): Record<string, unknown>
     const { maxInputTokens, ...rest } = provider;
     if (maxInputTokens === undefined) return rest;
     return { ...rest, maxPromptTokens: maxInputTokens };
+}
+
+function normalizeMcpServers(
+    mcpServers: Record<string, MCPServerConfig> | undefined
+): Record<string, MCPServerConfig> | undefined {
+    if (!mcpServers) return undefined;
+
+    let normalized: Record<string, MCPServerConfig> | undefined;
+    for (const [name, server] of Object.entries(mcpServers)) {
+        if (
+            "command" in server &&
+            server.args === undefined &&
+            (server.type === undefined || server.type === "stdio" || server.type === "local")
+        ) {
+            normalized ??= { ...mcpServers };
+            normalized[name] = { ...server, args: [] };
+        }
+    }
+
+    return normalized ?? mcpServers;
 }
 
 /**
@@ -829,9 +850,13 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
-                mcpServers: config.mcpServers,
+                mcpServers: normalizeMcpServers(config.mcpServers),
                 envValueMode: "direct",
-                customAgents: config.customAgents,
+                customAgents: config.customAgents?.map((agent) =>
+                    agent.mcpServers
+                        ? { ...agent, mcpServers: normalizeMcpServers(agent.mcpServers) }
+                        : agent
+                ),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 configDir: config.configDir,
@@ -970,9 +995,13 @@ export class CopilotClient {
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
-                mcpServers: config.mcpServers,
+                mcpServers: normalizeMcpServers(config.mcpServers),
                 envValueMode: "direct",
-                customAgents: config.customAgents,
+                customAgents: config.customAgents?.map((agent) =>
+                    agent.mcpServers
+                        ? { ...agent, mcpServers: normalizeMcpServers(agent.mcpServers) }
+                        : agent
+                ),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,

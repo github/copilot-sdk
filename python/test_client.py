@@ -114,6 +114,63 @@ class TestCreateSessionConfig:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_create_session_defaults_omitted_stdio_mcp_args_to_empty_list(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            mcp_servers = {"local": {"command": "mcp-server", "tools": ["*"]}}
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                mcp_servers=mcp_servers,
+            )
+
+            assert captured["session.create"]["mcpServers"]["local"]["args"] == []
+            assert "args" not in mcp_servers["local"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_defaults_custom_agent_stdio_mcp_args_to_empty_list(self):
+        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params):
+                captured[method] = params
+                if method == "session.create":
+                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                return {}
+
+            custom_agents = [
+                {
+                    "name": "agent",
+                    "prompt": "You are helpful.",
+                    "mcp_servers": {"local": {"command": "mcp-server", "tools": ["*"]}},
+                }
+            ]
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                custom_agents=custom_agents,
+            )
+
+            agent = captured["session.create"]["customAgents"][0]
+            assert agent["mcpServers"]["local"]["args"] == []
+            assert "args" not in custom_agents[0]["mcp_servers"]["local"]
+        finally:
+            await client.force_stop()
+
 
 class TestURLParsing:
     def test_parse_port_only_url(self):

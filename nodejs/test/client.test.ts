@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { approveAll, CopilotClient, type MCPServerConfig, type ModelInfo } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
@@ -82,6 +82,28 @@ describe("CopilotClient", () => {
         );
     });
 
+    it("defaults omitted stdio MCP server args to an empty array in session.create", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockResolvedValue({ sessionId: "mcp-session" });
+        const mcpServers: Record<string, MCPServerConfig> = {
+            local: { command: "mcp-server", tools: ["*"] },
+        };
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            mcpServers,
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.mcpServers.local.args).toEqual([]);
+        expect(mcpServers.local).not.toHaveProperty("args");
+    });
+
     it("forwards clientName in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();
@@ -104,6 +126,33 @@ describe("CopilotClient", () => {
             "session.resume",
             expect.objectContaining({ clientName: "my-app", sessionId: session.sessionId })
         );
+        spy.mockRestore();
+    });
+
+    it("defaults omitted stdio MCP server args to an empty array in session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        const mcpServers: Record<string, MCPServerConfig> = {
+            local: { command: "mcp-server", tools: ["*"] },
+        };
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            mcpServers,
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.mcpServers.local.args).toEqual([]);
+        expect(mcpServers.local).not.toHaveProperty("args");
         spy.mockRestore();
     });
 

@@ -489,6 +489,9 @@ func (MCPStdioServerConfig) mcpServerConfig() {}
 // MarshalJSON implements json.Marshaler, injecting the "type" discriminator.
 func (c MCPStdioServerConfig) MarshalJSON() ([]byte, error) {
 	type alias MCPStdioServerConfig
+	if c.Args == nil {
+		c.Args = []string{}
+	}
 	return json.Marshal(struct {
 		Type string `json:"type"`
 		alias

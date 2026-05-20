@@ -1548,7 +1548,7 @@ class CopilotClient:
 
         # Add MCP servers configuration if provided
         if mcp_servers:
-            payload["mcpServers"] = mcp_servers
+            payload["mcpServers"] = self._normalize_mcp_servers(mcp_servers)
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
@@ -1921,7 +1921,7 @@ class CopilotClient:
 
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
-            payload["mcpServers"] = mcp_servers
+            payload["mcpServers"] = self._normalize_mcp_servers(mcp_servers)
         payload["envValueMode"] = "direct"
 
         if custom_agents:
@@ -2556,7 +2556,7 @@ class CopilotClient:
         if "tools" in agent:
             wire_agent["tools"] = agent["tools"]
         if "mcp_servers" in agent:
-            wire_agent["mcpServers"] = agent["mcp_servers"]
+            wire_agent["mcpServers"] = self._normalize_mcp_servers(agent["mcp_servers"])
         if "infer" in agent:
             wire_agent["infer"] = agent["infer"]
         if "skills" in agent:
@@ -2581,6 +2581,26 @@ class CopilotClient:
         if "excluded_tools" in config:
             wire["excludedTools"] = config["excluded_tools"]
         return wire
+
+    def _normalize_mcp_servers(
+        self, mcp_servers: dict[str, MCPServerConfig] | None
+    ) -> dict[str, MCPServerConfig] | None:
+        if not mcp_servers:
+            return mcp_servers
+
+        normalized: dict[str, MCPServerConfig] | None = None
+        for name, server in mcp_servers.items():
+            server_type = server.get("type")
+            if (
+                "command" in server
+                and "args" not in server
+                and (server_type is None or server_type in ("local", "stdio"))
+            ):
+                if normalized is None:
+                    normalized = dict(mcp_servers)
+                normalized[name] = {**server, "args": []}
+
+        return normalized if normalized is not None else mcp_servers
 
     async def _start_cli_server(self) -> None:
         """

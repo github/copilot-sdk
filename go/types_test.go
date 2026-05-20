@@ -123,6 +123,31 @@ func TestProviderConfig_JSONIncludesHeaders(t *testing.T) {
 	}
 }
 
+func TestMCPStdioServerConfig_JSONDefaultsNilArgsToEmptyArray(t *testing.T) {
+	config := MCPStdioServerConfig{
+		Command: "mcp-server",
+		Tools:   []string{"*"},
+	}
+
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("failed to marshal MCP stdio server config: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("failed to unmarshal MCP stdio server config: %v", err)
+	}
+
+	args, ok := decoded["args"].([]any)
+	if !ok {
+		t.Fatalf("expected args to be an array, got %T in %s", decoded["args"], string(data))
+	}
+	if len(args) != 0 {
+		t.Fatalf("expected empty args array, got %v", args)
+	}
+}
+
 func TestSessionSendRequest_JSONIncludesRequestHeaders(t *testing.T) {
 	req := sessionSendRequest{
 		SessionID:      "session-1",
