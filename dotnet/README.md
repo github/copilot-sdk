@@ -749,7 +749,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Custom Permission Handler
 
-Provide your own `PermissionRequestHandler` delegate to inspect each request and apply custom logic:
+Provide your own permission handler (`Func<PermissionRequest, ToolInvocation, Task<PermissionRequestResult>>`) to inspect each request and apply custom logic:
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
