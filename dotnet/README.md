@@ -153,23 +153,19 @@ Get the ID of the session currently displayed in the TUI. Only available when co
 
 Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
 
-##### `On(Action<SessionLifecycleEvent> handler): IDisposable`
+##### `OnLifecycle<T>(Action<T> handler): IDisposable where T : SessionLifecycleEvent`
 
-Subscribe to all session lifecycle events. Returns an `IDisposable` that unsubscribes when disposed.
+Subscribe to session lifecycle events. Pass a derived type to filter by kind, or `SessionLifecycleEvent` to receive every lifecycle event. Returns an `IDisposable` that unsubscribes when disposed.
 
 ```csharp
+// Receive every lifecycle event:
 using var subscription = client.OnLifecycle<SessionLifecycleEvent>(evt =>
 {
     Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
 });
-```
 
-##### `On(string eventType, Action<SessionLifecycleEvent> handler): IDisposable`
-
-Subscribe to a specific lifecycle event type. Use `SessionLifecycleEventTypes` constants.
-
-```csharp
-using var subscription = client.OnLifecycle<SessionForegroundEvent>(evt =>
+// Only receive foreground events:
+using var foreground = client.OnLifecycle<SessionForegroundEvent>(evt =>
 {
     Console.WriteLine($"Session {evt.SessionId} is now in foreground");
 });
@@ -177,11 +173,11 @@ using var subscription = client.OnLifecycle<SessionForegroundEvent>(evt =>
 
 **Lifecycle Event Types:**
 
-- `SessionLifecycleEventTypes.Created` - A new session was created
-- `SessionLifecycleEventTypes.Deleted` - A session was deleted
-- `SessionLifecycleEventTypes.Updated` - A session was updated
-- `SessionLifecycleEventTypes.Foreground` - A session became the foreground session in TUI
-- `SessionLifecycleEventTypes.Background` - A session is no longer the foreground session
+- `SessionCreatedEvent` — A new session was created
+- `SessionDeletedEvent` — A session was deleted
+- `SessionUpdatedEvent` — A session was updated
+- `SessionForegroundEvent` — A session became the foreground session in TUI
+- `SessionBackgroundEvent` — A session is no longer the foreground session
 
 ---
 

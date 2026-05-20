@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.AI;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -326,7 +327,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
                         {
                             TextResultForLlm = "modified by post hook",
                             ResultType = "success",
-                            ToolTelemetry = new Dictionary<string, object>(),
+                            ToolTelemetry = new Dictionary<string, JsonElement>(),
                         },
                         SuppressOutput = false,
                     });
