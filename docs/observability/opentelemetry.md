@@ -84,6 +84,21 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 </details>
 
+<details>
+<summary><strong>Rust</strong></summary>
+
+<!-- docs-validate: skip -->
+```rust
+use github_copilot_sdk::{Client, ClientOptions, TelemetryConfig};
+
+let client = Client::start(ClientOptions::new()
+    .with_telemetry(TelemetryConfig::new()
+        .with_otlp_endpoint("http://localhost:4318"))
+).await?;
+```
+
+</details>
+
 ### TelemetryConfig options
 
 | Option | Node.js | Python | Go | .NET | Java | Rust | Description |

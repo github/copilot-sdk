@@ -1,6 +1,6 @@
 # Features
 
-These guides cover the capabilities you can add to your Copilot SDK application. Each guide includes examples in all supported languages (TypeScript, Python, Go, .NET, Java, and Rust).
+These guides cover the capabilities you can add to your Copilot SDK application. Each guide includes examples in supported languages (TypeScript, Python, Go, .NET, Java, and Rust) where available.
 
 > **New to the SDK?** Start with the [Getting Started tutorial](../getting-started.md) first, then come back here to add more capabilities.
 

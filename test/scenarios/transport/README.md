@@ -23,7 +23,7 @@ Minimal samples organized by **transport model** — the wire protocol used to c
 
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Copilot CLI** — required for stdio and tcp (set `COPILOT_CLI_PATH`)
-- Language toolchains as needed (Node.js 20+, Python 3.10+, Go 1.24+, .NET 8+, Rust 1.94+)
+- Language toolchains as needed (Node.js 20+, Python 3.11+, Go 1.24+, .NET 8+, Rust 1.94+)
 
 ## Verification
 
