@@ -23,7 +23,7 @@ class TestRpc:
 
             result = await client.rpc.ping(PingRequest(message="typed rpc test"))
             assert result.message == "pong: typed rpc test"
-            assert isinstance(result.timestamp, (int, float))
+            assert result.timestamp is not None
 
             await client.stop()
         finally:

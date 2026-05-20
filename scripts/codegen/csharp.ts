@@ -217,6 +217,21 @@ function toPascalCase(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+function stripDurationMillisecondsSuffix(name: string): string {
+    if (name.length > 2 && name.endsWith("Ms") && /[a-z]/.test(name.charAt(name.length - 3))) {
+        return name.slice(0, -2);
+    }
+    return name;
+}
+
+function toCSharpPropertyName(propName: string, schema: JSONSchema7): string {
+    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(propName) : propName);
+}
+
+function isSecondsDurationPropertyName(propName: string | undefined): boolean {
+    return propName !== undefined && /seconds$/i.test(propName);
+}
+
 function typeToClassName(typeName: string): string {
     return splitCSharpIdentifierParts(typeName).map(toPascalCasePart).join("");
 }
@@ -293,11 +308,11 @@ function localRequestVariableName(paramEntries: [string, JSONSchema7Definition][
     return hasRequestParameter || paramEntries.some(([name]) => name === "request") ? "rpcRequest" : "request";
 }
 
-function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>): string {
+function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>, propName?: string): string {
     const nullableInner = getNullableInner(schema);
     if (nullableInner) {
         // Pass required=true to get the base type, then add "?" for nullable
-        return schemaTypeToCSharp(nullableInner, true, knownTypes) + "?";
+        return schemaTypeToCSharp(nullableInner, true, knownTypes, propName) + "?";
     }
     if (schema.$ref) {
         const refName = schema.$ref.split("/").pop()!;
@@ -318,7 +333,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             return "string?";
         }
         if (nonNullTypes.length === 1 && (nonNullTypes[0] === "number" || nonNullTypes[0] === "integer")) {
-            if (format === "duration") {
+            if (format === "duration" && !isSecondsDurationPropertyName(propName)) {
                 return "TimeSpan?";
             }
             if (nonNullTypes[0] === "integer") {
@@ -334,7 +349,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
         return required ? "string" : "string?";
     }
     if (type === "number" || type === "integer") {
-        if (format === "duration") {
+        if (format === "duration" && !isSecondsDurationPropertyName(propName)) {
             return required ? "TimeSpan" : "TimeSpan?";
         }
         if (type === "integer") {
@@ -366,7 +381,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
  * Emit C# data-annotation attributes for a JSON Schema property.
  * Returns an array of attribute lines (without trailing newlines).
  */
-function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
+function emitDataAnnotations(schema: JSONSchema7, indent: string, csharpType: string): string[] {
     const attrs: string[] = [];
     const format = schema.format;
 
@@ -376,9 +391,12 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Uri)]`);
     }
 
-    // [StringSyntax(StringSyntaxAttribute.Regex)] for format: "regex"
+    // [StringSyntax(StringSyntaxAttribute.Regex)] and [RegularExpression] for format: "regex"
     if (format === "regex") {
         attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Regex)]`);
+        if (typeof schema.pattern === "string") {
+            attrs.push(`${indent}[RegularExpression("${escapeCSharpStringLiteral(schema.pattern)}")]`);
+        }
     }
 
     // [Base64String] for base64-encoded string properties
@@ -386,31 +404,9 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         attrs.push(`${indent}[Base64String]`);
     }
 
-    // [Range] for minimum/maximum
-    const hasMin = typeof schema.minimum === "number";
-    const hasMax = typeof schema.maximum === "number";
-    if (hasMin || hasMax) {
-        const namedArgs: string[] = [];
-        if (schema.exclusiveMinimum === true) namedArgs.push("MinimumIsExclusive = true");
-        if (schema.exclusiveMaximum === true) namedArgs.push("MaximumIsExclusive = true");
-        const namedSuffix = namedArgs.length > 0 ? `, ${namedArgs.join(", ")}` : "";
-        if (schema.type === "integer") {
-            // Use Range(double, double) for AOT/trimming compatibility.
-            // The Range(Type, string, string) overload uses TypeConverter which triggers IL2026.
-            const min = hasMin ? String(schema.minimum) : "long.MinValue";
-            const max = hasMax ? String(schema.maximum) : "long.MaxValue";
-            attrs.push(`${indent}[Range((double)${min}, (double)${max}${namedSuffix})]`);
-        } else {
-            const min = hasMin ? String(schema.minimum) : "double.MinValue";
-            const max = hasMax ? String(schema.maximum) : "double.MaxValue";
-            attrs.push(`${indent}[Range(${min}, ${max}${namedSuffix})]`);
-        }
-    }
-
-    // [RegularExpression] for pattern
-    if (typeof schema.pattern === "string") {
-        const escaped = schema.pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        attrs.push(`${indent}[RegularExpression("${escaped}")]`);
+    // [RegularExpression] for pattern constraints on non-regex-format properties
+    if (format !== "regex" && typeof schema.pattern === "string") {
+        attrs.push(`${indent}[RegularExpression("${escapeCSharpStringLiteral(schema.pattern)}")]`);
     }
 
     // [MinLength] / [MaxLength] for string constraints
@@ -432,13 +428,19 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
 /**
  * Returns true when a TimeSpan-typed property needs a [JsonConverter] attribute.
  *
- * NOTE: The runtime schema uses `format: "duration"` on numeric (integer/number) fields
- * to mean "a duration value expressed in milliseconds". This differs from the JSON Schema
- * spec, where `format: "duration"` denotes an ISO 8601 duration string (e.g. "PT1H30M").
- * The generator and runtime agree on this convention, so we map these to TimeSpan with a
- * milliseconds-based JSON converter rather than expecting ISO 8601 strings.
+ * NOTE: The runtime schema generally uses `format: "duration"` on numeric (integer/number)
+ * fields to mean "a duration value expressed in milliseconds". This differs from the JSON
+ * Schema spec, where `format: "duration"` denotes an ISO 8601 duration string (e.g.
+ * "PT1H30M"). The generator and runtime agree on this convention, so we map millisecond
+ * fields to TimeSpan with a milliseconds-based JSON converter rather than expecting ISO
+ * 8601 strings. Seconds-suffixed fields stay numeric because their wire value is seconds.
  */
 function isDurationProperty(schema: JSONSchema7): boolean {
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        return isDurationProperty(nullableInner);
+    }
+
     if (schema.format === "duration") {
         const t = schema.type;
         if (t === "number" || t === "integer") return true;
@@ -448,6 +450,10 @@ function isDurationProperty(schema: JSONSchema7): boolean {
         }
     }
     return false;
+}
+
+function isMillisecondsDurationProperty(propName: string | undefined, schema: JSONSchema7): boolean {
+    return isDurationProperty(schema) && !isSecondsDurationPropertyName(propName);
 }
 
 
@@ -734,14 +740,14 @@ function generateFlattenedBooleanDiscriminatedClass(
     const propertyEntries = Array.from(flattenedProperties.entries()).sort(([a], [b]) => a.localeCompare(b));
     for (const [propName, info] of propertyEntries) {
         const isReq = info.variantCount === variants.length && info.requiredCount === variants.length;
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, info.schema);
         const csharpType = resolver(info.schema, renamedBase, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push("");
         lines.push(...xmlDocPropertyComment(info.schema.description, propName, "    "));
-        lines.push(...emitDataAnnotations(info.schema, "    "));
+        lines.push(...emitDataAnnotations(info.schema, "    ", csharpType));
         if (isSchemaDeprecated(info.schema)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(info.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isMillisecondsDurationProperty(propName, info.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -837,13 +843,14 @@ function generateDerivedClass(
             if (propName === discriminatorProperty) continue;
 
             const isReq = required.has(propName);
-            const csharpName = toPascalCase(propName);
-            const csharpType = propertyResolver(propSchema as JSONSchema7, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+            const prop = propSchema as JSONSchema7;
+            const csharpName = toCSharpPropertyName(propName, prop);
+            const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
-            lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
-            lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-            if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
-            if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+            lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+            lines.push(...emitDataAnnotations(prop, "    ", csharpType));
+            if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
+            if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
             lines.push(`    [JsonPropertyName("${propName}")]`);
             const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -1062,13 +1069,13 @@ function generateNestedClass(
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, prop);
         const csharpType = resolveSessionPropertyType(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -1180,7 +1187,7 @@ function resolveSessionPropertyType(
         );
         return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
-    return schemaTypeToCSharp(propSchema, isRequired, knownTypes);
+    return schemaTypeToCSharp(propSchema, isRequired, knownTypes, propName);
 }
 
 function generateDataClass(variant: EventVariant, knownTypes: Map<string, string>, nestedClasses: Map<string, string>, enumOutput: string[]): string {
@@ -1204,13 +1211,14 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const isReq = required.has(propName);
-        const csharpName = toPascalCase(propName);
-        const csharpType = resolveSessionPropertyType(propSchema as JSONSchema7, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+        const prop = propSchema as JSONSchema7;
+        const csharpName = toCSharpPropertyName(propName, prop);
+        const csharpType = resolveSessionPropertyType(prop, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
-        lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
-        lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-        if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
+        if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
+        if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
@@ -1227,7 +1235,7 @@ function emitSessionEventEnvelopeProperty(
     nestedClasses: Map<string, string>,
     enumOutput: string[]
 ): string[] {
-    const csharpName = toPascalCase(property.name);
+    const csharpName = toCSharpPropertyName(property.name, property.schema);
     const csharpType = resolveSessionPropertyType(
         property.schema,
         "SessionEvent",
@@ -1240,9 +1248,9 @@ function emitSessionEventEnvelopeProperty(
     const lines: string[] = [];
 
     lines.push(...xmlDocPropertyComment(property.schema.description, property.name, "    "));
-    lines.push(...emitDataAnnotations(property.schema, "    "));
+    lines.push(...emitDataAnnotations(property.schema, "    ", csharpType));
     if (isSchemaDeprecated(property.schema)) pushObsoleteAttributes(lines, "    ");
-    if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+    if (isMillisecondsDurationProperty(property.name, property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
     if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
     lines.push(`    [JsonPropertyName("${property.name}")]`);
     lines.push(`    public ${csharpType} ${csharpName} { get; set; }`, "");
@@ -1536,7 +1544,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         const valueType = resolveRpcType(vs, true, parentClassName, `${propName}Value`, classes);
         return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
-    return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes);
+    return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes, propName);
 }
 
 function emitRpcClass(
@@ -1589,13 +1597,13 @@ function emitRpcClass(
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = requiredSet.has(propName);
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, prop);
         const csharpType = resolveRpcType(prop, isReq, className, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
         let defaultVal = "";
@@ -1788,11 +1796,14 @@ function emitServerInstanceMethod(
         if (typeof pSchema !== "object") continue;
         const isReq = requiredSet.has(pName);
         const jsonSchema = pSchema as JSONSchema7;
+        const csharpName = requestClassName
+            ? toCSharpPropertyName(pName, jsonSchema)
+            : toPascalCase(pName);
         const csType = requestClassName
-            ? resolveRpcType(jsonSchema, isReq, requestClassName, toPascalCase(pName), classes)
-            : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
+            ? resolveRpcType(jsonSchema, isReq, requestClassName, csharpName, classes)
+            : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes, csharpName);
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+        bodyAssignments.push(`${csharpName} = ${pName}`);
         if (requiresArgumentNullCheck(csType, isReq)) {
             argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
         }
@@ -1936,16 +1947,19 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     if (useRequestParameter) {
         sigParams.push(`${requestClassName}? request = null`);
         parameterDescriptions.push({ name: "request", description: rpcParamsDescription(method, effectiveParams) });
-        for (const [pName] of paramEntries) {
-            bodyAssignments.push(`${toPascalCase(pName)} = request?.${toPascalCase(pName)}`);
+        for (const [pName, pSchema] of paramEntries) {
+            if (typeof pSchema !== "object") continue;
+            const csharpName = toCSharpPropertyName(pName, pSchema as JSONSchema7);
+            bodyAssignments.push(`${csharpName} = request?.${csharpName}`);
         }
     } else {
         for (const [pName, pSchema] of paramEntries) {
             if (typeof pSchema !== "object") continue;
             const isReq = requiredSet.has(pName);
-            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+            const csharpName = toCSharpPropertyName(pName, pSchema as JSONSchema7);
+            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, csharpName, classes);
             sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
+            bodyAssignments.push(`${csharpName} = ${pName}`);
             if (requiresArgumentNullCheck(csType, isReq)) {
                 argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
             }

@@ -128,7 +128,7 @@ Create a new conversation session.
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
 
-##### `ping(message?: string): Promise<{ message: string; timestamp: number }>`
+##### `ping(message?: string): Promise<{ message: string; timestamp: string }>`
 
 Ping the server to check connectivity.
 

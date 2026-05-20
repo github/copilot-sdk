@@ -103,9 +103,10 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             },
         });
 
+        const long expectedRetryAfter = 1;
         var requestedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchRequestedEvent>(
             session,
-            evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == 1,
+            evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == expectedRetryAfter,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "auto_mode_switch.requested event");
         var completedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchCompletedEvent>(
@@ -137,7 +138,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var requestedEvent = await requestedEventTask;
         Assert.Equal(request.ErrorCode, requestedEvent.Data.ErrorCode);
-        Assert.Equal(request.RetryAfterSeconds, requestedEvent.Data.RetryAfterSeconds);
+        Assert.Equal(expectedRetryAfter, requestedEvent.Data.RetryAfterSeconds);
 
         var completedEvent = await completedEventTask;
         Assert.Equal(AutoModeSwitchResponse.Yes, completedEvent.Data.Response);

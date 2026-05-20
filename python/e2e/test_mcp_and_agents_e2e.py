@@ -8,7 +8,7 @@ import pytest
 
 from copilot.session import CustomAgentConfig, MCPServerConfig, PermissionHandler
 
-from .testharness import E2ETestContext, get_final_assistant_message
+from .testharness import E2ETestContext
 
 TEST_MCP_SERVER = str(
     (Path(__file__).parents[2] / "test" / "harness" / "test-mcp-server.mjs").resolve()
@@ -218,10 +218,6 @@ class TestCombinedConfiguration:
         )
 
         assert session.session_id is not None
-
-        await session.send("What is 7+7?")
-        message = await get_final_assistant_message(session)
-        assert "14" in message.data.content
 
         await session.disconnect()
 

@@ -199,7 +199,7 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 		if !strings.EqualFold(rewindData.UpToEventID, targetEventID) {
 			t.Fatalf("Expected rewind to target %q, got %+v", targetEventID, rewindData)
 		}
-		if rewindData.EventsRemoved != float64(truncateResult.EventsRemoved) {
+		if rewindData.EventsRemoved != truncateResult.EventsRemoved {
 			t.Fatalf("Expected rewind count %d, got %+v", truncateResult.EventsRemoved, rewindData)
 		}
 

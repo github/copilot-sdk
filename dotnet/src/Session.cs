@@ -1427,7 +1427,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(message);
         ThrowIfDisposed();
 
-        await Rpc.LogAsync(message, level, ephemeral, url, cancellationToken);
+        await Rpc.LogAsync(message, level, ephemeral: ephemeral, url: url, cancellationToken: cancellationToken);
     }
 
     /// <summary>

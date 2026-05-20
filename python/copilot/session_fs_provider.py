@@ -287,13 +287,11 @@ class _SessionFsAdapter:
                 rows=[],
                 rows_affected=0,
             )
-        rowid = result.last_insert_rowid
-        wire_rowid = float(rowid) if rowid is not None else None
         return _GeneratedSqliteQueryResult(
             columns=result.columns,
             rows=result.rows,
             rows_affected=result.rows_affected,
-            last_insert_rowid=wire_rowid,
+            last_insert_rowid=result.last_insert_rowid,
         )
 
     async def sqlite_exists(self, params: Any) -> SessionFSSqliteExistsResult:

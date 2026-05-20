@@ -393,7 +393,10 @@ async fn should_short_circuit_permission_handler_when_set_approve_all_enabled() 
                 let set_result = session
                     .rpc()
                     .permissions()
-                    .set_approve_all(PermissionsSetApproveAllRequest { enabled: true })
+                    .set_approve_all(PermissionsSetApproveAllRequest {
+                        enabled: true,
+                        source: None,
+                    })
                     .await
                     .expect("set approve all");
                 assert!(set_result.success);
@@ -420,7 +423,10 @@ async fn should_short_circuit_permission_handler_when_set_approve_all_enabled() 
                 let reset_result = session
                     .rpc()
                     .permissions()
-                    .set_approve_all(PermissionsSetApproveAllRequest { enabled: false })
+                    .set_approve_all(PermissionsSetApproveAllRequest {
+                        enabled: false,
+                        source: None,
+                    })
                     .await
                     .expect("reset approve all");
                 assert!(reset_result.success);

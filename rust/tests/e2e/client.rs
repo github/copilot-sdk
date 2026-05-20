@@ -17,7 +17,7 @@ async fn should_start_ping_and_stop_stdio_client() {
 
             let response = client.ping(Some("hello from rust")).await.expect("ping");
             assert_eq!(response.message, "pong: hello from rust");
-            assert!(response.timestamp > 0);
+            assert!(!response.timestamp.is_empty());
 
             client.stop().await.expect("stop client");
             assert_eq!(client.state(), ConnectionState::Disconnected);

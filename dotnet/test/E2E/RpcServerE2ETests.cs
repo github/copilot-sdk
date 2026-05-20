@@ -45,7 +45,7 @@ public class RpcServerE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var result = await Client.Rpc.PingAsync(message: "typed rpc test");
 
         Assert.Equal("pong: typed rpc test", result.Message);
-        Assert.True(result.Timestamp >= 0);
+        Assert.NotEqual(default, result.Timestamp);
     }
 
     [Fact]

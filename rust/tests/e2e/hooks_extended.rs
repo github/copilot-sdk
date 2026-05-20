@@ -522,10 +522,16 @@ impl SessionHooks for RecordingHooks {
         input: PostToolUseInput,
         _ctx: HookContext,
     ) -> Option<PostToolUseOutput> {
-        let output = (input.tool_name == "report_intent").then(|| PostToolUseOutput {
-            modified_result: Some(json!("modified by post hook")),
-            suppress_output: Some(false),
-            ..PostToolUseOutput::default()
+        let output = (self.post_tool.is_some() && input.tool_name == "report_intent").then(|| {
+            PostToolUseOutput {
+                modified_result: Some(json!({
+                    "textResultForLlm": "modified by post hook",
+                    "resultType": "success",
+                    "toolTelemetry": {},
+                })),
+                suppress_output: Some(false),
+                ..PostToolUseOutput::default()
+            }
         });
         if let Some(tx) = &self.post_tool {
             let _ = tx.send(input);

@@ -215,7 +215,7 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                                 .typed_data::<AutoModeSwitchRequestedData>()
                                 .is_some_and(|data| {
                                     data.error_code.as_deref() == Some("user_weekly_rate_limited")
-                                        && data.retry_after_seconds == Some(1.0)
+                                        && data.retry_after_seconds == Some(1)
                                 })
                     },
                 ));
@@ -265,7 +265,10 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                     .typed_data::<AutoModeSwitchRequestedData>()
                     .expect("typed requested event");
                 assert_eq!(requested_data.error_code, error_code);
-                assert_eq!(requested_data.retry_after_seconds, retry_after_seconds);
+                assert_eq!(
+                    requested_data.retry_after_seconds.map(|value| value as f64),
+                    retry_after_seconds
+                );
 
                 let completed = completed_event.await.expect("completed task");
                 let completed_data = completed

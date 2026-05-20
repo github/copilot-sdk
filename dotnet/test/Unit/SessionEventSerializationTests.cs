@@ -85,7 +85,7 @@ public class SessionEventSerializationTests
                 {
                     ShutdownType = ShutdownType.Routine,
                     TotalPremiumRequests = 1,
-                    TotalApiDurationMs = TimeSpan.FromMilliseconds(100),
+                    TotalApiDuration = TimeSpan.FromMilliseconds(100),
                     SessionStartTime = 1773609948932,
                     CodeChanges = new ShutdownCodeChanges
                     {

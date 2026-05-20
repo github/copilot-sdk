@@ -95,6 +95,22 @@ export interface SessionFsProvider {
     sqlite?: SessionFsSqliteProvider;
 }
 
+function normalizeSqliteParams(
+    params?: Record<string, string | number | null | undefined>
+): Record<string, string | number | null> | undefined {
+    if (!params) {
+        return undefined;
+    }
+
+    const normalized: Record<string, string | number | null> = {};
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) {
+            normalized[key] = value;
+        }
+    }
+    return normalized;
+}
+
 /**
  * Wraps a {@link SessionFsProvider} into the {@link SessionFsHandler}
  * interface expected by the SDK, converting thrown errors into
@@ -196,7 +212,11 @@ export function createSessionFsAdapter(provider: SessionFsProvider): SessionFsHa
             if (!provider.sqlite) {
                 throw new Error("SQLite is not supported by this provider");
             }
-            const result = await provider.sqlite.query(queryType, query, bindParams);
+            const result = await provider.sqlite.query(
+                queryType,
+                query,
+                normalizeSqliteParams(bindParams)
+            );
             return result ?? { rows: [], columns: [], rowsAffected: 0 };
         },
         sqliteExists: async () => {

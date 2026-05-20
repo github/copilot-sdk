@@ -437,7 +437,7 @@ pub struct SessionStartData {
     /// ISO 8601 timestamp when the session was created
     pub start_time: String,
     /// Schema version number for the session event format
-    pub version: f64,
+    pub version: i64,
 }
 
 /// Session event "session.resume". Session resume metadata including current context and event count
@@ -454,7 +454,7 @@ pub struct SessionResumeData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
     /// Total number of persisted events in the session at the time of resume
-    pub event_count: f64,
+    pub event_count: i64,
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -504,7 +504,7 @@ pub struct SessionErrorData {
     pub stack: Option<String>,
     /// HTTP status code from the upstream request, if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status_code: Option<i64>,
+    pub status_code: Option<i32>,
     /// Optional URL associated with this error that the user can open in a browser
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
@@ -679,21 +679,21 @@ pub struct SessionHandoffData {
 #[serde(rename_all = "camelCase")]
 pub struct SessionTruncationData {
     /// Number of messages removed by truncation
-    pub messages_removed_during_truncation: f64,
+    pub messages_removed_during_truncation: i64,
     /// Identifier of the component that performed truncation (e.g., "BasicTruncator")
     pub performed_by: String,
     /// Number of conversation messages after truncation
-    pub post_truncation_messages_length: f64,
+    pub post_truncation_messages_length: i64,
     /// Total tokens in conversation messages after truncation
-    pub post_truncation_tokens_in_messages: f64,
+    pub post_truncation_tokens_in_messages: i64,
     /// Number of conversation messages before truncation
-    pub pre_truncation_messages_length: f64,
+    pub pre_truncation_messages_length: i64,
     /// Total tokens in conversation messages before truncation
-    pub pre_truncation_tokens_in_messages: f64,
+    pub pre_truncation_tokens_in_messages: i64,
     /// Maximum token count for the model's context window
-    pub token_limit: f64,
+    pub token_limit: i64,
     /// Number of tokens removed by truncation
-    pub tokens_removed_during_truncation: f64,
+    pub tokens_removed_during_truncation: i64,
 }
 
 /// Session event "session.snapshot_rewind". Session rewind details including target event and count of removed events
@@ -701,7 +701,7 @@ pub struct SessionTruncationData {
 #[serde(rename_all = "camelCase")]
 pub struct SessionSnapshotRewindData {
     /// Number of events that were removed by the rewind
-    pub events_removed: f64,
+    pub events_removed: i64,
     /// Event ID that was rewound to; this event and all after it were removed
     pub up_to_event_id: String,
 }
@@ -713,9 +713,9 @@ pub struct ShutdownCodeChanges {
     /// List of file paths that were modified during the session
     pub files_modified: Vec<String>,
     /// Total number of lines added during the session
-    pub lines_added: f64,
+    pub lines_added: i64,
     /// Total number of lines removed during the session
-    pub lines_removed: f64,
+    pub lines_removed: i64,
 }
 
 /// Request count and cost metrics
@@ -725,7 +725,7 @@ pub struct ShutdownModelMetricRequests {
     /// Cumulative cost multiplier for requests to this model
     pub cost: f64,
     /// Total number of API requests made to this model
-    pub count: f64,
+    pub count: i64,
 }
 
 /// Schema for the `ShutdownModelMetricTokenDetail` type.
@@ -733,7 +733,7 @@ pub struct ShutdownModelMetricRequests {
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetricTokenDetail {
     /// Accumulated token count for this token type
-    pub token_count: f64,
+    pub token_count: i64,
 }
 
 /// Token usage breakdown
@@ -741,16 +741,16 @@ pub struct ShutdownModelMetricTokenDetail {
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetricUsage {
     /// Total tokens read from prompt cache across all requests
-    pub cache_read_tokens: f64,
+    pub cache_read_tokens: i64,
     /// Total tokens written to prompt cache across all requests
-    pub cache_write_tokens: f64,
+    pub cache_write_tokens: i64,
     /// Total input tokens consumed across all requests to this model
-    pub input_tokens: f64,
+    pub input_tokens: i64,
     /// Total output tokens produced across all requests to this model
-    pub output_tokens: f64,
+    pub output_tokens: i64,
     /// Total reasoning tokens produced across all requests to this model
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning_tokens: Option<f64>,
+    pub reasoning_tokens: Option<i64>,
 }
 
 /// Schema for the `ShutdownModelMetric` type.
@@ -774,7 +774,7 @@ pub struct ShutdownModelMetric {
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownTokenDetail {
     /// Accumulated token count for this token type
-    pub token_count: f64,
+    pub token_count: i64,
 }
 
 /// Session event "session.shutdown". Session termination metrics including usage statistics, code changes, and shutdown reason
@@ -785,33 +785,33 @@ pub struct SessionShutdownData {
     pub code_changes: ShutdownCodeChanges,
     /// Non-system message token count at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_tokens: Option<f64>,
+    pub conversation_tokens: Option<i64>,
     /// Model that was selected at the time of shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_model: Option<String>,
     /// Total tokens in context window at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub current_tokens: Option<f64>,
+    pub current_tokens: Option<i64>,
     /// Error description when shutdownType is "error"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_reason: Option<String>,
     /// Per-model usage breakdown, keyed by model identifier
     pub model_metrics: HashMap<String, ShutdownModelMetric>,
     /// Unix timestamp (milliseconds) when the session started
-    pub session_start_time: f64,
+    pub session_start_time: i64,
     /// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
     pub shutdown_type: ShutdownType,
     /// System message token count at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub system_tokens: Option<f64>,
+    pub system_tokens: Option<i64>,
     /// Session-wide per-token-type accumulated token counts
     #[serde(default)]
     pub token_details: HashMap<String, ShutdownTokenDetail>,
     /// Tool definitions token count at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_definitions_tokens: Option<f64>,
+    pub tool_definitions_tokens: Option<i64>,
     /// Cumulative time spent in API calls during the session, in milliseconds
-    pub total_api_duration_ms: f64,
+    pub total_api_duration_ms: i64,
     /// Session-wide accumulated nano-AI units cost
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_nano_aiu: Option<f64>,
@@ -854,22 +854,22 @@ pub struct SessionContextChangedData {
 pub struct SessionUsageInfoData {
     /// Token count from non-system messages (user, assistant, tool)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_tokens: Option<f64>,
+    pub conversation_tokens: Option<i64>,
     /// Current number of tokens in the context window
-    pub current_tokens: f64,
+    pub current_tokens: i64,
     /// Whether this is the first usage_info event emitted in this session
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_initial: Option<bool>,
     /// Current number of messages in the conversation
-    pub messages_length: f64,
+    pub messages_length: i64,
     /// Token count from system message(s)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub system_tokens: Option<f64>,
+    pub system_tokens: Option<i64>,
     /// Maximum token count for the model's context window
-    pub token_limit: f64,
+    pub token_limit: i64,
     /// Token count from tool definitions
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_definitions_tokens: Option<f64>,
+    pub tool_definitions_tokens: Option<i64>,
 }
 
 /// Session event "session.compaction_start". Context window breakdown at the start of LLM-powered conversation compaction
@@ -878,13 +878,13 @@ pub struct SessionUsageInfoData {
 pub struct SessionCompactionStartData {
     /// Token count from non-system messages (user, assistant, tool) at compaction start
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_tokens: Option<f64>,
+    pub conversation_tokens: Option<i64>,
     /// Token count from system message(s) at compaction start
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub system_tokens: Option<f64>,
+    pub system_tokens: Option<i64>,
     /// Token count from tool definitions at compaction start
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_definitions_tokens: Option<f64>,
+    pub tool_definitions_tokens: Option<i64>,
 }
 
 /// Token usage detail for a single billing category
@@ -892,11 +892,11 @@ pub struct SessionCompactionStartData {
 #[serde(rename_all = "camelCase")]
 pub struct CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail {
     /// Number of tokens in this billing batch
-    pub batch_size: f64,
+    pub batch_size: i64,
     /// Cost per batch of tokens
-    pub cost_per_batch: f64,
+    pub cost_per_batch: i64,
     /// Total token count for this entry
-    pub token_count: f64,
+    pub token_count: i64,
     /// Token category (e.g., "input", "output")
     pub token_type: String,
 }
@@ -917,25 +917,25 @@ pub struct CompactionCompleteCompactionTokensUsedCopilotUsage {
 pub struct CompactionCompleteCompactionTokensUsed {
     /// Cached input tokens reused in the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_read_tokens: Option<f64>,
+    pub cache_read_tokens: Option<i64>,
     /// Tokens written to prompt cache in the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_write_tokens: Option<f64>,
+    pub cache_write_tokens: Option<i64>,
     /// Per-request cost and usage data from the CAPI copilot_usage response field
     #[serde(skip_serializing_if = "Option::is_none")]
     pub copilot_usage: Option<CompactionCompleteCompactionTokensUsedCopilotUsage>,
     /// Duration of the compaction LLM call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration: Option<f64>,
+    pub duration: Option<i64>,
     /// Input tokens consumed by the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_tokens: Option<f64>,
+    pub input_tokens: Option<i64>,
     /// Model identifier used for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Output tokens produced by the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_tokens: Option<f64>,
+    pub output_tokens: Option<i64>,
 }
 
 /// Session event "session.compaction_complete". Conversation compaction results including success status, metrics, and optional error details
@@ -944,7 +944,7 @@ pub struct CompactionCompleteCompactionTokensUsed {
 pub struct SessionCompactionCompleteData {
     /// Checkpoint snapshot number created for recovery
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub checkpoint_number: Option<f64>,
+    pub checkpoint_number: Option<i64>,
     /// File path where the checkpoint was stored
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checkpoint_path: Option<String>,
@@ -953,22 +953,22 @@ pub struct SessionCompactionCompleteData {
     pub compaction_tokens_used: Option<CompactionCompleteCompactionTokensUsed>,
     /// Token count from non-system messages (user, assistant, tool) after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub conversation_tokens: Option<f64>,
+    pub conversation_tokens: Option<i64>,
     /// Error message if compaction failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
     /// Number of messages removed during compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub messages_removed: Option<f64>,
+    pub messages_removed: Option<i64>,
     /// Total tokens in conversation after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub post_compaction_tokens: Option<f64>,
+    pub post_compaction_tokens: Option<i64>,
     /// Number of messages before compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pre_compaction_messages_length: Option<f64>,
+    pub pre_compaction_messages_length: Option<i64>,
     /// Total tokens in conversation before compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub pre_compaction_tokens: Option<f64>,
+    pub pre_compaction_tokens: Option<i64>,
     /// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<RequestId>,
@@ -979,13 +979,13 @@ pub struct SessionCompactionCompleteData {
     pub summary_content: Option<String>,
     /// Token count from system message(s) after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub system_tokens: Option<f64>,
+    pub system_tokens: Option<i64>,
     /// Number of tokens removed during compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tokens_removed: Option<f64>,
+    pub tokens_removed: Option<i64>,
     /// Token count from tool definitions after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_definitions_tokens: Option<f64>,
+    pub tool_definitions_tokens: Option<i64>,
 }
 
 /// Session event "session.task_complete". Task completion notification with summary from the agent
@@ -1018,7 +1018,7 @@ pub struct UserMessageData {
     /// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_autopilot_continuation: Option<bool>,
-    /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
+    /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
     #[serde(default)]
     pub native_document_path_fallback_paths: Vec<String>,
     /// Parent agent task ID for background telemetry correlated to this user turn
@@ -1084,7 +1084,7 @@ pub struct AssistantReasoningDeltaData {
 #[serde(rename_all = "camelCase")]
 pub struct AssistantStreamingDeltaData {
     /// Cumulative total bytes received from the streaming response so far
-    pub total_response_size_bytes: f64,
+    pub total_response_size_bytes: i64,
 }
 
 /// A tool invocation request from the assistant
@@ -1140,7 +1140,7 @@ pub struct AssistantMessageData {
     pub model: Option<String>,
     /// Actual output token count from the API response (completion_tokens), used for accurate token accounting
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_tokens: Option<f64>,
+    pub output_tokens: Option<i64>,
     /// Tool call ID of the parent tool invocation when this event originates from a sub-agent
     #[doc(hidden)]
     #[deprecated]
@@ -1205,11 +1205,11 @@ pub struct AssistantTurnEndData {
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageCopilotUsageTokenDetail {
     /// Number of tokens in this billing batch
-    pub batch_size: f64,
+    pub batch_size: i64,
     /// Cost per batch of tokens
-    pub cost_per_batch: f64,
+    pub cost_per_batch: i64,
     /// Total token count for this entry
-    pub token_count: f64,
+    pub token_count: i64,
     /// Token category (e.g., "input", "output")
     pub token_type: String,
 }
@@ -1229,14 +1229,14 @@ pub struct AssistantUsageCopilotUsage {
 #[serde(rename_all = "camelCase")]
 pub struct AssistantUsageQuotaSnapshot {
     /// Total requests allowed by the entitlement
-    pub entitlement_requests: f64,
+    pub entitlement_requests: i64,
     /// Whether the user has an unlimited usage entitlement
     pub is_unlimited_entitlement: bool,
     /// Number of requests over the entitlement limit
     pub overage: f64,
     /// Whether overage is allowed when quota is exhausted
     pub overage_allowed_with_exhausted_quota: bool,
-    /// Percentage of quota remaining (0.0 to 1.0)
+    /// Percentage of quota remaining (0 to 100)
     pub remaining_percentage: f64,
     /// Date when the quota resets
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1244,7 +1244,7 @@ pub struct AssistantUsageQuotaSnapshot {
     /// Whether usage is still permitted after quota exhaustion
     pub usage_allowed_with_exhausted_quota: bool,
     /// Number of requests already consumed
-    pub used_requests: f64,
+    pub used_requests: i64,
 }
 
 /// Session event "assistant.usage". LLM API call usage metrics including tokens, costs, quotas, and billing information
@@ -1259,10 +1259,10 @@ pub struct AssistantUsageData {
     pub api_endpoint: Option<AssistantUsageApiEndpoint>,
     /// Number of tokens read from prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_read_tokens: Option<f64>,
+    pub cache_read_tokens: Option<i64>,
     /// Number of tokens written to prompt cache
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_write_tokens: Option<f64>,
+    pub cache_write_tokens: Option<i64>,
     /// Per-request cost and usage data from the CAPI copilot_usage response field
     #[serde(skip_serializing_if = "Option::is_none")]
     pub copilot_usage: Option<AssistantUsageCopilotUsage>,
@@ -1271,13 +1271,13 @@ pub struct AssistantUsageData {
     pub cost: Option<f64>,
     /// Duration of the API call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration: Option<f64>,
+    pub duration: Option<i64>,
     /// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initiator: Option<String>,
     /// Number of input tokens consumed
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_tokens: Option<f64>,
+    pub input_tokens: Option<i64>,
     /// Average inter-token latency in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inter_token_latency_ms: Option<f64>,
@@ -1285,7 +1285,7 @@ pub struct AssistantUsageData {
     pub model: String,
     /// Number of output tokens produced
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_tokens: Option<f64>,
+    pub output_tokens: Option<i64>,
     /// Parent tool call ID when this usage originates from a sub-agent
     #[doc(hidden)]
     #[deprecated]
@@ -1302,10 +1302,10 @@ pub struct AssistantUsageData {
     pub reasoning_effort: Option<String>,
     /// Number of output tokens used for reasoning (e.g., chain-of-thought)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reasoning_tokens: Option<f64>,
+    pub reasoning_tokens: Option<i64>,
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ttft_ms: Option<f64>,
+    pub ttft_ms: Option<i64>,
 }
 
 /// Session event "model.call_failure". Failed LLM API call metadata for telemetry
@@ -1317,7 +1317,7 @@ pub struct ModelCallFailureData {
     pub api_call_id: Option<String>,
     /// Duration of the failed API call in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_ms: Option<f64>,
+    pub duration_ms: Option<i64>,
     /// Raw provider/runtime error message for restricted telemetry
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
@@ -1334,7 +1334,7 @@ pub struct ModelCallFailureData {
     pub source: ModelCallFailureSource,
     /// HTTP status code from the failed request
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub status_code: Option<i64>,
+    pub status_code: Option<i32>,
 }
 
 /// Session event "abort". Turn abort information including the reason for termination
@@ -1435,7 +1435,7 @@ pub struct ToolExecutionCompleteContentTerminal {
     pub cwd: Option<String>,
     /// Process exit code, if the command has completed
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<f64>,
+    pub exit_code: Option<i64>,
     /// Terminal/shell output text
     pub text: String,
     /// Content block type discriminator
@@ -1500,7 +1500,7 @@ pub struct ToolExecutionCompleteContentResourceLink {
     pub name: String,
     /// Size of the resource in bytes
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<f64>,
+    pub size: Option<i64>,
     /// Human-readable display title for the resource
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -1647,7 +1647,7 @@ pub struct SubagentCompletedData {
     pub agent_name: String,
     /// Wall-clock duration of the sub-agent execution in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_ms: Option<f64>,
+    pub duration_ms: Option<i64>,
     /// Model used by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -1655,10 +1655,10 @@ pub struct SubagentCompletedData {
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tokens: Option<f64>,
+    pub total_tokens: Option<i64>,
     /// Total number of tool calls made by the sub-agent
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tool_calls: Option<f64>,
+    pub total_tool_calls: Option<i64>,
 }
 
 /// Session event "subagent.failed". Sub-agent failure details including error message and agent information
@@ -1671,7 +1671,7 @@ pub struct SubagentFailedData {
     pub agent_name: String,
     /// Wall-clock duration of the sub-agent execution in milliseconds
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_ms: Option<f64>,
+    pub duration_ms: Option<i64>,
     /// Error message describing why the sub-agent failed
     pub error: String,
     /// Model used by the sub-agent (if any model calls succeeded before failure)
@@ -1681,10 +1681,10 @@ pub struct SubagentFailedData {
     pub tool_call_id: String,
     /// Total tokens (input + output) consumed before the sub-agent failed
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tokens: Option<f64>,
+    pub total_tokens: Option<i64>,
     /// Total number of tool calls made before the sub-agent failed
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tool_calls: Option<f64>,
+    pub total_tool_calls: Option<i64>,
 }
 
 /// Session event "subagent.selected". Custom agent selection details including name and available tools
@@ -2343,7 +2343,7 @@ pub struct PermissionCancelled {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRule {
-    /// Optional rule argument matched against the request
+    /// Argument value matched against the request, or null when the rule kind has no argument (e.g. 'read', 'write', 'memory').
     pub argument: Option<String>,
     /// The rule kind, such as Shell or GitHubMCP
     pub kind: String,
@@ -2654,7 +2654,7 @@ pub struct AutoModeSwitchRequestedData {
     pub request_id: RequestId,
     /// Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub retry_after_seconds: Option<f64>,
+    pub retry_after_seconds: Option<i64>,
 }
 
 /// Session event "auto_mode_switch.completed". Auto mode switch completion notification

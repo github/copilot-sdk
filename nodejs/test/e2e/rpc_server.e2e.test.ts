@@ -76,7 +76,7 @@ describe("Server-scoped RPC", async () => {
         await client.start();
         const result = await client.ping("typed rpc test");
         expect(result.message).toBe("pong: typed rpc test");
-        expect(result.timestamp).toBeGreaterThanOrEqual(0);
+        expect(Date.parse(result.timestamp)).not.toBeNaN();
     });
 
     it("should call rpc models list with typed result", async () => {

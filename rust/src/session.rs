@@ -545,6 +545,8 @@ impl Session {
             message: message.to_string(),
             level,
             ephemeral: opts.ephemeral,
+            r#type: None,
+            tip: None,
             url: None,
         };
         self.rpc().log(request).await?;

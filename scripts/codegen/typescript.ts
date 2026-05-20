@@ -345,6 +345,7 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
  */`,
         style: { semi: true, singleQuote: false, trailingComma: "all" },
         additionalProperties: false,
+        strictIndexSignatures: true,
     });
 
     const annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
@@ -582,6 +583,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
         bannerComment: "",
         additionalProperties: false,
+        strictIndexSignatures: true,
         unreachableDefinitions: true,
     });
 
