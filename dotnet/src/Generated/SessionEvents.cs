@@ -2945,10 +2945,9 @@ public sealed partial class AutoModeSwitchRequestedData
     public required string RequestId { get; set; }
 
     /// <summary>Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.</summary>
-    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("retryAfterSeconds")]
-    public TimeSpan? RetryAfterSeconds { get; set; }
+    public long? RetryAfterSeconds { get; set; }
 }
 
 /// <summary>Auto mode switch completion notification.</summary>

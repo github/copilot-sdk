@@ -103,7 +103,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             },
         });
 
-        var expectedRetryAfter = TimeSpan.FromMilliseconds(1);
+        const long expectedRetryAfter = 1;
         var requestedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchRequestedEvent>(
             session,
             evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == expectedRetryAfter,

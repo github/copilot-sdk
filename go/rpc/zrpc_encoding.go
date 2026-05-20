@@ -2182,8 +2182,8 @@ func (r *TaskProgress) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	{
-		var value TaskAgentProgress
-		if err := json.Unmarshal(data, &value); err == nil {
+		value, err := unmarshalTaskAgentProgress(data)
+		if err == nil {
 			*r = TaskProgress{TaskAgentProgress: value}
 			return nil
 		}
