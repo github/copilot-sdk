@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using GitHub.Copilot.SDK.Rpc;
+using System.Text.Json;
 
 namespace GitHub.Copilot.SDK;
 
@@ -44,7 +45,7 @@ public interface ISessionFsSqliteProvider
     Task<SessionFsSqliteResult?> QueryAsync(
         SessionFsSqliteQueryType queryType,
         string query,
-        IDictionary<string, object>? bindParams,
+        IDictionary<string, object?>? bindParams,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -287,11 +288,16 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
         try
         {
-            var result = await sqliteProvider.QueryAsync(request.QueryType, request.Query, request.Params, cancellationToken).ConfigureAwait(false);
+            var bindParams = request.Params?.ToDictionary(
+                kvp => kvp.Key,
+                kvp => JsonElementToValue(kvp.Value));
+            var result = await sqliteProvider.QueryAsync(request.QueryType, request.Query, bindParams, cancellationToken).ConfigureAwait(false);
 
             return new SessionFsSqliteQueryResult
             {
-                Rows = result?.Rows ?? [],
+                Rows = result?.Rows?.Select(row => (IDictionary<string, JsonElement>)row.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => JsonSerializer.SerializeToElement(kvp.Value, TypesJsonContext.Default.Object))).ToList() ?? [],
                 Columns = result?.Columns ?? [],
                 RowsAffected = result?.RowsAffected ?? 0,
                 LastInsertRowid = result?.LastInsertRowid,
@@ -329,4 +335,14 @@ public abstract class SessionFsProvider : ISessionFsHandler
             : SessionFsErrorCode.UNKNOWN;
         return new SessionFsError { Code = code, Message = ex.Message };
     }
+
+    private static object? JsonElementToValue(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Null => null,
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        JsonValueKind.String => element.GetString(),
+        JsonValueKind.Number => element.TryGetInt64(out var l) ? l : element.GetDouble(),
+        _ => element.GetRawText(),
+    };
 }

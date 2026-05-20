@@ -5,6 +5,7 @@
 using GitHub.Copilot.SDK.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using RpcPermissionDecisionApproveOnce = GitHub.Copilot.SDK.Rpc.PermissionDecisionApproveOnce;
@@ -141,7 +142,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             var toolResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
-                result: "EXTERNAL_RESUMED_BETA");
+                result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.True(toolResult.Success);
 
             var answer = await TestHelper.GetFinalAssistantMessageAsync(session2, PendingWorkTimeout);
@@ -210,7 +211,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             var resumedResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
-                result: "EXTERNAL_RESUMED_BETA");
+                result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.True(resumedResult.Success);
 
             // continuePendingWork=false may interrupt agent continuation before this response,
@@ -287,11 +288,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             var toolB = toolEvents["pending_lookup_b"];
             var resultB = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolB.Data.RequestId,
-                result: "PARALLEL_B_BETA");
+                result: JsonDocument.Parse("\"PARALLEL_B_BETA\"").RootElement.Clone());
             Assert.True(resultB.Success);
             var resultA = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolA.Data.RequestId,
-                result: "PARALLEL_A_ALPHA");
+                result: JsonDocument.Parse("\"PARALLEL_A_ALPHA\"").RootElement.Clone());
             Assert.True(resultA.Success);
 
             await session2.DisposeAsync();

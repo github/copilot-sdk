@@ -247,7 +247,7 @@ public sealed class Tool
 
     /// <summary>JSON Schema for the tool's input parameters.</summary>
     [JsonPropertyName("parameters")]
-    public IDictionary<string, object>? Parameters { get; set; }
+    public IDictionary<string, JsonElement>? Parameters { get; set; }
 }
 
 /// <summary>Built-in tools available for the requested model, with their parameters and instructions.</summary>
@@ -362,7 +362,7 @@ public sealed class McpConfigList
 {
     /// <summary>All MCP servers from user config, keyed by name.</summary>
     [JsonPropertyName("servers")]
-    public IDictionary<string, object> Servers { get => field ??= new Dictionary<string, object>(); set; }
+    public IDictionary<string, JsonElement> Servers { get => field ??= new Dictionary<string, JsonElement>(); set; }
 }
 
 /// <summary>MCP server name and configuration to add to user configuration.</summary>
@@ -370,7 +370,7 @@ internal sealed class McpConfigAddRequest
 {
     /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
     [JsonPropertyName("config")]
-    public object Config { get; set; } = null!;
+    public JsonElement Config { get; set; }
 
     /// <summary>Unique name for the MCP server.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
@@ -385,7 +385,7 @@ internal sealed class McpConfigUpdateRequest
 {
     /// <summary>MCP server configuration (stdio process or remote HTTP/SSE).</summary>
     [JsonPropertyName("config")]
-    public object Config { get; set; } = null!;
+    public JsonElement Config { get; set; }
 
     /// <summary>Name of the MCP server to update.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
@@ -3936,7 +3936,7 @@ internal sealed class HandlePendingToolCallRequest
 
     /// <summary>Tool call result (string or expanded result object).</summary>
     [JsonPropertyName("result")]
-    public object? Result { get; set; }
+    public JsonElement? Result { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -4353,7 +4353,7 @@ public sealed class UIElicitationResponse
 
     /// <summary>The form values submitted by the user (present when action is 'accept').</summary>
     [JsonPropertyName("content")]
-    public IDictionary<string, object>? Content { get; set; }
+    public IDictionary<string, JsonElement>? Content { get; set; }
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
@@ -4362,7 +4362,7 @@ public sealed class UIElicitationSchema
 {
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
-    public IDictionary<string, object> Properties { get => field ??= new Dictionary<string, object>(); set; }
+    public IDictionary<string, JsonElement> Properties { get => field ??= new Dictionary<string, JsonElement>(); set; }
 
     /// <summary>List of required field names.</summary>
     [JsonPropertyName("required")]
@@ -7108,7 +7108,7 @@ public sealed class SessionFsSqliteQueryResult
 
     /// <summary>For SELECT: array of row objects. For others: empty array.</summary>
     [JsonPropertyName("rows")]
-    public IList<IDictionary<string, object>> Rows { get => field ??= []; set; }
+    public IList<IDictionary<string, JsonElement>> Rows { get => field ??= []; set; }
 
     /// <summary>Number of rows affected (for INSERT/UPDATE/DELETE).</summary>
     [JsonPropertyName("rowsAffected")]
@@ -7120,7 +7120,7 @@ public sealed class SessionFsSqliteQueryRequest
 {
     /// <summary>Optional named bind parameters.</summary>
     [JsonPropertyName("params")]
-    public IDictionary<string, object>? Params { get; set; }
+    public IDictionary<string, JsonElement>? Params { get; set; }
 
     /// <summary>SQL query to execute.</summary>
     [JsonPropertyName("query")]
@@ -10289,10 +10289,9 @@ public sealed class ServerMcpConfigApi
     /// <param name="name">Unique name for the MCP server.</param>
     /// <param name="config">MCP server configuration (stdio process or remote HTTP/SSE).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task AddAsync(string name, object config, CancellationToken cancellationToken = default)
+    public async Task AddAsync(string name, JsonElement config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(name);
-        ArgumentNullException.ThrowIfNull(config);
 
         var request = new McpConfigAddRequest { Name = name, Config = config };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.add", [request], cancellationToken);
@@ -10302,10 +10301,9 @@ public sealed class ServerMcpConfigApi
     /// <param name="name">Name of the MCP server to update.</param>
     /// <param name="config">MCP server configuration (stdio process or remote HTTP/SSE).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    public async Task UpdateAsync(string name, object config, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(string name, JsonElement config, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(name);
-        ArgumentNullException.ThrowIfNull(config);
 
         var request = new McpConfigUpdateRequest { Name = name, Config = config };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.update", [request], cancellationToken);
@@ -11914,7 +11912,7 @@ public sealed class ToolsApi
     /// <param name="error">Error message if the tool call failed.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the external tool call result was handled successfully.</returns>
-    public async Task<HandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, object? result = null, string? error = null, CancellationToken cancellationToken = default)
+    public async Task<HandlePendingToolCallResult> HandlePendingToolCallAsync(string requestId, JsonElement? result = null, string? error = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requestId);
         _session.ThrowIfDisposed();

@@ -407,7 +407,7 @@ public class ToolResultObject
     /// Custom telemetry data associated with the tool execution.
     /// </summary>
     [JsonPropertyName("toolTelemetry")]
-    public IDictionary<string, object>? ToolTelemetry { get; set; }
+    public IDictionary<string, JsonElement>? ToolTelemetry { get; set; }
 
     /// <summary>
     /// Converts the result of an <see cref="AIFunction"/> invocation into a
@@ -519,7 +519,7 @@ public class ToolInvocation
     /// <summary>
     /// Arguments passed to the tool by the language model.
     /// </summary>
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 }
 
 /// <summary>
@@ -1116,7 +1116,7 @@ public class PreToolUseHookInput
     /// Arguments that will be passed to the tool.
     /// </summary>
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 }
 
 /// <summary>
@@ -1198,13 +1198,13 @@ public class PostToolUseHookInput
     /// Arguments that were passed to the tool.
     /// </summary>
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 
     /// <summary>
     /// Result returned by the tool execution.
     /// </summary>
     [JsonPropertyName("toolResult")]
-    public object? ToolResult { get; set; }
+    public JsonElement? ToolResult { get; set; }
 }
 
 /// <summary>
@@ -3186,4 +3186,7 @@ public class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
+[JsonSerializable(typeof(object))]
+[JsonSerializable(typeof(Dictionary<string, object>))]
+[JsonSerializable(typeof(string[]))]
 internal partial class TypesJsonContext : JsonSerializerContext;

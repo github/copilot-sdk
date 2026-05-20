@@ -608,7 +608,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
             Task.FromException(exception);
 
-        Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object>? bindParams, CancellationToken cancellationToken) =>
+        Task<SessionFsSqliteResult?> ISessionFsSqliteProvider.QueryAsync(SessionFsSqliteQueryType queryType, string query, IDictionary<string, object?>? bindParams, CancellationToken cancellationToken) =>
             Task.FromException<SessionFsSqliteResult?>(exception);
 
         Task<bool> ISessionFsSqliteProvider.ExistsAsync(CancellationToken cancellationToken) =>

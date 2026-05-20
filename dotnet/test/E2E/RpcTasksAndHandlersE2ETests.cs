@@ -4,6 +4,7 @@
 
 using GitHub.Copilot.SDK.Rpc;
 using GitHub.Copilot.SDK.Test.Harness;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -143,7 +144,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         var tool = await session.Rpc.Tools.HandlePendingToolCallAsync(
             requestId: "missing-tool-request",
-            result: "tool result");
+            result: JsonDocument.Parse("\"tool result\"").RootElement.Clone());
         Assert.False(tool.Success);
 
         var command = await session.Rpc.Commands.HandlePendingCommandAsync(

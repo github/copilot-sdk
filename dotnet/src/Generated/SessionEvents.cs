@@ -1991,7 +1991,7 @@ public sealed partial class AssistantMessageData
     /// <summary>Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("anthropicAdvisorBlocks")]
-    public object[]? AnthropicAdvisorBlocks { get; set; }
+    public JsonElement[]? AnthropicAdvisorBlocks { get; set; }
 
     /// <summary>Anthropic advisor model ID used for this response, for timeline display on replay.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2260,7 +2260,7 @@ public sealed partial class ToolUserRequestedData
     /// <summary>Arguments for the tool invocation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Unique identifier for this tool call.</summary>
     [JsonPropertyName("toolCallId")]
@@ -2277,7 +2277,7 @@ public sealed partial class ToolExecutionStartData
     /// <summary>Arguments passed to the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2380,7 +2380,7 @@ public sealed partial class ToolExecutionCompleteData
     /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTelemetry")]
-    public IDictionary<string, object>? ToolTelemetry { get; set; }
+    public IDictionary<string, JsonElement>? ToolTelemetry { get; set; }
 
     /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2562,7 +2562,7 @@ public sealed partial class HookStartData
     /// <summary>Input data passed to the hook.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("input")]
-    public object? Input { get; set; }
+    public JsonElement? Input { get; set; }
 }
 
 /// <summary>Hook invocation completion details including output, success status, and error information.</summary>
@@ -2584,7 +2584,7 @@ public sealed partial class HookEndData
     /// <summary>Output data produced by the hook.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("output")]
-    public object? Output { get; set; }
+    public JsonElement? Output { get; set; }
 
     /// <summary>Whether the hook completed successfully.</summary>
     [JsonPropertyName("success")]
@@ -2757,7 +2757,7 @@ public sealed partial class ElicitationCompletedData
     /// <summary>The submitted form data when action is 'accept'; keys match the requested schema fields.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("content")]
-    public IDictionary<string, object>? Content { get; set; }
+    public IDictionary<string, JsonElement>? Content { get; set; }
 
     /// <summary>Request ID of the resolved elicitation request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2769,7 +2769,7 @@ public sealed partial class SamplingRequestedData
 {
     /// <summary>The JSON-RPC request ID from the MCP protocol.</summary>
     [JsonPropertyName("mcpRequestId")]
-    public required object McpRequestId { get; set; }
+    public required JsonElement McpRequestId { get; set; }
 
     /// <summary>Unique identifier for this sampling request; used to respond via session.respondToSampling().</summary>
     [JsonPropertyName("requestId")]
@@ -2830,7 +2830,7 @@ public sealed partial class SessionCustomNotificationData
 
     /// <summary>Source-defined JSON payload for the custom notification.</summary>
     [JsonPropertyName("payload")]
-    public required object Payload { get; set; }
+    public required JsonElement Payload { get; set; }
 
     /// <summary>Namespace for the custom notification producer.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -2855,7 +2855,7 @@ public sealed partial class ExternalToolRequestedData
     /// <summary>Arguments to pass to the external tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Unique identifier for this request; used to respond via session.respondToExternalTool().</summary>
     [JsonPropertyName("requestId")]
@@ -3525,7 +3525,7 @@ public sealed partial class AssistantMessageToolRequest
     /// <summary>Arguments to pass to the tool, format depends on the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Resolved intention summary describing what this specific call does.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3983,7 +3983,7 @@ public sealed partial class SystemMessageMetadata
     /// <summary>Template variables used when constructing the prompt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("variables")]
-    public IDictionary<string, object>? Variables { get; set; }
+    public IDictionary<string, JsonElement>? Variables { get; set; }
 }
 
 /// <summary>Schema for the `SystemNotificationAgentCompleted` type.</summary>
@@ -4289,7 +4289,7 @@ public sealed partial class PermissionRequestMcp : PermissionRequest
     /// <summary>Arguments to pass to the MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Whether this MCP tool is read-only (no side effects).</summary>
     [JsonPropertyName("readOnly")]
@@ -4391,7 +4391,7 @@ public sealed partial class PermissionRequestCustomTool : PermissionRequest
     /// <summary>Arguments to pass to the custom tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4423,7 +4423,7 @@ public sealed partial class PermissionRequestHook : PermissionRequest
     /// <summary>Arguments of the tool call being gated.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4606,7 +4606,7 @@ public sealed partial class PermissionPromptRequestMcp : PermissionPromptRequest
     /// <summary>Arguments to pass to the MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Name of the MCP server providing the tool.</summary>
     [JsonPropertyName("serverName")]
@@ -4704,7 +4704,7 @@ public sealed partial class PermissionPromptRequestCustomTool : PermissionPrompt
     /// <summary>Arguments to pass to the custom tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4758,7 +4758,7 @@ public sealed partial class PermissionPromptRequestHook : PermissionPromptReques
     /// <summary>Arguments of the tool call being gated.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5128,7 +5128,7 @@ public sealed partial class ElicitationRequestedSchema
 {
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
-    public required IDictionary<string, object> Properties { get; set; }
+    public required IDictionary<string, JsonElement> Properties { get; set; }
 
     /// <summary>List of required field names.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -275,6 +275,7 @@ function isNonNullableCSharpValueType(typeName: string): boolean {
         "long",
         "DateTimeOffset",
         "TimeSpan",
+        "JsonElement",
     ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName) || externalRpcValueTypes.has(typeName);
 }
 
@@ -361,7 +362,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
     if (type === "boolean") return required ? "bool" : "bool?";
     if (type === "array") {
         const items = schema.items as JSONSchema7 | undefined;
-        const itemType = items ? schemaTypeToCSharp(items, true, knownTypes) : "object";
+        const itemType = items ? schemaTypeToCSharp(items, true, knownTypes) : "JsonElement";
         return required ? `${itemType}[]` : `${itemType}[]?`;
     }
     if (type === "object") {
@@ -369,9 +370,9 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             const valueType = schemaTypeToCSharp(schema.additionalProperties as JSONSchema7, true, knownTypes);
             return required ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
         }
-        return required ? "object" : "object?";
+        return required ? "JsonElement" : "JsonElement?";
     }
-    return required ? "object" : "object?";
+    return required ? "JsonElement" : "JsonElement?";
 }
 
 /** Tracks whether any TimeSpan property was emitted so the converter can be generated. */
@@ -1145,12 +1146,12 @@ function resolveSessionPropertyType(
         }
         const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
         if (unionType) return isRequired ? unionType : `${unionType}?`;
-        return !isRequired ? "object?" : "object";
+        return !isRequired ? "JsonElement?" : "JsonElement";
     }
     if (propSchema.oneOf) {
         const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
         if (unionType) return isRequired ? unionType : `${unionType}?`;
-        return !isRequired ? "object?" : "object";
+        return !isRequired ? "JsonElement?" : "JsonElement";
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
         const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, getEnumValueDescriptions(propSchema), propSchema.title as string | undefined, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
@@ -1610,7 +1611,6 @@ function emitRpcClass(
         let propAccessors = "{ get; set; }";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
-            else if (csharpType === "object") defaultVal = " = null!;";
             else if (csharpType.startsWith("IList<")) {
                 propAccessors = "{ get => field ??= []; set; }";
             } else if (csharpType.startsWith("IDictionary<")) {
