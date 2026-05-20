@@ -76,8 +76,13 @@ jobs:
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/githubnext/gh-aw/refs/heads/main/install-gh-aw.sh | bash
+        uses: github/gh-aw/actions/setup-cli@4d44d0e89851a877f4ddc0cb6c0197e42b1016c5 # v0.73.0
+        with:
+          version: v0.68.3
+
+      # Enable repository pre-commit hooks (Spotless checks for Java source changes)
+      - name: Enable pre-commit hooks
+        run: git config core.hooksPath .githooks
 
       # Install JavaScript dependencies
       - name: Install Node.js dependencies
