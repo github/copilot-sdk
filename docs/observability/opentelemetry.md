@@ -86,13 +86,13 @@ var client = new CopilotClient(new CopilotClientOptions()
 
 ### TelemetryConfig options
 
-| Option | Node.js | Python | Go | .NET | Java | Description |
-|---|---|---|---|---|---|---|
-| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | `otlpEndpoint` | OTLP HTTP endpoint URL |
-| File path | `filePath` | `file_path` | `FilePath` | `FilePath` | `filePath` | File path for JSON-lines trace output |
-| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `exporterType` | `"otlp-http"` or `"file"` |
-| Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | `sourceName` | Instrumentation scope name |
-| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | `captureContent` | Whether to capture message content |
+| Option | Node.js | Python | Go | .NET | Java | Rust | Description |
+|---|---|---|---|---|---|---|---|
+| OTLP endpoint | `otlpEndpoint` | `otlp_endpoint` | `OTLPEndpoint` | `OtlpEndpoint` | `otlpEndpoint` | `otlp_endpoint` | OTLP HTTP endpoint URL |
+| File path | `filePath` | `file_path` | `FilePath` | `FilePath` | `filePath` | `file_path` | File path for JSON-lines trace output |
+| Exporter type | `exporterType` | `exporter_type` | `ExporterType` | `ExporterType` | `exporterType` | `exporter_type` | `"otlp-http"` or `"file"` |
+| Source name | `sourceName` | `source_name` | `SourceName` | `SourceName` | `sourceName` | `source_name` | Instrumentation scope name |
+| Capture content | `captureContent` | `capture_content` | `CaptureContent` | `CaptureContent` | `captureContent` | `capture_content` | Whether to capture message content |
 
 ### Trace context propagation
 

@@ -14,7 +14,7 @@ The Microsoft Agent Framework is the unified successor to Semantic Kernel and Au
 | **A2A protocol** | Agent-to-Agent communication standard supported by the framework |
 
 > [!NOTE]
-> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly—the standard SDK APIs already provide tool calling, streaming, and custom agents.
+> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, Java, and Rust, use the Copilot SDK directly—the standard SDK APIs already provide tool calling, streaming, and custom agents.
 
 ## Prerequisites
 

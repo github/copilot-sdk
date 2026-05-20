@@ -6,8 +6,8 @@ Minimal samples organized by **transport model** — the wire protocol used to c
 
 | Transport | Description | Languages |
 |-----------|-------------|-----------|
-| **[stdio](stdio/)** | SDK spawns `copilot` as a child process and communicates via stdin/stdout | TypeScript, Python, Go |
-| **[tcp](tcp/)** | SDK connects to a pre-running `copilot` TCP server | TypeScript, Python, Go |
+| **[stdio](stdio/)** | SDK spawns `copilot` as a child process and communicates via stdin/stdout | TypeScript, Python, Go, C#, Rust |
+| **[tcp](tcp/)** | SDK connects to a pre-running `copilot` TCP server | TypeScript, Python, Go, C#, Rust |
 | **[wasm](wasm/)** | SDK loads `copilot` as an in-process WASM module | TypeScript |
 
 ## How They Differ
@@ -23,7 +23,7 @@ Minimal samples organized by **transport model** — the wire protocol used to c
 
 - **Authentication** — set `GITHUB_TOKEN`, or run `gh auth login`
 - **Copilot CLI** — required for stdio and tcp (set `COPILOT_CLI_PATH`)
-- Language toolchains as needed (Node.js 20+, Python 3.10+, Go 1.24+)
+- Language toolchains as needed (Node.js 20+, Python 3.10+, Go 1.24+, .NET 8+, Rust 1.94+)
 
 ## Verification
 
