@@ -20,7 +20,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var port = GetAvailableTcpPort();
         await using var client = Ctx.CreateClient(
-            useStdio: false,
             options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(port: port) });
 
         await client.StartAsync();
@@ -227,7 +226,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await File.WriteAllTextAsync(cliPath, FakeTcpDropDuringStartupCliScript);
 
         await using var client = Ctx.CreateClient(
-            useStdio: false,
             options: new CopilotClientOptions
             {
                 Connection = RuntimeConnection.Tcp(path: cliPath),
@@ -249,7 +247,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await File.WriteAllTextAsync(cliPath, FakeTcpUnavailablePortCliScript);
 
         await using var client = Ctx.CreateClient(
-            useStdio: false,
             options: new CopilotClientOptions
             {
                 Connection = RuntimeConnection.Tcp(path: cliPath, args: ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)]),

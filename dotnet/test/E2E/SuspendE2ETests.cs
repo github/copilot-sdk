@@ -50,7 +50,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Should_Allow_Resume_And_Continue_Conversation_After_Suspend()
     {
         const string sharedToken = "suspend-shared-token";
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: sharedToken) });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: sharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 

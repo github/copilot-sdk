@@ -107,7 +107,6 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
             var client2 = Ctx.CreateClient(
-                useStdio: false,
                 options: new CopilotClientOptions
                 {
                     LogLevel = CopilotLogLevel.Error,

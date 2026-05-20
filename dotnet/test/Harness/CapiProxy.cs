@@ -50,6 +50,10 @@ public sealed partial class CapiProxy : IAsyncDisposable
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
+                Environment =
+                {
+                    ["GITHUB_ACTIONS"] = "true",
+                }
             };
 
             _process = new Process { StartInfo = startInfo };

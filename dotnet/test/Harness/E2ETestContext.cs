@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
@@ -222,6 +223,15 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         // Build the connection. If the caller supplied one, just ensure the runtime path is set;
         // otherwise default to Stdio with the bundled runtime (matches CopilotClient's own default).
+        // useStdio is a convenience shortcut for the no-Connection case; passing both is ambiguous.
+        if (useStdio is not null && options.Connection is not null)
+        {
+            throw new ArgumentException(
+                "Specify either useStdio or options.Connection, not both. " +
+                "Use options.Connection (e.g. RuntimeConnection.Stdio() / RuntimeConnection.Tcp()) to control transport when supplying a Connection.",
+                nameof(useStdio));
+        }
+
         var cliPath = GetCliPath(_repoRoot);
         switch (options.Connection)
         {

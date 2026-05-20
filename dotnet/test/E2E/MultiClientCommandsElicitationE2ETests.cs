@@ -22,7 +22,7 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        Client1 = Ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.Tcp(connectionToken: SharedToken),
         }, persistent: true);

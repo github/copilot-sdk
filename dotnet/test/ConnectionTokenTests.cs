@@ -22,7 +22,7 @@ public class ConnectionTokenTestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        GoodClient = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: Token) });
+        GoodClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: Token) });
 
         await GoodClient.StartAsync();
         Port = GoodClient.RuntimePort

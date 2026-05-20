@@ -192,7 +192,7 @@ public class ClientE2ETests
         const string connectionToken = "client-e2e-resume-token";
 
         await using var ctx = await E2ETestContext.CreateAsync();
-        await using var client = ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        await using var client = ctx.CreateClient(options: new CopilotClientOptions
         {
             Connection = RuntimeConnection.Tcp(connectionToken: connectionToken),
         });
