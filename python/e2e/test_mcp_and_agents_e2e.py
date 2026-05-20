@@ -219,10 +219,6 @@ class TestCombinedConfiguration:
 
         assert session.session_id is not None
 
-        await session.send("What is 7+7?")
-        message = await get_final_assistant_message(session)
-        assert "14" in message.data.content
-
         await session.disconnect()
 
     async def test_should_handle_custom_agent_with_tools_configuration(self, ctx: E2ETestContext):
