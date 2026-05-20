@@ -267,6 +267,7 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 //
 // The returned function can be called to unsubscribe the handler. It is safe
 // to call the unsubscribe function multiple times.
+// Panics if the session has been disconnected.
 //
 // Example:
 //
@@ -282,6 +283,10 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 //	// Later, to stop receiving events:
 //	unsubscribe()
 func (s *Session) On(handler SessionEventHandler) func() {
+	if err := s.assertActive(); err != nil {
+		panic(err)
+	}
+
 	s.handlerMutex.Lock()
 	defer s.handlerMutex.Unlock()
 

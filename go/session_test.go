@@ -280,6 +280,23 @@ func TestSession_On(t *testing.T) {
 			t.Errorf("Expected 2 events dispatched, got %d", eventCount.Load())
 		}
 	})
+
+	t.Run("panics after disconnect", func(t *testing.T) {
+		session := newSession("session-1", nil, "", nil)
+		session.markDisconnected()
+
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatal("expected On to panic after disconnect")
+			}
+			if !strings.Contains(fmt.Sprint(r), "session has been disconnected") {
+				t.Fatalf("expected disconnected panic, got %v", r)
+			}
+		}()
+
+		session.On(func(SessionEvent) {})
+	})
 }
 
 func TestSession_CommandRouting(t *testing.T) {
