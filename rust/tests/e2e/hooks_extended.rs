@@ -523,7 +523,11 @@ impl SessionHooks for RecordingHooks {
         _ctx: HookContext,
     ) -> Option<PostToolUseOutput> {
         let output = (input.tool_name == "report_intent").then(|| PostToolUseOutput {
-            modified_result: Some(json!("modified by post hook")),
+            modified_result: Some(json!({
+                "textResultForLlm": "modified by post hook",
+                "resultType": "success",
+                "toolTelemetry": {},
+            })),
             suppress_output: Some(false),
             ..PostToolUseOutput::default()
         });

@@ -27,7 +27,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import KW_ONLY, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
@@ -271,7 +271,7 @@ class PingResponse:
                 f"timestamp={timestamp}, protocolVersion={protocolVersion}"
             )
         timestamp_value = (
-            datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
+            datetime.fromtimestamp(timestamp / 1000, tz=UTC)
             if isinstance(timestamp, (int, float))
             else from_datetime(timestamp)
         )

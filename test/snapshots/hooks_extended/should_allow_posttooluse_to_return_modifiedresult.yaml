@@ -38,10 +38,10 @@ conversations:
               name: view
               arguments: '{"path":"${workdir}"}'
       - role: tool
-        tool_call_id: toolcall_1
-        content: Tool 'view' does not exist. Available tools that can be called are report_intent.
-      - role: tool
         tool_call_id: toolcall_0
         content: modified by post hook
+      - role: tool
+        tool_call_id: toolcall_1
+        content: Tool 'view' does not exist. Available tools that can be called are report_intent.
       - role: assistant
         content: Done.
