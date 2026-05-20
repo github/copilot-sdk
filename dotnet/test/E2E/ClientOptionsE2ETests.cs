@@ -21,13 +21,10 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var port = GetAvailableTcpPort();
         await using var client = Ctx.CreateClient(
             useStdio: false,
-            options: new CopilotClientOptions
-            {
-                Port = port,
-            });
+            options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(port: port) });
 
         await client.StartAsync();
-        Assert.Equal(port, client.ActualPort);
+        Assert.Equal(port, client.RuntimePort);
 
         var response = await client.PingAsync("fixed-port");
         Assert.Equal("pong: fixed-port", response.Message);
@@ -73,9 +70,8 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-                        CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
-            CopilotHome = copilotHomeFromOption,
+            Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--capture-file", capturePath]),
+            BaseDirectory = copilotHomeFromOption,
             Environment = clientEnv,
             GitHubToken = "process-option-token",
             LogLevel = CopilotLogLevel.Debug,
@@ -136,8 +132,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-                        CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -164,8 +159,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-                        CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -191,8 +185,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-                        CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -237,7 +230,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             useStdio: false,
             options: new CopilotClientOptions
             {
-                            CliPath = cliPath,
+                Connection = RuntimeConnection.Stdio(path: cliPath),
                 UseLoggedInUser = false,
             });
 
@@ -259,8 +252,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             useStdio: false,
             options: new CopilotClientOptions
             {
-                            CliPath = cliPath,
-                CliArgs = ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)],
+                Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)]),
                 UseLoggedInUser = false,
             });
 
@@ -279,8 +271,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-                        CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -348,28 +339,20 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    public void Should_Throw_When_GitHubToken_Used_With_CliUrl()
+    public void Should_Throw_When_GitHubToken_Used_With_UriConnection()
     {
         Assert.Throws<ArgumentException>(() =>
         {
-            _ = new CopilotClient(new CopilotClientOptions
-            {
-                CliUrl = "localhost:8080",
-                GitHubToken = "gho_test_token"
-            });
+            _ = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri("localhost:8080"), GitHubToken = "gho_test_token" });
         });
     }
 
     [Fact]
-    public void Should_Throw_When_UseLoggedInUser_Used_With_CliUrl()
+    public void Should_Throw_When_UseLoggedInUser_Used_With_UriConnection()
     {
         Assert.Throws<ArgumentException>(() =>
         {
-            _ = new CopilotClient(new CopilotClientOptions
-            {
-                CliUrl = "localhost:8080",
-                UseLoggedInUser = false
-            });
+            _ = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri("localhost:8080"), UseLoggedInUser = false });
         });
     }
 

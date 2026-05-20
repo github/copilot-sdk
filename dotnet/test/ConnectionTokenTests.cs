@@ -22,14 +22,11 @@ public class ConnectionTokenTestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        GoodClient = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
-        {
-            TcpConnectionToken = Token,
-        });
+        GoodClient = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: Token) });
 
         await GoodClient.StartAsync();
-        Port = GoodClient.ActualPort
-            ?? throw new InvalidOperationException("GoodClient is not using TCP mode; ActualPort is null");
+        Port = GoodClient.RuntimePort
+            ?? throw new InvalidOperationException("GoodClient is not using TCP mode; RuntimePort is null");
     }
 
     public async Task DisposeAsync()
@@ -62,11 +59,7 @@ public class ConnectionTokenTests : IClassFixture<ConnectionTokenTestFixture>
     [Fact]
     public async Task Rejects_A_Wrong_Token()
     {
-        var wrongClient = new CopilotClient(new CopilotClientOptions
-        {
-            CliUrl = $"localhost:{_fixture.Port}",
-            TcpConnectionToken = "wrong",
-        });
+        var wrongClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri($"localhost:{_fixture.Port}", connectionToken: "wrong") });
 
         try
         {
@@ -83,10 +76,7 @@ public class ConnectionTokenTests : IClassFixture<ConnectionTokenTestFixture>
     [Fact]
     public async Task Rejects_A_Missing_Token_When_One_Is_Required()
     {
-        var noTokenClient = new CopilotClient(new CopilotClientOptions
-        {
-            CliUrl = $"localhost:{_fixture.Port}",
-        });
+        var noTokenClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri($"localhost:{_fixture.Port}") });
 
         try
         {

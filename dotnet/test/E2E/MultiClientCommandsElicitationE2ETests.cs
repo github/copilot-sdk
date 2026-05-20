@@ -24,7 +24,7 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
         Ctx = await E2ETestContext.CreateAsync();
         Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
         {
-            TcpConnectionToken = SharedToken,
+            Connection = RuntimeConnection.Tcp(connectionToken: SharedToken),
         }, persistent: true);
     }
 
@@ -65,13 +65,12 @@ public class MultiClientCommandsElicitationE2ETests
         });
         await initSession.DisposeAsync();
 
-        var port = Client1.ActualPort
-            ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
+        var port = Client1.RuntimePort
+            ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
+            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
         });
     }
 
@@ -215,12 +214,11 @@ public class MultiClientCommandsElicitationE2ETests
         });
 
         // Use a dedicated client (client3) so we can stop it without affecting client2
-        var port = Client1.ActualPort
-            ?? throw new InvalidOperationException("Client1 ActualPort is null");
+        var port = Client1.RuntimePort
+            ?? throw new InvalidOperationException("Client1 RuntimePort is null");
         _client3 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
+            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
         });
 
         // Client3 joins WITH elicitation handler

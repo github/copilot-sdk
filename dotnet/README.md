@@ -72,20 +72,24 @@ new CopilotClient(CopilotClientOptions? options = null)
 
 **Options:**
 
-- `CliPath` - Path to CLI executable (default: `COPILOT_CLI_PATH` env var, or bundled CLI)
-- `CliArgs` - Extra arguments prepended before SDK-managed flags
-- `CliUrl` - URL of existing CLI server to connect to (e.g., `"localhost:8080"`). When provided, the client will not spawn a CLI process.
-- `Port` - Server port (default: 0 for random)
-- `UseStdio` - Use stdio transport instead of TCP (default: true)
-- `LogLevel` - Log level (default: "info")
-- `AutoStart` - Auto-start server (default: true)
-- `WorkingDirectory` - Working directory for the CLI process
-- `CopilotHome` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `CliUrl`.
-- `Environment` - Environment variables to pass to the CLI process
-- `Logger` - `ILogger` instance for SDK logging
+- `Connection` - How to connect to the Copilot runtime. Defaults to `null` (equivalent to `RuntimeConnection.Stdio()` with the bundled runtime). See "RuntimeConnection" below.
+- `LogLevel` - Runtime log level. Accepts well-known values `CopilotLogLevel.None`, `Error`, `Warning`, `Info`, `Debug`, `All`. Defaults to null (the runtime's own default).
+- `WorkingDirectory` - Working directory for the runtime process.
+- `BaseDirectory` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime process. When not set, the runtime defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when connecting via `RuntimeConnection.Uri(...)`.
+- `EnableRemoteSessions` - Enables remote-session features.
+- `Environment` - Environment variables to pass to the runtime process.
+- `Logger` - `ILogger` instance for SDK logging.
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CliUrl`.
-- `Telemetry` - OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `RuntimeConnection.Uri(...)`.
+- `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+
+#### RuntimeConnection
+
+`CopilotClientOptions.Connection` describes how the SDK reaches a Copilot runtime. There are three flavors, all constructed via static factories:
+
+- `RuntimeConnection.Stdio(path?, args?)` — spawns the runtime as a child process and communicates over stdio. This is the default when `Connection` is null.
+- `RuntimeConnection.Tcp(port = 0, connectionToken?, path?, args?)` — spawns the runtime as a child process listening on a TCP port. `port = 0` auto-allocates; if a non-zero port is already in use, startup fails (no fallback). Use `CopilotClient.RuntimePort` after `StartAsync` to read the assigned port. `connectionToken` is required if other clients will connect via `RuntimeConnection.Uri(...)`.
+- `RuntimeConnection.Uri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
 
 #### Methods
 
@@ -983,7 +987,7 @@ catch (Exception ex)
 ## Requirements
 
 - .NET 8.0 or later
-- GitHub Copilot CLI installed and in PATH (or provide custom `CliPath`)
+- GitHub Copilot CLI installed and in PATH (or provide custom `Connection = RuntimeConnection.Stdio(path: ...)`)
 
 ## License
 

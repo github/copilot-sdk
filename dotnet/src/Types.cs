@@ -107,6 +107,106 @@ public readonly struct CopilotLogLevel : IEquatable<CopilotLogLevel>
 }
 
 /// <summary>
+/// Configures how a <see cref="CopilotClient"/> connects to the Copilot runtime.
+/// Use the factory methods on this class to construct an instance.
+/// </summary>
+public abstract class RuntimeConnection
+{
+    internal RuntimeConnection() { }
+
+    /// <summary>
+    /// Spawn a runtime child process and communicate over its stdin/stdout.
+    /// This is the default if no <see cref="CopilotClientOptions.Connection"/> is set.
+    /// </summary>
+    /// <param name="path">Path to the runtime executable. When <c>null</c>, the bundled runtime is used.</param>
+    /// <param name="args">Extra command-line arguments to pass to the runtime process.</param>
+    public static StdioRuntimeConnection Stdio(string? path = null, IList<string>? args = null)
+        => new() { Path = path, Args = args };
+
+    /// <summary>
+    /// Spawn a runtime child process that listens on a TCP socket and connect to it.
+    /// </summary>
+    /// <param name="port">TCP port to listen on. <c>0</c> (the default) auto-allocates a free port.
+    /// If the chosen port is already in use, startup fails.</param>
+    /// <param name="connectionToken">Optional shared secret the SDK sends to the spawned runtime to authenticate the TCP connection.
+    /// When <c>null</c>, a GUID is generated automatically.</param>
+    /// <param name="path">Path to the runtime executable. When <c>null</c>, the bundled runtime is used.</param>
+    /// <param name="args">Extra command-line arguments to pass to the runtime process.</param>
+    public static TcpRuntimeConnection Tcp(int port = 0, string? connectionToken = null, string? path = null, IList<string>? args = null)
+        => new() { Port = port, ConnectionToken = connectionToken, Path = path, Args = args };
+
+    /// <summary>
+    /// Connect to an already-running runtime at a given URI.
+    /// </summary>
+    /// <param name="url">URL of the runtime to connect to. Accepts <c>"port"</c>, <c>"host:port"</c>, or a full URL.</param>
+    /// <param name="connectionToken">Optional shared secret to authenticate the connection.</param>
+    public static UriRuntimeConnection Uri(string url, string? connectionToken = null)
+        => new() { Url = url, ConnectionToken = connectionToken };
+}
+
+/// <summary>
+/// Base for <see cref="RuntimeConnection"/> kinds that spawn a runtime child process.
+/// </summary>
+public abstract class ChildProcessRuntimeConnection : RuntimeConnection
+{
+    internal ChildProcessRuntimeConnection() { }
+
+    /// <summary>Path to the runtime executable. When <c>null</c>, the bundled runtime is used.</summary>
+    public string? Path { get; set; }
+
+    /// <summary>Extra command-line arguments to pass to the runtime process.</summary>
+    public IList<string>? Args { get; set; }
+}
+
+/// <summary>
+/// Spawns a runtime child process and communicates over stdin/stdout. Construct via
+/// <see cref="RuntimeConnection.Stdio(string?, IList{string}?)"/>.
+/// </summary>
+public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
+{
+    internal StdioRuntimeConnection() { }
+}
+
+/// <summary>
+/// Spawns a runtime child process listening on a TCP socket. Construct via
+/// <see cref="RuntimeConnection.Tcp(int, string?, string?, IList{string}?)"/>.
+/// </summary>
+public sealed class TcpRuntimeConnection : ChildProcessRuntimeConnection
+{
+    internal TcpRuntimeConnection() { }
+
+    /// <summary>
+    /// TCP port to listen on. <c>0</c> (the default) auto-allocates a free port.
+    /// If the chosen port is already in use, startup fails.
+    /// </summary>
+    public int Port { get; set; }
+
+    /// <summary>
+    /// Optional shared secret the SDK sends to the spawned runtime to authenticate
+    /// the TCP connection. When <c>null</c>, a GUID is generated automatically.
+    /// </summary>
+    public string? ConnectionToken { get; set; }
+}
+
+/// <summary>
+/// Connects to an already-running runtime at the specified URL. Construct via
+/// <see cref="RuntimeConnection.Uri(string, string?)"/>.
+/// </summary>
+public sealed class UriRuntimeConnection : RuntimeConnection
+{
+    internal UriRuntimeConnection() { }
+
+    /// <summary>
+    /// URL of the runtime to connect to. Accepts <c>"port"</c>, <c>"host:port"</c>,
+    /// or a full URL.
+    /// </summary>
+    public required string Url { get; set; }
+
+    /// <summary>Optional shared secret to authenticate the connection.</summary>
+    public string? ConnectionToken { get; set; }
+}
+
+/// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
 public sealed class CopilotClientOptions
@@ -124,61 +224,41 @@ public sealed class CopilotClientOptions
     {
         if (other is null) return;
 
-        CliArgs = (string[]?)other.CliArgs?.Clone();
-        CliPath = other.CliPath;
-        CliUrl = other.CliUrl;
+        Connection = other.Connection;
         WorkingDirectory = other.WorkingDirectory;
-        CopilotHome = other.CopilotHome;
+        BaseDirectory = other.BaseDirectory;
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
         Logger = other.Logger;
         LogLevel = other.LogLevel;
-        Port = other.Port;
         Telemetry = other.Telemetry;
         UseLoggedInUser = other.UseLoggedInUser;
-        UseStdio = other.UseStdio;
         OnListModels = other.OnListModels;
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
-        TcpConnectionToken = other.TcpConnectionToken;
         EnableRemoteSessions = other.EnableRemoteSessions;
     }
 
     /// <summary>
-    /// Path to the Copilot CLI executable. If not specified, uses the bundled CLI from the SDK.
+    /// How to connect to the runtime. When <c>null</c>, the default is
+    /// <see cref="RuntimeConnection.Stdio(string?, IList{string}?)"/> with the bundled runtime.
     /// </summary>
-    public string? CliPath { get; set; }
+    public RuntimeConnection? Connection { get; set; }
+
     /// <summary>
-    /// Additional command-line arguments to pass to the CLI process.
-    /// </summary>
-    public string[]? CliArgs { get; set; }
-    /// <summary>
-    /// Working directory for the CLI process.
+    /// Working directory for the runtime process.
     /// </summary>
     public string? WorkingDirectory { get; set; }
+
     /// <summary>
     /// Base directory for Copilot data (session state, config, etc.).
-    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned CLI process.
-    /// When <see langword="null"/>, the CLI defaults to <c>~/.copilot</c>.
-    /// This option is only used when the SDK spawns the CLI process; it is ignored
-    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned runtime.
+    /// When <see langword="null"/>, the runtime defaults to <c>~/.copilot</c>.
+    /// Ignored when connecting to an existing runtime via
+    /// <see cref="RuntimeConnection.Uri(string, string?)"/>.
     /// </summary>
-    public string? CopilotHome { get; set; }
-    /// <summary>
-    /// Port number for the CLI server when not using stdio transport.
-    /// </summary>
-    public int Port { get; set; }
-    /// <summary>
-    /// Whether to use stdio transport for communication with the CLI server.
-    /// Defaults to <c>true</c> when neither <see cref="CliUrl"/> nor <see cref="Port"/>
-    /// switches the client into TCP mode. Setting this to <c>true</c> is mutually
-    /// exclusive with <see cref="CliUrl"/>.
-    /// </summary>
-    public bool? UseStdio { get; set; }
-    /// <summary>
-    /// URL of an existing CLI server to connect to instead of starting a new one.
-    /// </summary>
-    public string? CliUrl { get; set; }
+    public string? BaseDirectory { get; set; }
+
     /// <summary>
     /// Log level for the Copilot runtime. Use the well-known values on
     /// <see cref="CopilotLogLevel"/> (<see cref="CopilotLogLevel.None"/>,
@@ -188,25 +268,23 @@ public sealed class CopilotClientOptions
     /// log level is used.
     /// </summary>
     public CopilotLogLevel? LogLevel { get; set; }
-    /// <summary>
-    /// Environment variables to pass to the CLI process.
-    /// </summary>
+
+    /// <summary>Environment variables to pass to the runtime process.</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
-    /// <summary>
-    /// Logger instance for SDK diagnostic output.
-    /// </summary>
+
+    /// <summary>Logger instance for SDK diagnostic output.</summary>
     public ILogger? Logger { get; set; }
 
     /// <summary>
     /// GitHub token to use for authentication.
-    /// When provided, the token is passed to the CLI server via environment variable.
+    /// When provided, the token is passed to the runtime via environment variable.
     /// This takes priority over other authentication methods.
     /// </summary>
     public string? GitHubToken { get; set; }
 
     /// <summary>
     /// Whether to use the logged-in user for authentication.
-    /// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+    /// When true, the runtime will attempt to use stored OAuth tokens or gh CLI auth.
     /// When false, only explicit tokens (GitHubToken or environment variables) are used.
     /// Default: true (but defaults to false when GitHubToken is provided).
     /// </summary>
@@ -215,7 +293,7 @@ public sealed class CopilotClientOptions
     /// <summary>
     /// Custom handler for listing available models.
     /// When provided, <c>ListModelsAsync()</c> calls this handler instead of
-    /// querying the CLI server. Useful in BYOK mode to return models
+    /// querying the runtime. Useful in BYOK mode to return models
     /// available from your custom provider.
     /// </summary>
     public Func<CancellationToken, Task<IList<ModelInfo>>>? OnListModels { get; set; }
@@ -229,8 +307,8 @@ public sealed class CopilotClientOptions
     public SessionFsConfig? SessionFs { get; set; }
 
     /// <summary>
-    /// OpenTelemetry configuration for the CLI server.
-    /// When set to a non-<see langword="null"/> instance, the CLI server is started with OpenTelemetry instrumentation enabled.
+    /// OpenTelemetry configuration for the runtime.
+    /// When set to a non-<see langword="null"/> instance, the runtime is started with OpenTelemetry instrumentation enabled.
     /// </summary>
     public TelemetryConfig? Telemetry { get; set; }
 
@@ -238,24 +316,17 @@ public sealed class CopilotClientOptions
     /// Server-wide idle timeout for sessions in seconds.
     /// Sessions without activity for this duration are automatically cleaned up.
     /// Set to <c>0</c> or leave as <see langword="null"/> to disable (sessions live indefinitely).
-    /// This option is only used when the SDK spawns the CLI process; it is ignored
-    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// This option is only used when the SDK spawns the runtime; it is ignored
+    /// when connecting to an external runtime via <see cref="RuntimeConnection.Uri(string, string?)"/>.
     /// </summary>
     public int? SessionIdleTimeoutSeconds { get; set; }
-
-    /// <summary>
-    /// Connection token for the headless CLI server (TCP only). When the SDK spawns its own
-    /// CLI in TCP mode and this is omitted, a GUID is generated automatically so the loopback
-    /// listener is safe by default. Cannot be combined with <see cref="UseStdio"/> = true.
-    /// </summary>
-    public string? TcpConnectionToken { get; set; }
 
     /// <summary>
     /// Enable remote session support (Mission Control integration).
     /// When true, sessions in a GitHub repository working directory are
     /// accessible from GitHub web and mobile.
-    /// This option is only used when the SDK spawns the CLI process; it is ignored
-    /// when connecting to an external server via <see cref="CliUrl"/>.
+    /// This option is only used when the SDK spawns the runtime; it is ignored
+    /// when connecting to an external runtime via <see cref="RuntimeConnection.Uri(string, string?)"/>.
     /// </summary>
     public bool EnableRemoteSessions { get; set; }
 
@@ -268,10 +339,7 @@ public sealed class CopilotClientOptions
     /// Other reference-type properties (for example delegates and the logger) are not
     /// deep-cloned; the original and the clone will share those objects.
     /// </remarks>
-    public CopilotClientOptions Clone()
-    {
-        return new(this);
-    }
+    public CopilotClientOptions Clone() => new(this);
 }
 
 /// <summary>

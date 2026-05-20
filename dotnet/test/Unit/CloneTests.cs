@@ -13,53 +13,39 @@ public class CloneTests
     {
         var original = new CopilotClientOptions
         {
-            CliPath = "/usr/bin/copilot",
-            CliArgs = ["--verbose", "--debug"],
+            Connection = RuntimeConnection.Tcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
             WorkingDirectory = "/home/user",
-            Port = 8080,
-            UseStdio = false,
-            CliUrl = "http://localhost:8080",
             LogLevel = CopilotLogLevel.Debug,
-                        Environment = new Dictionary<string, string> { ["KEY"] = "value" },
+            Environment = new Dictionary<string, string> { ["KEY"] = "value" },
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
-            CopilotHome = "/custom/copilot/home",
+            BaseDirectory = "/custom/copilot/home",
             EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
         };
 
         var clone = original.Clone();
 
-        Assert.Equal(original.CliPath, clone.CliPath);
-        Assert.Equal(original.CliArgs, clone.CliArgs);
+        Assert.Same(original.Connection, clone.Connection);
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
-        Assert.Equal(original.Port, clone.Port);
-        Assert.Equal(original.UseStdio, clone.UseStdio);
-        Assert.Equal(original.CliUrl, clone.CliUrl);
         Assert.Equal(original.LogLevel, clone.LogLevel);
         Assert.Equal(original.Environment, clone.Environment);
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
-        Assert.Equal(original.CopilotHome, clone.CopilotHome);
+        Assert.Equal(original.BaseDirectory, clone.BaseDirectory);
         Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
     }
 
     [Fact]
-    public void CopilotClientOptions_Clone_CollectionsAreIndependent()
+    public void CopilotClientOptions_Clone_ConnectionIsShared()
     {
-        var original = new CopilotClientOptions
-        {
-            CliArgs = ["--verbose"],
-        };
+        var connection = RuntimeConnection.Stdio();
+        var original = new CopilotClientOptions { Connection = connection };
 
         var clone = original.Clone();
 
-        // Mutate clone array
-        clone.CliArgs![0] = "--quiet";
-
-        // Original is unaffected
-        Assert.Equal("--verbose", original.CliArgs![0]);
+        Assert.Same(connection, clone.Connection);
     }
 
     [Fact]

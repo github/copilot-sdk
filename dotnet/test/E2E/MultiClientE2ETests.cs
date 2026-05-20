@@ -26,7 +26,7 @@ public class MultiClientTestFixture : IAsyncLifetime
         Ctx = await E2ETestContext.CreateAsync();
         Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
         {
-            TcpConnectionToken = SharedToken,
+            Connection = RuntimeConnection.Tcp(connectionToken: SharedToken),
         }, persistent: true);
     }
 
@@ -63,13 +63,12 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         });
         await initSession.DisposeAsync();
 
-        var port = Client1.ActualPort
-            ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
+        var port = Client1.RuntimePort
+            ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientTestFixture.SharedToken,
+            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
         });
     }
 
@@ -331,11 +330,10 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         await Client2.ForceStopAsync();
 
         // Recreate client2 for cleanup
-        var port = Client1.ActualPort!.Value;
+        var port = Client1.RuntimePort!.Value;
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientTestFixture.SharedToken,
+            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
         });
 
         // Now only stable_tool should be available

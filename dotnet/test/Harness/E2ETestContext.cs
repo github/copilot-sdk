@@ -214,17 +214,29 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         options.WorkingDirectory ??= WorkDir;
         options.Environment ??= GetEnvironment();
-        options.UseStdio = useStdio;
         options.Logger ??= Logger;
 
-        if (string.IsNullOrEmpty(options.CliUrl))
+        // Build the connection. If the caller supplied one, just ensure the runtime path is set;
+        // otherwise default to Tcp with bundled CLI path (matches the previous "useStdio: false,
+        // CliPath = bundled" behavior).
+        var cliPath = GetCliPath(_repoRoot);
+        switch (options.Connection)
         {
-            options.CliPath ??= GetCliPath(_repoRoot);
+            case null:
+                options.Connection = useStdio == true
+                    ? RuntimeConnection.Stdio(path: cliPath)
+                    : RuntimeConnection.Tcp(path: cliPath);
+                break;
+            case ChildProcessRuntimeConnection child when child.Path is null:
+                child.Path = cliPath;
+                break;
         }
 
+        // Auto-inject auth token unless connecting to an existing runtime via URI.
+        var isExistingRuntime = options.Connection is UriRuntimeConnection;
         if (autoInjectGitHubToken
             && string.IsNullOrEmpty(options.GitHubToken)
-            && string.IsNullOrEmpty(options.CliUrl))
+            && !isExistingRuntime)
         {
             options.GitHubToken = DefaultGitHubToken;
         }

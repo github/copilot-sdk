@@ -71,12 +71,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
 
     private readonly CopilotClientOptions _options;
+    private readonly RuntimeConnection _connection;
     private readonly ILogger _logger;
     private Task<Connection>? _connectionTask;
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
-    private readonly string? _effectiveConnectionToken;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
     private List<ModelInfo>? _modelsCache;
@@ -101,27 +101,26 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         : _serverRpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
 
     /// <summary>
-    /// Gets the actual TCP port the CLI server is listening on, if using TCP transport.
+    /// Gets the actual TCP port the runtime is listening on, if using TCP transport.
     /// </summary>
-    public int? ActualPort => _actualPort;
+    public int? RuntimePort => _actualPort;
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
     /// </summary>
     /// <param name="options">Options for creating the client. If null, default options are used.</param>
-    /// <exception cref="ArgumentException">Thrown when mutually exclusive options are provided (e.g., CliUrl with UseStdio or CliPath).</exception>
     /// <example>
     /// <code>
-    /// // Default options - spawns CLI server using stdio
+    /// // Default options - spawns the bundled runtime using stdio
     /// var client = new CopilotClient();
     ///
-    /// // Connect to an existing server
-    /// var client = new CopilotClient(new CopilotClientOptions { CliUrl = "localhost:3000", UseStdio = false });
+    /// // Connect to an existing runtime
+    /// var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri("localhost:3000") });
     ///
-    /// // Custom CLI path with specific log level
+    /// // Custom runtime path with specific log level
     /// var client = new CopilotClient(new CopilotClientOptions
     /// {
-    ///     CliPath = "/usr/local/bin/copilot",
+    ///     Connection = RuntimeConnection.Stdio(path: "/usr/local/bin/copilot"),
     ///     LogLevel = CopilotLogLevel.Debug
     /// });
     /// </code>
@@ -129,63 +128,50 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public CopilotClient(CopilotClientOptions? options = null)
     {
         _options = options ?? new();
+        _connection = _options.Connection ?? RuntimeConnection.Stdio();
 
-        // Validate mutually exclusive options
-        if (!string.IsNullOrEmpty(_options.CliUrl) && (_options.UseStdio == true || _options.CliPath != null))
+        switch (_connection)
         {
-            throw new ArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
-        }
+            case StdioRuntimeConnection:
+                break;
 
-        // When CliUrl is provided, force TCP mode (we connect to an external server, not spawn one)
-        if (!string.IsNullOrEmpty(_options.CliUrl))
-        {
-            _options.UseStdio = false;
-        }
-        else
-        {
-            _options.UseStdio ??= true;
-        }
+            case TcpRuntimeConnection tcp:
+                if (tcp.ConnectionToken is { Length: 0 })
+                {
+                    throw new ArgumentException("ConnectionToken must be a non-empty string or null.", nameof(options));
+                }
+                // Auto-generate a connection token when the SDK spawns the runtime over TCP
+                // so the loopback listener is safe by default.
+                tcp.ConnectionToken ??= Guid.NewGuid().ToString();
+                break;
 
-        // Validate auth options with external server
-        if (!string.IsNullOrEmpty(_options.CliUrl) && (!string.IsNullOrEmpty(_options.GitHubToken) || _options.UseLoggedInUser != null))
-        {
-            throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
-        }
+            case UriRuntimeConnection uri:
+                if (string.IsNullOrEmpty(uri.Url))
+                {
+                    throw new ArgumentException("UriRuntimeConnection.Url must be a non-empty string.", nameof(options));
+                }
+                if (!string.IsNullOrEmpty(_options.GitHubToken) || _options.UseLoggedInUser != null)
+                {
+                    throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.Uri (the existing runtime manages its own auth).", nameof(options));
+                }
+                var parsed = ParseRuntimeUrl(uri.Url);
+                _optionsHost = parsed.Host;
+                _optionsPort = parsed.Port;
+                break;
 
-        if (_options.TcpConnectionToken is not null)
-        {
-            if (_options.TcpConnectionToken.Length == 0)
-            {
-                throw new ArgumentException("TcpConnectionToken must be a non-empty string");
-            }
-            if (_options.UseStdio == true)
-            {
-                throw new ArgumentException("TcpConnectionToken cannot be used with UseStdio = true");
-            }
+            default:
+                throw new ArgumentException($"Unsupported RuntimeConnection type: {_connection.GetType().Name}", nameof(options));
         }
-
-        var sdkSpawnsCli = _options.UseStdio == false && string.IsNullOrEmpty(_options.CliUrl);
-        _effectiveConnectionToken = _options.TcpConnectionToken
-            ?? (sdkSpawnsCli ? Guid.NewGuid().ToString() : null);
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
-
-        // Parse CliUrl if provided
-        if (!string.IsNullOrEmpty(_options.CliUrl))
-        {
-            var uri = ParseCliUrl(_options.CliUrl!);
-            _optionsHost = uri.Host;
-            _optionsPort = uri.Port;
-        }
     }
 
     /// <summary>
-    /// Parses a CLI URL into a URI with host and port.
+    /// Parses a runtime URL into a URI with host and port.
     /// </summary>
     /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "http://host:port".</param>
-    /// <returns>A <see cref="Uri"/> containing the parsed host and port.</returns>
-    private static Uri ParseCliUrl(string url)
+    private static Uri ParseRuntimeUrl(string url)
     {
         // If it's just a port number, treat as localhost
         if (int.TryParse(url, out var port))
@@ -211,7 +197,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <remarks>
     /// <para>
     /// If the server is not already running and the client is configured to spawn one (default), it will be started.
-    /// If connecting to an external server (via CliUrl), only establishes the connection.
+    /// If connecting to an external runtime (via RuntimeConnection.Uri), only establishes the connection.
     /// </para>
     /// <para>
     /// </para>
@@ -238,16 +224,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             try
             {
-                if (_optionsHost is not null && _optionsPort is not null)
+                if (_connection is UriRuntimeConnection uriConn)
                 {
-                    // External server (TCP)
+                    // External runtime
                     _actualPort = _optionsPort;
                     connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
                 }
                 else
                 {
                     // Child process (stdio or TCP)
-                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
+                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(ct);
                     cliProcess = startedProcess;
                     _actualPort = portOrNull;
                     connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
@@ -1290,8 +1276,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         int? serverVersion;
         try
         {
+            var token = _connection switch
+            {
+                TcpRuntimeConnection tcp => tcp.ConnectionToken,
+                UriRuntimeConnection uri => uri.ConnectionToken,
+                _ => null,
+            };
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
+                connection.Rpc, "connect", [new ConnectRequest { Token = token }], connection.StderrBuffer, cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
@@ -1334,21 +1326,27 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
-    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)
+    private async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CancellationToken cancellationToken)
     {
-        // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
+        var options = _options;
+        var logger = _logger;
+        var childProcessConnection = (ChildProcessRuntimeConnection)_connection;
+        var tcpConnection = _connection as TcpRuntimeConnection;
+        var useStdio = _connection is StdioRuntimeConnection;
+
+        // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled runtime - no PATH fallback
         var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
             : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        var cliPath = options.CliPath
+        var cliPath = childProcessConnection.Path
             ?? envCliPath
             ?? GetBundledCliPath(out var searchedPath)
-            ?? throw new InvalidOperationException($"Copilot CLI not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath.");
-        var cliPathSource = options.CliPath is not null ? "Options" : envCliPath is not null ? "Environment" : "Bundled";
+            ?? throw new InvalidOperationException($"Copilot runtime not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.Stdio(path: ...) / RuntimeConnection.Tcp(path: ...).");
+        var cliPathSource = childProcessConnection.Path is not null ? "Options" : envCliPath is not null ? "Environment" : "Bundled";
         var args = new List<string>();
 
-        if (options.CliArgs != null)
+        if (childProcessConnection.Args != null)
         {
-            args.AddRange(options.CliArgs);
+            args.AddRange(childProcessConnection.Args);
         }
 
         args.AddRange(["--headless", "--no-auto-update"]);
@@ -1357,13 +1355,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(["--log-level", logLevel.Value]);
         }
 
-        if (options.UseStdio == true)
+        if (useStdio)
         {
             args.Add("--stdio");
         }
-        else if (options.Port > 0)
+        else if (tcpConnection is { Port: > 0 } tcp)
         {
-            args.AddRange(["--port", options.Port.ToString(CultureInfo.InvariantCulture)]);
+            args.AddRange(["--port", tcp.Port.ToString(CultureInfo.InvariantCulture)]);
         }
 
         // Add auth-related flags
@@ -1390,15 +1388,15 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
-        var configuredPort = options.UseStdio == true ? (int?)null : options.Port;
-        LogStartingCopilotCli(logger, cliPath, fileName, cliPathSource, options.UseStdio == true, configuredPort);
+        var configuredPort = useStdio ? (int?)null : tcpConnection?.Port;
+        LogStartingCopilotCli(logger, cliPath, fileName, cliPathSource, useStdio, configuredPort);
 
         var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
             Arguments = string.Join(" ", processArgs.Select(ProcessArgumentEscaper.Escape)),
             UseShellExecute = false,
-            RedirectStandardInput = options.UseStdio == true,
+            RedirectStandardInput = useStdio,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             WorkingDirectory = options.WorkingDirectory,
@@ -1422,14 +1420,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GitHubToken;
         }
 
-        if (!string.IsNullOrEmpty(connectionToken))
+        if (tcpConnection?.ConnectionToken is { Length: > 0 } token)
         {
-            startInfo.Environment["COPILOT_CONNECTION_TOKEN"] = connectionToken;
+            startInfo.Environment["COPILOT_CONNECTION_TOKEN"] = token;
         }
 
-        if (!string.IsNullOrEmpty(options.CopilotHome))
+        if (!string.IsNullOrEmpty(options.BaseDirectory))
         {
-            startInfo.Environment["COPILOT_HOME"] = options.CopilotHome;
+            startInfo.Environment["COPILOT_HOME"] = options.BaseDirectory;
         }
 
         // Set telemetry environment variables if configured
@@ -1475,7 +1473,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }, cancellationToken);
 
             var detectedLocalhostTcpPort = (int?)null;
-            if (options.UseStdio != true)
+            if (!useStdio)
             {
                 // Wait for port announcement
                 var portWaitTimestamp = Stopwatch.GetTimestamp();
@@ -1488,7 +1486,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     if (line is null)
                     {
                         await stderrReader;
-                        throw CreateCliExitedException("CLI process exited unexpectedly", stderrBuffer);
+                        throw CreateCliExitedException("Runtime process exited unexpectedly", stderrBuffer);
                     }
 
                     if (logger.IsEnabled(LogLevel.Debug))
@@ -1568,11 +1566,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Stream inputStream, outputStream;
         NetworkStream? networkStream = null;
 
-        if (_options.UseStdio == true)
+        if (_connection is StdioRuntimeConnection)
         {
             if (cliProcess == null)
             {
-                throw new InvalidOperationException("CLI process not started");
+                throw new InvalidOperationException("Runtime process not started");
             }
 
             inputStream = cliProcess.StandardOutput.BaseStream;

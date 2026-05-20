@@ -103,17 +103,16 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 CreateSessionFsProvider = createSessionFsHandler,
             });
 
-            var port = client1.ActualPort
-                ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
+            var port = client1.RuntimePort
+                ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
             var client2 = Ctx.CreateClient(
                 useStdio: false,
                 options: new CopilotClientOptions
                 {
-                    CliUrl = $"localhost:{port}",
                     LogLevel = CopilotLogLevel.Error,
                     SessionFs = SessionFsConfig,
-                    TcpConnectionToken = "session-fs-shared-token",
+                    Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: "session-fs-shared-token"),
                 });
 
             try
@@ -463,7 +462,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             options: new CopilotClientOptions
             {
                 SessionFs = SessionFsConfig,
-                TcpConnectionToken = tcpConnectionToken,
+                Connection = RuntimeConnection.Tcp(connectionToken: tcpConnectionToken),
             });
     }
 

@@ -16,7 +16,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Start_And_Connect_To_Server(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
 
         try
         {
@@ -38,7 +38,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Force_Stop_Without_Cleanup(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
 
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
@@ -49,7 +49,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Status_With_Version_And_Protocol_Info(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
 
         try
         {
@@ -73,7 +73,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Get_Auth_Status(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
 
         try
         {
@@ -100,7 +100,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_List_Models_When_Authenticated(bool useStdio)
     {
-        using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
 
         try
         {
@@ -138,7 +138,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Not_Throw_When_Disposing_Session_After_Stopping_Client(bool useStdio)
     {
-        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
         await using var session = await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
 
         await client.StopAsync();
@@ -151,8 +151,9 @@ public class ClientE2ETests
     {
         var client = new CopilotClient(new CopilotClientOptions
         {
-            CliArgs = ["--nonexistent-flag-for-testing"],
-            UseStdio = useStdio
+            Connection = useStdio
+                ? RuntimeConnection.Stdio(args: ["--nonexistent-flag-for-testing"])
+                : RuntimeConnection.Tcp(args: ["--nonexistent-flag-for-testing"])
         });
 
         var ex = await Assert.ThrowsAsync<IOException>(() => client.StartAsync());
@@ -179,7 +180,7 @@ public class ClientE2ETests
     [InlineData(false)]  // TCP transport
     public async Task Should_Allow_CreateSession_Called_Without_PermissionHandler(bool useStdio)
     {
-        await using var client = new CopilotClient(new CopilotClientOptions { UseStdio = useStdio });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp() });
         await using var session = await client.CreateSessionAsync(new SessionConfig());
 
         Assert.NotNull(session.SessionId);
@@ -193,17 +194,16 @@ public class ClientE2ETests
         await using var ctx = await E2ETestContext.CreateAsync();
         await using var client = ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
         {
-            TcpConnectionToken = connectionToken,
+            Connection = RuntimeConnection.Tcp(connectionToken: connectionToken),
         });
         await using var originalSession = await client.CreateSessionAsync(new SessionConfig());
 
-        var port = client.ActualPort
+        var port = client.RuntimePort
             ?? throw new InvalidOperationException("Client must be using TCP transport to support multi-client resume.");
 
         await using var resumeClient = ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = connectionToken,
+            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: connectionToken),
         });
         await using var resumedSession = await resumeClient.ResumeSessionAsync(originalSession.SessionId, new());
 
@@ -232,7 +232,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            UseStdio = useStdio,
+            Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -269,7 +269,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            UseStdio = useStdio,
+            Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp(),
             OnListModels = (ct) =>
             {
                 callCount++;
@@ -305,7 +305,7 @@ public class ClientE2ETests
         var callCount = 0;
         await using var client = new CopilotClient(new CopilotClientOptions
         {
-            UseStdio = useStdio,
+            Connection = useStdio ? RuntimeConnection.Stdio() : RuntimeConnection.Tcp(),
             OnListModels = (ct) =>
             {
                 callCount++;

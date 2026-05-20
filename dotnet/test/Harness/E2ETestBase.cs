@@ -88,13 +88,12 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         config.OnPermissionRequest ??= PermissionHandler.ApproveAll;
 
         await Client.StartAsync();
-        var port = Client.ActualPort
+        var port = Client.RuntimePort
             ?? throw new InvalidOperationException("The shared E2E client must use TCP transport to support multi-client resume.");
 
         var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = E2ETestFixture.SharedTcpConnectionToken,
+            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
         });
         return await client.ResumeSessionAsync(sessionId, config);
     }
