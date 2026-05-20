@@ -132,7 +132,6 @@ type (
 	RawSystemNotification                                         = rpc.RawSystemNotification
 	RawToolExecutionCompleteContent                               = rpc.RawToolExecutionCompleteContent
 	RawUserMessageAttachment                                      = rpc.RawUserMessageAttachment
-	RawUserToolSessionApproval                                    = rpc.RawUserToolSessionApproval
 	ReasoningSummary                                              = rpc.ReasoningSummary
 	SamplingCompletedData                                         = rpc.SamplingCompletedData
 	SamplingRequestedData                                         = rpc.SamplingRequestedData
@@ -238,7 +237,6 @@ type (
 	UserToolSessionApprovalCustomTool                             = rpc.UserToolSessionApprovalCustomTool
 	UserToolSessionApprovalExtensionManagement                    = rpc.UserToolSessionApprovalExtensionManagement
 	UserToolSessionApprovalExtensionPermissionAccess              = rpc.UserToolSessionApprovalExtensionPermissionAccess
-	UserToolSessionApprovalKind                                   = rpc.UserToolSessionApprovalKind
 	UserToolSessionApprovalMcp                                    = rpc.UserToolSessionApprovalMcp
 	UserToolSessionApprovalMemory                                 = rpc.UserToolSessionApprovalMemory
 	UserToolSessionApprovalRead                                   = rpc.UserToolSessionApprovalRead
@@ -465,14 +463,6 @@ const (
 	UserMessageAttachmentTypeFile                                      = rpc.UserMessageAttachmentTypeFile
 	UserMessageAttachmentTypeGithubReference                           = rpc.UserMessageAttachmentTypeGithubReference
 	UserMessageAttachmentTypeSelection                                 = rpc.UserMessageAttachmentTypeSelection
-	UserToolSessionApprovalKindCommands                                = rpc.UserToolSessionApprovalKindCommands
-	UserToolSessionApprovalKindCustomTool                              = rpc.UserToolSessionApprovalKindCustomTool
-	UserToolSessionApprovalKindExtensionManagement                     = rpc.UserToolSessionApprovalKindExtensionManagement
-	UserToolSessionApprovalKindExtensionPermissionAccess               = rpc.UserToolSessionApprovalKindExtensionPermissionAccess
-	UserToolSessionApprovalKindMcp                                     = rpc.UserToolSessionApprovalKindMcp
-	UserToolSessionApprovalKindMemory                                  = rpc.UserToolSessionApprovalKindMemory
-	UserToolSessionApprovalKindRead                                    = rpc.UserToolSessionApprovalKindRead
-	UserToolSessionApprovalKindWrite                                   = rpc.UserToolSessionApprovalKindWrite
 	WorkingDirectoryContextHostTypeAdo                                 = rpc.WorkingDirectoryContextHostTypeAdo
 	WorkingDirectoryContextHostTypeGithub                              = rpc.WorkingDirectoryContextHostTypeGithub
 	WorkspaceFileChangedOperationCreate                                = rpc.WorkspaceFileChangedOperationCreate

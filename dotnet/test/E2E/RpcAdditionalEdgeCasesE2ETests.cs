@@ -151,11 +151,11 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
         var metrics = await session.Rpc.Usage.GetMetricsAsync();
 
         // Fresh session = no LLM calls yet. Last-call counters and the user-request count
-        // must be zero, and SessionStartTime must be a positive epoch (set at create-time).
+        // must be zero, and SessionStartTime must be populated at create-time.
         Assert.Equal(0, metrics.LastCallInputTokens);
         Assert.Equal(0, metrics.LastCallOutputTokens);
         Assert.Equal(0, metrics.TotalUserRequests);
-        Assert.True(metrics.SessionStartTime > 0, "SessionStartTime should be a positive epoch.");
+        Assert.NotEqual(default, metrics.SessionStartTime);
     }
 
     [Fact]

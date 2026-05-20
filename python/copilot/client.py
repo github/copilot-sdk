@@ -27,6 +27,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import KW_ONLY, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal, TypedDict, cast, overload
@@ -41,6 +42,7 @@ from .generated.rpc import (
     RemoteSessionMode,
     ServerRpc,
     _InternalServerRpc,
+    from_datetime,
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
@@ -254,7 +256,7 @@ class PingResponse:
     """Response from ping"""
 
     message: str  # Echo message with "pong: " prefix
-    timestamp: int  # Server timestamp in milliseconds
+    timestamp: datetime  # ISO 8601 timestamp when the ping was processed
     protocolVersion: int  # Protocol version for SDK compatibility
 
     @staticmethod
@@ -268,12 +270,17 @@ class PingResponse:
                 f"Missing required fields in PingResponse: message={message}, "
                 f"timestamp={timestamp}, protocolVersion={protocolVersion}"
             )
-        return PingResponse(str(message), int(timestamp), int(protocolVersion))
+        timestamp_value = (
+            datetime.fromtimestamp(timestamp / 1000, tz=UTC)
+            if isinstance(timestamp, (int, float))
+            else from_datetime(timestamp)
+        )
+        return PingResponse(str(message), timestamp_value, int(protocolVersion))
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["message"] = self.message
-        result["timestamp"] = self.timestamp
+        result["timestamp"] = self.timestamp.isoformat()
         result["protocolVersion"] = self.protocolVersion
         return result
 

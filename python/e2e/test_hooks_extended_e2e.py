@@ -163,7 +163,11 @@ class TestHooksExtended:
             if input_data.get("toolName") != "report_intent":
                 return None
             return {
-                "modifiedResult": "modified by post hook",
+                "modifiedResult": {
+                    "textResultForLlm": "modified by post hook",
+                    "resultType": "success",
+                    "toolTelemetry": {},
+                },
                 "suppressOutput": False,
             }
 

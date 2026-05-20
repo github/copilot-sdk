@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
 )
@@ -1341,9 +1342,9 @@ type pingRequest struct {
 
 // PingResponse is the response from a ping request
 type PingResponse struct {
-	Message         string `json:"message"`
-	Timestamp       int64  `json:"timestamp"`
-	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
+	Message         string    `json:"message"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProtocolVersion *int      `json:"protocolVersion,omitempty"`
 }
 
 // getStatusRequest is the request for status.get

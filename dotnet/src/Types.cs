@@ -2827,9 +2827,9 @@ public class PingResponse
     /// </summary>
     public string Message { get; set; } = string.Empty;
     /// <summary>
-    /// Server timestamp when the ping was processed.
+    /// ISO 8601 timestamp when the ping was processed.
     /// </summary>
-    public long Timestamp { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
     /// <summary>
     /// Protocol version supported by the server.
     /// </summary>

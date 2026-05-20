@@ -1318,7 +1318,7 @@ func (c *Client) ActualPort() int {
 //	if err != nil {
 //	    log.Printf("Server unreachable: %v", err)
 //	} else {
-//	    log.Printf("Server responded at %d", resp.Timestamp)
+//	    log.Printf("Server responded at %s", resp.Timestamp)
 //	}
 func (c *Client) Ping(ctx context.Context, message string) (*PingResponse, error) {
 	if c.client == nil {

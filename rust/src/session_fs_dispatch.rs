@@ -350,7 +350,7 @@ pub(crate) async fn sqlite_query(
             columns: result.columns,
             rows: result.rows,
             rows_affected: result.rows_affected,
-            last_insert_rowid: result.last_insert_rowid.map(|v| v as f64),
+            last_insert_rowid: result.last_insert_rowid,
             error: None,
         },
         Ok(None) => GeneratedSqliteQueryResult {

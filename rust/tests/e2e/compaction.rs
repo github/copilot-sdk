@@ -65,7 +65,7 @@ async fn should_trigger_compaction_with_low_threshold_and_emit_events() {
                     .expect("compaction start task")
                     .typed_data::<SessionCompactionStartData>()
                     .expect("compaction start data");
-                assert!(start.conversation_tokens.unwrap_or_default() > 0.0);
+                assert!(start.conversation_tokens.unwrap_or_default() > 0);
 
                 let complete = compaction_completed
                     .await
@@ -79,7 +79,7 @@ async fn should_trigger_compaction_with_low_threshold_and_emit_events() {
                         .as_ref()
                         .and_then(|usage| usage.input_tokens)
                         .unwrap_or_default()
-                        > 0.0
+                        > 0
                 );
                 let summary = complete.summary_content.unwrap_or_default().to_lowercase();
                 assert!(summary.contains("<overview>"));

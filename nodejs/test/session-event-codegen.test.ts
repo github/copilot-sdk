@@ -171,6 +171,44 @@ describe("session event codegen", () => {
         );
     });
 
+    it("keeps C# seconds-valued duration members numeric", () => {
+        const schema: JSONSchema7 = {
+            definitions: {
+                SessionEvent: {
+                    anyOf: [
+                        {
+                            type: "object",
+                            required: ["type", "data"],
+                            properties: {
+                                type: { const: "session.synthetic" },
+                                data: {
+                                    type: "object",
+                                    properties: {
+                                        retryAfterSeconds: {
+                                            type: "integer",
+                                            format: "duration",
+                                            description:
+                                                "Seconds until the rate limit resets, when known.",
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        };
+
+        const csharpCode = generateCSharpSessionEventsCode(schema);
+
+        expect(csharpCode).toContain(
+            '[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]\n    [JsonPropertyName("retryAfterSeconds")]\n    public long? RetryAfterSeconds { get; set; }'
+        );
+        expect(csharpCode).not.toContain(
+            '[JsonConverter(typeof(MillisecondsTimeSpanConverter))]\n    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]\n    [JsonPropertyName("retryAfterSeconds")]'
+        );
+    });
+
     it("collapses redundant callable wrapper lambdas", () => {
         const schema: JSONSchema7 = {
             definitions: {

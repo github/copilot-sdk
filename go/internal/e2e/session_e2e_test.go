@@ -1457,7 +1457,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		number := float64(1234)
+		number := int64(1234)
 		referenceType := copilot.UserMessageAttachmentGithubReferenceTypeIssue
 		state := "open"
 		title := "Add E2E attachment coverage"
