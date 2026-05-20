@@ -4,7 +4,7 @@
 
 You are working in `copilot-sdk-00`, a local clone of `https://github.com/github/copilot-sdk`. The Java SDK source repository is at `../copilot-sdk-java-00` (a local clone of `https://github.com/github/copilot-sdk-java`).
 
-You are implementing one phase of the work to make it so the `copilot-sdk/java` directory is the new home for what is currently `copilot-sdk-java`, with all sournce code, workflows and maintenance affordances migrated.
+You are implementing one phase of the work to make it so the `copilot-sdk/java` directory is the new home for what is currently `copilot-sdk-java`, with all source code, workflows and maintenance affordances migrated.
 
 Phase 0 (pre-flight) and Phase 1 (copy source code) are already complete. The Java source code is already present under `java/` in this repository and `mvn clean verify` passes from that directory.
 

@@ -1,5 +1,10 @@
 # DD-2989727: Move Java SDK into copilot-sdk Monorepo — Plan
 
+## Overall goal
+
+The software that currently resides in https://github.com/github/copilot-sdk-java (the standalone repo) will be merged into https://github.com/github/copilot-sdk (the monorepo) such that the Java specific aspects will reside entirely within the `java` directory and as much of the supporting infrastructure will reside in its natural home, but with `java-` file name prefixes wherever possible.
+
+
 ## Table of Contents
 
 1. [Migration Plan — Phases](#1-migration-plan--phases)
@@ -18,7 +23,7 @@
 
 ## 1. Migration Plan — Phases
 
-### Phase 0: ✅ Pre-Flight (Before Writing Any Code)
+### Phase 00: ✅ Pre-Flight (Before Writing Any Code)
 
 - [✅] **Provision secrets** in `github/copilot-sdk` (see §2A) See https://github.com/github/copilot-sdk-partners/issues/90
 - [✅] **Verify CODEOWNERS team** access. See https://github.com/github/copilot-sdk-partners/issues/89
@@ -33,7 +38,7 @@
   4. Once Phase 1 merges and the monorepo is the source of truth, disable the sync workflow in `copilot-sdk-java` entirely
   - **Rationale:** A hard freeze is unnecessary because (a) there is a single human committer, (b) the only automated commit source is the reference-impl-sync workflow whose schedule is controllable, and (c) any drift is trivially detectable via `git log`. The one constraint: do not trigger a sync while a Phase 1 PR is under active review.
 
-### Phase 1: ✅ Copy Source Code (No Workflows Yet)
+### Phase 01: ✅ Copy Source Code (No Workflows Yet)
 
 **Goal**: Get all Java source code building and testing in the monorepo without any CI/CD.
 
@@ -52,7 +57,7 @@
 
 3. Verify `mvn clean verify` works from `java/` directory locally. Make necessary changes so the test infrastructure is copied locally, rather than checked out.
 
-### Phase 2: CI Workflows
+### Phase 02: CI Workflows
 
 **Goal**: Java CI runs on PRs and main pushes within the monorepo.
 
@@ -76,7 +81,7 @@
 5. Update `dependabot.yaml`:
    - Add Maven ecosystem entry for `/java`
 
-### Phase 3: Publish Workflows
+### Phase 03: Publish Workflows
 
 **Goal**: Java can be independently published from the monorepo.
 
@@ -97,7 +102,7 @@
 
 5. Migrate `notes.template` to `java/.github/notes.template` or similar.
 
-### Phase 4: Agentic Workflows and Skills
+### Phase 04: Agentic Workflows and Skills
 
 **Goal**: Agentic automation works for Java within the monorepo.
 
@@ -148,7 +153,7 @@
 
 7. Migrate `commit-as-pull-request` skill (check if monorepo already has equivalent).
 
-### Phase 5: Cross-Cutting Updates
+### Phase 05: Cross-Cutting Updates
 
 1. Update monorepo `copilot-instructions.md` to include Java section.
 2. Update monorepo `README.md` to list Java as a supported language.
@@ -158,7 +163,7 @@
 6. Add Java to `docs/` getting-started and feature pages.
 7. Update `sdk-protocol-version.json` if Java needs it.
 
-### Phase 6: Cutover and Cleanup
+### Phase 06: Cutover and Cleanup
 
 1. **Disable CI** in `copilot-sdk-java` (remove or disable workflows).
 2. **Archive** `copilot-sdk-java` repo (make read-only).
@@ -169,6 +174,38 @@
    - Any links in copilot documentation
 4. **Remove duplicate resources** that were merged rather than moved.
 5. **Run full CI** in monorepo to validate everything.
+
+### Phase 07: Preserve authorship of commits for `pom.xml` and `.java` files
+
+Let's assume
+
+- the only types of files where we want commit authorship preserved are `.java` and `pom.xml` files.
+
+- those types of files in the standalone repo are kept in sync with those types of files in the monorepo so that, during the migration, those types of files in the standalone repo are the "source of truth" for those types of files.
+
+Since the file contents are **identical** at merge time, git will resolve the merge cleanly (both sides "add" the same file with the same content = no conflict). The workflow:
+
+1. Finish all migration work, get PR merged, everything working
+2. Then as the final step:
+
+```powershell
+# Fresh clone of standalone, filter to only .java and pom.xml, remap to java/
+git clone https://github.com/github/copilot-sdk-java /tmp/java-history
+cd /tmp/java-history
+git filter-repo --path-glob '*.java' --path-glob '**/pom.xml' --to-subdirectory-filter java
+
+# In the monorepo, merge the rewritten history
+cd E:\workareas\copilot-sdk-00
+git remote add java-history /tmp/java-history
+git fetch java-history
+git merge java-history/main --allow-unrelated-histories -m "Preserve Java commit history from standalone repo"
+git remote remove java-history
+```
+
+Because content is identical at merge time, this produces a clean merge commit. After that, `git log --follow java/src/main/java/.../CopilotClient.java` traces back to the original authors.
+
+**One caveat**: if any `.java` or pom.xml files diverge between repos before you do this step, you'll get conflicts on those files. As long as you keep them in sync (your assumption #2), it's safe to do last.
+
 
 ---
 
