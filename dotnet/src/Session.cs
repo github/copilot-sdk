@@ -191,7 +191,34 @@ public sealed partial class CopilotSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sends a message to the Copilot session and waits for the response.
+    /// Sends a plain-text user message and returns the message ID without waiting for
+    /// the assistant to reply. Convenience overload for <see cref="SendAsync(MessageOptions, CancellationToken)"/>.
+    /// </summary>
+    /// <param name="prompt">The user message text.</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with the message ID.</returns>
+    public Task<string> SendAsync(string prompt, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        return SendAsync(new MessageOptions { Prompt = prompt }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends a plain-text user message and waits until the session becomes idle.
+    /// Convenience overload for <see cref="SendAndWaitAsync(MessageOptions, TimeSpan?, CancellationToken)"/>.
+    /// </summary>
+    /// <param name="prompt">The user message text.</param>
+    /// <param name="timeout">Timeout duration (default: 60 seconds).</param>
+    /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
+    /// <returns>A task that resolves with the final assistant message event, or null if none was received.</returns>
+    public Task<AssistantMessageEvent?> SendAndWaitAsync(string prompt, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(prompt);
+        return SendAndWaitAsync(new MessageOptions { Prompt = prompt }, timeout, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends a message to the Copilot session.
     /// </summary>
     /// <param name="options">Options for the message to be sent, including the prompt and optional attachments.</param>
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
@@ -199,11 +226,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// <para>
-    /// This method returns immediately after the message is queued. Use <see cref="SendAndWaitAsync"/>
+    /// This method returns immediately after the message is queued. Use <see cref="SendAndWaitAsync(MessageOptions, TimeSpan?, CancellationToken)"/>
     /// if you need to wait for the assistant to finish processing.
     /// </para>
     /// <para>
-    /// Subscribe to events via <see cref="On"/> to receive streaming responses and other session events.
+    /// Subscribe to events via <see cref="On{T}"/> to receive streaming responses and other session events.
     /// </para>
     /// </remarks>
     /// <example>
@@ -260,12 +287,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <exception cref="InvalidOperationException">Thrown if the session has been disposed.</exception>
     /// <remarks>
     /// <para>
-    /// This is a convenience method that combines <see cref="SendAsync"/> with waiting for
+    /// This is a convenience method that combines <see cref="SendAsync(MessageOptions, CancellationToken)"/> with waiting for
     /// the <c>session.idle</c> event. Use this when you want to block until the assistant
     /// has finished processing the message.
     /// </para>
     /// <para>
-    /// Events are still delivered to handlers registered via <see cref="On"/> while waiting.
+    /// Events are still delivered to handlers registered via <see cref="On{T}"/> while waiting.
     /// </para>
     /// </remarks>
     /// <example>
@@ -1449,7 +1476,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <returns>A task representing the dispose operation.</returns>
     /// <remarks>
     /// <para>
-    /// The caller should ensure the session is idle (e.g., <see cref="SendAndWaitAsync"/>
+    /// The caller should ensure the session is idle (e.g., <see cref="SendAndWaitAsync(MessageOptions, TimeSpan?, CancellationToken)"/>
     /// has returned) before disposing. If the session is not idle, in-flight event handlers
     /// or tool handlers may observe failures.
     /// </para>
