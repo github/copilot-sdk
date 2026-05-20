@@ -44,6 +44,27 @@ class TestMCPServers:
 
         await session.disconnect()
 
+    async def test_should_accept_mcp_server_configuration_without_args(self, ctx: E2ETestContext):
+        """Test that MCP server configuration works without args field"""
+        mcp_servers: dict[str, MCPServerConfig] = {
+            "test-server": {
+                "command": "echo",
+                "tools": ["*"],
+            }
+        }
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all, mcp_servers=mcp_servers
+        )
+
+        assert session.session_id is not None
+
+        message = await session.send_and_wait("What is 2+2?")
+        assert message is not None
+        assert "4" in message.data.content
+
+        await session.disconnect()
+
     async def test_should_accept_mcp_server_configuration_on_session_resume(
         self, ctx: E2ETestContext
     ):

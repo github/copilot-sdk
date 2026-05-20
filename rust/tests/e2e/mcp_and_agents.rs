@@ -39,6 +39,48 @@ async fn accept_mcp_server_config_on_create() {
 }
 
 #[tokio::test]
+async fn accept_mcp_server_config_without_args() {
+    with_e2e_context(
+        "mcp_and_agents",
+        "accept_mcp_server_config_without_args",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+
+                let mcp_servers = HashMap::from([(
+                    "test-server".to_string(),
+                    McpServerConfig::Stdio(McpStdioServerConfig {
+                        tools: vec!["*".to_string()],
+                        command: "echo".to_string(),
+                        ..McpStdioServerConfig::default()
+                    }),
+                )]);
+
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_mcp_servers(mcp_servers),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait("What is 2+2?")
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+                assert!(assistant_message_content(&answer).contains('4'));
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn accept_mcp_server_config_on_resume() {
     with_e2e_context(
         "mcp_and_agents",

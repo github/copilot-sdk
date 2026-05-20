@@ -44,6 +44,30 @@ describe("MCP Servers and Custom Agents", async () => {
             await session.disconnect();
         });
 
+        it("should accept MCP server configuration without args", async () => {
+            const mcpServers: Record<string, MCPServerConfig> = {
+                "test-server": {
+                    type: "local",
+                    command: "echo",
+                    tools: ["*"],
+                } as MCPStdioServerConfig,
+            };
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                mcpServers,
+            });
+
+            expect(session.sessionId).toBeDefined();
+
+            const message = await session.sendAndWait({
+                prompt: "What is 2+2?",
+            });
+            expect(message?.data.content).toContain("4");
+
+            await session.disconnect();
+        });
+
         it("should accept MCP server configuration on session resume", async () => {
             // Create a session first
             const session1 = await client.createSession({ onPermissionRequest: approveAll });

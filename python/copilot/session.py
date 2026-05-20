@@ -786,7 +786,7 @@ class MCPStdioServerConfig(TypedDict, total=False):
     type: NotRequired[Literal["local", "stdio"]]  # Server type
     timeout: NotRequired[int]  # Timeout in milliseconds
     command: str  # Command to run
-    args: list[str]  # Command arguments
+    args: NotRequired[list[str]]  # Command arguments
     env: NotRequired[dict[str, str]]  # Environment variables
     cwd: NotRequired[str]  # Working directory
 

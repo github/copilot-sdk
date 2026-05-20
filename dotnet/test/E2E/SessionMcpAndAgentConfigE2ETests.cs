@@ -42,6 +42,34 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
     }
 
     [Fact]
+    public async Task Should_Accept_MCP_Server_Configuration_Without_Args()
+    {
+        var mcpServers = new Dictionary<string, McpServerConfig>
+        {
+            ["test-server"] = new McpStdioServerConfig
+            {
+                Command = "echo",
+                Tools = ["*"]
+            }
+        };
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            McpServers = mcpServers
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
+        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
+
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(message);
+        Assert.Contains("4", message!.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Accept_MCP_Server_Configuration_On_Session_Resume()
     {
         // Create a session first
