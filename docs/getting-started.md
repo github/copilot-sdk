@@ -2071,7 +2071,7 @@ using GitHub.Copilot;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-Connection = RuntimeConnection.Uri("localhost:4321"),
+    Connection = RuntimeConnection.Uri("localhost:4321"),
 });
 
 // Use the client normally

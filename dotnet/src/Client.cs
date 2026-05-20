@@ -195,12 +195,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <remarks>
-    /// <para>
     /// If the server is not already running and the client is configured to spawn one (default), it will be started.
     /// If connecting to an external runtime (via RuntimeConnection.Uri), only establishes the connection.
-    /// </para>
-    /// <para>
-    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -216,7 +212,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
             _logger.LogDebug("Starting Copilot client");
-            // Reset disposed flag for restart scenarios
 
             var startTimestamp = Stopwatch.GetTimestamp();
             Connection? connection = null;
