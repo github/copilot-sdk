@@ -197,7 +197,7 @@ public sealed class E2ETestContext : IAsyncDisposable
             env["GITHUB_ENTERPRISE_TOKEN"] = "";
         }
 
-        env["GITHUB_TOKEN"] = env["GH_TOKEN"] = "";
+        env["GITHUB_TOKEN"] = env["GH_TOKEN"] = DefaultGitHubToken;
 
         return env!;
     }
