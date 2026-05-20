@@ -195,13 +195,17 @@ public sealed class E2ETestContext : IAsyncDisposable
             env["GH_ENTERPRISE_TOKEN"] = "";
             env["GITHUB_ENTERPRISE_TOKEN"] = "";
         }
-        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-        {
-            env["GH_TOKEN"] = DefaultGitHubToken;
-            env["GITHUB_TOKEN"] = DefaultGitHubToken;
-        }
+
+        env["GITHUB_TOKEN"] = env["GH_TOKEN"] = "";
 
         return env!;
+    }
+
+    private static string? GetEffectiveGitHubTokenForTests()
+    {
+        return Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+            ? DefaultGitHubToken
+            : Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     }
 
     public CopilotClient CreateClient(
@@ -238,7 +242,7 @@ public sealed class E2ETestContext : IAsyncDisposable
             && string.IsNullOrEmpty(options.GitHubToken)
             && !isExistingRuntime)
         {
-            options.GitHubToken = DefaultGitHubToken;
+            options.GitHubToken = GetEffectiveGitHubTokenForTests();
         }
 
         var client = new CopilotClient(options);
