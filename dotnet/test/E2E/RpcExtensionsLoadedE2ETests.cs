@@ -57,7 +57,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     {
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Tcp(args: ["--yolo"]),
+            Connection = RuntimeConnection.Stdio(args: ["--yolo"]),
             Environment = ExtensionsEnabledEnvironment(),
         });
     }

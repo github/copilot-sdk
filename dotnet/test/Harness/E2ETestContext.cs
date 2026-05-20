@@ -221,15 +221,14 @@ public sealed class E2ETestContext : IAsyncDisposable
         options.Logger ??= Logger;
 
         // Build the connection. If the caller supplied one, just ensure the runtime path is set;
-        // otherwise default to Tcp with bundled CLI path (matches the previous "useStdio: false,
-        // CliPath = bundled" behavior).
+        // otherwise default to Stdio with the bundled runtime (matches CopilotClient's own default).
         var cliPath = GetCliPath(_repoRoot);
         switch (options.Connection)
         {
             case null:
-                options.Connection = useStdio == true
-                    ? RuntimeConnection.Stdio(path: cliPath)
-                    : RuntimeConnection.Tcp(path: cliPath);
+                options.Connection = useStdio == false
+                    ? RuntimeConnection.Tcp(path: cliPath)
+                    : RuntimeConnection.Stdio(path: cliPath);
                 break;
             case ChildProcessRuntimeConnection child when child.Path is null:
                 child.Path = cliPath;
