@@ -327,7 +327,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
                         {
                             TextResultForLlm = "modified by post hook",
                             ResultType = "success",
-                            ToolTelemetry = new Dictionary<string, JsonElement>(),
+                            ToolTelemetry = new Dictionary<string, object>(),
                         },
                         SuppressOutput = false,
                     });

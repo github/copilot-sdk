@@ -708,8 +708,7 @@ public sealed class SessionList
 }
 
 /// <summary>Optional filter applied to the returned sessions.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SessionListFilter
+public sealed class SessionsListRequestFilter
 {
     /// <summary>Match sessions whose context.branch equals this value.</summary>
     [JsonPropertyName("branch")]
@@ -734,7 +733,7 @@ internal sealed class SessionsListRequest
 {
     /// <summary>Optional filter applied to the returned sessions.</summary>
     [JsonPropertyName("filter")]
-    public SessionListFilter? Filter { get; set; }
+    public SessionsListRequestFilter? Filter { get; set; }
 
     /// <summary>When provided, only the first N sessions (sorted by modification time, newest first) load full metadata; remaining sessions return basic info only. Use 0 to return only basic info for every session.</summary>
     [JsonPropertyName("metadataLimit")]
@@ -1075,7 +1074,6 @@ internal sealed class SessionsSetAdditionalPluginsRequest
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSuspendRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1084,7 +1082,6 @@ internal sealed class SessionSuspendRequest
 }
 
 /// <summary>Result of sending a user message.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SendResult
 {
     /// <summary>Unique identifier assigned to the message.</summary>
@@ -1094,7 +1091,6 @@ public sealed class SendResult
 
 /// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1112,7 +1108,6 @@ public partial class SendAttachment
 
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentFileLineRange
 {
     /// <summary>End line number (1-based, inclusive).</summary>
@@ -1126,7 +1121,6 @@ public sealed class SendAttachmentFileLineRange
 
 /// <summary>File attachment.</summary>
 /// <remarks>The <c>file</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentFile : SendAttachment
 {
     /// <inheritdoc />
@@ -1149,7 +1143,6 @@ public partial class SendAttachmentFile : SendAttachment
 
 /// <summary>Directory attachment.</summary>
 /// <remarks>The <c>directory</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentDirectory : SendAttachment
 {
     /// <inheritdoc />
@@ -1166,7 +1159,6 @@ public partial class SendAttachmentDirectory : SendAttachment
 }
 
 /// <summary>End position of the selection.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentSelectionDetailsEnd
 {
     /// <summary>End character offset within the line (0-based).</summary>
@@ -1179,7 +1171,6 @@ public sealed class SendAttachmentSelectionDetailsEnd
 }
 
 /// <summary>Start position of the selection.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentSelectionDetailsStart
 {
     /// <summary>Start character offset within the line (0-based).</summary>
@@ -1192,7 +1183,6 @@ public sealed class SendAttachmentSelectionDetailsStart
 }
 
 /// <summary>Position range of the selection within the file.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentSelectionDetails
 {
     /// <summary>End position of the selection.</summary>
@@ -1206,7 +1196,6 @@ public sealed class SendAttachmentSelectionDetails
 
 /// <summary>Code selection attachment from an editor.</summary>
 /// <remarks>The <c>selection</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentSelection : SendAttachment
 {
     /// <inheritdoc />
@@ -1232,7 +1221,6 @@ public partial class SendAttachmentSelection : SendAttachment
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
 /// <remarks>The <c>github_reference</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentGithubReference : SendAttachment
 {
     /// <inheritdoc />
@@ -1264,7 +1252,6 @@ public partial class SendAttachmentGithubReference : SendAttachment
 
 /// <summary>Blob attachment with inline base64-encoded data.</summary>
 /// <remarks>The <c>blob</c> variant of <see cref="SendAttachment"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentBlob : SendAttachment
 {
     /// <inheritdoc />
@@ -1287,7 +1274,6 @@ public partial class SendAttachmentBlob : SendAttachment
 }
 
 /// <summary>Parameters for sending a user message to the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SendRequest
 {
     /// <summary>The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</summary>
@@ -1348,7 +1334,6 @@ internal sealed class SendRequest
 }
 
 /// <summary>Result of aborting the current turn.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class AbortResult
 {
     /// <summary>Error message if the abort failed.</summary>
@@ -1361,7 +1346,6 @@ public sealed class AbortResult
 }
 
 /// <summary>Parameters for aborting the current turn.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class AbortRequest
 {
     /// <summary>Finite reason code describing why the current turn was aborted.</summary>
@@ -1374,7 +1358,6 @@ internal sealed class AbortRequest
 }
 
 /// <summary>Parameters for shutting down the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ShutdownRequest
 {
     /// <summary>Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</summary>
@@ -1391,7 +1374,6 @@ internal sealed class ShutdownRequest
 }
 
 /// <summary>Identifier of the session event that was emitted for the log message.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class LogResult
 {
     /// <summary>The unique identifier of the emitted session event.</summary>
@@ -1400,7 +1382,6 @@ public sealed class LogResult
 }
 
 /// <summary>Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class LogRequest
 {
     /// <summary>When true, the message is transient and not persisted to the session event log on disk.</summary>
@@ -1435,7 +1416,6 @@ internal sealed class LogRequest
 }
 
 /// <summary>Authentication status and account metadata for the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SessionAuthStatus
 {
     /// <summary>Authentication type.</summary>
@@ -1466,7 +1446,6 @@ public sealed class SessionAuthStatus
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAuthGetStatusRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1475,7 +1454,6 @@ internal sealed class SessionAuthGetStatusRequest
 }
 
 /// <summary>Indicates whether the credential update succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SessionSetCredentialsResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -1485,7 +1463,6 @@ public sealed class SessionSetCredentialsResult
 
 /// <summary>The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1505,7 +1482,6 @@ public partial class AuthInfo
 
 
 /// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseEndpoints
 {
     /// <summary>Gets or sets the <c>api</c> value.</summary>
@@ -1538,7 +1514,6 @@ public sealed class CopilotUserResponseOrganizationListItem
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsChat
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -1591,7 +1566,6 @@ public sealed class CopilotUserResponseQuotaSnapshotsChat
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsCompletions
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -1644,7 +1618,6 @@ public sealed class CopilotUserResponseQuotaSnapshotsCompletions
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -1697,7 +1670,6 @@ public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshots
 {
     /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
@@ -1714,7 +1686,6 @@ public sealed class CopilotUserResponseQuotaSnapshots
 }
 
 /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponse
 {
     /// <summary>Gets or sets the <c>access_type_sku</c> value.</summary>
@@ -1812,7 +1783,6 @@ public sealed class CopilotUserResponse
 
 /// <summary>Schema for the `HMACAuthInfo` type.</summary>
 /// <remarks>The <c>hmac</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoHmac : AuthInfo
 {
     /// <inheritdoc />
@@ -1835,7 +1805,6 @@ public partial class AuthInfoHmac : AuthInfo
 
 /// <summary>Schema for the `EnvAuthInfo` type.</summary>
 /// <remarks>The <c>env</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoEnv : AuthInfo
 {
     /// <inheritdoc />
@@ -1867,7 +1836,6 @@ public partial class AuthInfoEnv : AuthInfo
 
 /// <summary>Schema for the `TokenAuthInfo` type.</summary>
 /// <remarks>The <c>token</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoToken : AuthInfo
 {
     /// <inheritdoc />
@@ -1890,7 +1858,6 @@ public partial class AuthInfoToken : AuthInfo
 
 /// <summary>Schema for the `CopilotApiTokenAuthInfo` type.</summary>
 /// <remarks>The <c>copilot-api-token</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoCopilotApiToken : AuthInfo
 {
     /// <inheritdoc />
@@ -1909,7 +1876,6 @@ public partial class AuthInfoCopilotApiToken : AuthInfo
 
 /// <summary>Schema for the `UserAuthInfo` type.</summary>
 /// <remarks>The <c>user</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoUser : AuthInfo
 {
     /// <inheritdoc />
@@ -1932,7 +1898,6 @@ public partial class AuthInfoUser : AuthInfo
 
 /// <summary>Schema for the `GhCliAuthInfo` type.</summary>
 /// <remarks>The <c>gh-cli</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoGhCli : AuthInfo
 {
     /// <inheritdoc />
@@ -1959,7 +1924,6 @@ public partial class AuthInfoGhCli : AuthInfo
 
 /// <summary>Schema for the `ApiKeyAuthInfo` type.</summary>
 /// <remarks>The <c>api-key</c> variant of <see cref="AuthInfo"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoApiKey : AuthInfo
 {
     /// <inheritdoc />
@@ -1981,7 +1945,6 @@ public partial class AuthInfoApiKey : AuthInfo
 }
 
 /// <summary>New auth credentials to install on the session. Omit to leave credentials unchanged.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSetCredentialsParams
 {
     /// <summary>The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.</summary>
@@ -1994,7 +1957,6 @@ internal sealed class SessionSetCredentialsParams
 }
 
 /// <summary>The currently selected model and reasoning effort for the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CurrentModel
 {
     /// <summary>Currently active model identifier.</summary>
@@ -2007,7 +1969,6 @@ public sealed class CurrentModel
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionModelGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2016,7 +1977,6 @@ internal sealed class SessionModelGetCurrentRequest
 }
 
 /// <summary>The model identifier active on the session after the switch.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelSwitchToResult
 {
     /// <summary>Currently active model identifier after the switch.</summary>
@@ -2025,7 +1985,6 @@ public sealed class ModelSwitchToResult
 }
 
 /// <summary>Vision-specific limits.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideLimitsVision
 {
     /// <summary>Maximum image size in bytes.</summary>
@@ -2042,7 +2001,6 @@ public sealed class ModelCapabilitiesOverrideLimitsVision
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideLimits
 {
     /// <summary>Maximum total context window size in tokens.</summary>
@@ -2063,7 +2021,6 @@ public sealed class ModelCapabilitiesOverrideLimits
 }
 
 /// <summary>Feature flags indicating what the model supports.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideSupports
 {
     /// <summary>Whether this model supports reasoning effort configuration.</summary>
@@ -2076,7 +2033,6 @@ public sealed class ModelCapabilitiesOverrideSupports
 }
 
 /// <summary>Override individual model capabilities resolved by the runtime.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverride
 {
     /// <summary>Token limits for prompts, outputs, and context window.</summary>
@@ -2089,7 +2045,6 @@ public sealed class ModelCapabilitiesOverride
 }
 
 /// <summary>Target model identifier and optional reasoning effort, summary, and capability overrides.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSwitchToRequest
 {
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
@@ -2114,7 +2069,6 @@ internal sealed class ModelSwitchToRequest
 }
 
 /// <summary>Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelSetReasoningEffortResult
 {
     /// <summary>Reasoning effort level recorded on the session after the update.</summary>
@@ -2123,7 +2077,6 @@ public sealed class ModelSetReasoningEffortResult
 }
 
 /// <summary>Reasoning effort level to apply to the currently selected model.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSetReasoningEffortRequest
 {
     /// <summary>Reasoning effort level to apply to the currently selected model. The host is responsible for validating the value against the model's supported levels before calling.</summary>
@@ -2136,7 +2089,6 @@ internal sealed class ModelSetReasoningEffortRequest
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionModeGetRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2145,7 +2097,6 @@ internal sealed class SessionModeGetRequest
 }
 
 /// <summary>Agent interaction mode to apply to the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ModeSetRequest
 {
     /// <summary>The session mode the agent is operating in.</summary>
@@ -2158,7 +2109,6 @@ internal sealed class ModeSetRequest
 }
 
 /// <summary>The session's friendly name, or null when not yet set.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class NameGetResult
 {
     /// <summary>The session name (user-set or auto-generated), or null if not yet set.</summary>
@@ -2167,7 +2117,6 @@ public sealed class NameGetResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionNameGetRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2176,7 +2125,6 @@ internal sealed class SessionNameGetRequest
 }
 
 /// <summary>New friendly name to apply to the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class NameSetRequest
 {
     /// <summary>New session name (1–100 characters, trimmed of leading/trailing whitespace).</summary>
@@ -2192,7 +2140,6 @@ internal sealed class NameSetRequest
 }
 
 /// <summary>Indicates whether the auto-generated summary was applied as the session's name.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class NameSetAutoResult
 {
     /// <summary>Whether the auto-generated summary was persisted. False if the session already has a user-set name, the summary normalized to empty, or the session does not have a workspace.</summary>
@@ -2201,7 +2148,6 @@ public sealed class NameSetAutoResult
 }
 
 /// <summary>Auto-generated session summary to apply as the session's name when no user-set name exists.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class NameSetAutoRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2214,7 +2160,6 @@ internal sealed class NameSetAutoRequest
 }
 
 /// <summary>Existence, contents, and resolved path of the session plan file.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PlanReadResult
 {
     /// <summary>The content of the plan file, or null if it does not exist.</summary>
@@ -2231,7 +2176,6 @@ public sealed class PlanReadResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionPlanReadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2240,7 +2184,6 @@ internal sealed class SessionPlanReadRequest
 }
 
 /// <summary>Replacement contents to write to the session plan file.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PlanUpdateRequest
 {
     /// <summary>The new content for the plan file.</summary>
@@ -2253,7 +2196,6 @@ internal sealed class PlanUpdateRequest
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionPlanDeleteRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2284,15 +2226,13 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("git_root")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
+    /// <summary>Gets or sets the <c>host_type</c> value.</summary>
     [JsonPropertyName("host_type")]
-    public WorkspacesWorkspaceDetailsHostType? HostType { get; set; }
+    public WorkspacesGetWorkspaceResultWorkspaceHostType? HostType { get; set; }
 
     /// <summary>Gets or sets the <c>id</c> value.</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public Guid Id { get; set; }
 
     /// <summary>Gets or sets the <c>mc_last_event_id</c> value.</summary>
     [JsonPropertyName("mc_last_event_id")]
@@ -2332,7 +2272,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
 }
 
 /// <summary>Current workspace metadata for the session, including its absolute filesystem path when available.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesGetWorkspaceResult
 {
     /// <summary>Absolute filesystem path to the workspace directory. Omitted when the session has no workspace (e.g. remote sessions).</summary>
@@ -2345,7 +2284,6 @@ public sealed class WorkspacesGetWorkspaceResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionWorkspacesGetWorkspaceRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2354,7 +2292,6 @@ internal sealed class SessionWorkspacesGetWorkspaceRequest
 }
 
 /// <summary>Relative paths of files stored in the session workspace files directory.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
@@ -2363,7 +2300,6 @@ public sealed class WorkspacesListFilesResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionWorkspacesListFilesRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2372,7 +2308,6 @@ internal sealed class SessionWorkspacesListFilesRequest
 }
 
 /// <summary>Contents of the requested workspace file as a UTF-8 string.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesReadFileResult
 {
     /// <summary>File content as a UTF-8 string.</summary>
@@ -2381,7 +2316,6 @@ public sealed class WorkspacesReadFileResult
 }
 
 /// <summary>Relative path of the workspace file to read.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesReadFileRequest
 {
     /// <summary>Relative path within the workspace files directory.</summary>
@@ -2394,7 +2328,6 @@ internal sealed class WorkspacesReadFileRequest
 }
 
 /// <summary>Relative path and UTF-8 content for the workspace file to create or overwrite.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesCreateFileRequest
 {
     /// <summary>File content to write as a UTF-8 string.</summary>
@@ -2411,7 +2344,6 @@ internal sealed class WorkspacesCreateFileRequest
 }
 
 /// <summary>Schema for the `WorkspacesCheckpoints` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesCheckpoints
 {
     /// <summary>Filename of the checkpoint within the workspace checkpoints directory.</summary>
@@ -2428,7 +2360,6 @@ public sealed class WorkspacesCheckpoints
 }
 
 /// <summary>Workspace checkpoints in chronological order; empty when the workspace is not enabled.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesListCheckpointsResult
 {
     /// <summary>Workspace checkpoints in chronological order. Empty when workspace is not enabled.</summary>
@@ -2437,7 +2368,6 @@ public sealed class WorkspacesListCheckpointsResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionWorkspacesListCheckpointsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2446,7 +2376,6 @@ internal sealed class SessionWorkspacesListCheckpointsRequest
 }
 
 /// <summary>Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesReadCheckpointResult
 {
     /// <summary>Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing.</summary>
@@ -2455,7 +2384,6 @@ public sealed class WorkspacesReadCheckpointResult
 }
 
 /// <summary>Checkpoint number to read.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesReadCheckpointRequest
 {
     /// <summary>Checkpoint number to read.</summary>
@@ -2484,7 +2412,6 @@ public sealed class WorkspacesSaveLargePasteResultSaved
 }
 
 /// <summary>Descriptor for the saved paste file, or null when the workspace is unavailable.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesSaveLargePasteResult
 {
     /// <summary>Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions).</summary>
@@ -2493,7 +2420,6 @@ public sealed class WorkspacesSaveLargePasteResult
 }
 
 /// <summary>Pasted content to save as a UTF-8 file in the session workspace.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesSaveLargePasteRequest
 {
     /// <summary>Pasted content to save as a UTF-8 file.</summary>
@@ -2506,7 +2432,6 @@ internal sealed class WorkspacesSaveLargePasteRequest
 }
 
 /// <summary>Schema for the `InstructionsSources` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsSources
 {
     /// <summary>Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files.</summary>
@@ -2547,7 +2472,6 @@ public sealed class InstructionsSources
 }
 
 /// <summary>Instruction sources loaded for the session, in merge order.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsGetSourcesResult
 {
     /// <summary>Instruction sources for the session.</summary>
@@ -2556,7 +2480,6 @@ public sealed class InstructionsGetSourcesResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionInstructionsGetSourcesRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2970,76 +2893,13 @@ internal sealed class SessionTasksWaitForPendingRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "type",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(TasksGetProgressResultProgressAgent), "agent")]
-[JsonDerivedType(typeof(TasksGetProgressResultProgressShell), "shell")]
-public partial class TasksGetProgressResultProgress
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("type")]
-    public virtual string Type { get; set; } = string.Empty;
-}
-
-
-/// <summary>Schema for the `TaskProgressLine` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class TaskProgressLine
-{
-    /// <summary>Display message, e.g., "▸ bash", "✓ edit src/foo.ts".</summary>
-    [JsonPropertyName("message")]
-    public string Message { get; set; } = string.Empty;
-
-    /// <summary>ISO 8601 timestamp when this event occurred.</summary>
-    [JsonPropertyName("timestamp")]
-    public DateTimeOffset Timestamp { get; set; }
-}
-
-/// <summary>Schema for the `TaskAgentProgress` type.</summary>
-/// <remarks>The <c>agent</c> variant of <see cref="TasksGetProgressResultProgress"/>.</remarks>
-public partial class TasksGetProgressResultProgressAgent : TasksGetProgressResultProgress
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "agent";
-
-    /// <summary>The most recent intent reported by the agent.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("latestIntent")]
-    public string? LatestIntent { get; set; }
-
-    /// <summary>Recent tool execution events converted to display lines.</summary>
-    [JsonPropertyName("recentActivity")]
-    public required IList<TaskProgressLine> RecentActivity { get; set; }
-}
-
-/// <summary>Schema for the `TaskShellProgress` type.</summary>
-/// <remarks>The <c>shell</c> variant of <see cref="TasksGetProgressResultProgress"/>.</remarks>
-public partial class TasksGetProgressResultProgressShell : TasksGetProgressResultProgress
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Type => "shell";
-
-    /// <summary>Process ID when available.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("pid")]
-    public long? Pid { get; set; }
-
-    /// <summary>Recent stdout/stderr lines from the running shell command.</summary>
-    [JsonPropertyName("recentOutput")]
-    public required string RecentOutput { get; set; }
-}
-
 /// <summary>Progress information for the task, or null when no task with that ID is tracked.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksGetProgressResult
 {
     /// <summary>Progress information for the task, discriminated by type. Returns null when no task with this ID is currently tracked.</summary>
     [JsonPropertyName("progress")]
-    public TasksGetProgressResultProgress? Progress { get; set; }
+    public object? Progress { get; set; }
 }
 
 /// <summary>Identifier of the background task to fetch progress for.</summary>
@@ -3914,7 +3774,6 @@ internal sealed class SessionExtensionsReloadRequest
 }
 
 /// <summary>Indicates whether the external tool call result was handled successfully.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class HandlePendingToolCallResult
 {
     /// <summary>Whether the tool call result was handled successfully.</summary>
@@ -3923,7 +3782,6 @@ public sealed class HandlePendingToolCallResult
 }
 
 /// <summary>Pending external tool call request ID, with the tool result or an error describing why it failed.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class HandlePendingToolCallRequest
 {
     /// <summary>Error message if the tool call failed.</summary>
@@ -3944,13 +3802,11 @@ internal sealed class HandlePendingToolCallRequest
 }
 
 /// <summary>Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ToolsInitializeAndValidateResult
 {
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionToolsInitializeAndValidateRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -3959,7 +3815,6 @@ internal sealed class SessionToolsInitializeAndValidateRequest
 }
 
 /// <summary>Optional unstructured input hint.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandInput
 {
     /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
@@ -3980,7 +3835,6 @@ public sealed class SlashCommandInput
 }
 
 /// <summary>Schema for the `SlashCommandInfo` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandInfo
 {
     /// <summary>Canonical aliases without leading slashes.</summary>
@@ -4013,7 +3867,6 @@ public sealed class SlashCommandInfo
 }
 
 /// <summary>Slash commands available in the session, after applying any include/exclude filters.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CommandList
 {
     /// <summary>Commands available in this session.</summary>
@@ -4022,7 +3875,6 @@ public sealed class CommandList
 }
 
 /// <summary>Optional filters controlling which command sources to include in the listing.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsListRequest
 {
     /// <summary>Include runtime built-in commands.</summary>
@@ -4039,7 +3891,6 @@ public sealed class CommandsListRequest
 }
 
 /// <summary>Optional filters controlling which command sources to include in the listing.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsListRequestWithSession
 {
     /// <summary>Include runtime built-in commands.</summary>
@@ -4061,14 +3912,12 @@ internal sealed class CommandsListRequestWithSession
 
 /// <summary>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(SlashCommandInvocationResultText), "text")]
 [JsonDerivedType(typeof(SlashCommandInvocationResultAgentPrompt), "agent-prompt")]
 [JsonDerivedType(typeof(SlashCommandInvocationResultCompleted), "completed")]
-[JsonDerivedType(typeof(SlashCommandInvocationResultSelectSubcommand), "select-subcommand")]
 public partial class SlashCommandInvocationResult
 {
     /// <summary>The type discriminator.</summary>
@@ -4079,7 +3928,6 @@ public partial class SlashCommandInvocationResult
 
 /// <summary>Schema for the `SlashCommandTextResult` type.</summary>
 /// <remarks>The <c>text</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SlashCommandInvocationResultText : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -4108,7 +3956,6 @@ public partial class SlashCommandInvocationResultText : SlashCommandInvocationRe
 
 /// <summary>Schema for the `SlashCommandAgentPromptResult` type.</summary>
 /// <remarks>The <c>agent-prompt</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -4136,7 +3983,6 @@ public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvoc
 
 /// <summary>Schema for the `SlashCommandCompletedResult` type.</summary>
 /// <remarks>The <c>completed</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -4154,52 +4000,7 @@ public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocat
     public bool? RuntimeSettingsChanged { get; set; }
 }
 
-/// <summary>Schema for the `SlashCommandSelectSubcommandOption` type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class SlashCommandSelectSubcommandOption
-{
-    /// <summary>Human-readable description of the subcommand.</summary>
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Optional group label for organizing options.</summary>
-    [JsonPropertyName("group")]
-    public string? Group { get; set; }
-
-    /// <summary>Subcommand name to invoke.</summary>
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>Schema for the `SlashCommandSelectSubcommandResult` type.</summary>
-/// <remarks>The <c>select-subcommand</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class SlashCommandInvocationResultSelectSubcommand : SlashCommandInvocationResult
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "select-subcommand";
-
-    /// <summary>Parent command name that requires subcommand selection.</summary>
-    [JsonPropertyName("command")]
-    public required string Command { get; set; }
-
-    /// <summary>Available subcommand options for the client to present.</summary>
-    [JsonPropertyName("options")]
-    public required IList<SlashCommandSelectSubcommandOption> Options { get; set; }
-
-    /// <summary>True when the invocation mutated user runtime settings; consumers caching settings should refresh.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("runtimeSettingsChanged")]
-    public bool? RuntimeSettingsChanged { get; set; }
-
-    /// <summary>Human-readable title for the selection UI.</summary>
-    [JsonPropertyName("title")]
-    public required string Title { get; set; }
-}
-
 /// <summary>Slash command name and optional raw input string to invoke.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsInvokeRequest
 {
     /// <summary>Raw input after the command name.</summary>
@@ -4216,7 +4017,6 @@ internal sealed class CommandsInvokeRequest
 }
 
 /// <summary>Indicates whether the pending client-handled command was completed successfully.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsHandlePendingCommandResult
 {
     /// <summary>Whether the command was handled successfully.</summary>
@@ -4225,7 +4025,6 @@ public sealed class CommandsHandlePendingCommandResult
 }
 
 /// <summary>Pending command request ID and an optional error if the client handler failed.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsHandlePendingCommandRequest
 {
     /// <summary>Error message if the command handler failed.</summary>
@@ -4242,7 +4041,6 @@ internal sealed class CommandsHandlePendingCommandRequest
 }
 
 /// <summary>Error message produced while executing the command, if any.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ExecuteCommandResult
 {
     /// <summary>Error message produced while executing the command, if any. Omitted when the handler succeeded.</summary>
@@ -4251,7 +4049,6 @@ public sealed class ExecuteCommandResult
 }
 
 /// <summary>Slash command name and argument string to execute synchronously.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ExecuteCommandParams
 {
     /// <summary>Argument string to pass to the command (empty string if none).</summary>
@@ -4268,7 +4065,6 @@ internal sealed class ExecuteCommandParams
 }
 
 /// <summary>Indicates whether the command was accepted into the local execution queue.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class EnqueueCommandResult
 {
     /// <summary>True when the command was accepted into the local execution queue. False when the call targets a session that does not support local command queueing (e.g. remote sessions).</summary>
@@ -4277,7 +4073,6 @@ public sealed class EnqueueCommandResult
 }
 
 /// <summary>Slash-prefixed command string to enqueue for FIFO processing.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class EnqueueCommandParams
 {
     /// <summary>Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.</summary>
@@ -4290,7 +4085,6 @@ internal sealed class EnqueueCommandParams
 }
 
 /// <summary>Indicates whether the queued-command response was matched to a pending request.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsRespondToQueuedCommandResult
 {
     /// <summary>Whether a pending queued command with the given request ID was found and resolved. False when the request was already resolved, cancelled, or unknown.</summary>
@@ -4300,7 +4094,6 @@ public sealed class CommandsRespondToQueuedCommandResult
 
 /// <summary>Result of the queued command execution.</summary>
 /// <remarks>Data type discriminated by <c>handled</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class QueuedCommandResult
 {
     /// <summary>The boolean discriminator.</summary>
@@ -4314,7 +4107,6 @@ public partial class QueuedCommandResult
 }
 
 /// <summary>Queued-command request ID and the result indicating whether the host executed it (and whether to stop processing further queued commands).</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsRespondToQueuedCommandRequest
 {
     /// <summary>Request ID from the `command.queued` event the host is responding to.</summary>
@@ -4344,7 +4136,6 @@ internal sealed class TelemetrySetFeatureOverridesRequest
 }
 
 /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationResponse
 {
     /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
@@ -4357,7 +4148,6 @@ public sealed class UIElicitationResponse
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationSchema
 {
     /// <summary>Form field definitions, keyed by field name.</summary>
@@ -4374,7 +4164,6 @@ public sealed class UIElicitationSchema
 }
 
 /// <summary>Prompt message and JSON schema describing the form fields to elicit from the user.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIElicitationRequest
 {
     /// <summary>Message describing what information is needed from the user.</summary>
@@ -4391,7 +4180,6 @@ internal sealed class UIElicitationRequest
 }
 
 /// <summary>Indicates whether the elicitation response was accepted; false if it was already resolved by another client.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationResult
 {
     /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
@@ -4400,7 +4188,6 @@ public sealed class UIElicitationResult
 }
 
 /// <summary>Pending elicitation request ID and the user's response (accept/decline/cancel + form values).</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingElicitationRequest
 {
     /// <summary>The unique request ID from the elicitation.requested event.</summary>
@@ -4417,7 +4204,6 @@ internal sealed class UIHandlePendingElicitationRequest
 }
 
 /// <summary>Indicates whether the pending UI request was resolved by this call.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIHandlePendingResult
 {
     /// <summary>True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending.</summary>
@@ -4426,7 +4212,6 @@ public sealed class UIHandlePendingResult
 }
 
 /// <summary>Schema for the `UIUserInputResponse` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIUserInputResponse
 {
     /// <summary>The user's answer text.</summary>
@@ -4439,7 +4224,6 @@ public sealed class UIUserInputResponse
 }
 
 /// <summary>Request ID of a pending `user_input.requested` event and the user's response.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingUserInputRequest
 {
     /// <summary>The unique request ID from the user_input.requested event.</summary>
@@ -4456,13 +4240,11 @@ internal sealed class UIHandlePendingUserInputRequest
 }
 
 /// <summary>Optional sampling result payload. Omit to reject/cancel the sampling request without providing a result.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIHandlePendingSamplingResponse
 {
 }
 
 /// <summary>Request ID of a pending `sampling.requested` event and an optional sampling result payload (omit to reject).</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingSamplingRequest
 {
     /// <summary>The unique request ID from the sampling.requested event.</summary>
@@ -4479,7 +4261,6 @@ internal sealed class UIHandlePendingSamplingRequest
 }
 
 /// <summary>Request ID of a pending `auto_mode_switch.requested` event and the user's response.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingAutoModeSwitchRequest
 {
     /// <summary>The unique request ID from the auto_mode_switch.requested event.</summary>
@@ -4496,7 +4277,6 @@ internal sealed class UIHandlePendingAutoModeSwitchRequest
 }
 
 /// <summary>Schema for the `UIExitPlanModeResponse` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIExitPlanModeResponse
 {
     /// <summary>Whether the plan was approved.</summary>
@@ -4517,7 +4297,6 @@ public sealed class UIExitPlanModeResponse
 }
 
 /// <summary>Request ID of a pending `exit_plan_mode.requested` event and the user's response.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingExitPlanModeRequest
 {
     /// <summary>The unique request ID from the exit_plan_mode.requested event.</summary>
@@ -4534,7 +4313,6 @@ internal sealed class UIHandlePendingExitPlanModeRequest
 }
 
 /// <summary>Register an in-process handler for `auto_mode_switch.requested` events. The caller still attaches the actual listener via the standard event-subscription mechanism; this registration solely tells the server bridge to skip its own dispatch (so a remote client doesn't race the in-process handler for the same requestId).</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIRegisterDirectAutoModeSwitchHandlerResult
 {
     /// <summary>Opaque handle representing the registration. Pass this same handle to `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active. Multiple registrations are reference-counted; the server bridge will only dispatch auto-mode-switch requests when no handles are active.</summary>
@@ -4543,7 +4321,6 @@ public sealed class UIRegisterDirectAutoModeSwitchHandlerResult
 }
 
 /// <summary>Identifies the target session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionUiRegisterDirectAutoModeSwitchHandlerRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -4552,7 +4329,6 @@ internal sealed class SessionUiRegisterDirectAutoModeSwitchHandlerRequest
 }
 
 /// <summary>Indicates whether the handle was active and the registration count was decremented.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UIUnregisterDirectAutoModeSwitchHandlerResult
 {
     /// <summary>True if the handle was active and decremented the counter; false if the handle was unknown.</summary>
@@ -4561,7 +4337,6 @@ public sealed class UIUnregisterDirectAutoModeSwitchHandlerResult
 }
 
 /// <summary>Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class UIUnregisterDirectAutoModeSwitchHandlerRequest
 {
     /// <summary>Handle previously returned by `registerDirectAutoModeSwitchHandler`.</summary>
@@ -4574,7 +4349,6 @@ internal sealed class UIUnregisterDirectAutoModeSwitchHandlerRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -4583,7 +4357,6 @@ public sealed class PermissionsConfigureResult
 }
 
 /// <summary>Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRuleSource
 {
     /// <summary>Gets or sets the <c>name</c> value.</summary>
@@ -4596,7 +4369,6 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRuleSour
 }
 
 /// <summary>Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRule
 {
     /// <summary>Gets or sets the <c>ifAnyMatch</c> value.</summary>
@@ -4617,7 +4389,6 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRule
 }
 
 /// <summary>Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 {
     /// <summary>Gets or sets the <c>last_updated_at</c> value.</summary>
@@ -4634,7 +4405,6 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 }
 
 /// <summary>If specified, replaces the session's path-permission policy. The runtime constructs the appropriate PathManager based on these inputs (rooted at the session's working directory). Omit to leave the current path policy unchanged.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsConfig
 {
     /// <summary>Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).</summary>
@@ -4655,7 +4425,6 @@ public sealed class PermissionPathsConfig
 }
 
 /// <summary>If specified, replaces the session's approved/denied permission rules. Omit to leave the current rules unchanged.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionRulesSet
 {
     /// <summary>Rules that auto-approve matching requests.</summary>
@@ -4668,7 +4437,6 @@ public sealed class PermissionRulesSet
 }
 
 /// <summary>If specified, replaces the session's URL-permission policy. The runtime constructs a fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy unchanged.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionUrlsConfig
 {
     /// <summary>Initial list of allowed URL/domain patterns. Patterns may include path components. Ignored when `unrestricted` is true.</summary>
@@ -4681,7 +4449,6 @@ public sealed class PermissionUrlsConfig
 }
 
 /// <summary>Patch of permission policy fields to apply (omit a field to leave it unchanged).</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsConfigureParams
 {
     /// <summary>If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.</summary>
@@ -4714,7 +4481,6 @@ internal sealed class PermissionsConfigureParams
 }
 
 /// <summary>Indicates whether the permission decision was applied; false when the request was already resolved.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionRequestResult
 {
     /// <summary>Whether the permission request was handled successfully.</summary>
@@ -4724,7 +4490,6 @@ public sealed class PermissionRequestResult
 
 /// <summary>The client's response to the pending permission prompt.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -4753,7 +4518,6 @@ public partial class PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApproveOnce` type.</summary>
 /// <remarks>The <c>approve-once</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveOnce : PermissionDecision
 {
     /// <inheritdoc />
@@ -4763,7 +4527,6 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 
 /// <summary>Session-scoped approval to remember (tool prompts only; omitted for path/url prompts).</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -4786,7 +4549,6 @@ public partial class PermissionDecisionApproveForSessionApproval
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalCommands : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4800,7 +4562,6 @@ public partial class PermissionDecisionApproveForSessionApprovalCommands : Permi
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalRead : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4810,7 +4571,6 @@ public partial class PermissionDecisionApproveForSessionApprovalRead : Permissio
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalWrite : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4820,7 +4580,6 @@ public partial class PermissionDecisionApproveForSessionApprovalWrite : Permissi
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalMcp : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4838,7 +4597,6 @@ public partial class PermissionDecisionApproveForSessionApprovalMcp : Permission
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.</summary>
 /// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4852,7 +4610,6 @@ public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : Pe
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalMemory : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4862,7 +4619,6 @@ public partial class PermissionDecisionApproveForSessionApprovalMemory : Permiss
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalCustomTool : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4876,7 +4632,6 @@ public partial class PermissionDecisionApproveForSessionApprovalCustomTool : Per
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalExtensionManagement : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4891,7 +4646,6 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionManagem
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess` type.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4905,7 +4659,6 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionPermiss
 
 /// <summary>Schema for the `PermissionDecisionApproveForSession` type.</summary>
 /// <remarks>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSession : PermissionDecision
 {
     /// <inheritdoc />
@@ -4925,7 +4678,6 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 
 /// <summary>Approval to persist for this location.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -4948,7 +4700,6 @@ public partial class PermissionDecisionApproveForLocationApproval
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalCommands : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4962,7 +4713,6 @@ public partial class PermissionDecisionApproveForLocationApprovalCommands : Perm
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalRead : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4972,7 +4722,6 @@ public partial class PermissionDecisionApproveForLocationApprovalRead : Permissi
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalWrite : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4982,7 +4731,6 @@ public partial class PermissionDecisionApproveForLocationApprovalWrite : Permiss
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalMcp : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -5000,7 +4748,6 @@ public partial class PermissionDecisionApproveForLocationApprovalMcp : Permissio
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.</summary>
 /// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -5014,7 +4761,6 @@ public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : P
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalMemory : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -5024,7 +4770,6 @@ public partial class PermissionDecisionApproveForLocationApprovalMemory : Permis
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalCustomTool : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -5038,7 +4783,6 @@ public partial class PermissionDecisionApproveForLocationApprovalCustomTool : Pe
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalExtensionManagement : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -5053,7 +4797,6 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionManage
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess` type.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -5067,7 +4810,6 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionPermis
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocation` type.</summary>
 /// <remarks>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocation : PermissionDecision
 {
     /// <inheritdoc />
@@ -5085,7 +4827,6 @@ public partial class PermissionDecisionApproveForLocation : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApprovePermanently` type.</summary>
 /// <remarks>The <c>approve-permanently</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApprovePermanently : PermissionDecision
 {
     /// <inheritdoc />
@@ -5099,7 +4840,6 @@ public partial class PermissionDecisionApprovePermanently : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionReject` type.</summary>
 /// <remarks>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionReject : PermissionDecision
 {
     /// <inheritdoc />
@@ -5114,7 +4854,6 @@ public partial class PermissionDecisionReject : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionUserNotAvailable` type.</summary>
 /// <remarks>The <c>user-not-available</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 {
     /// <inheritdoc />
@@ -5124,7 +4863,6 @@ public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApproved` type.</summary>
 /// <remarks>The <c>approved</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproved : PermissionDecision
 {
     /// <inheritdoc />
@@ -5134,7 +4872,6 @@ public partial class PermissionDecisionApproved : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApprovedForSession` type.</summary>
 /// <remarks>The <c>approved-for-session</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApprovedForSession : PermissionDecision
 {
     /// <inheritdoc />
@@ -5148,7 +4885,6 @@ public partial class PermissionDecisionApprovedForSession : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApprovedForLocation` type.</summary>
 /// <remarks>The <c>approved-for-location</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApprovedForLocation : PermissionDecision
 {
     /// <inheritdoc />
@@ -5166,7 +4902,6 @@ public partial class PermissionDecisionApprovedForLocation : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionCancelled` type.</summary>
 /// <remarks>The <c>cancelled</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionCancelled : PermissionDecision
 {
     /// <inheritdoc />
@@ -5181,7 +4916,6 @@ public partial class PermissionDecisionCancelled : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionDeniedByRules` type.</summary>
 /// <remarks>The <c>denied-by-rules</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedByRules : PermissionDecision
 {
     /// <inheritdoc />
@@ -5195,7 +4929,6 @@ public partial class PermissionDecisionDeniedByRules : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.</summary>
 /// <remarks>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionDecision
 {
     /// <inheritdoc />
@@ -5205,7 +4938,6 @@ public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFro
 
 /// <summary>Schema for the `PermissionDecisionDeniedInteractivelyByUser` type.</summary>
 /// <remarks>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDecision
 {
     /// <inheritdoc />
@@ -5225,7 +4957,6 @@ public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDec
 
 /// <summary>Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type.</summary>
 /// <remarks>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedByContentExclusionPolicy : PermissionDecision
 {
     /// <inheritdoc />
@@ -5243,7 +4974,6 @@ public partial class PermissionDecisionDeniedByContentExclusionPolicy : Permissi
 
 /// <summary>Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type.</summary>
 /// <remarks>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionDecision"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedByPermissionRequestHook : PermissionDecision
 {
     /// <inheritdoc />
@@ -5262,7 +4992,6 @@ public partial class PermissionDecisionDeniedByPermissionRequestHook : Permissio
 }
 
 /// <summary>Pending permission request ID and the decision to apply (approve/reject and scope).</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionDecisionRequest
 {
     /// <summary>Request ID of the pending permission request.</summary>
@@ -5279,7 +5008,6 @@ internal sealed class PermissionDecisionRequest
 }
 
 /// <summary>Schema for the `PendingPermissionRequest` type.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PendingPermissionRequest
 {
     /// <summary>The user-facing permission prompt details (commands, write, read, mcp, url, memory, custom-tool, path, hook).</summary>
@@ -5292,7 +5020,6 @@ public sealed class PendingPermissionRequest
 }
 
 /// <summary>List of pending permission requests reconstructed from event history.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PendingPermissionRequestList
 {
     /// <summary>Pending permission prompts reconstructed from the session's event history. Equivalent to the set of `permission.requested` events that have not yet been followed by a matching `permission.completed` event. Used by clients (e.g. the CLI) to hydrate UI for prompts that were emitted before the client attached to the session.</summary>
@@ -5301,7 +5028,6 @@ public sealed class PendingPermissionRequestList
 }
 
 /// <summary>No parameters; returns currently-pending permission requests for the session.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsPendingRequestsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -5310,7 +5036,6 @@ internal sealed class PermissionsPendingRequestsRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsSetApproveAllResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5319,7 +5044,6 @@ public sealed class PermissionsSetApproveAllResult
 }
 
 /// <summary>Allow-all toggle for tool permission requests, with an optional telemetry source.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsSetApproveAllRequest
 {
     /// <summary>Whether to auto-approve all tool permission requests.</summary>
@@ -5336,7 +5060,6 @@ internal sealed class PermissionsSetApproveAllRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsModifyRulesResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5345,7 +5068,6 @@ public sealed class PermissionsModifyRulesResult
 }
 
 /// <summary>Scope and add/remove instructions for modifying session- or location-scoped permission rules.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsModifyRulesParams
 {
     /// <summary>Rules to add to the scope. Applied before `remove`/`removeAll`.</summary>
@@ -5370,7 +5092,6 @@ internal sealed class PermissionsModifyRulesParams
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsSetRequiredResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5379,7 +5100,6 @@ public sealed class PermissionsSetRequiredResult
 }
 
 /// <summary>Toggles whether permission prompts should be bridged into session events for this client.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsSetRequiredRequest
 {
     /// <summary>Whether the client wants `permission.requested` events bridged from the session-owned permission service. CLI clients that render prompt UI set this to `true` for as long as their listener is mounted; headless callers leave it unset (the default is `false`).</summary>
@@ -5392,7 +5112,6 @@ internal sealed class PermissionsSetRequiredRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsResetSessionApprovalsResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5401,7 +5120,6 @@ public sealed class PermissionsResetSessionApprovalsResult
 }
 
 /// <summary>No parameters; clears all session-scoped tool permission approvals.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsResetSessionApprovalsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -5410,7 +5128,6 @@ internal sealed class PermissionsResetSessionApprovalsRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsNotifyPromptShownResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5419,7 +5136,6 @@ public sealed class PermissionsNotifyPromptShownResult
 }
 
 /// <summary>Notification payload describing the permission prompt that the client just rendered.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPromptShownNotification
 {
     /// <summary>Human-readable description of the prompt the user is being asked to approve. Used by the runtime to fire the registered `permission_prompt` notification hook (e.g. terminal bell, desktop notification).</summary>
@@ -5432,7 +5148,6 @@ internal sealed class PermissionPromptShownNotification
 }
 
 /// <summary>Snapshot of the session's allow-listed directories and primary working directory.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsList
 {
     /// <summary>All directories currently allowed for tool access on this session.</summary>
@@ -5445,7 +5160,6 @@ public sealed class PermissionPathsList
 }
 
 /// <summary>No parameters; returns the session's allow-listed directories.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsPathsListRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -5454,7 +5168,6 @@ internal sealed class PermissionsPathsListRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsPathsAddResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5463,7 +5176,6 @@ public sealed class PermissionsPathsAddResult
 }
 
 /// <summary>Directory path to add to the session's allowed directories.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsAddParams
 {
     /// <summary>Directory to add to the allow-list. The runtime resolves and validates the path before adding.</summary>
@@ -5476,7 +5188,6 @@ internal sealed class PermissionPathsAddParams
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsPathsUpdatePrimaryResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5485,7 +5196,6 @@ public sealed class PermissionsPathsUpdatePrimaryResult
 }
 
 /// <summary>Directory path to set as the session's new primary working directory.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsUpdatePrimaryParams
 {
     /// <summary>Directory to set as the new primary working directory for the session's permission policy.</summary>
@@ -5498,7 +5208,6 @@ internal sealed class PermissionPathsUpdatePrimaryParams
 }
 
 /// <summary>Indicates whether the supplied path is within the session's allowed directories.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsAllowedCheckResult
 {
     /// <summary>Whether the path is within the session's allowed directories.</summary>
@@ -5507,7 +5216,6 @@ public sealed class PermissionPathsAllowedCheckResult
 }
 
 /// <summary>Path to evaluate against the session's allowed directories.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsAllowedCheckParams
 {
     /// <summary>Path to check against the session's allowed directories.</summary>
@@ -5520,7 +5228,6 @@ internal sealed class PermissionPathsAllowedCheckParams
 }
 
 /// <summary>Indicates whether the supplied path is within the session's workspace directory.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsWorkspaceCheckResult
 {
     /// <summary>Whether the path is within the session workspace directory.</summary>
@@ -5529,7 +5236,6 @@ public sealed class PermissionPathsWorkspaceCheckResult
 }
 
 /// <summary>Path to evaluate against the session's workspace (primary) directory.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsWorkspaceCheckParams
 {
     /// <summary>Path to check against the session workspace directory.</summary>
@@ -5541,288 +5247,7 @@ internal sealed class PermissionPathsWorkspaceCheckParams
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>Resolved location-permissions key and type.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionLocationResolveResult
-{
-    /// <summary>Location key used in the location-permissions store.</summary>
-    [JsonPropertyName("locationKey")]
-    public string LocationKey { get; set; } = string.Empty;
-
-    /// <summary>Whether the location is a git repo or directory.</summary>
-    [JsonPropertyName("locationType")]
-    public PermissionLocationType LocationType { get; set; }
-}
-
-/// <summary>Working directory to resolve into a location-permissions key.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class PermissionLocationResolveParams
-{
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Working directory whose permission location should be resolved.</summary>
-    [JsonPropertyName("workingDirectory")]
-    public string WorkingDirectory { get; set; } = string.Empty;
-}
-
-/// <summary>Summary of persisted location permissions applied to the session.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionLocationApplyResult
-{
-    /// <summary>Number of persisted allowed directories added to the live path manager.</summary>
-    [JsonPropertyName("appliedDirectoryCount")]
-    public long AppliedDirectoryCount { get; set; }
-
-    /// <summary>Number of location-scoped rules added to the live permission service.</summary>
-    [JsonPropertyName("appliedRuleCount")]
-    public long AppliedRuleCount { get; set; }
-
-    /// <summary>Location-scoped rules applied to the live permission service.</summary>
-    [JsonPropertyName("appliedRules")]
-    public IList<PermissionRule> AppliedRules { get => field ??= []; set; }
-
-    /// <summary>Whether a different location was applied since the previous apply call.</summary>
-    [JsonPropertyName("changed")]
-    public bool Changed { get; set; }
-
-    /// <summary>Location key used in the location-permissions store.</summary>
-    [JsonPropertyName("locationKey")]
-    public string LocationKey { get; set; } = string.Empty;
-
-    /// <summary>Whether the location is a git repo or directory.</summary>
-    [JsonPropertyName("locationType")]
-    public PermissionLocationType LocationType { get; set; }
-}
-
-/// <summary>Working directory to load persisted location permissions for.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class PermissionLocationApplyParams
-{
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Working directory whose persisted location permissions should be applied.</summary>
-    [JsonPropertyName("workingDirectory")]
-    public string WorkingDirectory { get; set; } = string.Empty;
-}
-
 /// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionsLocationsAddToolApprovalResult
-{
-    /// <summary>Whether the operation succeeded.</summary>
-    [JsonPropertyName("success")]
-    public bool Success { get; set; }
-}
-
-/// <summary>Tool approval to persist and apply.</summary>
-/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-[JsonPolymorphic(
-    TypeDiscriminatorPropertyName = "kind",
-    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCommands), "commands")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsRead), "read")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsWrite), "write")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMcp), "mcp")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMcpSampling), "mcp-sampling")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMemory), "memory")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCustomTool), "custom-tool")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionManagement), "extension-management")]
-[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess), "extension-permission-access")]
-public partial class PermissionsLocationsAddToolApprovalDetails
-{
-    /// <summary>The type discriminator.</summary>
-    [JsonPropertyName("kind")]
-    public virtual string Kind { get; set; } = string.Empty;
-}
-
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.</summary>
-/// <remarks>The <c>commands</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsCommands : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "commands";
-
-    /// <summary>Command identifiers covered by this approval.</summary>
-    [JsonPropertyName("commandIdentifiers")]
-    public required IList<string> CommandIdentifiers { get; set; }
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.</summary>
-/// <remarks>The <c>read</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsRead : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "read";
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.</summary>
-/// <remarks>The <c>write</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsWrite : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "write";
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.</summary>
-/// <remarks>The <c>mcp</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsMcp : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "mcp";
-
-    /// <summary>MCP server name.</summary>
-    [JsonPropertyName("serverName")]
-    public required string ServerName { get; set; }
-
-    /// <summary>MCP tool name, or null to cover every tool on the server.</summary>
-    [JsonPropertyName("toolName")]
-    public string? ToolName { get; set; }
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.</summary>
-/// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsMcpSampling : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "mcp-sampling";
-
-    /// <summary>MCP server name.</summary>
-    [JsonPropertyName("serverName")]
-    public required string ServerName { get; set; }
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.</summary>
-/// <remarks>The <c>memory</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsMemory : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "memory";
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.</summary>
-/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsCustomTool : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "custom-tool";
-
-    /// <summary>Custom tool name.</summary>
-    [JsonPropertyName("toolName")]
-    public required string ToolName { get; set; }
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.</summary>
-/// <remarks>The <c>extension-management</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsExtensionManagement : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "extension-management";
-
-    /// <summary>Optional operation identifier; when omitted, the approval covers all extension management operations.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("operation")]
-    public string? Operation { get; set; }
-}
-
-/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.</summary>
-/// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
-[Experimental(Diagnostics.Experimental)]
-public partial class PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess : PermissionsLocationsAddToolApprovalDetails
-{
-    /// <inheritdoc />
-    [JsonIgnore]
-    public override string Kind => "extension-permission-access";
-
-    /// <summary>Extension name.</summary>
-    [JsonPropertyName("extensionName")]
-    public required string ExtensionName { get; set; }
-}
-
-/// <summary>Location-scoped tool approval to persist.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class PermissionLocationAddToolApprovalParams
-{
-    /// <summary>Tool approval to persist and apply.</summary>
-    [JsonPropertyName("approval")]
-    public PermissionsLocationsAddToolApprovalDetails Approval { get => field ??= new(); set; }
-
-    /// <summary>Location key (git root or cwd) to persist the approval to.</summary>
-    [JsonPropertyName("locationKey")]
-    public string LocationKey { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Folder trust check result.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class FolderTrustCheckResult
-{
-    /// <summary>Whether the folder is trusted.</summary>
-    [JsonPropertyName("trusted")]
-    public bool Trusted { get; set; }
-}
-
-/// <summary>Folder path to check for trust.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class FolderTrustCheckParams
-{
-    /// <summary>Folder path to check.</summary>
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionsFolderTrustAddTrustedResult
-{
-    /// <summary>Whether the operation succeeded.</summary>
-    [JsonPropertyName("success")]
-    public bool Success { get; set; }
-}
-
-/// <summary>Folder path to add to trusted folders.</summary>
-[Experimental(Diagnostics.Experimental)]
-internal sealed class FolderTrustAddParams
-{
-    /// <summary>Folder path to mark as trusted.</summary>
-    [JsonPropertyName("path")]
-    public string Path { get; set; } = string.Empty;
-
-    /// <summary>Target session identifier.</summary>
-    [JsonPropertyName("sessionId")]
-    public string SessionId { get; set; } = string.Empty;
-}
-
-/// <summary>Indicates whether the operation succeeded.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsUrlsSetUnrestrictedModeResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5831,7 +5256,6 @@ public sealed class PermissionsUrlsSetUnrestrictedModeResult
 }
 
 /// <summary>Whether the URL-permission policy should run in unrestricted mode.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionUrlsSetUnrestrictedModeParams
 {
     /// <summary>Whether to allow access to all URLs without prompting. Toggles the runtime's URL-permission policy in place.</summary>
@@ -5902,13 +5326,11 @@ public sealed class SessionMetadataSnapshotWorkspace
 
     /// <summary>Repository host type, if known.</summary>
     [JsonPropertyName("host_type")]
-    public WorkspaceSummaryHostType? HostType { get; set; }
+    public SessionMetadataSnapshotWorkspaceHostType? HostType { get; set; }
 
     /// <summary>Workspace identifier (1:1 with sessionId).</summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
-    [MinLength(1)]
     [JsonPropertyName("id")]
-    public string Id { get; set; } = string.Empty;
+    public Guid Id { get; set; }
 
     /// <summary>Display name for the session, if set.</summary>
     [JsonPropertyName("name")]
@@ -6186,7 +5608,6 @@ internal sealed class MetadataRecomputeContextTokensRequest
 }
 
 /// <summary>Identifier of the spawned process, used to correlate streamed output and exit notifications.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ShellExecResult
 {
     /// <summary>Unique identifier for tracking streamed output.</summary>
@@ -6195,7 +5616,6 @@ public sealed class ShellExecResult
 }
 
 /// <summary>Shell command to run, with optional working directory and timeout in milliseconds.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ShellExecRequest
 {
     /// <summary>Shell command to execute.</summary>
@@ -6217,7 +5637,6 @@ internal sealed class ShellExecRequest
 }
 
 /// <summary>Indicates whether the signal was delivered; false if the process was unknown or already exited.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ShellKillResult
 {
     /// <summary>Whether the signal was sent successfully.</summary>
@@ -6226,7 +5645,6 @@ public sealed class ShellKillResult
 }
 
 /// <summary>Identifier of a process previously returned by "shell.exec" and the signal to send.</summary>
-[Experimental(Diagnostics.Experimental)]
 internal sealed class ShellKillRequest
 {
     /// <summary>Process identifier returned by shell.exec.</summary>
@@ -7170,13 +6588,13 @@ public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
     /// <summary>Gets the value associated with this <see cref="ModelPickerCategory"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Lightweight model category optimized for faster, lower-cost interactions.</summary>
+    /// <summary>Gets the <c>lightweight</c> value.</summary>
     public static ModelPickerCategory Lightweight { get; } = new("lightweight");
 
-    /// <summary>Versatile model category suitable for a broad range of tasks.</summary>
+    /// <summary>Gets the <c>versatile</c> value.</summary>
     public static ModelPickerCategory Versatile { get; } = new("versatile");
 
-    /// <summary>Powerful model category optimized for complex tasks.</summary>
+    /// <summary>Gets the <c>powerful</c> value.</summary>
     public static ModelPickerCategory Powerful { get; } = new("powerful");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelPickerCategory"/> instances are equivalent.</summary>
@@ -7235,16 +6653,16 @@ public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCat
     /// <summary>Gets the value associated with this <see cref="ModelPickerPriceCategory"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Lowest relative token cost tier.</summary>
+    /// <summary>Gets the <c>low</c> value.</summary>
     public static ModelPickerPriceCategory Low { get; } = new("low");
 
-    /// <summary>Medium relative token cost tier.</summary>
+    /// <summary>Gets the <c>medium</c> value.</summary>
     public static ModelPickerPriceCategory Medium { get; } = new("medium");
 
-    /// <summary>High relative token cost tier.</summary>
+    /// <summary>Gets the <c>high</c> value.</summary>
     public static ModelPickerPriceCategory High { get; } = new("high");
 
-    /// <summary>Highest relative token cost tier.</summary>
+    /// <summary>Gets the <c>very_high</c> value.</summary>
     public static ModelPickerPriceCategory VeryHigh { get; } = new("very_high");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelPickerPriceCategory"/> instances are equivalent.</summary>
@@ -7303,13 +6721,13 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
     /// <summary>Gets the value associated with this <see cref="ModelPolicyState"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The model is enabled by policy.</summary>
+    /// <summary>Gets the <c>enabled</c> value.</summary>
     public static ModelPolicyState Enabled { get; } = new("enabled");
 
-    /// <summary>The model is disabled by policy.</summary>
+    /// <summary>Gets the <c>disabled</c> value.</summary>
     public static ModelPolicyState Disabled { get; } = new("disabled");
 
-    /// <summary>No explicit policy is configured for the model.</summary>
+    /// <summary>Gets the <c>unconfigured</c> value.</summary>
     public static ModelPolicyState Unconfigured { get; } = new("unconfigured");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelPolicyState"/> instances are equivalent.</summary>
@@ -7368,16 +6786,16 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
     /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Server communicates over stdio with a local child process.</summary>
+    /// <summary>Gets the <c>stdio</c> value.</summary>
     public static DiscoveredMcpServerType Stdio { get; } = new("stdio");
 
-    /// <summary>Server communicates over streamable HTTP.</summary>
+    /// <summary>Gets the <c>http</c> value.</summary>
     public static DiscoveredMcpServerType Http { get; } = new("http");
 
-    /// <summary>Server communicates over Server-Sent Events.</summary>
+    /// <summary>Gets the <c>sse</c> value.</summary>
     public static DiscoveredMcpServerType Sse { get; } = new("sse");
 
-    /// <summary>Server is backed by an in-memory runtime implementation.</summary>
+    /// <summary>Gets the <c>memory</c> value.</summary>
     public static DiscoveredMcpServerType Memory { get; } = new("memory");
 
     /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerType"/> instances are equivalent.</summary>
@@ -7436,10 +6854,10 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
     /// <summary>Gets the value associated with this <see cref="SessionFsSetProviderConventions"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Paths use Windows path conventions.</summary>
+    /// <summary>Gets the <c>windows</c> value.</summary>
     public static SessionFsSetProviderConventions Windows { get; } = new("windows");
 
-    /// <summary>Paths use POSIX path conventions.</summary>
+    /// <summary>Gets the <c>posix</c> value.</summary>
     public static SessionFsSetProviderConventions Posix { get; } = new("posix");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsSetProviderConventions"/> instances are equivalent.</summary>
@@ -7499,10 +6917,10 @@ public readonly struct ConnectedRemoteSessionMetadataKind : IEquatable<Connected
     /// <summary>Gets the value associated with this <see cref="ConnectedRemoteSessionMetadataKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Remote CLI session.</summary>
+    /// <summary>Gets the <c>remote-session</c> value.</summary>
     public static ConnectedRemoteSessionMetadataKind RemoteSession { get; } = new("remote-session");
 
-    /// <summary>GitHub Copilot coding agent session.</summary>
+    /// <summary>Gets the <c>coding-agent</c> value.</summary>
     public static ConnectedRemoteSessionMetadataKind CodingAgent { get; } = new("coding-agent");
 
     /// <summary>Returns a value indicating whether two <see cref="ConnectedRemoteSessionMetadataKind"/> instances are equivalent.</summary>
@@ -7562,10 +6980,10 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
     /// <summary>Gets the value associated with this <see cref="SessionContextHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Session repository is hosted on GitHub.</summary>
+    /// <summary>Gets the <c>github</c> value.</summary>
     public static SessionContextHostType Github { get; } = new("github");
 
-    /// <summary>Session repository is hosted on Azure DevOps.</summary>
+    /// <summary>Gets the <c>ado</c> value.</summary>
     public static SessionContextHostType Ado { get; } = new("ado");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionContextHostType"/> instances are equivalent.</summary>
@@ -7606,7 +7024,6 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
 
 
 /// <summary>The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SendAgentMode : IEquatable<SendAgentMode>
@@ -7625,16 +7042,16 @@ public readonly struct SendAgentMode : IEquatable<SendAgentMode>
     /// <summary>Gets the value associated with this <see cref="SendAgentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The agent is responding interactively to the user.</summary>
+    /// <summary>Gets the <c>interactive</c> value.</summary>
     public static SendAgentMode Interactive { get; } = new("interactive");
 
-    /// <summary>The agent is preparing a plan before making changes.</summary>
+    /// <summary>Gets the <c>plan</c> value.</summary>
     public static SendAgentMode Plan { get; } = new("plan");
 
-    /// <summary>The agent is working autonomously toward task completion.</summary>
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
     public static SendAgentMode Autopilot { get; } = new("autopilot");
 
-    /// <summary>The agent is in shell-focused UI mode.</summary>
+    /// <summary>Gets the <c>shell</c> value.</summary>
     public static SendAgentMode Shell { get; } = new("shell");
 
     /// <summary>Returns a value indicating whether two <see cref="SendAgentMode"/> instances are equivalent.</summary>
@@ -7675,7 +7092,6 @@ public readonly struct SendAgentMode : IEquatable<SendAgentMode>
 
 
 /// <summary>Type of GitHub reference.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttachmentGithubReferenceType>
@@ -7694,13 +7110,13 @@ public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttach
     /// <summary>Gets the value associated with this <see cref="SendAttachmentGithubReferenceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>GitHub issue reference.</summary>
+    /// <summary>Gets the <c>issue</c> value.</summary>
     public static SendAttachmentGithubReferenceType Issue { get; } = new("issue");
 
-    /// <summary>GitHub pull request reference.</summary>
+    /// <summary>Gets the <c>pr</c> value.</summary>
     public static SendAttachmentGithubReferenceType Pr { get; } = new("pr");
 
-    /// <summary>GitHub discussion reference.</summary>
+    /// <summary>Gets the <c>discussion</c> value.</summary>
     public static SendAttachmentGithubReferenceType Discussion { get; } = new("discussion");
 
     /// <summary>Returns a value indicating whether two <see cref="SendAttachmentGithubReferenceType"/> instances are equivalent.</summary>
@@ -7741,7 +7157,6 @@ public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttach
 
 
 /// <summary>How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SendMode : IEquatable<SendMode>
@@ -7760,10 +7175,10 @@ public readonly struct SendMode : IEquatable<SendMode>
     /// <summary>Gets the value associated with this <see cref="SendMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Append the message to the normal session queue.</summary>
+    /// <summary>Gets the <c>enqueue</c> value.</summary>
     public static SendMode Enqueue { get; } = new("enqueue");
 
-    /// <summary>Interject the message during the in-progress turn.</summary>
+    /// <summary>Gets the <c>immediate</c> value.</summary>
     public static SendMode Immediate { get; } = new("immediate");
 
     /// <summary>Returns a value indicating whether two <see cref="SendMode"/> instances are equivalent.</summary>
@@ -7804,7 +7219,6 @@ public readonly struct SendMode : IEquatable<SendMode>
 
 
 /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
@@ -7823,13 +7237,13 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
     /// <summary>Gets the value associated with this <see cref="SessionLogLevel"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Informational message.</summary>
+    /// <summary>Gets the <c>info</c> value.</summary>
     public static SessionLogLevel Info { get; } = new("info");
 
-    /// <summary>Warning message that may require attention.</summary>
+    /// <summary>Gets the <c>warning</c> value.</summary>
     public static SessionLogLevel Warning { get; } = new("warning");
 
-    /// <summary>Error message describing a failure.</summary>
+    /// <summary>Gets the <c>error</c> value.</summary>
     public static SessionLogLevel Error { get; } = new("error");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionLogLevel"/> instances are equivalent.</summary>
@@ -7870,7 +7284,6 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
 
 
 /// <summary>Authentication type.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct AuthInfoType : IEquatable<AuthInfoType>
@@ -7889,25 +7302,25 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
     /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Authentication provided by a GitHub App HMAC credential.</summary>
+    /// <summary>Gets the <c>hmac</c> value.</summary>
     public static AuthInfoType Hmac { get; } = new("hmac");
 
-    /// <summary>Authentication resolved from environment-provided credentials.</summary>
+    /// <summary>Gets the <c>env</c> value.</summary>
     public static AuthInfoType Env { get; } = new("env");
 
-    /// <summary>Authentication from an interactive user sign-in.</summary>
+    /// <summary>Gets the <c>user</c> value.</summary>
     public static AuthInfoType User { get; } = new("user");
 
-    /// <summary>Authentication delegated to the GitHub CLI.</summary>
+    /// <summary>Gets the <c>gh-cli</c> value.</summary>
     public static AuthInfoType GhCli { get; } = new("gh-cli");
 
-    /// <summary>Authentication from an API key credential.</summary>
+    /// <summary>Gets the <c>api-key</c> value.</summary>
     public static AuthInfoType ApiKey { get; } = new("api-key");
 
-    /// <summary>Authentication from a GitHub token.</summary>
+    /// <summary>Gets the <c>token</c> value.</summary>
     public static AuthInfoType Token { get; } = new("token");
 
-    /// <summary>Authentication from a Copilot API token.</summary>
+    /// <summary>Gets the <c>copilot-api-token</c> value.</summary>
     public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
 
     /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are equivalent.</summary>
@@ -7947,43 +7360,42 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 }
 
 
-/// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
-[Experimental(Diagnostics.Experimental)]
+/// <summary>Defines the allowed values.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct WorkspacesWorkspaceDetailsHostType : IEquatable<WorkspacesWorkspaceDetailsHostType>
+public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatable<WorkspacesGetWorkspaceResultWorkspaceHostType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="WorkspacesWorkspaceDetailsHostType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="WorkspacesWorkspaceDetailsHostType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</param>
     [JsonConstructor]
-    public WorkspacesWorkspaceDetailsHostType(string value)
+    public WorkspacesGetWorkspaceResultWorkspaceHostType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="WorkspacesWorkspaceDetailsHostType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Workspace repository is hosted on GitHub.</summary>
-    public static WorkspacesWorkspaceDetailsHostType Github { get; } = new("github");
+    /// <summary>Gets the <c>github</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceHostType Github { get; } = new("github");
 
-    /// <summary>Workspace repository is hosted on Azure DevOps.</summary>
-    public static WorkspacesWorkspaceDetailsHostType Ado { get; } = new("ado");
+    /// <summary>Gets the <c>ado</c> value.</summary>
+    public static WorkspacesGetWorkspaceResultWorkspaceHostType Ado { get; } = new("ado");
 
-    /// <summary>Returns a value indicating whether two <see cref="WorkspacesWorkspaceDetailsHostType"/> instances are equivalent.</summary>
-    public static bool operator ==(WorkspacesWorkspaceDetailsHostType left, WorkspacesWorkspaceDetailsHostType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="WorkspacesWorkspaceDetailsHostType"/> instances are not equivalent.</summary>
-    public static bool operator !=(WorkspacesWorkspaceDetailsHostType left, WorkspacesWorkspaceDetailsHostType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is WorkspacesWorkspaceDetailsHostType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(WorkspacesWorkspaceDetailsHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is WorkspacesGetWorkspaceResultWorkspaceHostType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspacesGetWorkspaceResultWorkspaceHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -7991,27 +7403,26 @@ public readonly struct WorkspacesWorkspaceDetailsHostType : IEquatable<Workspace
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{WorkspacesWorkspaceDetailsHostType}"/> for serializing <see cref="WorkspacesWorkspaceDetailsHostType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{WorkspacesGetWorkspaceResultWorkspaceHostType}"/> for serializing <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<WorkspacesWorkspaceDetailsHostType>
+    public sealed class Converter : JsonConverter<WorkspacesGetWorkspaceResultWorkspaceHostType>
     {
         /// <inheritdoc />
-        public override WorkspacesWorkspaceDetailsHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override WorkspacesGetWorkspaceResultWorkspaceHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, WorkspacesWorkspaceDetailsHostType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, WorkspacesGetWorkspaceResultWorkspaceHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesWorkspaceDetailsHostType));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesGetWorkspaceResultWorkspaceHostType));
         }
     }
 }
 
 
 /// <summary>Where this source lives — used for UI grouping.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSourcesLocation>
@@ -8030,16 +7441,16 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
     /// <summary>Gets the value associated with this <see cref="InstructionsSourcesLocation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Instructions live in user-level configuration.</summary>
+    /// <summary>Gets the <c>user</c> value.</summary>
     public static InstructionsSourcesLocation User { get; } = new("user");
 
-    /// <summary>Instructions live in repository-level configuration.</summary>
+    /// <summary>Gets the <c>repository</c> value.</summary>
     public static InstructionsSourcesLocation Repository { get; } = new("repository");
 
-    /// <summary>Instructions live under the current working directory.</summary>
+    /// <summary>Gets the <c>working-directory</c> value.</summary>
     public static InstructionsSourcesLocation WorkingDirectory { get; } = new("working-directory");
 
-    /// <summary>Instructions live in plugin-provided configuration.</summary>
+    /// <summary>Gets the <c>plugin</c> value.</summary>
     public static InstructionsSourcesLocation Plugin { get; } = new("plugin");
 
     /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are equivalent.</summary>
@@ -8080,7 +7491,6 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
 
 
 /// <summary>Category of instruction source — used for merge logic.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesType>
@@ -8099,25 +7509,25 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
     /// <summary>Gets the value associated with this <see cref="InstructionsSourcesType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Instructions loaded from the user's home configuration.</summary>
+    /// <summary>Gets the <c>home</c> value.</summary>
     public static InstructionsSourcesType Home { get; } = new("home");
 
-    /// <summary>Instructions loaded from repository-scoped files.</summary>
+    /// <summary>Gets the <c>repo</c> value.</summary>
     public static InstructionsSourcesType Repo { get; } = new("repo");
 
-    /// <summary>Instructions loaded from model-specific files.</summary>
+    /// <summary>Gets the <c>model</c> value.</summary>
     public static InstructionsSourcesType Model { get; } = new("model");
 
-    /// <summary>Instructions loaded from VS Code instruction files.</summary>
+    /// <summary>Gets the <c>vscode</c> value.</summary>
     public static InstructionsSourcesType Vscode { get; } = new("vscode");
 
-    /// <summary>Instructions discovered from nested agent files.</summary>
+    /// <summary>Gets the <c>nested-agents</c> value.</summary>
     public static InstructionsSourcesType NestedAgents { get; } = new("nested-agents");
 
-    /// <summary>Instructions inherited from child instruction files.</summary>
+    /// <summary>Gets the <c>child-instructions</c> value.</summary>
     public static InstructionsSourcesType ChildInstructions { get; } = new("child-instructions");
 
-    /// <summary>Instructions supplied by an installed plugin.</summary>
+    /// <summary>Gets the <c>plugin</c> value.</summary>
     public static InstructionsSourcesType Plugin { get; } = new("plugin");
 
     /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are equivalent.</summary>
@@ -8177,22 +7587,22 @@ public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
     /// <summary>Gets the value associated with this <see cref="AgentInfoSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Agent loaded from the user's personal agent configuration.</summary>
+    /// <summary>Gets the <c>user</c> value.</summary>
     public static AgentInfoSource User { get; } = new("user");
 
-    /// <summary>Agent loaded from the current project's repository configuration.</summary>
+    /// <summary>Gets the <c>project</c> value.</summary>
     public static AgentInfoSource Project { get; } = new("project");
 
-    /// <summary>Agent inherited from a parent project or workspace.</summary>
+    /// <summary>Gets the <c>inherited</c> value.</summary>
     public static AgentInfoSource Inherited { get; } = new("inherited");
 
-    /// <summary>Agent provided by a remote runtime or service.</summary>
+    /// <summary>Gets the <c>remote</c> value.</summary>
     public static AgentInfoSource Remote { get; } = new("remote");
 
-    /// <summary>Agent contributed by an installed plugin.</summary>
+    /// <summary>Gets the <c>plugin</c> value.</summary>
     public static AgentInfoSource Plugin { get; } = new("plugin");
 
-    /// <summary>Agent built into the Copilot runtime.</summary>
+    /// <summary>Gets the <c>builtin</c> value.</summary>
     public static AgentInfoSource Builtin { get; } = new("builtin");
 
     /// <summary>Returns a value indicating whether two <see cref="AgentInfoSource"/> instances are equivalent.</summary>
@@ -8252,10 +7662,10 @@ public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
     /// <summary>Gets the value associated with this <see cref="TaskExecutionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The task was started with synchronous waiting.</summary>
+    /// <summary>Gets the <c>sync</c> value.</summary>
     public static TaskExecutionMode Sync { get; } = new("sync");
 
-    /// <summary>The task is managed in the background.</summary>
+    /// <summary>Gets the <c>background</c> value.</summary>
     public static TaskExecutionMode Background { get; } = new("background");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskExecutionMode"/> instances are equivalent.</summary>
@@ -8315,19 +7725,19 @@ public readonly struct TaskStatus : IEquatable<TaskStatus>
     /// <summary>Gets the value associated with this <see cref="TaskStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The task is actively executing.</summary>
+    /// <summary>Gets the <c>running</c> value.</summary>
     public static TaskStatus Running { get; } = new("running");
 
-    /// <summary>The task is waiting for additional input.</summary>
+    /// <summary>Gets the <c>idle</c> value.</summary>
     public static TaskStatus Idle { get; } = new("idle");
 
-    /// <summary>The task finished successfully.</summary>
+    /// <summary>Gets the <c>completed</c> value.</summary>
     public static TaskStatus Completed { get; } = new("completed");
 
-    /// <summary>The task finished with an error.</summary>
+    /// <summary>Gets the <c>failed</c> value.</summary>
     public static TaskStatus Failed { get; } = new("failed");
 
-    /// <summary>The task was cancelled before completion.</summary>
+    /// <summary>Gets the <c>cancelled</c> value.</summary>
     public static TaskStatus Cancelled { get; } = new("cancelled");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskStatus"/> instances are equivalent.</summary>
@@ -8387,10 +7797,10 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
     /// <summary>Gets the value associated with this <see cref="TaskShellInfoAttachmentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The shell runs in a managed PTY session.</summary>
+    /// <summary>Gets the <c>attached</c> value.</summary>
     public static TaskShellInfoAttachmentMode Attached { get; } = new("attached");
 
-    /// <summary>The shell runs as an independent background process.</summary>
+    /// <summary>Gets the <c>detached</c> value.</summary>
     public static TaskShellInfoAttachmentMode Detached { get; } = new("detached");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoAttachmentMode"/> instances are equivalent.</summary>
@@ -8450,13 +7860,13 @@ public readonly struct McpSamplingExecutionAction : IEquatable<McpSamplingExecut
     /// <summary>Gets the value associated with this <see cref="McpSamplingExecutionAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The sampling inference completed and produced a result.</summary>
+    /// <summary>Gets the <c>success</c> value.</summary>
     public static McpSamplingExecutionAction Success { get; } = new("success");
 
-    /// <summary>The sampling inference failed or was rejected.</summary>
+    /// <summary>Gets the <c>failure</c> value.</summary>
     public static McpSamplingExecutionAction Failure { get; } = new("failure");
 
-    /// <summary>The sampling inference was cancelled before completion.</summary>
+    /// <summary>Gets the <c>cancelled</c> value.</summary>
     public static McpSamplingExecutionAction Cancelled { get; } = new("cancelled");
 
     /// <summary>Returns a value indicating whether two <see cref="McpSamplingExecutionAction"/> instances are equivalent.</summary>
@@ -8516,10 +7926,10 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
     /// <summary>Gets the value associated with this <see cref="McpSetEnvValueModeDetails"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Treat MCP server environment values as literal strings.</summary>
+    /// <summary>Gets the <c>direct</c> value.</summary>
     public static McpSetEnvValueModeDetails Direct { get; } = new("direct");
 
-    /// <summary>Treat MCP server environment values as host-side references to resolve before launch.</summary>
+    /// <summary>Gets the <c>indirect</c> value.</summary>
     public static McpSetEnvValueModeDetails Indirect { get; } = new("indirect");
 
     /// <summary>Returns a value indicating whether two <see cref="McpSetEnvValueModeDetails"/> instances are equivalent.</summary>
@@ -8579,10 +7989,10 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
     /// <summary>Gets the value associated with this <see cref="OptionsUpdateEnvValueMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Pass MCP server environment values as literal strings.</summary>
+    /// <summary>Gets the <c>direct</c> value.</summary>
     public static OptionsUpdateEnvValueMode Direct { get; } = new("direct");
 
-    /// <summary>Resolve MCP server environment values from host-side references.</summary>
+    /// <summary>Gets the <c>indirect</c> value.</summary>
     public static OptionsUpdateEnvValueMode Indirect { get; } = new("indirect");
 
     /// <summary>Returns a value indicating whether two <see cref="OptionsUpdateEnvValueMode"/> instances are equivalent.</summary>
@@ -8642,10 +8052,10 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
     /// <summary>Gets the value associated with this <see cref="ExtensionSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Extension discovered from the current project's .github/extensions directory.</summary>
+    /// <summary>Gets the <c>project</c> value.</summary>
     public static ExtensionSource Project { get; } = new("project");
 
-    /// <summary>Extension discovered from the user's ~/.copilot/extensions directory.</summary>
+    /// <summary>Gets the <c>user</c> value.</summary>
     public static ExtensionSource User { get; } = new("user");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionSource"/> instances are equivalent.</summary>
@@ -8705,16 +8115,16 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
     /// <summary>Gets the value associated with this <see cref="ExtensionStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The extension process is running.</summary>
+    /// <summary>Gets the <c>running</c> value.</summary>
     public static ExtensionStatus Running { get; } = new("running");
 
-    /// <summary>The extension is installed but disabled.</summary>
+    /// <summary>Gets the <c>disabled</c> value.</summary>
     public static ExtensionStatus Disabled { get; } = new("disabled");
 
-    /// <summary>The extension failed to start or crashed.</summary>
+    /// <summary>Gets the <c>failed</c> value.</summary>
     public static ExtensionStatus Failed { get; } = new("failed");
 
-    /// <summary>The extension process is starting.</summary>
+    /// <summary>Gets the <c>starting</c> value.</summary>
     public static ExtensionStatus Starting { get; } = new("starting");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionStatus"/> instances are equivalent.</summary>
@@ -8755,7 +8165,6 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
 
 
 /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInputCompletion>
@@ -8774,7 +8183,7 @@ public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInpu
     /// <summary>Gets the value associated with this <see cref="SlashCommandInputCompletion"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Input should complete filesystem directories.</summary>
+    /// <summary>Gets the <c>directory</c> value.</summary>
     public static SlashCommandInputCompletion Directory { get; } = new("directory");
 
     /// <summary>Returns a value indicating whether two <see cref="SlashCommandInputCompletion"/> instances are equivalent.</summary>
@@ -8815,7 +8224,6 @@ public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInpu
 
 
 /// <summary>Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
@@ -8834,13 +8242,13 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
     /// <summary>Gets the value associated with this <see cref="SlashCommandKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Command implemented by the runtime.</summary>
+    /// <summary>Gets the <c>builtin</c> value.</summary>
     public static SlashCommandKind Builtin { get; } = new("builtin");
 
-    /// <summary>Command backed by a skill.</summary>
+    /// <summary>Gets the <c>skill</c> value.</summary>
     public static SlashCommandKind Skill { get; } = new("skill");
 
-    /// <summary>Command registered by an SDK client or extension.</summary>
+    /// <summary>Gets the <c>client</c> value.</summary>
     public static SlashCommandKind Client { get; } = new("client");
 
     /// <summary>Returns a value indicating whether two <see cref="SlashCommandKind"/> instances are equivalent.</summary>
@@ -8881,7 +8289,6 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
 
 
 /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationResponseAction>
@@ -8900,13 +8307,13 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
     /// <summary>Gets the value associated with this <see cref="UIElicitationResponseAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The user submitted the requested form values.</summary>
+    /// <summary>Gets the <c>accept</c> value.</summary>
     public static UIElicitationResponseAction Accept { get; } = new("accept");
 
-    /// <summary>The user explicitly declined to provide the requested input.</summary>
+    /// <summary>Gets the <c>decline</c> value.</summary>
     public static UIElicitationResponseAction Decline { get; } = new("decline");
 
-    /// <summary>The user dismissed the elicitation request.</summary>
+    /// <summary>Gets the <c>cancel</c> value.</summary>
     public static UIElicitationResponseAction Cancel { get; } = new("cancel");
 
     /// <summary>Returns a value indicating whether two <see cref="UIElicitationResponseAction"/> instances are equivalent.</summary>
@@ -8947,7 +8354,6 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
 
 
 /// <summary>User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist as setting), or no (decline).</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchResponse>
@@ -8966,13 +8372,13 @@ public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchRes
     /// <summary>Gets the value associated with this <see cref="UIAutoModeSwitchResponse"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Allow the automatic mode switch for this turn.</summary>
+    /// <summary>Gets the <c>yes</c> value.</summary>
     public static UIAutoModeSwitchResponse Yes { get; } = new("yes");
 
-    /// <summary>Allow this mode switch and persist the preference.</summary>
+    /// <summary>Gets the <c>yes_always</c> value.</summary>
     public static UIAutoModeSwitchResponse YesAlways { get; } = new("yes_always");
 
-    /// <summary>Decline the automatic mode switch.</summary>
+    /// <summary>Gets the <c>no</c> value.</summary>
     public static UIAutoModeSwitchResponse No { get; } = new("no");
 
     /// <summary>Returns a value indicating whether two <see cref="UIAutoModeSwitchResponse"/> instances are equivalent.</summary>
@@ -9013,7 +8419,6 @@ public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchRes
 
 
 /// <summary>The action the user selected. Defaults to 'autopilot' when autoApproveEdits is true, otherwise 'interactive'.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
@@ -9032,16 +8437,16 @@ public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
     /// <summary>Gets the value associated with this <see cref="UIExitPlanModeAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Exit plan mode without starting implementation.</summary>
+    /// <summary>Gets the <c>exit_only</c> value.</summary>
     public static UIExitPlanModeAction ExitOnly { get; } = new("exit_only");
 
-    /// <summary>Exit plan mode and continue interactively.</summary>
+    /// <summary>Gets the <c>interactive</c> value.</summary>
     public static UIExitPlanModeAction Interactive { get; } = new("interactive");
 
-    /// <summary>Exit plan mode and continue in autopilot mode.</summary>
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
     public static UIExitPlanModeAction Autopilot { get; } = new("autopilot");
 
-    /// <summary>Exit plan mode and continue in autopilot mode with parallel subagent execution.</summary>
+    /// <summary>Gets the <c>autopilot_fleet</c> value.</summary>
     public static UIExitPlanModeAction AutopilotFleet { get; } = new("autopilot_fleet");
 
     /// <summary>Returns a value indicating whether two <see cref="UIExitPlanModeAction"/> instances are equivalent.</summary>
@@ -9082,7 +8487,6 @@ public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
 
 
 /// <summary>Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope : IEquatable<PermissionsConfigureAdditionalContentExclusionPolicyScope>
@@ -9101,10 +8505,10 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
     /// <summary>Gets the value associated with this <see cref="PermissionsConfigureAdditionalContentExclusionPolicyScope"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The content exclusion policy applies to the current repository.</summary>
+    /// <summary>Gets the <c>repo</c> value.</summary>
     public static PermissionsConfigureAdditionalContentExclusionPolicyScope Repo { get; } = new("repo");
 
-    /// <summary>The content exclusion policy applies across all repositories.</summary>
+    /// <summary>Gets the <c>all</c> value.</summary>
     public static PermissionsConfigureAdditionalContentExclusionPolicyScope All { get; } = new("all");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionsConfigureAdditionalContentExclusionPolicyScope"/> instances are equivalent.</summary>
@@ -9145,7 +8549,6 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
 
 
 /// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSetApproveAllSource>
@@ -9164,16 +8567,16 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
     /// <summary>Gets the value associated with this <see cref="PermissionsSetApproveAllSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Allow-all was enabled from a CLI command-line flag.</summary>
+    /// <summary>Gets the <c>cli_flag</c> value.</summary>
     public static PermissionsSetApproveAllSource CliFlag { get; } = new("cli_flag");
 
-    /// <summary>Allow-all was enabled by a slash command.</summary>
+    /// <summary>Gets the <c>slash_command</c> value.</summary>
     public static PermissionsSetApproveAllSource SlashCommand { get; } = new("slash_command");
 
-    /// <summary>Allow-all was enabled by confirming autopilot behavior.</summary>
+    /// <summary>Gets the <c>autopilot_confirmation</c> value.</summary>
     public static PermissionsSetApproveAllSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
 
-    /// <summary>Allow-all was enabled through an RPC caller.</summary>
+    /// <summary>Gets the <c>rpc</c> value.</summary>
     public static PermissionsSetApproveAllSource Rpc { get; } = new("rpc");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionsSetApproveAllSource"/> instances are equivalent.</summary>
@@ -9214,7 +8617,6 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
 
 
 /// <summary>Whether the change applies to ephemeral session-scoped rules (cleared at session end) or to location-scoped rules persisted via the location-permissions config file.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModifyRulesScope>
@@ -9233,10 +8635,10 @@ public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModif
     /// <summary>Gets the value associated with this <see cref="PermissionsModifyRulesScope"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Apply the rule change only to this session.</summary>
+    /// <summary>Gets the <c>session</c> value.</summary>
     public static PermissionsModifyRulesScope Session { get; } = new("session");
 
-    /// <summary>Persist the rule change for this project location.</summary>
+    /// <summary>Gets the <c>location</c> value.</summary>
     public static PermissionsModifyRulesScope Location { get; } = new("location");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionsModifyRulesScope"/> instances are equivalent.</summary>
@@ -9276,69 +8678,6 @@ public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModif
 }
 
 
-/// <summary>Whether the location is a git repo or directory.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionLocationType : IEquatable<PermissionLocationType>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionLocationType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="PermissionLocationType"/>.</param>
-    [JsonConstructor]
-    public PermissionLocationType(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="PermissionLocationType"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>The permission location is persisted at the git repository root.</summary>
-    public static PermissionLocationType Repo { get; } = new("repo");
-
-    /// <summary>The permission location is persisted at the working directory.</summary>
-    public static PermissionLocationType Dir { get; } = new("dir");
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionLocationType"/> instances are equivalent.</summary>
-    public static bool operator ==(PermissionLocationType left, PermissionLocationType right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="PermissionLocationType"/> instances are not equivalent.</summary>
-    public static bool operator !=(PermissionLocationType left, PermissionLocationType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is PermissionLocationType other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(PermissionLocationType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionLocationType}"/> for serializing <see cref="PermissionLocationType"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionLocationType>
-    {
-        /// <inheritdoc />
-        public override PermissionLocationType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, PermissionLocationType value, JsonSerializerOptions options)
-        {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionLocationType));
-        }
-    }
-}
-
-
 /// <summary>The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot').</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -9359,13 +8698,13 @@ public readonly struct MetadataSnapshotCurrentMode : IEquatable<MetadataSnapshot
     /// <summary>Gets the value associated with this <see cref="MetadataSnapshotCurrentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The agent is responding interactively to the user.</summary>
+    /// <summary>Gets the <c>interactive</c> value.</summary>
     public static MetadataSnapshotCurrentMode Interactive { get; } = new("interactive");
 
-    /// <summary>The agent is preparing a plan before making changes.</summary>
+    /// <summary>Gets the <c>plan</c> value.</summary>
     public static MetadataSnapshotCurrentMode Plan { get; } = new("plan");
 
-    /// <summary>The agent is working autonomously toward task completion.</summary>
+    /// <summary>Gets the <c>autopilot</c> value.</summary>
     public static MetadataSnapshotCurrentMode Autopilot { get; } = new("autopilot");
 
     /// <summary>Returns a value indicating whether two <see cref="MetadataSnapshotCurrentMode"/> instances are equivalent.</summary>
@@ -9425,10 +8764,10 @@ public readonly struct MetadataSnapshotRemoteMetadataTaskType : IEquatable<Metad
     /// <summary>Gets the value associated with this <see cref="MetadataSnapshotRemoteMetadataTaskType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Remote task originated from Copilot Coding Agent.</summary>
+    /// <summary>Gets the <c>cca</c> value.</summary>
     public static MetadataSnapshotRemoteMetadataTaskType Cca { get; } = new("cca");
 
-    /// <summary>Remote task originated from a CLI remote-session invocation.</summary>
+    /// <summary>Gets the <c>cli</c> value.</summary>
     public static MetadataSnapshotRemoteMetadataTaskType Cli { get; } = new("cli");
 
     /// <summary>Returns a value indicating whether two <see cref="MetadataSnapshotRemoteMetadataTaskType"/> instances are equivalent.</summary>
@@ -9469,42 +8808,41 @@ public readonly struct MetadataSnapshotRemoteMetadataTaskType : IEquatable<Metad
 
 
 /// <summary>Repository host type, if known.</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct WorkspaceSummaryHostType : IEquatable<WorkspaceSummaryHostType>
+public readonly struct SessionMetadataSnapshotWorkspaceHostType : IEquatable<SessionMetadataSnapshotWorkspaceHostType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="WorkspaceSummaryHostType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="WorkspaceSummaryHostType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="SessionMetadataSnapshotWorkspaceHostType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionMetadataSnapshotWorkspaceHostType"/>.</param>
     [JsonConstructor]
-    public WorkspaceSummaryHostType(string value)
+    public SessionMetadataSnapshotWorkspaceHostType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="WorkspaceSummaryHostType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="SessionMetadataSnapshotWorkspaceHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Workspace summary repository is hosted on GitHub.</summary>
-    public static WorkspaceSummaryHostType Github { get; } = new("github");
+    /// <summary>Gets the <c>github</c> value.</summary>
+    public static SessionMetadataSnapshotWorkspaceHostType Github { get; } = new("github");
 
-    /// <summary>Workspace summary repository is hosted on Azure DevOps.</summary>
-    public static WorkspaceSummaryHostType Ado { get; } = new("ado");
+    /// <summary>Gets the <c>ado</c> value.</summary>
+    public static SessionMetadataSnapshotWorkspaceHostType Ado { get; } = new("ado");
 
-    /// <summary>Returns a value indicating whether two <see cref="WorkspaceSummaryHostType"/> instances are equivalent.</summary>
-    public static bool operator ==(WorkspaceSummaryHostType left, WorkspaceSummaryHostType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="SessionMetadataSnapshotWorkspaceHostType"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionMetadataSnapshotWorkspaceHostType left, SessionMetadataSnapshotWorkspaceHostType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="WorkspaceSummaryHostType"/> instances are not equivalent.</summary>
-    public static bool operator !=(WorkspaceSummaryHostType left, WorkspaceSummaryHostType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is WorkspaceSummaryHostType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="SessionMetadataSnapshotWorkspaceHostType"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionMetadataSnapshotWorkspaceHostType left, SessionMetadataSnapshotWorkspaceHostType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(WorkspaceSummaryHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is SessionMetadataSnapshotWorkspaceHostType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionMetadataSnapshotWorkspaceHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -9512,20 +8850,20 @@ public readonly struct WorkspaceSummaryHostType : IEquatable<WorkspaceSummaryHos
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{WorkspaceSummaryHostType}"/> for serializing <see cref="WorkspaceSummaryHostType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{SessionMetadataSnapshotWorkspaceHostType}"/> for serializing <see cref="SessionMetadataSnapshotWorkspaceHostType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<WorkspaceSummaryHostType>
+    public sealed class Converter : JsonConverter<SessionMetadataSnapshotWorkspaceHostType>
     {
         /// <inheritdoc />
-        public override WorkspaceSummaryHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override SessionMetadataSnapshotWorkspaceHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, WorkspaceSummaryHostType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, SessionMetadataSnapshotWorkspaceHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceSummaryHostType));
+            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMetadataSnapshotWorkspaceHostType));
         }
     }
 }
@@ -9551,10 +8889,10 @@ public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<Sessi
     /// <summary>Gets the value associated with this <see cref="SessionWorkingDirectoryContextHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The working directory repository is hosted on GitHub.</summary>
+    /// <summary>Gets the <c>github</c> value.</summary>
     public static SessionWorkingDirectoryContextHostType Github { get; } = new("github");
 
-    /// <summary>The working directory repository is hosted on Azure DevOps.</summary>
+    /// <summary>Gets the <c>ado</c> value.</summary>
     public static SessionWorkingDirectoryContextHostType Ado { get; } = new("ado");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionWorkingDirectoryContextHostType"/> instances are equivalent.</summary>
@@ -9595,7 +8933,6 @@ public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<Sessi
 
 
 /// <summary>Signal to send (default: SIGTERM).</summary>
-[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
@@ -9614,13 +8951,13 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
     /// <summary>Gets the value associated with this <see cref="ShellKillSignal"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Request graceful process termination.</summary>
+    /// <summary>Gets the <c>SIGTERM</c> value.</summary>
     public static ShellKillSignal SIGTERM { get; } = new("SIGTERM");
 
-    /// <summary>Forcefully terminate the process.</summary>
+    /// <summary>Gets the <c>SIGKILL</c> value.</summary>
     public static ShellKillSignal SIGKILL { get; } = new("SIGKILL");
 
-    /// <summary>Send an interrupt signal to the process.</summary>
+    /// <summary>Gets the <c>SIGINT</c> value.</summary>
     public static ShellKillSignal SIGINT { get; } = new("SIGINT");
 
     /// <summary>Returns a value indicating whether two <see cref="ShellKillSignal"/> instances are equivalent.</summary>
@@ -9680,10 +9017,10 @@ public readonly struct QueuePendingItemsKind : IEquatable<QueuePendingItemsKind>
     /// <summary>Gets the value associated with this <see cref="QueuePendingItemsKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>A queued user message.</summary>
+    /// <summary>Gets the <c>message</c> value.</summary>
     public static QueuePendingItemsKind Message { get; } = new("message");
 
-    /// <summary>A queued slash command or model-change command.</summary>
+    /// <summary>Gets the <c>command</c> value.</summary>
     public static QueuePendingItemsKind Command { get; } = new("command");
 
     /// <summary>Returns a value indicating whether two <see cref="QueuePendingItemsKind"/> instances are equivalent.</summary>
@@ -9743,10 +9080,10 @@ public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
     /// <summary>Gets the value associated with this <see cref="EventsCursorStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The cursor was applied successfully.</summary>
+    /// <summary>Gets the <c>ok</c> value.</summary>
     public static EventsCursorStatus Ok { get; } = new("ok");
 
-    /// <summary>The cursor referred to history that is no longer available.</summary>
+    /// <summary>Gets the <c>expired</c> value.</summary>
     public static EventsCursorStatus Expired { get; } = new("expired");
 
     /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are equivalent.</summary>
@@ -9806,10 +9143,10 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
     /// <summary>Gets the value associated with this <see cref="EventsAgentScope"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Return main-agent events and typed subagent lifecycle events.</summary>
+    /// <summary>Gets the <c>primary</c> value.</summary>
     public static EventsAgentScope Primary { get; } = new("primary");
 
-    /// <summary>Return events from all agents.</summary>
+    /// <summary>Gets the <c>all</c> value.</summary>
     public static EventsAgentScope All { get; } = new("all");
 
     /// <summary>Returns a value indicating whether two <see cref="EventsAgentScope"/> instances are equivalent.</summary>
@@ -9869,13 +9206,13 @@ public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
     /// <summary>Gets the value associated with this <see cref="RemoteSessionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Disable remote session export and steering.</summary>
+    /// <summary>Gets the <c>off</c> value.</summary>
     public static RemoteSessionMode Off { get; } = new("off");
 
-    /// <summary>Export session events to GitHub without enabling remote steering.</summary>
+    /// <summary>Gets the <c>export</c> value.</summary>
     public static RemoteSessionMode Export { get; } = new("export");
 
-    /// <summary>Enable both remote session export and remote steering.</summary>
+    /// <summary>Gets the <c>on</c> value.</summary>
     public static RemoteSessionMode On { get; } = new("on");
 
     /// <summary>Returns a value indicating whether two <see cref="RemoteSessionMode"/> instances are equivalent.</summary>
@@ -9934,10 +9271,10 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
     /// <summary>Gets the value associated with this <see cref="SessionFsErrorCode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The requested path does not exist.</summary>
+    /// <summary>Gets the <c>ENOENT</c> value.</summary>
     public static SessionFsErrorCode ENOENT { get; } = new("ENOENT");
 
-    /// <summary>The filesystem operation failed for an unspecified reason.</summary>
+    /// <summary>Gets the <c>UNKNOWN</c> value.</summary>
     public static SessionFsErrorCode UNKNOWN { get; } = new("UNKNOWN");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsErrorCode"/> instances are equivalent.</summary>
@@ -9996,10 +9333,10 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
     /// <summary>Gets the value associated with this <see cref="SessionFsReaddirWithTypesEntryType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>The entry is a file.</summary>
+    /// <summary>Gets the <c>file</c> value.</summary>
     public static SessionFsReaddirWithTypesEntryType File { get; } = new("file");
 
-    /// <summary>The entry is a directory.</summary>
+    /// <summary>Gets the <c>directory</c> value.</summary>
     public static SessionFsReaddirWithTypesEntryType Directory { get; } = new("directory");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsReaddirWithTypesEntryType"/> instances are equivalent.</summary>
@@ -10058,13 +9395,13 @@ public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQuer
     /// <summary>Gets the value associated with this <see cref="SessionFsSqliteQueryType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Execute DDL or multi-statement SQL without returning rows.</summary>
+    /// <summary>Gets the <c>exec</c> value.</summary>
     public static SessionFsSqliteQueryType Exec { get; } = new("exec");
 
-    /// <summary>Execute a SELECT-style query and return rows.</summary>
+    /// <summary>Gets the <c>query</c> value.</summary>
     public static SessionFsSqliteQueryType Query { get; } = new("query");
 
-    /// <summary>Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata.</summary>
+    /// <summary>Gets the <c>run</c> value.</summary>
     public static SessionFsSqliteQueryType Run { get; } = new("run");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsSqliteQueryType"/> instances are equivalent.</summary>
@@ -10464,7 +9801,7 @@ public sealed class ServerSessionsApi
     /// <param name="filter">Optional filter applied to the returned sessions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Persisted sessions matching the filter, ordered most-recently-modified first.</returns>
-    public async Task<SessionList> ListAsync(long? metadataLimit = null, SessionListFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<SessionList> ListAsync(long? metadataLimit = null, SessionsListRequestFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionsListRequest { MetadataLimit = metadataLimit, Filter = filter };
         return await CopilotClient.InvokeRpcAsync<SessionList>(_rpc, "sessions.list", [request], cancellationToken);
@@ -10847,7 +10184,6 @@ public sealed class SessionRpc
 
     /// <summary>Suspends the session while preserving persisted state for later resume.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    [Experimental(Diagnostics.Experimental)]
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -10872,7 +10208,6 @@ public sealed class SessionRpc
     /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending a user message.</returns>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<SendAttachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, object? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(prompt);
@@ -10886,7 +10221,6 @@ public sealed class SessionRpc
     /// <param name="reason">Finite reason code describing why the current turn was aborted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of aborting the current turn.</returns>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<AbortResult> AbortAsync(AbortReason? reason = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -10899,7 +10233,6 @@ public sealed class SessionRpc
     /// <param name="type">Why the session is being shut down. Defaults to "routine" when omitted.</param>
     /// <param name="reason">Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    [Experimental(Diagnostics.Experimental)]
     public async Task ShutdownAsync(ShutdownType? type = null, string? reason = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -10917,7 +10250,6 @@ public sealed class SessionRpc
     /// <param name="tip">Optional actionable tip displayed alongside the message. Only honored on `level: "info"`.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Identifier of the session event that was emitted for the log message.</returns>
-    [Experimental(Diagnostics.Experimental)]
     public async Task<LogResult> LogAsync(string message, SessionLogLevel? level = null, string? type = null, bool? ephemeral = null, string? url = null, string? tip = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -10929,7 +10261,6 @@ public sealed class SessionRpc
 }
 
 /// <summary>Provides session-scoped Auth APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class AuthApi
 {
     private readonly CopilotSession _session;
@@ -10964,7 +10295,6 @@ public sealed class AuthApi
 }
 
 /// <summary>Provides session-scoped Model APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModelApi
 {
     private readonly CopilotSession _session;
@@ -11016,7 +10346,6 @@ public sealed class ModelApi
 }
 
 /// <summary>Provides session-scoped Mode APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ModeApi
 {
     private readonly CopilotSession _session;
@@ -11050,7 +10379,6 @@ public sealed class ModeApi
 }
 
 /// <summary>Provides session-scoped Name APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class NameApi
 {
     private readonly CopilotSession _session;
@@ -11098,7 +10426,6 @@ public sealed class NameApi
 }
 
 /// <summary>Provides session-scoped Plan APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PlanApi
 {
     private readonly CopilotSession _session;
@@ -11143,7 +10470,6 @@ public sealed class PlanApi
 }
 
 /// <summary>Provides session-scoped Workspaces APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesApi
 {
     private readonly CopilotSession _session;
@@ -11240,7 +10566,6 @@ public sealed class WorkspacesApi
 }
 
 /// <summary>Provides session-scoped Instructions APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsApi
 {
     private readonly CopilotSession _session;
@@ -11898,7 +11223,6 @@ public sealed class ExtensionsApi
 }
 
 /// <summary>Provides session-scoped Tools APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ToolsApi
 {
     private readonly CopilotSession _session;
@@ -11936,7 +11260,6 @@ public sealed class ToolsApi
 }
 
 /// <summary>Provides session-scoped Commands APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsApi
 {
     private readonly CopilotSession _session;
@@ -12055,7 +11378,6 @@ public sealed class TelemetryApi
 }
 
 /// <summary>Provides session-scoped Ui APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class UiApi
 {
     private readonly CopilotSession _session;
@@ -12179,7 +11501,6 @@ public sealed class UiApi
 }
 
 /// <summary>Provides session-scoped Permissions APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsApi
 {
     private readonly CopilotSession _session;
@@ -12302,18 +11623,6 @@ public sealed class PermissionsApi
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
-    /// <summary>Locations APIs.</summary>
-    public PermissionsLocationsApi Locations =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_session), null) ??
-        field;
-
-    /// <summary>FolderTrust APIs.</summary>
-    public PermissionsFolderTrustApi FolderTrust =>
-        field ??
-        Interlocked.CompareExchange(ref field, new(_session), null) ??
-        field;
-
     /// <summary>Urls APIs.</summary>
     public PermissionsUrlsApi Urls =>
         field ??
@@ -12322,7 +11631,6 @@ public sealed class PermissionsApi
 }
 
 /// <summary>Provides session-scoped PermissionsPaths APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsPathsApi
 {
     private readonly CopilotSession _session;
@@ -12396,99 +11704,7 @@ public sealed class PermissionsPathsApi
     }
 }
 
-/// <summary>Provides session-scoped PermissionsLocations APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionsLocationsApi
-{
-    private readonly CopilotSession _session;
-
-    internal PermissionsLocationsApi(CopilotSession session)
-    {
-        _session = session;
-    }
-
-    /// <summary>Resolves the permission location key and type for a working directory.</summary>
-    /// <param name="workingDirectory">Working directory whose permission location should be resolved.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Resolved location-permissions key and type.</returns>
-    public async Task<PermissionLocationResolveResult> ResolveAsync(string workingDirectory, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(workingDirectory);
-        _session.ThrowIfDisposed();
-
-        var request = new PermissionLocationResolveParams { SessionId = _session.SessionId, WorkingDirectory = workingDirectory };
-        return await CopilotClient.InvokeRpcAsync<PermissionLocationResolveResult>(_session.Rpc, "session.permissions.locations.resolve", [request], cancellationToken);
-    }
-
-    /// <summary>Applies persisted location-scoped tool approvals and allowed directories for a working directory to this session's permission service.</summary>
-    /// <param name="workingDirectory">Working directory whose persisted location permissions should be applied.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Summary of persisted location permissions applied to the session.</returns>
-    public async Task<PermissionLocationApplyResult> ApplyAsync(string workingDirectory, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(workingDirectory);
-        _session.ThrowIfDisposed();
-
-        var request = new PermissionLocationApplyParams { SessionId = _session.SessionId, WorkingDirectory = workingDirectory };
-        return await CopilotClient.InvokeRpcAsync<PermissionLocationApplyResult>(_session.Rpc, "session.permissions.locations.apply", [request], cancellationToken);
-    }
-
-    /// <summary>Persists a tool approval for a permission location and applies its rules to this session's live permission service.</summary>
-    /// <param name="locationKey">Location key (git root or cwd) to persist the approval to.</param>
-    /// <param name="approval">Tool approval to persist and apply.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Indicates whether the operation succeeded.</returns>
-    public async Task<PermissionsLocationsAddToolApprovalResult> AddToolApprovalAsync(string locationKey, PermissionsLocationsAddToolApprovalDetails approval, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(locationKey);
-        ArgumentNullException.ThrowIfNull(approval);
-        _session.ThrowIfDisposed();
-
-        var request = new PermissionLocationAddToolApprovalParams { SessionId = _session.SessionId, LocationKey = locationKey, Approval = approval };
-        return await CopilotClient.InvokeRpcAsync<PermissionsLocationsAddToolApprovalResult>(_session.Rpc, "session.permissions.locations.addToolApproval", [request], cancellationToken);
-    }
-}
-
-/// <summary>Provides session-scoped PermissionsFolderTrust APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class PermissionsFolderTrustApi
-{
-    private readonly CopilotSession _session;
-
-    internal PermissionsFolderTrustApi(CopilotSession session)
-    {
-        _session = session;
-    }
-
-    /// <summary>Reports whether a folder is trusted according to the user's folder trust state.</summary>
-    /// <param name="path">Folder path to check.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Folder trust check result.</returns>
-    public async Task<FolderTrustCheckResult> IsTrustedAsync(string path, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-        _session.ThrowIfDisposed();
-
-        var request = new FolderTrustCheckParams { SessionId = _session.SessionId, Path = path };
-        return await CopilotClient.InvokeRpcAsync<FolderTrustCheckResult>(_session.Rpc, "session.permissions.folderTrust.isTrusted", [request], cancellationToken);
-    }
-
-    /// <summary>Adds a folder to the user's trusted folders list.</summary>
-    /// <param name="path">Folder path to mark as trusted.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>Indicates whether the operation succeeded.</returns>
-    public async Task<PermissionsFolderTrustAddTrustedResult> AddTrustedAsync(string path, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(path);
-        _session.ThrowIfDisposed();
-
-        var request = new FolderTrustAddParams { SessionId = _session.SessionId, Path = path };
-        return await CopilotClient.InvokeRpcAsync<PermissionsFolderTrustAddTrustedResult>(_session.Rpc, "session.permissions.folderTrust.addTrusted", [request], cancellationToken);
-    }
-}
-
 /// <summary>Provides session-scoped PermissionsUrls APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsUrlsApi
 {
     private readonly CopilotSession _session;
@@ -12599,7 +11815,6 @@ public sealed class MetadataApi
 }
 
 /// <summary>Provides session-scoped Shell APIs.</summary>
-[Experimental(Diagnostics.Experimental)]
 public sealed class ShellApi
 {
     private readonly CopilotSession _session;
@@ -13354,9 +12569,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ExtensionsEnableRequest))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
-[JsonSerializable(typeof(FolderTrustAddParams))]
-[JsonSerializable(typeof(FolderTrustCheckParams))]
-[JsonSerializable(typeof(FolderTrustCheckResult))]
 [JsonSerializable(typeof(HandlePendingToolCallRequest))]
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
@@ -13436,11 +12648,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionDecisionApproveForLocationApproval))]
 [JsonSerializable(typeof(PermissionDecisionApproveForSessionApproval))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
-[JsonSerializable(typeof(PermissionLocationAddToolApprovalParams))]
-[JsonSerializable(typeof(PermissionLocationApplyParams))]
-[JsonSerializable(typeof(PermissionLocationApplyResult))]
-[JsonSerializable(typeof(PermissionLocationResolveParams))]
-[JsonSerializable(typeof(PermissionLocationResolveResult))]
 [JsonSerializable(typeof(PermissionPathsAddParams))]
 [JsonSerializable(typeof(PermissionPathsAllowedCheckParams))]
 [JsonSerializable(typeof(PermissionPathsAllowedCheckResult))]
@@ -13459,9 +12666,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionsConfigureAdditionalContentExclusionPolicyRuleSource))]
 [JsonSerializable(typeof(PermissionsConfigureParams))]
 [JsonSerializable(typeof(PermissionsConfigureResult))]
-[JsonSerializable(typeof(PermissionsFolderTrustAddTrustedResult))]
-[JsonSerializable(typeof(PermissionsLocationsAddToolApprovalDetails))]
-[JsonSerializable(typeof(PermissionsLocationsAddToolApprovalResult))]
 [JsonSerializable(typeof(PermissionsModifyRulesParams))]
 [JsonSerializable(typeof(PermissionsModifyRulesResult))]
 [JsonSerializable(typeof(PermissionsNotifyPromptShownResult))]
@@ -13550,7 +12754,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionInstalledPlugin))]
 [JsonSerializable(typeof(SessionInstructionsGetSourcesRequest))]
 [JsonSerializable(typeof(SessionList))]
-[JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SessionLoadDeferredRepoHooksResult))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
@@ -13613,6 +12816,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionsGetPersistedRemoteSteerableRequest))]
 [JsonSerializable(typeof(SessionsGetPersistedRemoteSteerableResult))]
 [JsonSerializable(typeof(SessionsListRequest))]
+[JsonSerializable(typeof(SessionsListRequestFilter))]
 [JsonSerializable(typeof(SessionsLoadDeferredRepoHooksRequest))]
 [JsonSerializable(typeof(SessionsPruneOldRequest))]
 [JsonSerializable(typeof(SessionsReleaseLockRequest))]
@@ -13640,16 +12844,13 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SlashCommandInfo))]
 [JsonSerializable(typeof(SlashCommandInput))]
 [JsonSerializable(typeof(SlashCommandInvocationResult))]
-[JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(TaskInfo))]
 [JsonSerializable(typeof(TaskList))]
-[JsonSerializable(typeof(TaskProgressLine))]
 [JsonSerializable(typeof(TasksCancelRequest))]
 [JsonSerializable(typeof(TasksCancelResult))]
 [JsonSerializable(typeof(TasksGetCurrentPromotableResult))]
 [JsonSerializable(typeof(TasksGetProgressRequest))]
 [JsonSerializable(typeof(TasksGetProgressResult))]
-[JsonSerializable(typeof(TasksGetProgressResultProgress))]
 [JsonSerializable(typeof(TasksPromoteCurrentToBackgroundResult))]
 [JsonSerializable(typeof(TasksPromoteToBackgroundRequest))]
 [JsonSerializable(typeof(TasksPromoteToBackgroundResult))]
