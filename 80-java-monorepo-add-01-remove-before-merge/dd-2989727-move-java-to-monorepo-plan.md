@@ -4,7 +4,6 @@
 
 The software that currently resides in https://github.com/github/copilot-sdk-java (the standalone repo) will be merged into https://github.com/github/copilot-sdk (the monorepo) such that the Java specific aspects will reside entirely within the `java` directory and as much of the supporting infrastructure will reside in its natural home, but with `java-` file name prefixes wherever possible.
 
-
 ## Table of Contents
 
 1. [Migration Plan — Phases](#1-migration-plan--phases)
@@ -205,7 +204,6 @@ git remote remove java-history
 Because content is identical at merge time, this produces a clean merge commit. After that, `git log --follow java/src/main/java/.../CopilotClient.java` traces back to the original authors.
 
 **One caveat**: if any `.java` or pom.xml files diverge between repos before you do this step, you'll get conflicts on those files. As long as you keep them in sync (your assumption #2), it's safe to do last.
-
 
 ---
 
