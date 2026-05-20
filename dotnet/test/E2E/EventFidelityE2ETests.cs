@@ -147,8 +147,8 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Prompt = "What is 9+9? Reply with just the number.",
         });
 
-        var pendingEvent = await pendingMessagesModified;
         var answer = await TestHelper.GetFinalAssistantMessageAsync(session);
+        var pendingEvent = await pendingMessagesModified;
 
         Assert.NotNull(pendingEvent);
         Assert.Contains("18", answer?.Data.Content ?? string.Empty);

@@ -4846,7 +4846,7 @@ type UsageGetMetricsResult struct {
 	// Total time spent in model API calls (milliseconds)
 	TotalAPIDurationMs int64 `json:"totalApiDurationMs"`
 	// Session-wide accumulated nano-AI units cost
-	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total user-initiated premium request cost across all models (may be fractional due to
 	// multipliers)
 	TotalPremiumRequestCost float64 `json:"totalPremiumRequestCost"`
@@ -4877,7 +4877,7 @@ type UsageMetricsModelMetric struct {
 	// Token count details per type
 	TokenDetails map[string]UsageMetricsModelMetricTokenDetail `json:"tokenDetails,omitempty"`
 	// Accumulated nano-AI units cost for this model
-	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
+	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Token usage metrics for this model
 	Usage UsageMetricsModelMetricUsage `json:"usage"`
 }

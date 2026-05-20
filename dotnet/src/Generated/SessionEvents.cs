@@ -1677,11 +1677,11 @@ public sealed partial class SessionShutdownData
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalNanoAiu")]
-    public long? TotalNanoAiu { get; set; }
+    public double? TotalNanoAiu { get; set; }
 
     /// <summary>Total number of premium API requests used during the session.</summary>
     [JsonPropertyName("totalPremiumRequests")]
-    public required long TotalPremiumRequests { get; set; }
+    public required double TotalPremiumRequests { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -3239,7 +3239,7 @@ public sealed partial class ShutdownModelMetric
     /// <summary>Accumulated nano-AI units cost for this model.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalNanoAiu")]
-    public long? TotalNanoAiu { get; set; }
+    public double? TotalNanoAiu { get; set; }
 
     /// <summary>Token usage breakdown.</summary>
     [JsonPropertyName("usage")]
@@ -3286,7 +3286,7 @@ public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 
     /// <summary>Total cost in nano-AI units for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
-    public required long TotalNanoAiu { get; set; }
+    public required double TotalNanoAiu { get; set; }
 }
 
 /// <summary>Token usage breakdown for the compaction LLM call (aligned with assistant.usage format).</summary>
@@ -3592,7 +3592,7 @@ public sealed partial class AssistantUsageCopilotUsage
 
     /// <summary>Total cost in nano-AI units for this request.</summary>
     [JsonPropertyName("totalNanoAiu")]
-    public required long TotalNanoAiu { get; set; }
+    public required double TotalNanoAiu { get; set; }
 }
 
 /// <summary>Schema for the `AssistantUsageQuotaSnapshot` type.</summary>

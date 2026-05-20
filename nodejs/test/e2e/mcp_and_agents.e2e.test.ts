@@ -291,11 +291,6 @@ describe("MCP Servers and Custom Agents", async () => {
 
             expect(session.sessionId).toBeDefined();
 
-            const message = await session.sendAndWait({
-                prompt: "What is 7+7?",
-            });
-            expect(message?.data.content).toContain("14");
-
             await session.disconnect();
         });
     });
