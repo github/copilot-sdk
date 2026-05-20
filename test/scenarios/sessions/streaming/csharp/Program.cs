@@ -8,7 +8,7 @@ var options = new CopilotClientOptions
 var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
 if (!string.IsNullOrEmpty(cliPath))
 {
-    options.CliPath = cliPath;
+    options.Connection = RuntimeConnection.Stdio(path: cliPath);
 }
 
 using var client = new CopilotClient(options);
@@ -24,7 +24,7 @@ try
     });
 
     var chunkCount = 0;
-    using var subscription = session.On(evt =>
+    using var subscription = session.On<SessionEvent>(evt =>
     {
         if (evt is AssistantMessageDeltaEvent)
         {

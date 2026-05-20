@@ -21,7 +21,7 @@ app.MapPost("/chat", async (HttpContext ctx) =>
         return;
     }
 
-    using var client = new CopilotClient(new CopilotClientOptions { CliUrl = cliUrl });
+    using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri(cliUrl) });
     await client.StartAsync();
 
     try
