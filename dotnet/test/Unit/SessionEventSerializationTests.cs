@@ -66,7 +66,7 @@ public class SessionEventSerializationTests
                         Content = "ok",
                         DetailedContent = "ok",
                     },
-                    ToolTelemetry = new Dictionary<string, JsonElement>
+                    ToolTelemetry = new Dictionary<string, object>
                     {
                         ["properties"] = ParseJsonElement("""{"command":"view"}"""),
                         ["metrics"] = ParseJsonElement("""{"resultLength":2}"""),

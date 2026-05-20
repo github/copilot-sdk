@@ -640,7 +640,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                                 ? new ElicitationSchema
                                 {
                                     Type = data.RequestedSchema.Type,
-                                    Properties = data.RequestedSchema.Properties.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value),
+                                    Properties = data.RequestedSchema.Properties,
                                     Required = data.RequestedSchema.Required?.ToList()
                                 }
                                 : null;
@@ -690,7 +690,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a tool handler and sends the result back via the HandlePendingToolCall RPC.
     /// </summary>
-    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool)
+    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, object? arguments, AIFunction tool)
     {
         try
         {
@@ -710,8 +710,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 }
             };
 
-            if (arguments is JsonElement incomingJsonArgs)
+            if (arguments is not null)
             {
+                if (arguments is not JsonElement incomingJsonArgs)
+                {
+                    throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
+                }
+
                 foreach (var prop in incomingJsonArgs.EnumerateObject())
                 {
                     aiFunctionArgs[prop.Name] = prop.Value;
@@ -729,10 +734,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 toolName);
 
             var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
-            var toolResultJson = JsonSerializer.SerializeToElement(toolResultObject, TypesJsonContext.Default.ToolResultObject);
 
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultJson, error: null);
+            await Rpc.Tools.HandlePendingToolCallAsync(requestId, toolResultObject, error: null);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecuteToolAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}, ToolCallId={ToolCallId}, Tool={ToolName}",
                 responseRpcTimestamp,
@@ -953,9 +957,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
             {
                 Action = result.Action,
-                Content = result.Content?.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => JsonSerializer.SerializeToElement(kvp.Value, TypesJsonContext.Default.Object))
+                Content = result.Content
             });
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
@@ -1007,18 +1009,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
             var schema = new UIElicitationSchema
             {
                 Type = elicitationParams.RequestedSchema.Type,
-                Properties = elicitationParams.RequestedSchema.Properties.ToDictionary(
-                    kvp => kvp.Key,
-                    kvp => JsonSerializer.SerializeToElement(kvp.Value, TypesJsonContext.Default.Object)),
+                Properties = elicitationParams.RequestedSchema.Properties,
                 Required = elicitationParams.RequestedSchema.Required
             };
 
             var result = await session.Rpc.Ui.ElicitationAsync(elicitationParams.Message, schema, cancellationToken);
-            return new ElicitationResult
-            {
-                Action = result.Action,
-                Content = result.Content?.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value)
-            };
+            return new ElicitationResult { Action = result.Action, Content = result.Content };
         }
 
         public async Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken)
@@ -1030,9 +1026,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             var schema = new UIElicitationSchema
             {
                 Type = "object",
-                Properties = new Dictionary<string, JsonElement>
+                Properties = new Dictionary<string, object>
                 {
-                    ["confirmed"] = JsonDocument.Parse("""{"type":"boolean","default":true}""").RootElement.Clone()
+                    ["confirmed"] = new Dictionary<string, object> { ["type"] = "boolean", ["default"] = true }
                 },
                 Required = ["confirmed"]
             };
@@ -1042,10 +1038,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 && result.Content != null
                 && result.Content.TryGetValue("confirmed", out var val))
             {
-                return val.ValueKind switch
+                return val switch
                 {
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
+                    bool b => b,
+                    JsonElement { ValueKind: JsonValueKind.True } => true,
+                    JsonElement { ValueKind: JsonValueKind.False } => false,
                     _ => false
                 };
             }
@@ -1060,13 +1057,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
             session.ThrowIfDisposed();
             session.AssertElicitation();
 
-            var enumJson = JsonSerializer.Serialize(options, TypesJsonContext.Default.StringArray);
             var schema = new UIElicitationSchema
             {
                 Type = "object",
-                Properties = new Dictionary<string, JsonElement>
+                Properties = new Dictionary<string, object>
                 {
-                    ["selection"] = JsonDocument.Parse($$"""{"type":"string","enum":{{enumJson}}}""").RootElement.Clone()
+                    ["selection"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = options }
                 },
                 Required = ["selection"]
             };
@@ -1076,7 +1072,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 && result.Content != null
                 && result.Content.TryGetValue("selection", out var val))
             {
-                return val.ValueKind == JsonValueKind.String ? val.GetString() : val.ToString();
+                return val switch
+                {
+                    string s => s,
+                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                    _ => val.ToString()
+                };
             }
 
             return null;
@@ -1088,21 +1089,18 @@ public sealed partial class CopilotSession : IAsyncDisposable
             session.ThrowIfDisposed();
             session.AssertElicitation();
 
-            var fieldNode = new System.Text.Json.Nodes.JsonObject { ["type"] = "string" };
-            if (options?.Title != null) fieldNode["title"] = options.Title;
-            if (options?.Description != null) fieldNode["description"] = options.Description;
-            if (options?.MinLength != null) fieldNode["minLength"] = options.MinLength;
-            if (options?.MaxLength != null) fieldNode["maxLength"] = options.MaxLength;
-            if (options?.Format != null) fieldNode["format"] = options.Format;
-            if (options?.Default != null) fieldNode["default"] = options.Default;
+            var field = new Dictionary<string, object> { ["type"] = "string" };
+            if (options?.Title != null) field["title"] = options.Title;
+            if (options?.Description != null) field["description"] = options.Description;
+            if (options?.MinLength != null) field["minLength"] = options.MinLength;
+            if (options?.MaxLength != null) field["maxLength"] = options.MaxLength;
+            if (options?.Format != null) field["format"] = options.Format;
+            if (options?.Default != null) field["default"] = options.Default;
 
             var schema = new UIElicitationSchema
             {
                 Type = "object",
-                Properties = new Dictionary<string, JsonElement>
-                {
-                    ["value"] = JsonDocument.Parse(fieldNode.ToJsonString()).RootElement.Clone()
-                },
+                Properties = new Dictionary<string, object> { ["value"] = field },
                 Required = ["value"]
             };
 
@@ -1111,7 +1109,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 && result.Content != null
                 && result.Content.TryGetValue("value", out var val))
             {
-                return val.ValueKind == JsonValueKind.String ? val.GetString() : val.ToString();
+                return val switch
+                {
+                    string s => s,
+                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                    _ => val.ToString()
+                };
             }
 
             return null;

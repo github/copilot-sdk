@@ -34,11 +34,11 @@ public class RpcMcpConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         try
         {
-            await Client.Rpc.Mcp.Config.AddAsync(serverName, JsonSerializer.SerializeToElement(config, TestSharedJsonContext.Default.DictionaryStringObject));
+            await Client.Rpc.Mcp.Config.AddAsync(serverName, config);
             var afterAdd = await Client.Rpc.Mcp.Config.ListAsync();
             Assert.Contains(serverName, afterAdd.Servers.Keys);
 
-            await Client.Rpc.Mcp.Config.UpdateAsync(serverName, JsonSerializer.SerializeToElement(updatedConfig, TestSharedJsonContext.Default.DictionaryStringObject));
+            await Client.Rpc.Mcp.Config.UpdateAsync(serverName, updatedConfig);
             var afterUpdate = await Client.Rpc.Mcp.Config.ListAsync();
             var updated = GetServerConfig(afterUpdate, serverName);
             Assert.Equal("node", updated.GetProperty("command").GetString());
@@ -84,7 +84,7 @@ public class RpcMcpConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         try
         {
-            await Client.Rpc.Mcp.Config.AddAsync(serverName, JsonSerializer.SerializeToElement<McpServerConfig>(config, TestSharedJsonContext.Default.McpServerConfig));
+            await Client.Rpc.Mcp.Config.AddAsync(serverName, config);
             var afterAdd = await Client.Rpc.Mcp.Config.ListAsync();
             var added = GetServerConfig(afterAdd, serverName);
             Assert.Equal("http", added.GetProperty("type").GetString());
@@ -94,7 +94,7 @@ public class RpcMcpConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             Assert.False(added.GetProperty("oauthPublicClient").GetBoolean());
             Assert.Equal("client_credentials", added.GetProperty("oauthGrantType").GetString());
 
-            await Client.Rpc.Mcp.Config.UpdateAsync(serverName, JsonSerializer.SerializeToElement<McpServerConfig>(updatedConfig, TestSharedJsonContext.Default.McpServerConfig));
+            await Client.Rpc.Mcp.Config.UpdateAsync(serverName, updatedConfig);
             var afterUpdate = await Client.Rpc.Mcp.Config.ListAsync();
             var updated = GetServerConfig(afterUpdate, serverName);
             Assert.Equal("https://example.com/updated-mcp", updated.GetProperty("url").GetString());

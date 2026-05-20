@@ -559,7 +559,7 @@ public sealed class ToolResultObject
     /// Custom telemetry data associated with the tool execution.
     /// </summary>
     [JsonPropertyName("toolTelemetry")]
-    public IDictionary<string, JsonElement>? ToolTelemetry { get; set; }
+    public IDictionary<string, object>? ToolTelemetry { get; set; }
 
     /// <summary>
     /// Converts the result of an <see cref="AIFunction"/> invocation into a
@@ -671,7 +671,7 @@ public sealed class ToolInvocation
     /// <summary>
     /// Arguments passed to the tool by the language model.
     /// </summary>
-    public JsonElement? Arguments { get; set; }
+    public object? Arguments { get; set; }
 }
 
 /// <summary>Describes the kind of a permission request result.</summary>
@@ -1227,7 +1227,7 @@ public sealed class PreToolUseHookInput
     /// Arguments that will be passed to the tool.
     /// </summary>
     [JsonPropertyName("toolArgs")]
-    public JsonElement? ToolArgs { get; set; }
+    public object? ToolArgs { get; set; }
 }
 
 /// <summary>
@@ -1305,13 +1305,13 @@ public sealed class PostToolUseHookInput
     /// Arguments that were passed to the tool.
     /// </summary>
     [JsonPropertyName("toolArgs")]
-    public JsonElement? ToolArgs { get; set; }
+    public object? ToolArgs { get; set; }
 
     /// <summary>
     /// Result returned by the tool execution.
     /// </summary>
     [JsonPropertyName("toolResult")]
-    public JsonElement? ToolResult { get; set; }
+    public object? ToolResult { get; set; }
 }
 
 /// <summary>

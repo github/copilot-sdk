@@ -1808,7 +1808,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         public async ValueTask<ToolCallResponseV2> OnToolCallV2(string sessionId,
             string toolCallId,
             string toolName,
-            JsonElement? arguments,
+            object? arguments,
             string? traceparent = null,
             string? tracestate = null)
         {
@@ -1845,8 +1845,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     }
                 };
 
-                if (arguments is JsonElement incomingJsonArgs)
+                if (arguments is not null)
                 {
+                    if (arguments is not JsonElement incomingJsonArgs)
+                    {
+                        throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
+                    }
+
                     foreach (var prop in incomingJsonArgs.EnumerateObject())
                     {
                         aiFunctionArgs[prop.Name] = prop.Value;
