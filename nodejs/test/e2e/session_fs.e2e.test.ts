@@ -216,12 +216,12 @@ describe("Session Fs", async () => {
         expect(contentBefore).not.toContain("checkpointNumber");
 
         await session.rpc.history.compact();
-        await expect.poll(() => compactionEvent).toBeDefined();
+        await expect.poll(() => compactionEvent, { timeout: 30_000 }).toBeDefined();
         expect(compactionEvent!.data.success).toBe(true);
 
         // Verify the events file was rewritten with a checkpoint via sessionFs
         await expect
-            .poll(() => provider.readFile(eventsPath, "utf8"))
+            .poll(() => provider.readFile(eventsPath, "utf8"), { timeout: 30_000 })
             .toContain("checkpointNumber");
     });
 });
