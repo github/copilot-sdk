@@ -217,10 +217,10 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 			RowsAffected: 0,
 		}, nil
 	}
-	var wireRowid *float64
+	var wireRowid *int64
 	if result.LastInsertRowid != nil {
-		f := float64(*result.LastInsertRowid)
-		wireRowid = &f
+		rowid := *result.LastInsertRowid
+		wireRowid = &rowid
 	}
 	return &rpc.SessionFsSqliteQueryResult{
 		Columns:         result.Columns,

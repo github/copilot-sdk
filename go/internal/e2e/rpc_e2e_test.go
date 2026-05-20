@@ -35,8 +35,8 @@ func TestRpcE2E(t *testing.T) {
 			t.Errorf("Expected message 'pong: typed rpc test', got %q", result.Message)
 		}
 
-		if result.Timestamp < 0 {
-			t.Errorf("Expected timestamp >= 0, got %d", result.Timestamp)
+		if result.Timestamp.IsZero() {
+			t.Errorf("Expected non-zero timestamp, got %s", result.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {

@@ -22,7 +22,7 @@ describe("Client", () => {
 
         const pong = await client.ping("test message");
         expect(pong.message).toBe("pong: test message");
-        expect(pong.timestamp).toBeGreaterThanOrEqual(0);
+        expect(Date.parse(pong.timestamp)).not.toBeNaN();
 
         expect(await client.stop()).toHaveLength(0); // No errors on stop
         expect(client.getState()).toBe("disconnected");
@@ -37,7 +37,7 @@ describe("Client", () => {
 
         const pong = await client.ping("test message");
         expect(pong.message).toBe("pong: test message");
-        expect(pong.timestamp).toBeGreaterThanOrEqual(0);
+        expect(Date.parse(pong.timestamp)).not.toBeNaN();
 
         expect(await client.stop()).toHaveLength(0); // No errors on stop
         expect(client.getState()).toBe("disconnected");

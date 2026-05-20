@@ -585,12 +585,15 @@ async fn should_call_session_usage_and_permission_rpcs() {
                     .expect("create session");
 
                 let metrics = session.rpc().usage().get_metrics().await.expect("metrics");
-                assert!(metrics.session_start_time > 0);
+                assert!(!metrics.session_start_time.is_empty());
                 assert!(
                     session
                         .rpc()
                         .permissions()
-                        .set_approve_all(PermissionsSetApproveAllRequest { enabled: true })
+                        .set_approve_all(PermissionsSetApproveAllRequest {
+                            enabled: true,
+                            source: None,
+                        })
                         .await
                         .expect("set approve all")
                         .success
@@ -607,7 +610,10 @@ async fn should_call_session_usage_and_permission_rpcs() {
                 session
                     .rpc()
                     .permissions()
-                    .set_approve_all(PermissionsSetApproveAllRequest { enabled: false })
+                    .set_approve_all(PermissionsSetApproveAllRequest {
+                        enabled: false,
+                        source: None,
+                    })
                     .await
                     .expect("disable approve all");
 

@@ -2747,19 +2747,33 @@ function emitGoUnionWrapperStruct(typeName: string, schema: JSONSchema7, ctx: Go
     encodingLines.push(`\t}`);
     for (const field of fields) {
         const matchFunction = matchFunctionsByField.get(field.name);
+        const unmarshalType = goUnionFieldUnmarshalType(field.type);
+        const unionInfo = goDiscriminatedUnionInfoForType(unmarshalType, ctx);
         if (matchFunction) {
             encodingLines.push(`\tif ${matchFunction}(data) {`);
-            encodingLines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
-            encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err != nil {`);
-            encodingLines.push(`\t\t\treturn err`);
-            encodingLines.push(`\t\t}`);
+            if (unionInfo) {
+                encodingLines.push(`\t\tvalue, err := ${unionInfo.unmarshalFuncName}(data)`);
+                encodingLines.push(`\t\tif err != nil {`);
+                encodingLines.push(`\t\t\treturn err`);
+                encodingLines.push(`\t\t}`);
+            } else {
+                encodingLines.push(`\t\tvar value ${unmarshalType}`);
+                encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err != nil {`);
+                encodingLines.push(`\t\t\treturn err`);
+                encodingLines.push(`\t\t}`);
+            }
             encodingLines.push(`\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
             encodingLines.push(`\t\treturn nil`);
             encodingLines.push(`\t}`);
         } else {
             encodingLines.push(`\t{`);
-            encodingLines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
-            encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+            if (unionInfo) {
+                encodingLines.push(`\t\tvalue, err := ${unionInfo.unmarshalFuncName}(data)`);
+                encodingLines.push(`\t\tif err == nil {`);
+            } else {
+                encodingLines.push(`\t\tvar value ${unmarshalType}`);
+                encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+            }
             encodingLines.push(`\t\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
             encodingLines.push(`\t\t\treturn nil`);
             encodingLines.push(`\t\t}`);

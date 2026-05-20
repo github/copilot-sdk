@@ -161,9 +161,9 @@ async fn should_emit_session_usage_info_event_after_model_call() {
                     .find(|event| event.parsed_type() == SessionEventType::SessionUsageInfo)
                     .and_then(|event| event.typed_data::<SessionUsageInfoData>())
                     .expect("session.usage_info");
-                assert!(usage.current_tokens > 0.0);
-                assert!(usage.messages_length > 0.0);
-                assert!(usage.token_limit > 0.0);
+                assert!(usage.current_tokens > 0);
+                assert!(usage.messages_length > 0);
+                assert!(usage.token_limit > 0);
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");

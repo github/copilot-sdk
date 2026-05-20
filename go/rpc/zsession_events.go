@@ -184,7 +184,7 @@ type AssistantMessageData struct {
 	// Model that produced this assistant message, if known
 	Model *string `json:"model,omitempty"`
 	// Actual output token count from the API response (completion_tokens), used for accurate token accounting
-	OutputTokens *float64 `json:"outputTokens,omitempty"`
+	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Tool call ID of the parent tool invocation when this event originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -225,7 +225,7 @@ type AutoModeSwitchRequestedData struct {
 	// Unique identifier for this request; used to respond via session.respondToAutoModeSwitch()
 	RequestID string `json:"requestId"`
 	// Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt.
-	RetryAfterSeconds *float64 `json:"retryAfterSeconds,omitempty"`
+	RetryAfterSeconds *int64 `json:"retryAfterSeconds,omitempty"`
 }
 
 func (*AutoModeSwitchRequestedData) sessionEventData() {}
@@ -236,11 +236,11 @@ func (*AutoModeSwitchRequestedData) Type() SessionEventType {
 // Context window breakdown at the start of LLM-powered conversation compaction
 type SessionCompactionStartData struct {
 	// Token count from non-system messages (user, assistant, tool) at compaction start
-	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
+	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
 	// Token count from system message(s) at compaction start
-	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	SystemTokens *int64 `json:"systemTokens,omitempty"`
 	// Token count from tool definitions at compaction start
-	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
+	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
 }
 
 func (*SessionCompactionStartData) sessionEventData() {}
@@ -251,23 +251,23 @@ func (*SessionCompactionStartData) Type() SessionEventType {
 // Conversation compaction results including success status, metrics, and optional error details
 type SessionCompactionCompleteData struct {
 	// Checkpoint snapshot number created for recovery
-	CheckpointNumber *float64 `json:"checkpointNumber,omitempty"`
+	CheckpointNumber *int64 `json:"checkpointNumber,omitempty"`
 	// File path where the checkpoint was stored
 	CheckpointPath *string `json:"checkpointPath,omitempty"`
 	// Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
 	CompactionTokensUsed *CompactionCompleteCompactionTokensUsed `json:"compactionTokensUsed,omitempty"`
 	// Token count from non-system messages (user, assistant, tool) after compaction
-	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
+	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
 	// Error message if compaction failed
 	Error *string `json:"error,omitempty"`
 	// Number of messages removed during compaction
-	MessagesRemoved *float64 `json:"messagesRemoved,omitempty"`
+	MessagesRemoved *int64 `json:"messagesRemoved,omitempty"`
 	// Total tokens in conversation after compaction
-	PostCompactionTokens *float64 `json:"postCompactionTokens,omitempty"`
+	PostCompactionTokens *int64 `json:"postCompactionTokens,omitempty"`
 	// Number of messages before compaction
-	PreCompactionMessagesLength *float64 `json:"preCompactionMessagesLength,omitempty"`
+	PreCompactionMessagesLength *int64 `json:"preCompactionMessagesLength,omitempty"`
 	// Total tokens in conversation before compaction
-	PreCompactionTokens *float64 `json:"preCompactionTokens,omitempty"`
+	PreCompactionTokens *int64 `json:"preCompactionTokens,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
 	RequestID *string `json:"requestId,omitempty"`
 	// Whether compaction completed successfully
@@ -275,11 +275,11 @@ type SessionCompactionCompleteData struct {
 	// LLM-generated summary of the compacted conversation history
 	SummaryContent *string `json:"summaryContent,omitempty"`
 	// Token count from system message(s) after compaction
-	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	SystemTokens *int64 `json:"systemTokens,omitempty"`
 	// Number of tokens removed during compaction
-	TokensRemoved *float64 `json:"tokensRemoved,omitempty"`
+	TokensRemoved *int64 `json:"tokensRemoved,omitempty"`
 	// Token count from tool definitions after compaction
-	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
+	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
 }
 
 func (*SessionCompactionCompleteData) sessionEventData() {}
@@ -290,21 +290,21 @@ func (*SessionCompactionCompleteData) Type() SessionEventType {
 // Conversation truncation statistics including token counts and removed content metrics
 type SessionTruncationData struct {
 	// Number of messages removed by truncation
-	MessagesRemovedDuringTruncation float64 `json:"messagesRemovedDuringTruncation"`
+	MessagesRemovedDuringTruncation int64 `json:"messagesRemovedDuringTruncation"`
 	// Identifier of the component that performed truncation (e.g., "BasicTruncator")
 	PerformedBy string `json:"performedBy"`
 	// Number of conversation messages after truncation
-	PostTruncationMessagesLength float64 `json:"postTruncationMessagesLength"`
+	PostTruncationMessagesLength int64 `json:"postTruncationMessagesLength"`
 	// Total tokens in conversation messages after truncation
-	PostTruncationTokensInMessages float64 `json:"postTruncationTokensInMessages"`
+	PostTruncationTokensInMessages int64 `json:"postTruncationTokensInMessages"`
 	// Number of conversation messages before truncation
-	PreTruncationMessagesLength float64 `json:"preTruncationMessagesLength"`
+	PreTruncationMessagesLength int64 `json:"preTruncationMessagesLength"`
 	// Total tokens in conversation messages before truncation
-	PreTruncationTokensInMessages float64 `json:"preTruncationTokensInMessages"`
+	PreTruncationTokensInMessages int64 `json:"preTruncationTokensInMessages"`
 	// Maximum token count for the model's context window
-	TokenLimit float64 `json:"tokenLimit"`
+	TokenLimit int64 `json:"tokenLimit"`
 	// Number of tokens removed by truncation
-	TokensRemovedDuringTruncation float64 `json:"tokensRemovedDuringTruncation"`
+	TokensRemovedDuringTruncation int64 `json:"tokensRemovedDuringTruncation"`
 }
 
 func (*SessionTruncationData) sessionEventData()      {}
@@ -313,19 +313,19 @@ func (*SessionTruncationData) Type() SessionEventType { return SessionEventTypeS
 // Current context window usage statistics including token and message counts
 type SessionUsageInfoData struct {
 	// Token count from non-system messages (user, assistant, tool)
-	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
+	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
 	// Current number of tokens in the context window
-	CurrentTokens float64 `json:"currentTokens"`
+	CurrentTokens int64 `json:"currentTokens"`
 	// Whether this is the first usage_info event emitted in this session
 	IsInitial *bool `json:"isInitial,omitempty"`
 	// Current number of messages in the conversation
-	MessagesLength float64 `json:"messagesLength"`
+	MessagesLength int64 `json:"messagesLength"`
 	// Token count from system message(s)
-	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	SystemTokens *int64 `json:"systemTokens,omitempty"`
 	// Maximum token count for the model's context window
-	TokenLimit float64 `json:"tokenLimit"`
+	TokenLimit int64 `json:"tokenLimit"`
 	// Token count from tool definitions
-	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
+	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
 }
 
 func (*SessionUsageInfoData) sessionEventData()      {}
@@ -409,7 +409,7 @@ type SessionErrorData struct {
 	// Error stack trace, when available
 	Stack *string `json:"stack,omitempty"`
 	// HTTP status code from the upstream request, if applicable
-	StatusCode *int64 `json:"statusCode,omitempty"`
+	StatusCode *int32 `json:"statusCode,omitempty"`
 	// Optional URL associated with this error that the user can open in a browser
 	URL *string `json:"url,omitempty"`
 }
@@ -456,7 +456,7 @@ type ModelCallFailureData struct {
 	// Completion ID from the model provider (e.g., chatcmpl-abc123)
 	APICallID *string `json:"apiCallId,omitempty"`
 	// Duration of the failed API call in milliseconds
-	DurationMs *float64 `json:"durationMs,omitempty"`
+	DurationMs *int64 `json:"durationMs,omitempty"`
 	// Raw provider/runtime error message for restricted telemetry
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
@@ -468,7 +468,7 @@ type ModelCallFailureData struct {
 	// Where the failed model call originated
 	Source ModelCallFailureSource `json:"source"`
 	// HTTP status code from the failed request
-	StatusCode *int64 `json:"statusCode,omitempty"`
+	StatusCode *int32 `json:"statusCode,omitempty"`
 }
 
 func (*ModelCallFailureData) sessionEventData()      {}
@@ -526,25 +526,25 @@ type AssistantUsageData struct {
 	// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
 	APIEndpoint *AssistantUsageAPIEndpoint `json:"apiEndpoint,omitempty"`
 	// Number of tokens read from prompt cache
-	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
+	CacheReadTokens *int64 `json:"cacheReadTokens,omitempty"`
 	// Number of tokens written to prompt cache
-	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
+	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
 	CopilotUsage *AssistantUsageCopilotUsage `json:"copilotUsage,omitempty"`
 	// Model multiplier cost for billing purposes
 	Cost *float64 `json:"cost,omitempty"`
 	// Duration of the API call in milliseconds
-	Duration *float64 `json:"duration,omitempty"`
+	Duration *int64 `json:"duration,omitempty"`
 	// What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls
 	Initiator *string `json:"initiator,omitempty"`
 	// Number of input tokens consumed
-	InputTokens *float64 `json:"inputTokens,omitempty"`
+	InputTokens *int64 `json:"inputTokens,omitempty"`
 	// Average inter-token latency in milliseconds. Only available for streaming requests
 	InterTokenLatencyMs *float64 `json:"interTokenLatencyMs,omitempty"`
 	// Model identifier used for this API call
 	Model string `json:"model"`
 	// Number of output tokens produced
-	OutputTokens *float64 `json:"outputTokens,omitempty"`
+	OutputTokens *int64 `json:"outputTokens,omitempty"`
 	// Parent tool call ID when this usage originates from a sub-agent
 	// Deprecated: ParentToolCallID is deprecated.
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
@@ -555,9 +555,9 @@ type AssistantUsageData struct {
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
-	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
+	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
-	TtftMs *float64 `json:"ttftMs,omitempty"`
+	TtftMs *int64 `json:"ttftMs,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}
@@ -907,7 +907,7 @@ type UserMessageData struct {
 	InteractionID *string `json:"interactionId,omitempty"`
 	// True when this user message was auto-injected by autopilot's continuation loop rather than typed by the user; used to distinguish autopilot-driven turns in telemetry.
 	IsAutopilotContinuation *bool `json:"isAutopilotContinuation,omitempty"`
-	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
+	// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
 	NativeDocumentPathFallbackPaths []string `json:"nativeDocumentPathFallbackPaths,omitempty"`
 	// Parent agent task ID for background telemetry correlated to this user turn
 	ParentAgentTaskID *string `json:"parentAgentTaskId,omitempty"`
@@ -977,7 +977,7 @@ type SessionStartData struct {
 	// ISO 8601 timestamp when the session was created
 	StartTime time.Time `json:"startTime"`
 	// Schema version number for the session event format
-	Version float64 `json:"version"`
+	Version int64 `json:"version"`
 }
 
 func (*SessionStartData) sessionEventData()      {}
@@ -992,7 +992,7 @@ type SessionResumeData struct {
 	// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
-	EventCount float64 `json:"eventCount"`
+	EventCount int64 `json:"eventCount"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
@@ -1013,7 +1013,7 @@ func (*SessionResumeData) Type() SessionEventType { return SessionEventTypeSessi
 // Session rewind details including target event and count of removed events
 type SessionSnapshotRewindData struct {
 	// Number of events that were removed by the rewind
-	EventsRemoved float64 `json:"eventsRemoved"`
+	EventsRemoved int64 `json:"eventsRemoved"`
 	// Event ID that was rewound to; this event and all after it were removed
 	UpToEventID string `json:"upToEventId"`
 }
@@ -1028,31 +1028,31 @@ type SessionShutdownData struct {
 	// Aggregate code change metrics for the session
 	CodeChanges ShutdownCodeChanges `json:"codeChanges"`
 	// Non-system message token count at shutdown
-	ConversationTokens *float64 `json:"conversationTokens,omitempty"`
+	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
 	// Model that was selected at the time of shutdown
 	CurrentModel *string `json:"currentModel,omitempty"`
 	// Total tokens in context window at shutdown
-	CurrentTokens *float64 `json:"currentTokens,omitempty"`
+	CurrentTokens *int64 `json:"currentTokens,omitempty"`
 	// Error description when shutdownType is "error"
 	ErrorReason *string `json:"errorReason,omitempty"`
 	// Per-model usage breakdown, keyed by model identifier
 	ModelMetrics map[string]ShutdownModelMetric `json:"modelMetrics"`
 	// Unix timestamp (milliseconds) when the session started
-	SessionStartTime float64 `json:"sessionStartTime"`
+	SessionStartTime int64 `json:"sessionStartTime"`
 	// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 	ShutdownType ShutdownType `json:"shutdownType"`
 	// System message token count at shutdown
-	SystemTokens *float64 `json:"systemTokens,omitempty"`
+	SystemTokens *int64 `json:"systemTokens,omitempty"`
 	// Session-wide per-token-type accumulated token counts
 	TokenDetails map[string]ShutdownTokenDetail `json:"tokenDetails,omitempty"`
 	// Tool definitions token count at shutdown
-	ToolDefinitionsTokens *float64 `json:"toolDefinitionsTokens,omitempty"`
+	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
 	// Cumulative time spent in API calls during the session, in milliseconds
-	TotalAPIDurationMs float64 `json:"totalApiDurationMs"`
+	TotalAPIDurationMs int64 `json:"totalApiDurationMs"`
 	// Session-wide accumulated nano-AI units cost
-	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
+	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
-	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
+	TotalPremiumRequests int64 `json:"totalPremiumRequests"`
 }
 
 func (*SessionShutdownData) sessionEventData()      {}
@@ -1133,7 +1133,7 @@ func (*AssistantReasoningDeltaData) Type() SessionEventType {
 // Streaming response progress with cumulative byte count
 type AssistantStreamingDeltaData struct {
 	// Cumulative total bytes received from the streaming response so far
-	TotalResponseSizeBytes float64 `json:"totalResponseSizeBytes"`
+	TotalResponseSizeBytes int64 `json:"totalResponseSizeBytes"`
 }
 
 func (*AssistantStreamingDeltaData) sessionEventData() {}
@@ -1161,15 +1161,15 @@ type SubagentCompletedData struct {
 	// Internal name of the sub-agent
 	AgentName string `json:"agentName"`
 	// Wall-clock duration of the sub-agent execution in milliseconds
-	DurationMs *float64 `json:"durationMs,omitempty"`
+	DurationMs *int64 `json:"durationMs,omitempty"`
 	// Model used by the sub-agent
 	Model *string `json:"model,omitempty"`
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed by the sub-agent
-	TotalTokens *float64 `json:"totalTokens,omitempty"`
+	TotalTokens *int64 `json:"totalTokens,omitempty"`
 	// Total number of tool calls made by the sub-agent
-	TotalToolCalls *float64 `json:"totalToolCalls,omitempty"`
+	TotalToolCalls *int64 `json:"totalToolCalls,omitempty"`
 }
 
 func (*SubagentCompletedData) sessionEventData()      {}
@@ -1182,7 +1182,7 @@ type SubagentFailedData struct {
 	// Internal name of the sub-agent
 	AgentName string `json:"agentName"`
 	// Wall-clock duration of the sub-agent execution in milliseconds
-	DurationMs *float64 `json:"durationMs,omitempty"`
+	DurationMs *int64 `json:"durationMs,omitempty"`
 	// Error message describing why the sub-agent failed
 	Error string `json:"error"`
 	// Model used by the sub-agent (if any model calls succeeded before failure)
@@ -1190,9 +1190,9 @@ type SubagentFailedData struct {
 	// Tool call ID of the parent tool invocation that spawned this sub-agent
 	ToolCallID string `json:"toolCallId"`
 	// Total tokens (input + output) consumed before the sub-agent failed
-	TotalTokens *float64 `json:"totalTokens,omitempty"`
+	TotalTokens *int64 `json:"totalTokens,omitempty"`
 	// Total number of tool calls made before the sub-agent failed
-	TotalToolCalls *float64 `json:"totalToolCalls,omitempty"`
+	TotalToolCalls *int64 `json:"totalToolCalls,omitempty"`
 }
 
 func (*SubagentFailedData) sessionEventData()      {}
@@ -1465,17 +1465,17 @@ type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
 	// Total cost in nano-AI units for this request
-	TotalNanoAiu float64 `json:"totalNanoAiu"`
+	TotalNanoAiu int64 `json:"totalNanoAiu"`
 }
 
 // Token usage detail for a single billing category
 type AssistantUsageCopilotUsageTokenDetail struct {
 	// Number of tokens in this billing batch
-	BatchSize float64 `json:"batchSize"`
+	BatchSize int64 `json:"batchSize"`
 	// Cost per batch of tokens
-	CostPerBatch float64 `json:"costPerBatch"`
+	CostPerBatch int64 `json:"costPerBatch"`
 	// Total token count for this entry
-	TokenCount float64 `json:"tokenCount"`
+	TokenCount int64 `json:"tokenCount"`
 	// Token category (e.g., "input", "output")
 	TokenType string `json:"tokenType"`
 }
@@ -1483,21 +1483,21 @@ type AssistantUsageCopilotUsageTokenDetail struct {
 // Schema for the `AssistantUsageQuotaSnapshot` type.
 type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
-	EntitlementRequests float64 `json:"entitlementRequests"`
+	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
 	// Number of requests over the entitlement limit
 	Overage float64 `json:"overage"`
 	// Whether overage is allowed when quota is exhausted
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
-	// Percentage of quota remaining (0.0 to 1.0)
+	// Percentage of quota remaining (0 to 100)
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets
 	ResetDate *time.Time `json:"resetDate,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests already consumed
-	UsedRequests float64 `json:"usedRequests"`
+	UsedRequests int64 `json:"usedRequests"`
 }
 
 // UI capability changes
@@ -1517,19 +1517,19 @@ type CommandsChangedCommand struct {
 // Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)
 type CompactionCompleteCompactionTokensUsed struct {
 	// Cached input tokens reused in the compaction LLM call
-	CacheReadTokens *float64 `json:"cacheReadTokens,omitempty"`
+	CacheReadTokens *int64 `json:"cacheReadTokens,omitempty"`
 	// Tokens written to prompt cache in the compaction LLM call
-	CacheWriteTokens *float64 `json:"cacheWriteTokens,omitempty"`
+	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
 	CopilotUsage *CompactionCompleteCompactionTokensUsedCopilotUsage `json:"copilotUsage,omitempty"`
 	// Duration of the compaction LLM call in milliseconds
-	Duration *float64 `json:"duration,omitempty"`
+	Duration *int64 `json:"duration,omitempty"`
 	// Input tokens consumed by the compaction LLM call
-	InputTokens *float64 `json:"inputTokens,omitempty"`
+	InputTokens *int64 `json:"inputTokens,omitempty"`
 	// Model identifier used for the compaction LLM call
 	Model *string `json:"model,omitempty"`
 	// Output tokens produced by the compaction LLM call
-	OutputTokens *float64 `json:"outputTokens,omitempty"`
+	OutputTokens *int64 `json:"outputTokens,omitempty"`
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
@@ -1537,17 +1537,17 @@ type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
 	// Total cost in nano-AI units for this request
-	TotalNanoAiu float64 `json:"totalNanoAiu"`
+	TotalNanoAiu int64 `json:"totalNanoAiu"`
 }
 
 // Token usage detail for a single billing category
 type CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail struct {
 	// Number of tokens in this billing batch
-	BatchSize float64 `json:"batchSize"`
+	BatchSize int64 `json:"batchSize"`
 	// Cost per batch of tokens
-	CostPerBatch float64 `json:"costPerBatch"`
+	CostPerBatch int64 `json:"costPerBatch"`
 	// Total token count for this entry
-	TokenCount float64 `json:"tokenCount"`
+	TokenCount int64 `json:"tokenCount"`
 	// Token category (e.g., "input", "output")
 	TokenType string `json:"tokenType"`
 }
@@ -2208,22 +2208,14 @@ func (PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser) Kind() Permissio
 	return PermissionResultKindDeniedNoApprovalRuleAndCouldNotRequestFromUser
 }
 
-// Schema for the `PermissionRule` type.
-type PermissionRule struct {
-	// Optional rule argument matched against the request
-	Argument *string `json:"argument"`
-	// The rule kind, such as Shell or GitHubMCP
-	Kind string `json:"kind"`
-}
-
 // Aggregate code change metrics for the session
 type ShutdownCodeChanges struct {
 	// List of file paths that were modified during the session
 	FilesModified []string `json:"filesModified"`
 	// Total number of lines added during the session
-	LinesAdded float64 `json:"linesAdded"`
+	LinesAdded int64 `json:"linesAdded"`
 	// Total number of lines removed during the session
-	LinesRemoved float64 `json:"linesRemoved"`
+	LinesRemoved int64 `json:"linesRemoved"`
 }
 
 // Schema for the `ShutdownModelMetric` type.
@@ -2233,7 +2225,7 @@ type ShutdownModelMetric struct {
 	// Token count details per type
 	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
 	// Accumulated nano-AI units cost for this model
-	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
+	TotalNanoAiu *int64 `json:"totalNanoAiu,omitempty"`
 	// Token usage breakdown
 	Usage ShutdownModelMetricUsage `json:"usage"`
 }
@@ -2243,33 +2235,33 @@ type ShutdownModelMetricRequests struct {
 	// Cumulative cost multiplier for requests to this model
 	Cost float64 `json:"cost"`
 	// Total number of API requests made to this model
-	Count float64 `json:"count"`
+	Count int64 `json:"count"`
 }
 
 // Schema for the `ShutdownModelMetricTokenDetail` type.
 type ShutdownModelMetricTokenDetail struct {
 	// Accumulated token count for this token type
-	TokenCount float64 `json:"tokenCount"`
+	TokenCount int64 `json:"tokenCount"`
 }
 
 // Token usage breakdown
 type ShutdownModelMetricUsage struct {
 	// Total tokens read from prompt cache across all requests
-	CacheReadTokens float64 `json:"cacheReadTokens"`
+	CacheReadTokens int64 `json:"cacheReadTokens"`
 	// Total tokens written to prompt cache across all requests
-	CacheWriteTokens float64 `json:"cacheWriteTokens"`
+	CacheWriteTokens int64 `json:"cacheWriteTokens"`
 	// Total input tokens consumed across all requests to this model
-	InputTokens float64 `json:"inputTokens"`
+	InputTokens int64 `json:"inputTokens"`
 	// Total output tokens produced across all requests to this model
-	OutputTokens float64 `json:"outputTokens"`
+	OutputTokens int64 `json:"outputTokens"`
 	// Total reasoning tokens produced across all requests to this model
-	ReasoningTokens *float64 `json:"reasoningTokens,omitempty"`
+	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 }
 
 // Schema for the `ShutdownTokenDetail` type.
 type ShutdownTokenDetail struct {
 	// Accumulated token count for this token type
-	TokenCount float64 `json:"tokenCount"`
+	TokenCount int64 `json:"tokenCount"`
 }
 
 // Schema for the `SkillsLoadedSkill` type.
@@ -2385,7 +2377,7 @@ type SystemNotificationShellCompleted struct {
 	// Human-readable description of the command
 	Description *string `json:"description,omitempty"`
 	// Exit code of the shell command, if available
-	ExitCode *float64 `json:"exitCode,omitempty"`
+	ExitCode *int64 `json:"exitCode,omitempty"`
 	// Unique identifier of the shell session
 	ShellID string `json:"shellId"`
 }
@@ -2472,7 +2464,7 @@ type ToolExecutionCompleteContentResourceLink struct {
 	// Resource name identifier
 	Name string `json:"name"`
 	// Size of the resource in bytes
-	Size *float64 `json:"size,omitempty"`
+	Size *int64 `json:"size,omitempty"`
 	// Human-readable display title for the resource
 	Title *string `json:"title,omitempty"`
 	// URI identifying the resource
@@ -2489,7 +2481,7 @@ type ToolExecutionCompleteContentTerminal struct {
 	// Working directory where the command was executed
 	Cwd *string `json:"cwd,omitempty"`
 	// Process exit code, if the command has completed
-	ExitCode *float64 `json:"exitCode,omitempty"`
+	ExitCode *int64 `json:"exitCode,omitempty"`
 	// Terminal/shell output text
 	Text string `json:"text"`
 }
@@ -2608,7 +2600,7 @@ func (UserMessageAttachmentFile) Type() UserMessageAttachmentType {
 // GitHub issue, pull request, or discussion reference
 type UserMessageAttachmentGithubReference struct {
 	// Issue, pull request, or discussion number
-	Number float64 `json:"number"`
+	Number int64 `json:"number"`
 	// Type of GitHub reference
 	ReferenceType UserMessageAttachmentGithubReferenceType `json:"referenceType"`
 	// Current state of the referenced item (e.g., open, closed, merged)
@@ -2644,9 +2636,9 @@ func (UserMessageAttachmentSelection) Type() UserMessageAttachmentType {
 // Optional line range to scope the attachment to a specific section of the file
 type UserMessageAttachmentFileLineRange struct {
 	// End line number (1-based, inclusive)
-	End float64 `json:"end"`
+	End int64 `json:"end"`
 	// Start line number (1-based)
-	Start float64 `json:"start"`
+	Start int64 `json:"start"`
 }
 
 // Position range of the selection within the file
@@ -2660,117 +2652,17 @@ type UserMessageAttachmentSelectionDetails struct {
 // End position of the selection
 type UserMessageAttachmentSelectionDetailsEnd struct {
 	// End character offset within the line (0-based)
-	Character float64 `json:"character"`
+	Character int64 `json:"character"`
 	// End line number (0-based)
-	Line float64 `json:"line"`
+	Line int64 `json:"line"`
 }
 
 // Start position of the selection
 type UserMessageAttachmentSelectionDetailsStart struct {
 	// Start character offset within the line (0-based)
-	Character float64 `json:"character"`
+	Character int64 `json:"character"`
 	// Start line number (0-based)
-	Line float64 `json:"line"`
-}
-
-// The approval to add as a session-scoped rule
-type UserToolSessionApproval interface {
-	userToolSessionApproval()
-	Kind() UserToolSessionApprovalKind
-}
-
-type RawUserToolSessionApproval struct {
-	Discriminator UserToolSessionApprovalKind
-	Raw           json.RawMessage
-}
-
-func (RawUserToolSessionApproval) userToolSessionApproval() {}
-func (r RawUserToolSessionApproval) Kind() UserToolSessionApprovalKind {
-	return r.Discriminator
-}
-
-// Schema for the `UserToolSessionApprovalCommands` type.
-type UserToolSessionApprovalCommands struct {
-	// Command identifiers approved by the user
-	CommandIdentifiers []string `json:"commandIdentifiers"`
-}
-
-func (UserToolSessionApprovalCommands) userToolSessionApproval() {}
-func (UserToolSessionApprovalCommands) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindCommands
-}
-
-// Schema for the `UserToolSessionApprovalCustomTool` type.
-type UserToolSessionApprovalCustomTool struct {
-	// Custom tool name
-	ToolName string `json:"toolName"`
-}
-
-func (UserToolSessionApprovalCustomTool) userToolSessionApproval() {}
-func (UserToolSessionApprovalCustomTool) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindCustomTool
-}
-
-// Schema for the `UserToolSessionApprovalExtensionManagement` type.
-type UserToolSessionApprovalExtensionManagement struct {
-	// Optional operation identifier
-	Operation *string `json:"operation,omitempty"`
-}
-
-func (UserToolSessionApprovalExtensionManagement) userToolSessionApproval() {}
-func (UserToolSessionApprovalExtensionManagement) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindExtensionManagement
-}
-
-// Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type.
-type UserToolSessionApprovalExtensionPermissionAccess struct {
-	// Extension name
-	ExtensionName string `json:"extensionName"`
-}
-
-func (UserToolSessionApprovalExtensionPermissionAccess) userToolSessionApproval() {}
-func (UserToolSessionApprovalExtensionPermissionAccess) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindExtensionPermissionAccess
-}
-
-// Schema for the `UserToolSessionApprovalMcp` type.
-type UserToolSessionApprovalMcp struct {
-	// MCP server name
-	ServerName string `json:"serverName"`
-	// Optional MCP tool name, or null for all tools on the server
-	ToolName *string `json:"toolName"`
-}
-
-func (UserToolSessionApprovalMcp) userToolSessionApproval() {}
-func (UserToolSessionApprovalMcp) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindMcp
-}
-
-// Schema for the `UserToolSessionApprovalMemory` type.
-type UserToolSessionApprovalMemory struct {
-}
-
-func (UserToolSessionApprovalMemory) userToolSessionApproval() {}
-func (UserToolSessionApprovalMemory) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindMemory
-}
-
-// Schema for the `UserToolSessionApprovalRead` type.
-type UserToolSessionApprovalRead struct {
-}
-
-func (UserToolSessionApprovalRead) userToolSessionApproval() {}
-func (UserToolSessionApprovalRead) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindRead
-}
-
-// Schema for the `UserToolSessionApprovalWrite` type.
-type UserToolSessionApprovalWrite struct {
-}
-
-func (UserToolSessionApprovalWrite) userToolSessionApproval() {}
-func (UserToolSessionApprovalWrite) Kind() UserToolSessionApprovalKind {
-	return UserToolSessionApprovalKindWrite
+	Line int64 `json:"line"`
 }
 
 // Working directory and git context at session start
@@ -2792,15 +2684,6 @@ type WorkingDirectoryContext struct {
 	// Raw host string from the git remote URL (e.g. "github.com", "mycompany.ghe.com", "dev.azure.com")
 	RepositoryHost *string `json:"repositoryHost,omitempty"`
 }
-
-// Finite reason code describing why the current turn was aborted
-type AbortReason string
-
-const (
-	AbortReasonRemoteCommand AbortReason = "remote_command"
-	AbortReasonUserAbort     AbortReason = "user_abort"
-	AbortReasonUserInitiated AbortReason = "user_initiated"
-)
 
 // Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 type AssistantMessageToolRequestType string
@@ -2987,14 +2870,6 @@ const (
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
-// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
-type ShutdownType string
-
-const (
-	ShutdownTypeError   ShutdownType = "error"
-	ShutdownTypeRoutine ShutdownType = "routine"
-)
-
 // Message role: "system" for system prompts, "developer" for developer-injected instructions
 type SystemMessageRole string
 
@@ -3071,20 +2946,6 @@ const (
 	UserMessageAttachmentTypeFile            UserMessageAttachmentType = "file"
 	UserMessageAttachmentTypeGithubReference UserMessageAttachmentType = "github_reference"
 	UserMessageAttachmentTypeSelection       UserMessageAttachmentType = "selection"
-)
-
-// Kind discriminator for UserToolSessionApproval.
-type UserToolSessionApprovalKind string
-
-const (
-	UserToolSessionApprovalKindCommands                  UserToolSessionApprovalKind = "commands"
-	UserToolSessionApprovalKindCustomTool                UserToolSessionApprovalKind = "custom-tool"
-	UserToolSessionApprovalKindExtensionManagement       UserToolSessionApprovalKind = "extension-management"
-	UserToolSessionApprovalKindExtensionPermissionAccess UserToolSessionApprovalKind = "extension-permission-access"
-	UserToolSessionApprovalKindMcp                       UserToolSessionApprovalKind = "mcp"
-	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
-	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
-	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
 )
 
 // Hosting platform type of the repository (github or ado)

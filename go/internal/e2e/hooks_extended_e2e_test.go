@@ -301,7 +301,11 @@ func TestHooksExtendedE2E(t *testing.T) {
 						return nil, nil
 					}
 					return &copilot.PostToolUseHookOutput{
-						ModifiedResult: "modified by post hook",
+						ModifiedResult: copilot.ToolResult{
+							TextResultForLLM: "modified by post hook",
+							ResultType:       "success",
+							ToolTelemetry:    map[string]any{},
+						},
 						SuppressOutput: false,
 					}, nil
 				},

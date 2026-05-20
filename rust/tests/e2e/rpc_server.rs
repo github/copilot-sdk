@@ -25,7 +25,7 @@ async fn should_call_rpc_ping_with_typed_params_and_result() {
                     .expect("ping");
 
                 assert_eq!(result.message, "pong: typed rpc test");
-                assert!(result.timestamp >= 0);
+                assert!(!result.timestamp.is_empty());
                 client.stop().await.expect("stop client");
             })
         },

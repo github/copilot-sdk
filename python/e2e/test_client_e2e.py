@@ -27,7 +27,7 @@ class TestClient:
 
             pong = await client.ping("test message")
             assert pong.message == "pong: test message"
-            assert pong.timestamp >= 0
+            assert pong.timestamp is not None
 
             await client.stop()
             assert client.get_state() == "disconnected"
@@ -44,7 +44,7 @@ class TestClient:
 
             pong = await client.ping("test message")
             assert pong.message == "pong: test message"
-            assert pong.timestamp >= 0
+            assert pong.timestamp is not None
 
             await client.stop()
             assert client.get_state() == "disconnected"

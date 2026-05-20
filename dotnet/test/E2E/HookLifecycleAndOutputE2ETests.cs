@@ -322,7 +322,12 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
                     return Task.FromResult<PostToolUseHookOutput?>(new PostToolUseHookOutput
                     {
-                        ModifiedResult = "modified by post hook",
+                        ModifiedResult = new ToolResultObject
+                        {
+                            TextResultForLlm = "modified by post hook",
+                            ResultType = "success",
+                            ToolTelemetry = new Dictionary<string, object>(),
+                        },
                         SuppressOutput = false,
                     });
                 },

@@ -33,8 +33,8 @@ func TestRpcServerE2E(t *testing.T) {
 		if !strings.Contains(result.Message, "typed rpc test") {
 			t.Errorf("Expected ping response to contain 'typed rpc test', got %q", result.Message)
 		}
-		if result.Timestamp < 0 {
-			t.Errorf("Expected non-negative Timestamp, got %d", result.Timestamp)
+		if result.Timestamp.IsZero() {
+			t.Errorf("Expected non-zero Timestamp, got %s", result.Timestamp)
 		}
 	})
 

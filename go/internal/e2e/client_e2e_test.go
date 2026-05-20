@@ -38,8 +38,8 @@ func TestClientE2E(t *testing.T) {
 			t.Errorf("Expected pong.message to be 'pong: test message', got %q", pong.Message)
 		}
 
-		if pong.Timestamp < 0 {
-			t.Errorf("Expected pong.timestamp >= 0, got %d", pong.Timestamp)
+		if pong.Timestamp.IsZero() {
+			t.Errorf("Expected non-zero pong.timestamp, got %s", pong.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {
@@ -75,8 +75,8 @@ func TestClientE2E(t *testing.T) {
 			t.Errorf("Expected pong.message to be 'pong: test message', got %q", pong.Message)
 		}
 
-		if pong.Timestamp < 0 {
-			t.Errorf("Expected pong.timestamp >= 0, got %d", pong.Timestamp)
+		if pong.Timestamp.IsZero() {
+			t.Errorf("Expected non-zero pong.timestamp, got %s", pong.Timestamp)
 		}
 
 		if err := client.Stop(); err != nil {

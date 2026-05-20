@@ -21,7 +21,7 @@ describe("RPC", () => {
 
         const result = await client.rpc.ping({ message: "typed rpc test" });
         expect(result.message).toBe("pong: typed rpc test");
-        expect(typeof result.timestamp).toBe("number");
+        expect(Date.parse(result.timestamp)).not.toBeNaN();
 
         await client.stop();
     });

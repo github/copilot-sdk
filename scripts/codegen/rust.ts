@@ -404,13 +404,14 @@ function makeCtx(
 		allowUntaggedUnions?: boolean;
 		allowedUnionTypeNames?: Iterable<string>;
 		experimentalTypeNames?: Iterable<string>;
+		nonDefaultableTypes?: Iterable<string>;
 	} = {},
 ): RustCodegenCtx {
 	return {
 		structs: [],
 		enums: [],
 		generatedNames: new Set(),
-		nonDefaultableTypes: new Set(),
+		nonDefaultableTypes: new Set(options.nonDefaultableTypes ?? []),
 		experimentalTypeNames: new Set(options.experimentalTypeNames ?? []),
 		definitions,
 		unionDiscriminatorProperties:
@@ -1153,6 +1154,16 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 	return out.join("\n");
 }
 
+function collectNonDefaultableRustTypeNames(code: string): Set<string> {
+	const names = new Set<string>();
+	const pattern =
+		/#\[derive\(Debug, Clone, Serialize, Deserialize\)\](?:\r?\n#\[serde\([^\n]+\)\])*\r?\npub (?:struct|enum) (\w+)/g;
+	for (const match of code.matchAll(pattern)) {
+		names.add(match[1]);
+	}
+	return names;
+}
+
 // ── API types generation ────────────────────────────────────────────────────
 
 function collectRpcMethods(
@@ -1267,12 +1278,15 @@ function isNullableParamsSchema(
 	return !!resolved && !!getNullableInner(resolved);
 }
 
-function generateApiTypesCode(apiSchema: ApiSchema): string {
+function generateApiTypesCode(
+	apiSchema: ApiSchema,
+	nonDefaultableTypes: Iterable<string> = [],
+): string {
 	const definitions = collectDefinitions(apiSchema as Record<string, unknown>);
 	const defCollections = collectDefinitionCollections(
 		apiSchema as Record<string, unknown>,
 	);
-	const ctx = makeCtx(defCollections);
+	const ctx = makeCtx(defCollections, { nonDefaultableTypes });
 
 	// Collect all RPC methods before emitting shared definitions so method stability
 	// can propagate to referenced data types.
@@ -2011,7 +2025,10 @@ async function generate(): Promise<void> {
 
 	// Generate API types
 	console.log("Generating api_types.rs...");
-	const apiTypesCode = generateApiTypesCode(apiSchemaForGeneration);
+	const apiTypesCode = generateApiTypesCode(
+		apiSchemaForGeneration,
+		collectNonDefaultableRustTypeNames(sessionEventsCode),
+	);
 	const apiTypesPath = path.join(GENERATED_DIR, "api_types.rs");
 	await fs.writeFile(apiTypesPath, apiTypesCode, "utf-8");
 	await rustfmt(apiTypesPath);

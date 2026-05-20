@@ -294,7 +294,7 @@ describe("Session-scoped RPC", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const metrics = await session.rpc.usage.getMetrics();
-        expect(metrics.sessionStartTime).toBeGreaterThan(0);
+        expect(Date.parse(metrics.sessionStartTime)).not.toBeNaN();
         if (metrics.totalNanoAiu !== undefined && metrics.totalNanoAiu !== null) {
             expect(metrics.totalNanoAiu).toBeGreaterThanOrEqual(0);
         }

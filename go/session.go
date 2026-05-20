@@ -847,11 +847,11 @@ func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptio
 			prop.Description = &opts.Description
 		}
 		if opts.MinLength != nil {
-			f := float64(*opts.MinLength)
+			f := int64(*opts.MinLength)
 			prop.MinLength = &f
 		}
 		if opts.MaxLength != nil {
-			f := float64(*opts.MaxLength)
+			f := int64(*opts.MaxLength)
 			prop.MaxLength = &f
 		}
 		if opts.Format != "" {
