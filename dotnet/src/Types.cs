@@ -606,11 +606,6 @@ public sealed class ToolInvocation
     public JsonElement? Arguments { get; set; }
 }
 
-/// <summary>
-/// Delegate for handling tool invocations and returning a result.
-/// </summary>
-public delegate Task<object?> ToolHandler(ToolInvocation invocation);
-
 /// <summary>Describes the kind of a permission request result.</summary>
 [JsonConverter(typeof(PermissionRequestResultKind.Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -727,11 +722,6 @@ public sealed class PermissionInvocation
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Delegate for handling permission requests and returning a decision.
-/// </summary>
-public delegate Task<PermissionRequestResult> PermissionRequestHandler(PermissionRequest request, PermissionInvocation invocation);
-
 // ============================================================================
 // User Input Handler Types
 // ============================================================================
@@ -788,11 +778,6 @@ public sealed class UserInputInvocation
     /// </summary>
     public string SessionId { get; set; } = string.Empty;
 }
-
-/// <summary>
-/// Handler for user input requests from the agent.
-/// </summary>
-public delegate Task<UserInputResponse> UserInputHandler(UserInputRequest request, UserInputInvocation invocation);
 
 /// <summary>
 /// Request to exit plan mode and continue with a selected action.
@@ -860,11 +845,6 @@ public sealed class ExitPlanModeInvocation
 }
 
 /// <summary>
-/// Handler for exit-plan-mode requests from the agent.
-/// </summary>
-public delegate Task<ExitPlanModeResult> ExitPlanModeHandler(ExitPlanModeRequest request, ExitPlanModeInvocation invocation);
-
-/// <summary>
 /// Request to switch to auto mode after an eligible rate limit.
 /// </summary>
 public sealed class AutoModeSwitchRequest
@@ -893,11 +873,6 @@ public sealed class AutoModeSwitchInvocation
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Handler for auto-mode-switch requests from the agent.
-/// </summary>
-public delegate Task<AutoModeSwitchResponse> AutoModeSwitchHandler(AutoModeSwitchRequest request, AutoModeSwitchInvocation invocation);
-
 // ============================================================================
 // Command Handler Types
 // ============================================================================
@@ -920,11 +895,11 @@ public sealed class CommandDefinition
     /// <summary>
     /// Handler invoked when the command is executed.
     /// </summary>
-    public required CommandHandler Handler { get; set; }
+    public required Func<CommandContext, Task> Handler { get; set; }
 }
 
 /// <summary>
-/// Context passed to a <see cref="CommandHandler"/> when a command is executed.
+/// Context passed to a command handler when a command is executed.
 /// </summary>
 public sealed class CommandContext
 {
@@ -948,11 +923,6 @@ public sealed class CommandContext
     /// </summary>
     public string Args { get; set; } = string.Empty;
 }
-
-/// <summary>
-/// Delegate for handling slash-command executions.
-/// </summary>
-public delegate Task CommandHandler(CommandContext context);
 
 // ============================================================================
 // Elicitation Types (UI — client → server)
@@ -1114,11 +1084,6 @@ public sealed class ElicitationContext
     public string? Url { get; set; }
 }
 
-/// <summary>
-/// Delegate for handling elicitation requests from the server.
-/// </summary>
-public delegate Task<ElicitationResult> ElicitationHandler(ElicitationContext context);
-
 // ============================================================================
 // Session Capabilities
 // ============================================================================
@@ -1239,11 +1204,6 @@ public sealed class PreToolUseHookOutput
 }
 
 /// <summary>
-/// Delegate invoked before a tool is executed, allowing modification or denial of the call.
-/// </summary>
-public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(PreToolUseHookInput input, HookInvocation invocation);
-
-/// <summary>
 /// Input for a post-tool-use hook.
 /// </summary>
 public sealed class PostToolUseHookInput
@@ -1311,11 +1271,6 @@ public sealed class PostToolUseHookOutput
 }
 
 /// <summary>
-/// Delegate invoked after a tool has been executed, allowing modification of the result.
-/// </summary>
-public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(PostToolUseHookInput input, HookInvocation invocation);
-
-/// <summary>
 /// Input for a user-prompt-submitted hook.
 /// </summary>
 public sealed class UserPromptSubmittedHookInput
@@ -1369,11 +1324,6 @@ public sealed class UserPromptSubmittedHookOutput
     [JsonPropertyName("suppressOutput")]
     public bool? SuppressOutput { get; set; }
 }
-
-/// <summary>
-/// Delegate invoked when the user submits a prompt, allowing modification of the prompt.
-/// </summary>
-public delegate Task<UserPromptSubmittedHookOutput?> UserPromptSubmittedHandler(UserPromptSubmittedHookInput input, HookInvocation invocation);
 
 /// <summary>
 /// Input for a session-start hook.
@@ -1434,11 +1384,6 @@ public sealed class SessionStartHookOutput
     [JsonPropertyName("modifiedConfig")]
     public IDictionary<string, object>? ModifiedConfig { get; set; }
 }
-
-/// <summary>
-/// Delegate invoked when a session starts, allowing injection of context or config changes.
-/// </summary>
-public delegate Task<SessionStartHookOutput?> SessionStartHandler(SessionStartHookInput input, HookInvocation invocation);
 
 /// <summary>
 /// Input for a session-end hook.
@@ -1513,11 +1458,6 @@ public sealed class SessionEndHookOutput
     [JsonPropertyName("sessionSummary")]
     public string? SessionSummary { get; set; }
 }
-
-/// <summary>
-/// Delegate invoked when a session ends, allowing cleanup actions or summary generation.
-/// </summary>
-public delegate Task<SessionEndHookOutput?> SessionEndHandler(SessionEndHookInput input, HookInvocation invocation);
 
 /// <summary>
 /// Input for an error-occurred hook.
@@ -1604,11 +1544,6 @@ public sealed class ErrorOccurredHookOutput
 }
 
 /// <summary>
-/// Delegate invoked when an error occurs, allowing custom error handling strategies.
-/// </summary>
-public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(ErrorOccurredHookInput input, HookInvocation invocation);
-
-/// <summary>
 /// Hook handlers configuration for a session.
 /// </summary>
 public sealed class SessionHooks
@@ -1616,32 +1551,32 @@ public sealed class SessionHooks
     /// <summary>
     /// Handler called before a tool is executed.
     /// </summary>
-    public PreToolUseHandler? OnPreToolUse { get; set; }
+    public Func<PreToolUseHookInput, HookInvocation, Task<PreToolUseHookOutput?>>? OnPreToolUse { get; set; }
 
     /// <summary>
     /// Handler called after a tool has been executed.
     /// </summary>
-    public PostToolUseHandler? OnPostToolUse { get; set; }
+    public Func<PostToolUseHookInput, HookInvocation, Task<PostToolUseHookOutput?>>? OnPostToolUse { get; set; }
 
     /// <summary>
     /// Handler called when the user submits a prompt.
     /// </summary>
-    public UserPromptSubmittedHandler? OnUserPromptSubmitted { get; set; }
+    public Func<UserPromptSubmittedHookInput, HookInvocation, Task<UserPromptSubmittedHookOutput?>>? OnUserPromptSubmitted { get; set; }
 
     /// <summary>
     /// Handler called when a session starts.
     /// </summary>
-    public SessionStartHandler? OnSessionStart { get; set; }
+    public Func<SessionStartHookInput, HookInvocation, Task<SessionStartHookOutput?>>? OnSessionStart { get; set; }
 
     /// <summary>
     /// Handler called when a session ends.
     /// </summary>
-    public SessionEndHandler? OnSessionEnd { get; set; }
+    public Func<SessionEndHookInput, HookInvocation, Task<SessionEndHookOutput?>>? OnSessionEnd { get; set; }
 
     /// <summary>
     /// Handler called when an error occurs.
     /// </summary>
-    public ErrorOccurredHandler? OnErrorOccurred { get; set; }
+    public Func<ErrorOccurredHookInput, HookInvocation, Task<ErrorOccurredHookOutput?>>? OnErrorOccurred { get; set; }
 }
 
 /// <summary>
@@ -2247,22 +2182,22 @@ public abstract class SessionConfigBase
     public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>Handler for permission requests from the server.</summary>
-    public PermissionRequestHandler? OnPermissionRequest { get; set; }
+    public Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? OnPermissionRequest { get; set; }
 
     /// <summary>Handler for user input requests from the agent.</summary>
-    public UserInputHandler? OnUserInputRequest { get; set; }
+    public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
 
     /// <summary>Slash commands registered for this session.</summary>
     public IList<CommandDefinition>? Commands { get; set; }
 
     /// <summary>Handler for elicitation requests from the server or MCP tools.</summary>
-    public ElicitationHandler? OnElicitationRequest { get; set; }
+    public Func<ElicitationContext, Task<ElicitationResult>>? OnElicitationRequest { get; set; }
 
     /// <summary>Handler for exit-plan-mode requests from the server.</summary>
-    public ExitPlanModeHandler? OnExitPlanModeRequest { get; set; }
+    public Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? OnExitPlanModeRequest { get; set; }
 
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
-    public AutoModeSwitchHandler? OnAutoModeSwitchRequest { get; set; }
+    public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
 
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }

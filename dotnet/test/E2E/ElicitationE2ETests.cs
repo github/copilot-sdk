@@ -381,7 +381,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
     [Fact]
     public async Task Session_Config_OnElicitationRequest_Is_Cloned()
     {
-        ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
+        Func<ElicitationContext, Task<ElicitationResult>> handler = _ => Task.FromResult(new ElicitationResult
         {
             Action = UIElicitationResponseAction.Cancel,
         });
@@ -400,7 +400,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
     [Fact]
     public void Resume_Config_OnElicitationRequest_Is_Cloned()
     {
-        ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
+        Func<ElicitationContext, Task<ElicitationResult>> handler = _ => Task.FromResult(new ElicitationResult
         {
             Action = UIElicitationResponseAction.Cancel,
         });

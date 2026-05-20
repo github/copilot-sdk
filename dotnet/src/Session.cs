@@ -56,15 +56,15 @@ namespace GitHub.Copilot.SDK;
 public sealed partial class CopilotSession : IAsyncDisposable
 {
     private readonly Dictionary<string, AIFunction> _toolHandlers = [];
-    private readonly Dictionary<string, CommandHandler> _commandHandlers = [];
+    private readonly Dictionary<string, Func<CommandContext, Task>> _commandHandlers = [];
     private readonly ILogger _logger;
     private readonly CopilotClient _parentClient;
 
-    private volatile PermissionRequestHandler? _permissionHandler;
-    private volatile UserInputHandler? _userInputHandler;
-    private volatile ElicitationHandler? _elicitationHandler;
-    private volatile ExitPlanModeHandler? _exitPlanModeHandler;
-    private volatile AutoModeSwitchHandler? _autoModeSwitchHandler;
+    private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? _permissionHandler;
+    private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
+    private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
+    private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
+    private volatile Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? _autoModeSwitchHandler;
     private ImmutableArray<EventSubscription> _eventHandlers = ImmutableArray<EventSubscription>.Empty;
 
     private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler);
@@ -535,7 +535,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(PermissionRequestHandler? handler)
+    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? handler)
     {
         _permissionHandler = handler;
     }
@@ -761,7 +761,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a permission handler and sends the result back via the HandlePendingPermissionRequest RPC.
     /// </summary>
-    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, PermissionRequestHandler handler)
+    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>> handler)
     {
         try
         {
@@ -816,7 +816,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Registers a handler for user input requests from the agent.
     /// </summary>
     /// <param name="handler">The handler to invoke when user input is requested.</param>
-    internal void RegisterUserInputHandler(UserInputHandler handler)
+    internal void RegisterUserInputHandler(Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>> handler)
     {
         _userInputHandler = handler;
     }
@@ -839,7 +839,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Registers an elicitation handler for this session.
     /// </summary>
     /// <param name="handler">The handler to invoke when an elicitation request is received.</param>
-    internal void RegisterElicitationHandler(ElicitationHandler? handler)
+    internal void RegisterElicitationHandler(Func<ElicitationContext, Task<ElicitationResult>>? handler)
     {
         _elicitationHandler = handler;
     }
@@ -848,7 +848,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Registers an exit-plan-mode handler for this session.
     /// </summary>
     /// <param name="handler">The handler to invoke when an exit-plan-mode request is received.</param>
-    internal void RegisterExitPlanModeHandler(ExitPlanModeHandler? handler)
+    internal void RegisterExitPlanModeHandler(Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? handler)
     {
         _exitPlanModeHandler = handler;
     }
@@ -857,7 +857,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Registers an auto-mode-switch handler for this session.
     /// </summary>
     /// <param name="handler">The handler to invoke when an auto-mode-switch request is received.</param>
-    internal void RegisterAutoModeSwitchHandler(AutoModeSwitchHandler? handler)
+    internal void RegisterAutoModeSwitchHandler(Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? handler)
     {
         _autoModeSwitchHandler = handler;
     }
