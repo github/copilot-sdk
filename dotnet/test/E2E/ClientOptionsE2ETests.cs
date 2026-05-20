@@ -230,7 +230,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             useStdio: false,
             options: new CopilotClientOptions
             {
-                Connection = RuntimeConnection.Stdio(path: cliPath),
+                Connection = RuntimeConnection.Tcp(path: cliPath),
                 UseLoggedInUser = false,
             });
 
@@ -252,7 +252,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             useStdio: false,
             options: new CopilotClientOptions
             {
-                Connection = RuntimeConnection.Stdio(path: cliPath, args: ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)]),
+                Connection = RuntimeConnection.Tcp(path: cliPath, args: ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)]),
                 UseLoggedInUser = false,
             });
 
