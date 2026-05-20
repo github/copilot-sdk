@@ -1908,6 +1908,7 @@ public abstract class McpServerConfig
     /// Optional timeout in milliseconds for tool calls to this server.
     /// </summary>
     [JsonPropertyName("timeout")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Timeout { get; set; }
 }
 
@@ -1936,12 +1937,14 @@ public sealed class McpStdioServerConfig : McpServerConfig
     /// Environment variables to pass to the server.
     /// </summary>
     [JsonPropertyName("env")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IDictionary<string, string>? Env { get; set; }
 
     /// <summary>
     /// Working directory for the server process.
     /// </summary>
     [JsonPropertyName("cwd")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkingDirectory { get; set; }
 }
 
@@ -1964,24 +1967,28 @@ public sealed class McpHttpServerConfig : McpServerConfig
     /// Optional HTTP headers to include in requests.
     /// </summary>
     [JsonPropertyName("headers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IDictionary<string, string>? Headers { get; set; }
 
     /// <summary>
     /// Optional OAuth client ID for the remote server.
     /// </summary>
     [JsonPropertyName("oauthClientId")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? OauthClientId { get; set; }
 
     /// <summary>
     /// Whether this is a public OAuth client.
     /// </summary>
     [JsonPropertyName("oauthPublicClient")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? OauthPublicClient { get; set; }
 
     /// <summary>
     /// Optional OAuth grant type for the remote server.
     /// </summary>
     [JsonPropertyName("oauthGrantType")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public McpHttpServerConfigOauthGrantType? OauthGrantType { get; set; }
 }
 
