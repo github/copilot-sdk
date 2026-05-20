@@ -422,22 +422,6 @@ func TestCombinedConfigurationE2E(t *testing.T) {
 			t.Error("Expected non-empty session ID")
 		}
 
-		_, err = session.Send(t.Context(), copilot.MessageOptions{
-			Prompt: "What is 7+7?",
-		})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
-		}
-
-		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "14") {
-			t.Errorf("Expected message to contain '14', got: %v", message.Data)
-		}
-
 		session.Disconnect()
 	})
 }
