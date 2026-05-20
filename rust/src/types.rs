@@ -781,7 +781,7 @@ pub struct McpStdioServerConfig {
     /// Subprocess executable.
     pub command: String,
     /// Arguments to pass to the subprocess.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
     /// Environment variables to set on the subprocess. Values are passed
     /// through literally to the child process.

@@ -1842,7 +1842,7 @@ public sealed class McpStdioServerConfig : McpServerConfig
     /// Arguments to pass to the command.
     /// </summary>
     [JsonPropertyName("args")]
-    public IList<string> Args { get => field ??= []; set; }
+    public IList<string>? Args { get; set; }
 
     /// <summary>
     /// Environment variables to pass to the server.
