@@ -7,7 +7,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 
@@ -135,11 +134,6 @@ class DocumentationSamplesTest {
         List<Path> files = new ArrayList<>();
         files.add(root.resolve("README.md"));
         files.add(root.resolve("jbang-example.java"));
-
-        try (Stream<Path> markdownFiles = Files.walk(root.resolve("src/site/markdown"))) {
-            markdownFiles.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".md"))
-                    .forEach(files::add);
-        }
         return files;
     }
 }

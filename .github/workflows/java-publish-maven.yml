@@ -133,12 +133,8 @@ jobs:
           sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" jbang-example.java
           sed -i 's|copilot-sdk-java:${project\.version}|copilot-sdk-java:'"${VERSION}"'|g' jbang-example.java
 
-          # Update version in cookbook files (hardcoded for direct GitHub browsing and JBang usage)
-          find src/site/markdown/cookbook -name "*.md" -type f -exec \
-            sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" {} \;
-
           # Commit the documentation changes before release:prepare (requires clean working directory)
-          git add CHANGELOG.md README.md jbang-example.java src/site/markdown/cookbook/
+          git add CHANGELOG.md README.md jbang-example.java
           git commit -m "docs: update version references to ${VERSION}"
 
           # Save the commit SHA for potential rollback
