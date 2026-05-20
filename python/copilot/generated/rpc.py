@@ -9752,7 +9752,7 @@ class UsageMetricsModelMetric:
     token_details: dict[str, UsageMetricsModelMetricTokenDetail] | None = None
     """Token count details per type"""
 
-    total_nano_aiu: int | None = None
+    total_nano_aiu: float | None = None
     """Accumulated nano-AI units cost for this model"""
 
     @staticmethod
@@ -9761,7 +9761,7 @@ class UsageMetricsModelMetric:
         requests = UsageMetricsModelMetricRequests.from_dict(obj.get("requests"))
         usage = UsageMetricsModelMetricUsage.from_dict(obj.get("usage"))
         token_details = from_union([lambda x: from_dict(UsageMetricsModelMetricTokenDetail.from_dict, x), from_none], obj.get("tokenDetails"))
-        total_nano_aiu = from_union([from_int, from_none], obj.get("totalNanoAiu"))
+        total_nano_aiu = from_union([from_float, from_none], obj.get("totalNanoAiu"))
         return UsageMetricsModelMetric(requests, usage, token_details, total_nano_aiu)
 
     def to_dict(self) -> dict:
@@ -9771,7 +9771,7 @@ class UsageMetricsModelMetric:
         if self.token_details is not None:
             result["tokenDetails"] = from_union([lambda x: from_dict(lambda x: to_class(UsageMetricsModelMetricTokenDetail, x), x), from_none], self.token_details)
         if self.total_nano_aiu is not None:
-            result["totalNanoAiu"] = from_union([from_int, from_none], self.total_nano_aiu)
+            result["totalNanoAiu"] = from_union([to_float, from_none], self.total_nano_aiu)
         return result
 
 @dataclass
@@ -11613,7 +11613,7 @@ class UsageGetMetricsResult:
     token_details: dict[str, UsageMetricsTokenDetail] | None = None
     """Session-wide per-token-type accumulated token counts"""
 
-    total_nano_aiu: int | None = None
+    total_nano_aiu: float | None = None
     """Session-wide accumulated nano-AI units cost"""
 
     @staticmethod
@@ -11629,7 +11629,7 @@ class UsageGetMetricsResult:
         total_user_requests = from_int(obj.get("totalUserRequests"))
         current_model = from_union([from_str, from_none], obj.get("currentModel"))
         token_details = from_union([lambda x: from_dict(UsageMetricsTokenDetail.from_dict, x), from_none], obj.get("tokenDetails"))
-        total_nano_aiu = from_union([from_int, from_none], obj.get("totalNanoAiu"))
+        total_nano_aiu = from_union([from_float, from_none], obj.get("totalNanoAiu"))
         return UsageGetMetricsResult(code_changes, last_call_input_tokens, last_call_output_tokens, model_metrics, session_start_time, total_api_duration_ms, total_premium_request_cost, total_user_requests, current_model, token_details, total_nano_aiu)
 
     def to_dict(self) -> dict:
@@ -11647,7 +11647,7 @@ class UsageGetMetricsResult:
         if self.token_details is not None:
             result["tokenDetails"] = from_union([lambda x: from_dict(lambda x: to_class(UsageMetricsTokenDetail, x), x), from_none], self.token_details)
         if self.total_nano_aiu is not None:
-            result["totalNanoAiu"] = from_union([from_int, from_none], self.total_nano_aiu)
+            result["totalNanoAiu"] = from_union([to_float, from_none], self.total_nano_aiu)
         return result
 
 @dataclass
