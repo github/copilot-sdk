@@ -235,7 +235,7 @@ using GitHub.Copilot.SDK;
 CopilotClient CreateClientForUser(string userToken) =>
     new CopilotClient(new CopilotClientOptions
     {
-        GithubToken = userToken,
+        GitHubToken = userToken,
         UseLoggedInUser = false,
     });
 
@@ -257,7 +257,7 @@ var response = await session.SendAndWaitAsync(
 CopilotClient CreateClientForUser(string userToken) =>
     new CopilotClient(new CopilotClientOptions
     {
-        GithubToken = userToken,
+        GitHubToken = userToken,
         UseLoggedInUser = false,
     });
 

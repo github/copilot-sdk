@@ -568,7 +568,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -807,10 +807,10 @@ public static class EventSubscriptionExample
     public static void Example(CopilotSession session)
     {
         // Subscribe to all events
-        var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+        var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
         // Filter by event type using pattern matching
-        session.On(ev =>
+        session.On<SessionEvent>(ev =>
         {
             switch (ev)
             {
@@ -832,10 +832,10 @@ public static class EventSubscriptionExample
 
 ```csharp
 // Subscribe to all events
-var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
 // Filter by event type using pattern matching
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     switch (ev)
     {
@@ -1190,7 +1190,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     Tools = [getWeather],
 });
 
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -1676,7 +1676,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -2071,8 +2071,7 @@ using GitHub.Copilot.SDK;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false
+Connection = RuntimeConnection.Uri("localhost:4321"),
 });
 
 // Use the client normally

@@ -184,7 +184,7 @@ using GitHub.Copilot.SDK;
 var userAccessToken = "token";
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,
+    GitHubToken = userAccessToken,
     UseLoggedInUser = false,
 });
 ```
@@ -195,7 +195,7 @@ using GitHub.Copilot.SDK;
 
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,     // Token from OAuth flow
+    GitHubToken = userAccessToken,     // Token from OAuth flow
     UseLoggedInUser = false,           // Don't use stored CLI credentials
 });
 ```

@@ -222,8 +222,7 @@ var message = "Hello";
 
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false,
+Connection = RuntimeConnection.Uri("localhost:4321"),
 });
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -240,8 +239,7 @@ var response = await session.SendAndWaitAsync(
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false,
+Connection = RuntimeConnection.Uri("localhost:4321"),
 });
 
 await using var session = await client.CreateSessionAsync(new SessionConfig

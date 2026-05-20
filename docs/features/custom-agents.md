@@ -591,7 +591,7 @@ public static class SubAgentEventsExample
 {
     public static async Task Example(CopilotSession session)
     {
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             switch (evt)
             {
@@ -622,7 +622,7 @@ public static class SubAgentEventsExample
 <!-- /docs-validate: hidden -->
 
 ```csharp
-using var subscription = session.On(evt =>
+using var subscription = session.On<SessionEvent>(evt =>
 {
     switch (evt)
     {
