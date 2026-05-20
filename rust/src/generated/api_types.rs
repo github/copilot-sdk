@@ -10,7 +10,8 @@ use super::session_events::{
     AbortReason, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule,
     ReasoningSummary, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval,
 };
-use crate::types::{RequestId, SessionEvent, SessionId};
+use crate::types::SessionEvent;
+use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
@@ -2687,7 +2688,7 @@ pub struct NameSetRequest {
 }
 
 /// Schema for the `PendingPermissionRequest` type.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingPermissionRequest {
     /// The user-facing permission prompt details (commands, write, read, mcp, url, memory, custom-tool, path, hook)
@@ -2950,7 +2951,7 @@ pub struct PermissionDecisionApproved {
 }
 
 /// Schema for the `PermissionDecisionApprovedForSession` type.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionApprovedForSession {
     /// The approval to add as a session-scoped rule
@@ -2960,7 +2961,7 @@ pub struct PermissionDecisionApprovedForSession {
 }
 
 /// Schema for the `PermissionDecisionApprovedForLocation` type.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionDecisionApprovedForLocation {
     /// The approval to persist for this location

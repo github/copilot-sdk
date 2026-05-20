@@ -15510,6 +15510,7 @@ OptionsUpdateEnvValueMode = MCPSetEnvValueModeDetails
 SessionWorkingDirectoryContextHostType = SessionContextHostType
 TaskInfoExecutionMode = TaskExecutionMode
 TaskInfoStatus = TaskStatus
+TaskInfoType = TaskAgentProgressType
 TaskProgress = TaskProgressClass
 TaskShellProgress = None
 

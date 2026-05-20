@@ -377,7 +377,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
  * Emit C# data-annotation attributes for a JSON Schema property.
  * Returns an array of attribute lines (without trailing newlines).
  */
-function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
+function emitDataAnnotations(schema: JSONSchema7, indent: string, csharpType: string): string[] {
     const attrs: string[] = [];
     const format = schema.format;
 
@@ -398,27 +398,6 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
     // [Base64String] for base64-encoded string properties
     if (format === "byte" || (schema as Record<string, unknown>).contentEncoding === "base64") {
         attrs.push(`${indent}[Base64String]`);
-    }
-
-    // [Range] for minimum/maximum
-    const hasMin = typeof schema.minimum === "number";
-    const hasMax = typeof schema.maximum === "number";
-    if (hasMin || hasMax) {
-        const namedArgs: string[] = [];
-        if (schema.exclusiveMinimum === true) namedArgs.push("MinimumIsExclusive = true");
-        if (schema.exclusiveMaximum === true) namedArgs.push("MaximumIsExclusive = true");
-        const namedSuffix = namedArgs.length > 0 ? `, ${namedArgs.join(", ")}` : "";
-        if (schema.type === "integer") {
-            // Use Range(double, double) for AOT/trimming compatibility.
-            // The Range(Type, string, string) overload uses TypeConverter which triggers IL2026.
-            const min = hasMin ? String(schema.minimum) : "long.MinValue";
-            const max = hasMax ? String(schema.maximum) : "long.MaxValue";
-            attrs.push(`${indent}[Range((double)${min}, (double)${max}${namedSuffix})]`);
-        } else {
-            const min = hasMin ? String(schema.minimum) : "double.MinValue";
-            const max = hasMax ? String(schema.maximum) : "double.MaxValue";
-            attrs.push(`${indent}[Range(${min}, ${max}${namedSuffix})]`);
-        }
     }
 
     // [RegularExpression] for pattern constraints on non-regex-format properties
@@ -757,7 +736,7 @@ function generateFlattenedBooleanDiscriminatedClass(
 
         lines.push("");
         lines.push(...xmlDocPropertyComment(info.schema.description, propName, "    "));
-        lines.push(...emitDataAnnotations(info.schema, "    "));
+        lines.push(...emitDataAnnotations(info.schema, "    ", csharpType));
         if (isSchemaDeprecated(info.schema)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(info.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
@@ -860,7 +839,7 @@ function generateDerivedClass(
             const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
             lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-            lines.push(...emitDataAnnotations(prop, "    "));
+            lines.push(...emitDataAnnotations(prop, "    ", csharpType));
             if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
             if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
@@ -1085,7 +1064,7 @@ function generateNestedClass(
         const csharpType = resolveSessionPropertyType(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
@@ -1228,7 +1207,7 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
         const csharpType = resolveSessionPropertyType(prop, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
@@ -1260,7 +1239,7 @@ function emitSessionEventEnvelopeProperty(
     const lines: string[] = [];
 
     lines.push(...xmlDocPropertyComment(property.schema.description, property.name, "    "));
-    lines.push(...emitDataAnnotations(property.schema, "    "));
+    lines.push(...emitDataAnnotations(property.schema, "    ", csharpType));
     if (isSchemaDeprecated(property.schema)) pushObsoleteAttributes(lines, "    ");
     if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
     if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
@@ -1613,7 +1592,7 @@ function emitRpcClass(
         const csharpType = resolveRpcType(prop, isReq, className, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
         if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         lines.push(`    [JsonPropertyName("${propName}")]`);

@@ -2327,6 +2327,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     const compatibilityTypeAliases = new Map([
         ["TaskInfoExecutionMode", "TaskExecutionMode"],
         ["TaskInfoStatus", "TaskStatus"],
+        ["TaskInfoType", "TaskAgentProgressType"],
     ]);
     for (const [aliasName, targetName] of compatibilityTypeAliases) {
         if (actualTypeNames.has(targetName.toLowerCase()) && !actualTypeNames.has(aliasName.toLowerCase())) {

@@ -26,7 +26,6 @@ public sealed class PingResult
     public string Message { get; set; } = string.Empty;
 
     /// <summary>Server protocol version number.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("protocolVersion")]
     public long ProtocolVersion { get; set; }
 
@@ -51,7 +50,6 @@ internal sealed class ConnectResult
     public bool Ok { get; set; }
 
     /// <summary>Server protocol version number.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("protocolVersion")]
     public long ProtocolVersion { get; set; }
 
@@ -72,22 +70,18 @@ internal sealed class ConnectRequest
 public sealed class ModelBillingTokenPrices
 {
     /// <summary>Number of tokens per standard billing batch.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("batchSize")]
     public long? BatchSize { get; set; }
 
     /// <summary>Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cachePrice")]
     public long? CachePrice { get; set; }
 
     /// <summary>Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("inputPrice")]
     public long? InputPrice { get; set; }
 
     /// <summary>Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("outputPrice")]
     public long? OutputPrice { get; set; }
 }
@@ -108,12 +102,10 @@ public sealed class ModelBilling
 public sealed class ModelCapabilitiesLimitsVision
 {
     /// <summary>Maximum image size in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_image_size")]
     public long MaxPromptImageSize { get; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
-    [Range((double)1, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_images")]
     public long MaxPromptImages { get; set; }
 
@@ -126,17 +118,14 @@ public sealed class ModelCapabilitiesLimitsVision
 public sealed class ModelCapabilitiesLimits
 {
     /// <summary>Maximum total context window size in tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_context_window_tokens")]
     public long? MaxContextWindowTokens { get; set; }
 
     /// <summary>Maximum number of output/completion tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
     /// <summary>Maximum number of prompt/input tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_tokens")]
     public long? MaxPromptTokens { get; set; }
 
@@ -281,7 +270,6 @@ internal sealed class ToolsListRequest
 public sealed class AccountQuotaSnapshot
 {
     /// <summary>Number of requests included in the entitlement, or -1 for unlimited entitlements.</summary>
-    [Range((double)-1, (double)long.MaxValue)]
     [JsonPropertyName("entitlementRequests")]
     public long EntitlementRequests { get; set; }
 
@@ -290,7 +278,6 @@ public sealed class AccountQuotaSnapshot
     public bool IsUnlimitedEntitlement { get; set; }
 
     /// <summary>Number of overage requests made this period.</summary>
-    [Range(0, double.MaxValue)]
     [JsonPropertyName("overage")]
     public double Overage { get; set; }
 
@@ -311,7 +298,6 @@ public sealed class AccountQuotaSnapshot
     public bool UsageAllowedWithExhaustedQuota { get; set; }
 
     /// <summary>Number of requests used so far this period.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("usedRequests")]
     public long UsedRequests { get; set; }
 }
@@ -596,7 +582,6 @@ public sealed class ConnectedRemoteSessionMetadata
     public string? Name { get; set; }
 
     /// <summary>Pull request number associated with the session.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("pullRequestNumber")]
     public long? PullRequestNumber { get; set; }
 
@@ -751,7 +736,6 @@ internal sealed class SessionsListRequest
     public SessionsListRequestFilter? Filter { get; set; }
 
     /// <summary>When provided, only the first N sessions (sorted by modification time, newest first) load full metadata; remaining sessions return basic info only. Use 0 to return only basic info for every session.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("metadataLimit")]
     public long? MetadataLimit { get; set; }
 }
@@ -923,7 +907,6 @@ public sealed class SessionPruneResult
     public bool DryRun { get; set; }
 
     /// <summary>Total bytes freed (actual when not dry-run, projected when dry-run).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("freedBytes")]
     public long FreedBytes { get; set; }
 
@@ -949,7 +932,6 @@ internal sealed class SessionsPruneOldRequest
     public bool? IncludeNamed { get; set; }
 
     /// <summary>Delete sessions whose modifiedTime is at least this many days old.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("olderThanDays")]
     public long OlderThanDays { get; set; }
 }
@@ -1026,7 +1008,6 @@ internal sealed class SessionsReloadPluginHooksRequest
 public sealed class SessionLoadDeferredRepoHooksResult
 {
     /// <summary>Total hook command count (user + plugin + repo) loaded for the session by this call. Captured atomically with startupPrompts so callers don't need to read a separate counter.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("hookCount")]
     public long HookCount { get; set; }
 
@@ -1130,12 +1111,10 @@ public partial class SendAttachment
 public sealed class SendAttachmentFileLineRange
 {
     /// <summary>End line number (1-based, inclusive).</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("end")]
     public long End { get; set; }
 
     /// <summary>Start line number (1-based).</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("start")]
     public long Start { get; set; }
 }
@@ -1183,12 +1162,10 @@ public partial class SendAttachmentDirectory : SendAttachment
 public sealed class SendAttachmentSelectionDetailsEnd
 {
     /// <summary>End character offset within the line (0-based).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("character")]
     public long Character { get; set; }
 
     /// <summary>End line number (0-based).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("line")]
     public long Line { get; set; }
 }
@@ -1197,12 +1174,10 @@ public sealed class SendAttachmentSelectionDetailsEnd
 public sealed class SendAttachmentSelectionDetailsStart
 {
     /// <summary>Start character offset within the line (0-based).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("character")]
     public long Character { get; set; }
 
     /// <summary>Start line number (0-based).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("line")]
     public long Line { get; set; }
 }
@@ -1253,7 +1228,6 @@ public partial class SendAttachmentGithubReference : SendAttachment
     public override string Type => "github_reference";
 
     /// <summary>Issue, pull request, or discussion number.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("number")]
     public required long Number { get; set; }
 
@@ -2014,12 +1988,10 @@ public sealed class ModelSwitchToResult
 public sealed class ModelCapabilitiesOverrideLimitsVision
 {
     /// <summary>Maximum image size in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_image_size")]
     public long? MaxPromptImageSize { get; set; }
 
     /// <summary>Maximum number of images per prompt.</summary>
-    [Range((double)1, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_images")]
     public long? MaxPromptImages { get; set; }
 
@@ -2032,17 +2004,14 @@ public sealed class ModelCapabilitiesOverrideLimitsVision
 public sealed class ModelCapabilitiesOverrideLimits
 {
     /// <summary>Maximum total context window size in tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_context_window_tokens")]
     public long? MaxContextWindowTokens { get; set; }
 
     /// <summary>Maximum number of output/completion tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_output_tokens")]
     public long? MaxOutputTokens { get; set; }
 
     /// <summary>Maximum number of prompt/input tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("max_prompt_tokens")]
     public long? MaxPromptTokens { get; set; }
 
@@ -2290,7 +2259,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     public string? Repository { get; set; }
 
     /// <summary>Gets or sets the <c>summary_count</c> value.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("summary_count")]
     public long? SummaryCount { get; set; }
 
@@ -2383,7 +2351,6 @@ public sealed class WorkspacesCheckpoints
     public string Filename { get; set; } = string.Empty;
 
     /// <summary>Checkpoint number assigned by the workspace manager.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("number")]
     public long Number { get; set; }
 
@@ -2420,7 +2387,6 @@ public sealed class WorkspacesReadCheckpointResult
 internal sealed class WorkspacesReadCheckpointRequest
 {
     /// <summary>Checkpoint number to read.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("number")]
     public long Number { get; set; }
 
@@ -2441,7 +2407,6 @@ public sealed class WorkspacesSaveLargePasteResultSaved
     public string FilePath { get; set; } = string.Empty;
 
     /// <summary>Size of the saved file in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("sizeBytes")]
     public long SizeBytes { get; set; }
 }
@@ -2747,7 +2712,6 @@ public partial class TaskInfoAgent : TaskInfo
     public DateTimeOffset? ActiveStartedAt { get; set; }
 
     /// <summary>Accumulated active execution time in milliseconds.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("activeTimeMs")]
@@ -2868,7 +2832,6 @@ public partial class TaskInfoShell : TaskInfo
     public string? LogPath { get; set; }
 
     /// <summary>Process ID when available.</summary>
-    [Range((double)0, (double)4294967295, MinimumIsExclusive = true)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pid")]
     public long? Pid { get; set; }
@@ -3152,7 +3115,6 @@ public sealed class SkillsInvokedSkill
     public string Content { get; set; } = string.Empty;
 
     /// <summary>Turn number when the skill was invoked.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("invokedAtTurn")]
     public long InvokedAtTurn { get; set; }
 
@@ -3746,7 +3708,6 @@ public sealed class Extension
     public string Name { get; set; } = string.Empty;
 
     /// <summary>Process ID if the extension is running.</summary>
-    [Range((double)0, (double)4294967295, MinimumIsExclusive = true)]
     [JsonPropertyName("pid")]
     public long? Pid { get; set; }
 
@@ -5328,7 +5289,6 @@ public sealed class MetadataSnapshotRemoteMetadataRepository
 public sealed class MetadataSnapshotRemoteMetadata
 {
     /// <summary>The pull request number the remote session is associated with, if any.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("pullRequestNumber")]
     public long? PullRequestNumber { get; set; }
 
@@ -5473,22 +5433,18 @@ internal sealed class SessionMetadataIsProcessingRequest
 public sealed class MetadataContextInfoResultContextInfo
 {
     /// <summary>Output reserve plus tokens after the buffer-exhaustion blocking threshold (default 95%).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("bufferTokens")]
     public long BufferTokens { get; set; }
 
     /// <summary>Token count at which background compaction starts (configurable percentage of promptTokenLimit).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("compactionThreshold")]
     public long CompactionThreshold { get; set; }
 
     /// <summary>Tokens consumed by user/assistant/tool messages.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("conversationTokens")]
     public long ConversationTokens { get; set; }
 
     /// <summary>Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("limit")]
     public long Limit { get; set; }
 
@@ -5497,22 +5453,18 @@ public sealed class MetadataContextInfoResultContextInfo
     public string ModelName { get; set; } = string.Empty;
 
     /// <summary>Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
 
     /// <summary>Tokens consumed by the system prompt.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("systemTokens")]
     public long SystemTokens { get; set; }
 
     /// <summary>Tokens consumed by tool definitions sent to the model (excludes deferred tools).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("toolDefinitionsTokens")]
     public long ToolDefinitionsTokens { get; set; }
 
     /// <summary>Sum of system, conversation and tool-definition tokens.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalTokens")]
     public long TotalTokens { get; set; }
 }
@@ -5531,12 +5483,10 @@ public sealed class MetadataContextInfoResult
 internal sealed class MetadataContextInfoRequest
 {
     /// <summary>Maximum output tokens allowed by the target model. Pass 0 if unknown.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("outputTokenLimit")]
     public long OutputTokenLimit { get; set; }
 
     /// <summary>Maximum prompt tokens allowed by the target model. Pass 0 to use the runtime default.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("promptTokenLimit")]
     public long PromptTokenLimit { get; set; }
 
@@ -5632,17 +5582,14 @@ internal sealed class MetadataSetWorkingDirectoryRequest
 public sealed class MetadataRecomputeContextTokensResult
 {
     /// <summary>Tokens contributed by user/assistant/tool messages (excludes system/developer prompts).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesTokenCount")]
     public long MessagesTokenCount { get; set; }
 
     /// <summary>Tokens contributed by system/developer prompt snapshots.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("systemTokenCount")]
     public long SystemTokenCount { get; set; }
 
     /// <summary>Sum of tokens across chat-context and system-context messages currently held by the session.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalTokens")]
     public long TotalTokens { get; set; }
 }
@@ -5684,7 +5631,6 @@ internal sealed class ShellExecRequest
     public string SessionId { get; set; } = string.Empty;
 
     /// <summary>Timeout in milliseconds (default: 30000).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("timeout")]
     public TimeSpan? Timeout { get; set; }
@@ -5719,32 +5665,26 @@ internal sealed class ShellKillRequest
 public sealed class HistoryCompactContextWindow
 {
     /// <summary>Token count from non-system messages (user, assistant, tool).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("conversationTokens")]
     public long? ConversationTokens { get; set; }
 
     /// <summary>Current total tokens in the context window (system + conversation + tool definitions).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("currentTokens")]
     public long CurrentTokens { get; set; }
 
     /// <summary>Current number of messages in the conversation.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesLength")]
     public long MessagesLength { get; set; }
 
     /// <summary>Token count from system message(s).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("systemTokens")]
     public long? SystemTokens { get; set; }
 
     /// <summary>Maximum token count for the model's context window.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenLimit")]
     public long TokenLimit { get; set; }
 
     /// <summary>Token count from tool definitions.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("toolDefinitionsTokens")]
     public long? ToolDefinitionsTokens { get; set; }
 }
@@ -5758,7 +5698,6 @@ public sealed class HistoryCompactResult
     public HistoryCompactContextWindow? ContextWindow { get; set; }
 
     /// <summary>Number of messages removed during compaction.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("messagesRemoved")]
     public long MessagesRemoved { get; set; }
 
@@ -5771,7 +5710,6 @@ public sealed class HistoryCompactResult
     public string? SummaryContent { get; set; }
 
     /// <summary>Number of tokens freed by compaction.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokensRemoved")]
     public long TokensRemoved { get; set; }
 }
@@ -5790,7 +5728,6 @@ internal sealed class SessionHistoryCompactRequest
 public sealed class HistoryTruncateResult
 {
     /// <summary>Number of events that were removed.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("eventsRemoved")]
     public long EventsRemoved { get; set; }
 }
@@ -5958,7 +5895,6 @@ internal sealed class EventLogReadRequest
     public string? Cursor { get; set; }
 
     /// <summary>Maximum number of events to return in this batch (1–1000, default 200).</summary>
-    [Range((double)0, (double)1000, MinimumIsExclusive = true)]
     [JsonPropertyName("max")]
     public int? Max { get; set; }
 
@@ -5971,7 +5907,6 @@ internal sealed class EventLogReadRequest
     public object? Types { get; set; }
 
     /// <summary>Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen).</summary>
-    [Range((double)0, (double)30000)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("waitMs")]
     public TimeSpan? Wait { get; set; }
@@ -6048,17 +5983,14 @@ public sealed class UsageMetricsCodeChanges
     public IList<string> FilesModified { get => field ??= []; set; }
 
     /// <summary>Number of distinct files modified.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("filesModifiedCount")]
     public long FilesModifiedCount { get; set; }
 
     /// <summary>Total lines of code added.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("linesAdded")]
     public long LinesAdded { get; set; }
 
     /// <summary>Total lines of code removed.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("linesRemoved")]
     public long LinesRemoved { get; set; }
 }
@@ -6072,7 +6004,6 @@ public sealed class UsageMetricsModelMetricRequests
     public double Cost { get; set; }
 
     /// <summary>Number of API requests made with this model.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("count")]
     public long Count { get; set; }
 }
@@ -6082,7 +6013,6 @@ public sealed class UsageMetricsModelMetricRequests
 public sealed class UsageMetricsModelMetricTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenCount")]
     public long TokenCount { get; set; }
 }
@@ -6092,27 +6022,22 @@ public sealed class UsageMetricsModelMetricTokenDetail
 public sealed class UsageMetricsModelMetricUsage
 {
     /// <summary>Total tokens read from prompt cache.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheReadTokens")]
     public long CacheReadTokens { get; set; }
 
     /// <summary>Total tokens written to prompt cache.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("cacheWriteTokens")]
     public long CacheWriteTokens { get; set; }
 
     /// <summary>Total input tokens consumed.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("inputTokens")]
     public long InputTokens { get; set; }
 
     /// <summary>Total output tokens produced.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("outputTokens")]
     public long OutputTokens { get; set; }
 
     /// <summary>Total output tokens used for reasoning.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("reasoningTokens")]
     public long? ReasoningTokens { get; set; }
 }
@@ -6130,7 +6055,6 @@ public sealed class UsageMetricsModelMetric
     public IDictionary<string, UsageMetricsModelMetricTokenDetail>? TokenDetails { get; set; }
 
     /// <summary>Accumulated nano-AI units cost for this model.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalNanoAiu")]
     public long? TotalNanoAiu { get; set; }
 
@@ -6144,7 +6068,6 @@ public sealed class UsageMetricsModelMetric
 public sealed class UsageMetricsTokenDetail
 {
     /// <summary>Accumulated token count for this token type.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("tokenCount")]
     public long TokenCount { get; set; }
 }
@@ -6162,12 +6085,10 @@ public sealed class UsageGetMetricsResult
     public string? CurrentModel { get; set; }
 
     /// <summary>Input tokens from the most recent main-agent API call.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("lastCallInputTokens")]
     public long LastCallInputTokens { get; set; }
 
     /// <summary>Output tokens from the most recent main-agent API call.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("lastCallOutputTokens")]
     public long LastCallOutputTokens { get; set; }
 
@@ -6184,13 +6105,11 @@ public sealed class UsageGetMetricsResult
     public IDictionary<string, UsageMetricsTokenDetail>? TokenDetails { get; set; }
 
     /// <summary>Total time spent in model API calls (milliseconds).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("totalApiDurationMs")]
     public TimeSpan TotalApiDuration { get; set; }
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalNanoAiu")]
     public long? TotalNanoAiu { get; set; }
 
@@ -6199,7 +6118,6 @@ public sealed class UsageGetMetricsResult
     public double TotalPremiumRequestCost { get; set; }
 
     /// <summary>Raw count of user-initiated API requests.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("totalUserRequests")]
     public long TotalUserRequests { get; set; }
 }
@@ -6278,12 +6196,10 @@ public sealed class ScheduleEntry
     public string? DisplayPrompt { get; set; }
 
     /// <summary>Sequential id assigned by the runtime within the session. Stable across resumes (rebuilt from the event log).</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("id")]
     public long Id { get; set; }
 
     /// <summary>Interval between scheduled ticks, in milliseconds.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonPropertyName("intervalMs")]
     public TimeSpan Interval { get; set; }
@@ -6333,7 +6249,6 @@ public sealed class ScheduleStopResult
 internal sealed class ScheduleStopRequest
 {
     /// <summary>Id of the scheduled prompt to remove.</summary>
-    [Range((double)0, (double)long.MaxValue, MinimumIsExclusive = true)]
     [JsonPropertyName("id")]
     public long Id { get; set; }
 
@@ -6386,7 +6301,6 @@ public sealed class SessionFsWriteFileRequest
     public string Content { get; set; } = string.Empty;
 
     /// <summary>Optional POSIX-style mode for newly created files.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
 
@@ -6407,7 +6321,6 @@ public sealed class SessionFsAppendFileRequest
     public string Content { get; set; } = string.Empty;
 
     /// <summary>Optional POSIX-style mode for newly created files.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
 
@@ -6464,7 +6377,6 @@ public sealed class SessionFsStatResult
     public DateTimeOffset Mtime { get; set; }
 
     /// <summary>File size in bytes.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("size")]
     public long Size { get; set; }
 }
@@ -6485,7 +6397,6 @@ public sealed class SessionFsStatRequest
 public sealed class SessionFsMkdirRequest
 {
     /// <summary>Optional POSIX-style mode for newly created directories.</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("mode")]
     public long? Mode { get; set; }
 
@@ -6618,7 +6529,6 @@ public sealed class SessionFsSqliteQueryResult
     public IList<IDictionary<string, object>> Rows { get => field ??= []; set; }
 
     /// <summary>Number of rows affected (for INSERT/UPDATE/DELETE).</summary>
-    [Range((double)0, (double)long.MaxValue)]
     [JsonPropertyName("rowsAffected")]
     public long RowsAffected { get; set; }
 }

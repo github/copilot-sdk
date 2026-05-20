@@ -262,7 +262,7 @@ export type ElicitationCompletedAction = "accept" | "decline" | "cancel";
 /**
  * Schema for the `ElicitationCompletedContent` type.
  */
-export type ElicitationCompletedContent = string | number | boolean | string[];
+export type ElicitationCompletedContent = (string | number | boolean | string[]) | undefined;
 /**
  * Source-defined JSON payload for the custom notification
  */
@@ -273,7 +273,7 @@ export type CustomNotificationPayload =
   | null
   | unknown[]
   | {
-      [k: string]: unknown;
+      [k: string]: unknown | undefined;
     };
 /**
  * The user's auto-mode-switch choice
@@ -1276,7 +1276,7 @@ export interface ShutdownData {
    * Per-model usage breakdown, keyed by model identifier
    */
   modelMetrics: {
-    [k: string]: ShutdownModelMetric;
+    [k: string]: ShutdownModelMetric | undefined;
   };
   /**
    * Unix timestamp (milliseconds) when the session started
@@ -1291,7 +1291,7 @@ export interface ShutdownData {
    * Session-wide per-token-type accumulated token counts
    */
   tokenDetails?: {
-    [k: string]: ShutdownTokenDetail;
+    [k: string]: ShutdownTokenDetail | undefined;
   };
   /**
    * Tool definitions token count at shutdown
@@ -1336,7 +1336,7 @@ export interface ShutdownModelMetric {
    * Token count details per type
    */
   tokenDetails?: {
-    [k: string]: ShutdownModelMetricTokenDetail;
+    [k: string]: ShutdownModelMetricTokenDetail | undefined;
   };
   /**
    * Accumulated nano-AI units cost for this model
@@ -2306,7 +2306,7 @@ export interface AssistantMessageToolRequest {
    * Arguments to pass to the tool, format depends on the tool
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Resolved intention summary describing what this specific call does
@@ -2553,7 +2553,7 @@ export interface AssistantUsageData {
    * Per-quota resource usage snapshots, keyed by quota identifier
    */
   quotaSnapshots?: {
-    [k: string]: AssistantUsageQuotaSnapshot;
+    [k: string]: AssistantUsageQuotaSnapshot | undefined;
   };
   /**
    * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
@@ -2777,7 +2777,7 @@ export interface ToolUserRequestedData {
    * Arguments for the tool invocation
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Unique identifier for this tool call
@@ -2826,7 +2826,7 @@ export interface ToolExecutionStartData {
    * Arguments passed to the tool
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
@@ -3005,7 +3005,7 @@ export interface ToolExecutionCompleteData {
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
   toolTelemetry?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -3584,7 +3584,7 @@ export interface HookStartData {
    * Input data passed to the hook
    */
   input?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
 }
 /**
@@ -3634,7 +3634,7 @@ export interface HookEndData {
    * Output data produced by the hook
    */
   output?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Whether the hook completed successfully
@@ -3711,7 +3711,7 @@ export interface SystemMessageMetadata {
    * Template variables used when constructing the prompt
    */
   variables?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
 }
 /**
@@ -4063,7 +4063,7 @@ export interface PermissionRequestMcp {
    * Arguments to pass to the MCP tool
    */
   args?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Permission kind discriminator
@@ -4150,7 +4150,7 @@ export interface PermissionRequestCustomTool {
    * Arguments to pass to the custom tool
    */
   args?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Permission kind discriminator
@@ -4185,7 +4185,7 @@ export interface PermissionRequestHook {
    * Arguments of the tool call being gated
    */
   toolArgs?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Tool call ID that triggered this permission request
@@ -4411,7 +4411,7 @@ export interface PermissionPromptRequestCustomTool {
    * Arguments to pass to the custom tool
    */
   args?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Prompt kind discriminator
@@ -4464,7 +4464,7 @@ export interface PermissionPromptRequestHook {
    * Arguments of the tool call being gated
    */
   toolArgs?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Tool call ID that triggered this permission request
@@ -4947,7 +4947,7 @@ export interface ElicitationRequestedData {
    * URL to open in the user's browser (url mode only)
    */
   url?: string;
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * JSON Schema describing the form fields to present to the user (form mode only)
@@ -4957,7 +4957,7 @@ export interface ElicitationRequestedSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * List of required field names
@@ -5007,7 +5007,7 @@ export interface ElicitationCompletedData {
    * The submitted form data when action is 'accept'; keys match the requested schema fields
    */
   content?: {
-    [k: string]: ElicitationCompletedContent;
+    [k: string]: ElicitationCompletedContent | undefined;
   };
   /**
    * Request ID of the resolved elicitation request; clients should dismiss any UI for this request
@@ -5060,7 +5060,7 @@ export interface SamplingRequestedData {
    * Name of the MCP server that initiated the sampling request
    */
   serverName: string;
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Session event "sampling.completed". Sampling request completion notification signaling UI dismissal
@@ -5258,7 +5258,7 @@ export interface CustomNotificationData {
  * Optional source-defined string identifiers describing the payload subject
  */
 export interface CustomNotificationSubject {
-  [k: string]: string;
+  [k: string]: string | undefined;
 }
 /**
  * Session event "external_tool.requested". External tool invocation request for client-side tool execution
@@ -5298,7 +5298,7 @@ export interface ExternalToolRequestedData {
    * Arguments to pass to the external tool
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Unique identifier for this request; used to respond via session.respondToExternalTool()

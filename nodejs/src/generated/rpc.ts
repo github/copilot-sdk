@@ -696,13 +696,16 @@ export type UIElicitationFieldValue = string | number | boolean | string[];
  * via the `definition` "UIElicitationSchemaProperty".
  */
 export type UIElicitationSchemaProperty =
-  | UIElicitationStringEnumField
-  | UIElicitationStringOneOfField
-  | UIElicitationArrayEnumField
-  | UIElicitationArrayAnyOfField
-  | UIElicitationSchemaPropertyBoolean
-  | UIElicitationSchemaPropertyString
-  | UIElicitationSchemaPropertyNumber;
+  | (
+      | UIElicitationStringEnumField
+      | UIElicitationStringOneOfField
+      | UIElicitationArrayEnumField
+      | UIElicitationArrayAnyOfField
+      | UIElicitationSchemaPropertyBoolean
+      | UIElicitationSchemaPropertyString
+      | UIElicitationSchemaPropertyNumber
+    )
+  | undefined;
 /**
  * Optional format hint that constrains the accepted input.
  *
@@ -775,7 +778,7 @@ export interface AccountGetQuotaResult {
    * Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)
    */
   quotaSnapshots: {
-    [k: string]: AccountQuotaSnapshot;
+    [k: string]: AccountQuotaSnapshot | undefined;
   };
 }
 /**
@@ -876,7 +879,7 @@ export interface AgentInfo {
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
    */
   mcpServers?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Skill names preloaded into this agent's context. Omitted means none.
@@ -966,7 +969,7 @@ export interface CopilotUserResponse {
   assigned_date?:
     | (
         | {
-            [k: string]: unknown;
+            [k: string]: unknown | undefined;
           }
         | string
       )
@@ -980,13 +983,13 @@ export interface CopilotUserResponse {
   organization_list?:
     | (
         | {
-            [k: string]: unknown;
+            [k: string]: unknown | undefined;
           }
         | ({
             login?:
               | (
                   | {
-                      [k: string]: unknown;
+                      [k: string]: unknown | undefined;
                     }
                   | string
                 )
@@ -994,7 +997,7 @@ export interface CopilotUserResponse {
             name?:
               | (
                   | {
-                      [k: string]: unknown;
+                      [k: string]: unknown | undefined;
                     }
                   | string
                 )
@@ -1006,7 +1009,7 @@ export interface CopilotUserResponse {
   is_mcp_enabled?:
     | (
         | {
-            [k: string]: unknown;
+            [k: string]: unknown | undefined;
           }
         | boolean
       )
@@ -1017,11 +1020,11 @@ export interface CopilotUserResponse {
   token_based_billing?: boolean;
   quota_reset_date_utc?: string;
   limited_user_quotas?: {
-    [k: string]: number;
+    [k: string]: number | undefined;
   };
   limited_user_reset_date?: string;
   monthly_quotas?: {
-    [k: string]: number;
+    [k: string]: number | undefined;
   };
   cloud_session_storage_enabled?: boolean;
   cli_remote_control_enabled?: boolean;
@@ -1048,20 +1051,22 @@ export interface CopilotUserResponseQuotaSnapshots {
   chat?: CopilotUserResponseQuotaSnapshotsChat;
   completions?: CopilotUserResponseQuotaSnapshotsCompletions;
   premium_interactions?: CopilotUserResponseQuotaSnapshotsPremiumInteractions;
-  [k: string]: {
-    entitlement?: number;
-    overage_count?: number;
-    overage_permitted?: boolean;
-    percent_remaining?: number;
-    quota_id?: string;
-    quota_remaining?: number;
-    remaining?: number;
-    unlimited?: boolean;
-    timestamp_utc?: string;
-    has_quota?: boolean;
-    quota_reset_at?: number;
-    token_based_billing?: boolean;
-  } | null;
+  [k: string]:
+    | ({
+        entitlement?: number;
+        overage_count?: number;
+        overage_permitted?: boolean;
+        percent_remaining?: number;
+        quota_id?: string;
+        quota_remaining?: number;
+        remaining?: number;
+        unlimited?: boolean;
+        timestamp_utc?: string;
+        has_quota?: boolean;
+        quota_reset_at?: number;
+        token_based_billing?: boolean;
+      } | null)
+    | undefined;
 }
 /**
  * Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
@@ -1798,7 +1803,7 @@ export interface ExternalToolTextResultForLlm {
    * Optional tool-specific telemetry
    */
   toolTelemetry?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Base64-encoded binary results returned to the model
@@ -1808,7 +1813,7 @@ export interface ExternalToolTextResultForLlm {
    * Structured content blocks from the tool
    */
   contents?: ExternalToolTextResultForLlmContent[];
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Binary result returned by a tool for the model
@@ -2431,7 +2436,7 @@ export interface McpServerConfigStdio {
    * Environment variables to pass to the Stdio MCP server process.
    */
   env?: {
-    [k: string]: string;
+    [k: string]: string | undefined;
   };
 }
 /**
@@ -2463,7 +2468,7 @@ export interface McpServerConfigHttp {
    * HTTP headers to include in requests to the remote MCP server.
    */
   headers?: {
-    [k: string]: string;
+    [k: string]: string | undefined;
   };
   /**
    * OAuth client ID for a pre-registered remote MCP OAuth client.
@@ -2631,7 +2636,7 @@ export interface McpExecuteSamplingParams {
  */
 /** @experimental */
 export interface McpExecuteSamplingRequest {
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.
@@ -2641,7 +2646,7 @@ export interface McpExecuteSamplingRequest {
  */
 /** @experimental */
 export interface McpExecuteSamplingResult {
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
@@ -4015,7 +4020,7 @@ export interface PermissionsConfigureAdditionalContentExclusionPolicy {
   rules: PermissionsConfigureAdditionalContentExclusionPolicyRule[];
   last_updated_at: string | number;
   scope: PermissionsConfigureAdditionalContentExclusionPolicyScope;
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.
@@ -4028,7 +4033,7 @@ export interface PermissionsConfigureAdditionalContentExclusionPolicyRule {
   ifAnyMatch?: string[];
   ifNoneMatch?: string[];
   source: PermissionsConfigureAdditionalContentExclusionPolicyRuleSource;
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
@@ -4795,14 +4800,14 @@ export interface SendRequest {
    * Optional provenance tag copied to the resulting user.message event. Supported values are `system`, `command-*`, and `schedule-*`.
    */
   source?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   agentMode?: SendAgentMode;
   /**
    * Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
    */
   requestHeaders?: {
-    [k: string]: string;
+    [k: string]: string | undefined;
   };
   /**
    * W3C Trace Context traceparent header for distributed tracing of this agent turn
@@ -4915,7 +4920,7 @@ export interface SessionBulkDeleteResult {
    * Map of sessionId -> bytes freed by removing the session's workspace directory. Sessions whose deletion failed are omitted from this map (failures are logged on the server but not surfaced per-id; check the map for absent IDs to detect them).
    */
   freedBytes: {
-    [k: string]: number;
+    [k: string]: number | undefined;
   };
 }
 /**
@@ -5302,7 +5307,7 @@ export interface SessionFsSqliteQueryRequest {
    * Optional named bind parameters
    */
   params?: {
-    [k: string]: string | number | null;
+    [k: string]: (string | number | null) | undefined;
   };
 }
 /**
@@ -5316,7 +5321,7 @@ export interface SessionFsSqliteQueryResult {
    * For SELECT: array of row objects. For others: empty array.
    */
   rows: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   }[];
   /**
    * Column names from the result set
@@ -5866,7 +5871,7 @@ export interface SessionSizes {
    * Map of sessionId -> on-disk size in bytes for the session's workspace directory
    */
   sizes: {
-    [k: string]: number;
+    [k: string]: number | undefined;
   };
 }
 /**
@@ -6061,7 +6066,7 @@ export interface SessionUpdateOptionsParams {
    * Map of feature-flag IDs to their boolean enabled state.
    */
   featureFlags?: {
-    [k: string]: boolean;
+    [k: string]: boolean | undefined;
   };
   /**
    * Whether experimental capabilities are enabled.
@@ -6071,7 +6076,7 @@ export interface SessionUpdateOptionsParams {
    * Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.
    */
   provider?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Absolute working-directory path for shell tools.
@@ -6101,7 +6106,7 @@ export interface SessionUpdateOptionsParams {
    * Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime.
    */
   sandboxConfig?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Whether interactive shell sessions are logged.
@@ -6869,7 +6874,7 @@ export interface TelemetrySetFeatureOverridesRequest {
    * Override key/value pairs to attach to subsequent telemetry events from this session. Replaces any previously-set overrides.
    */
   features: {
-    [k: string]: string;
+    [k: string]: string | undefined;
   };
 }
 /**
@@ -6895,7 +6900,7 @@ export interface Tool {
    * JSON Schema for the tool's input parameters
    */
   parameters?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Optional instructions for how to use this tool effectively
@@ -7071,7 +7076,7 @@ export interface UIElicitationSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]: UIElicitationSchemaProperty;
+    [k: string]: UIElicitationSchemaProperty | undefined;
   };
   /**
    * List of required field names
@@ -7363,7 +7368,7 @@ export interface UIHandlePendingSamplingRequest {
  * via the `definition` "UIHandlePendingSamplingResponse".
  */
 export interface UIHandlePendingSamplingResponse {
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Request ID of a pending `user_input.requested` event and the user's response.
@@ -7454,7 +7459,7 @@ export interface UsageGetMetricsResult {
    * Session-wide per-token-type accumulated token counts
    */
   tokenDetails?: {
-    [k: string]: UsageMetricsTokenDetail;
+    [k: string]: UsageMetricsTokenDetail | undefined;
   };
   /**
    * Total time spent in model API calls (milliseconds)
@@ -7469,7 +7474,7 @@ export interface UsageGetMetricsResult {
    * Per-model token and request metrics, keyed by model identifier
    */
   modelMetrics: {
-    [k: string]: UsageMetricsModelMetric;
+    [k: string]: UsageMetricsModelMetric | undefined;
   };
   /**
    * Currently active model identifier
@@ -7540,7 +7545,7 @@ export interface UsageMetricsModelMetric {
    * Token count details per type
    */
   tokenDetails?: {
-    [k: string]: UsageMetricsModelMetricTokenDetail;
+    [k: string]: UsageMetricsModelMetricTokenDetail | undefined;
   };
 }
 /**

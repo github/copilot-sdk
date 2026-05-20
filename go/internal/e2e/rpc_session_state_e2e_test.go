@@ -469,8 +469,8 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get usage metrics: %v", err)
 		}
-		if metrics.SessionStartTime <= 0 {
-			t.Errorf("Expected positive sessionStartTime, got %d", metrics.SessionStartTime)
+		if metrics.SessionStartTime.IsZero() {
+			t.Errorf("Expected non-zero sessionStartTime, got %s", metrics.SessionStartTime)
 		}
 		if metrics.TotalNanoAiu != nil && *metrics.TotalNanoAiu < 0 {
 			t.Errorf("Expected non-negative totalNanoAiu, got %d", *metrics.TotalNanoAiu)

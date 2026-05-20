@@ -155,7 +155,7 @@ public class RpcAdditionalEdgeCasesE2ETests(E2ETestFixture fixture, ITestOutputH
         Assert.Equal(0, metrics.LastCallInputTokens);
         Assert.Equal(0, metrics.LastCallOutputTokens);
         Assert.Equal(0, metrics.TotalUserRequests);
-        Assert.True(metrics.SessionStartTime > 0, "SessionStartTime should be a positive epoch.");
+        Assert.NotEqual(default, metrics.SessionStartTime);
     }
 
     [Fact]

@@ -356,7 +356,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await using var session = await CreateSessionAsync();
 
         var metrics = await session.Rpc.Usage.GetMetricsAsync();
-        Assert.True(metrics.SessionStartTime > 0);
+        Assert.NotEqual(default, metrics.SessionStartTime);
         Assert.True(metrics.TotalNanoAiu is null or >= 0);
         if (metrics.TokenDetails is not null)
         {
