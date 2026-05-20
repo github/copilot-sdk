@@ -15,7 +15,7 @@ public class CloneTests
         {
             CliPath = "/usr/bin/copilot",
             CliArgs = ["--verbose", "--debug"],
-            Cwd = "/home/user",
+            WorkingDirectory = "/home/user",
             Port = 8080,
             UseStdio = false,
             CliUrl = "http://localhost:8080",
@@ -24,7 +24,7 @@ public class CloneTests
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
             CopilotHome = "/custom/copilot/home",
-            Remote = true,
+            EnableRemoteSessions = true,
             SessionIdleTimeoutSeconds = 600,
         };
 
@@ -32,7 +32,7 @@ public class CloneTests
 
         Assert.Equal(original.CliPath, clone.CliPath);
         Assert.Equal(original.CliArgs, clone.CliArgs);
-        Assert.Equal(original.Cwd, clone.Cwd);
+        Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
         Assert.Equal(original.Port, clone.Port);
         Assert.Equal(original.UseStdio, clone.UseStdio);
         Assert.Equal(original.CliUrl, clone.CliUrl);
@@ -41,7 +41,7 @@ public class CloneTests
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);
         Assert.Equal(original.CopilotHome, clone.CopilotHome);
-        Assert.Equal(original.Remote, clone.Remote);
+        Assert.Equal(original.EnableRemoteSessions, clone.EnableRemoteSessions);
         Assert.Equal(original.SessionIdleTimeoutSeconds, clone.SessionIdleTimeoutSeconds);
     }
 

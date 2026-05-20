@@ -212,7 +212,7 @@ public sealed class E2ETestContext : IAsyncDisposable
     {
         options ??= new CopilotClientOptions();
 
-        options.Cwd ??= WorkDir;
+        options.WorkingDirectory ??= WorkDir;
         options.Environment ??= GetEnvironment();
         options.UseStdio = useStdio;
         options.Logger ??= Logger;

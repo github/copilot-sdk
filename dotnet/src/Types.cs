@@ -127,7 +127,7 @@ public class CopilotClientOptions
         CliArgs = (string[]?)other.CliArgs?.Clone();
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
-        Cwd = other.Cwd;
+        WorkingDirectory = other.WorkingDirectory;
         CopilotHome = other.CopilotHome;
         Environment = other.Environment;
         GitHubToken = other.GitHubToken;
@@ -141,7 +141,7 @@ public class CopilotClientOptions
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         TcpConnectionToken = other.TcpConnectionToken;
-        Remote = other.Remote;
+        EnableRemoteSessions = other.EnableRemoteSessions;
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public class CopilotClientOptions
     /// <summary>
     /// Working directory for the CLI process.
     /// </summary>
-    public string? Cwd { get; set; }
+    public string? WorkingDirectory { get; set; }
     /// <summary>
     /// Base directory for Copilot data (session state, config, etc.).
     /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned CLI process.
@@ -257,7 +257,7 @@ public class CopilotClientOptions
     /// This option is only used when the SDK spawns the CLI process; it is ignored
     /// when connecting to an external server via <see cref="CliUrl"/>.
     /// </summary>
-    public bool Remote { get; set; }
+    public bool EnableRemoteSessions { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="CopilotClientOptions"/> instance.
@@ -1939,7 +1939,7 @@ public sealed class McpStdioServerConfig : McpServerConfig
     /// Working directory for the server process.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string? Cwd { get; set; }
+    public string? WorkingDirectory { get; set; }
 }
 
 /// <summary>
@@ -2823,8 +2823,8 @@ public sealed class SessionContext
 /// </summary>
 public sealed class SessionListFilter
 {
-    /// <summary>Filter by exact cwd match.</summary>
-    public string? Cwd { get; set; }
+    /// <summary>Filter by exact working directory match.</summary>
+    public string? WorkingDirectory { get; set; }
     /// <summary>Filter by git root.</summary>
     public string? GitRoot { get; set; }
     /// <summary>Filter by repository (owner/repo format).</summary>

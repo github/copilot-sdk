@@ -1384,7 +1384,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
         }
 
-        if (options.Remote)
+        if (options.EnableRemoteSessions)
         {
             args.Add("--remote");
         }
@@ -1401,7 +1401,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             RedirectStandardInput = options.UseStdio == true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            WorkingDirectory = options.Cwd,
+            WorkingDirectory = options.WorkingDirectory,
             CreateNoWindow = true
         };
 

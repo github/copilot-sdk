@@ -42,7 +42,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Cwd = clientCwd,
+            WorkingDirectory = clientCwd,
         });
 
         var session = await client.CreateSessionAsync(new SessionConfig
