@@ -490,6 +490,16 @@ Some Copilot features may behave differently with BYOK:
 * **Usage tracking** - Usage is tracked by your provider, not GitHub Copilot
 * **Premium requests** - Do not count against Copilot premium request quotas
 
+### Reasoning content
+
+Reasoning content is provider-specific:
+
+| Provider | Behavior |
+|----------|----------|
+| OpenAI / Azure OpenAI | Readable reasoning text is not returned for Responses API calls; `assistant.reasoning` events may have empty `content`, and encrypted reasoning is available on `assistant.message.encryptedContent` for the same session |
+| Anthropic | Readable reasoning text may be exposed through `assistant.reasoning` events and `assistant.message.reasoningText`; encrypted reasoning may be available as `reasoningOpaque` |
+| OpenAI-compatible providers such as vLLM | Plaintext reasoning depends on the model and server response format |
+
 ### Provider-specific limitations
 
 | Provider | Limitations |

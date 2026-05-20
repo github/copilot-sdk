@@ -254,6 +254,8 @@ Ephemeral. Incremental chunk of the model's extended thinking, streamed in real 
 | `reasoningId` | `string` | ✅ | Matches the corresponding `assistant.reasoning` event |
 | `deltaContent` | `string` | ✅ | Text chunk to append to reasoning content |
 
+For OpenAI BYOK providers, these events may be emitted with empty `content` or `deltaContent` because readable reasoning text is not returned. Encrypted reasoning is available on the `assistant.message` event as `encryptedContent` for the same session.
+
 ### `assistant.message`
 
 The assistant's complete response for this LLM call. May include tool invocation requests.
