@@ -371,7 +371,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         Assert.Contains(observedEvents, evt => evt is AssistantMessageEvent);
         Assert.Contains(observedEvents, evt => evt is SessionIdleEvent);
 
-        // Events must be dispatched serially â€” never more than one handler invocation at a time.
+        // Events must be dispatched serially — never more than one handler invocation at a time.
         Assert.Equal(1, maxConcurrent);
 
         // Verify the assistant response contains the expected answer.
@@ -670,7 +670,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         {
             if (evt is UserMessageEvent)
             {
-                // Call DisposeAsync from within a handler â€” must not deadlock.
+                // Call DisposeAsync from within a handler — must not deadlock.
                 session.DisposeAsync().AsTask().ContinueWith(_ => disposed.TrySetResult());
             }
         });

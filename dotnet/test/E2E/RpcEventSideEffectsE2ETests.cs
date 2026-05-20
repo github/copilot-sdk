@@ -30,7 +30,7 @@ public class RpcEventSideEffectsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             session,
             evt => evt.Data.NewMode == SessionMode.Plan && evt.Data.PreviousMode == SessionMode.Interactive,
             EventTimeout,
-            timeoutDescription: "session.mode_changed event for interactiveâ†’plan");
+            timeoutDescription: "session.mode_changed event for interactive→plan");
 
         await session.Rpc.Mode.SetAsync(SessionMode.Plan);
 

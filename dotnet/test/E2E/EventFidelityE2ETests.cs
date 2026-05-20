@@ -229,7 +229,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var types = messages.Select(m => m.Type).ToList();
 
         // Verify complete event ordering contract:
-        // session.start â†’ user.message â†’ tool.execution_start â†’ tool.execution_complete â†’ assistant.message
+        // session.start → user.message → tool.execution_start → tool.execution_complete → assistant.message
         var sessionStartIdx = types.IndexOf("session.start");
         var userMsgIdx = types.IndexOf("user.message");
         var toolStartIdx = types.IndexOf("tool.execution_start");

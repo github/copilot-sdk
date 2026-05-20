@@ -1340,7 +1340,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
         {
             // Legacy server without `connect`; fall back to `ping`. A token, if any,
-            // is silently dropped â€” the legacy server can't enforce one.
+            // is silently dropped — the legacy server can't enforce one.
             usedFallbackPing = true;
             var pingResponse = await InvokeRpcAsync<PingResponse>(
                 connection.Rpc, "ping", [new PingRequest()], connection.StderrBuffer, cancellationToken);

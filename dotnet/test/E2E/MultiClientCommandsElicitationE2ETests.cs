@@ -168,7 +168,7 @@ public class MultiClientCommandsElicitationE2ETests
             }
         });
 
-        // Client2 joins WITH elicitation handler â€” triggers capabilities.changed
+        // Client2 joins WITH elicitation handler — triggers capabilities.changed
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -250,7 +250,7 @@ public class MultiClientCommandsElicitationE2ETests
             }
         });
 
-        // Force-stop client3 â€” destroys the socket, triggering server-side cleanup
+        // Force-stop client3 — destroys the socket, triggering server-side cleanup
         await _client3.ForceStopAsync();
         _client3 = null;
 

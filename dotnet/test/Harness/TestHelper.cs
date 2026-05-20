@@ -21,7 +21,7 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
-        // Both `finalAssistantMessage` and `sawIdle` are set from two threads â€” the
+        // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
         // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
         // We complete only once we've observed both, regardless of which path saw which.
         var stateLock = new object();

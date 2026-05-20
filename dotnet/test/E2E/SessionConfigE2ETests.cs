@@ -34,7 +34,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             },
         });
 
-        // Turn 1: vision off â€” no image_url expected
+        // Turn 1: vision off — no image_url expected
         await session.SendAndWaitAsync(new MessageOptions { Prompt = ViewImagePrompt });
         var trafficAfterT1 = await Ctx.GetExchangesAsync();
         var t1Messages = trafficAfterT1.SelectMany(e => e.Request.Messages).ToList();
@@ -49,7 +49,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 Supports = new ModelCapabilitiesOverrideSupports { Vision = true },
             });
 
-        // Turn 2: vision on â€” image_url expected
+        // Turn 2: vision on — image_url expected
         await session.SendAndWaitAsync(new MessageOptions { Prompt = ViewImagePrompt });
         var trafficAfterT2 = await Ctx.GetExchangesAsync();
         var newExchanges = trafficAfterT2.Skip(trafficAfterT1.Count).ToList();
@@ -74,7 +74,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             },
         });
 
-        // Turn 1: vision on â€” image_url expected
+        // Turn 1: vision on — image_url expected
         await session.SendAndWaitAsync(new MessageOptions { Prompt = ViewImagePrompt });
         var trafficAfterT1 = await Ctx.GetExchangesAsync();
         var t1Messages = trafficAfterT1.SelectMany(e => e.Request.Messages).ToList();
@@ -89,7 +89,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
                 Supports = new ModelCapabilitiesOverrideSupports { Vision = false },
             });
 
-        // Turn 2: vision off â€” no image_url expected in new exchanges
+        // Turn 2: vision off — no image_url expected in new exchanges
         await session.SendAndWaitAsync(new MessageOptions { Prompt = ViewImagePrompt });
         var trafficAfterT2 = await Ctx.GetExchangesAsync();
         var newExchanges = trafficAfterT2.Skip(trafficAfterT1.Count).ToList();

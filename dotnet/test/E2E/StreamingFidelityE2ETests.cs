@@ -142,7 +142,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
     public async Task Should_Emit_Streaming_Deltas_With_Reasoning_Effort_Configured()
     {
         // Verifies that setting ReasoningEffort alongside Streaming=true does not break
-        // the streaming pipeline â€” deltas still arrive and complete successfully.
+        // the streaming pipeline — deltas still arrive and complete successfully.
         var session = await CreateSessionAsync(new SessionConfig
         {
             Streaming = true,

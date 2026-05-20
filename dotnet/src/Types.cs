@@ -466,10 +466,10 @@ public sealed class ToolResultObject
     /// <summary>
     /// Result type indicator.
     /// <list type="bullet">
-    /// <item><description><c>"success"</c> â€” the tool executed successfully.</description></item>
-    /// <item><description><c>"failure"</c> â€” the tool encountered an error.</description></item>
-    /// <item><description><c>"rejected"</c> â€” the tool invocation was rejected.</description></item>
-    /// <item><description><c>"denied"</c> â€” the tool invocation was denied by a permission check.</description></item>
+    /// <item><description><c>"success"</c> — the tool executed successfully.</description></item>
+    /// <item><description><c>"failure"</c> — the tool encountered an error.</description></item>
+    /// <item><description><c>"rejected"</c> — the tool invocation was rejected.</description></item>
+    /// <item><description><c>"denied"</c> — the tool invocation was denied by a permission check.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("resultType")]
@@ -692,10 +692,10 @@ public sealed class PermissionRequestResult
     /// Permission decision kind. Use the static members of <see cref="PermissionRequestResultKind"/>
     /// to construct values. Valid kinds are:
     /// <list type="bullet">
-    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) â€” allow this single request.</description></item>
-    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) â€” deny the request.</description></item>
-    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) â€” deny because no user is available to confirm.</description></item>
-    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) â€” leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
+    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) — allow this single request.</description></item>
+    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) — deny the request.</description></item>
+    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) — deny because no user is available to confirm.</description></item>
+    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]
@@ -947,7 +947,7 @@ public sealed class CommandContext
 public delegate Task CommandHandler(CommandContext context);
 
 // ============================================================================
-// Elicitation Types (UI â€” client â†’ server)
+// Elicitation Types (UI — client → server)
 // ============================================================================
 
 /// <summary>
@@ -1078,7 +1078,7 @@ public interface ISessionUiApi
 }
 
 // ============================================================================
-// Elicitation Types (server â†’ client callback)
+// Elicitation Types (server → client callback)
 // ============================================================================
 
 /// <summary>
@@ -1196,9 +1196,9 @@ public sealed class PreToolUseHookOutput
     /// <summary>
     /// Permission decision for the pending tool call.
     /// <list type="bullet">
-    /// <item><description><c>"allow"</c> â€” permit the tool to execute.</description></item>
-    /// <item><description><c>"deny"</c> â€” block the tool from executing.</description></item>
-    /// <item><description><c>"ask"</c> â€” fall through to the normal permission prompt.</description></item>
+    /// <item><description><c>"allow"</c> — permit the tool to execute.</description></item>
+    /// <item><description><c>"deny"</c> — block the tool from executing.</description></item>
+    /// <item><description><c>"ask"</c> — fall through to the normal permission prompt.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("permissionDecision")]
@@ -1390,9 +1390,9 @@ public sealed class SessionStartHookInput
     /// <summary>
     /// Source of the session start.
     /// <list type="bullet">
-    /// <item><description><c>"startup"</c> â€” initial application startup.</description></item>
-    /// <item><description><c>"resume"</c> â€” resuming a previous session.</description></item>
-    /// <item><description><c>"new"</c> â€” starting a brand new session.</description></item>
+    /// <item><description><c>"startup"</c> — initial application startup.</description></item>
+    /// <item><description><c>"resume"</c> — resuming a previous session.</description></item>
+    /// <item><description><c>"new"</c> — starting a brand new session.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("source")]
@@ -1454,11 +1454,11 @@ public sealed class SessionEndHookInput
     /// <summary>
     /// Reason for session end.
     /// <list type="bullet">
-    /// <item><description><c>"complete"</c> â€” the session finished normally.</description></item>
-    /// <item><description><c>"error"</c> â€” the session ended due to an error.</description></item>
-    /// <item><description><c>"abort"</c> â€” the session was aborted.</description></item>
-    /// <item><description><c>"timeout"</c> â€” the session timed out.</description></item>
-    /// <item><description><c>"user_exit"</c> â€” the user exited the session.</description></item>
+    /// <item><description><c>"complete"</c> — the session finished normally.</description></item>
+    /// <item><description><c>"error"</c> — the session ended due to an error.</description></item>
+    /// <item><description><c>"abort"</c> — the session was aborted.</description></item>
+    /// <item><description><c>"timeout"</c> — the session timed out.</description></item>
+    /// <item><description><c>"user_exit"</c> — the user exited the session.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("reason")]
@@ -1538,10 +1538,10 @@ public sealed class ErrorOccurredHookInput
     /// <summary>
     /// Context of the error.
     /// <list type="bullet">
-    /// <item><description><c>"model_call"</c> â€” error during a model API call.</description></item>
-    /// <item><description><c>"tool_execution"</c> â€” error during tool execution.</description></item>
-    /// <item><description><c>"system"</c> â€” internal system error.</description></item>
-    /// <item><description><c>"user_input"</c> â€” error processing user input.</description></item>
+    /// <item><description><c>"model_call"</c> — error during a model API call.</description></item>
+    /// <item><description><c>"tool_execution"</c> — error during tool execution.</description></item>
+    /// <item><description><c>"system"</c> — internal system error.</description></item>
+    /// <item><description><c>"user_input"</c> — error processing user input.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("errorContext")]
@@ -1568,9 +1568,9 @@ public sealed class ErrorOccurredHookOutput
     /// <summary>
     /// Error handling strategy.
     /// <list type="bullet">
-    /// <item><description><c>"retry"</c> â€” retry the failed operation.</description></item>
-    /// <item><description><c>"skip"</c> â€” skip the failed operation and continue.</description></item>
-    /// <item><description><c>"abort"</c> â€” abort the session.</description></item>
+    /// <item><description><c>"retry"</c> — retry the failed operation.</description></item>
+    /// <item><description><c>"skip"</c> — skip the failed operation and continue.</description></item>
+    /// <item><description><c>"abort"</c> — abort the session.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("errorHandling")]
@@ -1690,7 +1690,7 @@ public sealed class SectionOverride
     /// <summary>
     /// Transform callback. When set, takes precedence over Action.
     /// Receives current section content, returns transformed content.
-    /// Not serialized â€” the SDK handles this locally.
+    /// Not serialized — the SDK handles this locally.
     /// </summary>
     [JsonIgnore]
     public Func<string, Task<string>>? Transform { get; set; }
@@ -2390,9 +2390,9 @@ public class SessionConfig
     /// <summary>
     /// Per-session remote behavior control:
     /// <list type="bullet">
-    /// <item><description><c>"off"</c> â€” local only, no remote export (default)</description></item>
-    /// <item><description><c>"export"</c> â€” export session events to GitHub without enabling remote steering</description></item>
-    /// <item><description><c>"on"</c> â€” export to GitHub AND enable remote steering</description></item>
+    /// <item><description><c>"off"</c> — local only, no remote export (default)</description></item>
+    /// <item><description><c>"export"</c> — export session events to GitHub without enabling remote steering</description></item>
+    /// <item><description><c>"on"</c> — export to GitHub AND enable remote steering</description></item>
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
@@ -2903,12 +2903,12 @@ public sealed class GetAuthStatusResponse
     /// <summary>
     /// Authentication type.
     /// <list type="bullet">
-    /// <item><description><c>"user"</c> â€” authenticated via user login.</description></item>
-    /// <item><description><c>"env"</c> â€” authenticated via environment variable.</description></item>
-    /// <item><description><c>"gh-cli"</c> â€” authenticated via the GitHub CLI.</description></item>
-    /// <item><description><c>"hmac"</c> â€” authenticated via HMAC signature.</description></item>
-    /// <item><description><c>"api-key"</c> â€” authenticated via API key.</description></item>
-    /// <item><description><c>"token"</c> â€” authenticated via explicit token.</description></item>
+    /// <item><description><c>"user"</c> — authenticated via user login.</description></item>
+    /// <item><description><c>"env"</c> — authenticated via environment variable.</description></item>
+    /// <item><description><c>"gh-cli"</c> — authenticated via the GitHub CLI.</description></item>
+    /// <item><description><c>"hmac"</c> — authenticated via HMAC signature.</description></item>
+    /// <item><description><c>"api-key"</c> — authenticated via API key.</description></item>
+    /// <item><description><c>"token"</c> — authenticated via explicit token.</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("authType")]
