@@ -92,7 +92,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// Gets the typed RPC client for server-scoped methods (no session required).
     /// </summary>
     /// <remarks>
-    /// The client must be started before accessing this property. Use <see cref="StartAsync"/> or set <see cref="CopilotClientOptions.AutoStart"/> to true.
+    /// The client must be started before accessing this property. Call <see cref="StartAsync"/> before use.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown if the client has been disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the client is not started.</exception>
@@ -214,12 +214,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// If connecting to an external server (via CliUrl), only establishes the connection.
     /// </para>
     /// <para>
-    /// This method is called automatically when creating a session if <see cref="CopilotClientOptions.AutoStart"/> is true (default).
     /// </para>
     /// </remarks>
     /// <example>
     /// <code>
-    /// var client = new CopilotClient(new CopilotClientOptions { AutoStart = false });
+    /// var client = new CopilotClient();
     /// await client.StartAsync();
     /// // Now ready to create sessions
     /// </code>
@@ -522,7 +521,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
     /// <remarks>
     /// Sessions maintain conversation state, handle events, and manage tool execution.
-    /// If the client is not connected and <see cref="CopilotClientOptions.AutoStart"/> is enabled (default),
+    /// If the client is not connected,
     /// this will automatically start the connection.
     /// </remarks>
     /// <example>
@@ -1309,11 +1308,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
     {
-        if (_connectionTask is null && !_options.AutoStart)
-        {
-            throw new InvalidOperationException($"Client not connected. Call {nameof(StartAsync)}() first.");
-        }
-
         // If already started or starting, this will return the existing task
         return (Task<Connection>)StartAsync(cancellationToken);
     }

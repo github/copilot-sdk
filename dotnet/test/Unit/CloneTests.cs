@@ -20,9 +20,7 @@ public class CloneTests
             UseStdio = false,
             CliUrl = "http://localhost:8080",
             LogLevel = "debug",
-            AutoStart = false,
-
-            Environment = new Dictionary<string, string> { ["KEY"] = "value" },
+                        Environment = new Dictionary<string, string> { ["KEY"] = "value" },
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,
             CopilotHome = "/custom/copilot/home",
@@ -39,8 +37,6 @@ public class CloneTests
         Assert.Equal(original.UseStdio, clone.UseStdio);
         Assert.Equal(original.CliUrl, clone.CliUrl);
         Assert.Equal(original.LogLevel, clone.LogLevel);
-        Assert.Equal(original.AutoStart, clone.AutoStart);
-
         Assert.Equal(original.Environment, clone.Environment);
         Assert.Equal(original.GitHubToken, clone.GitHubToken);
         Assert.Equal(original.UseLoggedInUser, clone.UseLoggedInUser);

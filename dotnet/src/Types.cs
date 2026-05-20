@@ -87,10 +87,6 @@ public class CopilotClientOptions
     {
         if (other is null) return;
 
-        AutoStart = other.AutoStart;
-#pragma warning disable CS0618 // Obsolete member
-        AutoRestart = other.AutoRestart;
-#pragma warning restore CS0618
         CliArgs = (string[]?)other.CliArgs?.Clone();
         CliPath = other.CliPath;
         CliUrl = other.CliUrl;
@@ -151,16 +147,6 @@ public class CopilotClientOptions
     /// </summary>
     public string LogLevel { get; set; } = "info";
     /// <summary>
-    /// Whether to automatically start the CLI server if it is not already running.
-    /// </summary>
-    public bool AutoStart { get; set; } = true;
-    /// <summary>
-    /// Obsolete. This option has no effect.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("AutoRestart has no effect and will be removed in a future release.")]
-    public bool AutoRestart { get; set; }
-    /// <summary>
     /// Environment variables to pass to the CLI process.
     /// </summary>
     public IReadOnlyDictionary<string, string>? Environment { get; set; }
@@ -175,17 +161,6 @@ public class CopilotClientOptions
     /// This takes priority over other authentication methods.
     /// </summary>
     public string? GitHubToken { get; set; }
-
-    /// <summary>
-    /// Obsolete. Use <see cref="GitHubToken"/> instead.
-    /// </summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Use GitHubToken instead.", error: false)]
-    public string? GithubToken
-    {
-        get => GitHubToken;
-        set => GitHubToken = value;
-    }
 
     /// <summary>
     /// Whether to use the logged-in user for authentication.
@@ -350,16 +325,83 @@ public sealed class ToolBinaryResult
     public string MimeType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Type identifier for the binary result.
+    /// Type identifier for the binary result. Use the well-known values on
+    /// <see cref="ToolBinaryResultType"/> (<c>"image"</c>, <c>"resource"</c>).
     /// </summary>
     [JsonPropertyName("type")]
-    public string Type { get; set; } = string.Empty;
+    public ToolBinaryResultType Type { get; set; }
 
     /// <summary>
     /// Optional human-readable description of the binary result.
     /// </summary>
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+}
+
+/// <summary>Describes the kind of a <see cref="ToolBinaryResult"/>.</summary>
+[JsonConverter(typeof(ToolBinaryResultType.Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ToolBinaryResultType : IEquatable<ToolBinaryResultType>
+{
+    /// <summary>Gets the kind indicating an inline image result.</summary>
+    public static ToolBinaryResultType Image { get; } = new("image");
+
+    /// <summary>Gets the kind indicating an MCP resource result.</summary>
+    public static ToolBinaryResultType Resource { get; } = new("resource");
+
+    /// <summary>Gets the underlying string value of this <see cref="ToolBinaryResultType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ToolBinaryResultType"/> struct.</summary>
+    /// <param name="value">The string value for this type.</param>
+    [JsonConstructor]
+    public ToolBinaryResultType(string value) => _value = value;
+
+    /// <inheritdoc/>
+    public static bool operator ==(ToolBinaryResultType left, ToolBinaryResultType right) => left.Equals(right);
+
+    /// <inheritdoc/>
+    public static bool operator !=(ToolBinaryResultType left, ToolBinaryResultType right) => !left.Equals(right);
+
+    /// <inheritdoc/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is ToolBinaryResultType other && Equals(other);
+
+    /// <inheritdoc/>
+    public bool Equals(ToolBinaryResultType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ToolBinaryResultType}"/> for serializing <see cref="ToolBinaryResultType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ToolBinaryResultType>
+    {
+        /// <inheritdoc/>
+        public override ToolBinaryResultType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.String)
+            {
+                throw new JsonException("Expected string for ToolBinaryResultType.");
+            }
+
+            var value = reader.GetString();
+            if (value is null)
+            {
+                throw new JsonException("ToolBinaryResultType value cannot be null.");
+            }
+
+            return new ToolBinaryResultType(value);
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, ToolBinaryResultType value, JsonSerializerOptions options) =>
+            writer.WriteStringValue(value.Value);
+    }
 }
 
 /// <summary>
@@ -477,7 +519,7 @@ public sealed class ToolResultObject
                     {
                         Data = dataContent.Base64Data.ToString(),
                         MimeType = dataContent.MediaType ?? "application/octet-stream",
-                        Type = dataContent.HasTopLevelMediaType("image") ? "image" : "resource",
+                        Type = dataContent.HasTopLevelMediaType("image") ? ToolBinaryResultType.Image : ToolBinaryResultType.Resource,
                     });
                     break;
 
@@ -543,21 +585,6 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
 
     /// <summary>Gets the kind indicating no permission decision was made.</summary>
     public static PermissionRequestResultKind NoResult { get; } = new("no-result");
-
-    /// <summary>Deprecated. Use <see cref="Rejected"/> instead.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Use Rejected instead.")]
-    public static PermissionRequestResultKind DeniedInteractivelyByUser => Rejected;
-
-    /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Use UserNotAvailable instead.")]
-    public static PermissionRequestResultKind DeniedCouldNotRequestFromUser => UserNotAvailable;
-
-    /// <summary>Deprecated. Use <see cref="UserNotAvailable"/> instead.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    [Obsolete("Use UserNotAvailable instead.")]
-    public static PermissionRequestResultKind DeniedByRules => UserNotAvailable;
 
     /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
     public string Value => _value ?? string.Empty;
@@ -1805,10 +1832,12 @@ public abstract class McpServerConfig
     private protected McpServerConfig() { }
 
     /// <summary>
-    /// List of tools to include from this server. Empty list means none. Use "*" for all.
+    /// List of tools to include from this server. <c>null</c> (the default)
+    /// means include all tools. An empty list means include none.
     /// </summary>
     [JsonPropertyName("tools")]
-    public IList<string> Tools { get => field ??= []; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IList<string>? Tools { get; set; }
 
     /// <summary>
     /// The server type discriminator.
@@ -2232,7 +2261,8 @@ public class SessionConfig
     /// When true, assistant.message_delta and assistant.reasoning_delta events
     /// with deltaContent are sent as the response is generated.
     /// </summary>
-    public bool Streaming { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Streaming { get; set; }
 
     /// <summary>
     /// Include sub-agent streaming events in the event stream. When true, streaming
@@ -2560,7 +2590,8 @@ public class ResumeSessionConfig
     /// When true, assistant.message_delta and assistant.reasoning_delta events
     /// with deltaContent are sent as the response is generated.
     /// </summary>
-    public bool Streaming { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Streaming { get; set; }
 
     /// <summary>
     /// Include sub-agent streaming events in the event stream. When true, streaming
@@ -3182,6 +3213,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(SetForegroundSessionResponse))]
 [JsonSerializable(typeof(SystemMessageConfig))]
 [JsonSerializable(typeof(ToolBinaryResult))]
+[JsonSerializable(typeof(ToolBinaryResultType))]
 [JsonSerializable(typeof(ToolInvocation))]
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]

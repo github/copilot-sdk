@@ -240,7 +240,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             BinaryResultsForLlm = [new() {
                 // 2x2 yellow square
                 Data = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAADklEQVR4nGP4/5/h/38GABkAA/0k+7UAAAAASUVORK5CYII=",
-                Type = "base64",
+                Type = ToolBinaryResultType.Image,
                 MimeType = "image/png",
             }],
             SessionLog = "Returned an image",

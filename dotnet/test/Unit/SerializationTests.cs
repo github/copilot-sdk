@@ -265,7 +265,7 @@ public class SerializationTests
         Assert.Equal("client-id", httpConfig.OauthClientId);
         Assert.False(httpConfig.OauthPublicClient);
         Assert.Equal(McpHttpServerConfigOauthGrantType.ClientCredentials, httpConfig.OauthGrantType);
-        Assert.Equal("*", Assert.Single(httpConfig.Tools));
+        Assert.Equal("*", Assert.Single(httpConfig.Tools!));
         Assert.Equal(3000, httpConfig.Timeout);
     }
 

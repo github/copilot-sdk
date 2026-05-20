@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -15,32 +15,6 @@ namespace GitHub.Copilot.SDK.Test.E2E;
 public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "client_options", output)
 {
-    [Fact]
-    public async Task AutoStart_False_Requires_Explicit_Start()
-    {
-        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
-        {
-            AutoStart = false,
-        });
-
-        Assert.Equal(ConnectionState.Disconnected, client.State);
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll }));
-        Assert.Contains("StartAsync", ex.Message, StringComparison.Ordinal);
-
-        await client.StartAsync();
-        Assert.Equal(ConnectionState.Connected, client.State);
-
-        var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
-        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
-
-        await session.DisposeAsync();
-    }
-
     [Fact]
     public async Task Should_Listen_On_Configured_Tcp_Port()
     {
@@ -101,8 +75,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
+                        CliPath = cliPath,
             CliArgs = ["--capture-file", capturePath],
             CopilotHome = copilotHomeFromOption,
             Environment = clientEnv,
@@ -165,8 +138,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
+                        CliPath = cliPath,
             CliArgs = ["--capture-file", capturePath],
             UseLoggedInUser = false,
         });
@@ -194,8 +166,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
+                        CliPath = cliPath,
             CliArgs = ["--capture-file", capturePath],
             UseLoggedInUser = false,
         });
@@ -222,8 +193,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
+                        CliPath = cliPath,
             CliArgs = ["--capture-file", capturePath],
             UseLoggedInUser = false,
         });
@@ -269,8 +239,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             useStdio: false,
             options: new CopilotClientOptions
             {
-                AutoStart = false,
-                CliPath = cliPath,
+                            CliPath = cliPath,
                 UseLoggedInUser = false,
             });
 
@@ -293,8 +262,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             useStdio: false,
             options: new CopilotClientOptions
             {
-                AutoStart = false,
-                CliPath = cliPath,
+                            CliPath = cliPath,
                 CliArgs = ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)],
                 UseLoggedInUser = false,
             });
@@ -315,8 +283,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
+                        CliPath = cliPath,
             CliArgs = ["--capture-file", capturePath],
             UseLoggedInUser = false,
         });
