@@ -175,7 +175,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent ext && ext.Data.ToolName == "suspend_reject_external_tool")
             {

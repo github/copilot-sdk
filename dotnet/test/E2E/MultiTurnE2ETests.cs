@@ -23,7 +23,7 @@ public class MultiTurnE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
         var eventsLock = new object();
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             lock (eventsLock)
             {
@@ -52,7 +52,7 @@ public class MultiTurnE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
         var eventsLock = new object();
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             lock (eventsLock)
             {

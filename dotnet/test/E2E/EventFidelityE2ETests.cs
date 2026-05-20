@@ -25,7 +25,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -55,7 +55,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -91,7 +91,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -114,7 +114,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -163,7 +163,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -194,7 +194,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {

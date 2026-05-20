@@ -112,7 +112,7 @@ public class MultiClientCommandsElicitationE2ETests
         var commandsChangedTcs = new TaskCompletionSource<CommandsChangedEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub = session1.On(evt =>
+        using var sub = session1.On<SessionEvent>(evt =>
         {
             if (evt is CommandsChangedEvent changed)
             {
@@ -160,7 +160,7 @@ public class MultiClientCommandsElicitationE2ETests
         var capChangedTcs = new TaskCompletionSource<CapabilitiesChangedEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub = session1.On(evt =>
+        using var sub = session1.On<SessionEvent>(evt =>
         {
             if (evt is CapabilitiesChangedEvent capEvt)
             {
@@ -206,7 +206,7 @@ public class MultiClientCommandsElicitationE2ETests
         var capEnabledTcs = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var subEnabled = session1.On(evt =>
+        using var subEnabled = session1.On<SessionEvent>(evt =>
         {
             if (evt is CapabilitiesChangedEvent { Data.Ui.Elicitation: true })
             {
@@ -242,7 +242,7 @@ public class MultiClientCommandsElicitationE2ETests
         var capDisabledTcs = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var subDisabled = session1.On(evt =>
+        using var subDisabled = session1.On<SessionEvent>(evt =>
         {
             if (evt is CapabilitiesChangedEvent { Data.Ui.Elicitation: false })
             {

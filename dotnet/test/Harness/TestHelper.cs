@@ -40,7 +40,7 @@ public static class TestHelper
             if (snapshot != null && idle) tcs.TrySetResult(snapshot);
         }
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             switch (evt)
             {
@@ -127,7 +127,7 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

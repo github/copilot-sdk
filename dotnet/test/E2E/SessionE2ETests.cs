@@ -324,7 +324,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var concurrentCount = 0;
         var maxConcurrent = 0;
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             // Track concurrent handler invocations to verify serial dispatch.
             var current = Interlocked.Increment(ref concurrentCount);
@@ -393,7 +393,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
         var events = new ConcurrentQueue<string>();
 
-        session.On(evt => events.Enqueue(evt.Type));
+        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
 
         // Use a slow command so we can verify SendAsync() returns before completion
         await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
@@ -415,7 +415,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync();
         var events = new ConcurrentQueue<string>();
 
-        session.On(evt => events.Enqueue(evt.Type));
+        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
 
         var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
 
@@ -581,7 +581,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
         var eventsLock = new object();
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             lock (eventsLock)
             {
@@ -640,7 +640,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var eventCount = 0;
         var gotIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             eventCount++;
 
@@ -666,7 +666,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync();
         var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is UserMessageEvent)
             {

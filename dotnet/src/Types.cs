@@ -2372,7 +2372,7 @@ public class SessionConfig
     /// Using this property rather than <see cref="CopilotSession.On"/> guarantees that early events emitted 
     /// by the CLI during session creation (e.g. session.start) are delivered to the handler.
     /// </remarks>
-    public SessionEventHandler? OnEvent { get; set; }
+    public Action<SessionEvent>? OnEvent { get; set; }
 
     /// <summary>
     /// Supplies a handler for session filesystem operations.
@@ -2694,7 +2694,7 @@ public class ResumeSessionConfig
     /// Optional event handler registered before the session.resume RPC is issued,
     /// ensuring early events are delivered. See <see cref="SessionConfig.OnEvent"/>.
     /// </summary>
-    public SessionEventHandler? OnEvent { get; set; }
+    public Action<SessionEvent>? OnEvent { get; set; }
 
     /// <summary>
     /// Supplies a handler for session filesystem operations.
@@ -2788,11 +2788,6 @@ public class MessageOptions
         return new(this);
     }
 }
-
-/// <summary>
-/// Delegate for handling session events emitted during a Copilot session.
-/// </summary>
-public delegate void SessionEventHandler(SessionEvent sessionEvent);
 
 /// <summary>
 /// Working directory context for a session.
@@ -3092,24 +3087,7 @@ public sealed class GetModelsResponse
 // ============================================================================
 
 /// <summary>
-/// Types of session lifecycle events
-/// </summary>
-public static class SessionLifecycleEventTypes
-{
-    /// <summary>A new session was created.</summary>
-    public const string Created = "session.created";
-    /// <summary>A session was deleted.</summary>
-    public const string Deleted = "session.deleted";
-    /// <summary>A session was updated.</summary>
-    public const string Updated = "session.updated";
-    /// <summary>A session was brought to the foreground.</summary>
-    public const string Foreground = "session.foreground";
-    /// <summary>A session was moved to the background.</summary>
-    public const string Background = "session.background";
-}
-
-/// <summary>
-/// Metadata for session lifecycle events
+/// Metadata for session lifecycle events.
 /// </summary>
 public sealed class SessionLifecycleEventMetadata
 {
@@ -3133,12 +3111,20 @@ public sealed class SessionLifecycleEventMetadata
 }
 
 /// <summary>
-/// Session lifecycle event notification
+/// Session lifecycle event notification. Use derived types
+/// (<see cref="SessionCreatedEvent"/>, <see cref="SessionDeletedEvent"/>,
+/// <see cref="SessionUpdatedEvent"/>, <see cref="SessionForegroundEvent"/>,
+/// <see cref="SessionBackgroundEvent"/>) for known kinds. The base type is
+/// instantiated when the runtime emits an event kind not known to this SDK
+/// version, so consumers can still inspect <see cref="Type"/> for forward
+/// compatibility.
 /// </summary>
 public class SessionLifecycleEvent
 {
     /// <summary>
-    /// Type of lifecycle event (see <see cref="SessionLifecycleEventTypes"/>).
+    /// Wire-format type discriminator (e.g., <c>"session.created"</c>). Useful
+    /// when the runtime emits an event kind not yet known to this SDK; for
+    /// known kinds, prefer pattern-matching on the derived type instead.
     /// </summary>
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
@@ -3155,6 +3141,21 @@ public class SessionLifecycleEvent
     [JsonPropertyName("metadata")]
     public SessionLifecycleEventMetadata? Metadata { get; set; }
 }
+
+/// <summary>Raised when a new session is created.</summary>
+public sealed class SessionCreatedEvent : SessionLifecycleEvent { }
+
+/// <summary>Raised when a session is deleted.</summary>
+public sealed class SessionDeletedEvent : SessionLifecycleEvent { }
+
+/// <summary>Raised when a session's metadata is updated.</summary>
+public sealed class SessionUpdatedEvent : SessionLifecycleEvent { }
+
+/// <summary>Raised when a session is brought to the foreground (TUI+server mode).</summary>
+public sealed class SessionForegroundEvent : SessionLifecycleEvent { }
+
+/// <summary>Raised when a session moves to the background (TUI+server mode).</summary>
+public sealed class SessionBackgroundEvent : SessionLifecycleEvent { }
 
 /// <summary>
 /// Response from session.getForeground

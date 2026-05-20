@@ -15,9 +15,9 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Receive_Session_Created_Lifecycle_Event()
     {
         var created = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = Client.On(evt =>
+        using var subscription = Client.OnLifecycle<SessionLifecycleEvent>(evt =>
         {
-            if (evt.Type == SessionLifecycleEventTypes.Created)
+            if (evt is SessionCreatedEvent)
             {
                 created.TrySetResult(evt);
             }
@@ -26,7 +26,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await using var session = await CreateSessionAsync();
         var evt = await created.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(SessionLifecycleEventTypes.Created, evt.Type);
+        Assert.IsType<SessionCreatedEvent>(evt);
         Assert.Equal(session.SessionId, evt.SessionId);
     }
 
@@ -34,12 +34,12 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     public async Task Should_Filter_Session_Lifecycle_Events_By_Type()
     {
         var created = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = Client.On(SessionLifecycleEventTypes.Created, evt => created.TrySetResult(evt));
+        using var subscription = Client.OnLifecycle<SessionCreatedEvent>(evt => created.TrySetResult(evt));
 
         await using var session = await CreateSessionAsync();
         var evt = await created.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(SessionLifecycleEventTypes.Created, evt.Type);
+        Assert.IsType<SessionCreatedEvent>(evt);
         Assert.Equal(session.SessionId, evt.SessionId);
     }
 
@@ -48,9 +48,9 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var count = 0;
         var created = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var subscription = Client.On(_ => Interlocked.Increment(ref count));
+        var subscription = Client.OnLifecycle<SessionLifecycleEvent>(_ => Interlocked.Increment(ref count));
         subscription.Dispose();
-        using var activeSubscription = Client.On(SessionLifecycleEventTypes.Created, evt => created.TrySetResult(evt));
+        using var activeSubscription = Client.OnLifecycle<SessionCreatedEvent>(evt => created.TrySetResult(evt));
 
         await using var session = await CreateSessionAsync();
         var evt = await created.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -83,7 +83,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await using var session = await CreateSessionAsync();
 
         var updated = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = Client.On(SessionLifecycleEventTypes.Updated, evt =>
+        using var subscription = Client.OnLifecycle<SessionUpdatedEvent>(evt =>
         {
             if (string.Equals(evt.SessionId, session.SessionId, StringComparison.Ordinal))
             {
@@ -96,7 +96,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await session.Rpc.Mode.SetAsync(SessionMode.Plan);
 
         var evt = await updated.Task.WaitAsync(TimeSpan.FromSeconds(15));
-        Assert.Equal(SessionLifecycleEventTypes.Updated, evt.Type);
+        Assert.IsType<SessionUpdatedEvent>(evt);
         Assert.Equal(session.SessionId, evt.SessionId);
     }
 
@@ -113,7 +113,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say SESSION_DELETED_OK exactly." });
 
         var deleted = new TaskCompletionSource<SessionLifecycleEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var subscription = Client.On(SessionLifecycleEventTypes.Deleted, evt =>
+        using var subscription = Client.OnLifecycle<SessionDeletedEvent>(evt =>
         {
             if (string.Equals(evt.SessionId, sessionId, StringComparison.Ordinal))
             {
@@ -127,7 +127,7 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await Client.DeleteSessionAsync(sessionId);
 
         var evt = await deleted.Task.WaitAsync(TimeSpan.FromSeconds(15));
-        Assert.Equal(SessionLifecycleEventTypes.Deleted, evt.Type);
+        Assert.IsType<SessionDeletedEvent>(evt);
         Assert.Equal(sessionId, evt.SessionId);
 
         await session.DisposeAsync();

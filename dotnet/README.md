@@ -43,7 +43,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 // Wait for the response using the session.idle event
 var done = new TaskCompletionSource();
 
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     if (evt is AssistantMessageEvent msg)
     {
@@ -158,7 +158,7 @@ Request the TUI to switch to displaying the specified session. Only available in
 Subscribe to all session lifecycle events. Returns an `IDisposable` that unsubscribes when disposed.
 
 ```csharp
-using var subscription = client.On(evt =>
+using var subscription = client.OnLifecycle<SessionLifecycleEvent>(evt =>
 {
     Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
 });
@@ -169,7 +169,7 @@ using var subscription = client.On(evt =>
 Subscribe to a specific lifecycle event type. Use `SessionLifecycleEventTypes` constants.
 
 ```csharp
-using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
+using var subscription = client.OnLifecycle<SessionForegroundEvent>(evt =>
 {
     Console.WriteLine($"Session {evt.SessionId} is now in foreground");
 });
@@ -208,12 +208,12 @@ Send a message to the session.
 
 Returns the message ID.
 
-##### `On(SessionEventHandler handler): IDisposable`
+##### `On(Action<SessionEvent> handler): IDisposable`
 
 Subscribe to session events. Returns a disposable to unsubscribe.
 
 ```csharp
-var subscription = session.On(evt =>
+var subscription = session.On<SessionEvent>(evt =>
 {
     Console.WriteLine($"Event: {evt.Type}");
 });
@@ -262,7 +262,7 @@ Sessions emit various events during processing. Each event type is a class that 
 Use pattern matching to handle specific event types:
 
 ```csharp
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     switch (evt)
     {
@@ -330,7 +330,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 // Use TaskCompletionSource to wait for completion
 var done = new TaskCompletionSource();
 
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     switch (evt)
     {

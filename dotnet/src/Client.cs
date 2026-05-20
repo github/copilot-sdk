@@ -41,7 +41,7 @@ namespace GitHub.Copilot.SDK;
 /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
 ///
 /// // Handle events
-/// using var subscription = session.On(evt =>
+/// using var subscription = session.On&lt;SessionEvent&gt;(evt =>
 /// {
 ///     if (evt is AssistantMessageEvent assistantMessage)
 ///         Console.WriteLine(assistantMessage.Data?.Content);
@@ -82,10 +82,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
     private readonly Func<CancellationToken, Task<IList<ModelInfo>>>? _onListModels;
-    private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
-    private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
+    private readonly List<LifecycleSubscription> _lifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
     private ServerRpc? _serverRpc;
+
+    private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
 
     /// <summary>
     /// Gets the typed RPC client for server-scoped methods (no session required).
@@ -584,7 +585,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         if (config.OnEvent != null)
         {
-            session.On(config.OnEvent);
+            session.On<SessionEvent>(config.OnEvent);
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         RegisterSession(session);
@@ -742,7 +743,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         if (config.OnEvent != null)
         {
-            session.On(config.OnEvent);
+            session.On<SessionEvent>(config.OnEvent);
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         RegisterSession(session);
@@ -1102,103 +1103,59 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Subscribes to all session lifecycle events.
+    /// Subscribes to session lifecycle events of a specific kind.
     /// </summary>
-    /// <remarks>
-    /// Lifecycle events are emitted when sessions are created, deleted, updated,
-    /// or change foreground/background state (in TUI+server mode).
-    /// </remarks>
-    /// <param name="handler">A callback function that receives lifecycle events.</param>
-    /// <returns>An IDisposable that, when disposed, unsubscribes the handler.</returns>
+    /// <typeparam name="T">
+    /// The lifecycle event type to listen for. Pass a derived type such as
+    /// <see cref="SessionCreatedEvent"/> to filter by kind, or
+    /// <see cref="SessionLifecycleEvent"/> to receive every lifecycle event.
+    /// </typeparam>
+    /// <param name="handler">A callback invoked when a matching lifecycle event arrives.</param>
+    /// <returns>An <see cref="IDisposable"/> that, when disposed, unsubscribes the handler.</returns>
     /// <example>
     /// <code>
-    /// using var subscription = client.On(evt =>
-    /// {
-    ///     Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
-    /// });
-    /// </code>
-    /// </example>
-    public IDisposable On(Action<SessionLifecycleEvent> handler)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-
-        lock (_lifecycleHandlersLock)
-        {
-            _lifecycleHandlers.Add(handler);
-        }
-
-        return new ActionDisposable(() =>
-        {
-            lock (_lifecycleHandlersLock)
-            {
-                _lifecycleHandlers.Remove(handler);
-            }
-        });
-    }
-
-    /// <summary>
-    /// Subscribes to a specific session lifecycle event type.
-    /// </summary>
-    /// <param name="eventType">The event type to listen for (use SessionLifecycleEventTypes constants).</param>
-    /// <param name="handler">A callback function that receives events of the specified type.</param>
-    /// <returns>An IDisposable that, when disposed, unsubscribes the handler.</returns>
-    /// <example>
-    /// <code>
-    /// using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
+    /// using var sub = client.OnLifecycle&lt;SessionForegroundEvent&gt;(evt =&gt;
     /// {
     ///     Console.WriteLine($"Session {evt.SessionId} is now in foreground");
     /// });
     /// </code>
     /// </example>
-    public IDisposable On(string eventType, Action<SessionLifecycleEvent> handler)
+    public IDisposable OnLifecycle<T>(Action<T> handler) where T : SessionLifecycleEvent
     {
-        ArgumentNullException.ThrowIfNull(eventType);
         ArgumentNullException.ThrowIfNull(handler);
+
+        var subscription = new LifecycleSubscription(typeof(T), evt => handler((T)evt));
 
         lock (_lifecycleHandlersLock)
         {
-            if (!_typedLifecycleHandlers.TryGetValue(eventType, out var handlers))
-            {
-                handlers = [];
-                _typedLifecycleHandlers[eventType] = handlers;
-            }
-
-            handlers.Add(handler);
+            _lifecycleHandlers.Add(subscription);
         }
 
         return new ActionDisposable(() =>
         {
             lock (_lifecycleHandlersLock)
             {
-                if (_typedLifecycleHandlers.TryGetValue(eventType, out var handlers))
-                {
-                    handlers.Remove(handler);
-                }
+                _lifecycleHandlers.Remove(subscription);
             }
         });
     }
 
     private void DispatchLifecycleEvent(SessionLifecycleEvent evt)
     {
-        List<Action<SessionLifecycleEvent>> typedHandlers;
-        List<Action<SessionLifecycleEvent>> wildcardHandlers;
-
+        List<LifecycleSubscription> snapshot;
         lock (_lifecycleHandlersLock)
         {
-            typedHandlers = _typedLifecycleHandlers.TryGetValue(evt.Type, out var handlers)
-                ? [.. handlers]
-                : [];
-            wildcardHandlers = [.. _lifecycleHandlers];
+            snapshot = [.. _lifecycleHandlers];
         }
 
-        foreach (var handler in typedHandlers)
+        var eventType = evt.GetType();
+        foreach (var subscription in snapshot)
         {
-            try { handler(evt); } catch { /* Ignore handler errors */ }
-        }
-
-        foreach (var handler in wildcardHandlers)
-        {
-            try { handler(evt); } catch { /* Ignore handler errors */ }
+            if (!subscription.EventType.IsAssignableFrom(eventType))
+            {
+                continue;
+            }
+            try { subscription.Handler(evt); } catch { /* Ignore handler errors */ }
         }
     }
 
@@ -1766,13 +1723,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         public void OnSessionLifecycle(string type, string sessionId, JsonElement? metadata)
         {
-            var evt = new SessionLifecycleEvent
+            SessionLifecycleEvent evt = type switch
             {
-                Type = type,
-                SessionId = sessionId
+                "session.created" => new SessionCreatedEvent(),
+                "session.deleted" => new SessionDeletedEvent(),
+                "session.updated" => new SessionUpdatedEvent(),
+                "session.foreground" => new SessionForegroundEvent(),
+                "session.background" => new SessionBackgroundEvent(),
+                _ => new SessionLifecycleEvent()
             };
 
-            if (metadata != null)
+            evt.Type = type;
+            evt.SessionId = sessionId;
+            if (metadata is not null)
             {
                 evt.Metadata = JsonSerializer.Deserialize(
                     metadata.Value.GetRawText(),

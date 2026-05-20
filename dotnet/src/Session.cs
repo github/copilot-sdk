@@ -41,7 +41,7 @@ namespace GitHub.Copilot.SDK;
 /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
 ///
 /// // Subscribe to events
-/// using var subscription = session.On(evt =>
+/// using var subscription = session.On&lt;SessionEvent&gt;(evt =&gt;
 /// {
 ///     if (evt is AssistantMessageEvent assistantMessage)
 ///     {
@@ -65,7 +65,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private volatile ElicitationHandler? _elicitationHandler;
     private volatile ExitPlanModeHandler? _exitPlanModeHandler;
     private volatile AutoModeSwitchHandler? _autoModeSwitchHandler;
-    private ImmutableArray<SessionEventHandler> _eventHandlers = ImmutableArray<SessionEventHandler>.Empty;
+    private ImmutableArray<EventSubscription> _eventHandlers = ImmutableArray<EventSubscription>.Empty;
+
+    private sealed record EventSubscription(Type EventType, Action<SessionEvent> Handler);
 
     private SessionHooks? _hooks;
     private readonly SemaphoreSlim _hooksLock = new(1, 1);
@@ -318,7 +320,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
         }
 
-        using var subscription = On(Handler);
+        using var subscription = On<SessionEvent>(Handler);
 
         await SendAsync(options, cancellationToken);
 
@@ -381,7 +383,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     /// <example>
     /// <code>
-    /// using var subscription = session.On(evt =>
+    /// using var subscription = session.On&lt;SessionEvent&gt;(evt =&gt;
     /// {
     ///     switch (evt)
     ///     {
@@ -394,16 +396,21 @@ public sealed partial class CopilotSession : IAsyncDisposable
     ///     }
     /// });
     ///
+    /// // Or filter to a specific event kind at compile time:
+    /// using var sub2 = session.On&lt;AssistantMessageEvent&gt;(evt =&gt;
+    ///     Console.WriteLine(evt.Data?.Content));
+    ///
     /// // The handler is automatically unsubscribed when the subscription is disposed.
     /// </code>
     /// </example>
-    public IDisposable On(SessionEventHandler handler)
+    public IDisposable On<T>(Action<T> handler) where T : SessionEvent
     {
         ArgumentNullException.ThrowIfNull(handler);
         ThrowIfDisposed();
 
-        ImmutableInterlocked.Update(ref _eventHandlers, array => array.Add(handler));
-        return new ActionDisposable(() => ImmutableInterlocked.Update(ref _eventHandlers, array => array.Remove(handler)));
+        var subscription = new EventSubscription(typeof(T), evt => handler((T)evt));
+        ImmutableInterlocked.Update(ref _eventHandlers, array => array.Add(subscription));
+        return new ActionDisposable(() => ImmutableInterlocked.Update(ref _eventHandlers, array => array.Remove(subscription)));
     }
 
     /// <summary>
@@ -438,11 +445,16 @@ public sealed partial class CopilotSession : IAsyncDisposable
         await foreach (var sessionEvent in _eventChannel.Reader.ReadAllAsync())
         {
             var dispatchTimestamp = Stopwatch.GetTimestamp();
-            foreach (var handler in _eventHandlers)
+            var eventType = sessionEvent.GetType();
+            foreach (var subscription in _eventHandlers)
             {
+                if (!subscription.EventType.IsAssignableFrom(eventType))
+                {
+                    continue;
+                }
                 try
                 {
-                    handler(sessionEvent);
+                    subscription.Handler(sessionEvent);
                 }
                 catch (Exception ex)
                 {
@@ -1488,7 +1500,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             GC.SuppressFinalize(this);
         }
 
-        _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<SessionEventHandler>.Empty);
+        _eventHandlers = ImmutableInterlocked.InterlockedExchange(ref _eventHandlers, ImmutableArray<EventSubscription>.Empty);
         _toolHandlers.Clear();
         _commandHandlers.Clear();
 

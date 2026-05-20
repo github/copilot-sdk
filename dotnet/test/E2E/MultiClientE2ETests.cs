@@ -113,12 +113,12 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var client1Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client2Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub1 = session1.On(evt =>
+        using var sub1 = session1.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent) client1Requested.TrySetResult(true);
             if (evt is ExternalToolCompletedEvent) client1Completed.TrySetResult(true);
         });
-        using var sub2 = session2.On(evt =>
+        using var sub2 = session2.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent) client2Requested.TrySetResult(true);
             if (evt is ExternalToolCompletedEvent) client2Completed.TrySetResult(true);
@@ -173,8 +173,8 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var client1PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session1);
         var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
 
-        using var sub1 = session1.On(evt => client1Events.Add(evt));
-        using var sub2 = session2.On(evt => client2Events.Add(evt));
+        using var sub1 = session1.On<SessionEvent>(evt => client1Events.Add(evt));
+        using var sub2 = session2.On<SessionEvent>(evt => client2Events.Add(evt));
 
         await session1.SendAsync(new MessageOptions
         {
@@ -223,8 +223,8 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         // Wait for PermissionCompletedEvent on client2 which may arrive slightly after session1 goes idle
         var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
 
-        using var sub1 = session1.On(evt => client1Events.Add(evt));
-        using var sub2 = session2.On(evt => client2Events.Add(evt));
+        using var sub1 = session1.On<SessionEvent>(evt => client1Events.Add(evt));
+        using var sub2 = session2.On<SessionEvent>(evt => client2Events.Add(evt));
 
         // Write a file so the agent has something to edit
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "protected.txt"), "protected content");

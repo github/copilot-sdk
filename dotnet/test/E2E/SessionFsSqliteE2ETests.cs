@@ -68,7 +68,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
 
         var events = new List<SessionEvent>();
-        using var _ = session.On(evt => events.Add(evt));
+        using var _ = session.On<SessionEvent>(evt => events.Add(evt));
 
         await session.SendAndWaitAsync(new MessageOptions
         {

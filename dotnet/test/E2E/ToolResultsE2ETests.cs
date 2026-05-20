@@ -131,7 +131,7 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt)
             {
@@ -181,7 +181,7 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt)
             {

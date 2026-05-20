@@ -130,8 +130,8 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var session1Events = new List<SessionEvent>();
         var session2Events = new List<SessionEvent>();
 
-        session1.On(evt => { lock (session1Events) { session1Events.Add(evt); } });
-        session2.On(evt => { lock (session2Events) { session2Events.Add(evt); } });
+        session1.On<SessionEvent>(evt => { lock (session1Events) { session1Events.Add(evt); } });
+        session2.On<SessionEvent>(evt => { lock (session2Events) { session2Events.Add(evt); } });
 
         // Send to both sessions
         await session1.SendAndWaitAsync(new MessageOptions

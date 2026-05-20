@@ -15,7 +15,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Count from 1 to 5, separated by commas." });
 
@@ -51,7 +51,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = false });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say 'hello world'." });
 
@@ -83,7 +83,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
             new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll, Streaming = true });
 
         var events = new List<SessionEvent>();
-        session2.On(evt => { lock (events) { events.Add(evt); } });
+        session2.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         var answer = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(answer);
@@ -118,7 +118,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
             new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll, Streaming = false });
 
         var events = new List<SessionEvent>();
-        session2.On(evt => { lock (events) { events.Add(evt); } });
+        session2.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         var answer = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(answer);
@@ -150,7 +150,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 15 * 17?" });
 
@@ -180,7 +180,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Count from 1 to 5, separated by commas." });
 

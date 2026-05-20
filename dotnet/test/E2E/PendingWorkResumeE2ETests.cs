@@ -421,7 +421,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(PendingWorkTimeout);
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent toolEvent && expected.Contains(toolEvent.Data.ToolName))
             {

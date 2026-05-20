@@ -176,7 +176,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30));
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

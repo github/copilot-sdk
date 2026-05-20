@@ -85,7 +85,7 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
 
         var compactionEvents = new List<SessionEvent>();
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is SessionCompactionStartEvent or SessionCompactionCompleteEvent)
             {

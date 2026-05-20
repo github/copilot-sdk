@@ -370,7 +370,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             });
 
             SessionCompactionCompleteEvent? compactionEvent = null;
-            using var _ = session.On(evt =>
+            using var _ = session.On<SessionEvent>(evt =>
             {
                 if (evt is SessionCompactionCompleteEvent complete)
                 {

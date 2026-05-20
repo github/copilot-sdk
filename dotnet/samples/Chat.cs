@@ -8,7 +8,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     OnPermissionRequest = PermissionHandler.ApproveAll
 });
 
-using var _ = session.On(evt =>
+using var _ = session.On<SessionEvent>(evt =>
 {
     Console.ForegroundColor = ConsoleColor.Blue;
     switch (evt)

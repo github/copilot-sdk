@@ -80,7 +80,7 @@ static async Task<T> WaitForEventAsync<T>(CopilotSession session, Func<T, bool>?
 {
     var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
     IDisposable? subscription = null;
-    subscription = session.On(evt =>
+    subscription = session.On<SessionEvent>(evt =>
     {
         if (evt is T typed && (predicate?.Invoke(typed) ?? true))
         {
