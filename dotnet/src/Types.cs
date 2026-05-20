@@ -689,13 +689,13 @@ public readonly struct PermissionRequestResultKind : IEquatable<PermissionReques
 public sealed class PermissionRequestResult
 {
     /// <summary>
-    /// Permission decision kind. Use the static members of <see cref="PermissionRequestResultKind"/>
-    /// to construct values. Valid kinds are:
+    /// Permission decision kind. Construct values with the static members on
+    /// <see cref="PermissionRequestResultKind"/>:
     /// <list type="bullet">
-    /// <item><description><c>"approve-once"</c> (<see cref="PermissionRequestResultKind.Approved"/>) — allow this single request.</description></item>
-    /// <item><description><c>"reject"</c> (<see cref="PermissionRequestResultKind.Rejected"/>) — deny the request.</description></item>
-    /// <item><description><c>"user-not-available"</c> (<see cref="PermissionRequestResultKind.UserNotAvailable"/>) — deny because no user is available to confirm.</description></item>
-    /// <item><description><c>"no-result"</c> (<see cref="PermissionRequestResultKind.NoResult"/>) — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
+    /// <item><description><see cref="PermissionRequestResultKind.Approved"/> — allow this single request.</description></item>
+    /// <item><description><see cref="PermissionRequestResultKind.Rejected"/> — deny the request.</description></item>
+    /// <item><description><see cref="PermissionRequestResultKind.UserNotAvailable"/> — deny because no user is available to confirm.</description></item>
+    /// <item><description><see cref="PermissionRequestResultKind.NoResult"/> — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
     /// </list>
     /// </summary>
     [JsonPropertyName("kind")]
@@ -706,6 +706,14 @@ public sealed class PermissionRequestResult
     /// </summary>
     [JsonPropertyName("rules")]
     public IList<object>? Rules { get; set; }
+
+    /// <summary>
+    /// Optional human-readable feedback to forward to the LLM along with the
+    /// decision. Mirrors the <c>feedback</c> field on the RPC-level
+    /// <see cref="Rpc.PermissionDecision"/> type.
+    /// </summary>
+    [JsonPropertyName("feedback")]
+    public string? Feedback { get; set; }
 }
 
 /// <summary>
@@ -1167,7 +1175,8 @@ public sealed class PreToolUseHookInput
     /// Unix timestamp in milliseconds when the tool use was initiated.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// Current working directory of the session.
@@ -1249,7 +1258,8 @@ public sealed class PostToolUseHookInput
     /// Unix timestamp in milliseconds when the tool execution completed.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// Current working directory of the session.
@@ -1320,7 +1330,8 @@ public sealed class UserPromptSubmittedHookInput
     /// Unix timestamp in milliseconds when the prompt was submitted.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// Current working directory of the session.
@@ -1379,7 +1390,8 @@ public sealed class SessionStartHookInput
     /// Unix timestamp in milliseconds when the session started.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// Current working directory of the session.
@@ -1443,7 +1455,8 @@ public sealed class SessionEndHookInput
     /// Unix timestamp in milliseconds when the session ended.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// Current working directory of the session.
@@ -1521,7 +1534,8 @@ public sealed class ErrorOccurredHookInput
     /// Unix timestamp in milliseconds when the error occurred.
     /// </summary>
     [JsonPropertyName("timestamp")]
-    public long Timestamp { get; set; }
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
 
     /// <summary>
     /// Current working directory of the session.
@@ -2831,11 +2845,11 @@ public sealed class SessionMetadata
     /// <summary>
     /// Time when the session was created.
     /// </summary>
-    public DateTime StartTime { get; set; }
+    public DateTimeOffset StartTime { get; set; }
     /// <summary>
     /// Time when the session was last modified.
     /// </summary>
-    public DateTime ModifiedTime { get; set; }
+    public DateTimeOffset ModifiedTime { get; set; }
     /// <summary>
     /// Human-readable summary of the session.
     /// </summary>
@@ -3092,16 +3106,16 @@ public sealed class GetModelsResponse
 public sealed class SessionLifecycleEventMetadata
 {
     /// <summary>
-    /// ISO 8601 timestamp when the session was created.
+    /// Timestamp when the session was created.
     /// </summary>
     [JsonPropertyName("startTime")]
-    public string StartTime { get; set; } = string.Empty;
+    public DateTimeOffset StartTime { get; set; }
 
     /// <summary>
-    /// ISO 8601 timestamp when the session was last modified.
+    /// Timestamp when the session was last modified.
     /// </summary>
     [JsonPropertyName("modifiedTime")]
-    public string ModifiedTime { get; set; } = string.Empty;
+    public DateTimeOffset ModifiedTime { get; set; }
 
     /// <summary>
     /// Human-readable summary of the session.

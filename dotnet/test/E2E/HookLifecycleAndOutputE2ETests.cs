@@ -43,7 +43,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
         Assert.NotEmpty(sessionStartInputs);
         Assert.Equal("new", sessionStartInputs[0].Source);
-        Assert.True(sessionStartInputs[0].Timestamp > 0);
+        Assert.True(sessionStartInputs[0].Timestamp > DateTimeOffset.UnixEpoch);
         Assert.False(string.IsNullOrEmpty(sessionStartInputs[0].Cwd));
 
         await session.DisposeAsync();
@@ -71,7 +71,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
         Assert.NotEmpty(userPromptInputs);
         Assert.Contains("Say hello", userPromptInputs[0].Prompt);
-        Assert.True(userPromptInputs[0].Timestamp > 0);
+        Assert.True(userPromptInputs[0].Timestamp > DateTimeOffset.UnixEpoch);
         Assert.False(string.IsNullOrEmpty(userPromptInputs[0].Cwd));
 
         await session.DisposeAsync();
@@ -116,7 +116,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
                 OnErrorOccurred = (input, invocation) =>
                 {
                     Assert.Equal(session!.SessionId, invocation.SessionId);
-                    Assert.True(input.Timestamp > 0);
+                    Assert.True(input.Timestamp > DateTimeOffset.UnixEpoch);
                     Assert.False(string.IsNullOrEmpty(input.Cwd));
                     Assert.False(string.IsNullOrEmpty(input.Error));
                     Assert.Contains(input.ErrorContext, ValidErrorContexts);

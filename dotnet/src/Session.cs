@@ -755,7 +755,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 return;
             }
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionDecision { Kind = result.Kind.Value });
+            PermissionDecision decision = result.Kind == PermissionRequestResultKind.Rejected
+                ? new PermissionDecisionReject { Feedback = result.Feedback }
+                : new PermissionDecision { Kind = result.Kind.Value };
+            await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, decision);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 responseRpcTimestamp,
