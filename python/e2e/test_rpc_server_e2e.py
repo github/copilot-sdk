@@ -89,7 +89,7 @@ class TestRpcServer:
         await ctx.client.start()
         result = await ctx.client.rpc.ping(PingRequest(message="typed rpc test"))
         assert result.message == "pong: typed rpc test"
-        assert result.timestamp >= 0
+        assert result.timestamp is not None
 
     async def test_should_call_rpc_models_list_with_typed_result(self, authed_ctx: E2ETestContext):
         token = "rpc-models-token"

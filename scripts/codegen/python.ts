@@ -654,6 +654,10 @@ function stripDurationMillisecondsSuffix(name: string): string {
     return name;
 }
 
+function isSecondsDurationPropertyName(propName: string | undefined): boolean {
+    return propName !== undefined && /seconds$/i.test(propName);
+}
+
 function isPyDurationProperty(propSchema: JSONSchema7, ctx: PyCodegenCtx): boolean {
     if (propSchema.$ref && typeof propSchema.$ref === "string") {
         const resolved = resolveSchema(propSchema, ctx.definitions);
@@ -1371,7 +1375,7 @@ function resolvePyPropertyType(
     }
 
     if (type === "integer") {
-        if (format === "duration") {
+        if (format === "duration" && !isSecondsDurationPropertyName(jsonPropName)) {
             const resolved = pyDurationResolvedType(ctx, true);
             return isRequired ? resolved : pyOptionalResolvedType(resolved);
         }
@@ -1380,7 +1384,7 @@ function resolvePyPropertyType(
     }
 
     if (type === "number") {
-        if (format === "duration") {
+        if (format === "duration" && !isSecondsDurationPropertyName(jsonPropName)) {
             const resolved = pyDurationResolvedType(ctx, false);
             return isRequired ? resolved : pyOptionalResolvedType(resolved);
         }

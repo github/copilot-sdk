@@ -42,6 +42,6 @@ conversations:
         content: Tool 'view' does not exist. Available tools that can be called are report_intent.
       - role: tool
         tool_call_id: toolcall_0
-        content: Intent logged
+        content: modified by post hook
       - role: assistant
         content: Done.

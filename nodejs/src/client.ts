@@ -1031,7 +1031,7 @@ export class CopilotClient {
      */
     async ping(
         message?: string
-    ): Promise<{ message: string; timestamp: number; protocolVersion?: number }> {
+    ): Promise<{ message: string; timestamp: string; protocolVersion?: number }> {
         if (!this.connection) {
             throw new Error("Client not connected");
         }
@@ -1039,7 +1039,7 @@ export class CopilotClient {
         const result = await this.connection.sendRequest("ping", { message });
         return result as {
             message: string;
-            timestamp: number;
+            timestamp: string;
             protocolVersion?: number;
         };
     }

@@ -853,14 +853,14 @@ class AutoModeSwitchRequestedData:
     "Auto mode switch request notification requiring user approval"
     request_id: str
     error_code: str | None = None
-    retry_after_seconds: timedelta | None = None
+    retry_after_seconds: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AutoModeSwitchRequestedData":
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
-        retry_after_seconds = from_union([from_none, from_timedelta], obj.get("retryAfterSeconds"))
+        retry_after_seconds = from_union([from_none, from_int], obj.get("retryAfterSeconds"))
         return AutoModeSwitchRequestedData(
             request_id=request_id,
             error_code=error_code,
@@ -873,7 +873,7 @@ class AutoModeSwitchRequestedData:
         if self.error_code is not None:
             result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.retry_after_seconds is not None:
-            result["retryAfterSeconds"] = from_union([from_none, to_timedelta_int], self.retry_after_seconds)
+            result["retryAfterSeconds"] = from_union([from_none, to_int], self.retry_after_seconds)
         return result
 
 

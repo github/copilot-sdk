@@ -2346,9 +2346,9 @@ pub struct PingResponse {
     /// The message echoed back by the CLI.
     #[serde(default)]
     pub message: String,
-    /// Server-side timestamp (Unix epoch milliseconds).
+    /// ISO 8601 timestamp when the ping was processed.
     #[serde(default)]
-    pub timestamp: i64,
+    pub timestamp: String,
     /// The protocol version negotiated by the CLI, if reported.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protocol_version: Option<u32>,

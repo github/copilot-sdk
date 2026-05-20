@@ -25,7 +25,7 @@ public class ClientE2ETests
 
             var pong = await client.PingAsync("test message");
             Assert.Equal("pong: test message", pong.Message);
-            Assert.True(pong.Timestamp >= 0);
+            Assert.NotEqual(default, pong.Timestamp);
 
             await client.StopAsync();
             Assert.Equal(ConnectionState.Disconnected, client.State);

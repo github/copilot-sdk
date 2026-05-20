@@ -253,7 +253,7 @@ class TestRpcSessionState:
         )
         try:
             metrics = await session.rpc.usage.get_metrics()
-            assert metrics.session_start_time > 0
+            assert metrics.session_start_time is not None
             if metrics.total_nano_aiu is not None:
                 assert metrics.total_nano_aiu >= 0
             if metrics.token_details is not None:
