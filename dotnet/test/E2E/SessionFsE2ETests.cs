@@ -593,16 +593,16 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         protected override Task<SessionFsStatResult> StatAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<SessionFsStatResult>(exception);
 
-        protected override Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken) =>
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken) =>
             Task.FromException(exception);
 
-        protected override Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken) =>
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<IList<string>>(exception);
 
-        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken) =>
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken) =>
             Task.FromException<IList<SessionFsReaddirWithTypesEntry>>(exception);
 
-        protected override Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken) =>
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken) =>
             Task.FromException(exception);
 
         protected override Task RenameAsync(string src, string dest, CancellationToken cancellationToken) =>
@@ -674,13 +674,13 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             });
         }
 
-        protected override Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
+        protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(ResolvePath(path));
             return Task.CompletedTask;
         }
 
-        protected override Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken)
+        protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken)
         {
             IList<string> entries = Directory
                 .EnumerateFileSystemEntries(ResolvePath(path))
@@ -691,7 +691,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             return Task.FromResult(entries);
         }
 
-        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken)
+        protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken)
         {
             IList<SessionFsReaddirWithTypesEntry> entries = Directory
                 .EnumerateFileSystemEntries(ResolvePath(path))
@@ -704,7 +704,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             return Task.FromResult(entries);
         }
 
-        protected override Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
+        protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
         {
             var fullPath = ResolvePath(path);
 

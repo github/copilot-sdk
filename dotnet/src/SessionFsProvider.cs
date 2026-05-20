@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -100,24 +100,24 @@ public abstract class SessionFsProvider : ISessionFsHandler
     /// <param name="recursive">Whether to create parent directories.</param>
     /// <param name="mode">Optional POSIX-style permission mode (e.g., 0x1FF for 0777). Null means use OS default.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken);
+    protected abstract Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken);
 
     /// <summary>Lists entry names in a directory. Throw if the directory does not exist.</summary>
     /// <param name="path">SessionFs-relative path.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken);
+    protected abstract Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken);
 
     /// <summary>Lists entries with type info in a directory. Throw if the directory does not exist.</summary>
     /// <param name="path">SessionFs-relative path.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken);
+    protected abstract Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken);
 
     /// <summary>Removes a file or directory. Throw if the path does not exist (unless <paramref name="force"/> is true).</summary>
     /// <param name="path">SessionFs-relative path.</param>
     /// <param name="recursive">Whether to remove directory contents recursively.</param>
     /// <param name="force">If true, do not throw when the path does not exist.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    protected abstract Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken);
+    protected abstract Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken);
 
     /// <summary>Renames/moves a file or directory.</summary>
     /// <param name="src">Source path.</param>
@@ -207,7 +207,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
         try
         {
-            await MkdirAsync(request.Path, request.Recursive ?? false, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
+            await MakeDirectoryAsync(request.Path, request.Recursive ?? false, (int?)request.Mode, cancellationToken).ConfigureAwait(false);
             return null;
         }
         catch (Exception ex)
@@ -222,7 +222,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
         try
         {
-            var entries = await ReaddirAsync(request.Path, cancellationToken).ConfigureAwait(false);
+            var entries = await ReadDirectoryAsync(request.Path, cancellationToken).ConfigureAwait(false);
             return new SessionFsReaddirResult { Entries = entries };
         }
         catch (Exception ex)
@@ -237,7 +237,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
         try
         {
-            var entries = await ReaddirWithTypesAsync(request.Path, cancellationToken).ConfigureAwait(false);
+            var entries = await ReadDirectoryWithTypesAsync(request.Path, cancellationToken).ConfigureAwait(false);
             return new SessionFsReaddirWithTypesResult { Entries = entries };
         }
         catch (Exception ex)
@@ -252,7 +252,7 @@ public abstract class SessionFsProvider : ISessionFsHandler
 
         try
         {
-            await RmAsync(request.Path, request.Recursive ?? false, request.Force ?? false, cancellationToken).ConfigureAwait(false);
+            await RemoveAsync(request.Path, request.Recursive ?? false, request.Force ?? false, cancellationToken).ConfigureAwait(false);
             return null;
         }
         catch (Exception ex)
