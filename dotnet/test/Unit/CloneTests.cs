@@ -19,7 +19,7 @@ public class CloneTests
             Port = 8080,
             UseStdio = false,
             CliUrl = "http://localhost:8080",
-            LogLevel = "debug",
+            LogLevel = CopilotLogLevel.Debug,
                         Environment = new Dictionary<string, string> { ["KEY"] = "value" },
             GitHubToken = "ghp_test",
             UseLoggedInUser = false,

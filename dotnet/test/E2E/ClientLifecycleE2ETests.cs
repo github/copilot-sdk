@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -66,9 +66,6 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var client = Ctx.CreateClient();
         await client.StartAsync();
-
-        Assert.Equal(ConnectionState.Connected, client.State);
-
         if (useAsyncDispose)
         {
             await client.DisposeAsync();
@@ -77,8 +74,6 @@ public class ClientLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         {
             client.Dispose();
         }
-
-        Assert.Equal(ConnectionState.Disconnected, client.State);
         Assert.Throws<ObjectDisposedException>(() => client.Rpc);
     }
 

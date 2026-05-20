@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -21,14 +21,11 @@ public class ClientE2ETests
         try
         {
             await client.StartAsync();
-            Assert.Equal(ConnectionState.Connected, client.State);
-
             var pong = await client.PingAsync("test message");
             Assert.Equal("pong: test message", pong.Message);
             Assert.NotEqual(default, pong.Timestamp);
 
             await client.StopAsync();
-            Assert.Equal(ConnectionState.Disconnected, client.State);
         }
         finally
         {
@@ -45,8 +42,6 @@ public class ClientE2ETests
 
         await client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll });
         await client.ForceStopAsync();
-
-        Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
     [Theory]

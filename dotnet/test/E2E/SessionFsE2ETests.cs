@@ -111,7 +111,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 options: new CopilotClientOptions
                 {
                     CliUrl = $"localhost:{port}",
-                    LogLevel = "error",
+                    LogLevel = CopilotLogLevel.Error,
                     SessionFs = SessionFsConfig,
                     TcpConnectionToken = "session-fs-shared-token",
                 });

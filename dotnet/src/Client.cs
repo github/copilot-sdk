@@ -73,7 +73,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     private readonly CopilotClientOptions _options;
     private readonly ILogger _logger;
     private Task<Connection>? _connectionTask;
-    private volatile bool _disconnected;
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
@@ -122,7 +121,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// var client = new CopilotClient(new CopilotClientOptions
     /// {
     ///     CliPath = "/usr/local/bin/copilot",
-    ///     LogLevel = "debug"
+    ///     LogLevel = CopilotLogLevel.Debug
     /// });
     /// </code>
     /// </example>
@@ -230,7 +229,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
             _logger.LogDebug("Starting Copilot client");
-            _disconnected = false;
+            // Reset disposed flag for restart scenarios
 
             var startTimestamp = Stopwatch.GetTimestamp();
             Connection? connection = null;
@@ -832,32 +831,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Gets the current connection state of the client.
-    /// </summary>
-    /// <value>
-    /// The current <see cref="ConnectionState"/>: Disconnected, Connecting, Connected, or Error.
-    /// </value>
-    /// <example>
-    /// <code>
-    /// if (client.State == ConnectionState.Connected)
-    /// {
-    ///     var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
-    /// }
-    /// </code>
-    /// </example>
-    public ConnectionState State
-    {
-        get
-        {
-            if (_connectionTask == null) return ConnectionState.Disconnected;
-            if (_connectionTask.IsFaulted) return ConnectionState.Error;
-            if (!_connectionTask.IsCompleted) return ConnectionState.Connecting;
-            if (_disconnected) return ConnectionState.Disconnected;
-            return ConnectionState.Connected;
-        }
-    }
-
-    /// <summary>
     /// Validates the health of the connection by sending a ping request.
     /// </summary>
     /// <param name="message">An optional message that will be reflected back in the response.</param>
@@ -1421,7 +1394,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(options.CliArgs);
         }
 
-        args.AddRange(["--headless", "--no-auto-update", "--log-level", options.LogLevel]);
+        args.AddRange(["--headless", "--no-auto-update"]);
+        if (options.LogLevel is { } logLevel && !string.IsNullOrEmpty(logLevel.Value))
+        {
+            args.AddRange(["--log-level", logLevel.Value]);
+        }
 
         if (options.UseStdio == true)
         {
@@ -1701,9 +1678,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
             setupTimestamp);
-
-        // Transition state to Disconnected if the JSON-RPC connection drops
-        _ = rpc.Completion.ContinueWith(_ => _disconnected = true, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
 
         _serverRpc = new ServerRpc(rpc);
 

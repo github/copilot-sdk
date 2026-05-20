@@ -27,8 +27,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             });
 
         await client.StartAsync();
-
-        Assert.Equal(ConnectionState.Connected, client.State);
         Assert.Equal(port, client.ActualPort);
 
         var response = await client.PingAsync("fixed-port");
@@ -80,7 +78,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             CopilotHome = copilotHomeFromOption,
             Environment = clientEnv,
             GitHubToken = "process-option-token",
-            LogLevel = "debug",
+            LogLevel = CopilotLogLevel.Debug,
             SessionIdleTimeoutSeconds = 17,
             Telemetry = new TelemetryConfig
             {
@@ -247,7 +245,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Contains("Communication error", ex.Message, StringComparison.Ordinal);
 
         await client.ForceStopAsync();
-        Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
     [Fact]
@@ -273,7 +270,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await AssertProcessExitedAsync(pid);
 
         await client.ForceStopAsync();
-        Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
     [Fact]

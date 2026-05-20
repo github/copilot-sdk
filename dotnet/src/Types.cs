@@ -50,23 +50,60 @@ internal static class Diagnostics
 }
 
 /// <summary>
-/// Represents the connection state of the Copilot client.
+/// Log level for the Copilot runtime. Use the well-known values exposed as
+/// static members (<see cref="None"/>, <see cref="Error"/>, <see cref="Warning"/>,
+/// <see cref="Info"/>, <see cref="Debug"/>, <see cref="All"/>), or construct
+/// your own with <see cref="CopilotLogLevel(string)"/> if the runtime accepts
+/// additional values. The runtime does not necessarily treat the values as a
+/// linear scale, so do not assume <c>&lt;</c>/<c>&gt;</c> comparisons are meaningful.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter<ConnectionState>))]
-public enum ConnectionState
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CopilotLogLevel : IEquatable<CopilotLogLevel>
 {
-    /// <summary>The client is not connected to the server.</summary>
-    [JsonStringEnumMemberName("disconnected")]
-    Disconnected,
-    /// <summary>The client is establishing a connection to the server.</summary>
-    [JsonStringEnumMemberName("connecting")]
-    Connecting,
-    /// <summary>The client is connected and ready to communicate.</summary>
-    [JsonStringEnumMemberName("connected")]
-    Connected,
-    /// <summary>The connection is in an error state.</summary>
-    [JsonStringEnumMemberName("error")]
-    Error
+    /// <summary>Disable logging entirely.</summary>
+    public static CopilotLogLevel None { get; } = new("none");
+
+    /// <summary>Log only errors.</summary>
+    public static CopilotLogLevel Error { get; } = new("error");
+
+    /// <summary>Log warnings and errors.</summary>
+    public static CopilotLogLevel Warning { get; } = new("warning");
+
+    /// <summary>Log informational messages, warnings, and errors.</summary>
+    public static CopilotLogLevel Info { get; } = new("info");
+
+    /// <summary>Log debug-level diagnostics in addition to the above.</summary>
+    public static CopilotLogLevel Debug { get; } = new("debug");
+
+    /// <summary>Log every diagnostic the runtime emits.</summary>
+    public static CopilotLogLevel All { get; } = new("all");
+
+    /// <summary>Gets the underlying string value of this <see cref="CopilotLogLevel"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CopilotLogLevel"/> struct.</summary>
+    /// <param name="value">The wire string value for this log level.</param>
+    public CopilotLogLevel(string value) => _value = value;
+
+    /// <inheritdoc/>
+    public static bool operator ==(CopilotLogLevel left, CopilotLogLevel right) => left.Equals(right);
+
+    /// <inheritdoc/>
+    public static bool operator !=(CopilotLogLevel left, CopilotLogLevel right) => !left.Equals(right);
+
+    /// <inheritdoc/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is CopilotLogLevel other && Equals(other);
+
+    /// <inheritdoc/>
+    public bool Equals(CopilotLogLevel other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
 }
 
 /// <summary>
@@ -143,9 +180,14 @@ public class CopilotClientOptions
     /// </summary>
     public string? CliUrl { get; set; }
     /// <summary>
-    /// Log level for the CLI server (e.g., "info", "debug", "warn", "error").
+    /// Log level for the Copilot runtime. Use the well-known values on
+    /// <see cref="CopilotLogLevel"/> (<see cref="CopilotLogLevel.None"/>,
+    /// <see cref="CopilotLogLevel.Error"/>, <see cref="CopilotLogLevel.Warning"/>,
+    /// <see cref="CopilotLogLevel.Info"/>, <see cref="CopilotLogLevel.Debug"/>,
+    /// <see cref="CopilotLogLevel.All"/>). When <c>null</c>, the runtime's default
+    /// log level is used.
     /// </summary>
-    public string LogLevel { get; set; } = "info";
+    public CopilotLogLevel? LogLevel { get; set; }
     /// <summary>
     /// Environment variables to pass to the CLI process.
     /// </summary>
