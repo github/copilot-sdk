@@ -224,7 +224,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             try
             {
-                if (_connection is UriRuntimeConnection uriConn)
+                if (_connection is UriRuntimeConnection)
                 {
                     // External runtime
                     _actualPort = _optionsPort;
