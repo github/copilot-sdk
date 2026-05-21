@@ -74,6 +74,7 @@ def to_enum(c: type[EnumT], x: Any) -> EnumT:
 def from_datetime(x: Any) -> datetime:
     return dateutil.parser.parse(x)
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AbortRequest:
     """Parameters for aborting the current turn"""
@@ -93,6 +94,7 @@ class AbortRequest:
             result["reason"] = from_union([lambda x: to_enum(AbortReason, x), from_none], self.reason)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AbortResult:
     """Result of aborting the current turn"""
@@ -220,6 +222,7 @@ class AgentSelectRequest:
         result["name"] = from_str(self.name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotUserResponseEndpoints:
     """Schema for the `CopilotUserResponseEndpoints` type."""
@@ -253,6 +256,7 @@ class CopilotUserResponseEndpoints:
 class APIKeyAuthInfoType(Enum):
     API_KEY = "api-key"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class AuthInfoType(Enum):
     """Authentication type"""
 
@@ -264,11 +268,13 @@ class AuthInfoType(Enum):
     TOKEN = "token"
     USER = "user"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SlashCommandInputCompletion(Enum):
     """Optional completion hint for the input (e.g. 'directory' for filesystem path completion)"""
 
     DIRECTORY = "directory"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SlashCommandKind(Enum):
     """Coarse command category for grouping and behavior: runtime built-in, skill-backed
     command, or SDK/client-owned command
@@ -277,6 +283,7 @@ class SlashCommandKind(Enum):
     CLIENT = "client"
     SKILL = "skill"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandsHandlePendingCommandRequest:
     """Pending command request ID and an optional error if the client handler failed."""
@@ -301,6 +308,7 @@ class CommandsHandlePendingCommandRequest:
             result["error"] = from_union([from_str, from_none], self.error)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandsHandlePendingCommandResult:
     """Indicates whether the pending client-handled command was completed successfully."""
@@ -319,6 +327,7 @@ class CommandsHandlePendingCommandResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandsInvokeRequest:
     """Slash command name and optional raw input string to invoke."""
@@ -343,6 +352,7 @@ class CommandsInvokeRequest:
             result["input"] = from_union([from_str, from_none], self.input)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandsListRequest:
     """Optional filters controlling which command sources to include in the listing."""
@@ -374,6 +384,7 @@ class CommandsListRequest:
             result["includeSkills"] = from_union([from_bool, from_none], self.include_skills)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandsRespondToQueuedCommandResult:
     """Indicates whether the queued-command response was matched to a pending request."""
@@ -513,6 +524,7 @@ class Host(Enum):
 class CopilotAPITokenAuthInfoType(Enum):
     COPILOT_API_TOKEN = "copilot-api-token"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotUserResponseQuotaSnapshotsChat:
     """Schema for the `CopilotUserResponseQuotaSnapshotsChat` type."""
@@ -575,6 +587,7 @@ class CopilotUserResponseQuotaSnapshotsChat:
             result["unlimited"] = from_union([from_bool, from_none], self.unlimited)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotUserResponseQuotaSnapshotsCompletions:
     """Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type."""
@@ -637,6 +650,7 @@ class CopilotUserResponseQuotaSnapshotsCompletions:
             result["unlimited"] = from_union([from_bool, from_none], self.unlimited)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotUserResponseQuotaSnapshotsPremiumInteractions:
     """Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type."""
@@ -699,6 +713,7 @@ class CopilotUserResponseQuotaSnapshotsPremiumInteractions:
             result["unlimited"] = from_union([from_bool, from_none], self.unlimited)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CurrentModel:
     """The currently selected model and reasoning effort for the session."""
@@ -735,6 +750,7 @@ class DiscoveredMCPServerType(Enum):
     SSE = "sse"
     STDIO = "stdio"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class EnqueueCommandParams:
     """Slash-prefixed command string to enqueue for FIFO processing."""
@@ -755,6 +771,7 @@ class EnqueueCommandParams:
         result["command"] = from_str(self.command)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class EnqueueCommandResult:
     """Indicates whether the command was accepted into the local execution queue."""
@@ -846,6 +863,7 @@ class EventsCursorStatus(Enum):
     EXPIRED = "expired"
     OK = "ok"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExecuteCommandParams:
     """Slash command name and argument string to execute synchronously."""
@@ -869,6 +887,7 @@ class ExecuteCommandParams:
         result["commandName"] = from_str(self.command_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExecuteCommandResult:
     """Error message produced while executing the command, if any."""
@@ -944,6 +963,7 @@ class ExtensionsEnableRequest:
         result["id"] = from_str(self.id)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class ExternalToolTextResultForLlmBinaryResultsForLlmType(Enum):
     """Binary result type discriminator. Use "image" for images and "resource" for other binary
     data.
@@ -951,6 +971,7 @@ class ExternalToolTextResultForLlmBinaryResultsForLlmType(Enum):
     IMAGE = "image"
     RESOURCE = "resource"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class ExternalToolTextResultForLlmContentResourceLinkIconTheme(Enum):
     """Theme variant this icon is intended for"""
 
@@ -1022,9 +1043,67 @@ class FleetStartResult:
         result["started"] = from_bool(self.started)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FolderTrustAddParams:
+    """Folder path to add to trusted folders."""
+
+    path: str
+    """Folder path to mark as trusted"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FolderTrustAddParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        return FolderTrustAddParams(path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FolderTrustCheckParams:
+    """Folder path to check for trust."""
+
+    path: str
+    """Folder path to check"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FolderTrustCheckParams':
+        assert isinstance(obj, dict)
+        path = from_str(obj.get("path"))
+        return FolderTrustCheckParams(path)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["path"] = from_str(self.path)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class FolderTrustCheckResult:
+    """Folder trust check result."""
+
+    trusted: bool
+    """Whether the folder is trusted"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'FolderTrustCheckResult':
+        assert isinstance(obj, dict)
+        trusted = from_bool(obj.get("trusted"))
+        return FolderTrustCheckResult(trusted)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["trusted"] = from_bool(self.trusted)
+        return result
+
 class GhCLIAuthInfoType(Enum):
     GH_CLI = "gh-cli"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HandlePendingToolCallResult:
     """Indicates whether the external tool call result was handled successfully."""
@@ -1208,6 +1287,7 @@ class TentacledSource(Enum):
 class StickySource(Enum):
     URL = "url"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class InstructionsSourcesLocation(Enum):
     """Where this source lives — used for UI grouping"""
 
@@ -1216,6 +1296,7 @@ class InstructionsSourcesLocation(Enum):
     USER = "user"
     WORKING_DIRECTORY = "working-directory"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class InstructionsSourcesType(Enum):
     """Category of instruction source — used for merge logic"""
 
@@ -1227,6 +1308,7 @@ class InstructionsSourcesType(Enum):
     REPO = "repo"
     VSCODE = "vscode"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SessionLogLevel(Enum):
     """Log severity level. Determines how the message is displayed in the timeline. Defaults to
     "info".
@@ -1235,6 +1317,7 @@ class SessionLogLevel(Enum):
     INFO = "info"
     WARNING = "warning"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class LogResult:
     """Identifier of the session event that was emitted for the log message."""
@@ -1755,12 +1838,14 @@ class MetadataRecomputeContextTokensResult:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class SessionContextHostType(Enum):
+class HostType(Enum):
     """Hosting platform type of the repository
 
     Repository host type
 
     Repository host type, if known
+
+    Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
     """
     ADO = "ado"
     GITHUB = "github"
@@ -1871,6 +1956,7 @@ class MetadataSnapshotRemoteMetadataTaskType(Enum):
     CCA = "cca"
     CLI = "cli"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModeSetRequest:
     """Agent interaction mode to apply to the session."""
@@ -1998,6 +2084,7 @@ class ModelPolicyState(Enum):
     ENABLED = "enabled"
     UNCONFIGURED = "unconfigured"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelCapabilitiesOverrideLimitsVision:
     """Vision-specific limits"""
@@ -2029,6 +2116,7 @@ class ModelCapabilitiesOverrideLimitsVision:
             result["supported_media_types"] = from_union([lambda x: from_list(from_str, x), from_none], self.supported_media_types)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelCapabilitiesOverrideSupports:
     """Feature flags indicating what the model supports"""
@@ -2054,6 +2142,7 @@ class ModelCapabilitiesOverrideSupports:
             result["vision"] = from_union([from_bool, from_none], self.vision)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelSetReasoningEffortRequest:
     """Reasoning effort level to apply to the currently selected model."""
@@ -2074,6 +2163,7 @@ class ModelSetReasoningEffortRequest:
         result["reasoningEffort"] = from_str(self.reasoning_effort)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelSetReasoningEffortResult:
     """Update the session's reasoning effort without changing the selected model. Use `switchTo`
@@ -2094,6 +2184,7 @@ class ModelSetReasoningEffortResult:
         result["reasoningEffort"] = from_str(self.reasoning_effort)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelSwitchToResult:
     """The model identifier active on the session after the switch."""
@@ -2132,6 +2223,7 @@ class ModelsListRequest:
             result["gitHubToken"] = from_union([from_str, from_none], self.git_hub_token)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class NameGetResult:
     """The session's friendly name, or null when not yet set."""
@@ -2150,6 +2242,7 @@ class NameGetResult:
         result["name"] = from_union([from_none, from_str], self.name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class NameSetAutoRequest:
     """Auto-generated session summary to apply as the session's name when no user-set name
@@ -2171,6 +2264,7 @@ class NameSetAutoRequest:
         result["summary"] = from_str(self.summary)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class NameSetAutoResult:
     """Indicates whether the auto-generated summary was applied as the session's name."""
@@ -2191,6 +2285,7 @@ class NameSetAutoResult:
         result["applied"] = from_bool(self.applied)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class NameSetRequest:
     """New friendly name to apply to the session."""
@@ -2209,6 +2304,7 @@ class NameSetRequest:
         result["name"] = from_str(self.name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PendingPermissionRequest:
     """Schema for the `PendingPermissionRequest` type."""
@@ -2333,6 +2429,52 @@ class PermissionDecisionRejectKind(Enum):
 class PermissionDecisionUserNotAvailableKind(Enum):
     USER_NOT_AVAILABLE = "user-not-available"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionLocationApplyParams:
+    """Working directory to load persisted location permissions for."""
+
+    working_directory: str
+    """Working directory whose persisted location permissions should be applied"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionLocationApplyParams':
+        assert isinstance(obj, dict)
+        working_directory = from_str(obj.get("workingDirectory"))
+        return PermissionLocationApplyParams(working_directory)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["workingDirectory"] = from_str(self.working_directory)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+class PermissionLocationType(Enum):
+    """Whether the location is a git repo or directory"""
+
+    DIR = "dir"
+    REPO = "repo"
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionLocationResolveParams:
+    """Working directory to resolve into a location-permissions key."""
+
+    working_directory: str
+    """Working directory whose permission location should be resolved"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionLocationResolveParams':
+        assert isinstance(obj, dict)
+        working_directory = from_str(obj.get("workingDirectory"))
+        return PermissionLocationResolveParams(working_directory)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["workingDirectory"] = from_str(self.working_directory)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsAddParams:
     """Directory path to add to the session's allowed directories."""
@@ -2353,6 +2495,7 @@ class PermissionPathsAddParams:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsAllowedCheckParams:
     """Path to evaluate against the session's allowed directories."""
@@ -2371,6 +2514,7 @@ class PermissionPathsAllowedCheckParams:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsAllowedCheckResult:
     """Indicates whether the supplied path is within the session's allowed directories."""
@@ -2389,6 +2533,7 @@ class PermissionPathsAllowedCheckResult:
         result["allowed"] = from_bool(self.allowed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsList:
     """Snapshot of the session's allow-listed directories and primary working directory."""
@@ -2412,6 +2557,7 @@ class PermissionPathsList:
         result["primary"] = from_str(self.primary)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsUpdatePrimaryParams:
     """Directory path to set as the session's new primary working directory."""
@@ -2430,6 +2576,7 @@ class PermissionPathsUpdatePrimaryParams:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsWorkspaceCheckParams:
     """Path to evaluate against the session's workspace (primary) directory."""
@@ -2448,6 +2595,7 @@ class PermissionPathsWorkspaceCheckParams:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsWorkspaceCheckResult:
     """Indicates whether the supplied path is within the session's workspace directory."""
@@ -2466,6 +2614,7 @@ class PermissionPathsWorkspaceCheckResult:
         result["allowed"] = from_bool(self.allowed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPromptShownNotification:
     """Notification payload describing the permission prompt that the client just rendered."""
@@ -2487,6 +2636,7 @@ class PermissionPromptShownNotification:
         result["message"] = from_str(self.message)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionRequestResult:
     """Indicates whether the permission decision was applied; false when the request was already
@@ -2506,6 +2656,7 @@ class PermissionRequestResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionRulesSet:
     """If specified, replaces the session's approved/denied permission rules. Omit to leave the
@@ -2530,6 +2681,7 @@ class PermissionRulesSet:
         result["denied"] = from_list(lambda x: to_class(PermissionRule, x), self.denied)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionUrlsConfig:
     """If specified, replaces the session's URL-permission policy. The runtime constructs a
@@ -2560,6 +2712,7 @@ class PermissionUrlsConfig:
             result["unrestricted"] = from_union([from_bool, from_none], self.unrestricted)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionUrlsSetUnrestrictedModeParams:
     """Whether the URL-permission policy should run in unrestricted mode."""
@@ -2580,6 +2733,7 @@ class PermissionUrlsSetUnrestrictedModeParams:
         result["enabled"] = from_bool(self.enabled)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsConfigureAdditionalContentExclusionPolicyRuleSource:
     """Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type."""
@@ -2600,6 +2754,7 @@ class PermissionsConfigureAdditionalContentExclusionPolicyRuleSource:
         result["type"] = from_str(self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class PermissionsConfigureAdditionalContentExclusionPolicyScope(Enum):
     """Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope`
     enumeration.
@@ -2607,6 +2762,7 @@ class PermissionsConfigureAdditionalContentExclusionPolicyScope(Enum):
     ALL = "all"
     REPO = "repo"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsConfigureResult:
     """Indicates whether the operation succeeded."""
@@ -2625,6 +2781,45 @@ class PermissionsConfigureResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsFolderTrustAddTrustedResult:
+    """Indicates whether the operation succeeded."""
+
+    success: bool
+    """Whether the operation succeeded"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsFolderTrustAddTrustedResult':
+        assert isinstance(obj, dict)
+        success = from_bool(obj.get("success"))
+        return PermissionsFolderTrustAddTrustedResult(success)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["success"] = from_bool(self.success)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalResult:
+    """Indicates whether the operation succeeded."""
+
+    success: bool
+    """Whether the operation succeeded"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalResult':
+        assert isinstance(obj, dict)
+        success = from_bool(obj.get("success"))
+        return PermissionsLocationsAddToolApprovalResult(success)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["success"] = from_bool(self.success)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 class PermissionsModifyRulesScope(Enum):
     """Whether the change applies to ephemeral session-scoped rules (cleared at session end) or
     to location-scoped rules persisted via the location-permissions config file.
@@ -2632,6 +2827,7 @@ class PermissionsModifyRulesScope(Enum):
     LOCATION = "location"
     SESSION = "session"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsModifyRulesResult:
     """Indicates whether the operation succeeded."""
@@ -2650,6 +2846,7 @@ class PermissionsModifyRulesResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsNotifyPromptShownResult:
     """Indicates whether the operation succeeded."""
@@ -2668,6 +2865,7 @@ class PermissionsNotifyPromptShownResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsPathsAddResult:
     """Indicates whether the operation succeeded."""
@@ -2686,6 +2884,7 @@ class PermissionsPathsAddResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsPathsListRequest:
     """No parameters; returns the session's allow-listed directories."""
@@ -2698,6 +2897,7 @@ class PermissionsPathsListRequest:
         result: dict = {}
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsPathsUpdatePrimaryResult:
     """Indicates whether the operation succeeded."""
@@ -2716,6 +2916,7 @@ class PermissionsPathsUpdatePrimaryResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsPendingRequestsRequest:
     """No parameters; returns currently-pending permission requests for the session."""
@@ -2728,6 +2929,7 @@ class PermissionsPendingRequestsRequest:
         result: dict = {}
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsResetSessionApprovalsRequest:
     """No parameters; clears all session-scoped tool permission approvals."""
@@ -2740,6 +2942,7 @@ class PermissionsResetSessionApprovalsRequest:
         result: dict = {}
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsResetSessionApprovalsResult:
     """Indicates whether the operation succeeded."""
@@ -2758,6 +2961,7 @@ class PermissionsResetSessionApprovalsResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsSetApproveAllResult:
     """Indicates whether the operation succeeded."""
@@ -2776,6 +2980,7 @@ class PermissionsSetApproveAllResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsSetRequiredRequest:
     """Toggles whether permission prompts should be bridged into session events for this client."""
@@ -2797,6 +3002,7 @@ class PermissionsSetRequiredRequest:
         result["required"] = from_bool(self.required)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsSetRequiredResult:
     """Indicates whether the operation succeeded."""
@@ -2815,6 +3021,7 @@ class PermissionsSetRequiredResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsUrlsSetUnrestrictedModeResult:
     """Indicates whether the operation succeeded."""
@@ -2881,6 +3088,7 @@ class PingResult:
         result["timestamp"] = self.timestamp.isoformat()
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PlanReadResult:
     """Existence, contents, and resolved path of the session plan file."""
@@ -2909,6 +3117,7 @@ class PlanReadResult:
         result["path"] = from_union([from_none, from_str], self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PlanUpdateRequest:
     """Replacement contents to write to the session plan file."""
@@ -2990,6 +3199,7 @@ class QueueRemoveMostRecentResult:
         result["removed"] = from_bool(self.removed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class QueuedCommandHandled:
     """Schema for the `QueuedCommandHandled` type."""
@@ -3016,6 +3226,7 @@ class QueuedCommandHandled:
             result["stopProcessingQueue"] = from_union([from_bool, from_none], self.stop_processing_queue)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class QueuedCommandNotHandled:
     """Schema for the `QueuedCommandNotHandled` type."""
@@ -3254,6 +3465,7 @@ class ScheduleStopRequest:
         result["id"] = from_int(self.id)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SendAgentMode(Enum):
     """The UI mode the agent was in when this message was sent. Defaults to the session's
     current mode.
@@ -3263,6 +3475,7 @@ class SendAgentMode(Enum):
     PLAN = "plan"
     SHELL = "shell"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentFileLineRange:
     """Optional line range to scope the attachment to a specific section of the file"""
@@ -3293,6 +3506,7 @@ class SendAttachmentGithubReferenceTypeEnum(Enum):
     ISSUE = "issue"
     PR = "pr"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentSelectionDetailsEnd:
     """End position of the selection"""
@@ -3316,6 +3530,7 @@ class SendAttachmentSelectionDetailsEnd:
         result["line"] = from_int(self.line)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentSelectionDetailsStart:
     """Start position of the selection"""
@@ -3352,12 +3567,14 @@ class SendAttachmentBlobType(Enum):
 class SendAttachmentFileType(Enum):
     FILE = "file"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SendAttachmentGithubReferenceType(Enum):
     GITHUB_REFERENCE = "github_reference"
 
 class SendAttachmentSelectionType(Enum):
     SELECTION = "selection"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class SendMode(Enum):
     """How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
     interjects during an in-progress turn.
@@ -3365,6 +3582,7 @@ class SendMode(Enum):
     ENQUEUE = "enqueue"
     IMMEDIATE = "immediate"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendResult:
     """Result of sending a user message"""
@@ -3860,6 +4078,44 @@ class SessionFSWriteFileRequest:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class SessionListFilter:
+    """Optional filter applied to the returned sessions"""
+
+    branch: str | None = None
+    """Match sessions whose context.branch equals this value"""
+
+    cwd: str | None = None
+    """Match sessions whose context.cwd equals this value"""
+
+    git_root: str | None = None
+    """Match sessions whose context.gitRoot equals this value"""
+
+    repository: str | None = None
+    """Match sessions whose context.repository equals this value"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionListFilter':
+        assert isinstance(obj, dict)
+        branch = from_union([from_str, from_none], obj.get("branch"))
+        cwd = from_union([from_str, from_none], obj.get("cwd"))
+        git_root = from_union([from_str, from_none], obj.get("gitRoot"))
+        repository = from_union([from_str, from_none], obj.get("repository"))
+        return SessionListFilter(branch, cwd, git_root, repository)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.branch is not None:
+            result["branch"] = from_union([from_str, from_none], self.branch)
+        if self.cwd is not None:
+            result["cwd"] = from_union([from_str, from_none], self.cwd)
+        if self.git_root is not None:
+            result["gitRoot"] = from_union([from_str, from_none], self.git_root)
+        if self.repository is not None:
+            result["repository"] = from_union([from_str, from_none], self.repository)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SessionLoadDeferredRepoHooksResult:
     """Queued repo-level startup prompts and the total hook command count after loading."""
 
@@ -3925,6 +4181,7 @@ class SessionPruneResult:
         result["skipped"] = from_list(from_str, self.skipped)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionSetCredentialsResult:
     """Indicates whether the credential update succeeded."""
@@ -4314,43 +4571,6 @@ class SessionsGetPersistedRemoteSteerableResult:
             result["remoteSteerable"] = from_union([from_bool, from_none], self.remote_steerable)
         return result
 
-@dataclass
-class Filter:
-    """Optional filter applied to the returned sessions"""
-
-    branch: str | None = None
-    """Match sessions whose context.branch equals this value"""
-
-    cwd: str | None = None
-    """Match sessions whose context.cwd equals this value"""
-
-    git_root: str | None = None
-    """Match sessions whose context.gitRoot equals this value"""
-
-    repository: str | None = None
-    """Match sessions whose context.repository equals this value"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'Filter':
-        assert isinstance(obj, dict)
-        branch = from_union([from_str, from_none], obj.get("branch"))
-        cwd = from_union([from_str, from_none], obj.get("cwd"))
-        git_root = from_union([from_str, from_none], obj.get("gitRoot"))
-        repository = from_union([from_str, from_none], obj.get("repository"))
-        return Filter(branch, cwd, git_root, repository)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.branch is not None:
-            result["branch"] = from_union([from_str, from_none], self.branch)
-        if self.cwd is not None:
-            result["cwd"] = from_union([from_str, from_none], self.cwd)
-        if self.git_root is not None:
-            result["gitRoot"] = from_union([from_str, from_none], self.git_root)
-        if self.repository is not None:
-            result["repository"] = from_union([from_str, from_none], self.repository)
-        return result
-
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionsLoadDeferredRepoHooksRequest:
@@ -4535,6 +4755,7 @@ class SessionsSetAdditionalPluginsResult:
         result: dict = {}
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ShellExecRequest:
     """Shell command to run, with optional working directory and timeout in milliseconds."""
@@ -4565,6 +4786,7 @@ class ShellExecRequest:
             result["timeout"] = from_union([from_int, from_none], self.timeout)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ShellExecResult:
     """Identifier of the spawned process, used to correlate streamed output and exit
@@ -4584,6 +4806,7 @@ class ShellExecResult:
         result["processId"] = from_str(self.process_id)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class ShellKillSignal(Enum):
     """Signal to send (default: SIGTERM)"""
 
@@ -4591,6 +4814,7 @@ class ShellKillSignal(Enum):
     SIGKILL = "SIGKILL"
     SIGTERM = "SIGTERM"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ShellKillResult:
     """Indicates whether the signal was delivered; false if the process was unknown or already
@@ -4610,6 +4834,7 @@ class ShellKillResult:
         result["killed"] = from_bool(self.killed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ShutdownRequest:
     """Parameters for shutting down the session"""
@@ -4826,6 +5051,7 @@ class SlashCommandInvocationResultKind(Enum):
     SELECT_SUBCOMMAND = "select-subcommand"
     TEXT = "text"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandSelectSubcommandOption:
     """Schema for the `SlashCommandSelectSubcommandOption` type."""
@@ -4878,8 +5104,11 @@ class TaskStatus(Enum):
 class TaskAgentInfoType(Enum):
     AGENT = "agent"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class RecentActivity:
+class TaskProgressLine:
+    """Schema for the `TaskProgressLine` type."""
+
     message: str
     """Display message, e.g., "▸ bash", "✓ edit src/foo.ts\""""
 
@@ -4887,21 +5116,17 @@ class RecentActivity:
     """ISO 8601 timestamp when this event occurred"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RecentActivity':
+    def from_dict(obj: Any) -> 'TaskProgressLine':
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         timestamp = from_datetime(obj.get("timestamp"))
-        return RecentActivity(message, timestamp)
+        return TaskProgressLine(message, timestamp)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["message"] = from_str(self.message)
         result["timestamp"] = self.timestamp.isoformat()
         return result
-
-class TaskAgentProgressType(Enum):
-    AGENT = "agent"
-    SHELL = "shell"
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 class TaskShellInfoAttachmentMode(Enum):
@@ -4910,6 +5135,10 @@ class TaskShellInfoAttachmentMode(Enum):
     """
     ATTACHED = "attached"
     DETACHED = "detached"
+
+class TaskInfoType(Enum):
+    AGENT = "agent"
+    SHELL = "shell"
 
 class TaskShellInfoType(Enum):
     SHELL = "shell"
@@ -5264,6 +5493,7 @@ class Tool:
             result["parameters"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.parameters)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ToolsInitializeAndValidateResult:
     """Resolve, build, and validate the runtime tool list for this session. Subagent sessions
@@ -5300,6 +5530,7 @@ class ToolsListRequest:
             result["model"] = from_union([from_str, from_none], self.model)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class UIAutoModeSwitchResponse(Enum):
     """User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist
     as setting), or no (decline).
@@ -5308,6 +5539,7 @@ class UIAutoModeSwitchResponse(Enum):
     YES = "yes"
     YES_ALWAYS = "yes_always"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationArrayAnyOfFieldItemsAnyOf:
     """Schema for the `UIElicitationArrayAnyOfFieldItemsAnyOf` type."""
@@ -5337,6 +5569,7 @@ class UIElicitationArrayAnyOfFieldType(Enum):
 class UIElicitationArrayEnumFieldItemsType(Enum):
     STRING = "string"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class UIElicitationSchemaPropertyStringFormat(Enum):
     """Optional format hint that constrains the accepted input."""
 
@@ -5345,6 +5578,7 @@ class UIElicitationSchemaPropertyStringFormat(Enum):
     EMAIL = "email"
     URI = "uri"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationStringOneOfFieldOneOf:
     """Schema for the `UIElicitationStringOneOfFieldOneOf` type."""
@@ -5380,6 +5614,7 @@ class UIElicitationSchemaPropertyType(Enum):
 class UIElicitationSchemaType(Enum):
     OBJECT = "object"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class UIElicitationResponseAction(Enum):
     """The user's response: accept (submitted), decline (rejected), or cancel (dismissed)"""
 
@@ -5387,6 +5622,7 @@ class UIElicitationResponseAction(Enum):
     CANCEL = "cancel"
     DECLINE = "decline"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationResult:
     """Indicates whether the elicitation response was accepted; false if it was already resolved
@@ -5411,12 +5647,14 @@ class UIElicitationResult:
 class UIElicitationSchemaPropertyBooleanType(Enum):
     BOOLEAN = "boolean"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class UIElicitationSchemaPropertyNumberType(Enum):
     """Numeric type accepted by the field."""
 
     INTEGER = "integer"
     NUMBER = "number"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class UIExitPlanModeAction(Enum):
     """The action the user selected. Defaults to 'autopilot' when autoApproveEdits is true,
     otherwise 'interactive'.
@@ -5426,6 +5664,7 @@ class UIExitPlanModeAction(Enum):
     EXIT_ONLY = "exit_only"
     INTERACTIVE = "interactive"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIHandlePendingResult:
     """Indicates whether the pending UI request was resolved by this call."""
@@ -5447,6 +5686,7 @@ class UIHandlePendingResult:
         result["success"] = from_bool(self.success)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIHandlePendingSamplingRequest:
     """Request ID of a pending `sampling.requested` event and an optional sampling result
@@ -5474,6 +5714,7 @@ class UIHandlePendingSamplingRequest:
             result["response"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.response)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIUserInputResponse:
     """Schema for the `UIUserInputResponse` type."""
@@ -5499,6 +5740,7 @@ class UIUserInputResponse:
         result["wasFreeform"] = from_bool(self.was_freeform)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIRegisterDirectAutoModeSwitchHandlerResult:
     """Register an in-process handler for `auto_mode_switch.requested` events. The caller still
@@ -5524,6 +5766,7 @@ class UIRegisterDirectAutoModeSwitchHandlerResult:
         result["handle"] = from_str(self.handle)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIUnregisterDirectAutoModeSwitchHandlerRequest:
     """Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release."""
@@ -5542,6 +5785,7 @@ class UIUnregisterDirectAutoModeSwitchHandlerRequest:
         result["handle"] = from_str(self.handle)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIUnregisterDirectAutoModeSwitchHandlerResult:
     """Indicates whether the handle was active and the registration count was decremented."""
@@ -5701,6 +5945,7 @@ class UsageMetricsTokenDetail:
 class UserAuthInfoType(Enum):
     USER = "user"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesCheckpoints:
     """Schema for the `WorkspacesCheckpoints` type."""
@@ -5729,6 +5974,7 @@ class WorkspacesCheckpoints:
         result["title"] = from_str(self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesCreateFileRequest:
     """Relative path and UTF-8 content for the workspace file to create or overwrite."""
@@ -5752,6 +5998,7 @@ class WorkspacesCreateFileRequest:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesListFilesResult:
     """Relative paths of files stored in the session workspace files directory."""
@@ -5770,6 +6017,7 @@ class WorkspacesListFilesResult:
         result["files"] = from_list(from_str, self.files)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesReadCheckpointRequest:
     """Checkpoint number to read."""
@@ -5788,6 +6036,7 @@ class WorkspacesReadCheckpointRequest:
         result["number"] = from_int(self.number)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesReadCheckpointResult:
     """Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing."""
@@ -5806,6 +6055,7 @@ class WorkspacesReadCheckpointResult:
         result["content"] = from_union([from_none, from_str], self.content)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesReadFileRequest:
     """Relative path of the workspace file to read."""
@@ -5824,6 +6074,7 @@ class WorkspacesReadFileRequest:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesReadFileResult:
     """Contents of the requested workspace file as a UTF-8 string."""
@@ -5842,6 +6093,7 @@ class WorkspacesReadFileResult:
         result["content"] = from_str(self.content)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesSaveLargePasteRequest:
     """Pasted content to save as a UTF-8 file in the session workspace."""
@@ -5904,6 +6156,7 @@ class AccountGetQuotaResult:
         result["quotaSnapshots"] = from_dict(lambda x: to_class(AccountQuotaSnapshot, x), self.quota_snapshots)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionAuthStatus:
     """Authentication status and account metadata for the session."""
@@ -5952,6 +6205,7 @@ class SessionAuthStatus:
             result["statusMessage"] = from_union([from_str, from_none], self.status_message)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandInput:
     """Optional unstructured input hint"""
@@ -5991,6 +6245,7 @@ class SlashCommandInput:
             result["required"] = from_union([from_bool, from_none], self.required)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentDirectory:
     """Directory attachment"""
@@ -6156,6 +6411,7 @@ class MCPServerConfigStdio:
             result["tools"] = from_union([lambda x: from_list(from_str, x), from_none], self.tools)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotUserResponseQuotaSnapshots:
     """Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.
@@ -6392,6 +6648,7 @@ class Extension:
             result["pid"] = from_union([from_int, from_none], self.pid)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmBinaryResultsForLlm:
     """Binary result returned by a tool for the model"""
@@ -6427,6 +6684,7 @@ class ExternalToolTextResultForLlmBinaryResultsForLlm:
             result["description"] = from_union([from_str, from_none], self.description)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentResourceLinkIcon:
     """Icon image for a resource"""
@@ -6465,6 +6723,7 @@ class ExternalToolTextResultForLlmContentResourceLinkIcon:
 
 ExternalToolTextResultForLlmContentResourceDetails = EmbeddedTextResourceContents | EmbeddedBlobResourceContents
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentAudio:
     """Audio content block with base64-encoded data"""
@@ -6493,6 +6752,7 @@ class ExternalToolTextResultForLlmContentAudio:
         result["type"] = to_enum(ExternalToolTextResultForLlmContentAudioType, self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentImage:
     """Image content block with base64-encoded data"""
@@ -6521,6 +6781,7 @@ class ExternalToolTextResultForLlmContentImage:
         result["type"] = to_enum(ExternalToolTextResultForLlmContentImageType, self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentResource:
     """Embedded resource content block with inline text or binary data"""
@@ -6544,6 +6805,7 @@ class ExternalToolTextResultForLlmContentResource:
         result["type"] = to_enum(ExternalToolTextResultForLlmContentResourceType, self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentTerminal:
     """Terminal/shell output content block with optional exit code and working directory"""
@@ -6579,6 +6841,7 @@ class ExternalToolTextResultForLlmContentTerminal:
             result["exitCode"] = from_union([from_int, from_none], self.exit_code)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentText:
     """Plain text content block"""
@@ -6602,6 +6865,7 @@ class ExternalToolTextResultForLlmContentText:
         result["type"] = to_enum(KindEnum, self.type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandTextResult:
     """Schema for the `SlashCommandTextResult` type."""
@@ -6857,6 +7121,7 @@ class SessionInstalledPluginSourceURL:
             result["ref"] = from_union([from_str, from_none], self.ref)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class InstructionsSources:
     """Schema for the `InstructionsSources` type."""
@@ -6919,6 +7184,7 @@ class InstructionsSources:
             result["description"] = from_union([from_str, from_none], self.description)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class LogRequest:
     """Message text, optional severity level, persistence flag, optional follow-up URL, and
@@ -7300,7 +7566,7 @@ class SessionWorkingDirectoryContext:
     head_commit: str | None = None
     """Head commit of the current git branch"""
 
-    host_type: SessionContextHostType | None = None
+    host_type: HostType | None = None
     """Hosting platform type of the repository"""
 
     repository: str | None = None
@@ -7318,7 +7584,7 @@ class SessionWorkingDirectoryContext:
         branch = from_union([from_str, from_none], obj.get("branch"))
         git_root = from_union([from_str, from_none], obj.get("gitRoot"))
         head_commit = from_union([from_str, from_none], obj.get("headCommit"))
-        host_type = from_union([SessionContextHostType, from_none], obj.get("hostType"))
+        host_type = from_union([HostType, from_none], obj.get("hostType"))
         repository = from_union([from_str, from_none], obj.get("repository"))
         repository_host = from_union([from_str, from_none], obj.get("repositoryHost"))
         return SessionWorkingDirectoryContext(cwd, base_commit, branch, git_root, head_commit, host_type, repository, repository_host)
@@ -7335,7 +7601,7 @@ class SessionWorkingDirectoryContext:
         if self.head_commit is not None:
             result["headCommit"] = from_union([from_str, from_none], self.head_commit)
         if self.host_type is not None:
-            result["hostType"] = from_union([lambda x: to_enum(SessionContextHostType, x), from_none], self.host_type)
+            result["hostType"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
         if self.repository_host is not None:
@@ -7359,7 +7625,7 @@ class SessionContext:
     git_root: str | None = None
     """Git repository root, if the cwd was inside a git repo"""
 
-    host_type: SessionContextHostType | None = None
+    host_type: HostType | None = None
     """Repository host type"""
 
     repository: str | None = None
@@ -7371,7 +7637,7 @@ class SessionContext:
         cwd = from_str(obj.get("cwd"))
         branch = from_union([from_str, from_none], obj.get("branch"))
         git_root = from_union([from_str, from_none], obj.get("gitRoot"))
-        host_type = from_union([SessionContextHostType, from_none], obj.get("hostType"))
+        host_type = from_union([HostType, from_none], obj.get("hostType"))
         repository = from_union([from_str, from_none], obj.get("repository"))
         return SessionContext(cwd, branch, git_root, host_type, repository)
 
@@ -7383,20 +7649,22 @@ class SessionContext:
         if self.git_root is not None:
             result["gitRoot"] = from_union([from_str, from_none], self.git_root)
         if self.host_type is not None:
-            result["hostType"] = from_union([lambda x: to_enum(SessionContextHostType, x), from_none], self.host_type)
+            result["hostType"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
         if self.repository is not None:
             result["repository"] = from_union([from_str, from_none], self.repository)
         return result
 
 @dataclass
 class Workspace:
-    id: UUID
+    id: str
     branch: str | None = None
     chronicle_sync_dismissed: bool | None = None
     created_at: datetime | None = None
     cwd: str | None = None
     git_root: str | None = None
-    host_type: SessionContextHostType | None = None
+    host_type: HostType | None = None
+    """Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration."""
+
     mc_last_event_id: str | None = None
     mc_session_id: str | None = None
     mc_task_id: str | None = None
@@ -7410,13 +7678,13 @@ class Workspace:
     @staticmethod
     def from_dict(obj: Any) -> 'Workspace':
         assert isinstance(obj, dict)
-        id = UUID(obj.get("id"))
+        id = from_str(obj.get("id"))
         branch = from_union([from_str, from_none], obj.get("branch"))
         chronicle_sync_dismissed = from_union([from_bool, from_none], obj.get("chronicle_sync_dismissed"))
         created_at = from_union([from_datetime, from_none], obj.get("created_at"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         git_root = from_union([from_str, from_none], obj.get("git_root"))
-        host_type = from_union([SessionContextHostType, from_none], obj.get("host_type"))
+        host_type = from_union([HostType, from_none], obj.get("host_type"))
         mc_last_event_id = from_union([from_str, from_none], obj.get("mc_last_event_id"))
         mc_session_id = from_union([from_str, from_none], obj.get("mc_session_id"))
         mc_task_id = from_union([from_str, from_none], obj.get("mc_task_id"))
@@ -7430,7 +7698,7 @@ class Workspace:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["id"] = str(self.id)
+        result["id"] = from_str(self.id)
         if self.branch is not None:
             result["branch"] = from_union([from_str, from_none], self.branch)
         if self.chronicle_sync_dismissed is not None:
@@ -7442,7 +7710,7 @@ class Workspace:
         if self.git_root is not None:
             result["git_root"] = from_union([from_str, from_none], self.git_root)
         if self.host_type is not None:
-            result["host_type"] = from_union([lambda x: to_enum(SessionContextHostType, x), from_none], self.host_type)
+            result["host_type"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
         if self.mc_last_event_id is not None:
             result["mc_last_event_id"] = from_union([from_str, from_none], self.mc_last_event_id)
         if self.mc_session_id is not None:
@@ -7590,6 +7858,7 @@ class ModelPolicy:
             result["terms"] = from_union([from_str, from_none], self.terms)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelCapabilitiesOverrideLimits:
     """Token limits for prompts, outputs, and context window"""
@@ -7627,6 +7896,7 @@ class ModelCapabilitiesOverrideLimits:
             result["vision"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideLimitsVision, x), from_none], self.vision)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PendingPermissionRequestList:
     """List of pending permission requests reconstructed from event history."""
@@ -7649,6 +7919,7 @@ class PendingPermissionRequestList:
         result["items"] = from_list(lambda x: to_class(PendingPermissionRequest, x), self.items)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalCommands:
     """Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type."""
@@ -7672,6 +7943,7 @@ class PermissionDecisionApproveForLocationApprovalCommands:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalCommands:
     """Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type."""
@@ -7688,6 +7960,30 @@ class PermissionDecisionApproveForSessionApprovalCommands:
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
         return PermissionDecisionApproveForSessionApprovalCommands(command_identifiers, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsCommands:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type."""
+
+    command_identifiers: list[str]
+    """Command identifiers covered by this approval."""
+
+    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
+    """Approval scoped to specific command identifiers."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsCommands':
+        assert isinstance(obj, dict)
+        command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
+        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
+        return PermissionsLocationsAddToolApprovalDetailsCommands(command_identifiers, kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -7718,6 +8014,7 @@ class UserToolSessionApprovalCommands:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalCustomTool:
     """Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type."""
@@ -7741,6 +8038,7 @@ class PermissionDecisionApproveForLocationApprovalCustomTool:
         result["toolName"] = from_str(self.tool_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalCustomTool:
     """Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type."""
@@ -7757,6 +8055,30 @@ class PermissionDecisionApproveForSessionApprovalCustomTool:
         kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
         tool_name = from_str(obj.get("toolName"))
         return PermissionDecisionApproveForSessionApprovalCustomTool(kind, tool_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
+        result["toolName"] = from_str(self.tool_name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsCustomTool:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
+    """Approval covering a custom tool."""
+
+    tool_name: str
+    """Custom tool name."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsCustomTool':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
+        tool_name = from_str(obj.get("toolName"))
+        return PermissionsLocationsAddToolApprovalDetailsCustomTool(kind, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -7787,6 +8109,7 @@ class UserToolSessionApprovalCustomTool:
         result["toolName"] = from_str(self.tool_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalExtensionManagement:
     """Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type."""
@@ -7813,6 +8136,7 @@ class PermissionDecisionApproveForLocationApprovalExtensionManagement:
             result["operation"] = from_union([from_str, from_none], self.operation)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalExtensionManagement:
     """Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type."""
@@ -7839,6 +8163,34 @@ class PermissionDecisionApproveForSessionApprovalExtensionManagement:
             result["operation"] = from_union([from_str, from_none], self.operation)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsExtensionManagement:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    """Approval covering extension lifecycle operations such as enable, disable, or reload."""
+
+    operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsExtensionManagement':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        return PermissionsLocationsAddToolApprovalDetailsExtensionManagement(kind, operation)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalMCP:
     """Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type."""
@@ -7867,6 +8219,7 @@ class PermissionDecisionApproveForLocationApprovalMCP:
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalMCP:
     """Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type."""
@@ -7887,6 +8240,35 @@ class PermissionDecisionApproveForSessionApprovalMCP:
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
         return PermissionDecisionApproveForSessionApprovalMCP(kind, server_name, tool_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
+        result["serverName"] = from_str(self.server_name)
+        result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsMCP:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalMCPKind
+    """Approval covering an MCP tool."""
+
+    server_name: str
+    """MCP server name."""
+
+    tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMCP':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
+        server_name = from_str(obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        return PermissionsLocationsAddToolApprovalDetailsMCP(kind, server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -7923,6 +8305,7 @@ class UserToolSessionApprovalMCP:
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalMCPSampling:
     """Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type."""
@@ -7946,6 +8329,7 @@ class PermissionDecisionApproveForLocationApprovalMCPSampling:
         result["serverName"] = from_str(self.server_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalMCPSampling:
     """Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type."""
@@ -7969,6 +8353,31 @@ class PermissionDecisionApproveForSessionApprovalMCPSampling:
         result["serverName"] = from_str(self.server_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsMCPSampling:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
+    """Approval covering MCP sampling requests for a server."""
+
+    server_name: str
+    """MCP server name."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMCPSampling':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalMCPSamplingKind(obj.get("kind"))
+        server_name = from_str(obj.get("serverName"))
+        return PermissionsLocationsAddToolApprovalDetailsMCPSampling(kind, server_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPSamplingKind, self.kind)
+        result["serverName"] = from_str(self.server_name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalMemory:
     """Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type."""
@@ -7987,6 +8396,7 @@ class PermissionDecisionApproveForLocationApprovalMemory:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalMemory:
     """Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type."""
@@ -7999,6 +8409,25 @@ class PermissionDecisionApproveForSessionApprovalMemory:
         assert isinstance(obj, dict)
         kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
         return PermissionDecisionApproveForSessionApprovalMemory(kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsMemory:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
+    """Approval covering writes to long-term memory."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMemory':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
+        return PermissionsLocationsAddToolApprovalDetailsMemory(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -8023,6 +8452,7 @@ class UserToolSessionApprovalMemory:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalRead:
     """Schema for the `PermissionDecisionApproveForLocationApprovalRead` type."""
@@ -8041,6 +8471,7 @@ class PermissionDecisionApproveForLocationApprovalRead:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalRead:
     """Schema for the `PermissionDecisionApproveForSessionApprovalRead` type."""
@@ -8053,6 +8484,25 @@ class PermissionDecisionApproveForSessionApprovalRead:
         assert isinstance(obj, dict)
         kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
         return PermissionDecisionApproveForSessionApprovalRead(kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsRead:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalReadKind
+    """Approval covering read-only filesystem operations."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsRead':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
+        return PermissionsLocationsAddToolApprovalDetailsRead(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -8077,6 +8527,7 @@ class UserToolSessionApprovalRead:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalWrite:
     """Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type."""
@@ -8095,6 +8546,7 @@ class PermissionDecisionApproveForLocationApprovalWrite:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalWrite:
     """Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type."""
@@ -8107,6 +8559,25 @@ class PermissionDecisionApproveForSessionApprovalWrite:
         assert isinstance(obj, dict)
         kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
         return PermissionDecisionApproveForSessionApprovalWrite(kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsWrite:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type."""
+
+    kind: PermissionDecisionApproveForLocationApprovalWriteKind
+    """Approval covering filesystem write operations."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsWrite':
+        assert isinstance(obj, dict)
+        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
+        return PermissionsLocationsAddToolApprovalDetailsWrite(kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -8131,6 +8602,7 @@ class UserToolSessionApprovalWrite:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveOnce:
     """Schema for the `PermissionDecisionApproveOnce` type."""
@@ -8149,6 +8621,7 @@ class PermissionDecisionApproveOnce:
         result["kind"] = to_enum(PermissionDecisionApproveOnceKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApprovePermanently:
     """Schema for the `PermissionDecisionApprovePermanently` type."""
@@ -8172,6 +8645,7 @@ class PermissionDecisionApprovePermanently:
         result["kind"] = to_enum(PermissionDecisionApprovePermanentlyKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproved:
     """Schema for the `PermissionDecisionApproved` type."""
@@ -8190,6 +8664,7 @@ class PermissionDecisionApproved:
         result["kind"] = to_enum(PermissionDecisionApprovedKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApprovedForLocation:
     """Schema for the `PermissionDecisionApprovedForLocation` type."""
@@ -8218,6 +8693,7 @@ class PermissionDecisionApprovedForLocation:
         result["locationKey"] = from_str(self.location_key)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApprovedForSession:
     """Schema for the `PermissionDecisionApprovedForSession` type."""
@@ -8241,6 +8717,7 @@ class PermissionDecisionApprovedForSession:
         result["kind"] = to_enum(PermissionDecisionApprovedForSessionKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionCancelled:
     """Schema for the `PermissionDecisionCancelled` type."""
@@ -8265,6 +8742,7 @@ class PermissionDecisionCancelled:
             result["reason"] = from_union([from_str, from_none], self.reason)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionDeniedByContentExclusionPolicy:
     """Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type."""
@@ -8293,6 +8771,7 @@ class PermissionDecisionDeniedByContentExclusionPolicy:
         result["path"] = from_str(self.path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionDeniedByPermissionRequestHook:
     """Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type."""
@@ -8323,6 +8802,7 @@ class PermissionDecisionDeniedByPermissionRequestHook:
             result["message"] = from_union([from_str, from_none], self.message)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionDeniedByRules:
     """Schema for the `PermissionDecisionDeniedByRules` type."""
@@ -8346,6 +8826,7 @@ class PermissionDecisionDeniedByRules:
         result["rules"] = from_list(lambda x: to_class(PermissionRule, x), self.rules)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionDeniedInteractivelyByUser:
     """Schema for the `PermissionDecisionDeniedInteractivelyByUser` type."""
@@ -8376,6 +8857,7 @@ class PermissionDecisionDeniedInteractivelyByUser:
             result["forceReject"] = from_union([from_bool, from_none], self.force_reject)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
     """Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type."""
@@ -8394,6 +8876,7 @@ class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
         result["kind"] = to_enum(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionReject:
     """Schema for the `PermissionDecisionReject` type."""
@@ -8418,6 +8901,7 @@ class PermissionDecisionReject:
             result["feedback"] = from_union([from_str, from_none], self.feedback)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionUserNotAvailable:
     """Schema for the `PermissionDecisionUserNotAvailable` type."""
@@ -8436,6 +8920,75 @@ class PermissionDecisionUserNotAvailable:
         result["kind"] = to_enum(PermissionDecisionUserNotAvailableKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionLocationApplyResult:
+    """Summary of persisted location permissions applied to the session."""
+
+    applied_directory_count: int
+    """Number of persisted allowed directories added to the live path manager"""
+
+    applied_rule_count: int
+    """Number of location-scoped rules added to the live permission service"""
+
+    applied_rules: list[PermissionRule]
+    """Location-scoped rules applied to the live permission service"""
+
+    changed: bool
+    """Whether a different location was applied since the previous apply call"""
+
+    location_key: str
+    """Location key used in the location-permissions store"""
+
+    location_type: PermissionLocationType
+    """Whether the location is a git repo or directory"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionLocationApplyResult':
+        assert isinstance(obj, dict)
+        applied_directory_count = from_int(obj.get("appliedDirectoryCount"))
+        applied_rule_count = from_int(obj.get("appliedRuleCount"))
+        applied_rules = from_list(PermissionRule.from_dict, obj.get("appliedRules"))
+        changed = from_bool(obj.get("changed"))
+        location_key = from_str(obj.get("locationKey"))
+        location_type = PermissionLocationType(obj.get("locationType"))
+        return PermissionLocationApplyResult(applied_directory_count, applied_rule_count, applied_rules, changed, location_key, location_type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["appliedDirectoryCount"] = from_int(self.applied_directory_count)
+        result["appliedRuleCount"] = from_int(self.applied_rule_count)
+        result["appliedRules"] = from_list(lambda x: to_class(PermissionRule, x), self.applied_rules)
+        result["changed"] = from_bool(self.changed)
+        result["locationKey"] = from_str(self.location_key)
+        result["locationType"] = to_enum(PermissionLocationType, self.location_type)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionLocationResolveResult:
+    """Resolved location-permissions key and type."""
+
+    location_key: str
+    """Location key used in the location-permissions store"""
+
+    location_type: PermissionLocationType
+    """Whether the location is a git repo or directory"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionLocationResolveResult':
+        assert isinstance(obj, dict)
+        location_key = from_str(obj.get("locationKey"))
+        location_type = PermissionLocationType(obj.get("locationType"))
+        return PermissionLocationResolveResult(location_key, location_type)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["locationKey"] = from_str(self.location_key)
+        result["locationType"] = to_enum(PermissionLocationType, self.location_type)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsConfigureAdditionalContentExclusionPolicyRule:
     """Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type."""
@@ -8466,6 +9019,7 @@ class PermissionsConfigureAdditionalContentExclusionPolicyRule:
             result["ifNoneMatch"] = from_union([lambda x: from_list(from_str, x), from_none], self.if_none_match)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsModifyRulesParams:
     """Scope and add/remove instructions for modifying session- or location-scoped permission
@@ -8549,6 +9103,7 @@ class QueuePendingItems:
         result["kind"] = to_enum(QueuePendingItemsKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class QueuedCommandResult:
     """Result of the queued command execution.
@@ -8644,6 +9199,7 @@ class ScheduleStopResult:
             result["entry"] = from_union([lambda x: to_class(ScheduleEntry, x), from_none], self.entry)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentSelectionDetails:
     """Position range of the selection within the file"""
@@ -8667,6 +9223,7 @@ class SendAttachmentSelectionDetails:
         result["start"] = to_class(SendAttachmentSelectionDetailsStart, self.start)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentBlob:
     """Blob attachment with inline base64-encoded data"""
@@ -8701,6 +9258,7 @@ class SendAttachmentBlob:
             result["displayName"] = from_union([from_str, from_none], self.display_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentFile:
     """File attachment"""
@@ -8735,6 +9293,7 @@ class SendAttachmentFile:
             result["lineRange"] = from_union([lambda x: to_class(SendAttachmentFileLineRange, x), from_none], self.line_range)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentGithubReference:
     """GitHub issue, pull request, or discussion reference"""
@@ -8919,7 +9478,7 @@ class SessionFSSqliteQueryRequest:
 class SessionsListRequest:
     """Optional metadata-load limit and context filter applied to the returned sessions."""
 
-    filter: Filter | None = None
+    filter: SessionListFilter | None = None
     """Optional filter applied to the returned sessions"""
 
     metadata_limit: int | None = None
@@ -8931,18 +9490,19 @@ class SessionsListRequest:
     @staticmethod
     def from_dict(obj: Any) -> 'SessionsListRequest':
         assert isinstance(obj, dict)
-        filter = from_union([Filter.from_dict, from_none], obj.get("filter"))
+        filter = from_union([SessionListFilter.from_dict, from_none], obj.get("filter"))
         metadata_limit = from_union([from_int, from_none], obj.get("metadataLimit"))
         return SessionsListRequest(filter, metadata_limit)
 
     def to_dict(self) -> dict:
         result: dict = {}
         if self.filter is not None:
-            result["filter"] = from_union([lambda x: to_class(Filter, x), from_none], self.filter)
+            result["filter"] = from_union([lambda x: to_class(SessionListFilter, x), from_none], self.filter)
         if self.metadata_limit is not None:
             result["metadataLimit"] = from_union([from_int, from_none], self.metadata_limit)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ShellKillRequest:
     """Identifier of a process previously returned by "shell.exec" and the signal to send."""
@@ -9107,6 +9667,7 @@ class SkillsGetInvokedResult:
         result["skills"] = from_list(lambda x: to_class(SkillsInvokedSkill, x), self.skills)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandAgentPromptResult:
     """Schema for the `SlashCommandAgentPromptResult` type."""
@@ -9149,6 +9710,7 @@ class SlashCommandAgentPromptResult:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandCompletedResult:
     """Schema for the `SlashCommandCompletedResult` type."""
@@ -9181,6 +9743,7 @@ class SlashCommandCompletedResult:
             result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandSelectSubcommandResult:
     """Schema for the `SlashCommandSelectSubcommandResult` type."""
@@ -9227,83 +9790,29 @@ class SlashCommandSelectSubcommandResult:
 class TaskAgentProgress:
     """Schema for the `TaskAgentProgress` type."""
 
-    type: TaskAgentProgressType
+    recent_activity: list[TaskProgressLine]
+    """Recent tool execution events converted to display lines"""
+
+    type: TaskAgentInfoType
     """Progress kind"""
 
     latest_intent: str | None = None
     """The most recent intent reported by the agent"""
-
-    recent_activity: list[RecentActivity] | None = None
-    """Recent tool execution events converted to display lines"""
-
-    pid: int | None = None
-    """Process ID when available"""
-
-    recent_output: str | None = None
-    """Recent stdout/stderr lines from the running shell command"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'TaskAgentProgress':
         assert isinstance(obj, dict)
-        type = TaskAgentProgressType(obj.get("type"))
+        recent_activity = from_list(TaskProgressLine.from_dict, obj.get("recentActivity"))
+        type = TaskAgentInfoType(obj.get("type"))
         latest_intent = from_union([from_str, from_none], obj.get("latestIntent"))
-        recent_activity = from_union([lambda x: from_list(RecentActivity.from_dict, x), from_none], obj.get("recentActivity"))
-        pid = from_union([from_int, from_none], obj.get("pid"))
-        recent_output = from_union([from_str, from_none], obj.get("recentOutput"))
-        return TaskAgentProgress(type, latest_intent, recent_activity, pid, recent_output)
+        return TaskAgentProgress(recent_activity, type, latest_intent)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(TaskAgentProgressType, self.type)
+        result["recentActivity"] = from_list(lambda x: to_class(TaskProgressLine, x), self.recent_activity)
+        result["type"] = to_enum(TaskAgentInfoType, self.type)
         if self.latest_intent is not None:
             result["latestIntent"] = from_union([from_str, from_none], self.latest_intent)
-        if self.recent_activity is not None:
-            result["recentActivity"] = from_union([lambda x: from_list(lambda x: to_class(RecentActivity, x), x), from_none], self.recent_activity)
-        if self.pid is not None:
-            result["pid"] = from_union([from_int, from_none], self.pid)
-        if self.recent_output is not None:
-            result["recentOutput"] = from_union([from_str, from_none], self.recent_output)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class TaskProgressClass:
-    type: TaskAgentProgressType
-    """Progress kind"""
-
-    latest_intent: str | None = None
-    """The most recent intent reported by the agent"""
-
-    recent_activity: list[RecentActivity] | None = None
-    """Recent tool execution events converted to display lines"""
-
-    pid: int | None = None
-    """Process ID when available"""
-
-    recent_output: str | None = None
-    """Recent stdout/stderr lines from the running shell command"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'TaskProgressClass':
-        assert isinstance(obj, dict)
-        type = TaskAgentProgressType(obj.get("type"))
-        latest_intent = from_union([from_str, from_none], obj.get("latestIntent"))
-        recent_activity = from_union([lambda x: from_list(RecentActivity.from_dict, x), from_none], obj.get("recentActivity"))
-        pid = from_union([from_int, from_none], obj.get("pid"))
-        recent_output = from_union([from_str, from_none], obj.get("recentOutput"))
-        return TaskProgressClass(type, latest_intent, recent_activity, pid, recent_output)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["type"] = to_enum(TaskAgentProgressType, self.type)
-        if self.latest_intent is not None:
-            result["latestIntent"] = from_union([from_str, from_none], self.latest_intent)
-        if self.recent_activity is not None:
-            result["recentActivity"] = from_union([lambda x: from_list(lambda x: to_class(RecentActivity, x), x), from_none], self.recent_activity)
-        if self.pid is not None:
-            result["pid"] = from_union([from_int, from_none], self.pid)
-        if self.recent_output is not None:
-            result["recentOutput"] = from_union([from_str, from_none], self.recent_output)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -9386,6 +9895,36 @@ class TaskShellInfo:
             result["pid"] = from_union([from_int, from_none], self.pid)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TaskShellProgress:
+    """Schema for the `TaskShellProgress` type."""
+
+    recent_output: str
+    """Recent stdout/stderr lines from the running shell command"""
+
+    type: TaskShellInfoType
+    """Progress kind"""
+
+    pid: int | None = None
+    """Process ID when available"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TaskShellProgress':
+        assert isinstance(obj, dict)
+        recent_output = from_str(obj.get("recentOutput"))
+        type = TaskShellInfoType(obj.get("type"))
+        pid = from_union([from_int, from_none], obj.get("pid"))
+        return TaskShellProgress(recent_output, type, pid)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["recentOutput"] = from_str(self.recent_output)
+        result["type"] = to_enum(TaskShellInfoType, self.type)
+        if self.pid is not None:
+            result["pid"] = from_union([from_int, from_none], self.pid)
+        return result
+
 @dataclass
 class ToolList:
     """Built-in tools available for the requested model, with their parameters and instructions."""
@@ -9404,6 +9943,7 @@ class ToolList:
         result["tools"] = from_list(lambda x: to_class(Tool, x), self.tools)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIHandlePendingAutoModeSwitchRequest:
     """Request ID of a pending `auto_mode_switch.requested` event and the user's response."""
@@ -9429,6 +9969,7 @@ class UIHandlePendingAutoModeSwitchRequest:
         result["response"] = to_enum(UIAutoModeSwitchResponse, self.response)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationArrayAnyOfFieldItems:
     """Schema applied to each item in the array."""
@@ -9447,6 +9988,7 @@ class UIElicitationArrayAnyOfFieldItems:
         result["anyOf"] = from_list(lambda x: to_class(UIElicitationArrayAnyOfFieldItemsAnyOf, x), self.any_of)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationArrayEnumFieldItems:
     """Schema applied to each item in the array."""
@@ -9501,6 +10043,7 @@ class UIElicitationArrayFieldItems:
             result["anyOf"] = from_union([lambda x: from_list(lambda x: to_class(UIElicitationArrayAnyOfFieldItemsAnyOf, x), x), from_none], self.any_of)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationStringEnumField:
     """Single-select string field whose allowed values are defined inline."""
@@ -9548,6 +10091,7 @@ class UIElicitationStringEnumField:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationSchemaPropertyString:
     """Free-text string field with optional length and format constraints."""
@@ -9602,6 +10146,7 @@ class UIElicitationSchemaPropertyString:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationStringOneOfField:
     """Single-select string field where each option pairs a value with a display label."""
@@ -9643,6 +10188,7 @@ class UIElicitationStringOneOfField:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationResponse:
     """The elicitation response (accept with form values, decline, or cancel)"""
@@ -9667,6 +10213,7 @@ class UIElicitationResponse:
             result["content"] = from_union([lambda x: from_dict(lambda x: from_union([to_float, from_bool, lambda x: from_list(from_str, x), from_str], x), x), from_none], self.content)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationSchemaPropertyBoolean:
     """Boolean field rendered as a yes/no toggle."""
@@ -9703,6 +10250,7 @@ class UIElicitationSchemaPropertyBoolean:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationSchemaPropertyNumber:
     """Numeric field accepting either a number or an integer."""
@@ -9751,6 +10299,7 @@ class UIElicitationSchemaPropertyNumber:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIExitPlanModeResponse:
     """Schema for the `UIExitPlanModeResponse` type."""
@@ -9789,6 +10338,7 @@ class UIExitPlanModeResponse:
             result["selectedAction"] = from_union([lambda x: to_enum(UIExitPlanModeAction, x), from_none], self.selected_action)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIHandlePendingUserInputRequest:
     """Request ID of a pending `user_input.requested` event and the user's response."""
@@ -9848,6 +10398,7 @@ class UsageMetricsModelMetric:
             result["totalNanoAiu"] = from_union([to_float, from_none], self.total_nano_aiu)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesSaveLargePasteResult:
     """Descriptor for the saved paste file, or null when the workspace is unavailable."""
@@ -9868,6 +10419,7 @@ class WorkspacesSaveLargePasteResult:
         result["saved"] = from_union([lambda x: to_class(Saved, x), from_none], self.saved)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandInfo:
     """Schema for the `SlashCommandInfo` type."""
@@ -9944,6 +10496,7 @@ class RemoteSessionConnectionResult:
         result["sessionId"] = from_str(self.session_id)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotUserResponse:
     """Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
@@ -10093,6 +10646,7 @@ class ExtensionList:
         result["extensions"] = from_list(lambda x: to_class(Extension, x), self.extensions)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
     """Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
@@ -10117,6 +10671,7 @@ class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
     """Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
@@ -10134,6 +10689,30 @@ class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
         extension_name = from_str(obj.get("extensionName"))
         kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
         return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name, kind)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["extensionName"] = from_str(self.extension_name)
+        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess:
+    """Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type."""
+
+    extension_name: str
+    """Extension name."""
+
+    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+    """Approval covering an extension's request to access a permission-gated capability."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess':
+        assert isinstance(obj, dict)
+        extension_name = from_str(obj.get("extensionName"))
+        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
+        return PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess(extension_name, kind)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -10188,6 +10767,7 @@ class UserToolSessionApprovalExtensionPermissionAccess:
         result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContent:
     """A content block within a tool result, which may be text, terminal output, image, audio,
@@ -10299,6 +10879,7 @@ class ExternalToolTextResultForLlmContent:
             result["resource"] = from_union([lambda x: from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], x), from_none], self.resource)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlmContentResourceLink:
     """Resource link content block referencing an external resource"""
@@ -10445,6 +11026,7 @@ class SessionInstalledPluginSource:
             result["url"] = from_union([from_str, from_none], self.url)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class InstructionsGetSourcesResult:
     """Instruction sources loaded for the session, in merge order."""
@@ -10629,6 +11211,7 @@ class SessionsGetLastForContextRequest:
             result["context"] = from_union([lambda x: to_class(SessionContext, x), from_none], self.context)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionPathsConfig:
     """If specified, replaces the session's path-permission policy. The runtime constructs the
@@ -10680,7 +11263,7 @@ class PermissionPathsConfig:
 class WorkspaceSummary:
     """Public-facing projection of workspace metadata for SDK / TUI consumers"""
 
-    id: UUID
+    id: str
     """Workspace identifier (1:1 with sessionId)"""
 
     branch: str | None = None
@@ -10695,7 +11278,7 @@ class WorkspaceSummary:
     git_root: str | None = None
     """Resolved git root for cwd, if any"""
 
-    host_type: SessionContextHostType | None = None
+    host_type: HostType | None = None
     """Repository host type, if known"""
 
     name: str | None = None
@@ -10710,12 +11293,12 @@ class WorkspaceSummary:
     @staticmethod
     def from_dict(obj: Any) -> 'WorkspaceSummary':
         assert isinstance(obj, dict)
-        id = UUID(obj.get("id"))
+        id = from_str(obj.get("id"))
         branch = from_union([from_str, from_none], obj.get("branch"))
         created_at = from_union([from_datetime, from_none], obj.get("created_at"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         git_root = from_union([from_str, from_none], obj.get("git_root"))
-        host_type = from_union([SessionContextHostType, from_none], obj.get("host_type"))
+        host_type = from_union([HostType, from_none], obj.get("host_type"))
         name = from_union([from_str, from_none], obj.get("name"))
         repository = from_union([from_str, from_none], obj.get("repository"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
@@ -10723,7 +11306,7 @@ class WorkspaceSummary:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["id"] = str(self.id)
+        result["id"] = from_str(self.id)
         if self.branch is not None:
             result["branch"] = from_union([from_str, from_none], self.branch)
         if self.created_at is not None:
@@ -10733,7 +11316,7 @@ class WorkspaceSummary:
         if self.git_root is not None:
             result["git_root"] = from_union([from_str, from_none], self.git_root)
         if self.host_type is not None:
-            result["host_type"] = from_union([lambda x: to_enum(SessionContextHostType, x), from_none], self.host_type)
+            result["host_type"] = from_union([lambda x: to_enum(HostType, x), from_none], self.host_type)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
         if self.repository is not None:
@@ -10742,6 +11325,7 @@ class WorkspaceSummary:
             result["updated_at"] = from_union([lambda x: x.isoformat(), from_none], self.updated_at)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesGetWorkspaceResult:
     """Current workspace metadata for the session, including its absolute filesystem path when
@@ -10768,6 +11352,7 @@ class WorkspacesGetWorkspaceResult:
         result["workspace"] = from_union([lambda x: to_class(Workspace, x), from_none], self.workspace)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class WorkspacesListCheckpointsResult:
     """Workspace checkpoints in chronological order; empty when the workspace is not enabled."""
@@ -10786,6 +11371,7 @@ class WorkspacesListCheckpointsResult:
         result["checkpoints"] = from_list(lambda x: to_class(WorkspacesCheckpoints, x), self.checkpoints)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelCapabilitiesOverride:
     """Override individual model capabilities resolved by the runtime"""
@@ -10811,6 +11397,7 @@ class ModelCapabilitiesOverride:
             result["supports"] = from_union([lambda x: to_class(ModelCapabilitiesOverrideSupports, x), from_none], self.supports)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsConfigureAdditionalContentExclusionPolicy:
     """Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type."""
@@ -10864,6 +11451,7 @@ class QueuePendingItemsResult:
         result["steeringMessages"] = from_list(from_str, self.steering_messages)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandsRespondToQueuedCommandRequest:
     """Queued-command request ID and the result indicating whether the host executed it (and
@@ -10888,6 +11476,7 @@ class CommandsRespondToQueuedCommandRequest:
         result["result"] = to_class(QueuedCommandResult, self.result)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachment:
     """A user message attachment — a file, directory, code selection, blob, or GitHub reference
@@ -10998,6 +11587,7 @@ class SendAttachment:
             result["mimeType"] = from_union([from_str, from_none], self.mime_type)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendAttachmentSelection:
     """Code selection attachment from an editor"""
@@ -11271,6 +11861,7 @@ class AgentSelectResult:
         result["agent"] = to_class(AgentInfo, self.agent)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SlashCommandInvocationResult:
     """Result of invoking the slash command (text output, prompt to send to the agent, or
@@ -11373,26 +11964,50 @@ class SlashCommandInvocationResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class TasksGetProgressResult:
-    """Progress information for the task, or null when no task with that ID is tracked."""
+class TaskProgress:
+    """Schema for the `TaskAgentProgress` type.
 
-    progress: TaskProgressClass | None = None
-    """Progress information for the task, discriminated by type. Returns null when no task with
-    this ID is currently tracked.
+    Schema for the `TaskShellProgress` type.
     """
+    type: TaskInfoType
+    """Progress kind"""
+
+    latest_intent: str | None = None
+    """The most recent intent reported by the agent"""
+
+    recent_activity: list[TaskProgressLine] | None = None
+    """Recent tool execution events converted to display lines"""
+
+    pid: int | None = None
+    """Process ID when available"""
+
+    recent_output: str | None = None
+    """Recent stdout/stderr lines from the running shell command"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksGetProgressResult':
+    def from_dict(obj: Any) -> 'TaskProgress':
         assert isinstance(obj, dict)
-        progress = from_union([TaskProgressClass.from_dict, from_none], obj.get("progress"))
-        return TasksGetProgressResult(progress)
+        type = TaskInfoType(obj.get("type"))
+        latest_intent = from_union([from_str, from_none], obj.get("latestIntent"))
+        recent_activity = from_union([lambda x: from_list(TaskProgressLine.from_dict, x), from_none], obj.get("recentActivity"))
+        pid = from_union([from_int, from_none], obj.get("pid"))
+        recent_output = from_union([from_str, from_none], obj.get("recentOutput"))
+        return TaskProgress(type, latest_intent, recent_activity, pid, recent_output)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        if self.progress is not None:
-            result["progress"] = from_union([lambda x: to_class(TaskProgressClass, x), from_none], self.progress)
+        result["type"] = to_enum(TaskInfoType, self.type)
+        if self.latest_intent is not None:
+            result["latestIntent"] = from_union([from_str, from_none], self.latest_intent)
+        if self.recent_activity is not None:
+            result["recentActivity"] = from_union([lambda x: from_list(lambda x: to_class(TaskProgressLine, x), x), from_none], self.recent_activity)
+        if self.pid is not None:
+            result["pid"] = from_union([from_int, from_none], self.pid)
+        if self.recent_output is not None:
+            result["recentOutput"] = from_union([from_str, from_none], self.recent_output)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationArrayAnyOfField:
     """Multi-select string field where each option pairs a value with a display label."""
@@ -11446,6 +12061,7 @@ class UIElicitationArrayAnyOfField:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationArrayEnumField:
     """Multi-select string field whose allowed values are defined inline."""
@@ -11499,6 +12115,7 @@ class UIElicitationArrayEnumField:
             result["title"] = from_union([from_str, from_none], self.title)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationSchemaProperty:
     """Definition for a single elicitation form field.
@@ -11625,6 +12242,7 @@ class UIElicitationSchemaProperty:
             result["minimum"] = from_union([to_float, from_none], self.minimum)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIHandlePendingElicitationRequest:
     """Pending elicitation request ID and the user's response (accept/decline/cancel + form
@@ -11649,6 +12267,7 @@ class UIHandlePendingElicitationRequest:
         result["result"] = to_class(UIElicitationResponse, self.result)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIHandlePendingExitPlanModeRequest:
     """Request ID of a pending `exit_plan_mode.requested` event and the user's response."""
@@ -11746,6 +12365,7 @@ class UsageGetMetricsResult:
             result["totalNanoAiu"] = from_union([to_float, from_none], self.total_nano_aiu)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CommandList:
     """Slash commands available in the session, after applying any include/exclude filters."""
@@ -11764,6 +12384,7 @@ class CommandList:
         result["commands"] = from_list(lambda x: to_class(SlashCommandInfo, x), self.commands)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class APIKeyAuthInfo:
     """Schema for the `ApiKeyAuthInfo` type."""
@@ -11801,6 +12422,7 @@ class APIKeyAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CopilotAPITokenAuthInfo:
     """Schema for the `CopilotApiTokenAuthInfo` type."""
@@ -11835,6 +12457,7 @@ class CopilotAPITokenAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class EnvAuthInfo:
     """Schema for the `EnvAuthInfo` type."""
@@ -11885,6 +12508,7 @@ class EnvAuthInfo:
             result["login"] = from_union([from_str, from_none], self.login)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class GhCLIAuthInfo:
     """Schema for the `GhCliAuthInfo` type."""
@@ -11927,6 +12551,7 @@ class GhCLIAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HMACAuthInfo:
     """Schema for the `HMACAuthInfo` type."""
@@ -11964,6 +12589,7 @@ class HMACAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class TokenAuthInfo:
     """Schema for the `TokenAuthInfo` type."""
@@ -12001,6 +12627,7 @@ class TokenAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UserAuthInfo:
     """Schema for the `UserAuthInfo` type."""
@@ -12039,6 +12666,7 @@ class UserAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocationApproval:
     """Approval to persist for this location
@@ -12242,6 +12870,7 @@ class PermissionDecisionApproveForIonApproval:
             result["__externalRefMarker___ExternalRef_UserToolSessionApproval"] = from_union([from_str, from_none], self.external_ref_marker_external_ref_user_tool_session_approval)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSessionApproval:
     """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
@@ -12328,6 +12957,93 @@ class PermissionDecisionApproveForSessionApproval:
             result["extensionName"] = from_union([from_str, from_none], self.extension_name)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionsLocationsAddToolApprovalDetails:
+    """Tool approval to persist and apply
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.
+
+    Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.
+    """
+    kind: ApprovalKind
+    """Approval scoped to specific command identifiers.
+
+    Approval covering read-only filesystem operations.
+
+    Approval covering filesystem write operations.
+
+    Approval covering an MCP tool.
+
+    Approval covering MCP sampling requests for a server.
+
+    Approval covering writes to long-term memory.
+
+    Approval covering a custom tool.
+
+    Approval covering extension lifecycle operations such as enable, disable, or reload.
+
+    Approval covering an extension's request to access a permission-gated capability.
+    """
+    command_identifiers: list[str] | None = None
+    """Command identifiers covered by this approval."""
+
+    server_name: str | None = None
+    """MCP server name."""
+
+    tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server.
+
+    Custom tool name.
+    """
+    operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
+    extension_name: str | None = None
+    """Extension name."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetails':
+        assert isinstance(obj, dict)
+        kind = ApprovalKind(obj.get("kind"))
+        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
+        server_name = from_union([from_str, from_none], obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        return PermissionsLocationsAddToolApprovalDetails(kind, command_identifiers, server_name, tool_name, operation, extension_name)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["kind"] = to_enum(ApprovalKind, self.kind)
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_str, from_none], self.server_name)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExternalToolTextResultForLlm:
     """Expanded external tool result payload"""
@@ -12642,6 +13358,7 @@ class SessionMetadataSnapshot:
         result["workspacePath"] = from_union([from_none, from_str], self.workspace_path)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsConfigureParams:
     """Patch of permission policy fields to apply (omit a field to leave it unchanged)."""
@@ -12701,6 +13418,7 @@ class PermissionsConfigureParams:
             result["urls"] = from_union([lambda x: to_class(PermissionUrlsConfig, x), from_none], self.urls)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SendRequest:
     """Parameters for sending a user message to the session"""
@@ -12802,6 +13520,29 @@ class SendRequest:
             result["wait"] = from_union([from_bool, from_none], self.wait)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksGetProgressResult:
+    """Progress information for the task, or null when no task with that ID is tracked."""
+
+    progress: TaskProgress | None = None
+    """Progress information for the task, discriminated by type. Returns null when no task with
+    this ID is currently tracked.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksGetProgressResult':
+        assert isinstance(obj, dict)
+        progress = from_union([TaskProgress.from_dict, from_none], obj.get("progress"))
+        return TasksGetProgressResult(progress)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.progress is not None:
+            result["progress"] = from_union([lambda x: to_class(TaskProgress, x), from_none], self.progress)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationSchema:
     """JSON Schema describing the form fields to present to the user"""
@@ -12831,6 +13572,7 @@ class UIElicitationSchema:
             result["required"] = from_union([lambda x: from_list(from_str, x), from_none], self.required)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class AuthInfo:
     """The new auth credentials to install on the session. When omitted or `undefined`, the call
@@ -12939,6 +13681,7 @@ class AuthInfo:
             result["apiKey"] = from_union([from_str, from_none], self.api_key)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForLocation:
     """Schema for the `PermissionDecisionApproveForLocation` type."""
@@ -12967,6 +13710,7 @@ class PermissionDecisionApproveForLocation:
         result["locationKey"] = from_str(self.location_key)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionApproveForSession:
     """Schema for the `PermissionDecisionApproveForSession` type."""
@@ -12997,6 +13741,31 @@ class PermissionDecisionApproveForSession:
             result["domain"] = from_union([from_str, from_none], self.domain)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionLocationAddToolApprovalParams:
+    """Location-scoped tool approval to persist."""
+
+    approval: PermissionsLocationsAddToolApprovalDetails
+    """Tool approval to persist and apply"""
+
+    location_key: str
+    """Location key (git root or cwd) to persist the approval to"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionLocationAddToolApprovalParams':
+        assert isinstance(obj, dict)
+        approval = PermissionsLocationsAddToolApprovalDetails.from_dict(obj.get("approval"))
+        location_key = from_str(obj.get("locationKey"))
+        return PermissionLocationAddToolApprovalParams(approval, location_key)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["approval"] = to_class(PermissionsLocationsAddToolApprovalDetails, self.approval)
+        result["locationKey"] = from_str(self.location_key)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HandlePendingToolCallRequest:
     """Pending external tool call request ID, with the tool result or an error describing why it
@@ -13288,6 +14057,7 @@ class SessionUpdateOptionsParams:
             result["workingDirectory"] = from_union([from_str, from_none], self.working_directory)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class UIElicitationRequest:
     """Prompt message and JSON schema describing the form fields to elicit from the user."""
@@ -13311,6 +14081,7 @@ class UIElicitationRequest:
         result["requestedSchema"] = to_class(UIElicitationSchema, self.requested_schema)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class SessionSetCredentialsParams:
     """New auth credentials to install on the session. Omit to leave credentials unchanged."""
@@ -13335,6 +14106,7 @@ class SessionSetCredentialsParams:
             result["credentials"] = from_union([lambda x: to_class(AuthInfo, x), from_none], self.credentials)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecision:
     """The client's response to the pending permission prompt
@@ -13485,6 +14257,7 @@ class PermissionDecision:
             result["interrupt"] = from_union([from_bool, from_none], self.interrupt)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionDecisionRequest:
     """Pending permission request ID and the decision to apply (approve/reject and scope)."""
@@ -13716,6 +14489,7 @@ class ModelList:
         result["models"] = from_list(lambda x: to_class(Model, x), self.models)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ModelSwitchToRequest:
     """Target model identifier and optional reasoning effort, summary, and capability overrides."""
@@ -13752,6 +14526,7 @@ class ModelSwitchToRequest:
             result["reasoningSummary"] = from_union([lambda x: to_enum(ReasoningSummary, x), from_none], self.reasoning_summary)
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class PermissionsSetApproveAllSource(Enum):
     """Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers."""
 
@@ -13760,6 +14535,7 @@ class PermissionsSetApproveAllSource(Enum):
     RPC = "rpc"
     SLASH_COMMAND = "slash_command"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class PermissionsSetApproveAllRequest:
     """Allow-all toggle for tool permission requests, with an optional telemetry source."""
@@ -13929,7 +14705,7 @@ class TaskInfo:
     status: TaskStatus
     """Current lifecycle status of the task"""
 
-    type: TaskAgentProgressType
+    type: TaskInfoType
     """Task kind"""
 
     active_started_at: datetime | None = None
@@ -13995,7 +14771,7 @@ class TaskInfo:
         id = from_str(obj.get("id"))
         started_at = from_datetime(obj.get("startedAt"))
         status = TaskStatus(obj.get("status"))
-        type = TaskAgentProgressType(obj.get("type"))
+        type = TaskInfoType(obj.get("type"))
         active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
         active_time_ms = from_union([from_int, from_none], obj.get("activeTimeMs"))
         agent_type = from_union([from_str, from_none], obj.get("agentType"))
@@ -14021,7 +14797,7 @@ class TaskInfo:
         result["id"] = from_str(self.id)
         result["startedAt"] = self.started_at.isoformat()
         result["status"] = to_enum(TaskStatus, self.status)
-        result["type"] = to_enum(TaskAgentProgressType, self.type)
+        result["type"] = to_enum(TaskInfoType, self.type)
         if self.active_started_at is not None:
             result["activeStartedAt"] = from_union([lambda x: x.isoformat(), from_none], self.active_started_at)
         if self.active_time_ms is not None:
@@ -14200,6 +14976,9 @@ class RPC:
     filter_mapping: dict[str, ContentFilterMode] | ContentFilterMode
     fleet_start_request: FleetStartRequest
     fleet_start_result: FleetStartResult
+    folder_trust_add_params: FolderTrustAddParams
+    folder_trust_check_params: FolderTrustCheckParams
+    folder_trust_check_result: FolderTrustCheckResult
     gh_cli_auth_info: GhCLIAuthInfo
     handle_pending_tool_call_request: HandlePendingToolCallRequest
     handle_pending_tool_call_result: HandlePendingToolCallResult
@@ -14333,6 +15112,12 @@ class RPC:
     permission_decision_reject: PermissionDecisionReject
     permission_decision_request: PermissionDecisionRequest
     permission_decision_user_not_available: PermissionDecisionUserNotAvailable
+    permission_location_add_tool_approval_params: PermissionLocationAddToolApprovalParams
+    permission_location_apply_params: PermissionLocationApplyParams
+    permission_location_apply_result: PermissionLocationApplyResult
+    permission_location_resolve_params: PermissionLocationResolveParams
+    permission_location_resolve_result: PermissionLocationResolveResult
+    permission_location_type: PermissionLocationType
     permission_paths_add_params: PermissionPathsAddParams
     permission_paths_allowed_check_params: PermissionPathsAllowedCheckParams
     permission_paths_allowed_check_result: PermissionPathsAllowedCheckResult
@@ -14350,6 +15135,18 @@ class RPC:
     permissions_configure_additional_content_exclusion_policy_scope: PermissionsConfigureAdditionalContentExclusionPolicyScope
     permissions_configure_params: PermissionsConfigureParams
     permissions_configure_result: PermissionsConfigureResult
+    permissions_folder_trust_add_trusted_result: PermissionsFolderTrustAddTrustedResult
+    permissions_locations_add_tool_approval_details: PermissionsLocationsAddToolApprovalDetails
+    permissions_locations_add_tool_approval_details_commands: PermissionsLocationsAddToolApprovalDetailsCommands
+    permissions_locations_add_tool_approval_details_custom_tool: PermissionsLocationsAddToolApprovalDetailsCustomTool
+    permissions_locations_add_tool_approval_details_extension_management: PermissionsLocationsAddToolApprovalDetailsExtensionManagement
+    permissions_locations_add_tool_approval_details_extension_permission_access: PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
+    permissions_locations_add_tool_approval_details_mcp: PermissionsLocationsAddToolApprovalDetailsMCP
+    permissions_locations_add_tool_approval_details_mcp_sampling: PermissionsLocationsAddToolApprovalDetailsMCPSampling
+    permissions_locations_add_tool_approval_details_memory: PermissionsLocationsAddToolApprovalDetailsMemory
+    permissions_locations_add_tool_approval_details_read: PermissionsLocationsAddToolApprovalDetailsRead
+    permissions_locations_add_tool_approval_details_write: PermissionsLocationsAddToolApprovalDetailsWrite
+    permissions_locations_add_tool_approval_result: PermissionsLocationsAddToolApprovalResult
     permissions_modify_rules_params: PermissionsModifyRulesParams
     permissions_modify_rules_result: PermissionsModifyRulesResult
     permissions_modify_rules_scope: PermissionsModifyRulesScope
@@ -14414,7 +15211,7 @@ class RPC:
     session_auth_status: SessionAuthStatus
     session_bulk_delete_result: SessionBulkDeleteResult
     session_context: SessionContext
-    session_context_host_type: SessionContextHostType
+    session_context_host_type: HostType
     session_enrich_metadata_result: SessionEnrichMetadataResult
     session_fs_append_file_request: SessionFSAppendFileRequest
     session_fs_error: SessionFSError
@@ -14450,6 +15247,7 @@ class RPC:
     session_installed_plugin_source_local: SessionInstalledPluginSourceLocal
     session_installed_plugin_source_url: SessionInstalledPluginSourceURL
     session_list: SessionList
+    session_list_filter: SessionListFilter
     session_load_deferred_repo_hooks_result: SessionLoadDeferredRepoHooksResult
     session_log_level: SessionLogLevel
     session_metadata: SessionMetadata
@@ -14491,7 +15289,7 @@ class RPC:
     session_update_options_params: SessionUpdateOptionsParams
     session_update_options_result: SessionUpdateOptionsResult
     session_working_directory_context: SessionWorkingDirectoryContext
-    session_working_directory_context_host_type: SessionContextHostType
+    session_working_directory_context_host_type: HostType
     shell_exec_request: ShellExecRequest
     shell_exec_result: ShellExecResult
     shell_kill_request: ShellKillRequest
@@ -14522,6 +15320,7 @@ class RPC:
     task_execution_mode: TaskExecutionMode
     task_info: TaskInfo
     task_list: TaskList
+    task_progress_line: TaskProgressLine
     tasks_cancel_request: TasksCancelRequest
     tasks_cancel_result: TasksCancelResult
     tasks_get_current_promotable_result: TasksGetCurrentPromotableResult
@@ -14529,7 +15328,7 @@ class RPC:
     tasks_get_progress_result: TasksGetProgressResult
     task_shell_info: TaskShellInfo
     task_shell_info_attachment_mode: TaskShellInfoAttachmentMode
-    task_shell_progress: None
+    task_shell_progress: TaskShellProgress
     tasks_promote_current_to_background_result: TasksPromoteCurrentToBackgroundResult
     tasks_promote_to_background_request: TasksPromoteToBackgroundRequest
     tasks_promote_to_background_result: TasksPromoteToBackgroundResult
@@ -14610,8 +15409,10 @@ class RPC:
     workspaces_read_file_result: WorkspacesReadFileResult
     workspaces_save_large_paste_request: WorkspacesSaveLargePasteRequest
     workspaces_save_large_paste_result: WorkspacesSaveLargePasteResult
+    workspace_summary_host_type: HostType
+    workspaces_workspace_details_host_type: HostType
     session_context_info: SessionContextInfo | None = None
-    task_progress: TaskProgressClass | None = None
+    task_progress: TaskProgress | None = None
     workspace_summary: WorkspaceSummary | None = None
 
     @staticmethod
@@ -14691,6 +15492,9 @@ class RPC:
         filter_mapping = from_union([lambda x: from_dict(ContentFilterMode, x), ContentFilterMode], obj.get("FilterMapping"))
         fleet_start_request = FleetStartRequest.from_dict(obj.get("FleetStartRequest"))
         fleet_start_result = FleetStartResult.from_dict(obj.get("FleetStartResult"))
+        folder_trust_add_params = FolderTrustAddParams.from_dict(obj.get("FolderTrustAddParams"))
+        folder_trust_check_params = FolderTrustCheckParams.from_dict(obj.get("FolderTrustCheckParams"))
+        folder_trust_check_result = FolderTrustCheckResult.from_dict(obj.get("FolderTrustCheckResult"))
         gh_cli_auth_info = GhCLIAuthInfo.from_dict(obj.get("GhCliAuthInfo"))
         handle_pending_tool_call_request = HandlePendingToolCallRequest.from_dict(obj.get("HandlePendingToolCallRequest"))
         handle_pending_tool_call_result = HandlePendingToolCallResult.from_dict(obj.get("HandlePendingToolCallResult"))
@@ -14824,6 +15628,12 @@ class RPC:
         permission_decision_reject = PermissionDecisionReject.from_dict(obj.get("PermissionDecisionReject"))
         permission_decision_request = PermissionDecisionRequest.from_dict(obj.get("PermissionDecisionRequest"))
         permission_decision_user_not_available = PermissionDecisionUserNotAvailable.from_dict(obj.get("PermissionDecisionUserNotAvailable"))
+        permission_location_add_tool_approval_params = PermissionLocationAddToolApprovalParams.from_dict(obj.get("PermissionLocationAddToolApprovalParams"))
+        permission_location_apply_params = PermissionLocationApplyParams.from_dict(obj.get("PermissionLocationApplyParams"))
+        permission_location_apply_result = PermissionLocationApplyResult.from_dict(obj.get("PermissionLocationApplyResult"))
+        permission_location_resolve_params = PermissionLocationResolveParams.from_dict(obj.get("PermissionLocationResolveParams"))
+        permission_location_resolve_result = PermissionLocationResolveResult.from_dict(obj.get("PermissionLocationResolveResult"))
+        permission_location_type = PermissionLocationType(obj.get("PermissionLocationType"))
         permission_paths_add_params = PermissionPathsAddParams.from_dict(obj.get("PermissionPathsAddParams"))
         permission_paths_allowed_check_params = PermissionPathsAllowedCheckParams.from_dict(obj.get("PermissionPathsAllowedCheckParams"))
         permission_paths_allowed_check_result = PermissionPathsAllowedCheckResult.from_dict(obj.get("PermissionPathsAllowedCheckResult"))
@@ -14841,6 +15651,18 @@ class RPC:
         permissions_configure_additional_content_exclusion_policy_scope = PermissionsConfigureAdditionalContentExclusionPolicyScope(obj.get("PermissionsConfigureAdditionalContentExclusionPolicyScope"))
         permissions_configure_params = PermissionsConfigureParams.from_dict(obj.get("PermissionsConfigureParams"))
         permissions_configure_result = PermissionsConfigureResult.from_dict(obj.get("PermissionsConfigureResult"))
+        permissions_folder_trust_add_trusted_result = PermissionsFolderTrustAddTrustedResult.from_dict(obj.get("PermissionsFolderTrustAddTrustedResult"))
+        permissions_locations_add_tool_approval_details = PermissionsLocationsAddToolApprovalDetails.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetails"))
+        permissions_locations_add_tool_approval_details_commands = PermissionsLocationsAddToolApprovalDetailsCommands.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsCommands"))
+        permissions_locations_add_tool_approval_details_custom_tool = PermissionsLocationsAddToolApprovalDetailsCustomTool.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsCustomTool"))
+        permissions_locations_add_tool_approval_details_extension_management = PermissionsLocationsAddToolApprovalDetailsExtensionManagement.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsExtensionManagement"))
+        permissions_locations_add_tool_approval_details_extension_permission_access = PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess"))
+        permissions_locations_add_tool_approval_details_mcp = PermissionsLocationsAddToolApprovalDetailsMCP.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsMcp"))
+        permissions_locations_add_tool_approval_details_mcp_sampling = PermissionsLocationsAddToolApprovalDetailsMCPSampling.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsMcpSampling"))
+        permissions_locations_add_tool_approval_details_memory = PermissionsLocationsAddToolApprovalDetailsMemory.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsMemory"))
+        permissions_locations_add_tool_approval_details_read = PermissionsLocationsAddToolApprovalDetailsRead.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsRead"))
+        permissions_locations_add_tool_approval_details_write = PermissionsLocationsAddToolApprovalDetailsWrite.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsWrite"))
+        permissions_locations_add_tool_approval_result = PermissionsLocationsAddToolApprovalResult.from_dict(obj.get("PermissionsLocationsAddToolApprovalResult"))
         permissions_modify_rules_params = PermissionsModifyRulesParams.from_dict(obj.get("PermissionsModifyRulesParams"))
         permissions_modify_rules_result = PermissionsModifyRulesResult.from_dict(obj.get("PermissionsModifyRulesResult"))
         permissions_modify_rules_scope = PermissionsModifyRulesScope(obj.get("PermissionsModifyRulesScope"))
@@ -14905,7 +15727,7 @@ class RPC:
         session_auth_status = SessionAuthStatus.from_dict(obj.get("SessionAuthStatus"))
         session_bulk_delete_result = SessionBulkDeleteResult.from_dict(obj.get("SessionBulkDeleteResult"))
         session_context = SessionContext.from_dict(obj.get("SessionContext"))
-        session_context_host_type = SessionContextHostType(obj.get("SessionContextHostType"))
+        session_context_host_type = HostType(obj.get("SessionContextHostType"))
         session_enrich_metadata_result = SessionEnrichMetadataResult.from_dict(obj.get("SessionEnrichMetadataResult"))
         session_fs_append_file_request = SessionFSAppendFileRequest.from_dict(obj.get("SessionFsAppendFileRequest"))
         session_fs_error = SessionFSError.from_dict(obj.get("SessionFsError"))
@@ -14941,6 +15763,7 @@ class RPC:
         session_installed_plugin_source_local = SessionInstalledPluginSourceLocal.from_dict(obj.get("SessionInstalledPluginSourceLocal"))
         session_installed_plugin_source_url = SessionInstalledPluginSourceURL.from_dict(obj.get("SessionInstalledPluginSourceUrl"))
         session_list = SessionList.from_dict(obj.get("SessionList"))
+        session_list_filter = SessionListFilter.from_dict(obj.get("SessionListFilter"))
         session_load_deferred_repo_hooks_result = SessionLoadDeferredRepoHooksResult.from_dict(obj.get("SessionLoadDeferredRepoHooksResult"))
         session_log_level = SessionLogLevel(obj.get("SessionLogLevel"))
         session_metadata = SessionMetadata.from_dict(obj.get("SessionMetadata"))
@@ -14982,7 +15805,7 @@ class RPC:
         session_update_options_params = SessionUpdateOptionsParams.from_dict(obj.get("SessionUpdateOptionsParams"))
         session_update_options_result = SessionUpdateOptionsResult.from_dict(obj.get("SessionUpdateOptionsResult"))
         session_working_directory_context = SessionWorkingDirectoryContext.from_dict(obj.get("SessionWorkingDirectoryContext"))
-        session_working_directory_context_host_type = SessionContextHostType(obj.get("SessionWorkingDirectoryContextHostType"))
+        session_working_directory_context_host_type = HostType(obj.get("SessionWorkingDirectoryContextHostType"))
         shell_exec_request = ShellExecRequest.from_dict(obj.get("ShellExecRequest"))
         shell_exec_result = ShellExecResult.from_dict(obj.get("ShellExecResult"))
         shell_kill_request = ShellKillRequest.from_dict(obj.get("ShellKillRequest"))
@@ -15013,6 +15836,7 @@ class RPC:
         task_execution_mode = TaskExecutionMode(obj.get("TaskExecutionMode"))
         task_info = TaskInfo.from_dict(obj.get("TaskInfo"))
         task_list = TaskList.from_dict(obj.get("TaskList"))
+        task_progress_line = TaskProgressLine.from_dict(obj.get("TaskProgressLine"))
         tasks_cancel_request = TasksCancelRequest.from_dict(obj.get("TasksCancelRequest"))
         tasks_cancel_result = TasksCancelResult.from_dict(obj.get("TasksCancelResult"))
         tasks_get_current_promotable_result = TasksGetCurrentPromotableResult.from_dict(obj.get("TasksGetCurrentPromotableResult"))
@@ -15020,7 +15844,7 @@ class RPC:
         tasks_get_progress_result = TasksGetProgressResult.from_dict(obj.get("TasksGetProgressResult"))
         task_shell_info = TaskShellInfo.from_dict(obj.get("TaskShellInfo"))
         task_shell_info_attachment_mode = TaskShellInfoAttachmentMode(obj.get("TaskShellInfoAttachmentMode"))
-        task_shell_progress = from_none(obj.get("TaskShellProgress"))
+        task_shell_progress = TaskShellProgress.from_dict(obj.get("TaskShellProgress"))
         tasks_promote_current_to_background_result = TasksPromoteCurrentToBackgroundResult.from_dict(obj.get("TasksPromoteCurrentToBackgroundResult"))
         tasks_promote_to_background_request = TasksPromoteToBackgroundRequest.from_dict(obj.get("TasksPromoteToBackgroundRequest"))
         tasks_promote_to_background_result = TasksPromoteToBackgroundResult.from_dict(obj.get("TasksPromoteToBackgroundResult"))
@@ -15101,10 +15925,12 @@ class RPC:
         workspaces_read_file_result = WorkspacesReadFileResult.from_dict(obj.get("WorkspacesReadFileResult"))
         workspaces_save_large_paste_request = WorkspacesSaveLargePasteRequest.from_dict(obj.get("WorkspacesSaveLargePasteRequest"))
         workspaces_save_large_paste_result = WorkspacesSaveLargePasteResult.from_dict(obj.get("WorkspacesSaveLargePasteResult"))
+        workspace_summary_host_type = HostType(obj.get("WorkspaceSummaryHostType"))
+        workspaces_workspace_details_host_type = HostType(obj.get("WorkspacesWorkspaceDetailsHostType"))
         session_context_info = from_union([SessionContextInfo.from_dict, from_none], obj.get("SessionContextInfo"))
-        task_progress = from_union([TaskProgressClass.from_dict, from_none], obj.get("TaskProgress"))
+        task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_reload_result, agent_select_request, agent_select_result, api_key_auth_info, auth_info, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, gh_cli_auth_info, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_source, installed_plugin_source_github, installed_plugin_source_local, installed_plugin_source_url, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, lsp_initialize_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_oauth_login_request, mcp_oauth_login_result, mcp_remove_git_hub_result, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_auth, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, options_update_env_value_mode, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_mode, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, send_agent_mode, send_attachment, send_attachment_blob, send_attachment_directory, send_attachment_file, send_attachment_file_line_range, send_attachment_github_reference, send_attachment_github_reference_type, send_attachment_selection, send_attachment_selection_details, send_attachment_selection_details_end, send_attachment_selection_details_start, send_mode, send_request, send_result, server_skill, server_skill_list, session_auth_status, session_bulk_delete_result, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_github, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_load_deferred_repo_hooks_result, session_log_level, session_metadata, session_metadata_snapshot, session_mode, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_prune_old_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, session_update_options_params, session_update_options_result, session_working_directory_context, session_working_directory_context_host_type, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_initialize_and_validate_result, tools_list_request, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_tool_session_approval_commands, user_tool_session_approval_custom_tool, user_tool_session_approval_extension_management, user_tool_session_approval_extension_permission_access, user_tool_session_approval_mcp, user_tool_session_approval_memory, user_tool_session_approval_read, user_tool_session_approval_write, workspaces_checkpoints, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, session_context_info, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_reload_result, agent_select_request, agent_select_result, api_key_auth_info, auth_info, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_source, installed_plugin_source_github, installed_plugin_source_local, installed_plugin_source_url, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, lsp_initialize_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_oauth_login_request, mcp_oauth_login_result, mcp_remove_git_hub_result, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_auth, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, options_update_env_value_mode, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_mode, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, send_agent_mode, send_attachment, send_attachment_blob, send_attachment_directory, send_attachment_file, send_attachment_file_line_range, send_attachment_github_reference, send_attachment_github_reference_type, send_attachment_selection, send_attachment_selection_details, send_attachment_selection_details_end, send_attachment_selection_details_start, send_mode, send_request, send_result, server_skill, server_skill_list, session_auth_status, session_bulk_delete_result, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_github, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_metadata, session_metadata_snapshot, session_mode, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_prune_old_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, session_update_options_params, session_update_options_result, session_working_directory_context, session_working_directory_context_host_type, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_initialize_and_validate_result, tools_list_request, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_tool_session_approval_commands, user_tool_session_approval_custom_tool, user_tool_session_approval_extension_management, user_tool_session_approval_extension_permission_access, user_tool_session_approval_mcp, user_tool_session_approval_memory, user_tool_session_approval_read, user_tool_session_approval_write, workspaces_checkpoints, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_info, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -15182,6 +16008,9 @@ class RPC:
         result["FilterMapping"] = from_union([lambda x: from_dict(lambda x: to_enum(ContentFilterMode, x), x), lambda x: to_enum(ContentFilterMode, x)], self.filter_mapping)
         result["FleetStartRequest"] = to_class(FleetStartRequest, self.fleet_start_request)
         result["FleetStartResult"] = to_class(FleetStartResult, self.fleet_start_result)
+        result["FolderTrustAddParams"] = to_class(FolderTrustAddParams, self.folder_trust_add_params)
+        result["FolderTrustCheckParams"] = to_class(FolderTrustCheckParams, self.folder_trust_check_params)
+        result["FolderTrustCheckResult"] = to_class(FolderTrustCheckResult, self.folder_trust_check_result)
         result["GhCliAuthInfo"] = to_class(GhCLIAuthInfo, self.gh_cli_auth_info)
         result["HandlePendingToolCallRequest"] = to_class(HandlePendingToolCallRequest, self.handle_pending_tool_call_request)
         result["HandlePendingToolCallResult"] = to_class(HandlePendingToolCallResult, self.handle_pending_tool_call_result)
@@ -15315,6 +16144,12 @@ class RPC:
         result["PermissionDecisionReject"] = to_class(PermissionDecisionReject, self.permission_decision_reject)
         result["PermissionDecisionRequest"] = to_class(PermissionDecisionRequest, self.permission_decision_request)
         result["PermissionDecisionUserNotAvailable"] = to_class(PermissionDecisionUserNotAvailable, self.permission_decision_user_not_available)
+        result["PermissionLocationAddToolApprovalParams"] = to_class(PermissionLocationAddToolApprovalParams, self.permission_location_add_tool_approval_params)
+        result["PermissionLocationApplyParams"] = to_class(PermissionLocationApplyParams, self.permission_location_apply_params)
+        result["PermissionLocationApplyResult"] = to_class(PermissionLocationApplyResult, self.permission_location_apply_result)
+        result["PermissionLocationResolveParams"] = to_class(PermissionLocationResolveParams, self.permission_location_resolve_params)
+        result["PermissionLocationResolveResult"] = to_class(PermissionLocationResolveResult, self.permission_location_resolve_result)
+        result["PermissionLocationType"] = to_enum(PermissionLocationType, self.permission_location_type)
         result["PermissionPathsAddParams"] = to_class(PermissionPathsAddParams, self.permission_paths_add_params)
         result["PermissionPathsAllowedCheckParams"] = to_class(PermissionPathsAllowedCheckParams, self.permission_paths_allowed_check_params)
         result["PermissionPathsAllowedCheckResult"] = to_class(PermissionPathsAllowedCheckResult, self.permission_paths_allowed_check_result)
@@ -15332,6 +16167,18 @@ class RPC:
         result["PermissionsConfigureAdditionalContentExclusionPolicyScope"] = to_enum(PermissionsConfigureAdditionalContentExclusionPolicyScope, self.permissions_configure_additional_content_exclusion_policy_scope)
         result["PermissionsConfigureParams"] = to_class(PermissionsConfigureParams, self.permissions_configure_params)
         result["PermissionsConfigureResult"] = to_class(PermissionsConfigureResult, self.permissions_configure_result)
+        result["PermissionsFolderTrustAddTrustedResult"] = to_class(PermissionsFolderTrustAddTrustedResult, self.permissions_folder_trust_add_trusted_result)
+        result["PermissionsLocationsAddToolApprovalDetails"] = to_class(PermissionsLocationsAddToolApprovalDetails, self.permissions_locations_add_tool_approval_details)
+        result["PermissionsLocationsAddToolApprovalDetailsCommands"] = to_class(PermissionsLocationsAddToolApprovalDetailsCommands, self.permissions_locations_add_tool_approval_details_commands)
+        result["PermissionsLocationsAddToolApprovalDetailsCustomTool"] = to_class(PermissionsLocationsAddToolApprovalDetailsCustomTool, self.permissions_locations_add_tool_approval_details_custom_tool)
+        result["PermissionsLocationsAddToolApprovalDetailsExtensionManagement"] = to_class(PermissionsLocationsAddToolApprovalDetailsExtensionManagement, self.permissions_locations_add_tool_approval_details_extension_management)
+        result["PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess"] = to_class(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess, self.permissions_locations_add_tool_approval_details_extension_permission_access)
+        result["PermissionsLocationsAddToolApprovalDetailsMcp"] = to_class(PermissionsLocationsAddToolApprovalDetailsMCP, self.permissions_locations_add_tool_approval_details_mcp)
+        result["PermissionsLocationsAddToolApprovalDetailsMcpSampling"] = to_class(PermissionsLocationsAddToolApprovalDetailsMCPSampling, self.permissions_locations_add_tool_approval_details_mcp_sampling)
+        result["PermissionsLocationsAddToolApprovalDetailsMemory"] = to_class(PermissionsLocationsAddToolApprovalDetailsMemory, self.permissions_locations_add_tool_approval_details_memory)
+        result["PermissionsLocationsAddToolApprovalDetailsRead"] = to_class(PermissionsLocationsAddToolApprovalDetailsRead, self.permissions_locations_add_tool_approval_details_read)
+        result["PermissionsLocationsAddToolApprovalDetailsWrite"] = to_class(PermissionsLocationsAddToolApprovalDetailsWrite, self.permissions_locations_add_tool_approval_details_write)
+        result["PermissionsLocationsAddToolApprovalResult"] = to_class(PermissionsLocationsAddToolApprovalResult, self.permissions_locations_add_tool_approval_result)
         result["PermissionsModifyRulesParams"] = to_class(PermissionsModifyRulesParams, self.permissions_modify_rules_params)
         result["PermissionsModifyRulesResult"] = to_class(PermissionsModifyRulesResult, self.permissions_modify_rules_result)
         result["PermissionsModifyRulesScope"] = to_enum(PermissionsModifyRulesScope, self.permissions_modify_rules_scope)
@@ -15396,7 +16243,7 @@ class RPC:
         result["SessionAuthStatus"] = to_class(SessionAuthStatus, self.session_auth_status)
         result["SessionBulkDeleteResult"] = to_class(SessionBulkDeleteResult, self.session_bulk_delete_result)
         result["SessionContext"] = to_class(SessionContext, self.session_context)
-        result["SessionContextHostType"] = to_enum(SessionContextHostType, self.session_context_host_type)
+        result["SessionContextHostType"] = to_enum(HostType, self.session_context_host_type)
         result["SessionEnrichMetadataResult"] = to_class(SessionEnrichMetadataResult, self.session_enrich_metadata_result)
         result["SessionFsAppendFileRequest"] = to_class(SessionFSAppendFileRequest, self.session_fs_append_file_request)
         result["SessionFsError"] = to_class(SessionFSError, self.session_fs_error)
@@ -15432,6 +16279,7 @@ class RPC:
         result["SessionInstalledPluginSourceLocal"] = to_class(SessionInstalledPluginSourceLocal, self.session_installed_plugin_source_local)
         result["SessionInstalledPluginSourceUrl"] = to_class(SessionInstalledPluginSourceURL, self.session_installed_plugin_source_url)
         result["SessionList"] = to_class(SessionList, self.session_list)
+        result["SessionListFilter"] = to_class(SessionListFilter, self.session_list_filter)
         result["SessionLoadDeferredRepoHooksResult"] = to_class(SessionLoadDeferredRepoHooksResult, self.session_load_deferred_repo_hooks_result)
         result["SessionLogLevel"] = to_enum(SessionLogLevel, self.session_log_level)
         result["SessionMetadata"] = to_class(SessionMetadata, self.session_metadata)
@@ -15473,7 +16321,7 @@ class RPC:
         result["SessionUpdateOptionsParams"] = to_class(SessionUpdateOptionsParams, self.session_update_options_params)
         result["SessionUpdateOptionsResult"] = to_class(SessionUpdateOptionsResult, self.session_update_options_result)
         result["SessionWorkingDirectoryContext"] = to_class(SessionWorkingDirectoryContext, self.session_working_directory_context)
-        result["SessionWorkingDirectoryContextHostType"] = to_enum(SessionContextHostType, self.session_working_directory_context_host_type)
+        result["SessionWorkingDirectoryContextHostType"] = to_enum(HostType, self.session_working_directory_context_host_type)
         result["ShellExecRequest"] = to_class(ShellExecRequest, self.shell_exec_request)
         result["ShellExecResult"] = to_class(ShellExecResult, self.shell_exec_result)
         result["ShellKillRequest"] = to_class(ShellKillRequest, self.shell_kill_request)
@@ -15504,6 +16352,7 @@ class RPC:
         result["TaskExecutionMode"] = to_enum(TaskExecutionMode, self.task_execution_mode)
         result["TaskInfo"] = to_class(TaskInfo, self.task_info)
         result["TaskList"] = to_class(TaskList, self.task_list)
+        result["TaskProgressLine"] = to_class(TaskProgressLine, self.task_progress_line)
         result["TasksCancelRequest"] = to_class(TasksCancelRequest, self.tasks_cancel_request)
         result["TasksCancelResult"] = to_class(TasksCancelResult, self.tasks_cancel_result)
         result["TasksGetCurrentPromotableResult"] = to_class(TasksGetCurrentPromotableResult, self.tasks_get_current_promotable_result)
@@ -15511,7 +16360,7 @@ class RPC:
         result["TasksGetProgressResult"] = to_class(TasksGetProgressResult, self.tasks_get_progress_result)
         result["TaskShellInfo"] = to_class(TaskShellInfo, self.task_shell_info)
         result["TaskShellInfoAttachmentMode"] = to_enum(TaskShellInfoAttachmentMode, self.task_shell_info_attachment_mode)
-        result["TaskShellProgress"] = from_none(self.task_shell_progress)
+        result["TaskShellProgress"] = to_class(TaskShellProgress, self.task_shell_progress)
         result["TasksPromoteCurrentToBackgroundResult"] = to_class(TasksPromoteCurrentToBackgroundResult, self.tasks_promote_current_to_background_result)
         result["TasksPromoteToBackgroundRequest"] = to_class(TasksPromoteToBackgroundRequest, self.tasks_promote_to_background_request)
         result["TasksPromoteToBackgroundResult"] = to_class(TasksPromoteToBackgroundResult, self.tasks_promote_to_background_result)
@@ -15592,8 +16441,10 @@ class RPC:
         result["WorkspacesReadFileResult"] = to_class(WorkspacesReadFileResult, self.workspaces_read_file_result)
         result["WorkspacesSaveLargePasteRequest"] = to_class(WorkspacesSaveLargePasteRequest, self.workspaces_save_large_paste_request)
         result["WorkspacesSaveLargePasteResult"] = to_class(WorkspacesSaveLargePasteResult, self.workspaces_save_large_paste_result)
+        result["WorkspaceSummaryHostType"] = to_enum(HostType, self.workspace_summary_host_type)
+        result["WorkspacesWorkspaceDetailsHostType"] = to_enum(HostType, self.workspaces_workspace_details_host_type)
         result["SessionContextInfo"] = from_union([lambda x: to_class(SessionContextInfo, x), from_none], self.session_context_info)
-        result["TaskProgress"] = from_union([lambda x: to_class(TaskProgressClass, x), from_none], self.task_progress)
+        result["TaskProgress"] = from_union([lambda x: to_class(TaskProgress, x), from_none], self.task_progress)
         result["WorkspaceSummary"] = from_union([lambda x: to_class(WorkspaceSummary, x), from_none], self.workspace_summary)
         return result
 
@@ -15609,12 +16460,12 @@ FilterMapping = dict
 McpExecuteSamplingRequest = dict
 McpExecuteSamplingResult = dict
 OptionsUpdateEnvValueMode = MCPSetEnvValueModeDetails
-SessionWorkingDirectoryContextHostType = SessionContextHostType
+SessionContextHostType = HostType
+SessionWorkingDirectoryContextHostType = HostType
 TaskInfoExecutionMode = TaskExecutionMode
 TaskInfoStatus = TaskStatus
-TaskInfoType = TaskAgentProgressType
-TaskProgress = TaskProgressClass
-TaskShellProgress = None
+WorkspaceSummaryHostType = HostType
+WorkspacesWorkspaceDetailsHostType = HostType
 
 def _timeout_kwargs(timeout: float | None) -> dict:
     """Build keyword arguments for optional timeout forwarding."""
@@ -15879,6 +16730,7 @@ class _InternalServerRpc:
         return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class AuthApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -15895,6 +16747,7 @@ class AuthApi:
         return SessionSetCredentialsResult.from_dict(await self._client.request("session.auth.setCredentials", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class ModelApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -15917,6 +16770,7 @@ class ModelApi:
         return ModelSetReasoningEffortResult.from_dict(await self._client.request("session.model.setReasoningEffort", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class ModeApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -15933,6 +16787,7 @@ class ModeApi:
         await self._client.request("session.mode.set", params_dict, **_timeout_kwargs(timeout))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class NameApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -15955,6 +16810,7 @@ class NameApi:
         return NameSetAutoResult.from_dict(await self._client.request("session.name.setAuto", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class PlanApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -15975,6 +16831,7 @@ class PlanApi:
         await self._client.request("session.plan.delete", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class WorkspacesApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16017,6 +16874,7 @@ class WorkspacesApi:
         return WorkspacesSaveLargePasteResult.from_dict(await self._client.request("session.workspaces.saveLargePaste", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class InstructionsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16294,6 +17152,7 @@ class ExtensionsApi:
         await self._client.request("session.extensions.reload", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class ToolsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16310,6 +17169,7 @@ class ToolsApi:
         return ToolsInitializeAndValidateResult.from_dict(await self._client.request("session.tools.initializeAndValidate", {"sessionId": self._session_id}, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class CommandsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16365,6 +17225,7 @@ class TelemetryApi:
         await self._client.request("session.telemetry.setFeatureOverrides", params_dict, **_timeout_kwargs(timeout))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class UiApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16417,6 +17278,7 @@ class UiApi:
         return UIUnregisterDirectAutoModeSwitchHandlerResult.from_dict(await self._client.request("session.ui.unregisterDirectAutoModeSwitchHandler", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class PermissionsPathsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16451,6 +17313,51 @@ class PermissionsPathsApi:
         return PermissionPathsWorkspaceCheckResult.from_dict(await self._client.request("session.permissions.paths.isPathWithinWorkspace", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
+class PermissionsLocationsApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def resolve(self, params: PermissionLocationResolveParams, *, timeout: float | None = None) -> PermissionLocationResolveResult:
+        "Resolves the permission location key and type for a working directory.\n\nArgs:\n    params: Working directory to resolve into a location-permissions key.\n\nReturns:\n    Resolved location-permissions key and type."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return PermissionLocationResolveResult.from_dict(await self._client.request("session.permissions.locations.resolve", params_dict, **_timeout_kwargs(timeout)))
+
+    async def apply(self, params: PermissionLocationApplyParams, *, timeout: float | None = None) -> PermissionLocationApplyResult:
+        "Applies persisted location-scoped tool approvals and allowed directories for a working directory to this session's permission service.\n\nArgs:\n    params: Working directory to load persisted location permissions for.\n\nReturns:\n    Summary of persisted location permissions applied to the session."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return PermissionLocationApplyResult.from_dict(await self._client.request("session.permissions.locations.apply", params_dict, **_timeout_kwargs(timeout)))
+
+    async def add_tool_approval(self, params: PermissionLocationAddToolApprovalParams, *, timeout: float | None = None) -> PermissionsLocationsAddToolApprovalResult:
+        "Persists a tool approval for a permission location and applies its rules to this session's live permission service.\n\nArgs:\n    params: Location-scoped tool approval to persist.\n\nReturns:\n    Indicates whether the operation succeeded."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return PermissionsLocationsAddToolApprovalResult.from_dict(await self._client.request("session.permissions.locations.addToolApproval", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
+class PermissionsFolderTrustApi:
+    def __init__(self, client: "JsonRpcClient", session_id: str):
+        self._client = client
+        self._session_id = session_id
+
+    async def is_trusted(self, params: FolderTrustCheckParams, *, timeout: float | None = None) -> FolderTrustCheckResult:
+        "Reports whether a folder is trusted according to the user's folder trust state.\n\nArgs:\n    params: Folder path to check for trust.\n\nReturns:\n    Folder trust check result."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return FolderTrustCheckResult.from_dict(await self._client.request("session.permissions.folderTrust.isTrusted", params_dict, **_timeout_kwargs(timeout)))
+
+    async def add_trusted(self, params: FolderTrustAddParams, *, timeout: float | None = None) -> PermissionsFolderTrustAddTrustedResult:
+        "Adds a folder to the user's trusted folders list.\n\nArgs:\n    params: Folder path to add to trusted folders.\n\nReturns:\n    Indicates whether the operation succeeded."
+        params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
+        params_dict["sessionId"] = self._session_id
+        return PermissionsFolderTrustAddTrustedResult.from_dict(await self._client.request("session.permissions.folderTrust.addTrusted", params_dict, **_timeout_kwargs(timeout)))
+
+
+# Experimental: this API group is experimental and may change or be removed.
 class PermissionsUrlsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16463,11 +17370,14 @@ class PermissionsUrlsApi:
         return PermissionsUrlsSetUnrestrictedModeResult.from_dict(await self._client.request("session.permissions.urls.setUnrestrictedMode", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class PermissionsApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
         self._session_id = session_id
         self.paths = PermissionsPathsApi(client, session_id)
+        self.locations = PermissionsLocationsApi(client, session_id)
+        self.folder_trust = PermissionsFolderTrustApi(client, session_id)
         self.urls = PermissionsUrlsApi(client, session_id)
 
     async def configure(self, params: PermissionsConfigureParams, *, timeout: float | None = None) -> PermissionsConfigureResult:
@@ -16554,6 +17464,7 @@ class MetadataApi:
         return MetadataRecomputeContextTokensResult.from_dict(await self._client.request("session.metadata.recomputeContextTokens", params_dict, **_timeout_kwargs(timeout)))
 
 
+# Experimental: this API group is experimental and may change or be removed.
 class ShellApi:
     def __init__(self, client: "JsonRpcClient", session_id: str):
         self._client = client
@@ -16736,29 +17647,29 @@ class SessionRpc:
         self.schedule = ScheduleApi(client, session_id)
 
     async def suspend(self, *, timeout: float | None = None) -> None:
-        "Suspends the session while preserving persisted state for later resume."
+        "Suspends the session while preserving persisted state for later resume.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         await self._client.request("session.suspend", {"sessionId": self._session_id}, **_timeout_kwargs(timeout))
 
     async def send(self, params: SendRequest, *, timeout: float | None = None) -> SendResult:
-        "Sends a user message to the session and returns its message ID.\n\nArgs:\n    params: Parameters for sending a user message to the session\n\nReturns:\n    Result of sending a user message"
+        "Sends a user message to the session and returns its message ID.\n\nArgs:\n    params: Parameters for sending a user message to the session\n\nReturns:\n    Result of sending a user message\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return SendResult.from_dict(await self._client.request("session.send", params_dict, **_timeout_kwargs(timeout)))
 
     async def abort(self, params: AbortRequest, *, timeout: float | None = None) -> AbortResult:
-        "Aborts the current agent turn.\n\nArgs:\n    params: Parameters for aborting the current turn\n\nReturns:\n    Result of aborting the current turn"
+        "Aborts the current agent turn.\n\nArgs:\n    params: Parameters for aborting the current turn\n\nReturns:\n    Result of aborting the current turn\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return AbortResult.from_dict(await self._client.request("session.abort", params_dict, **_timeout_kwargs(timeout)))
 
     async def shutdown(self, params: ShutdownRequest, *, timeout: float | None = None) -> None:
-        "Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.\n\nArgs:\n    params: Parameters for shutting down the session"
+        "Shuts down the session and persists its final state. Awaits any deferred sessionEnd hooks before resolving so user-supplied hook scripts complete before the runtime tears down.\n\nArgs:\n    params: Parameters for shutting down the session\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         await self._client.request("session.shutdown", params_dict, **_timeout_kwargs(timeout))
 
     async def log(self, params: LogRequest, *, timeout: float | None = None) -> LogResult:
-        "Emits a user-visible session log event.\n\nArgs:\n    params: Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.\n\nReturns:\n    Identifier of the session event that was emitted for the log message."
+        "Emits a user-visible session log event.\n\nArgs:\n    params: Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.\n\nReturns:\n    Identifier of the session event that was emitted for the log message.\n\n.. warning:: This API is experimental and may change or be removed in future versions."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
         return LogResult.from_dict(await self._client.request("session.log", params_dict, **_timeout_kwargs(timeout)))

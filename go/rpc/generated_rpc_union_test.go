@@ -134,28 +134,25 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 }
 
 func TestTaskProgressUnmarshalsTaskAgentProgressVariants(t *testing.T) {
-	var agentProgress TaskProgress
-	if err := json.Unmarshal([]byte(`{"type":"agent","recentActivity":[],"latestIntent":"Summarizing"}`), &agentProgress); err != nil {
+	agentProgress, err := unmarshalTaskProgress([]byte(`{"type":"agent","recentActivity":[],"latestIntent":"Summarizing"}`))
+	if err != nil {
 		t.Fatalf("unmarshal agent task progress: %v", err)
 	}
-	agentValue, ok := agentProgress.TaskAgentProgress.(*TaskAgentProgressAgent)
+	agentValue, ok := agentProgress.(*TaskAgentProgress)
 	if !ok {
-		t.Fatalf("agent task progress = %T, want *TaskAgentProgressAgent", agentProgress.TaskAgentProgress)
+		t.Fatalf("agent task progress = %T, want *TaskAgentProgress", agentProgress)
 	}
 	if agentValue.LatestIntent == nil || *agentValue.LatestIntent != "Summarizing" {
 		t.Fatalf("agent latest intent = %v, want Summarizing", agentValue.LatestIntent)
 	}
-	if agentProgress.TaskShellProgress != nil {
-		t.Fatalf("agent task shell progress = %#v, want nil", *agentProgress.TaskShellProgress)
-	}
 
-	var shellProgress TaskProgress
-	if err := json.Unmarshal([]byte(`{"type":"shell","recentOutput":"building","pid":123}`), &shellProgress); err != nil {
+	shellProgress, err := unmarshalTaskProgress([]byte(`{"type":"shell","recentOutput":"building","pid":123}`))
+	if err != nil {
 		t.Fatalf("unmarshal shell task progress: %v", err)
 	}
-	shellValue, ok := shellProgress.TaskAgentProgress.(*TaskAgentProgressShell)
+	shellValue, ok := shellProgress.(*TaskShellProgress)
 	if !ok {
-		t.Fatalf("shell task progress = %T, want *TaskAgentProgressShell", shellProgress.TaskAgentProgress)
+		t.Fatalf("shell task progress = %T, want *TaskShellProgress", shellProgress)
 	}
 	if shellValue.RecentOutput != "building" {
 		t.Fatalf("shell recent output = %q, want building", shellValue.RecentOutput)

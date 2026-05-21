@@ -116,7 +116,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         var workspace = await session.Rpc.Workspaces.GetWorkspaceAsync();
         Assert.NotNull(workspace.Workspace);
-        Assert.NotEqual(Guid.Empty, workspace.Workspace.Id);
+        Assert.NotEmpty(workspace.Workspace.Id);
     }
 
     [Theory]
