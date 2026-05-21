@@ -109,7 +109,7 @@ dotnet new console -n CopilotDemo && cd CopilotDemo
 Then add the SDK:
 
 ```bash
-dotnet add package GitHub.Copilot
+dotnet add package GitHub.Copilot.SDK
 ```
 
 </details>

@@ -32,7 +32,7 @@ Install the Copilot SDK alongside the MAF integration package for your language:
 <summary><strong>.NET</strong></summary>
 
 ```shell
-dotnet add package GitHub.Copilot
+dotnet add package GitHub.Copilot.SDK
 dotnet add package Microsoft.Agents.AI.GitHub.Copilot --prerelease
 ```
 
