@@ -21,8 +21,8 @@ func TestSessionFsE2E(t *testing.T) {
 	sessionStatePath := createSessionStatePath(t)
 	sessionFsConfig := &copilot.SessionFsConfig{
 		InitialWorkingDirectory: "/",
-		SessionStatePath: sessionStatePath,
-		Conventions:      rpc.SessionFsSetProviderConventionsPosix,
+		SessionStatePath:        sessionStatePath,
+		Conventions:             rpc.SessionFsSetProviderConventionsPosix,
 	}
 	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
 		return &testSessionFsHandler{

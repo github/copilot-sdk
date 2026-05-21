@@ -170,7 +170,7 @@ func TestClient_SessionFsConfig(t *testing.T) {
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
 				InitialWorkingDirectory: "/",
-				Conventions: rpc.SessionFsSetProviderConventionsPosix,
+				Conventions:             rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})

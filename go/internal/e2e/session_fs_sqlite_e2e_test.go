@@ -244,9 +244,9 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 	sessionStatePath := createSessionStatePath(t)
 	sessionFsConfig := &copilot.SessionFsConfig{
 		InitialWorkingDirectory: "/",
-		SessionStatePath: sessionStatePath,
-		Conventions:      rpc.SessionFsSetProviderConventionsPosix,
-		Capabilities:     &copilot.SessionFsCapabilities{Sqlite: true},
+		SessionStatePath:        sessionStatePath,
+		Conventions:             rpc.SessionFsSetProviderConventionsPosix,
+		Capabilities:            &copilot.SessionFsCapabilities{Sqlite: true},
 	}
 
 	var sqliteCalls []sqliteCall
