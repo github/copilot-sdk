@@ -1,0 +1,197 @@
+name: "Java Codegen Check"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'java/scripts/codegen/**'
+      - 'java/src/generated/**'
+      - '.github/workflows/java-codegen-check.yml'
+  pull_request:
+    paths:
+      - 'java/scripts/codegen/**'
+      - 'java/src/generated/**'
+      - '.github/workflows/java-codegen-check.yml'
+  workflow_dispatch:
+
+# Permissions: contents: write and pull-requests: write are needed to push
+# regenerated files back to PR branches. actions: write is needed to trigger
+# the agentic fix workflow via gh workflow run.
+#
+# Dependabot PR caveat: Workflows triggered by pull_request from Dependabot
+# run with a read-only GITHUB_TOKEN regardless of declared permissions.
+# The push step uses continue-on-error to handle this gracefully — if the
+# push fails (Dependabot), the agentic fix workflow will handle pushing
+# via its own push-to-pull-request-branch safe-output.
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  check:
+    name: "Verify Java generated files are up-to-date"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # For PRs, check out the PR head so we can push back to it
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22
+
+      - name: Install codegen dependencies
+        working-directory: ./java/scripts/codegen
+        run: npm ci
+
+      - name: Run codegen
+        working-directory: ./java/scripts/codegen
+        run: npx tsx java.ts
+
+      - name: Check for uncommitted changes
+        id: check-changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Generated files are out of date."
+            git diff --stat
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ Generated files are up-to-date"
+          fi
+
+      # --- On push to main: fail if generated files are stale (existing behavior) ---
+      - name: Fail on stale generated files (push to main)
+        if: steps.check-changes.outputs.changed == 'true' && github.event_name != 'pull_request'
+        run: |
+          echo "::error::Generated files are out of date. Run 'cd java/scripts/codegen && npx tsx java.ts' and commit the changes."
+          git diff
+          exit 1
+
+      # --- On PR: commit regenerated files back and verify build ---
+      - name: Commit and push regenerated files to PR branch
+        id: push-regen
+        if: steps.check-changes.outputs.changed == 'true' && github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Regenerate Java codegen output
+
+          Auto-committed by java-codegen-check workflow."
+          git push origin "HEAD:$HEAD_REF"
+
+      - name: Fail if regenerated files could not be pushed
+        if: steps.push-regen.outcome == 'failure'
+        run: |
+          echo "::error::Could not push regenerated files to the PR branch. This is expected for Dependabot PRs (read-only token) and fork PRs."
+          echo "To fix: check out this PR branch locally, run 'cd java/scripts/codegen && npx tsx java.ts', commit, and push."
+          exit 1
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        if: steps.push-regen.outcome == 'success'
+        with:
+          java-version: "17"
+          distribution: "microsoft"
+          cache: "maven"
+
+      - name: Run mvn verify
+        id: mvn-verify
+        if: steps.push-regen.outcome == 'success'
+        continue-on-error: true
+        working-directory: ./java
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          mvn verify 2>&1 | tee /tmp/mvn-verify-output.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Capture error summary
+        id: error-summary
+        if: steps.mvn-verify.outcome == 'failure'
+        run: |
+          SUMMARY=$(tail -80 /tmp/mvn-verify-output.txt)
+          echo "$SUMMARY" > /tmp/error-summary.txt
+          echo "has_errors=true" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger agentic fix workflow
+        id: trigger-fix
+        if: steps.error-summary.outputs.has_errors == 'true' && steps.push-regen.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          ERROR_SUMMARY=$(cat /tmp/error-summary.txt)
+
+          # Ensure PR has dependencies label (required by java-codegen-fix safe-output)
+          gh pr edit "$PR_NUMBER" --add-label dependencies
+
+          gh workflow run java-codegen-fix.lock.yml \
+            -f branch="$BRANCH" \
+            -f pr_number="$PR_NUMBER" \
+            -f error_summary="$ERROR_SUMMARY"
+          echo "Triggered java-codegen-fix workflow on branch $BRANCH for PR #$PR_NUMBER"
+
+      - name: Wait for agentic fix to complete
+        if: steps.trigger-fix.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          echo "Waiting for agentic fix workflow to start..."
+          sleep 30
+
+          for i in $(seq 1 60); do
+            RUN_ID=$(gh run list \
+              --workflow=java-codegen-fix.lock.yml \
+              --branch="$BRANCH" \
+              --limit=1 \
+              --json databaseId,status \
+              --jq '.[0].databaseId')
+
+            STATUS=$(gh run list \
+              --workflow=java-codegen-fix.lock.yml \
+              --branch="$BRANCH" \
+              --limit=1 \
+              --json databaseId,status \
+              --jq '.[0].status')
+
+            if [ "$STATUS" = "completed" ]; then
+              echo "Agentic fix workflow run $RUN_ID completed."
+              CONCLUSION=$(gh run view "$RUN_ID" --json conclusion --jq .conclusion)
+              echo "Conclusion: $CONCLUSION"
+              break
+            fi
+
+            echo "Run $RUN_ID status: $STATUS (attempt $i/60)"
+            sleep 30
+          done
+
+          if [ "$STATUS" != "completed" ]; then
+            echo "::warning::Agentic fix workflow did not complete within 30 minutes."
+          fi
+
+      - name: Fetch latest changes after agentic fix
+        if: steps.trigger-fix.outcome == 'success'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch origin "$HEAD_REF"
+          git reset --hard "origin/$HEAD_REF"
+
+      - name: Final mvn verify after agentic fix
+        if: steps.trigger-fix.outcome == 'success'
+        working-directory: ./java
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: mvn verify
