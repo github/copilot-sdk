@@ -145,7 +145,7 @@ package main
 func main() {
 	// The Go SDK does not currently support passing extra CLI arguments.
 	// For custom log directories, run the CLI manually with --log-dir
-	// and connect via CLIUrl option.
+	// and connect via Connection (UriConnection).
 }
 ```
 <!-- /docs-validate: hidden -->
@@ -153,7 +153,7 @@ func main() {
 ```go
 // The Go SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir
-// and connect via CLIUrl option.
+// and connect via Connection (UriConnection).
 ```
 
 </details>
@@ -221,7 +221,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
-       CLIPath: "/usr/local/bin/copilot",
+       Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
    })
    ```
    </details>

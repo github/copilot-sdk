@@ -2001,7 +2001,7 @@ func main() {
 	ctx := context.Background()
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: "localhost:4321",
+		Connection: copilot.UriConnection{URL: "localhost:4321"},
 	})
 
 	if err := client.Start(ctx); err != nil {
@@ -2021,7 +2021,7 @@ func main() {
 import copilot "github.com/github/copilot-sdk/go"
 
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIUrl: "localhost:4321",
+    Connection: copilot.UriConnection{URL: "localhost:4321"},
 })
 
 if err := client.Start(ctx); err != nil {
@@ -2105,7 +2105,7 @@ var session = client.createSession(
 
 </details>
 
-**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
+**Note:** When `cli_url` / `cliUrl` / Go's `UriConnection` is provided, or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
 ## Telemetry and observability
 
