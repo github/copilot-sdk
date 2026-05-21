@@ -1005,22 +1005,6 @@ pub struct ExtensionRegistrationConfig {
     pub host_extensions: Vec<Value>,
 }
 
-/// Host-advertised runtime capabilities. The runtime gates corresponding
-/// agent tools based on what the host implements.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct HostCapabilitiesConfig {
-    /// Renderer-side opt-in (V1.1): when `true`, the runtime surfaces canvas
-    /// agent tools (`open_canvas`, `discover_canvases`, `focus_canvas`,
-    /// `close_canvas`, `reload_canvas`) to the model for this connection.
-    /// Default off — TUI / headless / SDK callers stay clean unless they can
-    /// actually display canvases. This is independent of provider semantics,
-    /// which are declared via `SessionConfig.canvases`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub canvas: Option<bool>,
-}
-
 /// Server-to-client hosted extension callback request.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -1306,9 +1290,6 @@ pub struct SessionConfig {
     /// Host-provided extension registrations for the temporary canvas POC.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_registrations: Option<ExtensionRegistrationConfig>,
-    /// Host-advertised runtime capabilities (gates canvas agent tools, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host_capabilities: Option<HostCapabilitiesConfig>,
     /// Ask the runtime to route hosted extension callbacks over this SDK connection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_host_extension: Option<bool>,
@@ -1444,7 +1425,6 @@ impl Default for SessionConfig {
             commands: None,
             canvases: Vec::new(),
             extension_registrations: None,
-            host_capabilities: None,
             request_host_extension: None,
             session_fs_provider: None,
             handler: None,
@@ -1917,9 +1897,6 @@ pub struct ResumeSessionConfig {
     /// Host-provided extension registrations for the temporary canvas POC.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_registrations: Option<ExtensionRegistrationConfig>,
-    /// Host-advertised runtime capabilities (gates canvas agent tools, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host_capabilities: Option<HostCapabilitiesConfig>,
     /// Ask the runtime to route hosted extension callbacks over this SDK connection.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_host_extension: Option<bool>,
@@ -2057,7 +2034,6 @@ impl ResumeSessionConfig {
             commands: None,
             canvases: Vec::new(),
             extension_registrations: None,
-            host_capabilities: None,
             request_host_extension: None,
             session_fs_provider: None,
             disable_resume: None,
@@ -3452,7 +3428,7 @@ mod tests {
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
         ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionRegistrationConfig,
-        GitHubReferenceType, HostCapabilitiesConfig, InfiniteSessionConfig, PermissionRequestData,
+        GitHubReferenceType, InfiniteSessionConfig, PermissionRequestData,
         ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
         SystemMessageConfig, Tool, ToolBinaryResult, ToolInvocation, ToolResult,
         ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
@@ -3502,7 +3478,6 @@ mod tests {
                     }
                 })],
             }),
-            host_capabilities: Some(HostCapabilitiesConfig { canvas: Some(true) }),
             request_host_extension: Some(true),
             ..Default::default()
         };
@@ -3524,7 +3499,6 @@ mod tests {
                 .is_none(),
             "hostExtensions items are bare manifests, not wrapped"
         );
-        assert_eq!(value["hostCapabilities"]["canvas"], true);
         assert_eq!(value["requestHostExtension"], true);
     }
 
@@ -3539,7 +3513,6 @@ mod tests {
                 "publisher": "github"
             })],
         });
-        cfg.host_capabilities = Some(HostCapabilitiesConfig { canvas: Some(true) });
         cfg.request_host_extension = Some(true);
 
         let value = serde_json::to_value(cfg).expect("serialize resume config");
@@ -3548,7 +3521,6 @@ mod tests {
             value["extensionRegistrations"]["hostExtensions"][0]["name"],
             "markdown"
         );
-        assert_eq!(value["hostCapabilities"]["canvas"], true);
         assert_eq!(value["requestHostExtension"], true);
     }
 
