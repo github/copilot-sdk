@@ -26,7 +26,7 @@ def meta_echo_mcp_config() -> dict[str, MCPServerConfig]:
         "meta-echo": {
             "command": "node",
             "args": [TEST_MCP_META_ECHO_SERVER],
-            "cwd": TEST_HARNESS_DIR,
+            "working_directory": TEST_HARNESS_DIR,
             "tools": ["*"],
         }
     }

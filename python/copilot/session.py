@@ -84,7 +84,7 @@ class SessionFsCapabilities(TypedDict, total=False):
 
 
 class SessionFsConfig(TypedDict):
-    initial_cwd: str
+    initial_working_directory: str
     session_state_path: str
     conventions: SessionFsConventions
     capabilities: NotRequired[SessionFsCapabilities]
@@ -820,7 +820,7 @@ class MCPStdioServerConfig(TypedDict, total=False):
     command: str  # Command to run
     args: NotRequired[list[str]]  # Command arguments
     env: NotRequired[dict[str, str]]  # Environment variables
-    cwd: NotRequired[str]  # Working directory
+    working_directory: NotRequired[str]  # Working directory
 
 
 class MCPHTTPServerConfig(TypedDict, total=False):

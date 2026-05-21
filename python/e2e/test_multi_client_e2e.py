@@ -55,7 +55,7 @@ class MultiClientContext:
         self._client1 = CopilotClient(
             SubprocessConfig(
                 cli_path=self.cli_path,
-                cwd=self.work_dir,
+                working_directory=self.work_dir,
                 env=self.get_env(),
                 use_stdio=False,
                 github_token=github_token,

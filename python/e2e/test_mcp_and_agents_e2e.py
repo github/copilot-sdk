@@ -109,7 +109,7 @@ class TestMCPServers:
                 "args": [TEST_MCP_SERVER],
                 "tools": ["*"],
                 "env": {"TEST_SECRET": "hunter2"},
-                "cwd": TEST_HARNESS_DIR,
+                "working_directory": TEST_HARNESS_DIR,
             }
         }
 

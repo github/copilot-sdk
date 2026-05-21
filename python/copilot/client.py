@@ -114,12 +114,28 @@ def _cloud_session_options_to_dict(options: CloudSessionOptions) -> dict[str, An
 
 
 def _validate_session_fs_config(config: SessionFsConfig) -> None:
-    if not config.get("initial_cwd"):
-        raise ValueError("session_fs.initial_cwd is required")
+    if not config.get("initial_working_directory"):
+        raise ValueError("session_fs.initial_working_directory is required")
     if not config.get("session_state_path"):
         raise ValueError("session_fs.session_state_path is required")
     if config.get("conventions") not in ("posix", "windows"):
         raise ValueError("session_fs.conventions must be either 'posix' or 'windows'")
+
+
+def _mcp_servers_to_wire(
+    servers: dict[str, Any],
+) -> dict[str, Any]:
+    """Convert MCP server configs from public API format to wire format.
+
+    Renames ``working_directory`` key to ``cwd`` in each server config dict.
+    """
+    wire: dict[str, Any] = {}
+    for name, config in servers.items():
+        if "working_directory" in config:
+            config = {**config, "cwd": config["working_directory"]}
+            del config["working_directory"]
+        wire[name] = config
+    return wire
 
 
 class TelemetryConfig(TypedDict, total=False):
@@ -161,7 +177,7 @@ class SubprocessConfig:
 
     _: KW_ONLY
 
-    cwd: str | None = None
+    working_directory: str | None = None
     """Working directory for the CLI process. ``None`` uses the current directory."""
 
     use_stdio: bool = True
@@ -661,7 +677,7 @@ class ModelInfo:
 class SessionContext:
     """Working directory context for a session"""
 
-    cwd: str  # Working directory where the session was created
+    working_directory: str  # Working directory where the session was created
     gitRoot: str | None = None  # Git repository root (if in a git repo)
     repository: str | None = None  # GitHub repository in "owner/repo" format
     branch: str | None = None  # Current git branch
@@ -673,14 +689,14 @@ class SessionContext:
         if cwd is None:
             raise ValueError("Missing required field 'cwd' in SessionContext")
         return SessionContext(
-            cwd=str(cwd),
+            working_directory=str(cwd),
             gitRoot=obj.get("gitRoot"),
             repository=obj.get("repository"),
             branch=obj.get("branch"),
         )
 
     def to_dict(self) -> dict:
-        result: dict = {"cwd": self.cwd}
+        result: dict = {"cwd": self.working_directory}
         if self.gitRoot is not None:
             result["gitRoot"] = self.gitRoot
         if self.repository is not None:
@@ -694,15 +710,15 @@ class SessionContext:
 class SessionListFilter:
     """Filter options for listing sessions"""
 
-    cwd: str | None = None  # Filter by exact cwd match
+    working_directory: str | None = None  # Filter by exact working directory match
     gitRoot: str | None = None  # Filter by git root
     repository: str | None = None  # Filter by repository (owner/repo format)
     branch: str | None = None  # Filter by branch
 
     def to_dict(self) -> dict:
         result: dict = {}
-        if self.cwd is not None:
-            result["cwd"] = self.cwd
+        if self.working_directory is not None:
+            result["cwd"] = self.working_directory
         if self.gitRoot is not None:
             result["gitRoot"] = self.gitRoot
         if self.repository is not None:
@@ -1555,7 +1571,7 @@ class CopilotClient:
 
         # Add MCP servers configuration if provided
         if mcp_servers:
-            payload["mcpServers"] = mcp_servers
+            payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
@@ -1928,7 +1944,7 @@ class CopilotClient:
 
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
-            payload["mcpServers"] = mcp_servers
+            payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
         payload["envValueMode"] = "direct"
 
         if custom_agents:
@@ -2193,8 +2209,8 @@ class CopilotClient:
         Returns metadata about each session including ID, timestamps, and summary.
 
         Args:
-            filter: Optional filter to narrow down the list of sessions by cwd, git root,
-                repository, or branch.
+            filter: Optional filter to narrow down the list of sessions by working directory,
+                git root, repository, or branch.
 
         Returns:
             A list of SessionMetadata objects.
@@ -2563,7 +2579,7 @@ class CopilotClient:
         if "tools" in agent:
             wire_agent["tools"] = agent["tools"]
         if "mcp_servers" in agent:
-            wire_agent["mcpServers"] = agent["mcp_servers"]
+            wire_agent["mcpServers"] = _mcp_servers_to_wire(agent["mcp_servers"])
         if "infer" in agent:
             wire_agent["infer"] = agent["infer"]
         if "skills" in agent:
@@ -2683,7 +2699,7 @@ class CopilotClient:
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-        cwd = cfg.cwd or os.getcwd()
+        cwd = cfg.working_directory or os.getcwd()
 
         # Choose transport mode
         spawn_start = time.perf_counter()
@@ -2964,7 +2980,7 @@ class CopilotClient:
             return
 
         params: dict[str, Any] = {
-            "initialCwd": self._session_fs_config["initial_cwd"],
+            "initialCwd": self._session_fs_config["initial_working_directory"],
             "sessionStatePath": self._session_fs_config["session_state_path"],
             "conventions": self._session_fs_config["conventions"],
         }

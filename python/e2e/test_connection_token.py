@@ -49,7 +49,7 @@ class ConnectionTokenContext:
         self._client = CopilotClient(
             SubprocessConfig(
                 cli_path=self.cli_path,
-                cwd=self.work_dir,
+                working_directory=self.work_dir,
                 env=self.get_env(),
                 use_stdio=False,
                 tcp_connection_token=self.token,

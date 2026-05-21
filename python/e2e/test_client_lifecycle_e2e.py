@@ -62,7 +62,7 @@ def _make_isolated_client(ctx: E2ETestContext) -> CopilotClient:
     return CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
-            cwd=ctx.work_dir,
+            working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=github_token,
         )

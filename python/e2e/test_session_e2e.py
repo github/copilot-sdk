@@ -245,7 +245,7 @@ class TestSessions:
         new_client = CopilotClient(
             SubprocessConfig(
                 cli_path=ctx.cli_path,
-                cwd=ctx.work_dir,
+                working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 github_token=github_token,
             )
@@ -315,8 +315,8 @@ class TestSessions:
         for session_data in sessions:
             assert hasattr(session_data, "context")
             if session_data.context is not None:
-                assert hasattr(session_data.context, "cwd")
-                assert isinstance(session_data.context.cwd, str)
+                assert hasattr(session_data.context, "working_directory")
+                assert isinstance(session_data.context.working_directory, str)
 
     async def test_should_delete_session(self, ctx: E2ETestContext):
         import asyncio
@@ -372,8 +372,8 @@ class TestSessions:
 
         # Verify context field is present
         if metadata.context is not None:
-            assert hasattr(metadata.context, "cwd")
-            assert isinstance(metadata.context.cwd, str)
+            assert hasattr(metadata.context, "working_directory")
+            assert isinstance(metadata.context.working_directory, str)
 
         # Verify non-existent session returns None
         not_found = await ctx.client.get_session_metadata("non-existent-session-id")
@@ -832,7 +832,7 @@ class TestSessions:
         assert all_sessions
 
         if our_session.context is not None:
-            assert isinstance(our_session.context.cwd, str) and our_session.context.cwd
+            assert isinstance(our_session.context.working_directory, str) and our_session.context.working_directory
 
         await session.disconnect()
 
