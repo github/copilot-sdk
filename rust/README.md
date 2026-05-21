@@ -443,7 +443,7 @@ To opt your client into receiving `elicitation.requested` broadcasts, install an
 ```rust,ignore
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{ElicitationHandler, ElicitationResult};
-use github_copilot_sdk::types::{ElicitationRequestData, RequestId, SessionId};
+use github_copilot_sdk::types::{ElicitationRequest, RequestId, SessionId};
 
 struct MyElicitation;
 
@@ -453,7 +453,7 @@ impl ElicitationHandler for MyElicitation {
         &self,
         _sid: SessionId,
         _rid: RequestId,
-        _data: ElicitationRequestData,
+        _request: ElicitationRequest,
     ) -> ElicitationResult {
         ElicitationResult::cancel()
     }
