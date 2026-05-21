@@ -111,7 +111,7 @@ async function main() {
 
   const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-    githubToken: accessToken,
+    gitHubToken: accessToken,
   });
 
   try {

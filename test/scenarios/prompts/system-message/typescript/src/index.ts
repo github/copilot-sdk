@@ -5,7 +5,7 @@ const PIRATE_PROMPT = `You are a pirate. Always respond in pirate speak. Say 'Ar
 async function main() {
   const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
+    gitHubToken: process.env.GITHUB_TOKEN,
   });
 
   try {
