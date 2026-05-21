@@ -329,16 +329,12 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(SecretTool)];
-                let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
-                let __perm = Arc::new(ApproveAllHandler);
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_permission_handler(__perm)
-                            .with_tool_handlers(tool_handlers)
-                            .with_tools(tools)
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![secret_tool()])
                             .with_default_agent(DefaultAgentConfig {
                                 excluded_tools: Some(vec!["secret_tool".to_string()]),
                             }),
@@ -365,16 +361,12 @@ async fn should_create_session_with_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(SecretNumberTool)];
-            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
-            let __perm = Arc::new(ApproveAllHandler);
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_permission_handler(__perm)
-                        .with_tool_handlers(tool_handlers)
-                        .with_tools(tools),
+                        .with_permission_handler(Arc::new(ApproveAllHandler))
+                        .with_tools(vec![secret_number_tool()]),
                 )
                 .await
                 .expect("create session");
@@ -1524,10 +1516,6 @@ struct SecretNumberTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for SecretNumberTool {
-    fn tool(&self) -> Tool {
-        secret_number_tool()
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let key = invocation
             .arguments
@@ -1542,22 +1530,23 @@ impl ToolHandler for SecretNumberTool {
     }
 }
 
+fn secret_tool() -> Tool {
+    Tool::new("secret_tool")
+        .with_description("A secret tool hidden from the default agent")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "input": { "type": "string" }
+            },
+            "required": ["input"]
+        }))
+        .with_handler(Arc::new(SecretTool))
+}
+
 struct SecretTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for SecretTool {
-    fn tool(&self) -> Tool {
-        Tool::new("secret_tool")
-            .with_description("A secret tool hidden from the default agent")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "input": { "type": "string" }
-                },
-                "required": ["input"]
-            }))
-    }
-
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
         Ok(ToolResult::Text("SECRET".to_string()))
     }
@@ -1576,4 +1565,5 @@ fn secret_number_tool() -> Tool {
             },
             "required": ["key"]
         }))
+        .with_handler(Arc::new(SecretNumberTool))
 }

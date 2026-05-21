@@ -285,16 +285,13 @@ async fn should_allow_pretooluse_to_return_modifiedargs_and_suppressoutput() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let (tx, mut rx) = mpsc::unbounded_channel();
-                let echo_tool: Arc<dyn ToolHandler> = Arc::new(EchoValueTool);
-                let tools = vec![echo_tool.tool()];
                 let client = ctx.start_client().await;
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(ApproveAllHandler))
-                            .with_tool_handlers(vec![echo_tool])
-                            .with_tools(tools)
+                            .with_tools(vec![echo_value_tool()])
                             .with_hooks(Arc::new(RecordingHooks::pre_tool(tx))),
                     )
                     .await
@@ -540,20 +537,21 @@ impl SessionHooks for RecordingHooks {
 
 struct EchoValueTool;
 
+fn echo_value_tool() -> Tool {
+    Tool::new("echo_value")
+        .with_description("Echoes the supplied value")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "value": { "type": "string" }
+            },
+            "required": ["value"]
+        }))
+        .with_handler(Arc::new(EchoValueTool))
+}
+
 #[async_trait]
 impl ToolHandler for EchoValueTool {
-    fn tool(&self) -> Tool {
-        Tool::new("echo_value")
-            .with_description("Echoes the supplied value")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "value": { "type": "string" }
-                },
-                "required": ["value"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         Ok(ToolResult::Text(
             invocation

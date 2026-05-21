@@ -2049,12 +2049,6 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     struct RunTestsTool;
     #[async_trait]
     impl tool::ToolHandler for RunTestsTool {
-        fn tool(&self) -> Tool {
-            Tool::new("run_tests")
-                .with_description("Run tests")
-                .with_parameters(serde_json::json!({"type":"object"}))
-        }
-
         async fn call(
             &self,
             invocation: ToolInvocation,
@@ -2067,7 +2061,12 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     }
 
     let (_session, mut server) = create_session_pair_with_config(|cfg| {
-        cfg.with_tool_handlers(vec![Arc::new(RunTestsTool) as Arc<dyn tool::ToolHandler>])
+        cfg.with_tools(vec![
+            Tool::new("run_tests")
+                .with_description("Run tests")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(RunTestsTool)),
+        ])
     })
     .await;
 
@@ -2098,12 +2097,6 @@ async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
     struct FooTool;
     #[async_trait]
     impl tool::ToolHandler for FooTool {
-        fn tool(&self) -> Tool {
-            Tool::new("foo")
-                .with_description("foo")
-                .with_parameters(serde_json::json!({"type":"object"}))
-        }
-
         async fn call(
             &self,
             _invocation: ToolInvocation,
@@ -2113,7 +2106,12 @@ async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
     }
 
     let (_session, mut server) = create_session_pair_with_config(|cfg| {
-        cfg.with_tool_handlers(vec![Arc::new(FooTool) as Arc<dyn tool::ToolHandler>])
+        cfg.with_tools(vec![
+            Tool::new("foo")
+                .with_description("foo")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(Arc::new(FooTool)),
+        ])
     })
     .await;
     server
@@ -3873,12 +3871,6 @@ async fn tool_invocation_carries_trace_context_from_event() {
 
     #[async_trait]
     impl tool::ToolHandler for CapturingTool {
-        fn tool(&self) -> Tool {
-            Tool::new("calc")
-                .with_description("calc")
-                .with_parameters(serde_json::json!({"type":"object"}))
-        }
-
         async fn call(
             &self,
             invocation: ToolInvocation,
@@ -3899,7 +3891,12 @@ async fn tool_invocation_carries_trace_context_from_event() {
         signal: signal.clone(),
     });
     let (_session, mut server) = create_session_pair_with_config(move |cfg| {
-        cfg.with_tool_handlers(vec![handler as Arc<dyn tool::ToolHandler>])
+        cfg.with_tools(vec![
+            Tool::new("calc")
+                .with_description("calc")
+                .with_parameters(serde_json::json!({"type":"object"}))
+                .with_handler(handler.clone()),
+        ])
     })
     .await;
 

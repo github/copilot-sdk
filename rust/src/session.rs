@@ -764,7 +764,7 @@ impl Client {
     ///
     /// All callbacks (per-event handlers, tool handlers, hooks, transform)
     /// are configured via [`SessionConfig`] using its `with_*_handler` /
-    /// `with_tool_handlers` / `with_hooks` / `with_transform` builder
+    /// `with_tools` / `with_hooks` / `with_transform` builder
     /// methods.
     ///
     /// If [`hooks_handler`](SessionConfig::hooks_handler) is set, the
@@ -802,14 +802,18 @@ impl Client {
         let exit_plan_mode_handler = config.exit_plan_mode_handler.take();
         let auto_mode_switch_handler = config.auto_mode_switch_handler.take();
         let mut tool_map: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
-        for tool in config.tool_handlers.drain(..) {
-            let name = tool.tool().name;
-            if tool_map.contains_key(&name) {
-                return Err(Error::InvalidConfig(format!(
-                    "duplicate tool handler registered for name {name:?}"
-                )));
+        if let Some(tools) = config.tools.as_mut() {
+            for tool in tools.iter_mut() {
+                if let Some(handler) = tool.handler.take() {
+                    if tool_map.contains_key(&tool.name) {
+                        return Err(Error::InvalidConfig(format!(
+                            "duplicate tool handler registered for name {:?}",
+                            tool.name
+                        )));
+                    }
+                    tool_map.insert(tool.name.clone(), handler);
+                }
             }
-            tool_map.insert(name, tool);
         }
         let handlers = SessionHandlers {
             permission: permission_handler,
@@ -953,14 +957,18 @@ impl Client {
         let exit_plan_mode_handler = config.exit_plan_mode_handler.take();
         let auto_mode_switch_handler = config.auto_mode_switch_handler.take();
         let mut tool_map: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
-        for tool in config.tool_handlers.drain(..) {
-            let name = tool.tool().name;
-            if tool_map.contains_key(&name) {
-                return Err(Error::InvalidConfig(format!(
-                    "duplicate tool handler registered for name {name:?}"
-                )));
+        if let Some(tools) = config.tools.as_mut() {
+            for tool in tools.iter_mut() {
+                if let Some(handler) = tool.handler.take() {
+                    if tool_map.contains_key(&tool.name) {
+                        return Err(Error::InvalidConfig(format!(
+                            "duplicate tool handler registered for name {:?}",
+                            tool.name
+                        )));
+                    }
+                    tool_map.insert(tool.name.clone(), handler);
+                }
             }
-            tool_map.insert(name, tool);
         }
         let handlers = SessionHandlers {
             permission: permission_handler,

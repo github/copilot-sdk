@@ -329,12 +329,15 @@ let session = client
 
 ### Tool Registration
 
-Define client-side tools as named types implementing `ToolHandler` and install them with `SessionConfig::with_tool_handlers`. Enable the `derive` feature for `schema_for::<T>()` — it generates JSON Schema from Rust types via `schemars`.
+Define client-side tools as named types implementing `ToolHandler` and attach
+them to `Tool` declarations via `Tool::with_handler`, then install via
+`SessionConfig::with_tools`. Enable the `derive` feature for `schema_for::<T>()`
+— it generates JSON Schema from Rust types via `schemars`.
 
 ```rust,ignore
 use std::sync::Arc;
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{schema_for, tool_parameters, JsonSchema, ToolHandler};
+use github_copilot_sdk::tool::{schema_for, JsonSchema, ToolHandler};
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
 use serde::Deserialize;
 use async_trait::async_trait;
@@ -351,49 +354,48 @@ struct GetWeatherTool;
 
 #[async_trait]
 impl ToolHandler for GetWeatherTool {
-    fn tool(&self) -> Tool {
-        Tool::new("get_weather")
-            .with_description("Get weather for a city")
-            .with_parameters(tool_parameters(schema_for::<GetWeatherParams>()))
-    }
-
     async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
         let params: GetWeatherParams = serde_json::from_value(inv.arguments)?;
         Ok(ToolResult::Text(format!("Weather in {}: sunny", params.city)))
     }
 }
 
-let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(GetWeatherTool)];
+let tool = Tool::new("get_weather")
+    .with_description("Get weather for a city")
+    .with_parameters(schema_for::<GetWeatherParams>())
+    .with_handler(Arc::new(GetWeatherTool));
 
 let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
-    .with_tool_handlers(tool_handlers);
+    .with_tools(vec![tool]);
 let session = client.create_session(config).await?;
 ```
 
-Tools are named types (not closures) — visible in stack traces and navigable via "go to definition". `with_tool_handlers` registers each handler under the name returned by its `tool()` method and surfaces the same `Tool` definitions to the CLI automatically; you don't need to set `SessionConfig::tools` separately when supplying handlers this way.
+Tools are named types (not closures) — visible in stack traces and navigable via "go to definition". The SDK registers each tool's handler under its `Tool::name` and surfaces the same `Tool` definitions to the CLI automatically.
 
-For trivial tools that don't need a named type, [`define_tool`](crate::tool::define_tool) collapses the definition to a single expression. It returns a `Box<dyn ToolHandler>` — convert to `Arc` with `Arc::from(...)`:
+Tools without an attached handler (`Tool::with_handler` never called) are declaration-only: the SDK advertises them on the wire but doesn't dispatch invocations to anything. Useful when another connected client services the tool.
+
+For trivial tools that don't need a named type, [`define_tool`](crate::tool::define_tool) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
 
 ```rust,ignore
-use github_copilot_sdk::tool::{define_tool, JsonSchema, ToolHandler};
+use github_copilot_sdk::tool::{define_tool, JsonSchema};
 use github_copilot_sdk::ToolResult;
 use serde::Deserialize;
 
 #[derive(Deserialize, JsonSchema)]
 struct GetWeatherParams { city: String }
 
-let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::from(define_tool(
+let tool = define_tool(
     "get_weather",
     "Get weather for a city",
     |_inv, params: GetWeatherParams| async move {
         Ok(ToolResult::Text(format!("Sunny in {}", params.city)))
     },
-))];
+);
 
 let config = SessionConfig::default()
     .with_permission_handler(Arc::new(ApproveAllHandler))
-    .with_tool_handlers(tool_handlers);
+    .with_tools(vec![tool]);
 ```
 
 The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) alongside the deserialized parameters, so handlers that need `inv.session_id` or `inv.tool_call_id` for telemetry, streaming updates, or scoped lookups can use them directly. Use `_inv` when you don't need the metadata.

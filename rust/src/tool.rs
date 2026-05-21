@@ -1,11 +1,14 @@
 //! Typed tool definition framework.
 //!
 //! Provides the [`ToolHandler`](crate::tool::ToolHandler) trait for
-//! implementing tools as named types. Install tool handlers on a session
-//! via
-//! [`SessionConfig::with_tool_handlers`](crate::types::SessionConfig::with_tool_handlers);
-//! the SDK builds an internal name-keyed registry and dispatches to the
-//! matching handler when the CLI broadcasts `external_tool.requested`.
+//! implementing tools as named types. Attach a handler to a
+//! [`Tool`](crate::types::Tool) via
+//! [`Tool::with_handler`](crate::types::Tool::with_handler), then install
+//! the resulting tools on a session via
+//! [`SessionConfig::with_tools`](crate::types::SessionConfig::with_tools).
+//! The SDK builds an internal name-keyed registry from the handlers and
+//! dispatches to the matching handler when the CLI broadcasts
+//! `external_tool.requested`.
 //!
 //! Enable the `derive` feature for `schema_for`, which generates JSON
 //! Schema from Rust types via `schemars`.
@@ -170,63 +173,61 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
     }))
 }
 
-/// A client-defined tool with its handler logic.
+/// A client-defined tool's runtime implementation.
 ///
-/// Implement this trait for each tool you expose to the Copilot agent.
-/// The struct is a named type — visible in stack traces and navigable
-/// via "go to definition" — unlike closure-based alternatives.
+/// Implement this trait when you want to bind a Rust function to a tool
+/// name and have the SDK dispatch matching `external_tool.requested`
+/// broadcasts to it. Attach the impl to a [`Tool`] via [`Tool::with_handler`].
+///
+/// Named handler types (e.g. `struct MyTool;`) are visible in stack
+/// traces and navigable via "go to definition", which is preferable to
+/// closure-based alternatives for non-trivial tools. For trivial tools,
+/// [`define_tool`] wraps a free `async fn` or closure into a [`Tool`]
+/// with the handler already attached.
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use github_copilot_sdk::tool::{schema_for, tool_parameters, JsonSchema, ToolHandler};
-/// use github_copilot_sdk::{Error, Tool, ToolInvocation, ToolResult};
+/// use github_copilot_sdk::tool::{schema_for, JsonSchema, ToolHandler};
+/// use github_copilot_sdk::types::{Tool, ToolInvocation};
+/// use github_copilot_sdk::{Error, ToolResult};
 /// use serde::Deserialize;
 /// use async_trait::async_trait;
+/// use std::sync::Arc;
 ///
 /// #[derive(Deserialize, JsonSchema)]
 /// struct GetWeatherParams {
 ///     /// City name
 ///     city: String,
-///     /// Temperature unit
-///     unit: Option<String>,
 /// }
 ///
-/// struct GetWeatherTool;
+/// struct GetWeather;
 ///
 /// #[async_trait]
-/// impl ToolHandler for GetWeatherTool {
-///     fn tool(&self) -> Tool {
-///         Tool {
-///             name: "get_weather".to_string(),
-///             namespaced_name: None,
-///             description: "Get weather for a city".to_string(),
-///             parameters: tool_parameters(schema_for::<GetWeatherParams>()),
-///             instructions: None,
-///             ..Default::default()
-///         }
-///     }
-///
+/// impl ToolHandler for GetWeather {
 ///     async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
 ///         let params: GetWeatherParams = serde_json::from_value(inv.arguments)?;
 ///         Ok(ToolResult::Text(format!("Weather in {}: sunny", params.city)))
 ///     }
 /// }
+///
+/// // Build the Tool declaration with the handler attached:
+/// let tool = Tool::new("get_weather")
+///     .with_description("Get weather for a city")
+///     .with_parameters(schema_for::<GetWeatherParams>())
+///     .with_handler(Arc::new(GetWeather));
 /// ```
 #[async_trait]
-pub trait ToolHandler: Send + Sync {
-    /// The tool definition sent to the CLI during session creation.
-    fn tool(&self) -> Tool;
-
+pub trait ToolHandler: Send + Sync + 'static {
     /// Handle a tool invocation from the agent.
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error>;
 }
 
-/// Define a tool from an async function (or closure) that takes a typed,
+/// Define a [`Tool`] from an async function (or closure) that takes a typed,
 /// `JsonSchema`-derived parameter struct.
 ///
-/// The returned `Box<dyn ToolHandler>` can be installed on a session via
-/// [`SessionConfig::with_tool_handlers`](crate::types::SessionConfig::with_tool_handlers).
+/// The returned [`Tool`] carries an attached handler ready to install on a
+/// session via [`SessionConfig::with_tools`](crate::types::SessionConfig::with_tools).
 /// JSON Schema for the parameter type is generated via [`schema_for`] at
 /// construction time.
 ///
@@ -259,8 +260,6 @@ pub trait ToolHandler: Send + Sync {
 ///     inv: ToolInvocation,
 ///     params: GetWeatherParams,
 /// ) -> Result<ToolResult, Error> {
-///     // `inv.session_id` and `inv.tool_call_id` are available for telemetry,
-///     // streaming updates, scoping DB lookups, etc.
 ///     let _ = inv.session_id;
 ///     Ok(ToolResult::Text(format!("Sunny in {}", params.city)))
 /// }
@@ -286,36 +285,24 @@ pub fn define_tool<P, F, Fut>(
     name: impl Into<String>,
     description: impl Into<String>,
     handler: F,
-) -> Box<dyn ToolHandler>
+) -> Tool
 where
     P: schemars::JsonSchema + serde::de::DeserializeOwned + Send + 'static,
     F: Fn(ToolInvocation, P) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<ToolResult, Error>> + Send + 'static,
 {
-    struct FnTool<P, F> {
-        name: String,
-        description: String,
-        parameters: HashMap<String, serde_json::Value>,
+    struct FnHandler<P, F> {
         handler: F,
         _marker: std::marker::PhantomData<fn(P)>,
     }
 
     #[async_trait]
-    impl<P, F, Fut> ToolHandler for FnTool<P, F>
+    impl<P, F, Fut> ToolHandler for FnHandler<P, F>
     where
         P: schemars::JsonSchema + serde::de::DeserializeOwned + Send + 'static,
         F: Fn(ToolInvocation, P) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<ToolResult, Error>> + Send + 'static,
     {
-        fn tool(&self) -> Tool {
-            Tool {
-                name: self.name.clone(),
-                description: self.description.clone(),
-                parameters: self.parameters.clone(),
-                ..Default::default()
-            }
-        }
-
         async fn call(&self, mut invocation: ToolInvocation) -> Result<ToolResult, Error> {
             let arguments = std::mem::take(&mut invocation.arguments);
             let params: P = serde_json::from_value(arguments)?;
@@ -323,13 +310,50 @@ where
         }
     }
 
-    Box::new(FnTool {
+    Tool {
         name: name.into(),
         description: description.into(),
         parameters: tool_parameters(schema_for::<P>()),
+        ..Default::default()
+    }
+    .with_handler(std::sync::Arc::new(FnHandler {
         handler,
         _marker: std::marker::PhantomData,
-    })
+    }))
+}
+
+/// Define a declaration-only [`Tool`] with a JSON Schema derived from `P`.
+///
+/// Equivalent to [`define_tool`] but produces a [`Tool`] with no attached
+/// handler — useful when another connected client services this tool, or
+/// when you only need to advertise the schema for capability negotiation.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use github_copilot_sdk::tool::{define_tool_declaration, JsonSchema};
+/// use serde::Deserialize;
+///
+/// #[derive(Deserialize, JsonSchema)]
+/// struct Params { query: String }
+///
+/// let declared = define_tool_declaration::<Params>(
+///     "legacy_thing",
+///     "Handled by another connected client",
+/// );
+/// # let _ = declared;
+/// ```
+#[cfg(feature = "derive")]
+pub fn define_tool_declaration<P>(name: impl Into<String>, description: impl Into<String>) -> Tool
+where
+    P: schemars::JsonSchema,
+{
+    Tool {
+        name: name.into(),
+        description: description.into(),
+        parameters: tool_parameters(schema_for::<P>()),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
@@ -339,19 +363,18 @@ mod tests {
 
     struct EchoTool;
 
+    fn echo_tool() -> Tool {
+        Tool {
+            name: "echo".to_string(),
+            description: "Echo the input".to_string(),
+            parameters: tool_parameters(serde_json::json!({"type": "object"})),
+            ..Default::default()
+        }
+        .with_handler(std::sync::Arc::new(EchoTool))
+    }
+
     #[async_trait]
     impl ToolHandler for EchoTool {
-        fn tool(&self) -> Tool {
-            Tool {
-                name: "echo".to_string(),
-                namespaced_name: None,
-                description: "Echo the input".to_string(),
-                parameters: tool_parameters(serde_json::json!({"type": "object"})),
-                instructions: None,
-                ..Default::default()
-            }
-        }
-
         async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
             Ok(ToolResult::Text(inv.arguments.to_string()))
         }
@@ -359,11 +382,11 @@ mod tests {
 
     #[test]
     fn tool_handler_returns_tool_definition() {
-        let tool = EchoTool;
-        let def = tool.tool();
+        let def = echo_tool();
         assert_eq!(def.name, "echo");
         assert_eq!(def.description, "Echo the input");
         assert!(def.parameters.contains_key("type"));
+        assert!(def.handler.is_some());
     }
 
     #[test]
@@ -566,11 +589,11 @@ mod tests {
             },
         );
 
-        let def = tool.tool();
-        assert_eq!(def.name, "weather");
-        assert_eq!(def.description, "Get the weather for a city");
-        assert_eq!(def.parameters["type"], "object");
-        assert!(def.parameters["properties"]["city"].is_object());
+        assert_eq!(tool.name, "weather");
+        assert_eq!(tool.description, "Get the weather for a city");
+        assert_eq!(tool.parameters["type"], "object");
+        assert!(tool.parameters["properties"]["city"].is_object());
+        let handler = tool.handler.as_ref().expect("define_tool attaches handler");
 
         let inv = ToolInvocation {
             session_id: SessionId::from("s1"),
@@ -580,7 +603,7 @@ mod tests {
             traceparent: None,
             tracestate: None,
         };
-        match tool.call(inv).await.unwrap() {
+        match handler.call(inv).await.unwrap() {
             ToolResult::Text(s) => assert_eq!(s, "sunny in Seattle"),
             _ => panic!("expected Text result"),
         }
@@ -619,19 +642,18 @@ mod tests {
 
         struct GetWeatherTool;
 
+        fn get_weather_tool() -> Tool {
+            Tool {
+                name: "get_weather".to_string(),
+                description: "Get weather for a city".to_string(),
+                parameters: tool_parameters(schema_for::<GetWeatherParams>()),
+                ..Default::default()
+            }
+            .with_handler(std::sync::Arc::new(GetWeatherTool))
+        }
+
         #[async_trait]
         impl ToolHandler for GetWeatherTool {
-            fn tool(&self) -> Tool {
-                Tool {
-                    name: "get_weather".to_string(),
-                    namespaced_name: None,
-                    description: "Get weather for a city".to_string(),
-                    parameters: tool_parameters(schema_for::<GetWeatherParams>()),
-                    instructions: None,
-                    ..Default::default()
-                }
-            }
-
             async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
                 let params: GetWeatherParams = serde_json::from_value(inv.arguments)?;
                 Ok(ToolResult::Text(format!(
@@ -644,12 +666,12 @@ mod tests {
 
         #[test]
         fn tool_handler_with_schema_for() {
-            let tool = GetWeatherTool;
-            let def = tool.tool();
+            let def = get_weather_tool();
             assert_eq!(def.name, "get_weather");
             let schema = serde_json::to_value(&def.parameters).expect("serialize tool parameters");
             assert_eq!(schema["type"], "object");
             assert!(schema["properties"]["city"].is_object());
+            assert!(def.handler.is_some());
         }
 
         #[tokio::test]
@@ -689,11 +711,7 @@ mod tests {
 
         #[tokio::test]
         async fn schema_for_derived_tool_round_trips_through_call() {
-            let tool: Box<dyn ToolHandler> = Box::new(GetWeatherTool);
-
-            // Tool definition exposes the schema-derived parameter set.
-            let def = tool.tool();
-            assert_eq!(def.name, "get_weather");
+            let tool = GetWeatherTool;
 
             // Calling the tool with matching arguments returns the
             // expected typed result. (Per-name dispatch is the SDK's

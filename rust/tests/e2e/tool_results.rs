@@ -21,7 +21,7 @@ async fn should_handle_structured_toolresultobject_from_custom_tool() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let session = create_tool_session(ctx, &client, WeatherTool).await;
+                let session = create_tool_session(ctx, &client, weather_tool()).await;
 
                 let answer = session
                     .send_and_wait("What's the weather in Paris?")
@@ -48,7 +48,7 @@ async fn should_handle_tool_result_with_failure_resulttype() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let session = create_tool_session(ctx, &client, CheckStatusTool).await;
+                let session = create_tool_session(ctx, &client, check_status_tool()).await;
 
                 let answer = session
                     .send_and_wait("Check the status of the service using check_status. If it fails, say 'service is down'.")
@@ -76,7 +76,7 @@ async fn should_preserve_tooltelemetry_and_not_stringify_structured_results_for_
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let session = create_tool_session(ctx, &client, AnalyzeCodeTool).await;
+                let session = create_tool_session(ctx, &client, analyze_code_tool()).await;
 
                 let answer = session
                     .send_and_wait("Analyze the file main.ts for issues.")
@@ -124,7 +124,7 @@ async fn should_handle_tool_result_with_rejected_resulttype() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let (call_tx, mut call_rx) = mpsc::unbounded_channel();
-                let session = create_tool_session(ctx, &client, DeployTool { call_tx }).await;
+                let session = create_tool_session(ctx, &client, deploy_tool(call_tx)).await;
                 let events = session.subscribe();
 
                 session
@@ -161,7 +161,7 @@ async fn should_handle_tool_result_with_denied_resulttype() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let (call_tx, mut call_rx) = mpsc::unbounded_channel();
-                let session = create_tool_session(ctx, &client, AccessSecretTool { call_tx }).await;
+                let session = create_tool_session(ctx, &client, access_secret_tool(call_tx)).await;
                 let events = session.subscribe();
 
                 session
@@ -188,24 +188,18 @@ async fn should_handle_tool_result_with_denied_resulttype() {
     .await;
 }
 
-async fn create_tool_session<T>(
+async fn create_tool_session(
     _ctx: &super::support::E2eContext,
     client: &github_copilot_sdk::Client,
-    tool: T,
-) -> github_copilot_sdk::session::Session
-where
-    T: ToolHandler + 'static,
-{
-    let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(tool)];
-    let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+    tool: Tool,
+) -> github_copilot_sdk::session::Session {
     let __perm = Arc::new(ApproveAllHandler);
     client
         .create_session(
             SessionConfig::default()
                 .with_github_token(super::support::DEFAULT_TEST_TOKEN)
                 .with_permission_handler(__perm)
-                .with_tool_handlers(tool_handlers)
-                .with_tools(tools),
+                .with_tools(vec![tool]),
         )
         .await
         .expect("create session")
@@ -229,19 +223,20 @@ fn expanded(text: impl Into<String>, result_type: impl Into<String>) -> ToolResu
     })
 }
 
+fn weather_tool() -> Tool {
+    string_tool(
+        "get_weather",
+        "Gets weather for a city",
+        "city",
+        "City name",
+    )
+    .with_handler(Arc::new(WeatherTool))
+}
+
 struct WeatherTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for WeatherTool {
-    fn tool(&self) -> Tool {
-        string_tool(
-            "get_weather",
-            "Gets weather for a city",
-            "city",
-            "City name",
-        )
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let city = invocation
             .arguments
@@ -255,14 +250,16 @@ impl ToolHandler for WeatherTool {
     }
 }
 
+fn check_status_tool() -> Tool {
+    Tool::new("check_status")
+        .with_description("Checks the status of a service")
+        .with_handler(Arc::new(CheckStatusTool))
+}
+
 struct CheckStatusTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for CheckStatusTool {
-    fn tool(&self) -> Tool {
-        Tool::new("check_status").with_description("Checks the status of a service")
-    }
-
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let mut result = match expanded("Service unavailable", "failure") {
             ToolResult::Expanded(result) => result,
@@ -273,19 +270,20 @@ impl ToolHandler for CheckStatusTool {
     }
 }
 
+fn analyze_code_tool() -> Tool {
+    string_tool(
+        "analyze_code",
+        "Analyzes code for issues",
+        "file",
+        "File to analyze",
+    )
+    .with_handler(Arc::new(AnalyzeCodeTool))
+}
+
 struct AnalyzeCodeTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for AnalyzeCodeTool {
-    fn tool(&self) -> Tool {
-        string_tool(
-            "analyze_code",
-            "Analyzes code for issues",
-            "file",
-            "File to analyze",
-        )
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let file = invocation
             .arguments
@@ -304,16 +302,18 @@ impl ToolHandler for AnalyzeCodeTool {
     }
 }
 
+fn deploy_tool(call_tx: mpsc::UnboundedSender<()>) -> Tool {
+    Tool::new("deploy_service")
+        .with_description("Deploys a service")
+        .with_handler(Arc::new(DeployTool { call_tx }))
+}
+
 struct DeployTool {
     call_tx: mpsc::UnboundedSender<()>,
 }
 
 #[async_trait::async_trait]
 impl ToolHandler for DeployTool {
-    fn tool(&self) -> Tool {
-        Tool::new("deploy_service").with_description("Deploys a service")
-    }
-
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let _ = self.call_tx.send(());
         Ok(expanded(
@@ -323,16 +323,18 @@ impl ToolHandler for DeployTool {
     }
 }
 
+fn access_secret_tool(call_tx: mpsc::UnboundedSender<()>) -> Tool {
+    Tool::new("access_secret")
+        .with_description("Accesses a secret")
+        .with_handler(Arc::new(AccessSecretTool { call_tx }))
+}
+
 struct AccessSecretTool {
     call_tx: mpsc::UnboundedSender<()>,
 }
 
 #[async_trait::async_trait]
 impl ToolHandler for AccessSecretTool {
-    fn tool(&self) -> Tool {
-        Tool::new("access_secret").with_description("Accesses a secret")
-    }
-
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let _ = self.call_tx.send(());
         Ok(expanded(

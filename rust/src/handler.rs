@@ -12,7 +12,8 @@
 //! respond to.
 //!
 //! Tool dispatch uses its own per-tool registry built from
-//! [`SessionConfig::with_tool_handlers`](crate::types::SessionConfig::with_tool_handlers).
+//! [`Tool::with_handler`](crate::types::Tool::with_handler) on entries passed to
+//! [`SessionConfig::with_tools`](crate::types::SessionConfig::with_tools).
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

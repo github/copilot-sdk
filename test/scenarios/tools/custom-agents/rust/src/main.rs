@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, define_tool};
+use github_copilot_sdk::tool::define_tool;
 use github_copilot_sdk::types::{CustomAgentConfig, DefaultAgentConfig, SessionConfig, ToolResult};
 use github_copilot_sdk::{Client, ClientOptions};
 use schemars::JsonSchema;
@@ -23,7 +23,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     opts.github_token = std::env::var("GITHUB_TOKEN").ok();
     let client = Client::start(opts).await?;
 
-    let analyze_codebase: Arc<dyn ToolHandler> = Arc::from(define_tool(
+    let analyze_codebase = define_tool(
         "analyze-codebase",
         "Performs deep analysis of the codebase",
         |_inv, params: AnalyzeParams| async move {
@@ -32,9 +32,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
                 params.query
             )))
         },
-    ));
-
-    let tools = vec![analyze_codebase.tool()];
+    );
 
     let mut researcher = CustomAgentConfig::default();
     researcher.name = "researcher".to_string();
@@ -55,14 +53,13 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
-    config.tools = Some(tools);
     config.default_agent = Some(DefaultAgentConfig {
         excluded_tools: Some(vec!["analyze-codebase".to_string()]),
     });
     config.custom_agents = Some(vec![researcher]);
     let config = config
         .with_permission_handler(Arc::new(ApproveAllHandler))
-        .with_tool_handlers(vec![analyze_codebase]);
+        .with_tools(vec![analyze_codebase]);
 
     let session = client.create_session(config).await?;
 

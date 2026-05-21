@@ -36,18 +36,22 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 ))
                 .await
                 .expect("start client");
-                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(EchoTelemetryTool {
-                        name: tool_name.to_string(),
-                    })];
-            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
-            let __perm = Arc::new(ApproveAllHandler);
+                let echo_tool = Tool::new(tool_name)
+                    .with_description("Echoes a marker string for telemetry validation.")
+                    .with_parameters(json!({
+                        "type": "object",
+                        "properties": {
+                            "value": { "type": "string" }
+                        },
+                        "required": ["value"]
+                    }))
+                    .with_handler(Arc::new(EchoTelemetryTool));
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_permission_handler(__perm)
-                            .with_tool_handlers(tool_handlers)
-                            .with_tools(tools),
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![echo_tool]),
                     )
                     .await
                     .expect("create session");
@@ -135,24 +139,10 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
     .await;
 }
 
-struct EchoTelemetryTool {
-    name: String,
-}
+struct EchoTelemetryTool;
 
 #[async_trait]
 impl ToolHandler for EchoTelemetryTool {
-    fn tool(&self) -> Tool {
-        Tool::new(&self.name)
-            .with_description("Echoes a marker string for telemetry validation.")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "value": { "type": "string" }
-                },
-                "required": ["value"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         Ok(ToolResult::Text(
             invocation

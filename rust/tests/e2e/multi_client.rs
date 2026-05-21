@@ -35,7 +35,7 @@ async fn both_clients_see_tool_request_and_completion_events() {
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(ApproveAllHandler))
-                            .with_tool_handlers(selective_tools(vec![EchoTool::new(
+                            .with_tools(selective_tools(vec![EchoTool::new(
                                 "magic_number",
                                 "seed",
                                 "MAGIC_",
@@ -51,7 +51,7 @@ async fn both_clients_see_tool_request_and_completion_events() {
                     .resume_session(
                         resume_config(session1.id().clone())
                             .with_permission_handler(Arc::new(ApproveAllHandler))
-                            .with_tool_handlers(selective_tools(Vec::new())),
+                            .with_tools(selective_tools(Vec::new())),
                     )
                     .await
                     .expect("resume session");
@@ -287,7 +287,7 @@ async fn two_clients_register_different_tools_and_agent_uses_both() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tools(selective_tools(vec![EchoTool::new(
                                 "city_lookup",
                                 "countryCode",
                                 "CITY_FOR_",
@@ -302,7 +302,7 @@ async fn two_clients_register_different_tools_and_agent_uses_both() {
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tools(selective_tools(vec![EchoTool::new(
                                 "currency_lookup",
                                 "countryCode",
                                 "CURRENCY_FOR_",
@@ -355,7 +355,7 @@ async fn disconnecting_client_removes_its_tools() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tools(selective_tools(vec![EchoTool::new(
                                 "stable_tool",
                                 "input",
                                 "STABLE_",
@@ -370,7 +370,7 @@ async fn disconnecting_client_removes_its_tools() {
                 let _session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tools(selective_tools(vec![EchoTool::new(
                                 "ephemeral_tool",
                                 "input",
                                 "EPHEMERAL_",
@@ -427,7 +427,7 @@ fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
         .with_permission_handler(Arc::new(ApproveAllHandler))
-        .with_tool_handlers(selective_tools(Vec::new()))
+        .with_tools(selective_tools(Vec::new()))
         .with_suppress_resume_event(true)
 }
 
@@ -455,10 +455,14 @@ fn free_tcp_port() -> u16 {
     listener.local_addr().expect("local addr").port()
 }
 
-fn selective_tools(tools: Vec<EchoTool>) -> Vec<Arc<dyn ToolHandler>> {
+fn selective_tools(tools: Vec<EchoTool>) -> Vec<Tool> {
     tools
         .into_iter()
-        .map(|t| Arc::new(t) as Arc<dyn ToolHandler>)
+        .map(|t| {
+            let name = t.name;
+            let argument_name = t.argument_name;
+            EchoTool::tool_definition(name, argument_name).with_handler(Arc::new(t))
+        })
         .collect()
 }
 
@@ -520,10 +524,6 @@ impl PermissionHandler for PermissionDecisionHandler {
 
 #[async_trait]
 impl ToolHandler for EchoTool {
-    fn tool(&self) -> Tool {
-        EchoTool::tool_definition(self.name, self.argument_name)
-    }
-
     async fn call(
         &self,
         invocation: ToolInvocation,

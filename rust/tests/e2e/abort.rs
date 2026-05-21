@@ -76,7 +76,7 @@ async fn should_abort_during_active_tool_execution() {
                 let client = ctx.start_client().await;
                 let (started_tx, mut started_rx) = mpsc::unbounded_channel();
                 let (release_tx, release_rx) = oneshot::channel();
-                let slow_tool: Arc<dyn ToolHandler> = Arc::new(SlowAnalysisTool {
+                let slow_tool = Arc::new(SlowAnalysisTool {
                     started_tx,
                     release_rx: Mutex::new(Some(release_rx)),
                 });
@@ -85,7 +85,23 @@ async fn should_abort_during_active_tool_execution() {
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(ApproveAllHandler))
-                            .with_tool_handlers(vec![slow_tool]),
+                            .with_tools(vec![
+                                Tool::new("slow_analysis")
+                                    .with_description(
+                                        "A slow analysis tool that blocks until released",
+                                    )
+                                    .with_parameters(json!({
+                                        "type": "object",
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "description": "Value to analyze"
+                                            }
+                                        },
+                                        "required": ["value"]
+                                    }))
+                                    .with_handler(slow_tool),
+                            ]),
                     )
                     .await
                     .expect("create session");
@@ -134,21 +150,6 @@ struct SlowAnalysisTool {
 
 #[async_trait]
 impl ToolHandler for SlowAnalysisTool {
-    fn tool(&self) -> Tool {
-        Tool::new("slow_analysis")
-            .with_description("A slow analysis tool that blocks until released")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "value": {
-                        "type": "string",
-                        "description": "Value to analyze"
-                    }
-                },
-                "required": ["value"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let value = invocation
             .arguments

@@ -296,7 +296,14 @@ impl PartialEq<&str> for RequestId {
 /// (rather than using the schema-generated form) so it can carry runtime
 /// hints — `overrides_built_in_tool`, `skip_permission` — that don't appear
 /// in the wire schema but are honored by the CLI.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// A `Tool` may optionally carry a [`handler`](Self::handler): an
+/// `Arc<dyn ToolHandler>` that implements the tool's runtime behavior.
+/// When present, the SDK dispatches matching `external_tool.requested`
+/// broadcasts to it automatically. When absent (`None`), the tool is
+/// declaration-only — another connected client must service incoming
+/// invocations.
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Tool {
@@ -325,6 +332,14 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// Optional runtime implementation. When `Some`, the SDK dispatches
+    /// matching `external_tool.requested` broadcasts to this handler.
+    /// When `None`, the tool is declaration-only.
+    ///
+    /// Skipped during serialization — the handler is runtime behavior,
+    /// not part of the wire representation.
+    #[serde(skip)]
+    pub handler: Option<Arc<dyn crate::tool::ToolHandler>>,
 }
 
 #[inline]
@@ -407,6 +422,32 @@ impl Tool {
     pub fn with_skip_permission(mut self, skip: bool) -> Self {
         self.skip_permission = skip;
         self
+    }
+
+    /// Attach a runtime implementation. The SDK will dispatch matching
+    /// `external_tool.requested` broadcasts to `handler` for this tool's
+    /// name. Without a handler the tool is declaration-only.
+    pub fn with_handler(mut self, handler: Arc<dyn crate::tool::ToolHandler>) -> Self {
+        self.handler = Some(handler);
+        self
+    }
+}
+
+impl std::fmt::Debug for Tool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tool")
+            .field("name", &self.name)
+            .field("namespaced_name", &self.namespaced_name)
+            .field("description", &self.description)
+            .field("instructions", &self.instructions)
+            .field("parameters", &self.parameters)
+            .field("overrides_built_in_tool", &self.overrides_built_in_tool)
+            .field("skip_permission", &self.skip_permission)
+            .field(
+                "handler",
+                &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
+            )
+            .finish()
     }
 }
 
@@ -1173,11 +1214,6 @@ pub struct SessionConfig {
     /// `requestAutoModeSwitch: false` goes on the wire.
     #[serde(skip)]
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
-    /// Client-defined tool handlers. The SDK builds an internal
-    /// name-keyed registry from these and dispatches to the matching
-    /// handler when the CLI broadcasts `external_tool.requested`.
-    #[serde(skip)]
-    pub tool_handlers: Vec<Arc<dyn crate::tool::ToolHandler>>,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
@@ -1258,7 +1294,6 @@ impl std::fmt::Debug for SessionConfig {
                 "auto_mode_switch_handler",
                 &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
             )
-            .field("tool_handlers_count", &self.tool_handlers.len())
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -1312,7 +1347,6 @@ impl Default for SessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
-            tool_handlers: Vec::new(),
             hooks_handler: None,
             permission_policy: None,
             transform: None,
@@ -1334,7 +1368,7 @@ impl SessionConfig {
             reasoning_effort: self.reasoning_effort.clone(),
             streaming: self.streaming,
             system_message: self.system_message.clone(),
-            tools: self.merged_tool_wire_definitions(),
+            tools: self.tools.clone(),
             available_tools: self.available_tools.clone(),
             excluded_tools: self.excluded_tools.clone(),
             mcp_servers: self.mcp_servers.clone(),
@@ -1373,17 +1407,6 @@ impl SessionConfig {
         }
     }
 
-    /// Merge caller-supplied `tools` (declaration-only) with the `tool()`
-    /// definitions extracted from each [`tool_handlers`](Self::tool_handlers)
-    /// entry. Returns `None` only when both sources are empty.
-    fn merged_tool_wire_definitions(&self) -> Option<Vec<Tool>> {
-        let mut out: Vec<Tool> = self.tools.clone().unwrap_or_default();
-        for handler in &self.tool_handlers {
-            out.push(handler.tool());
-        }
-        if out.is_empty() { None } else { Some(out) }
-    }
-
     /// Install a [`PermissionHandler`] for this session. When omitted, the
     /// SDK sends `requestPermission: false` on the wire and the runtime
     /// short-circuits permission prompts for this client.
@@ -1418,17 +1441,6 @@ impl SessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
-        self
-    }
-
-    /// Install tool handlers for this session. Each handler must report a
-    /// unique [`Tool::name`]; the SDK rejects duplicates at
-    /// [`Client::create_session`](crate::Client::create_session) time.
-    pub fn with_tool_handlers<I>(mut self, handlers: I) -> Self
-    where
-        I: IntoIterator<Item = Arc<dyn crate::tool::ToolHandler>>,
-    {
-        self.tool_handlers = handlers.into_iter().collect();
         self
     }
 
@@ -1839,9 +1851,6 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::auto_mode_switch_handler`].
     #[serde(skip)]
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
-    /// Tool handlers. See [`SessionConfig::tool_handlers`].
-    #[serde(skip)]
-    pub tool_handlers: Vec<Arc<dyn crate::tool::ToolHandler>>,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
@@ -1913,7 +1922,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "auto_mode_switch_handler",
                 &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
             )
-            .field("tool_handlers_count", &self.tool_handlers.len())
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -1938,7 +1946,7 @@ impl ResumeSessionConfig {
             reasoning_effort: self.reasoning_effort.clone(),
             streaming: self.streaming,
             system_message: self.system_message.clone(),
-            tools: self.merged_tool_wire_definitions(),
+            tools: self.tools.clone(),
             available_tools: self.available_tools.clone(),
             excluded_tools: self.excluded_tools.clone(),
             mcp_servers: self.mcp_servers.clone(),
@@ -1976,14 +1984,6 @@ impl ResumeSessionConfig {
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
         }
-    }
-
-    fn merged_tool_wire_definitions(&self) -> Option<Vec<Tool>> {
-        let mut out: Vec<Tool> = self.tools.clone().unwrap_or_default();
-        for handler in &self.tool_handlers {
-            out.push(handler.tool());
-        }
-        if out.is_empty() { None } else { Some(out) }
     }
 
     /// Construct a `ResumeSessionConfig` with the given session ID and all
@@ -2028,7 +2028,6 @@ impl ResumeSessionConfig {
             user_input_handler: None,
             exit_plan_mode_handler: None,
             auto_mode_switch_handler: None,
-            tool_handlers: Vec::new(),
             hooks_handler: None,
             permission_policy: None,
             transform: None,
@@ -2065,15 +2064,6 @@ impl ResumeSessionConfig {
         handler: Arc<dyn AutoModeSwitchHandler>,
     ) -> Self {
         self.auto_mode_switch_handler = Some(handler);
-        self
-    }
-
-    /// Install tool handlers for the resumed session.
-    pub fn with_tool_handlers<I>(mut self, handlers: I) -> Self
-    where
-        I: IntoIterator<Item = Arc<dyn crate::tool::ToolHandler>>,
-    {
-        self.tool_handlers = handlers.into_iter().collect();
         self
     }
 

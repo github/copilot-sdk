@@ -43,7 +43,7 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                 let suspended_client = start_external_client(ctx, port).await;
                 let (started_tx, mut started_rx) = mpsc::unbounded_channel();
                 let (_release_tx, release_rx) = oneshot::channel();
-                let router: Arc<dyn ToolHandler> = Arc::new(BlockingExternalTool {
+                let router = Arc::new(BlockingExternalTool {
                     started_tx,
                     release_rx: Mutex::new(Some(release_rx)),
                 });
@@ -52,8 +52,9 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(ApproveAllHandler))
-                            .with_tool_handlers(vec![router])
-                            .with_tools([BlockingExternalTool::definition()]),
+                            .with_tools(vec![
+                                BlockingExternalTool::definition().with_handler(router),
+                            ]),
                     )
                     .await
                     .expect("create session");
@@ -312,10 +313,6 @@ impl BlockingExternalTool {
 
 #[async_trait]
 impl ToolHandler for BlockingExternalTool {
-    fn tool(&self) -> Tool {
-        Self::definition()
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let value = invocation
             .arguments
