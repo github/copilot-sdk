@@ -584,13 +584,17 @@ export class CopilotClient {
         // Clear models cache
         this.modelsCache = null;
 
+        // Close the TCP socket and wait for the close to complete before returning.
         if (this.socket) {
+            const socket = this.socket;
+            this.socket = null;
             try {
-                // .end() initiates the graceful close. unref() releases the
-                // event-loop handle so Node can exit while the FIN/ACK
-                // exchange completes in the background.
-                this.socket.end();
-                this.socket.unref();
+                if (!socket.destroyed) {
+                    await new Promise<void>((resolve) => {
+                        socket.once("close", () => resolve());
+                        socket.end();
+                    });
+                }
             } catch (error) {
                 errors.push(
                     new Error(
@@ -598,23 +602,22 @@ export class CopilotClient {
                     )
                 );
             }
-            this.socket = null;
         }
 
-        // Kill CLI process (only if we spawned it)
+        // Send SIGTERM and await child exit. If the child ignores SIGTERM we
+        // intentionally block here — callers who need a guaranteed-bounded
+        // shutdown should reach for forceStop() instead, which sends SIGKILL.
         if (this.cliProcess && !this.isExternalServer) {
+            const child = this.cliProcess;
+            this.cliProcess = null;
             try {
-                // unref the stdio pipes and the child process itself so they
-                // don't keep the event loop alive after stop() returns. unref()
-                // doesn't close the streams or stop our existing data listeners
-                // from receiving late output — it just removes the "keep the
-                // loop alive" handle so Node can exit naturally if nothing else
-                // is pending.
-                this.cliProcess.stdin?.unref();
-                this.cliProcess.stdout?.unref();
-                this.cliProcess.stderr?.unref();
-                this.cliProcess.kill();
-                this.cliProcess.unref();
+                if (child.exitCode === null && child.signalCode === null) {
+                    const exited = new Promise<void>((resolve) => {
+                        child.once("exit", () => resolve());
+                    });
+                    child.kill();
+                    await exited;
+                }
             } catch (error) {
                 errors.push(
                     new Error(
@@ -622,7 +625,6 @@ export class CopilotClient {
                     )
                 );
             }
-            this.cliProcess = null;
         }
         if (this.cliStartTimeout) {
             clearTimeout(this.cliStartTimeout);
