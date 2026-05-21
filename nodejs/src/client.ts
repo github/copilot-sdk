@@ -1739,13 +1739,13 @@ export class CopilotClient {
                 }
             });
 
-            // Timeout after 10 seconds
+            // Timeout after 30 seconds (Windows CI runners can be slow to spawn processes)
             this.cliStartTimeout = setTimeout(() => {
                 if (!resolved) {
                     resolved = true;
                     reject(new Error("Timeout waiting for CLI server to start"));
                 }
-            }, 10000);
+            }, 30000);
         });
     }
 
