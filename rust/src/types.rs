@@ -1011,9 +1011,12 @@ pub struct ExtensionRegistrationConfig {
 #[serde(rename_all = "camelCase")]
 #[allow(missing_docs)]
 pub struct HostCapabilitiesConfig {
-    /// When `true`, the runtime exposes the canvas agent tools
-    /// (`open_canvas`, `focus_canvas`, `close_canvas`, `reload_canvas`,
-    /// `discover_canvases`) and adds the `canvas-host` session capability.
+    /// Renderer-side opt-in (V1.1): when `true`, the runtime surfaces canvas
+    /// agent tools (`open_canvas`, `discover_canvases`, `focus_canvas`,
+    /// `close_canvas`, `reload_canvas`) to the model for this connection.
+    /// Default off — TUI / headless / SDK callers stay clean unless they can
+    /// actually display canvases. This is independent of provider semantics,
+    /// which are declared via `SessionConfig.canvases`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub canvas: Option<bool>,
 }
@@ -1201,6 +1204,13 @@ pub struct SessionConfig {
     /// Defaults to `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
+    /// Renderer-side opt-in (V1.1): when `true`, the runtime surfaces canvas
+    /// agent tools (`open_canvas`, `discover_canvases`, ...) to the model.
+    /// Default off — TUI / headless / SDK callers stay clean unless they can
+    /// actually display canvases. Independent of provider semantics, which
+    /// are declared via [`canvases`](Self::canvases).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_canvas_renderer: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1287,6 +1297,12 @@ pub struct SessionConfig {
     /// associated [`CommandHandler`] is called when executed.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Canvas V1.1 declarations. Each entry binds a [`CanvasDeclaration`] +
+    /// [`crate::canvas::CanvasHandler`] for this session; the runtime treats
+    /// the declaring connection as the live provider for every declared
+    /// canvas id. Serialized as an array of `CanvasDeclaration` on the wire.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
+    pub canvases: Vec<crate::canvas::Canvas>,
     /// Host-provided extension registrations for the temporary canvas POC.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_registrations: Option<ExtensionRegistrationConfig>,
@@ -1340,6 +1356,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("request_exit_plan_mode", &self.request_exit_plan_mode)
             .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1364,6 +1381,7 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("canvases", &self.canvases)
             .field("extension_registrations", &self.extension_registrations)
             .field("request_host_extension", &self.request_host_extension)
             .field(
@@ -1405,6 +1423,7 @@ impl Default for SessionConfig {
             request_exit_plan_mode: Some(true),
             request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
+            request_canvas_renderer: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1423,6 +1442,7 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            canvases: Vec::new(),
             extension_registrations: None,
             host_capabilities: None,
             request_host_extension: None,
@@ -1628,6 +1648,12 @@ impl SessionConfig {
         self
     }
 
+    /// Renderer-side opt-in (V1.1): surface canvas agent tools to the model.
+    pub fn with_request_canvas_renderer(mut self, enable: bool) -> Self {
+        self.request_canvas_renderer = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -1817,6 +1843,10 @@ pub struct ResumeSessionConfig {
     /// Advertise elicitation provider capability on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
+    /// Renderer-side opt-in (V1.1) on resume; see
+    /// [`SessionConfig::request_canvas_renderer`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_canvas_renderer: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1879,6 +1909,11 @@ pub struct ResumeSessionConfig {
     /// so the resume payload re-supplies the registration.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Canvas V1.1 declarations to (re-)register on resume. Same semantics
+    /// as [`SessionConfig::canvases`]; re-declaring a canvas id replaces
+    /// the prior entry on the runtime side.
+    #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
+    pub canvases: Vec<crate::canvas::Canvas>,
     /// Host-provided extension registrations for the temporary canvas POC.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_registrations: Option<ExtensionRegistrationConfig>,
@@ -1936,6 +1971,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("request_exit_plan_mode", &self.request_exit_plan_mode)
             .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1959,6 +1995,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("canvases", &self.canvases)
             .field("extension_registrations", &self.extension_registrations)
             .field("request_host_extension", &self.request_host_extension)
             .field(
@@ -2000,6 +2037,7 @@ impl ResumeSessionConfig {
             request_exit_plan_mode: Some(true),
             request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
+            request_canvas_renderer: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -2017,6 +2055,7 @@ impl ResumeSessionConfig {
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            canvases: Vec::new(),
             extension_registrations: None,
             host_capabilities: None,
             request_host_extension: None,
@@ -2191,6 +2230,12 @@ impl ResumeSessionConfig {
     /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
     pub fn with_request_elicitation(mut self, enable: bool) -> Self {
         self.request_elicitation = Some(enable);
+        self
+    }
+
+    /// Renderer-side opt-in (V1.1) on resume: surface canvas agent tools to the model.
+    pub fn with_request_canvas_renderer(mut self, enable: bool) -> Self {
+        self.request_canvas_renderer = Some(enable);
         self
     }
 

@@ -793,7 +793,13 @@ impl Client {
             .clone()
             .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
         config.session_id = Some(session_id.clone());
+        let canvases = std::mem::take(&mut config.canvases);
+        let canvas_registry = Arc::new(crate::canvas::build_registry(&canvases));
         let mut params = serde_json::to_value(&config)?;
+        // `canvases` is serialized via `Vec<Canvas>` custom impl on `config`
+        // (handler arcs dropped); the registry is retained locally to dispatch
+        // `canvas.action.invoke` callbacks.
+        let _ = canvases;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
 
@@ -811,6 +817,7 @@ impl Client {
             transforms,
             command_handlers,
             session_fs_provider,
+            canvas_registry,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -920,7 +927,10 @@ impl Client {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
         let session_id = config.session_id.clone();
+        let canvases = std::mem::take(&mut config.canvases);
+        let canvas_registry = Arc::new(crate::canvas::build_registry(&canvases));
         let mut params = serde_json::to_value(&config)?;
+        let _ = canvases;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
 
@@ -938,6 +948,7 @@ impl Client {
             transforms,
             command_handlers,
             session_fs_provider,
+            canvas_registry,
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
@@ -1065,6 +1076,7 @@ fn spawn_event_loop(
     transforms: Option<Arc<dyn SystemMessageTransform>>,
     command_handlers: Arc<CommandHandlerMap>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    canvas_registry: Arc<crate::canvas::CanvasRegistry>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
@@ -1099,7 +1111,7 @@ fn spawn_event_loop(
                     }
                     Some(request) = requests.recv() => {
                         handle_request(
-                            &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), session_fs_provider.as_ref(), request,
+                            &session_id, &client, &handler, hooks.as_deref(), transforms.as_deref(), session_fs_provider.as_ref(), &canvas_registry, request,
                         ).await;
                     }
                     else => break,
@@ -1710,6 +1722,7 @@ async fn handle_notification(
 }
 
 /// Process a JSON-RPC request from the CLI.
+#[allow(clippy::too_many_arguments)]
 async fn handle_request(
     session_id: &SessionId,
     client: &Client,
@@ -1717,6 +1730,7 @@ async fn handle_request(
     hooks: Option<&dyn SessionHooks>,
     transforms: Option<&dyn SystemMessageTransform>,
     session_fs_provider: Option<&Arc<dyn SessionFsProvider>>,
+    canvas_registry: &Arc<crate::canvas::CanvasRegistry>,
     request: crate::JsonRpcRequest,
 ) {
     let sid = session_id.clone();
@@ -1819,6 +1833,66 @@ async fn handle_request(
                         return;
                     }
                 };
+
+            // V1.1 canvas dispatch: any inner `method == "canvas.action.invoke"`
+            // routes through the canvas registry built from `SessionConfig.canvases`.
+            // Falls back to the legacy `on_hosted_extension` path otherwise (used by
+            // V1 hosted-extension consumers until that surface is deleted).
+            if host_request.request.method == "canvas.action.invoke" {
+                let result = match serde_json::from_value::<crate::canvas::CanvasInvokeParams>(
+                    host_request.request.params.clone(),
+                ) {
+                    Ok(params) => {
+                        let dispatch_start = Instant::now();
+                        let canvas_id = params.canvas_id.clone();
+                        let action_name = params.action_name.clone();
+                        let response = crate::canvas::dispatch_canvas_invoke(
+                            canvas_registry,
+                            host_request.session_id,
+                            params,
+                        )
+                        .await;
+                        tracing::debug!(
+                            elapsed_ms = dispatch_start.elapsed().as_millis(),
+                            session_id = %sid,
+                            canvas_id = %canvas_id,
+                            action_name = %action_name,
+                            ok = response.is_ok(),
+                            "canvas.action.invoke dispatch"
+                        );
+                        match response {
+                            Ok(value) => crate::types::HostedExtensionResponse::Success(
+                                crate::types::HostedExtensionSuccessResponse {
+                                    ok: true,
+                                    result: value,
+                                },
+                            ),
+                            Err(err) => crate::types::HostedExtensionResponse::Error(
+                                crate::types::HostedExtensionErrorResponse {
+                                    ok: false,
+                                    error: crate::types::HostedExtensionError {
+                                        code: err.code,
+                                        message: err.message,
+                                        required_capabilities: Vec::new(),
+                                    },
+                                },
+                            ),
+                        }
+                    }
+                    Err(err) => crate::types::HostedExtensionResponse::error(
+                        "canvas_invalid_params",
+                        format!("invalid canvas.action.invoke params: {err}"),
+                    ),
+                };
+                let rpc_response = JsonRpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: request.id,
+                    result: Some(serde_json::json!(result)),
+                    error: None,
+                };
+                let _ = client.send_response(&rpc_response).await;
+                return;
+            }
 
             let handler_start = Instant::now();
             let response = handler

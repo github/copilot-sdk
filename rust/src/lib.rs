@@ -3,6 +3,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+/// Canvas V1.1 — extension-owned canvas declarations and per-canvas handlers.
+pub mod canvas;
 /// Bundled CLI binary extraction and caching.
 pub mod embeddedcli;
 /// Event handler traits for session lifecycle.
