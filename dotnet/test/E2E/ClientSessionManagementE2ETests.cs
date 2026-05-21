@@ -47,6 +47,14 @@ public class ClientSessionManagementE2ETests(E2ETestFixture fixture, ITestOutput
     {
         await Client.StartAsync();
 
+        // Other tests in this class create sessions, and xUnit doesn't guarantee
+        // test execution order. Clear any leftover sessions so this test sees a
+        // genuinely empty state regardless of order.
+        foreach (var existing in await Client.ListSessionsAsync())
+        {
+            await Client.DeleteSessionAsync(existing.SessionId);
+        }
+
         var result = await Client.GetLastSessionIdAsync();
 
         Assert.Null(result);
