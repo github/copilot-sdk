@@ -63,7 +63,7 @@ func TestCommandsE2E(t *testing.T) {
 		// Client2 joins with commands
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SuppressResumeEvent:       true,
+			SuppressResumeEvent: true,
 			Commands: []copilot.CommandDefinition{
 				{
 					Name:        "deploy",
@@ -560,7 +560,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 		})
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SuppressResumeEvent:       true,
+			SuppressResumeEvent: true,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},
@@ -620,7 +620,7 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 		})
 		_, err = client3.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			SuppressResumeEvent:       true,
+			SuppressResumeEvent: true,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},

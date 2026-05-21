@@ -268,7 +268,7 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 		sqliteCalls = nil
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
@@ -306,7 +306,7 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 		sqliteCalls = nil
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
 			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {

@@ -20,118 +20,118 @@ import (
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.go instead
 
 func TestClient_URLParsing(t *testing.T) {
-t.Run("should parse port-only URL format", func(t *testing.T) {
-client := NewClient(&ClientOptions{
-Connection: UriConnection{URL: "8080"},
-})
-if client.actualPort != 8080 {
-t.Errorf("Expected port 8080, got %d", client.actualPort)
-}
-if client.actualHost != "localhost" {
-t.Errorf("Expected host localhost, got %s", client.actualHost)
-}
-if !client.isExternalServer {
-t.Error("Expected isExternalServer to be true")
-}
-})
+	t.Run("should parse port-only URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: UriConnection{URL: "8080"},
+		})
+		if client.actualPort != 8080 {
+			t.Errorf("Expected port 8080, got %d", client.actualPort)
+		}
+		if client.actualHost != "localhost" {
+			t.Errorf("Expected host localhost, got %s", client.actualHost)
+		}
+		if !client.isExternalServer {
+			t.Error("Expected isExternalServer to be true")
+		}
+	})
 
-t.Run("should parse host:port URL format", func(t *testing.T) {
-client := NewClient(&ClientOptions{
-Connection: UriConnection{URL: "127.0.0.1:9000"},
-})
-if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
-t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
-}
-})
+	t.Run("should parse host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: UriConnection{URL: "127.0.0.1:9000"},
+		})
+		if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
+			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
 
-t.Run("should parse http://host:port URL format", func(t *testing.T) {
-client := NewClient(&ClientOptions{
-Connection: UriConnection{URL: "http://localhost:7000"},
-})
-if client.actualPort != 7000 || client.actualHost != "localhost" {
-t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
-}
-})
+	t.Run("should parse http://host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: UriConnection{URL: "http://localhost:7000"},
+		})
+		if client.actualPort != 7000 || client.actualHost != "localhost" {
+			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
 
-t.Run("should parse https://host:port URL format", func(t *testing.T) {
-client := NewClient(&ClientOptions{
-Connection: UriConnection{URL: "https://example.com:443"},
-})
-if client.actualPort != 443 || client.actualHost != "example.com" {
-t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
-}
-})
+	t.Run("should parse https://host:port URL format", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: UriConnection{URL: "https://example.com:443"},
+		})
+		if client.actualPort != 443 || client.actualHost != "example.com" {
+			t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
+		}
+	})
 
-t.Run("should panic for invalid URL format", func(t *testing.T) {
-defer func() {
-if r := recover(); r == nil {
-t.Error("Expected panic for invalid URL format")
-}
-}()
-NewClient(&ClientOptions{Connection: UriConnection{URL: "invalid-url"}})
-})
+	t.Run("should panic for invalid URL format", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for invalid URL format")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "invalid-url"}})
+	})
 
-t.Run("should panic for invalid port - too high", func(t *testing.T) {
-defer func() {
-if r := recover(); r == nil {
-t.Error("Expected panic")
-}
-}()
-NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:99999"}})
-})
+	t.Run("should panic for invalid port - too high", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:99999"}})
+	})
 
-t.Run("should panic for invalid port - zero", func(t *testing.T) {
-defer func() {
-if r := recover(); r == nil {
-t.Error("Expected panic")
-}
-}()
-NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:0"}})
-})
+	t.Run("should panic for invalid port - zero", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:0"}})
+	})
 
-t.Run("should panic for invalid port - negative", func(t *testing.T) {
-defer func() {
-if r := recover(); r == nil {
-t.Error("Expected panic")
-}
-}()
-NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:-1"}})
-})
+	t.Run("should panic for invalid port - negative", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:-1"}})
+	})
 
-t.Run("should panic when UriConnection has empty URL", func(t *testing.T) {
-defer func() {
-if r := recover(); r == nil {
-t.Error("Expected panic for empty URL")
-}
-}()
-NewClient(&ClientOptions{Connection: UriConnection{}})
-})
+	t.Run("should panic when UriConnection has empty URL", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("Expected panic for empty URL")
+			}
+		}()
+		NewClient(&ClientOptions{Connection: UriConnection{}})
+	})
 
-t.Run("stdio connection uses stdio transport", func(t *testing.T) {
-client := NewClient(&ClientOptions{Connection: StdioConnection{}})
-if !client.useStdio {
-t.Error("Expected useStdio=true for StdioConnection")
-}
-})
+	t.Run("stdio connection uses stdio transport", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: StdioConnection{}})
+		if !client.useStdio {
+			t.Error("Expected useStdio=true for StdioConnection")
+		}
+	})
 
-t.Run("tcp connection uses tcp transport", func(t *testing.T) {
-client := NewClient(&ClientOptions{Connection: TcpConnection{Port: 8080}})
-if client.useStdio {
-t.Error("Expected useStdio=false for TcpConnection")
-}
-if client.port != 8080 {
-t.Errorf("Expected port=8080, got %d", client.port)
-}
-})
+	t.Run("tcp connection uses tcp transport", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: TcpConnection{Port: 8080}})
+		if client.useStdio {
+			t.Error("Expected useStdio=false for TcpConnection")
+		}
+		if client.port != 8080 {
+			t.Errorf("Expected port=8080, got %d", client.port)
+		}
+	})
 
-t.Run("uri connection is treated as external server", func(t *testing.T) {
-client := NewClient(&ClientOptions{
-Connection: UriConnection{URL: "localhost:8080"},
-})
-if !client.isExternalServer {
-t.Error("Expected isExternalServer=true for UriConnection")
-}
-})
+	t.Run("uri connection is treated as external server", func(t *testing.T) {
+		client := NewClient(&ClientOptions{
+			Connection: UriConnection{URL: "localhost:8080"},
+		})
+		if !client.isExternalServer {
+			t.Error("Expected isExternalServer=true for UriConnection")
+		}
+	})
 }
 
 func TestClient_SessionFsConfig(t *testing.T) {
