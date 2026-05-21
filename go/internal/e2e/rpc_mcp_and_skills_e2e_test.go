@@ -19,7 +19,9 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 	// --yolo auto-approves extension permission gates at the CLI level,
 	// preventing breakage from new gates (e.g., extension-permission-access).
 	client := ctx.NewClient(func(o *copilot.ClientOptions) {
-		o.CLIArgs = []string{"--yolo"}
+		stdio := o.Connection.(copilot.StdioConnection)
+		stdio.Args = []string{"--yolo"}
+		o.Connection = stdio
 	})
 	t.Cleanup(func() { client.ForceStop() })
 

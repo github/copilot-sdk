@@ -8,95 +8,128 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-// ConnectionState represents the client connection state
-type ConnectionState string
+// connectionState is the internal client connection state.
+type connectionState string
 
 const (
-	StateDisconnected ConnectionState = "disconnected"
-	StateConnecting   ConnectionState = "connecting"
-	StateConnected    ConnectionState = "connected"
-	StateError        ConnectionState = "error"
+	stateDisconnected connectionState = "disconnected"
+	stateConnecting   connectionState = "connecting"
+	stateConnected    connectionState = "connected"
+	stateError        connectionState = "error"
 )
 
-// ClientOptions configures the CopilotClient
-type ClientOptions struct {
-	// CLIPath is the path to the Copilot CLI executable (default: "copilot")
-	CLIPath string
-	// CLIArgs are extra arguments to pass to the CLI executable (inserted before SDK-managed args)
-	CLIArgs []string
-	// Cwd is the working directory for the CLI process (default: "" = inherit from current process)
-	Cwd string
-	// CopilotHome is the base directory for Copilot data (session state, config, etc.).
-	// Sets the COPILOT_HOME environment variable on the spawned CLI process.
-	// When empty, the CLI defaults to ~/.copilot.
-	// This does not affect where the Go SDK extracts the embedded CLI binary;
-	// use embeddedcli.Config.Dir to control that install/cache location.
-	// This option is only used when the SDK spawns the CLI process; it is ignored
-	// when connecting to an external server via CLIUrl.
-	CopilotHome string
-	// Port for TCP transport (default: 0 = random port)
+// RuntimeConnection describes how a [Client] connects to the Copilot runtime.
+//
+// Construct one with a [StdioConnection], [TcpConnection], or [UriConnection]
+// literal and pass it via [ClientOptions.Connection]. When [ClientOptions.Connection]
+// is nil, the default is an empty [StdioConnection] (the SDK spawns the bundled
+// runtime and communicates over stdin/stdout).
+type RuntimeConnection interface {
+	runtimeConnection()
+}
+
+// StdioConnection spawns a runtime child process and communicates over its
+// stdin/stdout pipes. This is the default when no connection is configured.
+type StdioConnection struct {
+	// Path is the runtime executable. When empty, the bundled runtime is used.
+	Path string
+	// Args are extra command-line arguments inserted before SDK-managed args.
+	Args []string
+}
+
+func (StdioConnection) runtimeConnection() {}
+
+// TcpConnection spawns a runtime child process that listens on a TCP socket
+// and connects to it.
+type TcpConnection struct {
+	// Port is the TCP port the runtime listens on. 0 (the default) lets the
+	// runtime pick a free port; the chosen port is then available via
+	// [Client.RuntimePort] after [Client.Start] returns.
 	Port int
-	// UseStdio controls whether to use stdio transport instead of TCP.
-	// Default: nil (use default = true, i.e. stdio). Use Bool(false) to explicitly select TCP.
-	UseStdio *bool
-	// TCPConnectionToken is the token sent in the `connect` handshake when using TCP transport.
-	// Only meaningful in TCP mode. When the SDK spawns its own CLI in TCP mode and this is
-	// empty, an auto-generated UUID is used so the loopback listener is safe by default.
-	// Combining this with UseStdio=true is rejected (stdio is pre-authenticated by transport).
-	TCPConnectionToken string
-	// CLIUrl is the URL of an existing Copilot CLI server to connect to over TCP
-	// Format: "host:port", "http://host:port", or just "port" (defaults to localhost)
-	// Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
-	// Mutually exclusive with CLIPath, UseStdio
-	CLIUrl string
-	// LogLevel for the CLI server
+	// ConnectionToken is an optional shared secret sent in the `connect`
+	// handshake. When empty, a UUID is generated automatically so the
+	// loopback listener is safe by default.
+	ConnectionToken string
+	// Path is the runtime executable. When empty, the bundled runtime is used.
+	Path string
+	// Args are extra command-line arguments inserted before SDK-managed args.
+	Args []string
+}
+
+func (TcpConnection) runtimeConnection() {}
+
+// UriConnection connects to an already-running runtime at the given URL.
+// The SDK does not spawn a process in this mode.
+type UriConnection struct {
+	// URL of the runtime. Accepts "port", "host:port", or a full URL such
+	// as "http://host:port".
+	URL string
+	// ConnectionToken authenticates the connection; must match what the
+	// remote runtime expects.
+	ConnectionToken string
+}
+
+func (UriConnection) runtimeConnection() {}
+
+// ClientOptions configures the [Client].
+type ClientOptions struct {
+	// Connection describes how to connect to the Copilot runtime. When nil,
+	// defaults to an empty [StdioConnection] (spawn the bundled runtime over
+	// stdio).
+	Connection RuntimeConnection
+	// Cwd is the working directory for the runtime process.
+	// If empty, inherits the current process's working directory.
+	Cwd string
+	// BaseDirectory is the base directory for Copilot data (session state,
+	// config, etc.). Sets the COPILOT_HOME environment variable on the
+	// spawned runtime. When empty, the runtime defaults to ~/.copilot.
+	// This does not affect where the Go SDK extracts the embedded CLI
+	// binary; use embeddedcli.Config.Dir to control that install/cache
+	// location.
+	// Ignored when connecting to an existing runtime via [UriConnection].
+	BaseDirectory string
+	// LogLevel for the runtime. When empty (the default), the runtime
+	// uses its own default level; the SDK does not pass --log-level.
+	// Recognized values: "none", "error", "warning", "info", "debug", "all".
 	LogLevel string
-	// AutoStart automatically starts the CLI server on first use (default: true).
-	// Use Bool(false) to disable.
-	AutoStart *bool
-	// Deprecated: AutoRestart has no effect and will be removed in a future release.
-	AutoRestart *bool
-	// Env is the environment variables for the CLI process (default: inherits from current process).
-	// Each entry is of the form "key=value".
-	// If Env is nil, the new process uses the current process's environment.
-	// If Env contains duplicate environment keys, only the last value in the
-	// slice for each duplicate key is used.
+	// Env are the environment variables for the runtime process (default:
+	// inherits from current process). Each entry is of the form "KEY=VALUE".
+	// If Env contains duplicate keys, only the last value for each key is used.
 	Env []string
 	// GitHubToken is the GitHub token to use for authentication.
-	// When provided, the token is passed to the CLI server via environment variable.
-	// This takes priority over other authentication methods.
+	// When provided, the token is passed to the runtime via environment
+	// variable. This takes priority over other authentication methods.
 	GitHubToken string
-	// UseLoggedInUser controls whether to use the logged-in user for authentication.
-	// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-	// When false, only explicit tokens (GitHubToken or environment variables) are used.
+	// UseLoggedInUser controls whether to use the logged-in user for
+	// authentication. When true, the runtime attempts to use stored OAuth
+	// tokens or gh CLI auth. When false, only explicit tokens (GitHubToken
+	// or environment variables) are used.
 	// Default: true (but defaults to false when GitHubToken is provided).
-	// Use Bool(false) to explicitly disable.
 	UseLoggedInUser *bool
 	// OnListModels is a custom handler for listing available models.
-	// When provided, client.ListModels() calls this handler instead of
-	// querying the CLI server. Useful in BYOK mode to return models
-	// available from your custom provider.
+	// When provided, [Client.ListModels] calls this handler instead of
+	// querying the runtime. Useful in BYOK mode to return models available
+	// from your custom provider.
 	OnListModels func(ctx context.Context) ([]ModelInfo, error)
 	// SessionFs configures a custom session filesystem provider.
 	// When provided, the client registers as the session filesystem provider
-	// on connection, routing session-scoped file I/O through per-session handlers.
+	// on connection, routing session-scoped file I/O through per-session
+	// handlers.
 	SessionFs *SessionFsConfig
-	// Telemetry configures OpenTelemetry integration for the Copilot CLI process.
-	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated fields
-	// are mapped to the corresponding environment variables.
+	// Telemetry configures OpenTelemetry integration for the runtime.
+	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
+	// fields are mapped to the corresponding environment variables.
 	Telemetry *TelemetryConfig
-	// SessionIdleTimeoutSeconds configures the server-wide session idle timeout in seconds.
-	// Sessions without activity for this duration are automatically cleaned up.
-	// Set to 0 or leave unset to disable (sessions live indefinitely).
-	// This option is only used when the SDK spawns the CLI process; it is ignored
-	// when connecting to an external server via CLIUrl.
+	// SessionIdleTimeoutSeconds configures the server-wide session idle
+	// timeout in seconds. Sessions without activity for this duration are
+	// automatically cleaned up. Set to 0 or leave unset to disable.
+	// Ignored when connecting to an existing runtime via [UriConnection].
 	SessionIdleTimeoutSeconds int
-	// Remote enables remote session support (Mission Control integration).
-	// When true, sessions in a GitHub repository working directory are
-	// accessible from GitHub web and mobile.
-	// This option is only used when the SDK spawns the CLI process; it is ignored
-	// when connecting to an external server via CLIUrl.
-	Remote bool
+	// EnableRemoteSessions enables remote session support (Mission Control
+	// integration). When true, sessions in a GitHub repository working
+	// directory are accessible from GitHub web and mobile.
+	// Ignored when connecting to an existing runtime via [UriConnection].
+	EnableRemoteSessions bool
 }
 
 // CloudSessionRepository is GitHub repository metadata associated with a cloud session.

@@ -139,7 +139,7 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
+			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -149,16 +149,16 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Failed to create initial session: %v", err)
 		}
 
-		actualPort := client1.ActualPort()
-		if actualPort == 0 {
+		runtimePort := client1.RuntimePort()
+		if runtimePort == 0 {
 			t.Fatalf("Expected non-zero port from TCP mode client")
 		}
 
 		client2 := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl:    fmt.Sprintf("localhost:%d", actualPort),
-			LogLevel:  "error",
-			Env:       ctx.Env(),
-			SessionFs: sessionFsConfig,
+			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort)},
+			LogLevel:   "error",
+			Env:        ctx.Env(),
+			SessionFs:  sessionFsConfig,
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 

@@ -33,7 +33,7 @@ func manualTool() copilot.Tool {
 
 func newClient() *copilot.Client {
 	cliPath := filepath.Join("..", "..", "nodejs", "node_modules", "@github", "copilot", "index.js")
-	return copilot.NewClient(&copilot.ClientOptions{CLIPath: cliPath})
+	return copilot.NewClient(&copilot.ClientOptions{Connection: copilot.StdioConnection{Path: cliPath}})
 }
 
 func watchPermission(session *copilot.Session) (<-chan *copilot.PermissionRequestedData, func()) {

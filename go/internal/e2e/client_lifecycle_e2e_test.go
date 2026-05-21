@@ -129,15 +129,9 @@ func TestClientLifecycleE2E(t *testing.T) {
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
-		if client.State() != copilot.StateConnected {
-			t.Errorf("Expected state to be connected after Start, got %q", client.State())
-		}
 
 		if err := client.Stop(); err != nil {
 			t.Fatalf("Failed to stop client: %v", err)
-		}
-		if client.State() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be disconnected after Stop, got %q", client.State())
 		}
 	})
 
@@ -148,13 +142,7 @@ func TestClientLifecycleE2E(t *testing.T) {
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Failed to start client: %v", err)
 		}
-		if client.State() != copilot.StateConnected {
-			t.Errorf("Expected state to be connected after Start, got %q", client.State())
-		}
 
 		client.ForceStop()
-		if client.State() != copilot.StateDisconnected {
-			t.Errorf("Expected state to be disconnected after ForceStop, got %q", client.State())
-		}
 	})
 }
