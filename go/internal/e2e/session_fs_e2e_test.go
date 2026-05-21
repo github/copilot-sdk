@@ -20,7 +20,7 @@ func TestSessionFsE2E(t *testing.T) {
 	providerRoot := t.TempDir()
 	sessionStatePath := createSessionStatePath(t)
 	sessionFsConfig := &copilot.SessionFsConfig{
-		InitialCwd:       "/",
+		InitialWorkingDirectory: "/",
 		SessionStatePath: sessionStatePath,
 		Conventions:      rpc.SessionFsSetProviderConventionsPosix,
 	}

@@ -77,9 +77,9 @@ type ClientOptions struct {
 	// defaults to an empty [StdioConnection] (spawn the bundled runtime over
 	// stdio).
 	Connection RuntimeConnection
-	// Cwd is the working directory for the runtime process.
+	// WorkingDirectory is the working directory for the runtime process.
 	// If empty, inherits the current process's working directory.
-	Cwd string
+	WorkingDirectory string
 	// BaseDirectory is the base directory for Copilot data (session state,
 	// config, etc.). Sets the COPILOT_HOME environment variable on the
 	// spawned runtime. When empty, the runtime defaults to ~/.copilot.
@@ -803,8 +803,8 @@ type SessionFsCapabilities struct {
 
 // SessionFsConfig configures a custom session filesystem provider.
 type SessionFsConfig struct {
-	// InitialCwd is the initial working directory for sessions.
-	InitialCwd string
+	// InitialWorkingDirectory is the initial working directory for sessions.
+	InitialWorkingDirectory string
 	// SessionStatePath is the path within each session's filesystem where the runtime stores
 	// session-scoped files such as events, checkpoints, and temp files.
 	SessionStatePath string
@@ -1312,8 +1312,8 @@ type ModelInfo struct {
 
 // SessionContext contains working directory context for a session
 type SessionContext struct {
-	// Cwd is the working directory where the session was created
-	Cwd string `json:"cwd"`
+	// WorkingDirectory is the working directory where the session was created
+	WorkingDirectory string `json:"cwd"`
 	// GitRoot is the git repository root (if in a git repo)
 	GitRoot string `json:"gitRoot,omitempty"`
 	// Repository is the GitHub repository in "owner/repo" format
@@ -1324,8 +1324,8 @@ type SessionContext struct {
 
 // SessionListFilter contains filter options for listing sessions
 type SessionListFilter struct {
-	// Cwd filters by exact working directory match
-	Cwd string `json:"cwd,omitempty"`
+	// WorkingDirectory filters by exact working directory match
+	WorkingDirectory string `json:"cwd,omitempty"`
 	// GitRoot filters by git root
 	GitRoot string `json:"gitRoot,omitempty"`
 	// Repository filters by repository (owner/repo format)

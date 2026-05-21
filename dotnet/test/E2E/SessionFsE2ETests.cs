@@ -15,7 +15,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 {
     private static readonly SessionFsConfig SessionFsConfig = new()
     {
-        InitialCwd = "/",
+        InitialWorkingDirectory = "/",
         SessionStatePath = CreateSessionStatePath(),
         Conventions = SessionFsSetProviderConventions.Posix,
     };

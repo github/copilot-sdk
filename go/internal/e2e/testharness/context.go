@@ -198,7 +198,7 @@ func (c *TestContext) Env() []string {
 func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.Client {
 	options := &copilot.ClientOptions{
 		Connection: copilot.StdioConnection{Path: c.CLIPath},
-		Cwd:        c.WorkDir,
+		WorkingDirectory: c.WorkDir,
 		Env:        c.Env(),
 	}
 

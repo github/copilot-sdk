@@ -396,7 +396,8 @@ public sealed class SessionFsConfig
     /// <summary>
     /// Initial working directory for sessions (user's project directory).
     /// </summary>
-    public required string InitialCwd { get; init; }
+    [JsonPropertyName("initialCwd")]
+    public required string InitialWorkingDirectory { get; init; }
 
     /// <summary>
     /// Path within each session's SessionFs where the runtime stores
@@ -2600,7 +2601,8 @@ public sealed class MessageOptions
 public sealed class SessionContext
 {
     /// <summary>Working directory where the session was created.</summary>
-    public string Cwd { get; set; } = string.Empty;
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
     /// <summary>Git repository root (if in a git repo).</summary>
     public string? GitRoot { get; set; }
     /// <summary>GitHub repository in "owner/repo" format.</summary>

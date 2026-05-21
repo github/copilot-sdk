@@ -1233,7 +1233,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         await Rpc.SessionFs.SetProviderAsync(
-            _options.SessionFs.InitialCwd,
+            _options.SessionFs.InitialWorkingDirectory,
             _options.SessionFs.SessionStatePath,
             _options.SessionFs.Conventions,
             _options.SessionFs.Capabilities,

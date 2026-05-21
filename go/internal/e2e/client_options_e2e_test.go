@@ -56,7 +56,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.Cwd = clientCwd
+			opts.WorkingDirectory = clientCwd
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
