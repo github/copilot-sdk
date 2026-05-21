@@ -392,6 +392,18 @@ impl ToolHandlerRouter {
 
 #[async_trait]
 impl SessionHandler for ToolHandlerRouter {
+    fn wants_permission_dispatch(&self) -> bool {
+        self.inner.wants_permission_dispatch()
+    }
+
+    fn wants_elicitation_dispatch(&self) -> bool {
+        self.inner.wants_elicitation_dispatch()
+    }
+
+    fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
+        self.handlers.contains_key(tool_name) || self.inner.wants_external_tool_dispatch(tool_name)
+    }
+
     async fn on_external_tool(&self, invocation: ToolInvocation) -> ToolResult {
         let Some(handler) = self.handlers.get(&invocation.tool_name) else {
             return self.inner.on_external_tool(invocation).await;

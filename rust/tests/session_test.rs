@@ -1980,6 +1980,10 @@ async fn elicitation_requested_dispatches_to_handler_and_responds() {
     struct ElicitHandler;
     #[async_trait]
     impl SessionHandler for ElicitHandler {
+        fn wants_elicitation_dispatch(&self) -> bool {
+            true
+        }
+
         async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
             match event {
                 HandlerEvent::ElicitationRequest { request, .. } => {
@@ -2026,6 +2030,10 @@ async fn elicitation_requested_cancels_on_handler_error() {
     struct FailHandler;
     #[async_trait]
     impl SessionHandler for FailHandler {
+        fn wants_elicitation_dispatch(&self) -> bool {
+            true
+        }
+
         async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
             match event {
                 // Return Ok instead of Elicitation — SDK should treat as cancel
@@ -2056,6 +2064,10 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     struct ExternalToolHandler;
     #[async_trait]
     impl SessionHandler for ExternalToolHandler {
+        fn wants_external_tool_dispatch(&self, _tool_name: &str) -> bool {
+            true
+        }
+
         async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
             match event {
                 HandlerEvent::ExternalTool { invocation } => {
@@ -2088,6 +2100,119 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
     assert_eq!(rpc_call["method"], "session.tools.handlePendingToolCall");
     assert_eq!(rpc_call["params"]["requestId"], "req-ext-1");
     assert_eq!(rpc_call["params"]["result"], "all tests passed");
+}
+
+#[tokio::test]
+async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
+    // Phase H multi-client safety: a handler that doesn't claim the
+    // requested tool name must not send an RPC response — another client
+    // on the same CLI may have a real handler.
+    struct OnlyKnowsFoo;
+    #[async_trait]
+    impl SessionHandler for OnlyKnowsFoo {
+        fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
+            tool_name == "foo"
+        }
+
+        async fn on_event(&self, _event: HandlerEvent) -> HandlerResponse {
+            HandlerResponse::Ok
+        }
+    }
+
+    let (_session, mut server) = create_session_pair(Arc::new(OnlyKnowsFoo)).await;
+    server
+        .send_event(
+            "external_tool.requested",
+            serde_json::json!({
+                "requestId": "req-unknown",
+                "sessionId": server.session_id,
+                "toolCallId": "tc-x",
+                "toolName": "bar",
+                "arguments": {},
+            }),
+        )
+        .await;
+
+    // The dispatcher must NOT respond. Read with a short timeout and
+    // assert the read times out.
+    let res = tokio::time::timeout(Duration::from_millis(150), server.read_request()).await;
+    assert!(
+        res.is_err(),
+        "expected no RPC response for unknown tool, got: {:?}",
+        res.ok()
+    );
+}
+
+#[tokio::test]
+async fn permission_broadcast_with_resolved_by_hook_is_not_responded_to() {
+    // Phase H: when the runtime marks a permission request as already
+    // resolved by a hook, the client must not respond again.
+    let (_session, mut server) = create_session_pair(Arc::new(ApproveAllHandler)).await;
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "req-hooked",
+                "sessionId": server.session_id,
+                "resolvedByHook": true,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+
+    let res = tokio::time::timeout(Duration::from_millis(150), server.read_request()).await;
+    assert!(
+        res.is_err(),
+        "expected no RPC when resolvedByHook=true, got: {:?}",
+        res.ok()
+    );
+}
+
+#[tokio::test]
+async fn permission_broadcast_with_no_claiming_handler_is_not_responded_to() {
+    // Phase H: a handler that doesn't claim permission dispatch must not
+    // respond — the SDK lets other connected clients handle the request.
+    let (_session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    server
+        .send_event(
+            "permission.requested",
+            serde_json::json!({
+                "requestId": "req-pending",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
+            }),
+        )
+        .await;
+
+    let res = tokio::time::timeout(Duration::from_millis(150), server.read_request()).await;
+    assert!(
+        res.is_err(),
+        "expected no RPC when handler doesn't claim permission dispatch, got: {:?}",
+        res.ok()
+    );
+}
+
+#[tokio::test]
+async fn elicitation_broadcast_with_no_claiming_handler_is_not_responded_to() {
+    // Phase H: same gating for elicitation. The default handler doesn't
+    // claim elicitation, so broadcasts are silently dropped.
+    let (_session, mut server) = create_session_pair(Arc::new(ApproveAllHandler)).await;
+    server
+        .send_event(
+            "elicitation.requested",
+            serde_json::json!({
+                "requestId": "elicit-silent",
+                "message": "should not be answered",
+            }),
+        )
+        .await;
+
+    let res = tokio::time::timeout(Duration::from_millis(150), server.read_request()).await;
+    assert!(
+        res.is_err(),
+        "expected no RPC when handler doesn't claim elicitation, got: {:?}",
+        res.ok()
+    );
 }
 
 #[tokio::test]
@@ -2165,7 +2290,7 @@ async fn request_elicitation_sent_in_create_params() {
         let client = client.clone();
         async move {
             client
-                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .create_session(SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)))
                 .await
                 .unwrap()
         }
@@ -2173,9 +2298,44 @@ async fn request_elicitation_sent_in_create_params() {
 
     let request = read_framed(&mut server_read).await;
     assert_eq!(request["method"], "session.create");
-    assert_eq!(request["params"]["requestElicitation"], true);
+    // ApproveAllHandler claims permission dispatch but not elicitation, so
+    // the wire flags reflect that exact responsibility.
+    assert_eq!(request["params"]["requestPermission"], true);
+    assert_eq!(request["params"]["requestElicitation"], false);
     assert_eq!(request["params"]["requestExitPlanMode"], true);
     assert_eq!(request["params"]["requestAutoModeSwitch"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request);
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn noop_handler_sends_request_permission_false() {
+    // Phase H1a wire-flag derivation: a handler that doesn't claim
+    // permission dispatch must send requestPermission=false so the
+    // runtime doesn't broadcast permission events to this client.
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(SessionConfig::default().with_handler(Arc::new(NoopHandler)))
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["params"]["requestPermission"], false);
+    assert_eq!(request["params"]["requestElicitation"], false);
 
     let id = request["id"].as_u64().unwrap();
     let session_id = requested_session_id(&request);
@@ -3751,6 +3911,10 @@ async fn tool_invocation_carries_trace_context_from_event() {
 
     #[async_trait]
     impl SessionHandler for CapturingHandler {
+        fn wants_external_tool_dispatch(&self, _tool_name: &str) -> bool {
+            true
+        }
+
         async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
             if let HandlerEvent::ExternalTool { invocation } = event {
                 *self.captured.lock() = Some((

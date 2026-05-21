@@ -73,10 +73,33 @@ where
     })
 }
 
-enum Policy {
+/// Internal permission policy stored on `SessionConfig::permission_policy`.
+/// Applied to the handler at `Client::create_session` time so the order of
+/// `with_handler` and `approve_all_permissions` is irrelevant.
+#[derive(Clone)]
+pub(crate) enum Policy {
     ApproveAll,
     DenyAll,
     Predicate(Arc<dyn Fn(&PermissionRequestData) -> bool + Send + Sync>),
+}
+
+impl std::fmt::Debug for Policy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ApproveAll => f.write_str("Policy::ApproveAll"),
+            Self::DenyAll => f.write_str("Policy::DenyAll"),
+            Self::Predicate(_) => f.write_str("Policy::Predicate(<fn>)"),
+        }
+    }
+}
+
+/// Wrap `inner` with a stored [`Policy`]. Used by `Client::create_session`
+/// after the handler and policy fields are both finalised.
+pub(crate) fn apply_policy(
+    inner: Arc<dyn SessionHandler>,
+    policy: Policy,
+) -> Arc<dyn SessionHandler> {
+    Arc::new(PermissionOverrideHandler { inner, policy })
 }
 
 struct PermissionOverrideHandler {
@@ -86,6 +109,18 @@ struct PermissionOverrideHandler {
 
 #[async_trait]
 impl SessionHandler for PermissionOverrideHandler {
+    fn wants_permission_dispatch(&self) -> bool {
+        true
+    }
+
+    fn wants_elicitation_dispatch(&self) -> bool {
+        self.inner.wants_elicitation_dispatch()
+    }
+
+    fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
+        self.inner.wants_external_tool_dispatch(tool_name)
+    }
+
     async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
         match event {
             HandlerEvent::PermissionRequest { ref data, .. } => {

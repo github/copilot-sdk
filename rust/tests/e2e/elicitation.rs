@@ -47,10 +47,7 @@ async fn elicitation_throws_when_capability_is_missing() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
 
@@ -144,10 +141,7 @@ async fn should_report_elicitation_capability_based_on_handler_presence() {
                 with_handler.disconnect().await.expect("disconnect first");
 
                 let without_handler = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create non-elicitation session");
                 assert_ne!(
@@ -179,10 +173,7 @@ async fn session_without_elicitationhandler_creates_successfully() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
 

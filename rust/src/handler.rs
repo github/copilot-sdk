@@ -281,6 +281,41 @@ pub enum AutoModeSwitchResponse {
 /// ```
 #[async_trait]
 pub trait SessionHandler: Send + Sync + 'static {
+    /// Whether this handler claims responsibility for dispatching
+    /// `permission.requested` broadcasts on this session.
+    ///
+    /// Defaults to `false`. When `false`, the SDK does not send the
+    /// `requestPermission: true` flag on `session.create` / `session.resume`,
+    /// and the runtime short-circuits permission prompts with
+    /// `user-not-available` rather than emitting a broadcast this client
+    /// would silently never respond to.
+    ///
+    /// Override to `true` in handlers that implement
+    /// [`on_permission_request`](Self::on_permission_request) with a real
+    /// policy. Permission-policy wrappers
+    /// ([`approve_all_permissions`](crate::types::SessionConfig::approve_all_permissions)
+    /// and friends) flip this on automatically.
+    fn wants_permission_dispatch(&self) -> bool {
+        false
+    }
+
+    /// Whether this handler claims responsibility for dispatching
+    /// `elicitation.requested` broadcasts on this session. Defaults to
+    /// `false`. See [`wants_permission_dispatch`](Self::wants_permission_dispatch)
+    /// for the multi-client rationale.
+    fn wants_elicitation_dispatch(&self) -> bool {
+        false
+    }
+
+    /// Whether this handler claims responsibility for dispatching an
+    /// `external_tool.requested` broadcast for the given tool name on
+    /// this session. Defaults to `false`. Tool routers
+    /// ([`ToolHandlerRouter`](crate::tool::ToolHandlerRouter)) override to
+    /// return `true` for tools they have a registered handler for.
+    fn wants_external_tool_dispatch(&self, _tool_name: &str) -> bool {
+        false
+    }
+
     /// Handle an event from the session.
     ///
     /// The default implementation destructures `event` and calls the
@@ -449,6 +484,10 @@ pub struct ApproveAllHandler;
 
 #[async_trait]
 impl SessionHandler for ApproveAllHandler {
+    fn wants_permission_dispatch(&self) -> bool {
+        true
+    }
+
     async fn on_permission_request(
         &self,
         _session_id: SessionId,
@@ -469,8 +508,10 @@ pub struct DenyAllHandler;
 
 #[async_trait]
 impl SessionHandler for DenyAllHandler {
-    // All defaults are already safe: permissions deny, everything else is a
-    // sensible fallback. We just reuse them here for clarity.
+    fn wants_permission_dispatch(&self) -> bool {
+        true
+    }
+    // All other defaults are already safe.
 }
 
 /// A [`SessionHandler`] that leaves permission requests and external tool calls pending.

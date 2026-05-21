@@ -763,10 +763,16 @@ impl Client {
     /// external tool calls are left pending for the consumer to resolve.
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let handler = config
+        let base_handler = config
             .handler
             .take()
             .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
+        let handler = match config.permission_policy.take() {
+            Some(policy) => crate::permission::apply_policy(base_handler, policy),
+            None => base_handler,
+        };
+        config.request_permission = Some(handler.wants_permission_dispatch());
+        config.request_elicitation = Some(handler.wants_elicitation_dispatch());
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
         let tools_count = config.tools.as_ref().map_or(0, Vec::len);
@@ -894,10 +900,16 @@ impl Client {
     /// fields are unset.
     pub async fn resume_session(&self, mut config: ResumeSessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let handler = config
+        let base_handler = config
             .handler
             .take()
             .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
+        let handler = match config.permission_policy.take() {
+            Some(policy) => crate::permission::apply_policy(base_handler, policy),
+            None => base_handler,
+        };
+        config.request_permission = Some(handler.wants_permission_dispatch());
+        config.request_elicitation = Some(handler.wants_elicitation_dispatch());
         let hooks = config.hooks_handler.take();
         let transforms = config.transform.take();
         let tools_count = config.tools.as_ref().map_or(0, Vec::len);
@@ -1341,6 +1353,24 @@ async fn handle_notification(
             let Some(request_id) = extract_request_id(&notification.event.data) else {
                 return;
             };
+            // Honor the runtime's `resolvedByHook` signal — when the
+            // server has already resolved the permission via a hook,
+            // clients must not send a second response.
+            if notification
+                .event
+                .data
+                .get("resolvedByHook")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                return;
+            }
+            // Multi-client safety: if this client's handler does not
+            // claim permission dispatch, don't respond — another client
+            // on the same CLI may handle it.
+            if !handler.wants_permission_dispatch() {
+                return;
+            }
             let client = client.clone();
             let handler = handler.clone();
             let sid = session_id.clone();
@@ -1440,6 +1470,13 @@ async fn handle_notification(
                         return;
                     }
                 };
+            // Multi-client safety: if this client doesn't claim the
+            // requested tool name, don't respond — another connected
+            // client may have a handler.
+            if !data.tool_name.is_empty() && !handler.wants_external_tool_dispatch(&data.tool_name)
+            {
+                return;
+            }
             let client = client.clone();
             let handler = handler.clone();
             let sid = session_id.clone();
@@ -1537,6 +1574,12 @@ async fn handle_notification(
             let Some(request_id) = extract_request_id(&notification.event.data) else {
                 return;
             };
+            // Multi-client safety: if this client's handler does not
+            // claim elicitation dispatch, don't respond — another
+            // client on the same CLI may handle it.
+            if !handler.wants_elicitation_dispatch() {
+                return;
+            }
             let elicitation_data: ElicitationRequestedData =
                 match serde_json::from_value(notification.event.data.clone()) {
                     Ok(d) => d,

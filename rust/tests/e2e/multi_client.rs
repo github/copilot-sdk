@@ -128,7 +128,6 @@ async fn one_client_approves_permission_and_both_see_the_result() {
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_request_permission(false)
                             .with_handler(permission_handler(PermissionResult::NoResult)),
                     )
                     .await
@@ -214,7 +213,6 @@ async fn one_client_rejects_permission_and_both_see_the_result() {
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_request_permission(false)
                             .with_handler(permission_handler(PermissionResult::NoResult)),
                     )
                     .await
@@ -499,6 +497,12 @@ struct PermissionDecisionHandler {
 
 #[async_trait]
 impl SessionHandler for PermissionDecisionHandler {
+    fn wants_permission_dispatch(&self) -> bool {
+        // NoResult means "I'm declining to respond"; surface that via
+        // the wire flag so the runtime doesn't even broadcast to us.
+        !matches!(self.result, PermissionResult::NoResult)
+    }
+
     async fn on_permission_request(
         &self,
         _session_id: SessionId,
@@ -518,6 +522,14 @@ struct SelectiveToolHandler {
 
 #[async_trait]
 impl SessionHandler for SelectiveToolHandler {
+    fn wants_permission_dispatch(&self) -> bool {
+        true
+    }
+
+    fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
+        self.tools.iter().any(|t| t.name == tool_name)
+    }
+
     async fn on_permission_request(
         &self,
         _session_id: SessionId,

@@ -1185,6 +1185,11 @@ pub struct SessionConfig {
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    /// Permission policy applied to the handler. Stored separately from
+    /// `handler` so that the order of `with_handler` and
+    /// `approve_all_permissions` (and friends) is irrelevant.
+    #[serde(skip)]
+    pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. When set, the SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
@@ -1271,10 +1276,10 @@ impl Default for SessionConfig {
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
             request_user_input: Some(true),
-            request_permission: Some(true),
+            request_permission: None,
             request_exit_plan_mode: Some(true),
             request_auto_mode_switch: Some(true),
-            request_elicitation: Some(true),
+            request_elicitation: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1296,6 +1301,7 @@ impl Default for SessionConfig {
             session_fs_provider: None,
             handler: None,
             hooks_handler: None,
+            permission_policy: None,
             transform: None,
         }
     }
@@ -1340,54 +1346,31 @@ impl SessionConfig {
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-approved. Forwards every non-permission event to the inner
-    /// handler unchanged.
-    ///
-    /// If no handler has been installed via [`with_handler`](Self::with_handler),
-    /// wraps a [`NoopHandler`](crate::handler::NoopHandler), so declaration-only
-    /// tools remain pending for manual resolution.
-    ///
-    /// Order-independent: `with_handler(...).approve_all_permissions()` and
-    /// `approve_all_permissions().with_handler(...)` are NOT equivalent —
-    /// the second form discards the wrap because `with_handler` overwrites
-    /// the handler field. Always call `approve_all_permissions` *after*
-    /// `with_handler`.
+    /// Auto-approve every permission request on this session. Stored as a
+    /// policy that's applied to the configured handler at
+    /// [`Client::create_session`](crate::Client::create_session) time, so
+    /// order with [`with_handler`](Self::with_handler) is irrelevant.
     pub fn approve_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-denied. See [`approve_all_permissions`](Self::approve_all_permissions)
-    /// for ordering and default-handler semantics.
+    /// Auto-deny every permission request on this session. See
+    /// [`approve_all_permissions`](Self::approve_all_permissions).
     pub fn deny_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::deny_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::DenyAll);
         self
     }
 
-    /// Wrap the configured handler with a closure-based permission policy:
-    /// `predicate` is called for each permission request; `true` approves,
-    /// `false` denies. See
+    /// Apply a closure-based permission policy: `predicate` returns `true`
+    /// to approve, `false` to deny. See
     /// [`approve_all_permissions`](Self::approve_all_permissions) for
-    /// ordering and default-handler semantics.
+    /// ordering semantics.
     pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
         self
     }
 
@@ -1471,12 +1454,6 @@ impl SessionConfig {
         self
     }
 
-    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_permission(mut self, enable: bool) -> Self {
-        self.request_permission = Some(enable);
-        self
-    }
-
     /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
     pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
         self.request_exit_plan_mode = Some(enable);
@@ -1486,12 +1463,6 @@ impl SessionConfig {
     /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
     pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
         self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
-    /// Advertise elicitation provider capability. Defaults to `Some(true)`.
-    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
-        self.request_elicitation = Some(enable);
         self
     }
 
@@ -1771,6 +1742,9 @@ pub struct ResumeSessionConfig {
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    /// Permission policy. See `SessionConfig::permission_policy`.
+    #[serde(skip)]
+    pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. See [`SessionConfig::transform`].
     #[serde(skip)]
     pub transform: Option<Arc<dyn SystemMessageTransform>>,
@@ -1852,10 +1826,10 @@ impl ResumeSessionConfig {
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
             request_user_input: Some(true),
-            request_permission: Some(true),
+            request_permission: None,
             request_exit_plan_mode: Some(true),
             request_auto_mode_switch: Some(true),
-            request_elicitation: Some(true),
+            request_elicitation: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1878,6 +1852,7 @@ impl ResumeSessionConfig {
             continue_pending_work: None,
             handler: None,
             hooks_handler: None,
+            permission_policy: None,
             transform: None,
         }
     }
@@ -1916,41 +1891,27 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-approved. See
-    /// [`SessionConfig::approve_all_permissions`] for semantics.
+    /// Auto-approve every permission request on the resumed session. See
+    /// [`SessionConfig::approve_all_permissions`].
     pub fn approve_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-denied. See
-    /// [`SessionConfig::deny_all_permissions`] for semantics.
+    /// Auto-deny every permission request on the resumed session. See
+    /// [`SessionConfig::deny_all_permissions`].
     pub fn deny_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::deny_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::DenyAll);
         self
     }
 
-    /// Wrap the configured handler with a predicate-based permission policy.
-    /// See [`SessionConfig::approve_permissions_if`] for semantics.
+    /// Apply a closure-based permission policy on the resumed session.
+    /// See [`SessionConfig::approve_permissions_if`].
     pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
         self
     }
 
@@ -2023,12 +1984,6 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_permission(mut self, enable: bool) -> Self {
-        self.request_permission = Some(enable);
-        self
-    }
-
     /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
     pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
         self.request_exit_plan_mode = Some(enable);
@@ -2038,12 +1993,6 @@ impl ResumeSessionConfig {
     /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
     pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
         self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
-    /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
-    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
-        self.request_elicitation = Some(enable);
         self
     }
 
@@ -3366,8 +3315,11 @@ mod tests {
     fn session_config_default_enables_permission_flow_flags() {
         let cfg = SessionConfig::default();
         assert_eq!(cfg.request_user_input, Some(true));
-        assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_elicitation, Some(true));
+        // request_permission / request_elicitation are derived from the
+        // installed SessionHandler at Client::create_session time; the
+        // default config leaves them unset.
+        assert_eq!(cfg.request_permission, None);
+        assert_eq!(cfg.request_elicitation, None);
         assert_eq!(cfg.request_exit_plan_mode, Some(true));
         assert_eq!(cfg.request_auto_mode_switch, Some(true));
     }
@@ -3376,8 +3328,8 @@ mod tests {
     fn resume_session_config_new_enables_permission_flow_flags() {
         let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
         assert_eq!(cfg.request_user_input, Some(true));
-        assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_elicitation, Some(true));
+        assert_eq!(cfg.request_permission, None);
+        assert_eq!(cfg.request_elicitation, None);
         assert_eq!(cfg.request_exit_plan_mode, Some(true));
         assert_eq!(cfg.request_auto_mode_switch, Some(true));
     }
@@ -3426,7 +3378,7 @@ mod tests {
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
         assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, Some(true)); // default preserved
+        assert_eq!(cfg.request_permission, None); // unset; derived at create_session time
         assert_eq!(cfg.request_exit_plan_mode, Some(false));
         assert_eq!(cfg.request_auto_mode_switch, Some(false));
         assert_eq!(
@@ -3486,7 +3438,7 @@ mod tests {
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
         assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, Some(true)); // default preserved
+        assert_eq!(cfg.request_permission, None); // unset; derived at create_session time
         assert_eq!(cfg.request_exit_plan_mode, Some(false));
         assert_eq!(cfg.request_auto_mode_switch, Some(false));
         assert_eq!(
@@ -3935,6 +3887,30 @@ mod permission_builder_tests {
         }
     }
 
+    /// Apply the same policy-resolution logic that `Client::create_session`
+    /// uses, so tests exercise the effective handler.
+    fn resolve(mut cfg: SessionConfig) -> Arc<dyn SessionHandler> {
+        let base = cfg
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
+        match cfg.permission_policy.take() {
+            Some(policy) => crate::permission::apply_policy(base, policy),
+            None => base,
+        }
+    }
+
+    fn resolve_resume(mut cfg: ResumeSessionConfig) -> Arc<dyn SessionHandler> {
+        let base = cfg
+            .handler
+            .take()
+            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
+        match cfg.permission_policy.take() {
+            Some(policy) => crate::permission::apply_policy(base, policy),
+            None => base,
+        }
+    }
+
     async fn dispatch(handler: &Arc<dyn SessionHandler>) -> HandlerResponse {
         handler.on_event(permission_event()).await
     }
@@ -3944,8 +3920,7 @@ mod permission_builder_tests {
         let cfg = SessionConfig::default()
             .with_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
+        match dispatch(&resolve(cfg)).await {
             HandlerResponse::Permission(PermissionResult::Approved) => {}
             other => panic!("expected Approved, got {other:?}"),
         }
@@ -3953,14 +3928,76 @@ mod permission_builder_tests {
 
     #[tokio::test]
     async fn session_config_approve_all_defaults_to_noop_inner() {
-        // Without with_handler, the wrap defaults to NoopHandler. The
-        // approve-all wrap intercepts permission events, so they're still
-        // approved -- the inner handler is consulted only for other events.
+        // Without with_handler, resolution defaults to NoopHandler. The
+        // approve-all wrap intercepts permission events.
         let cfg = SessionConfig::default().approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
+        match dispatch(&resolve(cfg)).await {
             HandlerResponse::Permission(PermissionResult::Approved) => {}
             other => panic!("expected Approved, got {other:?}"),
+        }
+    }
+
+    /// Phase I: order independence. Both call orders must produce the same
+    /// effective approve-all policy.
+    #[tokio::test]
+    async fn session_config_approve_all_is_order_independent() {
+        let cfg_a = SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let cfg_b = SessionConfig::default()
+            .approve_all_permissions()
+            .with_handler(Arc::new(ApproveAllHandler));
+
+        match dispatch(&resolve(cfg_a)).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("order A: expected Approved, got {other:?}"),
+        }
+        match dispatch(&resolve(cfg_b)).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("order B: expected Approved, got {other:?}"),
+        }
+    }
+
+    /// Phase I: same for deny_all_permissions.
+    #[tokio::test]
+    async fn session_config_deny_all_is_order_independent() {
+        let cfg_a = SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .deny_all_permissions();
+        let cfg_b = SessionConfig::default()
+            .deny_all_permissions()
+            .with_handler(Arc::new(ApproveAllHandler));
+
+        match dispatch(&resolve(cfg_a)).await {
+            HandlerResponse::Permission(PermissionResult::Denied) => {}
+            other => panic!("order A: expected Denied, got {other:?}"),
+        }
+        match dispatch(&resolve(cfg_b)).await {
+            HandlerResponse::Permission(PermissionResult::Denied) => {}
+            other => panic!("order B: expected Denied, got {other:?}"),
+        }
+    }
+
+    /// Phase I: same for approve_permissions_if.
+    #[tokio::test]
+    async fn session_config_approve_permissions_if_is_order_independent() {
+        let predicate = |data: &PermissionRequestData| {
+            data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+        };
+        let cfg_a = SessionConfig::default()
+            .with_handler(Arc::new(ApproveAllHandler))
+            .approve_permissions_if(predicate);
+        let cfg_b = SessionConfig::default()
+            .approve_permissions_if(predicate)
+            .with_handler(Arc::new(ApproveAllHandler));
+
+        match dispatch(&resolve(cfg_a)).await {
+            HandlerResponse::Permission(PermissionResult::Denied) => {}
+            other => panic!("order A: expected Denied for shell, got {other:?}"),
+        }
+        match dispatch(&resolve(cfg_b)).await {
+            HandlerResponse::Permission(PermissionResult::Denied) => {}
+            other => panic!("order B: expected Denied for shell, got {other:?}"),
         }
     }
 
@@ -3969,8 +4006,7 @@ mod permission_builder_tests {
         let cfg = SessionConfig::default()
             .with_handler(Arc::new(ApproveAllHandler))
             .deny_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
+        match dispatch(&resolve(cfg)).await {
             HandlerResponse::Permission(PermissionResult::Denied) => {}
             other => panic!("expected Denied, got {other:?}"),
         }
@@ -3983,8 +4019,7 @@ mod permission_builder_tests {
             .approve_permissions_if(|data| {
                 data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
             });
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
+        match dispatch(&resolve(cfg)).await {
             HandlerResponse::Permission(PermissionResult::Denied) => {}
             other => panic!("expected Denied for shell, got {other:?}"),
         }
@@ -3995,10 +4030,28 @@ mod permission_builder_tests {
         let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
             .with_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
+        match dispatch(&resolve_resume(cfg)).await {
             HandlerResponse::Permission(PermissionResult::Approved) => {}
             other => panic!("expected Approved, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn resume_session_config_approve_all_is_order_independent() {
+        let cfg_a = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let cfg_b = ResumeSessionConfig::new(SessionId::from("s1"))
+            .approve_all_permissions()
+            .with_handler(Arc::new(ApproveAllHandler));
+
+        match dispatch(&resolve_resume(cfg_a)).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("order A: expected Approved, got {other:?}"),
+        }
+        match dispatch(&resolve_resume(cfg_b)).await {
+            HandlerResponse::Permission(PermissionResult::Approved) => {}
+            other => panic!("order B: expected Approved, got {other:?}"),
         }
     }
 }

@@ -80,10 +80,7 @@ async fn capabilities_changed_fires_when_second_client_joins_with_elicitation_ha
                 let port = free_tcp_port();
                 let server = start_tcp_server(ctx, port).await;
                 let session1 = server
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
                 assert_ne!(
@@ -142,10 +139,7 @@ async fn capabilities_changed_fires_when_elicitation_provider_disconnects() {
                 let port = free_tcp_port();
                 let server = start_tcp_server(ctx, port).await;
                 let session1 = server
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
                 let client2 = start_external_client(ctx, port).await;
