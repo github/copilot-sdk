@@ -20,6 +20,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     opts.transport = Transport::External {
         host: host.to_string(),
         port,
+        connection_token: None,
     };
     opts.github_token = std::env::var("GITHUB_TOKEN").ok();
     let client = Client::start(opts).await?;
@@ -38,6 +39,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

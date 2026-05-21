@@ -57,6 +57,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     println!("\nSkill directories configured successfully");
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

@@ -41,6 +41,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    resumed.destroy().await?;
+    resumed.disconnect().await?;
     Ok(())
 }

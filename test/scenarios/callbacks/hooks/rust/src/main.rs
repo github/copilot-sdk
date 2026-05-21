@@ -126,6 +126,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     }
     println!("\nTotal hooks fired: {}", log.len());
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

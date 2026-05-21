@@ -61,6 +61,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         chunks.load(Ordering::Relaxed)
     );
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

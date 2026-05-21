@@ -47,7 +47,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    session1.destroy().await?;
-    session2.destroy().await?;
+    session1.disconnect().await?;
+    session2.disconnect().await?;
     Ok(())
 }

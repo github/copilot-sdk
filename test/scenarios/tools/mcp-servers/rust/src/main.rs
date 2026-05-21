@@ -63,6 +63,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         println!("\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)");
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

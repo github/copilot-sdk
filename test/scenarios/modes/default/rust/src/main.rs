@@ -31,6 +31,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     }
 
     println!("Default mode test complete");
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

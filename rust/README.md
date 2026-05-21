@@ -445,9 +445,15 @@ let session = client
     .await?;
 ```
 
-> Call the policy method **after** `with_handler` — `with_handler` overwrites the handler field, so `approve_all_permissions().with_handler(...)` discards the wrap.
+> Order-independent: `with_handler` and the permission-policy methods
+> (`approve_all_permissions`, `deny_all_permissions`,
+> `approve_permissions_if`) can be called in either order — the policy is
+> applied to the handler when the session is created.
 
-For composing a policy onto a handler outside the builder chain (e.g. when wrapping a `ToolHandlerRouter` you've built elsewhere), the `permission` module exposes the same primitives as free functions:
+The `permission` module also exposes the policy primitives as standalone
+helpers for the rare case where you want to wrap a handler outside the
+builder chain (e.g., when composing a `ToolHandlerRouter` you've built
+elsewhere):
 
 ```rust,ignore
 use github_copilot_sdk::permission;
@@ -461,13 +467,23 @@ let session = client.create_session(config.with_handler(handler)).await?;
 
 ### Capabilities & Elicitation
 
-The SDK negotiates capabilities with the CLI after session creation. Enable elicitation to let the agent present structured UI dialogs (forms, URL prompts) to the user.
+The SDK negotiates capabilities with the CLI after session creation. To
+opt this client into receiving `elicitation.requested` broadcasts, return
+`true` from `SessionHandler::wants_elicitation_dispatch` on the handler
+you install — the SDK derives the `requestElicitation` wire flag from
+that probe at `Client::create_session` time. Clients that don't claim
+elicitation are silently skipped, allowing other connected clients on
+the same CLI to handle the request.
 
 ```rust,ignore
-let config = SessionConfig {
-    request_elicitation: Some(true),
-    ..Default::default()
-};
+struct MyHandler;
+#[async_trait]
+impl SessionHandler for MyHandler {
+    fn wants_elicitation_dispatch(&self) -> bool {
+        true
+    }
+    // ... on_event etc.
+}
 ```
 
 The handler receives `HandlerEvent::ElicitationRequest` with a message, optional JSON Schema for form fields, and an optional mode. Known modes include `Form` and `Url`, but the mode may be absent or an unknown future value. Return `HandlerResponse::Elicitation(result)`.

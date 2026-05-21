@@ -50,6 +50,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     println!("Infinite sessions test complete — all messages processed successfully");
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }
