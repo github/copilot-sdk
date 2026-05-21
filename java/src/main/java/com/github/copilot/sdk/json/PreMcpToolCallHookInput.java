@@ -9,12 +9,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * Input for a post-tool-use hook.
+ * Input for a pre-MCP-tool-call hook.
+ * <p>
+ * This hook is called before an MCP tool call is dispatched, allowing you to
+ * modify the {@code _meta} field that is sent with the tool call.
  *
- * @since 1.0.6
+ * @since 1.0.8
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PostToolUseHookInput {
+public class PreMcpToolCallHookInput {
 
     @JsonProperty("sessionId")
     private String sessionId;
@@ -25,14 +28,20 @@ public class PostToolUseHookInput {
     @JsonProperty("cwd")
     private String workingDirectory;
 
+    @JsonProperty("serverName")
+    private String serverName;
+
     @JsonProperty("toolName")
     private String toolName;
 
-    @JsonProperty("toolArgs")
-    private JsonNode toolArgs;
+    @JsonProperty("arguments")
+    private JsonNode arguments;
 
-    @JsonProperty("toolResult")
-    private JsonNode toolResult;
+    @JsonProperty("toolCallId")
+    private String toolCallId;
+
+    @JsonProperty("_meta")
+    private JsonNode meta;
 
     /**
      * Gets the runtime session ID of the session that triggered the hook.
@@ -50,7 +59,7 @@ public class PostToolUseHookInput {
      *            the session ID
      * @return this instance for method chaining
      */
-    public PostToolUseHookInput setSessionId(String sessionId) {
+    public PreMcpToolCallHookInput setSessionId(String sessionId) {
         this.sessionId = sessionId;
         return this;
     }
@@ -71,7 +80,7 @@ public class PostToolUseHookInput {
      *            the timestamp in milliseconds
      * @return this instance for method chaining
      */
-    public PostToolUseHookInput setTimestamp(long timestamp) {
+    public PreMcpToolCallHookInput setTimestamp(long timestamp) {
         this.timestamp = timestamp;
         return this;
     }
@@ -92,13 +101,34 @@ public class PostToolUseHookInput {
      *            the working directory path
      * @return this instance for method chaining
      */
-    public PostToolUseHookInput setWorkingDirectory(String workingDirectory) {
+    public PreMcpToolCallHookInput setWorkingDirectory(String workingDirectory) {
         this.workingDirectory = workingDirectory;
         return this;
     }
 
     /**
-     * Gets the name of the tool that was invoked.
+     * Gets the name of the MCP server.
+     *
+     * @return the server name
+     */
+    public String getServerName() {
+        return serverName;
+    }
+
+    /**
+     * Sets the name of the MCP server.
+     *
+     * @param serverName
+     *            the server name
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setServerName(String serverName) {
+        this.serverName = serverName;
+        return this;
+    }
+
+    /**
+     * Gets the name of the tool being called.
      *
      * @return the tool name
      */
@@ -107,13 +137,13 @@ public class PostToolUseHookInput {
     }
 
     /**
-     * Sets the name of the tool that was invoked.
+     * Sets the name of the tool being called.
      *
      * @param toolName
      *            the tool name
      * @return this instance for method chaining
      */
-    public PostToolUseHookInput setToolName(String toolName) {
+    public PreMcpToolCallHookInput setToolName(String toolName) {
         this.toolName = toolName;
         return this;
     }
@@ -123,40 +153,61 @@ public class PostToolUseHookInput {
      *
      * @return the tool arguments as a JSON node
      */
-    public JsonNode getToolArgs() {
-        return toolArgs;
+    public JsonNode getArguments() {
+        return arguments;
     }
 
     /**
      * Sets the arguments passed to the tool.
      *
-     * @param toolArgs
+     * @param arguments
      *            the tool arguments as a JSON node
      * @return this instance for method chaining
      */
-    public PostToolUseHookInput setToolArgs(JsonNode toolArgs) {
-        this.toolArgs = toolArgs;
+    public PreMcpToolCallHookInput setArguments(JsonNode arguments) {
+        this.arguments = arguments;
         return this;
     }
 
     /**
-     * Gets the result returned by the tool.
+     * Gets the tool call ID.
      *
-     * @return the tool result as a JSON node
+     * @return the tool call ID, or {@code null} if not set
      */
-    public JsonNode getToolResult() {
-        return toolResult;
+    public String getToolCallId() {
+        return toolCallId;
     }
 
     /**
-     * Sets the result returned by the tool.
+     * Sets the tool call ID.
      *
-     * @param toolResult
-     *            the tool result as a JSON node
+     * @param toolCallId
+     *            the tool call ID
      * @return this instance for method chaining
      */
-    public PostToolUseHookInput setToolResult(JsonNode toolResult) {
-        this.toolResult = toolResult;
+    public PreMcpToolCallHookInput setToolCallId(String toolCallId) {
+        this.toolCallId = toolCallId;
+        return this;
+    }
+
+    /**
+     * Gets the existing {@code _meta} object that would be sent with the tool call.
+     *
+     * @return the meta as a JSON node, or {@code null} if not present
+     */
+    public JsonNode getMeta() {
+        return meta;
+    }
+
+    /**
+     * Sets the existing {@code _meta} object.
+     *
+     * @param meta
+     *            the meta as a JSON node
+     * @return this instance for method chaining
+     */
+    public PreMcpToolCallHookInput setMeta(JsonNode meta) {
+        this.meta = meta;
         return this;
     }
 }

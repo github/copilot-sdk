@@ -269,7 +269,7 @@ public class SessionHandlerTest {
         var hooks = new SessionHooks().setOnSessionStart((hookInput, invocation) -> {
             assertEquals("runtime-session-123", hookInput.sessionId());
             assertEquals(1735689600L, hookInput.timestamp());
-            assertEquals("/tmp", hookInput.cwd());
+            assertEquals("/tmp", hookInput.workingDirectory());
             return CompletableFuture.completedFuture(new SessionStartHookOutput(null, null));
         });
         session.registerHooks(hooks);

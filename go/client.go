@@ -658,6 +658,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.RequestUserInput = Bool(true)
 	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+		config.Hooks.OnPreMcpToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
@@ -810,6 +811,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.RequestUserInput = Bool(true)
 	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+		config.Hooks.OnPreMcpToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||

@@ -528,6 +528,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var hasHooks = config.Hooks != null && (
             config.Hooks.OnPreToolUse != null ||
+            config.Hooks.OnPreMcpToolCall != null ||
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
             config.Hooks.OnSessionStart != null ||
@@ -688,6 +689,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var hasHooks = config.Hooks != null && (
             config.Hooks.OnPreToolUse != null ||
+            config.Hooks.OnPreMcpToolCall != null ||
             config.Hooks.OnPostToolUse != null ||
             config.Hooks.OnUserPromptSubmitted != null ||
             config.Hooks.OnSessionStart != null ||

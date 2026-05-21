@@ -1246,9 +1246,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         invocation)
                     : null,
                 "preMcpToolCall" => hooks.OnPreMcpToolCall != null
-                    ? await hooks.OnPreMcpToolCall(
+                    ? SerializeHookOutput(await hooks.OnPreMcpToolCall(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreMcpToolCallHookInput)!,
-                        invocation)
+                        invocation))
                     : null,
                 "postToolUse" => hooks.OnPostToolUse != null
                     ? await hooks.OnPostToolUse(
@@ -1287,6 +1287,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 hookType);
         }
     }
+
+    /// <summary>
+    /// Pre-serializes a hook output to JsonElement so that the <c>object?</c> typed
+    /// <see cref="CopilotClient.HooksInvokeResponse.Output"/> property writes the
+    /// correct JSON without relying on polymorphic type resolution.
+    /// </summary>
+    private static JsonElement? SerializeHookOutput(PreMcpToolCallHookOutput? output) =>
+        output is null ? null : JsonSerializer.SerializeToElement(output, SessionJsonContext.Default.PreMcpToolCallHookOutput);
 
     /// <summary>
     /// Registers transform callbacks for system message sections.

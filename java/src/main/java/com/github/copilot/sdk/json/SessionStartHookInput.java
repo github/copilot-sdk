@@ -17,7 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *            the runtime session ID of the session that triggered the hook
  * @param timestamp
  *            the timestamp in milliseconds since epoch when the session started
- * @param cwd
+ * @param workingDirectory
  *            the current working directory
  * @param source
  *            the source: "startup", "resume", or "new"
@@ -27,6 +27,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionStartHookInput(@JsonProperty("sessionId") String sessionId,
-        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
+        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String workingDirectory,
         @JsonProperty("source") String source, @JsonProperty("initialPrompt") String initialPrompt) {
 }

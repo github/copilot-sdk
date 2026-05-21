@@ -18,7 +18,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param timestamp
  *            the timestamp in milliseconds since epoch when the prompt was
  *            submitted
- * @param cwd
+ * @param workingDirectory
  *            the current working directory
  * @param prompt
  *            the user's prompt text
@@ -26,6 +26,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record UserPromptSubmittedHookInput(@JsonProperty("sessionId") String sessionId,
-        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
+        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String workingDirectory,
         @JsonProperty("prompt") String prompt) {
 }

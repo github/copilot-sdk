@@ -78,7 +78,6 @@ impl E2eContext {
         Ok(ctx)
     }
 
-    #[expect(dead_code, reason = "used by follow-on E2E ports")]
     pub fn repo_root(&self) -> &Path {
         &self.repo_root
     }

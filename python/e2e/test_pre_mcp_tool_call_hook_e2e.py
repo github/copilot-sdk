@@ -47,7 +47,8 @@ class TestPreMcpToolCallHook:
         )
         try:
             response = await session.send_and_wait(
-                "Use the meta-echo/echo_meta tool with value 'test-set'. Reply with just the raw tool result."
+                "Use the meta-echo/echo_meta tool with value 'test-set'."
+                " Reply with just the raw tool result."
             )
             assert response is not None
             assert "injected" in (response.data.content or "")
@@ -75,7 +76,8 @@ class TestPreMcpToolCallHook:
         )
         try:
             response = await session.send_and_wait(
-                "Use the meta-echo/echo_meta tool with value 'test-replace'. Reply with just the raw tool result."
+                "Use the meta-echo/echo_meta tool with value 'test-replace'."
+                " Reply with just the raw tool result."
             )
             assert response is not None
             assert "completely" in (response.data.content or "")
@@ -101,7 +103,8 @@ class TestPreMcpToolCallHook:
         )
         try:
             response = await session.send_and_wait(
-                "Use the meta-echo/echo_meta tool with value 'test-remove'. Reply with just the raw tool result."
+                "Use the meta-echo/echo_meta tool with value 'test-remove'."
+                " Reply with just the raw tool result."
             )
             assert response is not None
             assert '"meta":null' in (response.data.content or "") or '"meta": null' in (

@@ -702,11 +702,11 @@ type MCPServerConfig interface {
 // the wire) is distinguishable from a non-nil pointer to an empty slice
 // (sent as `"tools": []`).
 type MCPStdioServerConfig struct {
-	Tools   *[]string         `json:"tools,omitempty"`
-	Timeout int               `json:"timeout,omitempty"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
+	Tools            *[]string         `json:"tools,omitempty"`
+	Timeout          int               `json:"timeout,omitempty"`
+	Command          string            `json:"command"`
+	Args             []string          `json:"args,omitempty"`
+	Env              map[string]string `json:"env,omitempty"`
 	WorkingDirectory string            `json:"cwd,omitempty"`
 }
 

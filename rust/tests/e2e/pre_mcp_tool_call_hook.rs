@@ -6,7 +6,7 @@ use github_copilot_sdk::hooks::{
     HookContext, PreMcpToolCallInput, PreMcpToolCallOutput, SessionHooks,
 };
 use github_copilot_sdk::{McpServerConfig, McpStdioServerConfig};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use super::support::{assistant_message_content, recv_with_timeout, with_e2e_context};

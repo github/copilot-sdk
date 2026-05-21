@@ -19,12 +19,13 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 	metaEchoServer := filepath.Join(testHarnessDir, "test-mcp-meta-echo-server.mjs")
 
 	metaEchoConfig := func() map[string]copilot.MCPServerConfig {
+		tools := []string{"*"}
 		return map[string]copilot.MCPServerConfig{
 			"meta-echo": copilot.MCPStdioServerConfig{
 				Command:          "node",
 				Args:             []string{metaEchoServer},
 				WorkingDirectory: testHarnessDir,
-				Tools:            []string{"*"},
+				Tools:            &tools,
 			},
 		}
 	}
@@ -46,10 +47,10 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 					inputs = append(inputs, input)
 					mu.Unlock()
 					return &copilot.PreMcpToolCallHookOutput{
-						MetaToUse: copilot.MetaToUseReplace(map[string]any{
+						MetaToUse: map[string]any{
 							"injected": "by-hook",
 							"source":   "test",
-						}),
+						},
 					}, nil
 				},
 			},
@@ -87,8 +88,8 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 		if inputs[0].WorkingDirectory == "" {
 			t.Error("Expected non-empty workingDirectory")
 		}
-		if inputs[0].Timestamp <= 0 {
-			t.Error("Expected positive timestamp")
+		if inputs[0].Timestamp.IsZero() {
+			t.Error("Expected non-zero timestamp")
 		}
 	})
 
@@ -109,9 +110,9 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 					inputs = append(inputs, input)
 					mu.Unlock()
 					return &copilot.PreMcpToolCallHookOutput{
-						MetaToUse: copilot.MetaToUseReplace(map[string]any{
+						MetaToUse: map[string]any{
 							"completely": "replaced",
-						}),
+						},
 					}, nil
 				},
 			},
@@ -165,7 +166,7 @@ func TestPreMcpToolCallHookE2E(t *testing.T) {
 					inputs = append(inputs, input)
 					mu.Unlock()
 					return &copilot.PreMcpToolCallHookOutput{
-						MetaToUse: copilot.MetaToUseRemove(),
+						MetaToUse: nil,
 					}, nil
 				},
 			},

@@ -34,7 +34,7 @@ describe("pre_mcp_tool_call_hook", async () => {
                 } as MCPStdioServerConfig,
             },
             hooks: {
-                onPreMcpToolCall: async (input, invocation) => {
+                onPreMcpToolCall: async (input, _invocation) => {
                     hookInputs.push(input);
                     return { metaToUse: { injected: "by-hook", source: "test" } };
                 },
@@ -72,7 +72,7 @@ describe("pre_mcp_tool_call_hook", async () => {
                 } as MCPStdioServerConfig,
             },
             hooks: {
-                onPreMcpToolCall: async (input, invocation) => {
+                onPreMcpToolCall: async (input, _invocation) => {
                     hookInputs.push(input);
                     return { metaToUse: { completely: "replaced" } };
                 },
@@ -108,7 +108,7 @@ describe("pre_mcp_tool_call_hook", async () => {
                 } as MCPStdioServerConfig,
             },
             hooks: {
-                onPreMcpToolCall: async (input, invocation) => {
+                onPreMcpToolCall: async (input, _invocation) => {
                     hookInputs.push(input);
                     return { metaToUse: null };
                 },

@@ -155,7 +155,7 @@ class DataObjectCoverageTest {
         var input = new PreToolUseHookInput();
         // Default values
         assertEquals(0L, input.getTimestamp());
-        assertNull(input.getCwd());
+        assertNull(input.getWorkingDirectory());
         assertNull(input.getToolArgs());
         assertNull(input.getSessionId());
     }
@@ -174,7 +174,7 @@ class DataObjectCoverageTest {
         var input = new PostToolUseHookInput();
         // Default values
         assertEquals(0L, input.getTimestamp());
-        assertNull(input.getCwd());
+        assertNull(input.getWorkingDirectory());
         assertNull(input.getToolArgs());
         assertNull(input.getSessionId());
     }

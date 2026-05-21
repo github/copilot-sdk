@@ -322,10 +322,10 @@ func assertArgValue(t *testing.T, args []string, name, expected string) {
 
 // capturedCli mirrors the JSON file written by the fake stdio CLI script.
 type capturedCli struct {
-	Args     []string          `json:"args"`
-	WorkingDirectory      string            `json:"cwd"`
-	Requests []capturedRequest `json:"requests"`
-	Env      map[string]string `json:"env"`
+	Args             []string          `json:"args"`
+	WorkingDirectory string            `json:"cwd"`
+	Requests         []capturedRequest `json:"requests"`
+	Env              map[string]string `json:"env"`
 }
 
 type capturedRequest struct {

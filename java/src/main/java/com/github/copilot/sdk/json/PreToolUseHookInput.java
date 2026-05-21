@@ -23,7 +23,7 @@ public class PreToolUseHookInput {
     private long timestamp;
 
     @JsonProperty("cwd")
-    private String cwd;
+    private String workingDirectory;
 
     @JsonProperty("toolName")
     private String toolName;
@@ -78,19 +78,19 @@ public class PreToolUseHookInput {
      *
      * @return the working directory path
      */
-    public String getCwd() {
-        return cwd;
+    public String getWorkingDirectory() {
+        return workingDirectory;
     }
 
     /**
      * Sets the current working directory.
      *
-     * @param cwd
+     * @param workingDirectory
      *            the working directory path
      * @return this instance for method chaining
      */
-    public PreToolUseHookInput setCwd(String cwd) {
-        this.cwd = cwd;
+    public PreToolUseHookInput setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
         return this;
     }
 
