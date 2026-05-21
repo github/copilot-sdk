@@ -66,18 +66,40 @@ export async function createSdkTestContext({
         XDG_STATE_HOME: homeDir,
     };
 
-    const connection: RuntimeConnection =
-        useStdio === false
-            ? RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })
-            : RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH });
+    const userConn = copilotClientOptions?.connection;
+    let connection: RuntimeConnection;
+    if (userConn) {
+        // Caller supplied a RuntimeConnection — merge in the harness-managed
+        // CLI path (and stay on TCP if the caller asked for that variant).
+        if (userConn.kind === "tcp") {
+            connection = RuntimeConnection.forTcp({
+                ...userConn,
+                path: userConn.path ?? process.env.COPILOT_CLI_PATH,
+            });
+        } else if (userConn.kind === "stdio") {
+            connection = RuntimeConnection.forStdio({
+                ...userConn,
+                path: userConn.path ?? process.env.COPILOT_CLI_PATH,
+            });
+        } else {
+            connection = userConn;
+        }
+    } else {
+        connection =
+            useStdio === false
+                ? RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })
+                : RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH });
+    }
 
+    const { connection: _ignoredConnection, ...remainingClientOptions } =
+        copilotClientOptions ?? {};
     const copilotClient = new CopilotClient({
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
         connection,
         gitHubToken: authTokenToUse,
-        ...copilotClientOptions,
+        ...remainingClientOptions,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };
