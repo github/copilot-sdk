@@ -6,18 +6,17 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::Client;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, PermissionHandler, PermissionResult, UserInputHandler,
     UserInputResponse,
 };
-use github_copilot_sdk::tool;
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, MessageOptions, PermissionRequestData, RequestId,
     SessionConfig, SessionId, Tool, ToolInvocation, ToolResult,
 };
+use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
 use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
@@ -2055,6 +2054,7 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
                 .with_description("Run tests")
                 .with_parameters(serde_json::json!({"type":"object"}))
         }
+
         async fn call(
             &self,
             invocation: ToolInvocation,
@@ -2103,6 +2103,7 @@ async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
                 .with_description("foo")
                 .with_parameters(serde_json::json!({"type":"object"}))
         }
+
         async fn call(
             &self,
             _invocation: ToolInvocation,
@@ -3877,6 +3878,7 @@ async fn tool_invocation_carries_trace_context_from_event() {
                 .with_description("calc")
                 .with_parameters(serde_json::json!({"type":"object"}))
         }
+
         async fn call(
             &self,
             invocation: ToolInvocation,
