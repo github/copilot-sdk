@@ -1151,8 +1151,8 @@ type SessionListFilter struct {
 // SessionMetadata contains metadata about a session
 type SessionMetadata struct {
 	SessionID    string          `json:"sessionId"`
-	StartTime    string          `json:"startTime"`
-	ModifiedTime string          `json:"modifiedTime"`
+	StartTime    time.Time       `json:"startTime"`
+	ModifiedTime time.Time       `json:"modifiedTime"`
 	Summary      *string         `json:"summary,omitempty"`
 	IsRemote     bool            `json:"isRemote"`
 	Context      *SessionContext `json:"context,omitempty"`
@@ -1178,9 +1178,9 @@ type SessionLifecycleEvent struct {
 
 // SessionLifecycleEventMetadata contains optional metadata for lifecycle events
 type SessionLifecycleEventMetadata struct {
-	StartTime    string  `json:"startTime"`
-	ModifiedTime string  `json:"modifiedTime"`
-	Summary      *string `json:"summary,omitempty"`
+	StartTime    time.Time `json:"startTime"`
+	ModifiedTime time.Time `json:"modifiedTime"`
+	Summary      *string   `json:"summary,omitempty"`
 }
 
 // SessionLifecycleHandler is a callback for session lifecycle events

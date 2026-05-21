@@ -882,10 +882,10 @@ func TestSessionE2E(t *testing.T) {
 			if sessionData.SessionID == "" {
 				t.Error("Expected sessionId to be non-empty")
 			}
-			if sessionData.StartTime == "" {
+			if sessionData.StartTime.IsZero() {
 				t.Error("Expected startTime to be non-empty")
 			}
-			if sessionData.ModifiedTime == "" {
+			if sessionData.ModifiedTime.IsZero() {
 				t.Error("Expected modifiedTime to be non-empty")
 			}
 			// isRemote is a boolean, so it's always set
@@ -996,11 +996,11 @@ func TestSessionE2E(t *testing.T) {
 			t.Errorf("Expected sessionId %s, got %s", session.SessionID, metadata.SessionID)
 		}
 
-		if metadata.StartTime == "" {
+		if metadata.StartTime.IsZero() {
 			t.Error("Expected startTime to be non-empty")
 		}
 
-		if metadata.ModifiedTime == "" {
+		if metadata.ModifiedTime.IsZero() {
 			t.Error("Expected modifiedTime to be non-empty")
 		}
 
