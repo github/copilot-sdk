@@ -1,8 +1,12 @@
 package copilot
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
 )
@@ -1143,11 +1147,71 @@ type pingRequest struct {
 	Message string `json:"message,omitempty"`
 }
 
-// PingResponse is the response from a ping request
+// PingResponse is the response from a ping request.
+//
+// The `Timestamp` field is normalised to epoch milliseconds regardless of how
+// the upstream Copilot CLI serialises it on the wire. As of CLI 1.0.51 the
+// `result.timestamp` JSON-RPC field is emitted as a JSON number on Windows
+// (epoch ms) and as an ISO 8601 string on Linux
+// — see https://github.com/github/copilot-cli/issues/3444 and
+// https://github.com/github/copilot-sdk/issues/1356. The custom
+// UnmarshalJSON below tolerates both shapes so SDK consumers (Go SDK
+// `Client.Start` → `verifyProtocolVersion` → `Ping`) do not crash with
+// `json: cannot unmarshal string into Go struct field PingResponse.timestamp
+// of type int64` during any cross-platform / mid-rollout window.
 type PingResponse struct {
 	Message         string `json:"message"`
-	Timestamp       int64  `json:"timestamp"`
+	Timestamp       int64  // epoch milliseconds; see UnmarshalJSON
 	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
+}
+
+// UnmarshalJSON accepts `"timestamp": 1779352370134` (JSON number, epoch
+// milliseconds), `"timestamp": "1779352370134"` (stringified epoch
+// milliseconds) and `"timestamp": "2026-05-21T08:29:54.042Z"`
+// (RFC 3339 / ISO 8601 string, normalised to epoch ms via
+// time.UnixMilli). An empty / null timestamp leaves the field at zero.
+// Anything else is rejected so that genuinely broken payloads still
+// surface a clear error.
+func (p *PingResponse) UnmarshalJSON(b []byte) error {
+	type alias struct {
+		Message         string          `json:"message"`
+		Timestamp       json.RawMessage `json:"timestamp"`
+		ProtocolVersion *int            `json:"protocolVersion,omitempty"`
+	}
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	p.Message = a.Message
+	p.ProtocolVersion = a.ProtocolVersion
+
+	raw := bytes.TrimSpace(a.Timestamp)
+	switch {
+	case len(raw) == 0, bytes.Equal(raw, []byte("null")):
+		p.Timestamp = 0
+		return nil
+	case raw[0] == '"':
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return fmt.Errorf("PingResponse.timestamp: decode string: %w", err)
+		}
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			p.Timestamp = n
+			return nil
+		}
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			p.Timestamp = t.UnixMilli()
+			return nil
+		}
+		return fmt.Errorf("PingResponse.timestamp: unrecognised string %q", s)
+	default:
+		var n int64
+		if err := json.Unmarshal(raw, &n); err != nil {
+			return fmt.Errorf("PingResponse.timestamp: decode number: %w", err)
+		}
+		p.Timestamp = n
+		return nil
+	}
 }
 
 // getStatusRequest is the request for status.get
