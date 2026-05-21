@@ -654,9 +654,9 @@ type MCPServerConfig interface {
 //   - &[]string{}: no tools
 //   - &[]string{"foo","bar"}: only those tools
 //
-// The pointer-to-slice form is required to distinguish "omitted" (all tools)
-// from "empty list" (no tools) on the wire, matching TypeScript's
-// `tools?: string[]` and C#'s `IList<string>?` semantics.
+// The pointer-to-slice form is required so that a nil pointer (omitted from
+// the wire) is distinguishable from a non-nil pointer to an empty slice
+// (sent as `"tools": []`).
 type MCPStdioServerConfig struct {
 	Tools   *[]string         `json:"tools,omitempty"`
 	Timeout int               `json:"timeout,omitempty"`
