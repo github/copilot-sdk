@@ -586,11 +586,11 @@ export class CopilotClient {
 
         if (this.socket) {
             try {
-                // .end() initiates the close, but we also .destroy() to make
-                // sure the underlying handle is released so the Node event
-                // loop can exit cleanly without an explicit process.exit().
+                // .end() initiates the graceful close. unref() releases the
+                // event-loop handle so Node can exit while the FIN/ACK
+                // exchange completes in the background.
                 this.socket.end();
-                this.socket.destroy();
+                this.socket.unref();
             } catch (error) {
                 errors.push(
                     new Error(
@@ -604,11 +604,15 @@ export class CopilotClient {
         // Kill CLI process (only if we spawned it)
         if (this.cliProcess && !this.isExternalServer) {
             try {
-                // Detach stdio streams so they don't keep the event loop alive
-                // while we wait for the child to exit.
-                this.cliProcess.stdin?.destroy();
-                this.cliProcess.stdout?.destroy();
-                this.cliProcess.stderr?.destroy();
+                // unref the stdio pipes and the child process itself so they
+                // don't keep the event loop alive after stop() returns. unref()
+                // doesn't close the streams or stop our existing data listeners
+                // from receiving late output — it just removes the "keep the
+                // loop alive" handle so Node can exit naturally if nothing else
+                // is pending.
+                this.cliProcess.stdin?.unref();
+                this.cliProcess.stdout?.unref();
+                this.cliProcess.stderr?.unref();
                 this.cliProcess.kill();
                 this.cliProcess.unref();
             } catch (error) {
