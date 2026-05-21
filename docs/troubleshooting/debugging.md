@@ -142,18 +142,25 @@ const client = new CopilotClient({
 ```go
 package main
 
+import copilot "github.com/github/copilot-sdk/go"
+
 func main() {
-	// The Go SDK does not currently support passing extra CLI arguments.
-	// For custom log directories, run the CLI manually with --log-dir
-	// and connect via Connection (UriConnection).
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Connection: copilot.StdioConnection{
+			Args: []string{"--log-dir", "/path/to/logs"},
+		},
+	})
+	_ = client
 }
 ```
 <!-- /docs-validate: hidden -->
 
 ```go
-// The Go SDK does not currently support passing extra CLI arguments.
-// For custom log directories, run the CLI manually with --log-dir
-// and connect via Connection (UriConnection).
+client := copilot.NewClient(&copilot.ClientOptions{
+    Connection: copilot.StdioConnection{
+        Args: []string{"--log-dir", "/path/to/logs"},
+    },
+})
 ```
 
 </details>
