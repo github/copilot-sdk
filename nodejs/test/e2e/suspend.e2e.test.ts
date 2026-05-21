@@ -63,7 +63,7 @@ describe("Suspend RPC", async () => {
 
     function createTcpServer(): CopilotClient {
         const server = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,

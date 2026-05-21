@@ -176,7 +176,7 @@ export interface CopilotClientOptions {
      * Working directory for the runtime process.
      * If not set, inherits the current process's working directory.
      */
-    cwd?: string;
+    workingDirectory?: string;
 
     /**
      * Base directory for Copilot data (session state, config, etc.).
@@ -1275,7 +1275,10 @@ export interface MCPStdioServerConfig extends MCPServerConfigBase {
      * Environment variables to pass to the server.
      */
     env?: Record<string, string>;
-    cwd?: string;
+    /**
+     * Working directory for the server process.
+     */
+    workingDirectory?: string;
 }
 
 /**
@@ -1847,7 +1850,7 @@ export type ConnectionState = "disconnected" | "connecting" | "connected" | "err
  */
 export interface SessionContext {
     /** Working directory where the session was created */
-    cwd: string;
+    workingDirectory: string;
     /** Git repository root (if in a git repo) */
     gitRoot?: string;
     /** GitHub repository in "owner/repo" format */
@@ -1895,8 +1898,8 @@ export interface SessionFsConfig {
  * Filter options for listing sessions
  */
 export interface SessionListFilter {
-    /** Filter by exact cwd match */
-    cwd?: string;
+    /** Filter by exact working directory match */
+    workingDirectory?: string;
     /** Filter by git root */
     gitRoot?: string;
     /** Filter by repository (owner/repo format) */
@@ -1914,7 +1917,7 @@ export interface SessionMetadata {
     modifiedTime: Date;
     summary?: string;
     isRemote: boolean;
-    /** Working directory context (cwd, git info) from session creation */
+    /** Working directory context (working directory, git info) from session creation */
     context?: SessionContext;
 }
 

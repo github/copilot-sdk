@@ -40,17 +40,18 @@ import type {
     AutoModeSwitchResponse,
     ConnectionState,
     CopilotClientOptions,
+    CustomAgentConfig,
     ExitPlanModeRequest,
     ExitPlanModeResult,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
     InternalRuntimeConnection,
+    MCPServerConfig,
     ModelInfo,
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
-    SessionContext,
     SessionEvent,
     SessionFsConfig,
     SessionLifecycleEvent,
@@ -96,6 +97,38 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
         return parameters.toJSONSchema();
     }
     return parameters;
+}
+
+/**
+ * Convert MCP server configs from public API format (workingDirectory) to
+ * wire format (cwd) expected by the runtime.
+ */
+function toWireMcpServers(
+    mcpServers: Record<string, MCPServerConfig> | undefined,
+): Record<string, unknown> | undefined {
+    if (!mcpServers) return undefined;
+    return Object.fromEntries(
+        Object.entries(mcpServers).map(([name, server]) => {
+            if ("workingDirectory" in server) {
+                const { workingDirectory, ...rest } = server;
+                return [name, { ...rest, cwd: workingDirectory }];
+            }
+            return [name, server];
+        }),
+    );
+}
+
+/**
+ * Convert custom agent configs, transforming nested mcpServers from
+ * public API format (workingDirectory) to wire format (cwd).
+ */
+function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] | undefined {
+    if (!agents) return undefined;
+    return agents.map((agent) => {
+        if (!agent.mcpServers) return agent;
+        const { mcpServers, ...rest } = agent;
+        return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
+    });
 }
 
 /**
@@ -228,7 +261,7 @@ export class CopilotClient {
     /** Resolved environment passed to the spawned runtime. */
     private resolvedEnv: Record<string, string | undefined>;
     private options: {
-        cwd: string;
+        workingDirectory: string;
         logLevel?: string;
         gitHubToken?: string;
         useLoggedInUser: boolean;
@@ -374,7 +407,7 @@ export class CopilotClient {
         this.connectionExtraArgs = [...connArgs];
 
         this.options = {
-            cwd: options.cwd ?? process.cwd(),
+            workingDirectory: options.workingDirectory ?? process.cwd(),
             logLevel: options.logLevel,
             gitHubToken: options.gitHubToken,
             // Default useLoggedInUser to false when gitHubToken is provided, otherwise true.
@@ -839,9 +872,9 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
-                mcpServers: config.mcpServers,
+                mcpServers: toWireMcpServers(config.mcpServers),
                 envValueMode: "direct",
-                customAgents: config.customAgents,
+                customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 configDir: config.configDir,
@@ -976,9 +1009,9 @@ export class CopilotClient {
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
-                mcpServers: config.mcpServers,
+                mcpServers: toWireMcpServers(config.mcpServers),
                 envValueMode: "direct",
-                customAgents: config.customAgents,
+                customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
@@ -1272,8 +1305,15 @@ export class CopilotClient {
             throw new Error("Client not connected");
         }
 
+        // Transform filter to wire format (workingDirectory → cwd)
+        let wireFilter: Record<string, unknown> | undefined;
+        if (filter) {
+            const { workingDirectory, ...rest } = filter;
+            wireFilter = { ...rest, cwd: workingDirectory };
+        }
+
         const response = await this.connection.sendRequest("session.list", {
-            filter,
+            filter: wireFilter,
         });
         const { sessions } = response as {
             sessions: Array<{
@@ -1282,7 +1322,7 @@ export class CopilotClient {
                 modifiedTime: string;
                 summary?: string;
                 isRemote: boolean;
-                context?: SessionContext;
+                context?: { cwd: string; gitRoot?: string; repository?: string; branch?: string };
             }>;
         };
 
@@ -1320,7 +1360,7 @@ export class CopilotClient {
                 modifiedTime: string;
                 summary?: string;
                 isRemote: boolean;
-                context?: SessionContext;
+                context?: { cwd: string; gitRoot?: string; repository?: string; branch?: string };
             };
         };
 
@@ -1337,15 +1377,23 @@ export class CopilotClient {
         modifiedTime: string;
         summary?: string;
         isRemote: boolean;
-        context?: SessionContext;
+        context?: { cwd: string; gitRoot?: string; repository?: string; branch?: string };
     }): SessionMetadata {
+        const { context } = raw;
         return {
             sessionId: raw.sessionId,
             startTime: new Date(raw.startTime),
             modifiedTime: new Date(raw.modifiedTime),
             summary: raw.summary,
             isRemote: raw.isRemote,
-            context: raw.context,
+            context: context
+                ? {
+                      workingDirectory: context.cwd,
+                      gitRoot: context.gitRoot,
+                      repository: context.repository,
+                      branch: context.branch,
+                  }
+                : undefined,
         };
     }
 
@@ -1591,14 +1639,14 @@ export class CopilotClient {
             if (isJsFile) {
                 this.cliProcess = spawn(getNodeExecPath(), [this.resolvedCliPath, ...args], {
                     stdio: stdioConfig,
-                    cwd: this.options.cwd,
+                    cwd: this.options.workingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
                 });
             } else {
                 this.cliProcess = spawn(this.resolvedCliPath, args, {
                     stdio: stdioConfig,
-                    cwd: this.options.cwd,
+                    cwd: this.options.workingDirectory,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
                 });

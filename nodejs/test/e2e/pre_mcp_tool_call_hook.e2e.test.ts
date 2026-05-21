@@ -29,7 +29,7 @@ describe("pre_mcp_tool_call_hook", async () => {
                 "meta-echo": {
                     command: "node",
                     args: [TEST_MCP_META_ECHO_SERVER],
-                    cwd: TEST_HARNESS_DIR,
+                    workingDirectory: TEST_HARNESS_DIR,
                     tools: ["*"],
                 } as MCPStdioServerConfig,
             },
@@ -67,7 +67,7 @@ describe("pre_mcp_tool_call_hook", async () => {
                 "meta-echo": {
                     command: "node",
                     args: [TEST_MCP_META_ECHO_SERVER],
-                    cwd: TEST_HARNESS_DIR,
+                    workingDirectory: TEST_HARNESS_DIR,
                     tools: ["*"],
                 } as MCPStdioServerConfig,
             },
@@ -103,7 +103,7 @@ describe("pre_mcp_tool_call_hook", async () => {
                 "meta-echo": {
                     command: "node",
                     args: [TEST_MCP_META_ECHO_SERVER],
-                    cwd: TEST_HARNESS_DIR,
+                    workingDirectory: TEST_HARNESS_DIR,
                     tools: ["*"],
                 } as MCPStdioServerConfig,
             },

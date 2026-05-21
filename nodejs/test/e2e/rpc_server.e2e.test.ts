@@ -17,7 +17,7 @@ describe("Server-scoped RPC", async () => {
             COPILOT_DEBUG_GITHUB_API_URL: env.COPILOT_API_URL,
         };
         const authClient = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env: childEnv,
             logLevel: "error",
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
