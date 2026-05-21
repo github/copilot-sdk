@@ -3103,7 +3103,7 @@ pub struct UiCapabilities {
 
 /// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.
 #[derive(Debug, Clone, Default)]
-pub struct InputOptions<'a> {
+pub struct UiInputOptions<'a> {
     /// Title label for the input field.
     pub title: Option<&'a str>,
     /// Descriptive text shown below the field.

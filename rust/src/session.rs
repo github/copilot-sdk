@@ -28,10 +28,10 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
     PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
     SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultExpanded, ToolResultResponse, TraceContext,
+    ToolResult, ToolResultExpanded, ToolResultResponse, TraceContext, UiInputOptions,
     ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
@@ -695,11 +695,11 @@ impl<'a> SessionUi<'a> {
     /// Ask the user for free-form text input.
     ///
     /// Returns the input string on accept, or `None` on decline/cancel.
-    /// Use [`InputOptions`] to set validation constraints and field metadata.
+    /// Use [`UiInputOptions`] to set validation constraints and field metadata.
     pub async fn input(
         &self,
         message: &str,
-        options: Option<&InputOptions<'_>>,
+        options: Option<&UiInputOptions<'_>>,
     ) -> Result<Option<String>, Error> {
         self.session.assert_elicitation()?;
         let mut field = serde_json::json!({ "type": "string" });

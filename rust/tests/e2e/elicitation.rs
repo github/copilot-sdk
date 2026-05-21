@@ -4,8 +4,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
 use github_copilot_sdk::{
-    ElicitationMode, ElicitationRequest, ElicitationResult, InputFormat, InputOptions, RequestId,
-    ResumeSessionConfig, SessionConfig, SessionId, UiCapabilities,
+    ElicitationMode, ElicitationRequest, ElicitationResult, InputFormat, RequestId,
+    ResumeSessionConfig, SessionConfig, SessionId, UiCapabilities, UiInputOptions,
 };
 use serde_json::json;
 use tokio::sync::Mutex;
@@ -304,13 +304,13 @@ async fn input_returns_freeform_value() {
                 )
                 .await
                 .expect("create session");
-            let options = InputOptions {
+            let options = UiInputOptions {
                 title: Some("Value"),
                 description: Some("A value to test"),
                 min_length: Some(1),
                 max_length: Some(20),
                 default: Some("default"),
-                ..InputOptions::default()
+                ..UiInputOptions::default()
             };
 
             assert_eq!(
@@ -465,7 +465,7 @@ async fn elicitation_result_types_are_properly_structured() {
 
 #[tokio::test]
 async fn input_options_has_all_properties() {
-    let options = InputOptions {
+    let options = UiInputOptions {
         title: Some("Email Address"),
         description: Some("Enter your email"),
         min_length: Some(5),
