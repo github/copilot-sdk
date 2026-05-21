@@ -78,7 +78,8 @@ public static class TestHelper
         {
             // Drain the backfill before our `using` scopes (cts, subscription) dispose.
             // Any exception was already routed through tcs above, so swallow here.
-            try { await backfill.ConfigureAwait(false); } catch { }
+            try { await backfill.ConfigureAwait(false); }
+            catch (Exception) { /* intentionally ignored: already propagated via tcs */ }
         }
 
         async Task CheckExistingMessagesAsync()

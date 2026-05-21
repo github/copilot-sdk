@@ -8,8 +8,8 @@ export async function getFinalAssistantMessage(
     session: CopilotSession,
     { alreadyIdle = false }: { alreadyIdle?: boolean } = {}
 ): Promise<AssistantMessageEvent> {
-    // Start listening for the answer immediately so we don't miss any events that arrive
-    // between the existing-messages RPC starting and the subscription being installed.
+    // Install the live subscription (via getFutureFinalResponse) before issuing the
+    // existing-messages RPC so we don't miss events that arrive while that RPC is in flight.
     const futurePromise = getFutureFinalResponse(session);
     // We may end up returning from the existing-messages path; attach a noop handler so
     // the unawaited future-response rejection doesn't surface as an unhandled rejection.
