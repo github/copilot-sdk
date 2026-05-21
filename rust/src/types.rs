@@ -736,7 +736,7 @@ impl CloudSessionOptions {
 /// servers.insert(
 ///     "playwright".to_string(),
 ///     McpServerConfig::Stdio(McpStdioServerConfig {
-///         tools: vec!["*".to_string()],
+///         tools: Some(vec!["*".to_string()]),
 ///         command: "npx".to_string(),
 ///         args: vec!["-y".to_string(), "@playwright/mcp".to_string()],
 ///         ..Default::default()
@@ -745,7 +745,7 @@ impl CloudSessionOptions {
 /// servers.insert(
 ///     "weather".to_string(),
 ///     McpServerConfig::Http(McpHttpServerConfig {
-///         tools: vec!["forecast".to_string()],
+///         tools: Some(vec!["forecast".to_string()]),
 ///         url: "https://example.com/mcp".to_string(),
 ///         ..Default::default()
 ///     }),
@@ -772,9 +772,13 @@ pub enum McpServerConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpStdioServerConfig {
-    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    /// Tools to expose from this server.
+    ///
+    /// - `None` (field omitted on the wire) — expose **all** tools.
+    /// - `Some(vec![])` — expose **no** tools.
+    /// - `Some(vec!["a", ...])` — expose only the listed tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Optional timeout in milliseconds for tool calls to this server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
@@ -798,9 +802,13 @@ pub struct McpStdioServerConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpHttpServerConfig {
-    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    /// Tools to expose from this server.
+    ///
+    /// - `None` (field omitted on the wire) — expose **all** tools.
+    /// - `Some(vec![])` — expose **no** tools.
+    /// - `Some(vec!["a", ...])` — expose only the listed tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Optional timeout in milliseconds for tool calls to this server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,

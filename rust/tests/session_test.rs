@@ -544,7 +544,7 @@ fn mcp_server_config_roundtrips_through_tagged_enum() {
         args: vec!["server.js".to_string()],
         env: HashMap::new(),
         working_directory: None,
-        tools: vec!["*".to_string()],
+        tools: Some(vec!["*".to_string()]),
         timeout: None,
     });
     let json = serde_json::to_value(&stdio).unwrap();
@@ -564,6 +564,109 @@ fn mcp_server_config_roundtrips_through_tagged_enum() {
     servers.insert("github".to_string(), stdio.clone());
     let cfg_json = serde_json::to_value(&servers).unwrap();
     assert_eq!(cfg_json["github"]["type"], "stdio");
+}
+
+#[test]
+fn mcp_stdio_tools_tri_state_serializes_correctly() {
+    use github_copilot_sdk::McpStdioServerConfig;
+
+    // None → field omitted (= "expose all tools")
+    let cfg = McpStdioServerConfig {
+        command: "echo".into(),
+        tools: None,
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert!(
+        json.get("tools").is_none(),
+        "tools=None must be omitted on the wire; got {json}"
+    );
+
+    // Some(empty) → field present as []
+    let cfg = McpStdioServerConfig {
+        command: "echo".into(),
+        tools: Some(vec![]),
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert_eq!(json["tools"], serde_json::json!([]));
+
+    // Some(non-empty) → field present as the explicit list
+    let cfg = McpStdioServerConfig {
+        command: "echo".into(),
+        tools: Some(vec!["a".into(), "b".into()]),
+        ..Default::default()
+    };
+    let json = serde_json::to_value(&cfg).unwrap();
+    assert_eq!(json["tools"], serde_json::json!(["a", "b"]));
+}
+
+#[test]
+fn mcp_stdio_tools_tri_state_deserializes_correctly() {
+    use github_copilot_sdk::McpStdioServerConfig;
+
+    // Missing field → None
+    let cfg: McpStdioServerConfig =
+        serde_json::from_value(serde_json::json!({ "command": "echo" })).unwrap();
+    assert_eq!(cfg.tools, None);
+
+    // Empty list → Some(empty)
+    let cfg: McpStdioServerConfig =
+        serde_json::from_value(serde_json::json!({ "command": "echo", "tools": [] })).unwrap();
+    assert_eq!(cfg.tools, Some(vec![]));
+
+    // Non-empty list → Some(list)
+    let cfg: McpStdioServerConfig =
+        serde_json::from_value(serde_json::json!({ "command": "echo", "tools": ["x"] })).unwrap();
+    assert_eq!(cfg.tools, Some(vec!["x".to_string()]));
+}
+
+#[test]
+fn mcp_http_tools_tri_state_serializes_correctly() {
+    use github_copilot_sdk::McpHttpServerConfig;
+
+    let cfg = McpHttpServerConfig {
+        url: "https://example.com".into(),
+        tools: None,
+        ..Default::default()
+    };
+    assert!(
+        serde_json::to_value(&cfg).unwrap().get("tools").is_none(),
+        "tools=None must be omitted on the wire"
+    );
+
+    let cfg = McpHttpServerConfig {
+        url: "https://example.com".into(),
+        tools: Some(vec![]),
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(&cfg).unwrap()["tools"],
+        serde_json::json!([])
+    );
+
+    let cfg = McpHttpServerConfig {
+        url: "https://example.com".into(),
+        tools: Some(vec!["a".into()]),
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::to_value(&cfg).unwrap()["tools"],
+        serde_json::json!(["a"])
+    );
+}
+
+#[test]
+fn mcp_http_tools_tri_state_deserializes_correctly() {
+    use github_copilot_sdk::McpHttpServerConfig;
+
+    let cfg: McpHttpServerConfig =
+        serde_json::from_value(serde_json::json!({ "url": "https://e.com" })).unwrap();
+    assert_eq!(cfg.tools, None);
+
+    let cfg: McpHttpServerConfig =
+        serde_json::from_value(serde_json::json!({ "url": "https://e.com", "tools": [] })).unwrap();
+    assert_eq!(cfg.tools, Some(vec![]));
 }
 
 #[test]

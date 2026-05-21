@@ -51,7 +51,7 @@ async fn accept_mcp_server_config_without_args() {
                 let mcp_servers = HashMap::from([(
                     "test-server".to_string(),
                     McpServerConfig::Stdio(McpStdioServerConfig {
-                        tools: vec!["*".to_string()],
+                        tools: Some(vec!["*".to_string()]),
                         command: "echo".to_string(),
                         ..McpStdioServerConfig::default()
                     }),
@@ -389,7 +389,7 @@ fn multiple_mcp_servers() -> HashMap<String, McpServerConfig> {
     servers.insert(
         "server2".to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
-            tools: vec!["*".to_string()],
+            tools: Some(vec!["*".to_string()]),
             command: echo_command(),
             args: echo_args("server2"),
             ..McpStdioServerConfig::default()
@@ -402,7 +402,7 @@ fn test_mcp_servers(message: &str) -> HashMap<String, McpServerConfig> {
     HashMap::from([(
         "test-server".to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
-            tools: vec!["*".to_string()],
+            tools: Some(vec!["*".to_string()]),
             command: echo_command(),
             args: echo_args(message),
             ..McpStdioServerConfig::default()
