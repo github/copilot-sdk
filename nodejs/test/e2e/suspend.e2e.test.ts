@@ -65,7 +65,10 @@ describe("Suspend RPC", async () => {
         const server = new CopilotClient({
             cwd: workDir,
             env,
-            connection: RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH, connectionToken: SHARED_TOKEN }),
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                connectionToken: SHARED_TOKEN,
+            }),
         });
         onTestFinishedForceStop(server);
         return server;

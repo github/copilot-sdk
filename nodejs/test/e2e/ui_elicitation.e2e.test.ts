@@ -64,7 +64,11 @@ describe("UI Elicitation Multi-Client Capabilities", async () => {
     await initSession.disconnect();
 
     const { runtimePort } = client1 as unknown as { runtimePort: number };
-    const client2 = new CopilotClient({ connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, { connectionToken: tcpConnectionToken }) });
+    const client2 = new CopilotClient({
+        connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
+            connectionToken: tcpConnectionToken,
+        }),
+    });
 
     afterAll(async () => {
         await client2.stop();

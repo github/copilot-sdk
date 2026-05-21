@@ -333,8 +333,8 @@ export class CopilotClient {
         // Resolve the connection mode. `_internalConnection` is set by
         // `joinSession()` to opt into the parent-process stdio path; consumers
         // should always go through the public `connection` field.
-        const conn: InternalRuntimeConnection =
-            options._internalConnection ?? options.connection ?? { kind: "stdio" };
+        const conn: InternalRuntimeConnection = options._internalConnection ??
+            options.connection ?? { kind: "stdio" };
 
         if (
             conn.kind === "uri" &&
@@ -2059,7 +2059,10 @@ export class CopilotClient {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
 
-        const output = await session._handleHooksInvoke(params.hookType, normalizeHookInput(params.input));
+        const output = await session._handleHooksInvoke(
+            params.hookType,
+            normalizeHookInput(params.input)
+        );
         return { output };
     }
 

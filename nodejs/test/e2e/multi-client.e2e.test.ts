@@ -21,7 +21,11 @@ describe("Multi-client broadcast", async () => {
     await initSession.disconnect();
 
     const runtimePort = (client1 as unknown as { runtimePort: number }).runtimePort;
-    let client2 = new CopilotClient({ connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, { connectionToken: tcpConnectionToken }) });
+    let client2 = new CopilotClient({
+        connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
+            connectionToken: tcpConnectionToken,
+        }),
+    });
     const EVENT_TIMEOUT_MS = 30_000;
 
     afterAll(async () => {
@@ -350,7 +354,11 @@ describe("Multi-client broadcast", async () => {
         process.removeListener("unhandledRejection", suppressDisposed);
 
         // Recreate client2 for cleanup in afterAll (but don't rejoin the session)
-        client2 = new CopilotClient({ connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, { connectionToken: tcpConnectionToken }) });
+        client2 = new CopilotClient({
+            connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, {
+                connectionToken: tcpConnectionToken,
+            }),
+        });
 
         // Now only stable_tool should be available
         const afterResponse = await session1.sendAndWait({

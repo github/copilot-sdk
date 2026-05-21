@@ -8,13 +8,13 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("CopilotClient", () => {
     it("allows createSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({ });
+        const client = new CopilotClient({});
 
         await expect(client.createSession({})).rejects.toThrow(/Client not connected/);
     });
 
     it("allows resumeSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({ });
+        const client = new CopilotClient({});
 
         await expect(client.resumeSession("session-1", {})).rejects.toThrow(/Client not connected/);
     });
@@ -752,7 +752,9 @@ describe("CopilotClient", () => {
                     gitHubToken: "gho_test_token",
                     logLevel: "error",
                 });
-            }).toThrow(/gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/);
+            }).toThrow(
+                /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
+            );
         });
 
         it("should throw error when useLoggedInUser is used with forUri", () => {
@@ -762,7 +764,9 @@ describe("CopilotClient", () => {
                     useLoggedInUser: false,
                     logLevel: "error",
                 });
-            }).toThrow(/gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/);
+            }).toThrow(
+                /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
+            );
         });
     });
 
