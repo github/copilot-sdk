@@ -19,7 +19,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session with streaming: %v", err)
@@ -94,7 +94,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           false,
+			Streaming:           copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -146,7 +146,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           false,
+			Streaming:           copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -163,7 +163,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session2, err := newClient.ResumeSession(t.Context(), session.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -216,7 +216,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session with streaming: %v", err)
@@ -232,7 +232,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 
 		session2, err := newClient.ResumeSession(t.Context(), session.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           false,
+			Streaming:           copilot.Bool(false),
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -291,7 +291,7 @@ func TestStreamingFidelityE2E(t *testing.T) {
 		// the streaming pipeline — deltas still arrive and complete successfully.
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 			ReasoningEffort:     "high",
 		})
 		if err != nil {
@@ -343,10 +343,10 @@ func TestStreamingFidelityE2E(t *testing.T) {
 			t.Errorf("Expected assistant message to contain '255' (15*17), got %q", lastAssistantContent)
 		}
 
-		// Verify the session was created with reasoning effort via GetMessages
-		messages, err := session.GetMessages(t.Context())
+		// Verify the session was created with reasoning effort via GetEvents
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 		var sessionStartReasoningEffort string
 		for _, msg := range messages {

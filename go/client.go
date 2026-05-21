@@ -664,15 +664,15 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnElicitationRequest != nil {
 		req.RequestElicitation = Bool(true)
 	}
-	if config.OnExitPlanMode != nil {
+	if config.OnExitPlanModeRequest != nil {
 		req.RequestExitPlanMode = Bool(true)
 	}
-	if config.OnAutoModeSwitch != nil {
+	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
 	}
 
-	if config.Streaming {
-		req.Streaming = Bool(true)
+	if config.Streaming != nil {
+		req.Streaming = config.Streaming
 	}
 	if config.IncludeSubAgentStreamingEvents != nil {
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
@@ -726,11 +726,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnElicitationRequest != nil {
 		session.registerElicitationHandler(config.OnElicitationRequest)
 	}
-	if config.OnExitPlanMode != nil {
-		session.registerExitPlanModeHandler(config.OnExitPlanMode)
+	if config.OnExitPlanModeRequest != nil {
+		session.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
 	}
-	if config.OnAutoModeSwitch != nil {
-		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitch)
+	if config.OnAutoModeSwitchRequest != nil {
+		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
 	}
 
 	c.sessionsMux.Lock()
@@ -823,8 +823,8 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ModelCapabilities = config.ModelCapabilities
 	req.AvailableTools = config.AvailableTools
 	req.ExcludedTools = config.ExcludedTools
-	if config.Streaming {
-		req.Streaming = Bool(true)
+	if config.Streaming != nil {
+		req.Streaming = config.Streaming
 	}
 	if config.IncludeSubAgentStreamingEvents != nil {
 		req.IncludeSubAgentStreamingEvents = config.IncludeSubAgentStreamingEvents
@@ -847,7 +847,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
-	if config.DisableResume {
+	if config.SuppressResumeEvent {
 		req.DisableResume = Bool(true)
 	}
 	if config.ContinuePendingWork {
@@ -876,10 +876,10 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.OnElicitationRequest != nil {
 		req.RequestElicitation = Bool(true)
 	}
-	if config.OnExitPlanMode != nil {
+	if config.OnExitPlanModeRequest != nil {
 		req.RequestExitPlanMode = Bool(true)
 	}
-	if config.OnAutoModeSwitch != nil {
+	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
 	}
 
@@ -911,11 +911,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.OnElicitationRequest != nil {
 		session.registerElicitationHandler(config.OnElicitationRequest)
 	}
-	if config.OnExitPlanMode != nil {
-		session.registerExitPlanModeHandler(config.OnExitPlanMode)
+	if config.OnExitPlanModeRequest != nil {
+		session.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
 	}
-	if config.OnAutoModeSwitch != nil {
-		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitch)
+	if config.OnAutoModeSwitchRequest != nil {
+		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
 	}
 
 	c.sessionsMux.Lock()

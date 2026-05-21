@@ -524,9 +524,9 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 
 		// Verify resume event reflects ContinuePendingWork=false and SessionWasActive=true
-		messages, err := session2.GetMessages(t.Context())
+		messages, err := session2.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 		var resumeEvent *copilot.SessionResumeData
 		for _, msg := range messages {
@@ -620,9 +620,9 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 		}
 
 		// Verify resume event reflects ContinuePendingWork=true and SessionWasActive=false (cold resume)
-		messages, err := resumedSession.GetMessages(t.Context())
+		messages, err := resumedSession.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 		var resumeEvent *copilot.SessionResumeData
 		for _, msg := range messages {

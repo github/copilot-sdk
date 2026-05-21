@@ -220,7 +220,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Errorf("Expected initial answer to contain FORK_SOURCE_ALPHA, got %v", initialAnswer.Data)
 		}
 
-		sourceMessages, err := session.GetMessages(t.Context())
+		sourceMessages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read source messages: %v", err)
 		}
@@ -250,7 +250,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Fatalf("Failed to resume forked session: %v", err)
 		}
 
-		forkedMessages, err := forkedSession.GetMessages(t.Context())
+		forkedMessages, err := forkedSession.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read forked messages: %v", err)
 		}
@@ -272,7 +272,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Errorf("Expected forked answer to contain FORK_CHILD_BETA, got %v", forkAnswer.Data)
 		}
 
-		sourceAfterFork, err := session.GetMessages(t.Context())
+		sourceAfterFork, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read source messages after fork: %v", err)
 		}
@@ -282,7 +282,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			}
 		}
 
-		forkAfterPrompt, err := forkedSession.GetMessages(t.Context())
+		forkAfterPrompt, err := forkedSession.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read forked messages after prompt: %v", err)
 		}
@@ -336,7 +336,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		}
 		defer forkedSession.Disconnect()
 
-		forkedMessages, err := forkedSession.GetMessages(t.Context())
+		forkedMessages, err := forkedSession.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read forked messages: %v", err)
 		}
@@ -366,7 +366,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 			t.Fatalf("Failed to send second prompt: %v", err)
 		}
 
-		sourceEvents, err := session.GetMessages(t.Context())
+		sourceEvents, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read source messages: %v", err)
 		}
@@ -406,7 +406,7 @@ func TestRpcSessionStateE2E(t *testing.T) {
 		}
 		defer forkedSession.Disconnect()
 
-		forkedEvents, err := forkedSession.GetMessages(t.Context())
+		forkedEvents, err := forkedSession.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read forked messages: %v", err)
 		}

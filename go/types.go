@@ -319,8 +319,8 @@ type ExitPlanModeInvocation struct {
 	SessionID string
 }
 
-// ExitPlanModeHandler handles exit-plan-mode requests from the agent.
-type ExitPlanModeHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
+// ExitPlanModeRequestHandler handles exit-plan-mode requests from the agent.
+type ExitPlanModeRequestHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
 
 // AutoModeSwitchRequest represents a request to switch to auto mode after an eligible rate limit.
 type AutoModeSwitchRequest struct {
@@ -333,8 +333,8 @@ type AutoModeSwitchInvocation struct {
 	SessionID string
 }
 
-// AutoModeSwitchHandler handles auto-mode-switch requests from the agent.
-type AutoModeSwitchHandler func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
+// AutoModeSwitchRequestHandler handles auto-mode-switch requests from the agent.
+type AutoModeSwitchRequestHandler func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
@@ -633,9 +633,10 @@ type SessionConfig struct {
 	// Tool operations will be relative to this directory.
 	WorkingDirectory string
 	// Streaming enables streaming of assistant message and reasoning chunks.
-	// When true, assistant.message_delta and assistant.reasoning_delta events
-	// with deltaContent are sent as the response is generated.
-	Streaming bool
+	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
+	// events with deltaContent are sent as the response is generated.
+	// When nil, the runtime decides (currently defaults to non-streaming).
+	Streaming *bool
 	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
 	// event stream. When true, streaming delta events from sub-agents (e.g.,
 	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
@@ -691,12 +692,12 @@ type SessionConfig struct {
 	// When provided, the server may call back to this client for form-based UI dialogs
 	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
 	OnElicitationRequest ElicitationHandler
-	// OnExitPlanMode is a handler for exit-plan-mode requests from the server.
+	// OnExitPlanModeRequest is a handler for exit-plan-mode requests from the server.
 	// When provided, enables exitPlanMode.request callbacks for the session.
-	OnExitPlanMode ExitPlanModeHandler
-	// OnAutoModeSwitch is a handler for auto-mode-switch requests from the server.
+	OnExitPlanModeRequest ExitPlanModeRequestHandler
+	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
-	OnAutoModeSwitch AutoModeSwitchHandler
+	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -893,9 +894,10 @@ type ResumeSessionConfig struct {
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
-	// When true, assistant.message_delta and assistant.reasoning_delta events
-	// with deltaContent are sent as the response is generated.
-	Streaming bool
+	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
+	// events with deltaContent are sent as the response is generated.
+	// When nil, the runtime decides (currently defaults to non-streaming).
+	Streaming *bool
 	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
 	// event stream. When true, streaming delta events from sub-agents (e.g.,
 	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
@@ -927,9 +929,9 @@ type ResumeSessionConfig struct {
 	// RemoteSession controls per-session remote behavior.
 	// See SessionConfig.RemoteSession for details.
 	RemoteSession rpc.RemoteSessionMode
-	// DisableResume, when true, skips emitting the session.resume event.
+	// SuppressResumeEvent, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
-	DisableResume bool
+	SuppressResumeEvent bool
 	// ContinuePendingWork, when true, instructs the runtime to continue any tool calls
 	// or permission prompts that were still pending when the session was last suspended.
 	// When false (the default), the runtime treats pending work as interrupted on resume.
@@ -950,12 +952,12 @@ type ResumeSessionConfig struct {
 	// OnElicitationRequest is a handler for elicitation requests from the server.
 	// See SessionConfig.OnElicitationRequest.
 	OnElicitationRequest ElicitationHandler
-	// OnExitPlanMode is a handler for exit-plan-mode requests from the server.
-	// See SessionConfig.OnExitPlanMode.
-	OnExitPlanMode ExitPlanModeHandler
-	// OnAutoModeSwitch is a handler for auto-mode-switch requests from the server.
-	// See SessionConfig.OnAutoModeSwitch.
-	OnAutoModeSwitch AutoModeSwitchHandler
+	// OnExitPlanModeRequest is a handler for exit-plan-mode requests from the server.
+	// See SessionConfig.OnExitPlanModeRequest.
+	OnExitPlanModeRequest ExitPlanModeRequestHandler
+	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
+	// See SessionConfig.OnAutoModeSwitchRequest.
+	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".

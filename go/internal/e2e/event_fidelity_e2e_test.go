@@ -190,9 +190,9 @@ func TestEventFidelityE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 
 		types := make([]copilot.SessionEventType, 0, len(messages))
@@ -225,19 +225,19 @@ func TestEventFidelityE2E(t *testing.T) {
 		}
 
 		if sessionStartIdx < 0 {
-			t.Fatalf("Expected session.start event in GetMessages; types=%v", types)
+			t.Fatalf("Expected session.start event in GetEvents; types=%v", types)
 		}
 		if userMsgIdx < 0 {
-			t.Fatalf("Expected user.message event in GetMessages; types=%v", types)
+			t.Fatalf("Expected user.message event in GetEvents; types=%v", types)
 		}
 		if toolStartIdx < 0 {
-			t.Fatalf("Expected tool.execution_start event in GetMessages; types=%v", types)
+			t.Fatalf("Expected tool.execution_start event in GetEvents; types=%v", types)
 		}
 		if toolCompleteIdx < 0 {
-			t.Fatalf("Expected tool.execution_complete event in GetMessages; types=%v", types)
+			t.Fatalf("Expected tool.execution_complete event in GetEvents; types=%v", types)
 		}
 		if assistantMsgIdx < 0 {
-			t.Fatalf("Expected assistant.message event in GetMessages; types=%v", types)
+			t.Fatalf("Expected assistant.message event in GetEvents; types=%v", types)
 		}
 
 		if sessionStartIdx >= userMsgIdx {

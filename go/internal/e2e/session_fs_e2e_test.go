@@ -191,7 +191,7 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}

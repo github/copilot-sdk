@@ -33,7 +33,7 @@ func TestSessionE2E(t *testing.T) {
 			t.Errorf("Expected session ID to match UUID pattern, got %q", session.SessionID)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -55,9 +55,9 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to disconnect session: %v", err)
 		}
 
-		_, err = session.GetMessages(t.Context())
+		_, err = session.GetEvents(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Errorf("Expected GetMessages to fail with 'not found' after disconnect, got %v", err)
+			t.Errorf("Expected GetEvents to fail with 'not found' after disconnect, got %v", err)
 		}
 	})
 
@@ -525,7 +525,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// When resuming with a new client, we check messages contain expected types
-		messages, err := session2.GetMessages(t.Context())
+		messages, err := session2.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -660,7 +660,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// The session should still be alive and usable after abort
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages after abort: %v", err)
 		}
@@ -781,7 +781,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// Verify the assistant response contains the expected answer.
-		// session.idle is ephemeral and not in GetMessages(), but we already
+		// session.idle is ephemeral and not in GetEvents(), but we already
 		// confirmed idle via the live event handler above.
 		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session, true)
 		if err != nil {
@@ -1295,7 +1295,7 @@ func getEventMessage(evt copilot.SessionEvent) string {
 
 // TestSessionAttachments mirrors the C# Should_Send_With_*_Attachment tests in SessionTests.cs.
 // Each subtest exercises a different UserMessageAttachment shape end-to-end through SendAndWait
-// and verifies the resulting user.message event captured by GetMessages.
+// and verifies the resulting user.message event captured by GetEvents.
 func TestSessionAttachmentsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
@@ -1501,9 +1501,9 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 // lastUserAttachment returns the single attachment from the most recent user.message event.
 func lastUserAttachment(t *testing.T, session *copilot.Session) copilot.Attachment {
 	t.Helper()
-	messages, err := session.GetMessages(t.Context())
+	messages, err := session.GetEvents(t.Context())
 	if err != nil {
-		t.Fatalf("GetMessages failed: %v", err)
+		t.Fatalf("GetEvents failed: %v", err)
 	}
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Type() != copilot.SessionEventTypeUserMessage {
@@ -1550,9 +1550,9 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 		var userMsg *copilot.UserMessageData
 		for i := len(messages) - 1; i >= 0; i-- {

@@ -63,9 +63,9 @@ type Session struct {
 	permissionMux         sync.RWMutex
 	userInputHandler      UserInputHandler
 	userInputMux          sync.RWMutex
-	exitPlanModeHandler   ExitPlanModeHandler
+	exitPlanModeHandler   ExitPlanModeRequestHandler
 	exitPlanModeMu        sync.RWMutex
-	autoModeSwitchHandler AutoModeSwitchHandler
+	autoModeSwitchHandler AutoModeSwitchRequestHandler
 	autoModeSwitchMu      sync.RWMutex
 	hooks                 *SessionHooks
 	hooksMux              sync.RWMutex
@@ -363,13 +363,13 @@ func (s *Session) handleUserInputRequest(request UserInputRequest) (UserInputRes
 	return handler(request, invocation)
 }
 
-func (s *Session) registerExitPlanModeHandler(handler ExitPlanModeHandler) {
+func (s *Session) registerExitPlanModeHandler(handler ExitPlanModeRequestHandler) {
 	s.exitPlanModeMu.Lock()
 	defer s.exitPlanModeMu.Unlock()
 	s.exitPlanModeHandler = handler
 }
 
-func (s *Session) getExitPlanModeHandler() ExitPlanModeHandler {
+func (s *Session) getExitPlanModeHandler() ExitPlanModeRequestHandler {
 	s.exitPlanModeMu.RLock()
 	defer s.exitPlanModeMu.RUnlock()
 	return s.exitPlanModeHandler
@@ -384,13 +384,13 @@ func (s *Session) handleExitPlanModeRequest(request ExitPlanModeRequest) (ExitPl
 	return handler(request, ExitPlanModeInvocation{SessionID: s.SessionID})
 }
 
-func (s *Session) registerAutoModeSwitchHandler(handler AutoModeSwitchHandler) {
+func (s *Session) registerAutoModeSwitchHandler(handler AutoModeSwitchRequestHandler) {
 	s.autoModeSwitchMu.Lock()
 	defer s.autoModeSwitchMu.Unlock()
 	s.autoModeSwitchHandler = handler
 }
 
-func (s *Session) getAutoModeSwitchHandler() AutoModeSwitchHandler {
+func (s *Session) getAutoModeSwitchHandler() AutoModeSwitchRequestHandler {
 	s.autoModeSwitchMu.RLock()
 	defer s.autoModeSwitchMu.RUnlock()
 	return s.autoModeSwitchHandler
@@ -1147,7 +1147,7 @@ func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.Permissi
 	}
 }
 
-// GetMessages retrieves all events and messages from this session's history.
+// GetEvents retrieves all events from this session's history.
 //
 // This returns the complete conversation history including user messages,
 // assistant responses, tool executions, and other session events in
@@ -1157,9 +1157,9 @@ func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.Permissi
 //
 // Example:
 //
-//	events, err := session.GetMessages(context.Background())
+//	events, err := session.GetEvents(context.Background())
 //	if err != nil {
-//	    log.Printf("Failed to get messages: %v", err)
+//	    log.Printf("Failed to get events: %v", err)
 //	    return
 //	}
 //	for _, event := range events {
@@ -1167,16 +1167,16 @@ func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.Permissi
 //	        fmt.Println("Assistant:", d.Content)
 //	    }
 //	}
-func (s *Session) GetMessages(ctx context.Context) ([]SessionEvent, error) {
+func (s *Session) GetEvents(ctx context.Context) ([]SessionEvent, error) {
 
 	result, err := s.client.Request("session.getMessages", sessionGetMessagesRequest{SessionID: s.SessionID})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get messages: %w", err)
+		return nil, fmt.Errorf("failed to get events: %w", err)
 	}
 
 	var response sessionGetMessagesResponse
 	if err := json.Unmarshal(result, &response); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal get messages response: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal get events response: %w", err)
 	}
 	return response.Events, nil
 }
