@@ -20,7 +20,7 @@ describe("Client", () => {
         const client = new CopilotClient({ connection: connection() });
         onTestFinishedForceStop(client);
 
-        await using const session = await client.createSession({});
+        await using session = await client.createSession({});
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
     });
 
@@ -32,7 +32,7 @@ describe("Client", () => {
         });
         onTestFinishedForceStop(client);
 
-        await using const originalSession = await client.createSession({});
+        await using originalSession = await client.createSession({});
 
         const port = (client as unknown as { runtimePort: number | null }).runtimePort;
         if (port == null) {
@@ -44,7 +44,7 @@ describe("Client", () => {
         });
         onTestFinishedForceStop(resumeClient);
 
-        await using const resumedSession = await resumeClient.resumeSession(
+        await using resumedSession = await resumeClient.resumeSession(
             originalSession.sessionId,
             {}
         );

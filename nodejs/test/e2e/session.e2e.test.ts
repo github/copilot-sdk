@@ -1,7 +1,7 @@
 import { rm } from "fs/promises";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
-import { CopilotClient, approveAll, defineTool } from "../../src/index.js";
+import { CopilotClient, approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
 import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
 
@@ -14,6 +14,75 @@ describe("Sessions", async () => {
         env,
     } = await createSdkTestContext();
 
+    it.each([
+        ["stdio", () => RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH })],
+        ["tcp", () => RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })],
+    ] as const)(
+        "createSession works without onPermissionRequest (%s)",
+        async (_name, makeConnection) => {
+            const standaloneClient = new CopilotClient({
+                cwd: workDir,
+                env,
+                connection: makeConnection(),
+            });
+            onTestFinished(async () => {
+                try {
+                    await standaloneClient.forceStop();
+                } catch {
+                    // ignore
+                }
+            });
+
+            const session = await standaloneClient.createSession({});
+            expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+            await session.disconnect();
+        }
+    );
+
+    it("resumeSession works without onPermissionRequest", async () => {
+        const connectionToken = "client-e2e-resume-token";
+
+        const tcpClient = new CopilotClient({
+            cwd: workDir,
+            env,
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                connectionToken,
+            }),
+        });
+        onTestFinished(async () => {
+            try {
+                await tcpClient.forceStop();
+            } catch {
+                // ignore
+            }
+        });
+
+        const originalSession = await tcpClient.createSession({});
+
+        const port = (tcpClient as unknown as { runtimePort: number | null }).runtimePort;
+        if (!port) {
+            throw new Error("Client must be using TCP transport to support multi-client resume.");
+        }
+
+        const resumeClient = new CopilotClient({
+            cwd: workDir,
+            env,
+            connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
+        });
+        onTestFinished(async () => {
+            try {
+                await resumeClient.forceStop();
+            } catch {
+                // ignore
+            }
+        });
+
+        const resumedSession = await resumeClient.resumeSession(originalSession.sessionId, {});
+        expect(resumedSession.sessionId).toBe(originalSession.sessionId);
+        await resumedSession.disconnect();
+        await originalSession.disconnect();
+    });
     it("should create and disconnect sessions", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
