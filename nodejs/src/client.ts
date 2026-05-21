@@ -31,6 +31,7 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
+import { type CanvasActionInvokeParams, type CanvasError, dispatchCanvasAction } from "./canvas.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
@@ -764,6 +765,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -810,6 +812,8 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((c) => c.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -902,6 +906,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -952,6 +957,8 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((c) => c.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -1851,6 +1858,19 @@ export class CopilotClient {
                 await this.handleSystemMessageTransform(params)
         );
 
+        // Canvas V1.1: runtime preserves the legacy `hostExtension.invoke`
+        // wire method for canvas dispatches. The inner `method` discriminates;
+        // we route `canvas.action.invoke` to the per-session canvas registry
+        // and reject anything else (no other inner method is in use post-V1.1).
+        this.connection.onRequest(
+            "hostExtension.invoke",
+            async (params: {
+                sessionId: string;
+                request: { id?: string; method: string; params?: unknown };
+            }): Promise<{ id?: string; result?: unknown; error?: CanvasError }> =>
+                await this.handleHostExtensionInvoke(params)
+        );
+
         // Register client session API handlers.
         const sessions = this.sessions;
         registerClientSessionApiHandlers(this.connection, (sessionId) => {
@@ -2034,6 +2054,51 @@ export class CopilotClient {
         }
 
         return await session._handleSystemMessageTransform(params.sections);
+    }
+
+    private async handleHostExtensionInvoke(params: {
+        sessionId: string;
+        request: { id?: string; method: string; params?: unknown };
+    }): Promise<{ id?: string; result?: unknown; error?: CanvasError }> {
+        if (!params || typeof params.sessionId !== "string" || !params.request) {
+            throw new Error("Invalid hostExtension.invoke payload");
+        }
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+        const { id, method, params: inner } = params.request;
+        // Canvas V1.1: only `canvas.action.invoke` is in use. Other inner methods
+        // are dead in the V1.1 cutover; reject explicitly so misrouted calls
+        // don't silently no-op.
+        if (method !== "canvas.action.invoke") {
+            throw new Error(`Unsupported hostExtension.invoke method: ${method}`);
+        }
+        const actionParams = inner as CanvasActionInvokeParams;
+        if (!actionParams || typeof actionParams.canvasId !== "string") {
+            throw new Error("Invalid canvas.action.invoke params: missing canvasId");
+        }
+        const canvas = session.getCanvas(actionParams.canvasId);
+        if (!canvas) {
+            return {
+                id,
+                error: {
+                    code: "canvas_not_found",
+                    message: `No canvas registered with id "${actionParams.canvasId}"`,
+                    name: "CanvasError",
+                } as CanvasError,
+            };
+        }
+        try {
+            const result = await dispatchCanvasAction(canvas, params.sessionId, actionParams);
+            return { id, result };
+        } catch (e) {
+            if (e && typeof e === "object" && "code" in e && "message" in e) {
+                const ce = e as CanvasError;
+                return { id, error: { code: ce.code, message: ce.message, name: ce.name } };
+            }
+            throw e;
+        }
     }
 
     // ========================================================================

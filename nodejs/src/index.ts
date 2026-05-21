@@ -11,6 +11,19 @@
 export { CopilotClient } from "./client.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export {
+    Canvas,
+    CanvasError,
+    createCanvas,
+    type CanvasActionContext,
+    type CanvasAgentActionDeclaration,
+    type CanvasDeclaration,
+    type CanvasLifecycleContext,
+    type CanvasOpenContext,
+    type CanvasOpenResponse,
+    type CanvasOptions,
+    type CanvasToolbarItemDeclaration,
+} from "./canvas.js";
+export {
     defineTool,
     approveAll,
     convertMcpCallToolResult,

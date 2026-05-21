@@ -7,6 +7,7 @@
  */
 
 // Import and re-export generated session event types
+import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
@@ -1349,6 +1350,25 @@ export interface SessionConfig {
     tools?: Tool<any>[];
 
     /**
+     * Canvases contributed by this session participant (V1.1). The declaring
+     * connection becomes the live provider for `canvas.open|focus|close|reload`
+     * and `canvas.action.invoke` dispatches targeting each canvas's `id` for
+     * the lifetime of the connection. Re-declaring the same id on resume
+     * replaces the prior declaration.
+     */
+    canvases?: Canvas[];
+
+    /**
+     * Renderer-side opt-in: when true, the runtime surfaces canvas agent tools
+     * (`open_canvas`, `discover_canvases`, `focus_canvas`, `close_canvas`,
+     * `reload_canvas`) to the model for this connection. Default off — TUI /
+     * headless / SDK callers stay clean unless they can actually display
+     * canvases. Independent of provider semantics, which are declared via
+     * `canvases`.
+     */
+    requestCanvasRenderer?: boolean;
+
+    /**
      * Slash commands registered for this session.
      * When the CLI has a TUI, each command appears as `/name` for the user to invoke.
      * The handler is called when the user executes the command.
@@ -1553,6 +1573,8 @@ export type ResumeSessionConfig = Pick<
     | "clientName"
     | "model"
     | "tools"
+    | "canvases"
+    | "requestCanvasRenderer"
     | "commands"
     | "systemMessage"
     | "availableTools"

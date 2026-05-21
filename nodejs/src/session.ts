@@ -11,6 +11,7 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import type { ClientSessionApiHandlers } from "./generated/rpc.js";
+import type { Canvas } from "./canvas.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
@@ -86,6 +87,7 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private canvases: Map<string, Canvas> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
@@ -608,6 +610,31 @@ export class CopilotSession {
      */
     getToolHandler(name: string): ToolHandler | undefined {
         return this.toolHandlers.get(name);
+    }
+
+    /**
+     * Registers canvas declarations + handlers for this session.
+     *
+     * @param canvases - Canvases created via `createCanvas`, or undefined to clear all canvases
+     * @internal Called by the SDK when creating/resuming a session with `canvases`.
+     */
+    registerCanvases(canvases?: Canvas[]): void {
+        this.canvases.clear();
+        if (!canvases) return;
+        for (const canvas of canvases) {
+            this.canvases.set(canvas.declaration.id, canvas);
+        }
+    }
+
+    /**
+     * Retrieves a registered canvas by id.
+     *
+     * @param canvasId - The id of the canvas to retrieve
+     * @returns The registered Canvas if found, or undefined
+     * @internal Used by the SDK's `hostExtension.invoke` dispatcher.
+     */
+    getCanvas(canvasId: string): Canvas | undefined {
+        return this.canvases.get(canvasId);
     }
 
     /**
