@@ -432,7 +432,7 @@ async fn client_rpc_methods_send_correct_method_names() {
     let (client, mut server_read, mut server_write) = make_client();
 
     // Wire method names per the CLI runtime registration in @github/copilot
-    // app.js Ã¢â‚¬â€ verified against Node/Go/Python/.NET SDK call sites which all
+    // app.js — verified against Node/Go/Python/.NET SDK call sites which all
     // use these exact strings. The schema doesn't currently define these as
     // typed RPCs (top-level methods, not under any namespace), so call site
     // strings are the source of truth.
@@ -527,7 +527,7 @@ async fn list_sessions_serializes_typed_filter() {
     // wrap; flattening is silently ignored by the runtime.
     assert!(
         request["params"].get("repository").is_none(),
-        "wire shape is `params.filter.*`, not `params.*` Ã¢â‚¬â€ see Node/Go/Python/.NET"
+        "wire shape is `params.filter.*`, not `params.*` — see Node/Go/Python/.NET"
     );
 
     let id = request["id"].as_u64().unwrap();
@@ -578,7 +578,7 @@ fn mcp_server_config_roundtrips_through_tagged_enum() {
 fn mcp_stdio_tools_tri_state_serializes_correctly() {
     use github_copilot_sdk::McpStdioServerConfig;
 
-    // None Ã¢â€ â€™ field omitted (= "expose all tools")
+    // None → field omitted (= "expose all tools")
     let cfg = McpStdioServerConfig {
         command: "echo".into(),
         tools: None,
@@ -590,7 +590,7 @@ fn mcp_stdio_tools_tri_state_serializes_correctly() {
         "tools=None must be omitted on the wire; got {json}"
     );
 
-    // Some(empty) Ã¢â€ â€™ field present as []
+    // Some(empty) → field present as []
     let cfg = McpStdioServerConfig {
         command: "echo".into(),
         tools: Some(vec![]),
@@ -599,7 +599,7 @@ fn mcp_stdio_tools_tri_state_serializes_correctly() {
     let json = serde_json::to_value(&cfg).unwrap();
     assert_eq!(json["tools"], serde_json::json!([]));
 
-    // Some(non-empty) Ã¢â€ â€™ field present as the explicit list
+    // Some(non-empty) → field present as the explicit list
     let cfg = McpStdioServerConfig {
         command: "echo".into(),
         tools: Some(vec!["a".into(), "b".into()]),
@@ -613,17 +613,17 @@ fn mcp_stdio_tools_tri_state_serializes_correctly() {
 fn mcp_stdio_tools_tri_state_deserializes_correctly() {
     use github_copilot_sdk::McpStdioServerConfig;
 
-    // Missing field Ã¢â€ â€™ None
+    // Missing field → None
     let cfg: McpStdioServerConfig =
         serde_json::from_value(serde_json::json!({ "command": "echo" })).unwrap();
     assert_eq!(cfg.tools, None);
 
-    // Empty list Ã¢â€ â€™ Some(empty)
+    // Empty list → Some(empty)
     let cfg: McpStdioServerConfig =
         serde_json::from_value(serde_json::json!({ "command": "echo", "tools": [] })).unwrap();
     assert_eq!(cfg.tools, Some(vec![]));
 
-    // Non-empty list Ã¢â€ â€™ Some(list)
+    // Non-empty list → Some(list)
     let cfg: McpStdioServerConfig =
         serde_json::from_value(serde_json::json!({ "command": "echo", "tools": ["x"] })).unwrap();
     assert_eq!(cfg.tools, Some(vec!["x".to_string()]));
@@ -1374,7 +1374,7 @@ async fn user_input_requested_notification_does_not_double_dispatch() {
     // `user_input.requested` notification (for observers) AND a
     // `userInput.request` JSON-RPC call (the actual prompt) for every
     // user-input prompt. Only the JSON-RPC path should reach the
-    // handler Ã¢â‚¬â€ dispatching from the notification too produced
+    // handler — dispatching from the notification too produced
     // duplicate ask_user widgets on the consumer side.
 
     struct CountingHandler {
@@ -1692,7 +1692,7 @@ async fn send_and_wait_outer_cancellation_clears_waiter() {
     let request = server.read_request().await;
     server.respond(&request, serde_json::json!({})).await;
 
-    // Outer timeout fires Ã¢â€ â€™ Err(Elapsed) returned, future is dropped.
+    // Outer timeout fires → Err(Elapsed) returned, future is dropped.
     let outer_result = timeout(Duration::from_secs(2), handle)
         .await
         .unwrap()
@@ -1755,7 +1755,7 @@ async fn send_and_wait_drop_clears_waiter() {
     // Give the runtime a moment to run the drop.
     tokio::task::yield_now().await;
 
-    // Next `send` must succeed Ã¢â‚¬â€ no SendWhileWaiting.
+    // Next `send` must succeed — no SendWhileWaiting.
     let send_handle = tokio::spawn({
         let session = session.clone();
         async move { session.send("after-abort").await }
@@ -1778,7 +1778,7 @@ async fn send_and_wait_drop_clears_waiter() {
 /// Cancel-safety regression: `Session::stop_event_loop` must NOT abort
 /// the event-loop task mid-handler. An in-flight handler (here a slow
 /// `userInput.request` callback) must run to completion before the loop
-/// exits Ã¢â‚¬â€ the CLI receives the response on the wire before the session
+/// exits — the CLI receives the response on the wire before the session
 /// tears down.
 ///
 /// Closes RFD-400 review finding #3.
@@ -1833,7 +1833,7 @@ async fn stop_event_loop_completes_in_flight_handler() {
     });
 
     // Verify the handler's response lands on the wire BEFORE the loop
-    // exits Ã¢â‚¬â€ i.e. stop_event_loop did not abort mid-handler.
+    // exits — i.e. stop_event_loop did not abort mid-handler.
     let response = timeout(Duration::from_secs(2), server.read_response())
         .await
         .unwrap();
@@ -1939,7 +1939,7 @@ async fn cancellation_token_fires_on_session_drop() {
 }
 
 /// Cancelling a child token returned by `cancellation_token()` does NOT
-/// shut the session down Ã¢â‚¬â€ child tokens isolate consumer-side cancel
+/// shut the session down — child tokens isolate consumer-side cancel
 /// logic from the session's own lifecycle.
 #[tokio::test]
 async fn cancellation_token_child_cancel_does_not_kill_session() {
@@ -2093,7 +2093,7 @@ async fn external_tool_requested_dispatches_to_handler_and_responds() {
 #[tokio::test]
 async fn external_tool_broadcast_for_unknown_tool_is_not_responded_to() {
     // Phase H multi-client safety: a handler that doesn't claim the
-    // requested tool name must not send an RPC response Ã¢â‚¬â€ another client
+    // requested tool name must not send an RPC response — another client
     // on the same CLI may have a real handler.
     struct FooTool;
     #[async_trait]
@@ -2170,7 +2170,7 @@ async fn permission_broadcast_with_resolved_by_hook_is_not_responded_to() {
 #[tokio::test]
 async fn permission_broadcast_with_no_claiming_handler_is_not_responded_to() {
     // Phase H: a handler that doesn't claim permission dispatch must not
-    // respond Ã¢â‚¬â€ the SDK lets other connected clients handle the request.
+    // respond — the SDK lets other connected clients handle the request.
     let (_session, mut server) = create_session_pair().await;
     server
         .send_event(
@@ -2417,7 +2417,7 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair().await;
 
-    // Session created without capabilities Ã¢â‚¬â€ elicitation should fail
+    // Session created without capabilities — elicitation should fail
     let err = session
         .ui()
         .elicitation("test", serde_json::json!({}))
@@ -2824,7 +2824,7 @@ async fn client_stop_sends_session_destroy_for_each_active_session() {
 
 #[tokio::test]
 async fn client_stop_aggregates_session_destroy_errors() {
-    // session.destroy fails on the wire Ã¢â‚¬â€ Client::stop returns
+    // session.destroy fails on the wire — Client::stop returns
     // StopErrors carrying the failure rather than short-circuiting.
     let (session, mut server) = create_session_pair().await;
     let client = session.client().clone();
@@ -2929,7 +2929,7 @@ fn resume_session_config_serializes_bucket_b_fields() {
 }
 
 // =====================================================================
-// Slash commands (Ã‚Â§ 4.1)
+// Slash commands (§ 4.1)
 // =====================================================================
 
 struct CountingCommandHandler {
