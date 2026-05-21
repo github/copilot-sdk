@@ -185,7 +185,11 @@ export class CopilotSession {
      * });
      * ```
      */
-    async send(options: MessageOptions): Promise<string> {
+    async send(prompt: string): Promise<string>;
+    async send(options: MessageOptions): Promise<string>;
+    async send(optionsOrPrompt: MessageOptions | string): Promise<string> {
+        const options: MessageOptions =
+            typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const response = await this.connection.sendRequest("session.send", {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
@@ -221,10 +225,17 @@ export class CopilotSession {
      * console.log(response?.data.content); // "4"
      * ```
      */
+    async sendAndWait(prompt: string, timeout?: number): Promise<AssistantMessageEvent | undefined>;
     async sendAndWait(
         options: MessageOptions,
         timeout?: number
+    ): Promise<AssistantMessageEvent | undefined>;
+    async sendAndWait(
+        optionsOrPrompt: MessageOptions | string,
+        timeout?: number
     ): Promise<AssistantMessageEvent | undefined> {
+        const options: MessageOptions =
+            typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const effectiveTimeout = timeout ?? 60_000;
 
         let resolveIdle: () => void;
