@@ -1,4 +1,4 @@
-import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
+import { CopilotClient, defineTool, approveAll , RuntimeConnection } from "@github/copilot-sdk";
 import { z } from "zod";
 
 async function main() {

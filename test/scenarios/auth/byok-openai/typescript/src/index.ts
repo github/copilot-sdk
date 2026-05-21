@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
 const OPENAI_MODEL = process.env.OPENAI_MODEL ?? "claude-haiku-4.5";

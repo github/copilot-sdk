@@ -375,7 +375,7 @@ export class CopilotClient {
 
         this.options = {
             cwd: options.cwd ?? process.cwd(),
-            logLevel: options.logLevel || "debug",
+            logLevel: options.logLevel || "info",
             gitHubToken: options.gitHubToken,
             // Default useLoggedInUser to false when gitHubToken is provided, otherwise true.
             useLoggedInUser: options.useLoggedInUser ?? (options.gitHubToken ? false : true),
@@ -1550,7 +1550,11 @@ export class CopilotClient {
 
             if (!this.resolvedCliPath) {
                 throw new Error(
-                    "Path to Copilot CLI is required. Please provide it via the cliPath option, or use cliUrl to rely on a remote CLI."
+                    "Path to Copilot CLI is required. Please supply it via " +
+                        "`RuntimeConnection.forStdio({ path })` or " +
+                        "`RuntimeConnection.forTcp({ path })`, set the COPILOT_CLI_PATH " +
+                        "environment variable, or use `RuntimeConnection.forUri(...)` to " +
+                        "connect to an already-running runtime."
                 );
             }
 

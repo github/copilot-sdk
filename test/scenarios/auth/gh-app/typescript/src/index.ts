@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 

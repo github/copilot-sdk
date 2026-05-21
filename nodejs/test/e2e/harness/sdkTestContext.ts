@@ -70,16 +70,20 @@ export async function createSdkTestContext({
     let connection: RuntimeConnection;
     if (userConn) {
         // Caller supplied a RuntimeConnection — merge in the harness-managed
-        // CLI path (and stay on TCP if the caller asked for that variant).
+        // CLI path (and stay on the same transport variant). Strip `kind`
+        // before forwarding to the factory opts since the factories don't
+        // accept it in their argument shape.
         if (userConn.kind === "tcp") {
+            const { kind: _k, ...tcp } = userConn;
             connection = RuntimeConnection.forTcp({
-                ...userConn,
-                path: userConn.path ?? process.env.COPILOT_CLI_PATH,
+                ...tcp,
+                path: tcp.path ?? process.env.COPILOT_CLI_PATH,
             });
         } else if (userConn.kind === "stdio") {
+            const { kind: _k, ...stdio } = userConn;
             connection = RuntimeConnection.forStdio({
-                ...userConn,
-                path: userConn.path ?? process.env.COPILOT_CLI_PATH,
+                ...stdio,
+                path: stdio.path ?? process.env.COPILOT_CLI_PATH,
             });
         } else {
             connection = userConn;

@@ -1211,7 +1211,7 @@ export interface SessionHooks {
 interface MCPServerConfigBase {
     /**
      * List of tools to include from this server.
-     * `undefined` (the default) or `"*"` means include all tools.
+     * `undefined` (the default) or `["*"]` means include all tools.
      * `[]` means include none.
      */
     tools?: string[];

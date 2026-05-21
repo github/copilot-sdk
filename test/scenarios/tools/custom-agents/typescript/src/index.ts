@@ -1,4 +1,4 @@
-import { CopilotClient, defineTool } from "@github/copilot-sdk";
+import { CopilotClient, defineTool , RuntimeConnection } from "@github/copilot-sdk";
 import { z } from "zod";
 
 const analyzeCodebase = defineTool("analyze-codebase", {

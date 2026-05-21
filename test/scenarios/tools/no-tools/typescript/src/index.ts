@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 
 const SYSTEM_PROMPT = `You are a minimal assistant with no tools available.
 You cannot execute code, read files, edit files, search, or perform any actions.

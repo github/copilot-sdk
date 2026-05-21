@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 import path from "path";
 import { fileURLToPath } from "url";
 

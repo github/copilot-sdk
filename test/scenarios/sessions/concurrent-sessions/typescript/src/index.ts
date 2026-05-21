@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 
 const PIRATE_PROMPT = `You are a pirate. Always say Arrr!`;
 const ROBOT_PROMPT = `You are a robot. Always say BEEP BOOP!`;

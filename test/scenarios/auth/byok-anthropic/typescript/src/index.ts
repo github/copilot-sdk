@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 
 async function main() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
