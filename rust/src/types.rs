@@ -987,93 +987,6 @@ fn default_env_value_mode() -> String {
 ///
 /// This mirrors the runtime stdio contract and should be replaced by the upstream
 /// `github/copilot-sdk` generated type once protocol parity lands there.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct ExtensionRegistrationConfig {
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub extension_roots: Vec<PathBuf>,
-    /// Bare extension manifests registered by the host. Each entry is a
-    /// `copilot-extension.json` payload (not wrapped); per-canvas
-    /// `contributes.canvases[].implementation: { kind, id }` routes
-    /// `canvas.action.invoke` dispatch.
-    #[serde(
-        default,
-        rename = "hostExtensions",
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub host_extensions: Vec<Value>,
-}
-
-/// Server-to-client hosted extension callback request.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct HostedExtensionInvokeRequest {
-    pub session_id: SessionId,
-    pub request: HostedExtensionRequest,
-}
-
-/// Hosted extension action/lifecycle request envelope.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct HostedExtensionRequest {
-    pub id: String,
-    pub implementation_id: String,
-    pub method: String,
-    pub params: Value,
-}
-
-/// Structured response envelope for hosted extension callbacks.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(untagged)]
-#[allow(missing_docs)]
-pub enum HostedExtensionResponse {
-    Success(HostedExtensionSuccessResponse),
-    Error(HostedExtensionErrorResponse),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct HostedExtensionSuccessResponse {
-    pub ok: bool,
-    pub result: Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct HostedExtensionErrorResponse {
-    pub ok: bool,
-    pub error: HostedExtensionError,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-#[allow(missing_docs)]
-pub struct HostedExtensionError {
-    pub code: String,
-    pub message: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub required_capabilities: Vec<String>,
-}
-
-impl HostedExtensionResponse {
-    #[allow(missing_docs)]
-    pub fn error(code: impl Into<String>, message: impl Into<String>) -> Self {
-        Self::Error(HostedExtensionErrorResponse {
-            ok: false,
-            error: HostedExtensionError {
-                code: code.into(),
-                message: message.into(),
-                required_capabilities: Vec::new(),
-            },
-        })
-    }
-}
-
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1287,12 +1200,6 @@ pub struct SessionConfig {
     /// canvas id. Serialized as an array of `CanvasDeclaration` on the wire.
     #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
     pub canvases: Vec<crate::canvas::Canvas>,
-    /// Host-provided extension registrations for the temporary canvas POC.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extension_registrations: Option<ExtensionRegistrationConfig>,
-    /// Ask the runtime to route hosted extension callbacks over this SDK connection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_host_extension: Option<bool>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1363,8 +1270,6 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("commands", &self.commands)
             .field("canvases", &self.canvases)
-            .field("extension_registrations", &self.extension_registrations)
-            .field("request_host_extension", &self.request_host_extension)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1424,8 +1329,6 @@ impl Default for SessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             canvases: Vec::new(),
-            extension_registrations: None,
-            request_host_extension: None,
             session_fs_provider: None,
             handler: None,
             hooks_handler: None,
@@ -1894,12 +1797,6 @@ pub struct ResumeSessionConfig {
     /// the prior entry on the runtime side.
     #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
     pub canvases: Vec<crate::canvas::Canvas>,
-    /// Host-provided extension registrations for the temporary canvas POC.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub extension_registrations: Option<ExtensionRegistrationConfig>,
-    /// Ask the runtime to route hosted extension callbacks over this SDK connection.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_host_extension: Option<bool>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -1973,8 +1870,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("commands", &self.commands)
             .field("canvases", &self.canvases)
-            .field("extension_registrations", &self.extension_registrations)
-            .field("request_host_extension", &self.request_host_extension)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -2033,8 +1928,6 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             canvases: Vec::new(),
-            extension_registrations: None,
-            request_host_extension: None,
             session_fs_provider: None,
             disable_resume: None,
             continue_pending_work: None,
@@ -3427,7 +3320,7 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionRegistrationConfig,
+        ConnectionState, CustomAgentConfig, DeliveryMode,
         GitHubReferenceType, InfiniteSessionConfig, PermissionRequestData,
         ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
         SystemMessageConfig, Tool, ToolBinaryResult, ToolInvocation, ToolResult,
@@ -3459,69 +3352,6 @@ mod tests {
         assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
         assert!(tool.overrides_built_in_tool);
         assert!(tool.skip_permission);
-    }
-
-    #[test]
-    fn session_config_serializes_hosted_extension_handoff_fields() {
-        let cfg = SessionConfig {
-            extension_registrations: Some(ExtensionRegistrationConfig {
-                extension_roots: vec![PathBuf::from("/tmp/ext")],
-                host_extensions: vec![json!({
-                    "manifestVersion": 1,
-                    "name": "markdown",
-                    "publisher": "github",
-                    "contributes": {
-                        "canvases": [{
-                            "id": "markdown",
-                            "implementation": { "kind": "native", "id": "github-app.markdown" }
-                        }]
-                    }
-                })],
-            }),
-            request_host_extension: Some(true),
-            ..Default::default()
-        };
-
-        let value = serde_json::to_value(cfg).expect("serialize session config");
-
-        assert_eq!(
-            value["extensionRegistrations"]["extensionRoots"],
-            json!(["/tmp/ext"])
-        );
-        assert_eq!(
-            value["extensionRegistrations"]["hostExtensions"][0]["contributes"]["canvases"][0]["implementation"]
-                ["id"],
-            "github-app.markdown"
-        );
-        assert!(
-            value["extensionRegistrations"]["hostExtensions"][0]
-                .get("manifest")
-                .is_none(),
-            "hostExtensions items are bare manifests, not wrapped"
-        );
-        assert_eq!(value["requestHostExtension"], true);
-    }
-
-    #[test]
-    fn resume_session_config_serializes_hosted_extension_handoff_fields() {
-        let mut cfg = ResumeSessionConfig::new(SessionId::from("session-1"));
-        cfg.extension_registrations = Some(ExtensionRegistrationConfig {
-            extension_roots: Vec::new(),
-            host_extensions: vec![json!({
-                "manifestVersion": 1,
-                "name": "markdown",
-                "publisher": "github"
-            })],
-        });
-        cfg.request_host_extension = Some(true);
-
-        let value = serde_json::to_value(cfg).expect("serialize resume config");
-
-        assert_eq!(
-            value["extensionRegistrations"]["hostExtensions"][0]["name"],
-            "markdown"
-        );
-        assert_eq!(value["requestHostExtension"], true);
     }
 
     #[test]

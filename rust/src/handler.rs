@@ -8,9 +8,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{
-    ElicitationRequest, ElicitationResult, ExitPlanModeData, HostedExtensionRequest,
-    HostedExtensionResponse, PermissionRequestData, RequestId, SessionEvent, SessionId,
-    ToolInvocation, ToolResult,
+    ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
+    SessionEvent, SessionId, ToolInvocation, ToolResult,
 };
 
 /// Events dispatched by the SDK session event loop to the handler.
@@ -60,15 +59,6 @@ pub enum HandlerEvent {
         invocation: ToolInvocation,
     },
 
-    /// The runtime requests a hosted extension action or lifecycle call.
-    /// Return `HandlerResponse::HostedExtension(..)`.
-    HostedExtension {
-        /// The requesting session.
-        session_id: SessionId,
-        /// Host-backed request envelope from the runtime.
-        request: HostedExtensionRequest,
-    },
-
     /// The CLI broadcasts an elicitation request for the provider to handle.
     /// Return `HandlerResponse::Elicitation(..)`.
     ElicitationRequest {
@@ -116,8 +106,6 @@ pub enum HandlerResponse {
     UserInput(Option<UserInputResponse>),
     /// Result of a tool execution.
     ToolResult(ToolResult),
-    /// Structured hosted extension response.
-    HostedExtension(HostedExtensionResponse),
     /// Elicitation result (accept/decline/cancel with optional form data).
     Elicitation(ElicitationResult),
     /// Exit plan mode decision.
@@ -329,12 +317,6 @@ pub trait SessionHandler: Send + Sync + 'static {
             HandlerEvent::ExternalTool { invocation } => {
                 HandlerResponse::ToolResult(self.on_external_tool(invocation).await)
             }
-            HandlerEvent::HostedExtension {
-                session_id,
-                request,
-            } => HandlerResponse::HostedExtension(
-                self.on_hosted_extension(session_id, request).await,
-            ),
             HandlerEvent::ElicitationRequest {
                 session_id,
                 request_id,
@@ -411,23 +393,6 @@ pub trait SessionHandler: Send + Sync + 'static {
             error: Some(msg),
             tool_telemetry: None,
         })
-    }
-
-    /// The runtime is invoking a hosted extension implementation.
-    ///
-    /// Default: return a structured error so the runtime can surface the failure.
-    async fn on_hosted_extension(
-        &self,
-        _session_id: SessionId,
-        request: HostedExtensionRequest,
-    ) -> HostedExtensionResponse {
-        HostedExtensionResponse::error(
-            "hosted_extension_unavailable",
-            format!(
-                "No handler registered for hosted extension '{}'",
-                request.implementation_id
-            ),
-        )
     }
 
     /// The CLI is requesting an elicitation (structured form / URL prompt).
@@ -527,15 +492,6 @@ impl SessionHandler for NoopHandler {
             }
             HandlerEvent::UserInput { .. } => HandlerResponse::UserInput(None),
             HandlerEvent::ExternalTool { .. } => HandlerResponse::NoResult,
-            HandlerEvent::HostedExtension { request, .. } => {
-                HandlerResponse::HostedExtension(HostedExtensionResponse::error(
-                    "hosted_extension_unavailable",
-                    format!(
-                        "No handler registered for hosted extension '{}'",
-                        request.implementation_id
-                    ),
-                ))
-            }
             HandlerEvent::ElicitationRequest { .. } => {
                 HandlerResponse::Elicitation(ElicitationResult {
                     action: "cancel".to_string(),
@@ -664,73 +620,6 @@ mod tests {
                 assert_eq!(exp.result_type, "failure");
                 assert!(exp.text_result_for_llm.contains("missing"));
                 assert_eq!(exp.error.as_deref(), Some(exp.text_result_for_llm.as_str()));
-            }
-            other => panic!("unexpected response: {other:?}"),
-        }
-    }
-
-    struct HostedExtensionHandler;
-
-    #[async_trait]
-    impl SessionHandler for HostedExtensionHandler {
-        async fn on_hosted_extension(
-            &self,
-            session_id: SessionId,
-            request: HostedExtensionRequest,
-        ) -> HostedExtensionResponse {
-            HostedExtensionResponse::Success(crate::types::HostedExtensionSuccessResponse {
-                ok: true,
-                result: serde_json::json!({
-                    "sessionId": session_id,
-                    "implementationId": request.implementation_id,
-                }),
-            })
-        }
-    }
-
-    #[tokio::test]
-    async fn default_on_hosted_extension_returns_structured_error() {
-        let h = DenyAllHandler;
-        let resp = h
-            .on_event(HandlerEvent::HostedExtension {
-                session_id: SessionId::from("s1".to_string()),
-                request: HostedExtensionRequest {
-                    id: "request-1".to_string(),
-                    implementation_id: "github-app.markdown".to_string(),
-                    method: "canvas.action.invoke".to_string(),
-                    params: Value::Null,
-                },
-            })
-            .await;
-
-        match resp {
-            HandlerResponse::HostedExtension(HostedExtensionResponse::Error(error)) => {
-                assert_eq!(error.error.code, "hosted_extension_unavailable");
-                assert!(error.error.message.contains("github-app.markdown"));
-            }
-            other => panic!("unexpected response: {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn hosted_extension_dispatches_via_default_on_event() {
-        let h = HostedExtensionHandler;
-        let resp = h
-            .on_event(HandlerEvent::HostedExtension {
-                session_id: SessionId::from("s1".to_string()),
-                request: HostedExtensionRequest {
-                    id: "request-1".to_string(),
-                    implementation_id: "github-app.markdown".to_string(),
-                    method: "canvas.action.invoke".to_string(),
-                    params: Value::Null,
-                },
-            })
-            .await;
-
-        match resp {
-            HandlerResponse::HostedExtension(HostedExtensionResponse::Success(success)) => {
-                assert_eq!(success.result["sessionId"], "s1");
-                assert_eq!(success.result["implementationId"], "github-app.markdown");
             }
             other => panic!("unexpected response: {other:?}"),
         }

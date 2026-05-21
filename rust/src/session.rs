@@ -28,11 +28,11 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, HostedExtensionInvokeRequest,
-    InputOptions, MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
-    SectionOverride, SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
-    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, ToolResultResponse,
-    TraceContext, ensure_attachment_display_names,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
+    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
+    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
+    ToolResult, ToolResultExpanded, ToolResultResponse, TraceContext,
+    ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -1817,101 +1817,96 @@ async fn handle_request(
         }
 
         "hostExtension.invoke" => {
-            let host_request: HostedExtensionInvokeRequest =
-                match request.params.as_ref().and_then(|p| {
-                    serde_json::from_value::<HostedExtensionInvokeRequest>(p.clone()).ok()
-                }) {
-                    Some(host_request) => host_request,
-                    None => {
-                        let _ = send_error_response(
-                            client,
-                            request.id,
-                            error_codes::INVALID_PARAMS,
-                            "invalid hostExtension.invoke params",
-                        )
-                        .await;
-                        return;
-                    }
-                };
+            // V1.1 canvas dispatch: the only inner method accepted is
+            // `canvas.action.invoke`, routed through the canvas registry built
+            // from `SessionConfig.canvases`.
+            #[derive(serde::Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct CanvasInvokeEnvelope {
+                session_id: SessionId,
+                request: CanvasInvokeInner,
+            }
+            #[derive(serde::Deserialize)]
+            struct CanvasInvokeInner {
+                method: String,
+                params: serde_json::Value,
+            }
 
-            // V1.1 canvas dispatch: any inner `method == "canvas.action.invoke"`
-            // routes through the canvas registry built from `SessionConfig.canvases`.
-            // Falls back to the legacy `on_hosted_extension` path otherwise (used by
-            // V1 hosted-extension consumers until that surface is deleted).
-            if host_request.request.method == "canvas.action.invoke" {
-                let result = match serde_json::from_value::<crate::canvas::CanvasInvokeParams>(
-                    host_request.request.params.clone(),
-                ) {
-                    Ok(params) => {
-                        let dispatch_start = Instant::now();
-                        let canvas_id = params.canvas_id.clone();
-                        let action_name = params.action_name.clone();
-                        let response = crate::canvas::dispatch_canvas_invoke(
-                            canvas_registry,
-                            host_request.session_id,
-                            params,
-                        )
-                        .await;
-                        tracing::debug!(
-                            elapsed_ms = dispatch_start.elapsed().as_millis(),
-                            session_id = %sid,
-                            canvas_id = %canvas_id,
-                            action_name = %action_name,
-                            ok = response.is_ok(),
-                            "canvas.action.invoke dispatch"
-                        );
-                        match response {
-                            Ok(value) => crate::types::HostedExtensionResponse::Success(
-                                crate::types::HostedExtensionSuccessResponse {
-                                    ok: true,
-                                    result: value,
-                                },
-                            ),
-                            Err(err) => crate::types::HostedExtensionResponse::Error(
-                                crate::types::HostedExtensionErrorResponse {
-                                    ok: false,
-                                    error: crate::types::HostedExtensionError {
-                                        code: err.code,
-                                        message: err.message,
-                                        required_capabilities: Vec::new(),
-                                    },
-                                },
-                            ),
-                        }
-                    }
-                    Err(err) => crate::types::HostedExtensionResponse::error(
-                        "canvas_invalid_params",
-                        format!("invalid canvas.action.invoke params: {err}"),
-                    ),
-                };
+            let envelope: CanvasInvokeEnvelope = match request
+                .params
+                .as_ref()
+                .and_then(|p| serde_json::from_value::<CanvasInvokeEnvelope>(p.clone()).ok())
+            {
+                Some(envelope) => envelope,
+                None => {
+                    let _ = send_error_response(
+                        client,
+                        request.id,
+                        error_codes::INVALID_PARAMS,
+                        "invalid hostExtension.invoke params",
+                    )
+                    .await;
+                    return;
+                }
+            };
+
+            if envelope.request.method != "canvas.action.invoke" {
+                let result = serde_json::json!({
+                    "ok": false,
+                    "error": {
+                        "code": "unsupported_method",
+                        "message": format!(
+                            "hostExtension.invoke only supports canvas.action.invoke, got '{}'",
+                            envelope.request.method
+                        ),
+                    },
+                });
                 let rpc_response = JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     id: request.id,
-                    result: Some(serde_json::json!(result)),
+                    result: Some(result),
                     error: None,
                 };
                 let _ = client.send_response(&rpc_response).await;
                 return;
             }
 
-            let handler_start = Instant::now();
-            let response = handler
-                .on_event(HandlerEvent::HostedExtension {
-                    session_id: host_request.session_id,
-                    request: host_request.request,
-                })
-                .await;
-            tracing::debug!(
-                elapsed_ms = handler_start.elapsed().as_millis(),
-                session_id = %sid,
-                "SessionHandler::on_hosted_extension dispatch"
-            );
-            let result = match response {
-                HandlerResponse::HostedExtension(response) => serde_json::json!(response),
-                _ => serde_json::json!(crate::types::HostedExtensionResponse::error(
-                    "unexpected_handler_response",
-                    "Unexpected handler response for hostExtension.invoke",
-                )),
+            let result = match serde_json::from_value::<crate::canvas::CanvasInvokeParams>(
+                envelope.request.params,
+            ) {
+                Ok(params) => {
+                    let dispatch_start = Instant::now();
+                    let canvas_id = params.canvas_id.clone();
+                    let action_name = params.action_name.clone();
+                    let response = crate::canvas::dispatch_canvas_invoke(
+                        canvas_registry,
+                        envelope.session_id,
+                        params,
+                    )
+                    .await;
+                    tracing::debug!(
+                        elapsed_ms = dispatch_start.elapsed().as_millis(),
+                        session_id = %sid,
+                        canvas_id = %canvas_id,
+                        action_name = %action_name,
+                        ok = response.is_ok(),
+                        "canvas.action.invoke dispatch"
+                    );
+                    match response {
+                        Ok(value) => serde_json::json!({ "ok": true, "result": value }),
+                        Err(err) => serde_json::json!({
+                            "ok": false,
+                            "error": { "code": err.code, "message": err.message },
+                        }),
+                    }
+                }
+                Err(err) => serde_json::json!({
+                    "ok": false,
+                    "error": {
+                        "code": "canvas_invalid_params",
+                        "message": format!("invalid canvas.action.invoke params: {err}"),
+                    },
+                }),
             };
             let rpc_response = JsonRpcResponse {
                 jsonrpc: "2.0".to_string(),
