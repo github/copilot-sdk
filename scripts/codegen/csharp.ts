@@ -569,12 +569,12 @@ function getOrCreateEnum(
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override ${enumName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
+    lines.push(`            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
     lines.push(`        }`, "");
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override void Write(Utf8JsonWriter writer, ${enumName} value, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
+    lines.push(`            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
     lines.push(`        }`);
     lines.push(`    }`);
     lines.push(`}`, "");

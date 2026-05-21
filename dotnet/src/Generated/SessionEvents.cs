@@ -5345,13 +5345,13 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
         /// <inheritdoc />
         public override WorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, WorkingDirectoryContextHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkingDirectoryContextHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkingDirectoryContextHostType));
         }
     }
 }
@@ -5409,13 +5409,13 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
         /// <inheritdoc />
         public override ReasoningSummary Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
         }
     }
 }
@@ -5473,13 +5473,13 @@ public readonly struct SessionMode : IEquatable<SessionMode>
         /// <inheritdoc />
         public override SessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMode));
         }
     }
 }
@@ -5537,13 +5537,13 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
         /// <inheritdoc />
         public override PlanChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PlanChangedOperation value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PlanChangedOperation));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PlanChangedOperation));
         }
     }
 }
@@ -5598,13 +5598,13 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
         /// <inheritdoc />
         public override WorkspaceFileChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, WorkspaceFileChangedOperation value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceFileChangedOperation));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceFileChangedOperation));
         }
     }
 }
@@ -5659,13 +5659,13 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
         /// <inheritdoc />
         public override HandoffSourceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, HandoffSourceType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HandoffSourceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(HandoffSourceType));
         }
     }
 }
@@ -5720,13 +5720,13 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
         /// <inheritdoc />
         public override ShutdownType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ShutdownType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShutdownType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShutdownType));
         }
     }
 }
@@ -5787,13 +5787,13 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
         /// <inheritdoc />
         public override UserMessageAgentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UserMessageAgentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAgentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAgentMode));
         }
     }
 }
@@ -5851,13 +5851,13 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
         /// <inheritdoc />
         public override UserMessageAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UserMessageAttachmentGithubReferenceType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAttachmentGithubReferenceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UserMessageAttachmentGithubReferenceType));
         }
     }
 }
@@ -5912,13 +5912,13 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
         /// <inheritdoc />
         public override AssistantMessageToolRequestType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AssistantMessageToolRequestType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantMessageToolRequestType));
         }
     }
 }
@@ -5979,13 +5979,13 @@ public readonly struct AssistantUsageApiEndpoint : IEquatable<AssistantUsageApiE
         /// <inheritdoc />
         public override AssistantUsageApiEndpoint Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AssistantUsageApiEndpoint value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantUsageApiEndpoint));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AssistantUsageApiEndpoint));
         }
     }
 }
@@ -6043,13 +6043,13 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
         /// <inheritdoc />
         public override ModelCallFailureSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelCallFailureSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCallFailureSource));
         }
     }
 }
@@ -6107,13 +6107,13 @@ public readonly struct AbortReason : IEquatable<AbortReason>
         /// <inheritdoc />
         public override AbortReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AbortReason value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AbortReason));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AbortReason));
         }
     }
 }
@@ -6168,13 +6168,13 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
         /// <inheritdoc />
         public override ToolExecutionCompleteContentResourceLinkIconTheme Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteContentResourceLinkIconTheme value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteContentResourceLinkIconTheme));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteContentResourceLinkIconTheme));
         }
     }
 }
@@ -6229,13 +6229,13 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
         /// <inheritdoc />
         public override SystemMessageRole Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SystemMessageRole value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemMessageRole));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemMessageRole));
         }
     }
 }
@@ -6290,13 +6290,13 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
         /// <inheritdoc />
         public override SystemNotificationAgentCompletedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SystemNotificationAgentCompletedStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemNotificationAgentCompletedStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SystemNotificationAgentCompletedStatus));
         }
     }
 }
@@ -6351,13 +6351,13 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
         /// <inheritdoc />
         public override PermissionRequestMemoryAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionRequestMemoryAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryAction));
         }
     }
 }
@@ -6412,13 +6412,13 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
         /// <inheritdoc />
         public override PermissionRequestMemoryDirection Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionRequestMemoryDirection value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryDirection));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionRequestMemoryDirection));
         }
     }
 }
@@ -6476,13 +6476,13 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
         /// <inheritdoc />
         public override PermissionPromptRequestPathAccessKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionPromptRequestPathAccessKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestPathAccessKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionPromptRequestPathAccessKind));
         }
     }
 }
@@ -6537,13 +6537,13 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
         /// <inheritdoc />
         public override ElicitationRequestedMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ElicitationRequestedMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ElicitationRequestedMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ElicitationRequestedMode));
         }
     }
 }
@@ -6601,13 +6601,13 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
         /// <inheritdoc />
         public override ElicitationCompletedAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ElicitationCompletedAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ElicitationCompletedAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ElicitationCompletedAction));
         }
     }
 }
@@ -6665,13 +6665,13 @@ public readonly struct AutoModeSwitchResponse : IEquatable<AutoModeSwitchRespons
         /// <inheritdoc />
         public override AutoModeSwitchResponse Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AutoModeSwitchResponse value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoModeSwitchResponse));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutoModeSwitchResponse));
         }
     }
 }
@@ -6732,13 +6732,13 @@ public readonly struct ExitPlanModeAction : IEquatable<ExitPlanModeAction>
         /// <inheritdoc />
         public override ExitPlanModeAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExitPlanModeAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExitPlanModeAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExitPlanModeAction));
         }
     }
 }
@@ -6808,13 +6808,13 @@ public readonly struct SkillSource : IEquatable<SkillSource>
         /// <inheritdoc />
         public override SkillSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SkillSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillSource));
         }
     }
 }
@@ -6875,13 +6875,13 @@ public readonly struct McpServerSource : IEquatable<McpServerSource>
         /// <inheritdoc />
         public override McpServerSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpServerSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerSource));
         }
     }
 }
@@ -6948,13 +6948,13 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
         /// <inheritdoc />
         public override McpServerStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpServerStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerStatus));
         }
     }
 }
@@ -7009,13 +7009,13 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
         /// <inheritdoc />
         public override ExtensionsLoadedExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionsLoadedExtensionSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionsLoadedExtensionSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionsLoadedExtensionSource));
         }
     }
 }
@@ -7076,13 +7076,13 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
         /// <inheritdoc />
         public override ExtensionsLoadedExtensionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionsLoadedExtensionStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionsLoadedExtensionStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionsLoadedExtensionStatus));
         }
     }
 }
