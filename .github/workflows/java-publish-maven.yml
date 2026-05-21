@@ -64,6 +64,7 @@ jobs:
 
       - name: Determine versions
         id: versions
+        working-directory: ./java
         run: |
           CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           echo "Current pom.xml version: $CURRENT_VERSION"
@@ -109,6 +110,7 @@ jobs:
 
       - name: Update documentation with release version
         id: update-docs
+        working-directory: ./java
         run: |
           VERSION="${{ steps.versions.outputs.release_version }}"
 
@@ -119,7 +121,7 @@ jobs:
           echo "Reference implementation SDK sync: ${REFERENCE_IMPL_SHORT} (${REFERENCE_IMPL_URL})"
 
           # Update CHANGELOG.md with release version and Reference implementation sync hash
-          ./.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
+          ../.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
 
           # Update version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
           sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*</version>|<version>${VERSION}</version>|g" README.md
@@ -143,6 +145,7 @@ jobs:
           git push origin main
 
       - name: Prepare Release
+        working-directory: ./java
         run: |
           mvn -B release:prepare \
             -DreleaseVersion=${{ steps.versions.outputs.release_version }} \
@@ -156,6 +159,7 @@ jobs:
           JAVA_GPG_PASSPHRASE: ${{ secrets.JAVA_GPG_PASSPHRASE }}
 
       - name: Perform Release and Deploy to Maven Central
+        working-directory: ./java
         run: |
           mvn -B release:perform \
             -Dgoals="deploy" \
@@ -167,6 +171,7 @@ jobs:
 
       - name: Rollback documentation commit on failure
         if: failure() && steps.update-docs.outputs.docs_commit_sha != ''
+        working-directory: ./java
         run: |
           echo "Release failed, rolling back documentation commit..."
           git revert --no-edit ${{ steps.update-docs.outputs.docs_commit_sha }}
