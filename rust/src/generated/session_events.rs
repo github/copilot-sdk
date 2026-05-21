@@ -954,6 +954,9 @@ pub struct SessionCompactionCompleteData {
     /// Token count from non-system messages (user, assistant, tool) after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation_tokens: Option<i64>,
+    /// User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_instructions: Option<String>,
     /// Error message if compaction failed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -1232,9 +1235,9 @@ pub struct AssistantUsageQuotaSnapshot {
     pub entitlement_requests: i64,
     /// Whether the user has an unlimited usage entitlement
     pub is_unlimited_entitlement: bool,
-    /// Number of requests over the entitlement limit
+    /// Number of additional usage requests made this period
     pub overage: f64,
-    /// Whether overage is allowed when quota is exhausted
+    /// Whether additional usage is allowed when quota is exhausted
     pub overage_allowed_with_exhausted_quota: bool,
     /// Percentage of quota remaining (0 to 100)
     pub remaining_percentage: f64,
