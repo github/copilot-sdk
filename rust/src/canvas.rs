@@ -118,6 +118,10 @@ pub struct CanvasOpenContext {
     pub session_id: SessionId,
     /// Canvas id (matches the declaring [`CanvasDeclaration::id`]).
     pub canvas_id: String,
+    /// Agent-supplied stable instance id. Required by the runtime on every
+    /// `canvas.open` invocation; handlers should key their per-instance state
+    /// off this value.
+    pub instance_id: String,
     /// Validated `input` payload, shaped by [`CanvasDeclaration::input_schema`].
     pub input: Value,
     /// Toolbar items declared on the canvas, passed through for handler
@@ -376,9 +380,16 @@ pub async fn dispatch_canvas_invoke(
 
     match params.action_name.as_str() {
         "canvas.open" => {
+            let instance_id = params.instance_id.ok_or_else(|| {
+                CanvasError::new(
+                    "canvas_missing_instance_id",
+                    "canvas.open requires an instanceId",
+                )
+            })?;
             let ctx = CanvasOpenContext {
                 session_id,
                 canvas_id: params.canvas_id,
+                instance_id,
                 input: params.input,
                 toolbar: params.toolbar,
             };
@@ -564,7 +575,7 @@ mod tests {
 
         let params = CanvasInvokeParams {
             canvas_id: "echo".into(),
-            instance_id: None,
+            instance_id: Some("echo-1".into()),
             action_name: "canvas.open".into(),
             input: json!({ "x": 1 }),
             toolbar: None,

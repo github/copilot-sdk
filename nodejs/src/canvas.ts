@@ -103,6 +103,12 @@ export interface CanvasOpenContext {
     sessionId: string;
     /** Canvas id (matches the declaring `CanvasDeclaration.id`). */
     canvasId: string;
+    /**
+     * Agent-supplied stable instance id. Required by the runtime on every
+     * `canvas.open` invocation; handlers should key their per-instance state
+     * off this value.
+     */
+    instanceId: string;
     /** Validated `input` payload, shaped by `CanvasDeclaration.inputSchema`. */
     input: unknown;
     /** Toolbar items declared on the canvas, passed through for convenience. */
@@ -309,9 +315,16 @@ export async function dispatchCanvasAction(
 ): Promise<unknown> {
     switch (params.actionName) {
         case RESERVED_CANVAS_ACTIONS.open: {
+            if (!params.instanceId) {
+                throw new CanvasError(
+                    "canvas_missing_instance_id",
+                    "canvas.open requires an instanceId"
+                );
+            }
             const result = await canvas.onOpen({
                 sessionId,
                 canvasId: params.canvasId,
+                instanceId: params.instanceId,
                 input: params.input,
                 toolbar: params.toolbar,
             });
