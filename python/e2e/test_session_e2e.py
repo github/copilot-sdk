@@ -832,7 +832,10 @@ class TestSessions:
         assert all_sessions
 
         if our_session.context is not None:
-            assert isinstance(our_session.context.working_directory, str) and our_session.context.working_directory
+            assert (
+                isinstance(our_session.context.working_directory, str)
+                and our_session.context.working_directory
+            )
 
         await session.disconnect()
 

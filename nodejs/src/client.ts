@@ -104,7 +104,7 @@ function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> |
  * wire format (cwd) expected by the runtime.
  */
 function toWireMcpServers(
-    mcpServers: Record<string, MCPServerConfig> | undefined,
+    mcpServers: Record<string, MCPServerConfig> | undefined
 ): Record<string, unknown> | undefined {
     if (!mcpServers) return undefined;
     return Object.fromEntries(
@@ -114,7 +114,7 @@ function toWireMcpServers(
                 return [name, { ...rest, cwd: workingDirectory }];
             }
             return [name, server];
-        }),
+        })
     );
 }
 
