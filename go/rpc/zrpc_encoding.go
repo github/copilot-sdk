@@ -1710,6 +1710,208 @@ func (r *PermissionDecisionRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalPermissionsLocationsAddToolApprovalDetails(data []byte) (PermissionsLocationsAddToolApprovalDetails, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case PermissionsLocationsAddToolApprovalDetailsKindCommands:
+		var d PermissionsLocationsAddToolApprovalDetailsCommands
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindCustomTool:
+		var d PermissionsLocationsAddToolApprovalDetailsCustomTool
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindExtensionManagement:
+		var d PermissionsLocationsAddToolApprovalDetailsExtensionManagement
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindExtensionPermissionAccess:
+		var d PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindMcp:
+		var d PermissionsLocationsAddToolApprovalDetailsMcp
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindMcpSampling:
+		var d PermissionsLocationsAddToolApprovalDetailsMcpSampling
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindMemory:
+		var d PermissionsLocationsAddToolApprovalDetailsMemory
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindRead:
+		var d PermissionsLocationsAddToolApprovalDetailsRead
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case PermissionsLocationsAddToolApprovalDetailsKindWrite:
+		var d PermissionsLocationsAddToolApprovalDetailsWrite
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawPermissionsLocationsAddToolApprovalDetailsData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawPermissionsLocationsAddToolApprovalDetailsData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsCommands) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsCommands
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsCustomTool) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsCustomTool
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsExtensionManagement) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsExtensionManagement
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsMcp) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsMcp
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsMcpSampling) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsMcpSampling
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsMemory) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsMemory
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsRead) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsRead
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r PermissionsLocationsAddToolApprovalDetailsWrite) MarshalJSON() ([]byte, error) {
+	type alias PermissionsLocationsAddToolApprovalDetailsWrite
+	return json.Marshal(struct {
+		Kind PermissionsLocationsAddToolApprovalDetailsKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r *PermissionLocationAddToolApprovalParams) UnmarshalJSON(data []byte) error {
+	type rawPermissionLocationAddToolApprovalParams struct {
+		Approval    json.RawMessage `json:"approval"`
+		LocationKey string          `json:"locationKey"`
+	}
+	var raw rawPermissionLocationAddToolApprovalParams
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Approval != nil {
+		value, err := unmarshalPermissionsLocationsAddToolApprovalDetails(raw.Approval)
+		if err != nil {
+			return err
+		}
+		r.Approval = value
+	}
+	r.LocationKey = raw.LocationKey
+	return nil
+}
+
 func unmarshalSendAttachment(data []byte) (SendAttachment, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -2036,69 +2238,6 @@ func (r SlashCommandTextResult) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func unmarshalTaskAgentProgress(data []byte) (TaskAgentProgress, error) {
-	if string(data) == "null" {
-		return nil, nil
-	}
-	type rawUnion struct {
-		Type TaskAgentProgressType `json:"type"`
-	}
-	var raw rawUnion
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
-	}
-
-	switch raw.Type {
-	case TaskAgentProgressTypeAgent:
-		var d TaskAgentProgressAgent
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	case TaskAgentProgressTypeShell:
-		var d TaskAgentProgressShell
-		if err := json.Unmarshal(data, &d); err != nil {
-			return nil, err
-		}
-		return &d, nil
-	default:
-		return &RawTaskAgentProgressData{Discriminator: raw.Type, Raw: data}, nil
-	}
-}
-
-func (r RawTaskAgentProgressData) MarshalJSON() ([]byte, error) {
-	if r.Raw != nil {
-		return r.Raw, nil
-	}
-	return json.Marshal(struct {
-		Type TaskAgentProgressType `json:"type"`
-	}{
-		Type: r.Discriminator,
-	})
-}
-
-func (r TaskAgentProgressAgent) MarshalJSON() ([]byte, error) {
-	type alias TaskAgentProgressAgent
-	return json.Marshal(struct {
-		Type TaskAgentProgressType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
-func (r TaskAgentProgressShell) MarshalJSON() ([]byte, error) {
-	type alias TaskAgentProgressShell
-	return json.Marshal(struct {
-		Type TaskAgentProgressType `json:"type"`
-		alias
-	}{
-		Type:  r.Type(),
-		alias: alias(r),
-	})
-}
-
 func unmarshalTaskInfo(data []byte) (TaskInfo, error) {
 	if string(data) == "null" {
 		return nil, nil
@@ -2183,36 +2322,67 @@ func (r *TaskList) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r TaskProgress) MarshalJSON() ([]byte, error) {
-	if r.TaskAgentProgress != nil {
-		return json.Marshal(r.TaskAgentProgress)
+func unmarshalTaskProgress(data []byte) (TaskProgress, error) {
+	if string(data) == "null" {
+		return nil, nil
 	}
-	if r.TaskShellProgress != nil {
-		return json.Marshal(r.TaskShellProgress)
+	type rawUnion struct {
+		Type TaskProgressType `json:"type"`
 	}
-	return []byte("null"), nil
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Type {
+	case TaskProgressTypeAgent:
+		var d TaskAgentProgress
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case TaskProgressTypeShell:
+		var d TaskShellProgress
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawTaskProgressData{Discriminator: raw.Type, Raw: data}, nil
+	}
 }
 
-func (r *TaskProgress) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
-		*r = TaskProgress{}
-		return nil
+func (r RawTaskProgressData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
 	}
-	{
-		value, err := unmarshalTaskAgentProgress(data)
-		if err == nil {
-			*r = TaskProgress{TaskAgentProgress: value}
-			return nil
-		}
-	}
-	{
-		var value any
-		if err := json.Unmarshal(data, &value); err == nil {
-			*r = TaskProgress{TaskShellProgress: &value}
-			return nil
-		}
-	}
-	return errors.New("data did not match any union variant for TaskProgress")
+	return json.Marshal(struct {
+		Type TaskProgressType `json:"type"`
+	}{
+		Type: r.Discriminator,
+	})
+}
+
+func (r TaskAgentProgress) MarshalJSON() ([]byte, error) {
+	type alias TaskAgentProgress
+	return json.Marshal(struct {
+		Type TaskProgressType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
+}
+
+func (r TaskShellProgress) MarshalJSON() ([]byte, error) {
+	type alias TaskShellProgress
+	return json.Marshal(struct {
+		Type TaskProgressType `json:"type"`
+		alias
+	}{
+		Type:  r.Type(),
+		alias: alias(r),
+	})
 }
 
 func (r *TasksGetCurrentPromotableResult) UnmarshalJSON(data []byte) error {
@@ -2229,6 +2399,24 @@ func (r *TasksGetCurrentPromotableResult) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		r.Task = value
+	}
+	return nil
+}
+
+func (r *TasksGetProgressResult) UnmarshalJSON(data []byte) error {
+	type rawTasksGetProgressResult struct {
+		Progress json.RawMessage `json:"progress,omitempty"`
+	}
+	var raw rawTasksGetProgressResult
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.Progress != nil {
+		value, err := unmarshalTaskProgress(raw.Progress)
+		if err != nil {
+			return err
+		}
+		r.Progress = value
 	}
 	return nil
 }
