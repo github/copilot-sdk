@@ -20,8 +20,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record PingResponse(
         /** The echo message from the server. */
         @JsonProperty("message") String message,
-        /** The server timestamp in milliseconds since epoch. */
-        @JsonProperty("timestamp") long timestamp,
+        /** The server timestamp as an ISO-8601 string. */
+        @JsonProperty("timestamp") String timestamp,
         /**
          * The SDK protocol version supported by the server. The SDK validates that this
          * version matches the expected version to ensure compatibility.

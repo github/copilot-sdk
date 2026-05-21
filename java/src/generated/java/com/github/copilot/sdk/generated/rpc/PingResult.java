@@ -23,8 +23,8 @@ import javax.annotation.processing.Generated;
 public record PingResult(
     /** Echoed message (or default greeting) */
     @JsonProperty("message") String message,
-    /** Server timestamp in milliseconds */
-    @JsonProperty("timestamp") Long timestamp,
+    /** Server timestamp as an ISO-8601 string */
+    @JsonProperty("timestamp") String timestamp,
     /** Server protocol version number */
     @JsonProperty("protocolVersion") Long protocolVersion
 ) {

@@ -32,9 +32,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingResult_record() {
-        var result = new PingResult("pong", 1234L, 2L);
+        var result = new PingResult("pong", "2026-01-01T00:00:00Z", 2L);
         assertEquals("pong", result.message());
-        assertEquals(1234L, result.timestamp());
+        assertEquals("2026-01-01T00:00:00Z", result.timestamp());
         assertEquals(2L, result.protocolVersion());
     }
 
@@ -471,9 +471,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingResult_fields() {
-        var result = new PingResult("pong", 9999L, 1L);
+        var result = new PingResult("pong", "2026-06-15T10:30:00Z", 1L);
         assertEquals("pong", result.message());
-        assertEquals(9999L, result.timestamp());
+        assertEquals("2026-06-15T10:30:00Z", result.timestamp());
         assertEquals(1L, result.protocolVersion());
     }
 
