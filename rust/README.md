@@ -237,10 +237,11 @@ let config = SessionConfig {
         content: Some("Always explain your reasoning.".into()),
         ..Default::default()
     }),
-    request_elicitation: Some(true),    // enable elicitation provider
     ..Default::default()
-};
-let session = client.create_session(config.with_permission_handler(handler)).await?;
+}
+.with_elicitation_handler(Arc::new(my_elicitation_handler))
+.with_permission_handler(handler);
+let session = client.create_session(config).await?;
 ```
 
 ### Session Hooks

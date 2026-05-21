@@ -1059,33 +1059,6 @@ pub struct SessionConfig {
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the `ask_user` tool for interactive user input. Defaults to
-    /// `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_user_input: Option<bool>,
-    /// Enable `permission.request` JSON-RPC calls from the CLI.
-    /// Derived from [`Self::permission_handler`] presence at
-    /// [`Client::create_session`](crate::Client::create_session) time;
-    /// callers should install a [`PermissionHandler`] rather than
-    /// setting this directly.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_permission: Option<bool>,
-    /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. When `true`, the CLI
-    /// asks the handler whether to switch to auto model when an eligible
-    /// rate limit is hit. Defaults to `Some(true)` via
-    /// [`SessionConfig::default`]. Without this flag, the CLI surfaces the
-    /// rate-limit error directly without offering the auto-mode switch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
-    /// Advertise elicitation provider capability. When true, the CLI sends
-    /// `elicitation.requested` events that the handler can respond to.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_elicitation: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1237,11 +1210,6 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
-            .field("request_user_input", &self.request_user_input)
-            .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
-            .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1320,11 +1288,6 @@ impl Default for SessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
-            request_user_input: None,
-            request_permission: None,
-            request_exit_plan_mode: None,
-            request_auto_mode_switch: None,
-            request_elicitation: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1604,24 +1567,6 @@ impl SessionConfig {
         self
     }
 
-    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::default`].
-    pub fn with_request_user_input(mut self, enable: bool) -> Self {
-        self.request_user_input = Some(enable);
-        self
-    }
-
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
-        self
-    }
-
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -1793,24 +1738,6 @@ pub struct ResumeSessionConfig {
     /// Enable config discovery on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the ask_user tool.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_user_input: Option<bool>,
-    /// Enable permission request RPCs. When no handler is set, permission requests
-    /// remain pending until the consumer responds out-of-band.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_permission: Option<bool>,
-    /// Enable exit-plan-mode request RPCs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable auto-mode-switch request RPCs on resume. Defaults to
-    /// `Some(true)` via [`ResumeSessionConfig::new`]. See
-    /// [`SessionConfig::request_auto_mode_switch`] for details.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
-    /// Advertise elicitation provider capability on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_elicitation: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1939,11 +1866,6 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
-            .field("request_user_input", &self.request_user_input)
-            .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
-            .field("request_elicitation", &self.request_elicitation)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -2081,11 +2003,6 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
-            request_user_input: None,
-            request_permission: None,
-            request_exit_plan_mode: None,
-            request_auto_mode_switch: None,
-            request_elicitation: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -2272,24 +2189,6 @@ impl ResumeSessionConfig {
     /// Enable or disable CLI config discovery on resume.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
-        self
-    }
-
-    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::new`].
-    pub fn with_request_user_input(mut self, enable: bool) -> Self {
-        self.request_user_input = Some(enable);
-        self
-    }
-
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
-        self
-    }
-
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
         self
     }
 
@@ -3299,9 +3198,10 @@ pub enum ElicitationMode {
 
 /// An incoming elicitation request from the CLI (provider side).
 ///
-/// Received via `elicitation.requested` session event when the session was
-/// created with `request_elicitation: true`. The provider should render a
-/// form or dialog and return an [`ElicitationResult`].
+/// Received via `elicitation.requested` session event when the session has
+/// an [`ElicitationHandler`](crate::handler::ElicitationHandler) installed.
+/// The provider should render a form or dialog and return an
+/// [`ElicitationResult`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElicitationRequest {
@@ -3608,26 +3508,30 @@ mod tests {
     }
 
     #[test]
-    fn session_config_default_enables_permission_flow_flags() {
+    fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
-        // All wire flags start unset; the SDK derives them from handler
-        // presence at Client::create_session time.
-        assert_eq!(cfg.request_user_input, None);
-        assert_eq!(cfg.request_permission, None);
-        assert_eq!(cfg.request_elicitation, None);
-        assert_eq!(cfg.request_exit_plan_mode, None);
-        assert_eq!(cfg.request_auto_mode_switch, None);
+        // Wire flags are derived from handler presence at create_session
+        // time, not stored on the config. With no handlers installed, every
+        // request_* flag should serialize as false.
+        let wire = cfg.to_wire(SessionId::from("default-flags"));
+        assert!(!wire.request_user_input);
+        assert!(!wire.request_permission);
+        assert!(!wire.request_elicitation);
+        assert!(!wire.request_exit_plan_mode);
+        assert!(!wire.request_auto_mode_switch);
+        assert!(!wire.hooks);
     }
 
     #[test]
-    fn resume_session_config_new_enables_permission_flow_flags() {
-        let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
-        // All wire flags start unset on resume too.
-        assert_eq!(cfg.request_user_input, None);
-        assert_eq!(cfg.request_permission, None);
-        assert_eq!(cfg.request_elicitation, None);
-        assert_eq!(cfg.request_exit_plan_mode, None);
-        assert_eq!(cfg.request_auto_mode_switch, None);
+    fn resume_session_config_new_wire_flags_off_without_handlers() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
+        let wire = cfg.to_wire();
+        assert!(!wire.request_user_input);
+        assert!(!wire.request_permission);
+        assert!(!wire.request_elicitation);
+        assert!(!wire.request_exit_plan_mode);
+        assert!(!wire.request_auto_mode_switch);
+        assert!(!wire.hooks);
     }
 
     #[test]
@@ -3645,9 +3549,6 @@ mod tests {
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_enable_config_discovery(true)
-            .with_request_user_input(false)
-            .with_request_exit_plan_mode(false)
-            .with_request_auto_mode_switch(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
@@ -3673,10 +3574,6 @@ mod tests {
         );
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
-        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, None); // unset; derived at create_session time
-        assert_eq!(cfg.request_exit_plan_mode, Some(false));
-        assert_eq!(cfg.request_auto_mode_switch, Some(false));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
@@ -3705,9 +3602,6 @@ mod tests {
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_enable_config_discovery(true)
-            .with_request_user_input(false)
-            .with_request_exit_plan_mode(false)
-            .with_request_auto_mode_switch(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
@@ -3733,10 +3627,6 @@ mod tests {
         );
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
-        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, None); // unset; derived at create_session time
-        assert_eq!(cfg.request_exit_plan_mode, Some(false));
-        assert_eq!(cfg.request_auto_mode_switch, Some(false));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
