@@ -1,4 +1,4 @@
-//! Permission policy primitives that produce a [`PermissionHandler`].
+//! Permission policy primitives that produce a [`PermissionHandler`](crate::handler::PermissionHandler).
 //!
 //! Compose these into a session via the builder methods
 //! [`SessionConfig::approve_all_permissions`](crate::types::SessionConfig::approve_all_permissions),

@@ -239,7 +239,7 @@ impl Session {
     /// [`SessionEvent`] but cannot influence permission decisions, tool
     /// results, or anything else that requires returning a value. Those
     /// remain the responsibility of the per-callback handlers passed via
-    /// [`SessionConfig`](crate::types::SessionConfig)'s `with_*_handler`
+    /// [`SessionConfig`]'s `with_*_handler`
     /// builder methods.
     ///
     /// The returned handle implements both an inherent
