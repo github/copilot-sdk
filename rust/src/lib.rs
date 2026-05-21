@@ -350,7 +350,8 @@ pub struct ClientOptions {
     /// [`Self::github_token`] is set, in which case false).
     pub use_logged_in_user: Option<bool>,
     /// Log level passed to the CLI server via `--log-level`. When `None`,
-    /// the SDK uses [`LogLevel::Info`].
+    /// the SDK does not pass `--log-level` to the runtime at all and the
+    /// CLI uses its built-in default.
     pub log_level: Option<LogLevel>,
     /// Server-wide idle timeout for sessions, in seconds. When set to a
     /// positive value, the SDK passes `--session-idle-timeout <secs>` to
@@ -475,7 +476,7 @@ pub enum LogLevel {
     Error,
     /// Warnings and errors.
     Warning,
-    /// Default. Info and above.
+    /// Info and above.
     Info,
     /// Debug, info, warnings, errors.
     Debug,
@@ -1349,18 +1350,19 @@ impl Client {
         }
     }
 
+    fn log_level_args(options: &ClientOptions) -> Vec<&'static str> {
+        match options.log_level {
+            Some(level) => vec!["--log-level", level.as_str()],
+            None => Vec::new(),
+        }
+    }
+
     fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child, Error> {
         info!(cwd = ?options.working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options);
-        let log_level = options.log_level.unwrap_or(LogLevel::Info);
         command
-            .args([
-                "--server",
-                "--stdio",
-                "--no-auto-update",
-                "--log-level",
-                log_level.as_str(),
-            ])
+            .args(["--server", "--stdio", "--no-auto-update"])
+            .args(Self::log_level_args(options))
             .args(Self::auth_args(options))
             .args(Self::session_idle_timeout_args(options))
             .args(Self::remote_args(options))
@@ -1382,16 +1384,9 @@ impl Client {
     ) -> Result<(Child, u16), Error> {
         info!(cwd = ?options.working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options);
-        let log_level = options.log_level.unwrap_or(LogLevel::Info);
         command
-            .args([
-                "--server",
-                "--port",
-                &port.to_string(),
-                "--no-auto-update",
-                "--log-level",
-                log_level.as_str(),
-            ])
+            .args(["--server", "--port", &port.to_string(), "--no-auto-update"])
+            .args(Self::log_level_args(options))
             .args(Self::auth_args(options))
             .args(Self::session_idle_timeout_args(options))
             .args(Self::remote_args(options))
@@ -2401,6 +2396,22 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(Client::remote_args(&opts), vec!["--remote".to_string()]);
+    }
+
+    #[test]
+    fn log_level_args_omitted_when_unset() {
+        let opts = ClientOptions::default();
+        assert!(opts.log_level.is_none());
+        assert!(
+            Client::log_level_args(&opts).is_empty(),
+            "with no caller-supplied log_level the SDK must not pass --log-level"
+        );
+    }
+
+    #[test]
+    fn log_level_args_emit_flag_when_set() {
+        let opts = ClientOptions::default().with_log_level(LogLevel::Debug);
+        assert_eq!(Client::log_level_args(&opts), vec!["--log-level", "debug"]);
     }
 
     #[test]
