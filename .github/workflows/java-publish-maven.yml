@@ -211,7 +211,7 @@ jobs:
 
           # Generate release notes from template
           export VERSION GROUP_ID ARTIFACT_ID
-          RELEASE_NOTES=$(envsubst < $GITHUB_WORKSPACE/.github/workflows/notes.template)
+          RELEASE_NOTES=$(envsubst < $GITHUB_WORKSPACE/.github/workflows/java.notes.template)
 
           # Get the previous tag for generating notes
           PREV_TAG=$(git tag --list 'java/v*' --sort=-version:refname \
