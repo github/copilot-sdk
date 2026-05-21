@@ -764,13 +764,13 @@ impl Client {
     ///
     /// All callbacks (per-event handlers, tool handlers, hooks, transform)
     /// are configured via [`SessionConfig`] using its `with_*_handler` /
-    /// `with_tools` / `with_hooks` / `with_transform` builder
+    /// `with_tools` / `with_hooks` / `with_system_message_transform` builder
     /// methods.
     ///
     /// If [`hooks_handler`](SessionConfig::hooks_handler) is set, the
     /// wire-level `hooks` flag is automatically enabled.
     ///
-    /// If [`transform`](SessionConfig::transform) is set, the SDK injects
+    /// If [`system_message_transform`](SessionConfig::system_message_transform) is set, the SDK injects
     /// `action: "transform"` sections into the [`SystemMessageConfig`] wire
     /// format and handles `systemMessage.transform` RPC callbacks during
     /// the session.
@@ -788,7 +788,7 @@ impl Client {
         if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
-        if let Some(transforms) = config.transform.clone() {
+        if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
         let wire = config.to_wire(session_id.clone());
@@ -824,7 +824,7 @@ impl Client {
             tools: Arc::new(tool_map),
         };
         let hooks = config.hooks_handler.take();
-        let transforms = config.transform.take();
+        let transforms = config.system_message_transform.take();
         let tools_count = config.tools.as_ref().map_or(0, Vec::len);
         let commands_count = config.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
@@ -943,7 +943,7 @@ impl Client {
         if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
-        if let Some(transforms) = config.transform.clone() {
+        if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
         let wire = config.to_wire();
@@ -979,7 +979,7 @@ impl Client {
             tools: Arc::new(tool_map),
         };
         let hooks = config.hooks_handler.take();
-        let transforms = config.transform.take();
+        let transforms = config.system_message_transform.take();
         let tools_count = config.tools.as_ref().map_or(0, Vec::len);
         let commands_count = config.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();

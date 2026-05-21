@@ -1227,9 +1227,9 @@ pub struct SessionConfig {
     /// System-message transform. When set, the SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
-    /// Use [`with_transform`](Self::with_transform) to install one.
+    /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
     #[serde(skip)]
-    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1298,7 +1298,10 @@ impl std::fmt::Debug for SessionConfig {
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
-            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .field(
+                "system_message_transform",
+                &self.system_message_transform.as_ref().map(|_| "<set>"),
+            )
             .finish()
     }
 }
@@ -1349,7 +1352,7 @@ impl Default for SessionConfig {
             auto_mode_switch_handler: None,
             hooks_handler: None,
             permission_policy: None,
-            transform: None,
+            system_message_transform: None,
         }
     }
 }
@@ -1471,8 +1474,11 @@ impl SessionConfig {
     /// Install a [`SystemMessageTransform`]. The SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
-    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
-        self.transform = Some(transform);
+    pub fn with_system_message_transform(
+        mut self,
+        transform: Arc<dyn SystemMessageTransform>,
+    ) -> Self {
+        self.system_message_transform = Some(transform);
         self
     }
 
@@ -1857,9 +1863,9 @@ pub struct ResumeSessionConfig {
     /// Permission policy. See `SessionConfig::permission_policy`.
     #[serde(skip)]
     pub(crate) permission_policy: Option<crate::permission::Policy>,
-    /// System-message transform. See [`SessionConfig::transform`].
+    /// System-message transform. See [`SessionConfig::system_message_transform`].
     #[serde(skip)]
-    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -1926,7 +1932,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
-            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .field(
+                "system_message_transform",
+                &self.system_message_transform.as_ref().map(|_| "<set>"),
+            )
             .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
             .finish()
@@ -2030,7 +2039,7 @@ impl ResumeSessionConfig {
             auto_mode_switch_handler: None,
             hooks_handler: None,
             permission_policy: None,
-            transform: None,
+            system_message_transform: None,
         }
     }
 
@@ -2075,8 +2084,11 @@ impl ResumeSessionConfig {
     }
 
     /// Install a [`SystemMessageTransform`].
-    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
-        self.transform = Some(transform);
+    pub fn with_system_message_transform(
+        mut self,
+        transform: Arc<dyn SystemMessageTransform>,
+    ) -> Self {
+        self.system_message_transform = Some(transform);
         self
     }
 

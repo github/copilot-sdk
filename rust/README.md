@@ -322,7 +322,7 @@ let session = client
     .create_session(
         config
             .with_permission_handler(handler)
-            .with_transform(Arc::new(MyTransform)),
+            .with_system_message_transform(Arc::new(MyTransform)),
     )
     .await?;
 ```

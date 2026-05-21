@@ -21,7 +21,9 @@ use async_trait::async_trait;
 pub use schemars::JsonSchema;
 
 use crate::Error;
-use crate::types::{Tool, ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded};
+use crate::types::{ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded};
+#[cfg(any(feature = "derive", test))]
+use crate::types::Tool;
 
 /// Generate a JSON Schema [`Value`](serde_json::Value) from a Rust type.
 ///

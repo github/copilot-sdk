@@ -2564,7 +2564,7 @@ async fn hooks_invoke_returns_empty_for_unregistered_hook() {
     assert_eq!(response["result"]["output"], serde_json::json!({}));
 }
 
-async fn create_session_pair_with_transforms(
+async fn create_session_pair_with_system_message_transforms(
     transforms: Arc<dyn github_copilot_sdk::transforms::SystemMessageTransform>,
 ) -> (github_copilot_sdk::session::Session, FakeServer) {
     let (client, server_read, server_write) = make_client();
@@ -2579,7 +2579,7 @@ async fn create_session_pair_with_transforms(
         let client = client.clone();
         async move {
             client
-                .create_session(SessionConfig::default().with_transform(transforms))
+                .create_session(SessionConfig::default().with_system_message_transform(transforms))
                 .await
                 .unwrap()
         }
@@ -2626,7 +2626,7 @@ async fn system_message_transform_dispatches_to_transform() {
     }
 
     let (_session, mut server) =
-        create_session_pair_with_transforms(Arc::new(AppendTransform)).await;
+        create_session_pair_with_system_message_transforms(Arc::new(AppendTransform)).await;
 
     server
         .send_request(
@@ -2671,7 +2671,7 @@ async fn system_message_transform_returns_error_for_missing_sections() {
     }
 
     let (_session, mut server) =
-        create_session_pair_with_transforms(Arc::new(DummyTransform)).await;
+        create_session_pair_with_system_message_transforms(Arc::new(DummyTransform)).await;
 
     // Send request with no sections parameter
     server
