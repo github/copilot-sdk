@@ -54,6 +54,23 @@ import type {
 export const NO_RESULT_PERMISSION_V2_ERROR =
     "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
 
+/**
+ * Convert a raw hook input received over the wire into its public-facing shape.
+ * Currently this only deserializes the numeric Unix-ms `timestamp` field on
+ * BaseHookInput into a Date. Anything else passes through unchanged.
+ */
+function deserializeHookInput(raw: unknown): unknown {
+    if (
+        !raw ||
+        typeof raw !== "object" ||
+        typeof (raw as { timestamp?: unknown }).timestamp !== "number"
+    ) {
+        return raw;
+    }
+    const obj = raw as Record<string, unknown> & { timestamp: number };
+    return { ...obj, timestamp: new Date(obj.timestamp) };
+}
+
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
 
@@ -955,7 +972,14 @@ export class CopilotSession {
             return undefined;
         }
 
-        // Type-safe handler lookup with explicit casting
+        // All hook inputs share BaseHookInput, which exposes `timestamp` as a Date.
+        // The wire format sends it as Unix epoch ms (number), so we deserialize
+        // here, at the one place that knows the input is a hook payload. Bad data
+        // is left alone — the user-facing handler types still cast unknown to the
+        // specific HookInput, so a runtime type mismatch surfaces as a normal
+        // TypeError in user code rather than being silently masked.
+        const normalized = deserializeHookInput(input);
+
         type GenericHandler = (
             input: unknown,
             invocation: { sessionId: string }
@@ -976,7 +1000,7 @@ export class CopilotSession {
         }
 
         try {
-            const result = await handler(input, { sessionId: this.sessionId });
+            const result = await handler(normalized, { sessionId: this.sessionId });
             return result;
         } catch (_error) {
             // Hook failed, return undefined

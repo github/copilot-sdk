@@ -88,23 +88,6 @@ function isZodSchema(value: unknown): value is { toJSONSchema(): Record<string, 
 }
 
 /**
- * Normalize an inbound hook input payload by converting the numeric
- * Unix-ms `timestamp` field (as sent on the wire) into a `Date`.
- */
-function normalizeHookInput(input: unknown): unknown {
-    if (
-        input &&
-        typeof input === "object" &&
-        "timestamp" in input &&
-        typeof (input as { timestamp: unknown }).timestamp === "number"
-    ) {
-        const t = (input as { timestamp: number }).timestamp;
-        return { ...(input as Record<string, unknown>), timestamp: new Date(t) };
-    }
-    return input;
-}
-
-/**
  * Convert tool parameters to JSON schema format for sending to CLI
  */
 function toJsonSchema(parameters: Tool["parameters"]): Record<string, unknown> | undefined {
@@ -2059,10 +2042,7 @@ export class CopilotClient {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
 
-        const output = await session._handleHooksInvoke(
-            params.hookType,
-            normalizeHookInput(params.input)
-        );
+        const output = await session._handleHooksInvoke(params.hookType, params.input);
         return { output };
     }
 
