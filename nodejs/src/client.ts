@@ -1757,7 +1757,13 @@ export class CopilotClient {
         return new Promise((resolve, reject) => {
             this.socket = new Socket();
 
+            const connectionTimeout = setTimeout(() => {
+                this.socket?.destroy();
+                reject(new Error("Timeout connecting to CLI server"));
+            }, 10000);
+
             this.socket.connect(this.actualPort!, this.actualHost, () => {
+                clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
                 this.connection = createMessageConnection(
                     new StreamMessageReader(this.socket!),
@@ -1770,6 +1776,7 @@ export class CopilotClient {
             });
 
             this.socket.on("error", (error) => {
+                clearTimeout(connectionTimeout);
                 reject(new Error(`Failed to connect to CLI server: ${error.message}`));
             });
         });

@@ -91,35 +91,77 @@ export type SessionEvent =
 /**
  * Hosting platform type of the repository (github or ado)
  */
-export type WorkingDirectoryContextHostType = "github" | "ado";
+export type WorkingDirectoryContextHostType =
+  /** Repository is hosted on GitHub. */
+  | "github"
+  /** Repository is hosted on Azure DevOps. */
+  | "ado";
 /**
  * Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
  */
-export type ReasoningSummary = "none" | "concise" | "detailed";
+export type ReasoningSummary =
+  /** Do not request reasoning summaries from the model. */
+  | "none"
+  /** Request a concise summary of the model's reasoning. */
+  | "concise"
+  /** Request a detailed summary of the model's reasoning. */
+  | "detailed";
 /**
  * The session mode the agent is operating in
  */
-export type SessionMode = "interactive" | "plan" | "autopilot";
+export type SessionMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot";
 /**
  * The type of operation performed on the plan file
  */
-export type PlanChangedOperation = "create" | "update" | "delete";
+export type PlanChangedOperation =
+  /** The plan file was created. */
+  | "create"
+  /** The plan file was updated. */
+  | "update"
+  /** The plan file was deleted. */
+  | "delete";
 /**
  * Whether the file was newly created or updated
  */
-export type WorkspaceFileChangedOperation = "create" | "update";
+export type WorkspaceFileChangedOperation =
+  /** The workspace file was created. */
+  | "create"
+  /** The workspace file was updated. */
+  | "update";
 /**
  * Origin type of the session being handed off
  */
-export type HandoffSourceType = "remote" | "local";
+export type HandoffSourceType =
+  /** The handoff originated from a remote session. */
+  | "remote"
+  /** The handoff originated from a local session. */
+  | "local";
 /**
  * Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
  */
-export type ShutdownType = "routine" | "error";
+export type ShutdownType =
+  /** The session ended normally. */
+  | "routine"
+  /** The session ended because of a crash or fatal error. */
+  | "error";
 /**
  * The agent mode that was active when this message was sent
  */
-export type UserMessageAgentMode = "interactive" | "plan" | "autopilot" | "shell";
+export type UserMessageAgentMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot"
+  /** The agent is in shell-focused UI mode. */
+  | "shell";
 /**
  * A user message attachment — a file, directory, code selection, blob, or GitHub reference
  */
@@ -132,23 +174,53 @@ export type UserMessageAttachment =
 /**
  * Type of GitHub reference
  */
-export type UserMessageAttachmentGithubReferenceType = "issue" | "pr" | "discussion";
+export type UserMessageAttachmentGithubReferenceType =
+  /** GitHub issue reference. */
+  | "issue"
+  /** GitHub pull request reference. */
+  | "pr"
+  /** GitHub discussion reference. */
+  | "discussion";
 /**
  * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
  */
-export type AssistantMessageToolRequestType = "function" | "custom";
+export type AssistantMessageToolRequestType =
+  /** Standard function-style tool call. */
+  | "function"
+  /** Custom grammar-based tool call. */
+  | "custom";
 /**
  * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
  */
-export type AssistantUsageApiEndpoint = "/chat/completions" | "/v1/messages" | "/responses" | "ws:/responses";
+export type AssistantUsageApiEndpoint =
+  /** Chat Completions API endpoint. */
+  | "/chat/completions"
+  /** Anthropic Messages API endpoint. */
+  | "/v1/messages"
+  /** Responses API endpoint. */
+  | "/responses"
+  /** WebSocket Responses API endpoint. */
+  | "ws:/responses";
 /**
  * Where the failed model call originated
  */
-export type ModelCallFailureSource = "top_level" | "subagent" | "mcp_sampling";
+export type ModelCallFailureSource =
+  /** Model call from the top-level agent. */
+  | "top_level"
+  /** Model call from a sub-agent. */
+  | "subagent"
+  /** Model call from MCP sampling. */
+  | "mcp_sampling";
 /**
  * Finite reason code describing why the current turn was aborted
  */
-export type AbortReason = "user_initiated" | "remote_command" | "user_abort";
+export type AbortReason =
+  /** The local user requested the abort, for example by pressing Ctrl+C in the CLI. */
+  | "user_initiated"
+  /** A remote command requested the abort. */
+  | "remote_command"
+  /** An MCP server delivered a user.abort notification. */
+  | "user_abort";
 /**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  */
@@ -162,7 +234,11 @@ export type ToolExecutionCompleteContent =
 /**
  * Theme variant this icon is intended for
  */
-export type ToolExecutionCompleteContentResourceLinkIconTheme = "light" | "dark";
+export type ToolExecutionCompleteContentResourceLinkIconTheme =
+  /** Icon intended for light themes. */
+  | "light"
+  /** Icon intended for dark themes. */
+  | "dark";
 /**
  * The embedded resource contents, either text or base64-encoded binary
  */
@@ -170,7 +246,11 @@ export type ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceCo
 /**
  * Message role: "system" for system prompts, "developer" for developer-injected instructions
  */
-export type SystemMessageRole = "system" | "developer";
+export type SystemMessageRole =
+  /** System prompt message. */
+  | "system"
+  /** Developer instruction message. */
+  | "developer";
 /**
  * Structured metadata identifying what triggered this notification
  */
@@ -184,7 +264,11 @@ export type SystemNotification =
 /**
  * Whether the agent completed successfully or failed
  */
-export type SystemNotificationAgentCompletedStatus = "completed" | "failed";
+export type SystemNotificationAgentCompletedStatus =
+  /** The agent completed successfully. */
+  | "completed"
+  /** The agent failed. */
+  | "failed";
 /**
  * Details of the permission being requested
  */
@@ -202,11 +286,19 @@ export type PermissionRequest =
 /**
  * Whether this is a store or vote memory operation
  */
-export type PermissionRequestMemoryAction = "store" | "vote";
+export type PermissionRequestMemoryAction =
+  /** Store a new memory. */
+  | "store"
+  /** Vote on an existing memory. */
+  | "vote";
 /**
  * Vote direction (vote only)
  */
-export type PermissionRequestMemoryDirection = "upvote" | "downvote";
+export type PermissionRequestMemoryDirection =
+  /** Vote that the memory is useful or accurate. */
+  | "upvote"
+  /** Vote that the memory is incorrect or outdated. */
+  | "downvote";
 /**
  * Derived user-facing permission prompt details for UI consumers
  */
@@ -225,7 +317,13 @@ export type PermissionPromptRequest =
 /**
  * Underlying permission kind that needs path approval
  */
-export type PermissionPromptRequestPathAccessKind = "read" | "shell" | "write";
+export type PermissionPromptRequestPathAccessKind =
+  /** Read access to a filesystem path. */
+  | "read"
+  /** Shell command access involving a filesystem path. */
+  | "shell"
+  /** Write access to a filesystem path. */
+  | "write";
 /**
  * The result of the permission request
  */
@@ -254,11 +352,21 @@ export type UserToolSessionApproval =
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
  */
-export type ElicitationRequestedMode = "form" | "url";
+export type ElicitationRequestedMode =
+  /** Structured form-based elicitation. */
+  | "form"
+  /** Browser URL-based elicitation. */
+  | "url";
 /**
  * The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
  */
-export type ElicitationCompletedAction = "accept" | "decline" | "cancel";
+export type ElicitationCompletedAction =
+  /** The user submitted the requested form. */
+  | "accept"
+  /** The user explicitly declined the request. */
+  | "decline"
+  /** The user dismissed the request. */
+  | "cancel";
 /**
  * Schema for the `ElicitationCompletedContent` type.
  */
@@ -278,38 +386,91 @@ export type CustomNotificationPayload =
 /**
  * The user's auto-mode-switch choice
  */
-export type AutoModeSwitchResponse = "yes" | "yes_always" | "no";
+export type AutoModeSwitchResponse =
+  /** Switch models for this request. */
+  | "yes"
+  /** Switch models now and keep using the replacement automatically. */
+  | "yes_always"
+  /** Do not switch models. */
+  | "no";
 /**
  * Exit plan mode action
  */
-export type ExitPlanModeAction = "exit_only" | "interactive" | "autopilot" | "autopilot_fleet";
+export type ExitPlanModeAction =
+  /** Exit plan mode without starting implementation. */
+  | "exit_only"
+  /** Exit plan mode and continue in interactive mode. */
+  | "interactive"
+  /** Exit plan mode and continue autonomously. */
+  | "autopilot"
+  /** Exit plan mode and continue with parallel autonomous workers. */
+  | "autopilot_fleet";
 /**
  * Source location type (e.g., project, personal-copilot, plugin, builtin)
  */
 export type SkillSource =
+  /** Skill defined in the current project's skill directories. */
   | "project"
+  /** Skill discovered from a parent directory in the current workspace tree. */
   | "inherited"
+  /** Skill defined in the user's Copilot skill directory. */
   | "personal-copilot"
+  /** Skill defined in the user's personal agents skill directory. */
   | "personal-agents"
+  /** Skill provided by an installed plugin. */
   | "plugin"
+  /** Skill loaded from a configured custom skill directory. */
   | "custom"
+  /** Skill bundled with the runtime. */
   | "builtin";
 /**
  * Configuration source: user, workspace, plugin, or builtin
  */
-export type McpServerSource = "user" | "workspace" | "plugin" | "builtin";
+export type McpServerSource =
+  /** Server configured in the user's global MCP configuration. */
+  | "user"
+  /** Server configured by the current workspace. */
+  | "workspace"
+  /** Server contributed by an installed plugin. */
+  | "plugin"
+  /** Server bundled with the runtime. */
+  | "builtin";
 /**
  * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  */
-export type McpServerStatus = "connected" | "failed" | "needs-auth" | "pending" | "disabled" | "not_configured";
+export type McpServerStatus =
+  /** The server is connected and available. */
+  | "connected"
+  /** The server failed to connect or initialize. */
+  | "failed"
+  /** The server requires authentication before it can connect. */
+  | "needs-auth"
+  /** The server connection is still being established. */
+  | "pending"
+  /** The server is configured but disabled. */
+  | "disabled"
+  /** The server is not configured for this session. */
+  | "not_configured";
 /**
  * Discovery source
  */
-export type ExtensionsLoadedExtensionSource = "project" | "user";
+export type ExtensionsLoadedExtensionSource =
+  /** Extension discovered from the current project. */
+  | "project"
+  /** Extension discovered from the user's extension directory. */
+  | "user";
 /**
  * Current status: running, disabled, failed, or starting
  */
-export type ExtensionsLoadedExtensionStatus = "running" | "disabled" | "failed" | "starting";
+export type ExtensionsLoadedExtensionStatus =
+  /** The extension process is running. */
+  | "running"
+  /** The extension is installed but disabled. */
+  | "disabled"
+  /** The extension failed to start or crashed. */
+  | "failed"
+  /** The extension process is starting. */
+  | "starting";
 
 /**
  * Session event "session.start". Session initialization metadata including context and configuration
@@ -2566,7 +2727,7 @@ export interface AssistantUsageData {
   /**
    * Time to first token in milliseconds. Only available for streaming requests
    */
-  ttftMs?: number;
+  timeToFirstTokenMs?: number;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field

@@ -48,7 +48,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         {
             ["test-server"] = new McpStdioServerConfig
             {
-                Command = "echo",
+                Command = "true",
                 Tools = ["*"]
             }
         };

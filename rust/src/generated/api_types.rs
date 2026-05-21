@@ -5420,6 +5420,36 @@ pub struct SlashCommandTextResult {
     pub text: String,
 }
 
+/// Schema for the `SlashCommandSelectSubcommandOption` type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandSelectSubcommandOption {
+    /// Human-readable description of the subcommand
+    pub description: String,
+    /// Optional group label for organizing options
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// Subcommand name to invoke
+    pub name: String,
+}
+
+/// Schema for the `SlashCommandSelectSubcommandResult` type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SlashCommandSelectSubcommandResult {
+    /// Parent command name that requires subcommand selection
+    pub command: String,
+    /// Select subcommand result discriminator
+    pub kind: SlashCommandSelectSubcommandResultKind,
+    /// Available subcommand options for the client to present
+    pub options: Vec<SlashCommandSelectSubcommandOption>,
+    /// True when the invocation mutated user runtime settings; consumers caching settings should refresh
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime_settings_changed: Option<bool>,
+    /// Human-readable title for the selection UI
+    pub title: String,
+}
+
 /// Schema for the `TaskAgentInfo` type.
 ///
 /// <div class="warning">
@@ -8694,16 +8724,22 @@ pub struct SessionFsSqliteExistsParams {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AgentInfoSource {
+    /// Agent loaded from the user's personal agent configuration.
     #[serde(rename = "user")]
     User,
+    /// Agent loaded from the current project's repository configuration.
     #[serde(rename = "project")]
     Project,
+    /// Agent inherited from a parent project or workspace.
     #[serde(rename = "inherited")]
     Inherited,
+    /// Agent provided by a remote runtime or service.
     #[serde(rename = "remote")]
     Remote,
+    /// Agent contributed by an installed plugin.
     #[serde(rename = "plugin")]
     Plugin,
+    /// Agent built into the Copilot runtime.
     #[serde(rename = "builtin")]
     Builtin,
     /// Unknown variant for forward compatibility.
@@ -8723,18 +8759,25 @@ pub enum ApiKeyAuthInfoType {
 /// Authentication type
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AuthInfoType {
+    /// Authentication provided by a GitHub App HMAC credential.
     #[serde(rename = "hmac")]
     Hmac,
+    /// Authentication resolved from environment-provided credentials.
     #[serde(rename = "env")]
     Env,
+    /// Authentication from an interactive user sign-in.
     #[serde(rename = "user")]
     User,
+    /// Authentication delegated to the GitHub CLI.
     #[serde(rename = "gh-cli")]
     GhCli,
+    /// Authentication from an API key credential.
     #[serde(rename = "api-key")]
     ApiKey,
+    /// Authentication from a GitHub token.
     #[serde(rename = "token")]
     Token,
+    /// Authentication from a Copilot API token.
     #[serde(rename = "copilot-api-token")]
     CopilotApiToken,
     /// Unknown variant for forward compatibility.
@@ -8746,6 +8789,7 @@ pub enum AuthInfoType {
 /// Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SlashCommandInputCompletion {
+    /// Input should complete filesystem directories.
     #[serde(rename = "directory")]
     Directory,
     /// Unknown variant for forward compatibility.
@@ -8757,10 +8801,13 @@ pub enum SlashCommandInputCompletion {
 /// Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SlashCommandKind {
+    /// Command implemented by the runtime.
     #[serde(rename = "builtin")]
     Builtin,
+    /// Command backed by a skill.
     #[serde(rename = "skill")]
     Skill,
+    /// Command registered by an SDK client or extension.
     #[serde(rename = "client")]
     Client,
     /// Unknown variant for forward compatibility.
@@ -8779,8 +8826,10 @@ pub enum SlashCommandKind {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ConnectedRemoteSessionMetadataKind {
+    /// Remote CLI session.
     #[serde(rename = "remote-session")]
     RemoteSession,
+    /// GitHub Copilot coding agent session.
     #[serde(rename = "coding-agent")]
     CodingAgent,
     /// Unknown variant for forward compatibility.
@@ -8792,10 +8841,13 @@ pub enum ConnectedRemoteSessionMetadataKind {
 /// Controls how MCP tool result content is filtered: none leaves content unchanged, markdown sanitizes HTML while preserving Markdown-friendly output, and hidden_characters removes characters that can hide directives.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContentFilterMode {
+    /// Leave MCP tool result content unchanged.
     #[serde(rename = "none")]
     None,
+    /// Sanitize HTML while preserving Markdown-friendly output.
     #[serde(rename = "markdown")]
     Markdown,
+    /// Remove characters that can hide directives.
     #[serde(rename = "hidden_characters")]
     HiddenCharacters,
     /// Unknown variant for forward compatibility.
@@ -8823,12 +8875,16 @@ pub enum CopilotApiTokenAuthInfoType {
 /// Server transport type: stdio, http, sse, or memory
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiscoveredMcpServerType {
+    /// Server communicates over stdio with a local child process.
     #[serde(rename = "stdio")]
     Stdio,
+    /// Server communicates over streamable HTTP.
     #[serde(rename = "http")]
     Http,
+    /// Server communicates over Server-Sent Events.
     #[serde(rename = "sse")]
     Sse,
+    /// Server is backed by an in-memory runtime implementation.
     #[serde(rename = "memory")]
     Memory,
     /// Unknown variant for forward compatibility.
@@ -8855,8 +8911,10 @@ pub enum EnvAuthInfoType {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventsAgentScope {
+    /// Return main-agent events and typed subagent lifecycle events.
     #[serde(rename = "primary")]
     Primary,
+    /// Return events from all agents.
     #[serde(rename = "all")]
     All,
     /// Unknown variant for forward compatibility.
@@ -8875,8 +8933,10 @@ pub enum EventsAgentScope {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EventsCursorStatus {
+    /// The cursor was applied successfully.
     #[serde(rename = "ok")]
     Ok,
+    /// The cursor referred to history that is no longer available.
     #[serde(rename = "expired")]
     Expired,
     /// Unknown variant for forward compatibility.
@@ -8895,8 +8955,10 @@ pub enum EventsCursorStatus {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionSource {
+    /// Extension discovered from the current project's .github/extensions directory.
     #[serde(rename = "project")]
     Project,
+    /// Extension discovered from the user's ~/.copilot/extensions directory.
     #[serde(rename = "user")]
     User,
     /// Unknown variant for forward compatibility.
@@ -8915,12 +8977,16 @@ pub enum ExtensionSource {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionStatus {
+    /// The extension process is running.
     #[serde(rename = "running")]
     Running,
+    /// The extension is installed but disabled.
     #[serde(rename = "disabled")]
     Disabled,
+    /// The extension failed to start or crashed.
     #[serde(rename = "failed")]
     Failed,
+    /// The extension process is starting.
     #[serde(rename = "starting")]
     Starting,
     /// Unknown variant for forward compatibility.
@@ -8932,8 +8998,10 @@ pub enum ExtensionStatus {
 /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExternalToolTextResultForLlmBinaryResultsForLlmType {
+    /// Binary image data.
     #[serde(rename = "image")]
     Image,
+    /// Other binary resource data.
     #[serde(rename = "resource")]
     Resource,
     /// Unknown variant for forward compatibility.
@@ -8969,8 +9037,10 @@ pub enum ExternalToolTextResultForLlmContentResourceType {
 /// Theme variant this icon is intended for
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExternalToolTextResultForLlmContentResourceLinkIconTheme {
+    /// Icon intended for light themes.
     #[serde(rename = "light")]
     Light,
+    /// Icon intended for dark themes.
     #[serde(rename = "dark")]
     Dark,
     /// Unknown variant for forward compatibility.
@@ -9054,12 +9124,16 @@ pub enum InstalledPluginSourceUrlSource {
 /// Where this source lives — used for UI grouping
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InstructionsSourcesLocation {
+    /// Instructions live in user-level configuration.
     #[serde(rename = "user")]
     User,
+    /// Instructions live in repository-level configuration.
     #[serde(rename = "repository")]
     Repository,
+    /// Instructions live under the current working directory.
     #[serde(rename = "working-directory")]
     WorkingDirectory,
+    /// Instructions live in plugin-provided configuration.
     #[serde(rename = "plugin")]
     Plugin,
     /// Unknown variant for forward compatibility.
@@ -9071,18 +9145,25 @@ pub enum InstructionsSourcesLocation {
 /// Category of instruction source — used for merge logic
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InstructionsSourcesType {
+    /// Instructions loaded from the user's home configuration.
     #[serde(rename = "home")]
     Home,
+    /// Instructions loaded from repository-scoped files.
     #[serde(rename = "repo")]
     Repo,
+    /// Instructions loaded from model-specific files.
     #[serde(rename = "model")]
     Model,
+    /// Instructions loaded from VS Code instruction files.
     #[serde(rename = "vscode")]
     Vscode,
+    /// Instructions discovered from nested agent files.
     #[serde(rename = "nested-agents")]
     NestedAgents,
+    /// Instructions inherited from child instruction files.
     #[serde(rename = "child-instructions")]
     ChildInstructions,
+    /// Instructions supplied by an installed plugin.
     #[serde(rename = "plugin")]
     Plugin,
     /// Unknown variant for forward compatibility.
@@ -9094,10 +9175,13 @@ pub enum InstructionsSourcesType {
 /// Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionLogLevel {
+    /// Informational message.
     #[serde(rename = "info")]
     Info,
+    /// Warning message that may require attention.
     #[serde(rename = "warning")]
     Warning,
+    /// Error message describing a failure.
     #[serde(rename = "error")]
     Error,
     /// Unknown variant for forward compatibility.
@@ -9116,10 +9200,13 @@ pub enum SessionLogLevel {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpSamplingExecutionAction {
+    /// The sampling inference completed and produced a result.
     #[serde(rename = "success")]
     Success,
+    /// The sampling inference failed or was rejected.
     #[serde(rename = "failure")]
     Failure,
+    /// The sampling inference was cancelled before completion.
     #[serde(rename = "cancelled")]
     Cancelled,
     /// Unknown variant for forward compatibility.
@@ -9131,8 +9218,10 @@ pub enum McpSamplingExecutionAction {
 /// OAuth grant type to use when authenticating to the remote MCP server.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerConfigHttpOauthGrantType {
+    /// Interactive browser-based authorization code flow with PKCE.
     #[serde(rename = "authorization_code")]
     AuthorizationCode,
+    /// Headless client credentials flow using the configured OAuth client.
     #[serde(rename = "client_credentials")]
     ClientCredentials,
     /// Unknown variant for forward compatibility.
@@ -9144,8 +9233,10 @@ pub enum McpServerConfigHttpOauthGrantType {
 /// Remote transport type. Defaults to "http" when omitted.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerConfigHttpType {
+    /// Streamable HTTP transport.
     #[serde(rename = "http")]
     Http,
+    /// Server-Sent Events transport.
     #[serde(rename = "sse")]
     Sse,
     /// Unknown variant for forward compatibility.
@@ -9164,8 +9255,10 @@ pub enum McpServerConfigHttpType {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpSetEnvValueModeDetails {
+    /// Treat MCP server environment values as literal strings.
     #[serde(rename = "direct")]
     Direct,
+    /// Treat MCP server environment values as host-side references to resolve before launch.
     #[serde(rename = "indirect")]
     Indirect,
     /// Unknown variant for forward compatibility.
@@ -9184,8 +9277,10 @@ pub enum McpSetEnvValueModeDetails {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionWorkingDirectoryContextHostType {
+    /// The working directory repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// The working directory repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -9204,10 +9299,13 @@ pub enum SessionWorkingDirectoryContextHostType {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MetadataSnapshotCurrentMode {
+    /// The agent is responding interactively to the user.
     #[serde(rename = "interactive")]
     Interactive,
+    /// The agent is preparing a plan before making changes.
     #[serde(rename = "plan")]
     Plan,
+    /// The agent is working autonomously toward task completion.
     #[serde(rename = "autopilot")]
     Autopilot,
     /// Unknown variant for forward compatibility.
@@ -9226,8 +9324,10 @@ pub enum MetadataSnapshotCurrentMode {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MetadataSnapshotRemoteMetadataTaskType {
+    /// Remote task originated from Copilot Coding Agent.
     #[serde(rename = "cca")]
     Cca,
+    /// Remote task originated from a CLI remote-session invocation.
     #[serde(rename = "cli")]
     Cli,
     /// Unknown variant for forward compatibility.
@@ -9239,10 +9339,13 @@ pub enum MetadataSnapshotRemoteMetadataTaskType {
 /// Model capability category for grouping in the model picker
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPickerCategory {
+    /// Lightweight model category optimized for faster, lower-cost interactions.
     #[serde(rename = "lightweight")]
     Lightweight,
+    /// Versatile model category suitable for a broad range of tasks.
     #[serde(rename = "versatile")]
     Versatile,
+    /// Powerful model category optimized for complex tasks.
     #[serde(rename = "powerful")]
     Powerful,
     /// Unknown variant for forward compatibility.
@@ -9254,12 +9357,16 @@ pub enum ModelPickerCategory {
 /// Relative cost tier for token-based billing users
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPickerPriceCategory {
+    /// Lowest relative token cost tier.
     #[serde(rename = "low")]
     Low,
+    /// Medium relative token cost tier.
     #[serde(rename = "medium")]
     Medium,
+    /// High relative token cost tier.
     #[serde(rename = "high")]
     High,
+    /// Highest relative token cost tier.
     #[serde(rename = "very_high")]
     VeryHigh,
     /// Unknown variant for forward compatibility.
@@ -9271,10 +9378,13 @@ pub enum ModelPickerPriceCategory {
 /// Current policy state for this model
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelPolicyState {
+    /// The model is enabled by policy.
     #[serde(rename = "enabled")]
     Enabled,
+    /// The model is disabled by policy.
     #[serde(rename = "disabled")]
     Disabled,
+    /// No explicit policy is configured for the model.
     #[serde(rename = "unconfigured")]
     Unconfigured,
     /// Unknown variant for forward compatibility.
@@ -9293,8 +9403,10 @@ pub enum ModelPolicyState {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OptionsUpdateEnvValueMode {
+    /// Pass MCP server environment values as literal strings.
     #[serde(rename = "direct")]
     Direct,
+    /// Resolve MCP server environment values from host-side references.
     #[serde(rename = "indirect")]
     Indirect,
     /// Unknown variant for forward compatibility.
@@ -9625,8 +9737,10 @@ pub enum PermissionDecision {
 /// Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionsConfigureAdditionalContentExclusionPolicyScope {
+    /// The content exclusion policy applies to the current repository.
     #[serde(rename = "repo")]
     Repo,
+    /// The content exclusion policy applies across all repositories.
     #[serde(rename = "all")]
     All,
     /// Unknown variant for forward compatibility.
@@ -9638,8 +9752,10 @@ pub enum PermissionsConfigureAdditionalContentExclusionPolicyScope {
 /// Whether the change applies to ephemeral session-scoped rules (cleared at session end) or to location-scoped rules persisted via the location-permissions config file.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionsModifyRulesScope {
+    /// Apply the rule change only to this session.
     #[serde(rename = "session")]
     Session,
+    /// Persist the rule change for this project location.
     #[serde(rename = "location")]
     Location,
     /// Unknown variant for forward compatibility.
@@ -9651,12 +9767,16 @@ pub enum PermissionsModifyRulesScope {
 /// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionsSetApproveAllSource {
+    /// Allow-all was enabled from a CLI command-line flag.
     #[serde(rename = "cli_flag")]
     CliFlag,
+    /// Allow-all was enabled by a slash command.
     #[serde(rename = "slash_command")]
     SlashCommand,
+    /// Allow-all was enabled by confirming autopilot behavior.
     #[serde(rename = "autopilot_confirmation")]
     AutopilotConfirmation,
+    /// Allow-all was enabled through an RPC caller.
     #[serde(rename = "rpc")]
     Rpc,
     /// Unknown variant for forward compatibility.
@@ -9675,8 +9795,10 @@ pub enum PermissionsSetApproveAllSource {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum QueuePendingItemsKind {
+    /// A queued user message.
     #[serde(rename = "message")]
     Message,
+    /// A queued slash command or model-change command.
     #[serde(rename = "command")]
     Command,
     /// Unknown variant for forward compatibility.
@@ -9695,10 +9817,13 @@ pub enum QueuePendingItemsKind {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RemoteSessionMode {
+    /// Disable remote session export and steering.
     #[serde(rename = "off")]
     Off,
+    /// Export session events to GitHub without enabling remote steering.
     #[serde(rename = "export")]
     Export,
+    /// Enable both remote session export and remote steering.
     #[serde(rename = "on")]
     On,
     /// Unknown variant for forward compatibility.
@@ -9710,12 +9835,16 @@ pub enum RemoteSessionMode {
 /// The UI mode the agent was in when this message was sent. Defaults to the session's current mode.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SendAgentMode {
+    /// The agent is responding interactively to the user.
     #[serde(rename = "interactive")]
     Interactive,
+    /// The agent is preparing a plan before making changes.
     #[serde(rename = "plan")]
     Plan,
+    /// The agent is working autonomously toward task completion.
     #[serde(rename = "autopilot")]
     Autopilot,
+    /// The agent is in shell-focused UI mode.
     #[serde(rename = "shell")]
     Shell,
     /// Unknown variant for forward compatibility.
@@ -9751,10 +9880,13 @@ pub enum SendAttachmentFileType {
 /// Type of GitHub reference
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SendAttachmentGithubReferenceType {
+    /// GitHub issue reference.
     #[serde(rename = "issue")]
     Issue,
+    /// GitHub pull request reference.
     #[serde(rename = "pr")]
     Pr,
+    /// GitHub discussion reference.
     #[serde(rename = "discussion")]
     Discussion,
     /// Unknown variant for forward compatibility.
@@ -9774,8 +9906,10 @@ pub enum SendAttachmentSelectionType {
 /// How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SendMode {
+    /// Append the message to the normal session queue.
     #[serde(rename = "enqueue")]
     Enqueue,
+    /// Interject the message during the in-progress turn.
     #[serde(rename = "immediate")]
     Immediate,
     /// Unknown variant for forward compatibility.
@@ -9794,8 +9928,10 @@ pub enum SendMode {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionContextHostType {
+    /// Session repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Session repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -9807,7 +9943,9 @@ pub enum SessionContextHostType {
 /// Error classification
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsErrorCode {
+    /// The requested path does not exist.
     ENOENT,
+    /// The filesystem operation failed for an unspecified reason.
     UNKNOWN,
     /// Unknown variant for forward compatibility.
     #[default]
@@ -9818,8 +9956,10 @@ pub enum SessionFsErrorCode {
 /// Entry type
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsReaddirWithTypesEntryType {
+    /// The entry is a file.
     #[serde(rename = "file")]
     File,
+    /// The entry is a directory.
     #[serde(rename = "directory")]
     Directory,
     /// Unknown variant for forward compatibility.
@@ -9831,8 +9971,10 @@ pub enum SessionFsReaddirWithTypesEntryType {
 /// Path conventions used by this filesystem
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsSetProviderConventions {
+    /// Paths use Windows path conventions.
     #[serde(rename = "windows")]
     Windows,
+    /// Paths use POSIX path conventions.
     #[serde(rename = "posix")]
     Posix,
     /// Unknown variant for forward compatibility.
@@ -9844,10 +9986,13 @@ pub enum SessionFsSetProviderConventions {
 /// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsSqliteQueryType {
+    /// Execute DDL or multi-statement SQL without returning rows.
     #[serde(rename = "exec")]
     Exec,
+    /// Execute a SELECT-style query and return rows.
     #[serde(rename = "query")]
     Query,
+    /// Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata.
     #[serde(rename = "run")]
     Run,
     /// Unknown variant for forward compatibility.
@@ -9883,8 +10028,10 @@ pub enum SessionInstalledPluginSourceUrlSource {
 /// Repository host type, if known
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionMetadataSnapshotWorkspaceHostType {
+    /// Workspace summary repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Workspace summary repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -9896,8 +10043,11 @@ pub enum SessionMetadataSnapshotWorkspaceHostType {
 /// Signal to send (default: SIGTERM)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShellKillSignal {
+    /// Request graceful process termination.
     SIGTERM,
+    /// Forcefully terminate the process.
     SIGKILL,
+    /// Send an interrupt signal to the process.
     SIGINT,
     /// Unknown variant for forward compatibility.
     #[default]
@@ -9929,6 +10079,14 @@ pub enum SlashCommandTextResultKind {
     Text,
 }
 
+/// Select subcommand result discriminator
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SlashCommandSelectSubcommandResultKind {
+    #[serde(rename = "select-subcommand")]
+    #[default]
+    SelectSubcommand,
+}
+
 /// Result of invoking the slash command (text output, prompt to send to the agent, or completion).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -9936,6 +10094,7 @@ pub enum SlashCommandInvocationResult {
     Text(SlashCommandTextResult),
     AgentPrompt(SlashCommandAgentPromptResult),
     Completed(SlashCommandCompletedResult),
+    SelectSubcommand(SlashCommandSelectSubcommandResult),
 }
 
 /// Whether task execution is synchronously awaited or managed in the background
@@ -9948,8 +10107,10 @@ pub enum SlashCommandInvocationResult {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TaskExecutionMode {
+    /// The task was started with synchronous waiting.
     #[serde(rename = "sync")]
     Sync,
+    /// The task is managed in the background.
     #[serde(rename = "background")]
     Background,
     /// Unknown variant for forward compatibility.
@@ -9968,14 +10129,19 @@ pub enum TaskExecutionMode {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TaskStatus {
+    /// The task is actively executing.
     #[serde(rename = "running")]
     Running,
+    /// The task is waiting for additional input.
     #[serde(rename = "idle")]
     Idle,
+    /// The task finished successfully.
     #[serde(rename = "completed")]
     Completed,
+    /// The task finished with an error.
     #[serde(rename = "failed")]
     Failed,
+    /// The task was cancelled before completion.
     #[serde(rename = "cancelled")]
     Cancelled,
     /// Unknown variant for forward compatibility.
@@ -10002,8 +10168,10 @@ pub enum TaskAgentInfoType {
 /// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TaskShellInfoAttachmentMode {
+    /// The shell runs in a managed PTY session.
     #[serde(rename = "attached")]
     Attached,
+    /// The shell runs as an independent background process.
     #[serde(rename = "detached")]
     Detached,
     /// Unknown variant for forward compatibility.
@@ -10031,10 +10199,13 @@ pub enum TokenAuthInfoType {
 /// User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist as setting), or no (decline).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UIAutoModeSwitchResponse {
+    /// Allow the automatic mode switch for this turn.
     #[serde(rename = "yes")]
     Yes,
+    /// Allow this mode switch and persist the preference.
     #[serde(rename = "yes_always")]
     YesAlways,
+    /// Decline the automatic mode switch.
     #[serde(rename = "no")]
     No,
     /// Unknown variant for forward compatibility.
@@ -10078,10 +10249,13 @@ pub enum UIElicitationSchemaType {
 /// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UIElicitationResponseAction {
+    /// The user submitted the requested form values.
     #[serde(rename = "accept")]
     Accept,
+    /// The user explicitly declined to provide the requested input.
     #[serde(rename = "decline")]
     Decline,
+    /// The user dismissed the elicitation request.
     #[serde(rename = "cancel")]
     Cancel,
     /// Unknown variant for forward compatibility.
@@ -10101,8 +10275,10 @@ pub enum UIElicitationSchemaPropertyBooleanType {
 /// Numeric type accepted by the field.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UIElicitationSchemaPropertyNumberType {
+    /// Any JSON number.
     #[serde(rename = "number")]
     Number,
+    /// Integer JSON number.
     #[serde(rename = "integer")]
     Integer,
     /// Unknown variant for forward compatibility.
@@ -10114,12 +10290,16 @@ pub enum UIElicitationSchemaPropertyNumberType {
 /// Optional format hint that constrains the accepted input.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UIElicitationSchemaPropertyStringFormat {
+    /// Email address string format.
     #[serde(rename = "email")]
     Email,
+    /// URI string format.
     #[serde(rename = "uri")]
     Uri,
+    /// Calendar date string format.
     #[serde(rename = "date")]
     Date,
+    /// Date-time string format.
     #[serde(rename = "date-time")]
     DateTime,
     /// Unknown variant for forward compatibility.
@@ -10155,12 +10335,16 @@ pub enum UIElicitationStringOneOfFieldType {
 /// The action the user selected. Defaults to 'autopilot' when autoApproveEdits is true, otherwise 'interactive'.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UIExitPlanModeAction {
+    /// Exit plan mode without starting implementation.
     #[serde(rename = "exit_only")]
     ExitOnly,
+    /// Exit plan mode and continue interactively.
     #[serde(rename = "interactive")]
     Interactive,
+    /// Exit plan mode and continue in autopilot mode.
     #[serde(rename = "autopilot")]
     Autopilot,
+    /// Exit plan mode and continue in autopilot mode with parallel subagent execution.
     #[serde(rename = "autopilot_fleet")]
     AutopilotFleet,
     /// Unknown variant for forward compatibility.
@@ -10179,8 +10363,10 @@ pub enum UserAuthInfoType {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkspacesGetWorkspaceResultWorkspaceHostType {
+    /// Workspace repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Workspace repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -10192,8 +10378,10 @@ pub enum WorkspacesGetWorkspaceResultWorkspaceHostType {
 /// Repository host type, if known
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkspaceSummaryHostType {
+    /// Workspace summary repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Workspace summary repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -10204,8 +10392,10 @@ pub enum WorkspaceSummaryHostType {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionWorkspacesGetWorkspaceResultWorkspaceHostType {
+    /// Workspace repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Workspace repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -10217,8 +10407,10 @@ pub enum SessionWorkspacesGetWorkspaceResultWorkspaceHostType {
 /// Repository host type, if known
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionMetadataSnapshotResultWorkspaceHostType {
+    /// Workspace summary repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Workspace summary repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.

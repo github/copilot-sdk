@@ -4102,6 +4102,24 @@ func (SlashCommandCompletedResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindCompleted
 }
 
+// Schema for the `SlashCommandSelectSubcommandResult` type.
+type SlashCommandSelectSubcommandResult struct {
+	// Parent command name that requires subcommand selection
+	Command string `json:"command"`
+	// Available subcommand options for the client to present
+	Options []SlashCommandSelectSubcommandOption `json:"options"`
+	// True when the invocation mutated user runtime settings; consumers caching settings should
+	// refresh
+	RuntimeSettingsChanged *bool `json:"runtimeSettingsChanged,omitempty"`
+	// Human-readable title for the selection UI
+	Title string `json:"title"`
+}
+
+func (SlashCommandSelectSubcommandResult) slashCommandInvocationResult() {}
+func (SlashCommandSelectSubcommandResult) Kind() SlashCommandInvocationResultKind {
+	return SlashCommandInvocationResultKindSelectSubcommand
+}
+
 // Schema for the `SlashCommandTextResult` type.
 type SlashCommandTextResult struct {
 	// Whether text contains Markdown
@@ -4118,6 +4136,16 @@ type SlashCommandTextResult struct {
 func (SlashCommandTextResult) slashCommandInvocationResult() {}
 func (SlashCommandTextResult) Kind() SlashCommandInvocationResultKind {
 	return SlashCommandInvocationResultKindText
+}
+
+// Schema for the `SlashCommandSelectSubcommandOption` type.
+type SlashCommandSelectSubcommandOption struct {
+	// Human-readable description of the subcommand
+	Description string `json:"description"`
+	// Optional group label for organizing options
+	Group *string `json:"group,omitempty"`
+	// Subcommand name to invoke
+	Name string `json:"name"`
 }
 
 // Schema for the `TaskAgentProgress` type.
@@ -5157,8 +5185,11 @@ type WorkspaceSummary struct {
 type AbortReason string
 
 const (
+	// A remote command requested the abort.
 	AbortReasonRemoteCommand AbortReason = "remote_command"
-	AbortReasonUserAbort     AbortReason = "user_abort"
+	// An MCP server delivered a user.abort notification.
+	AbortReasonUserAbort AbortReason = "user_abort"
+	// The local user requested the abort, for example by pressing Ctrl+C in the CLI.
 	AbortReasonUserInitiated AbortReason = "user_initiated"
 )
 
@@ -5167,12 +5198,18 @@ const (
 type AgentInfoSource string
 
 const (
-	AgentInfoSourceBuiltin   AgentInfoSource = "builtin"
+	// Agent built into the Copilot runtime.
+	AgentInfoSourceBuiltin AgentInfoSource = "builtin"
+	// Agent inherited from a parent project or workspace.
 	AgentInfoSourceInherited AgentInfoSource = "inherited"
-	AgentInfoSourcePlugin    AgentInfoSource = "plugin"
-	AgentInfoSourceProject   AgentInfoSource = "project"
-	AgentInfoSourceRemote    AgentInfoSource = "remote"
-	AgentInfoSourceUser      AgentInfoSource = "user"
+	// Agent contributed by an installed plugin.
+	AgentInfoSourcePlugin AgentInfoSource = "plugin"
+	// Agent loaded from the current project's repository configuration.
+	AgentInfoSourceProject AgentInfoSource = "project"
+	// Agent provided by a remote runtime or service.
+	AgentInfoSourceRemote AgentInfoSource = "remote"
+	// Agent loaded from the user's personal agent configuration.
+	AgentInfoSourceUser AgentInfoSource = "user"
 )
 
 // Type discriminator for AuthInfo.
@@ -5194,7 +5231,9 @@ const (
 type ConnectedRemoteSessionMetadataKind string
 
 const (
-	ConnectedRemoteSessionMetadataKindCodingAgent   ConnectedRemoteSessionMetadataKind = "coding-agent"
+	// GitHub Copilot coding agent session.
+	ConnectedRemoteSessionMetadataKindCodingAgent ConnectedRemoteSessionMetadataKind = "coding-agent"
+	// Remote CLI session.
 	ConnectedRemoteSessionMetadataKindRemoteSession ConnectedRemoteSessionMetadataKind = "remote-session"
 )
 
@@ -5204,9 +5243,12 @@ const (
 type ContentFilterMode string
 
 const (
+	// Remove characters that can hide directives.
 	ContentFilterModeHiddenCharacters ContentFilterMode = "hidden_characters"
-	ContentFilterModeMarkdown         ContentFilterMode = "markdown"
-	ContentFilterModeNone             ContentFilterMode = "none"
+	// Sanitize HTML while preserving Markdown-friendly output.
+	ContentFilterModeMarkdown ContentFilterMode = "markdown"
+	// Leave MCP tool result content unchanged.
+	ContentFilterModeNone ContentFilterMode = "none"
 )
 
 // Authentication host (always the public GitHub host).
@@ -5220,10 +5262,14 @@ const (
 type DiscoveredMcpServerType string
 
 const (
-	DiscoveredMcpServerTypeHTTP   DiscoveredMcpServerType = "http"
+	// Server communicates over streamable HTTP.
+	DiscoveredMcpServerTypeHTTP DiscoveredMcpServerType = "http"
+	// Server is backed by an in-memory runtime implementation.
 	DiscoveredMcpServerTypeMemory DiscoveredMcpServerType = "memory"
-	DiscoveredMcpServerTypeSse    DiscoveredMcpServerType = "sse"
-	DiscoveredMcpServerTypeStdio  DiscoveredMcpServerType = "stdio"
+	// Server communicates over Server-Sent Events.
+	DiscoveredMcpServerTypeSse DiscoveredMcpServerType = "sse"
+	// Server communicates over stdio with a local child process.
+	DiscoveredMcpServerTypeStdio DiscoveredMcpServerType = "stdio"
 )
 
 type EventLogTypesString string
@@ -5241,7 +5287,9 @@ const (
 type EventsAgentScope string
 
 const (
-	EventsAgentScopeAll     EventsAgentScope = "all"
+	// Return events from all agents.
+	EventsAgentScopeAll EventsAgentScope = "all"
+	// Return main-agent events and typed subagent lifecycle events.
 	EventsAgentScopePrimary EventsAgentScope = "primary"
 )
 
@@ -5253,8 +5301,10 @@ const (
 type EventsCursorStatus string
 
 const (
+	// The cursor referred to history that is no longer available.
 	EventsCursorStatusExpired EventsCursorStatus = "expired"
-	EventsCursorStatusOk      EventsCursorStatus = "ok"
+	// The cursor was applied successfully.
+	EventsCursorStatusOk EventsCursorStatus = "ok"
 )
 
 // Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
@@ -5262,8 +5312,10 @@ const (
 type ExtensionSource string
 
 const (
+	// Extension discovered from the current project's .github/extensions directory.
 	ExtensionSourceProject ExtensionSource = "project"
-	ExtensionSourceUser    ExtensionSource = "user"
+	// Extension discovered from the user's ~/.copilot/extensions directory.
+	ExtensionSourceUser ExtensionSource = "user"
 )
 
 // Current status: running, disabled, failed, or starting
@@ -5271,9 +5323,13 @@ const (
 type ExtensionStatus string
 
 const (
+	// The extension is installed but disabled.
 	ExtensionStatusDisabled ExtensionStatus = "disabled"
-	ExtensionStatusFailed   ExtensionStatus = "failed"
-	ExtensionStatusRunning  ExtensionStatus = "running"
+	// The extension failed to start or crashed.
+	ExtensionStatusFailed ExtensionStatus = "failed"
+	// The extension process is running.
+	ExtensionStatusRunning ExtensionStatus = "running"
+	// The extension process is starting.
 	ExtensionStatusStarting ExtensionStatus = "starting"
 )
 
@@ -5282,7 +5338,9 @@ const (
 type ExternalToolTextResultForLlmBinaryResultsForLlmType string
 
 const (
-	ExternalToolTextResultForLlmBinaryResultsForLlmTypeImage    ExternalToolTextResultForLlmBinaryResultsForLlmType = "image"
+	// Binary image data.
+	ExternalToolTextResultForLlmBinaryResultsForLlmTypeImage ExternalToolTextResultForLlmBinaryResultsForLlmType = "image"
+	// Other binary resource data.
 	ExternalToolTextResultForLlmBinaryResultsForLlmTypeResource ExternalToolTextResultForLlmBinaryResultsForLlmType = "resource"
 )
 
@@ -5290,7 +5348,9 @@ const (
 type ExternalToolTextResultForLlmContentResourceLinkIconTheme string
 
 const (
-	ExternalToolTextResultForLlmContentResourceLinkIconThemeDark  ExternalToolTextResultForLlmContentResourceLinkIconTheme = "dark"
+	// Icon intended for dark themes.
+	ExternalToolTextResultForLlmContentResourceLinkIconThemeDark ExternalToolTextResultForLlmContentResourceLinkIconTheme = "dark"
+	// Icon intended for light themes.
 	ExternalToolTextResultForLlmContentResourceLinkIconThemeLight ExternalToolTextResultForLlmContentResourceLinkIconTheme = "light"
 )
 
@@ -5338,9 +5398,13 @@ const (
 type InstructionsSourcesLocation string
 
 const (
-	InstructionsSourcesLocationPlugin           InstructionsSourcesLocation = "plugin"
-	InstructionsSourcesLocationRepository       InstructionsSourcesLocation = "repository"
-	InstructionsSourcesLocationUser             InstructionsSourcesLocation = "user"
+	// Instructions live in plugin-provided configuration.
+	InstructionsSourcesLocationPlugin InstructionsSourcesLocation = "plugin"
+	// Instructions live in repository-level configuration.
+	InstructionsSourcesLocationRepository InstructionsSourcesLocation = "repository"
+	// Instructions live in user-level configuration.
+	InstructionsSourcesLocationUser InstructionsSourcesLocation = "user"
+	// Instructions live under the current working directory.
 	InstructionsSourcesLocationWorkingDirectory InstructionsSourcesLocation = "working-directory"
 )
 
@@ -5348,13 +5412,20 @@ const (
 type InstructionsSourcesType string
 
 const (
+	// Instructions inherited from child instruction files.
 	InstructionsSourcesTypeChildInstructions InstructionsSourcesType = "child-instructions"
-	InstructionsSourcesTypeHome              InstructionsSourcesType = "home"
-	InstructionsSourcesTypeModel             InstructionsSourcesType = "model"
-	InstructionsSourcesTypeNestedAgents      InstructionsSourcesType = "nested-agents"
-	InstructionsSourcesTypePlugin            InstructionsSourcesType = "plugin"
-	InstructionsSourcesTypeRepo              InstructionsSourcesType = "repo"
-	InstructionsSourcesTypeVscode            InstructionsSourcesType = "vscode"
+	// Instructions loaded from the user's home configuration.
+	InstructionsSourcesTypeHome InstructionsSourcesType = "home"
+	// Instructions loaded from model-specific files.
+	InstructionsSourcesTypeModel InstructionsSourcesType = "model"
+	// Instructions discovered from nested agent files.
+	InstructionsSourcesTypeNestedAgents InstructionsSourcesType = "nested-agents"
+	// Instructions supplied by an installed plugin.
+	InstructionsSourcesTypePlugin InstructionsSourcesType = "plugin"
+	// Instructions loaded from repository-scoped files.
+	InstructionsSourcesTypeRepo InstructionsSourcesType = "repo"
+	// Instructions loaded from VS Code instruction files.
+	InstructionsSourcesTypeVscode InstructionsSourcesType = "vscode"
 )
 
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
@@ -5365,16 +5436,21 @@ const (
 type McpSamplingExecutionAction string
 
 const (
+	// The sampling inference was cancelled before completion.
 	McpSamplingExecutionActionCancelled McpSamplingExecutionAction = "cancelled"
-	McpSamplingExecutionActionFailure   McpSamplingExecutionAction = "failure"
-	McpSamplingExecutionActionSuccess   McpSamplingExecutionAction = "success"
+	// The sampling inference failed or was rejected.
+	McpSamplingExecutionActionFailure McpSamplingExecutionAction = "failure"
+	// The sampling inference completed and produced a result.
+	McpSamplingExecutionActionSuccess McpSamplingExecutionAction = "success"
 )
 
 // OAuth grant type to use when authenticating to the remote MCP server.
 type McpServerConfigHTTPOauthGrantType string
 
 const (
+	// Interactive browser-based authorization code flow with PKCE.
 	McpServerConfigHTTPOauthGrantTypeAuthorizationCode McpServerConfigHTTPOauthGrantType = "authorization_code"
+	// Headless client credentials flow using the configured OAuth client.
 	McpServerConfigHTTPOauthGrantTypeClientCredentials McpServerConfigHTTPOauthGrantType = "client_credentials"
 )
 
@@ -5382,17 +5458,23 @@ const (
 type McpServerConfigHTTPType string
 
 const (
+	// Streamable HTTP transport.
 	McpServerConfigHTTPTypeHTTP McpServerConfigHTTPType = "http"
-	McpServerConfigHTTPTypeSse  McpServerConfigHTTPType = "sse"
+	// Server-Sent Events transport.
+	McpServerConfigHTTPTypeSse McpServerConfigHTTPType = "sse"
 )
 
 // Configuration source: user, workspace, plugin, or builtin
 type McpServerSource string
 
 const (
-	McpServerSourceBuiltin   McpServerSource = "builtin"
-	McpServerSourcePlugin    McpServerSource = "plugin"
-	McpServerSourceUser      McpServerSource = "user"
+	// Server bundled with the runtime.
+	McpServerSourceBuiltin McpServerSource = "builtin"
+	// Server contributed by an installed plugin.
+	McpServerSourcePlugin McpServerSource = "plugin"
+	// Server configured in the user's global MCP configuration.
+	McpServerSourceUser McpServerSource = "user"
+	// Server configured by the current workspace.
 	McpServerSourceWorkspace McpServerSource = "workspace"
 )
 
@@ -5401,12 +5483,18 @@ const (
 type McpServerStatus string
 
 const (
-	McpServerStatusConnected     McpServerStatus = "connected"
-	McpServerStatusDisabled      McpServerStatus = "disabled"
-	McpServerStatusFailed        McpServerStatus = "failed"
-	McpServerStatusNeedsAuth     McpServerStatus = "needs-auth"
+	// The server is connected and available.
+	McpServerStatusConnected McpServerStatus = "connected"
+	// The server is configured but disabled.
+	McpServerStatusDisabled McpServerStatus = "disabled"
+	// The server failed to connect or initialize.
+	McpServerStatusFailed McpServerStatus = "failed"
+	// The server requires authentication before it can connect.
+	McpServerStatusNeedsAuth McpServerStatus = "needs-auth"
+	// The server is not configured for this session.
 	McpServerStatusNotConfigured McpServerStatus = "not_configured"
-	McpServerStatusPending       McpServerStatus = "pending"
+	// The server connection is still being established.
+	McpServerStatusPending McpServerStatus = "pending"
 )
 
 // How environment-variable values supplied to MCP servers are resolved. "direct" passes
@@ -5419,7 +5507,9 @@ const (
 type McpSetEnvValueModeDetails string
 
 const (
-	McpSetEnvValueModeDetailsDirect   McpSetEnvValueModeDetails = "direct"
+	// Treat MCP server environment values as literal strings.
+	McpSetEnvValueModeDetailsDirect McpSetEnvValueModeDetails = "direct"
+	// Treat MCP server environment values as host-side references to resolve before launch.
 	McpSetEnvValueModeDetailsIndirect McpSetEnvValueModeDetails = "indirect"
 )
 
@@ -5429,9 +5519,12 @@ const (
 type MetadataSnapshotCurrentMode string
 
 const (
-	MetadataSnapshotCurrentModeAutopilot   MetadataSnapshotCurrentMode = "autopilot"
+	// The agent is working autonomously toward task completion.
+	MetadataSnapshotCurrentModeAutopilot MetadataSnapshotCurrentMode = "autopilot"
+	// The agent is responding interactively to the user.
 	MetadataSnapshotCurrentModeInteractive MetadataSnapshotCurrentMode = "interactive"
-	MetadataSnapshotCurrentModePlan        MetadataSnapshotCurrentMode = "plan"
+	// The agent is preparing a plan before making changes.
+	MetadataSnapshotCurrentModePlan MetadataSnapshotCurrentMode = "plan"
 )
 
 // Whether the remote task originated from Copilot Coding Agent (cca) or a CLI `--remote`
@@ -5441,7 +5534,9 @@ const (
 type MetadataSnapshotRemoteMetadataTaskType string
 
 const (
+	// Remote task originated from Copilot Coding Agent.
 	MetadataSnapshotRemoteMetadataTaskTypeCca MetadataSnapshotRemoteMetadataTaskType = "cca"
+	// Remote task originated from a CLI remote-session invocation.
 	MetadataSnapshotRemoteMetadataTaskTypeCli MetadataSnapshotRemoteMetadataTaskType = "cli"
 )
 
@@ -5449,18 +5544,25 @@ const (
 type ModelPickerCategory string
 
 const (
+	// Lightweight model category optimized for faster, lower-cost interactions.
 	ModelPickerCategoryLightweight ModelPickerCategory = "lightweight"
-	ModelPickerCategoryPowerful    ModelPickerCategory = "powerful"
-	ModelPickerCategoryVersatile   ModelPickerCategory = "versatile"
+	// Powerful model category optimized for complex tasks.
+	ModelPickerCategoryPowerful ModelPickerCategory = "powerful"
+	// Versatile model category suitable for a broad range of tasks.
+	ModelPickerCategoryVersatile ModelPickerCategory = "versatile"
 )
 
 // Relative cost tier for token-based billing users
 type ModelPickerPriceCategory string
 
 const (
-	ModelPickerPriceCategoryHigh     ModelPickerPriceCategory = "high"
-	ModelPickerPriceCategoryLow      ModelPickerPriceCategory = "low"
-	ModelPickerPriceCategoryMedium   ModelPickerPriceCategory = "medium"
+	// High relative token cost tier.
+	ModelPickerPriceCategoryHigh ModelPickerPriceCategory = "high"
+	// Lowest relative token cost tier.
+	ModelPickerPriceCategoryLow ModelPickerPriceCategory = "low"
+	// Medium relative token cost tier.
+	ModelPickerPriceCategoryMedium ModelPickerPriceCategory = "medium"
+	// Highest relative token cost tier.
 	ModelPickerPriceCategoryVeryHigh ModelPickerPriceCategory = "very_high"
 )
 
@@ -5468,8 +5570,11 @@ const (
 type ModelPolicyState string
 
 const (
-	ModelPolicyStateDisabled     ModelPolicyState = "disabled"
-	ModelPolicyStateEnabled      ModelPolicyState = "enabled"
+	// The model is disabled by policy.
+	ModelPolicyStateDisabled ModelPolicyState = "disabled"
+	// The model is enabled by policy.
+	ModelPolicyStateEnabled ModelPolicyState = "enabled"
+	// No explicit policy is configured for the model.
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
 )
 
@@ -5480,7 +5585,9 @@ const (
 type OptionsUpdateEnvValueMode string
 
 const (
-	OptionsUpdateEnvValueModeDirect   OptionsUpdateEnvValueMode = "direct"
+	// Pass MCP server environment values as literal strings.
+	OptionsUpdateEnvValueModeDirect OptionsUpdateEnvValueMode = "direct"
+	// Resolve MCP server environment values from host-side references.
 	OptionsUpdateEnvValueModeIndirect OptionsUpdateEnvValueMode = "indirect"
 )
 
@@ -5540,7 +5647,9 @@ const (
 type PermissionsConfigureAdditionalContentExclusionPolicyScope string
 
 const (
-	PermissionsConfigureAdditionalContentExclusionPolicyScopeAll  PermissionsConfigureAdditionalContentExclusionPolicyScope = "all"
+	// The content exclusion policy applies across all repositories.
+	PermissionsConfigureAdditionalContentExclusionPolicyScopeAll PermissionsConfigureAdditionalContentExclusionPolicyScope = "all"
+	// The content exclusion policy applies to the current repository.
 	PermissionsConfigureAdditionalContentExclusionPolicyScopeRepo PermissionsConfigureAdditionalContentExclusionPolicyScope = "repo"
 )
 
@@ -5549,18 +5658,24 @@ const (
 type PermissionsModifyRulesScope string
 
 const (
+	// Persist the rule change for this project location.
 	PermissionsModifyRulesScopeLocation PermissionsModifyRulesScope = "location"
-	PermissionsModifyRulesScopeSession  PermissionsModifyRulesScope = "session"
+	// Apply the rule change only to this session.
+	PermissionsModifyRulesScopeSession PermissionsModifyRulesScope = "session"
 )
 
 // Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
 type PermissionsSetApproveAllSource string
 
 const (
+	// Allow-all was enabled by confirming autopilot behavior.
 	PermissionsSetApproveAllSourceAutopilotConfirmation PermissionsSetApproveAllSource = "autopilot_confirmation"
-	PermissionsSetApproveAllSourceCliFlag               PermissionsSetApproveAllSource = "cli_flag"
-	PermissionsSetApproveAllSourceRPC                   PermissionsSetApproveAllSource = "rpc"
-	PermissionsSetApproveAllSourceSlashCommand          PermissionsSetApproveAllSource = "slash_command"
+	// Allow-all was enabled from a CLI command-line flag.
+	PermissionsSetApproveAllSourceCliFlag PermissionsSetApproveAllSource = "cli_flag"
+	// Allow-all was enabled through an RPC caller.
+	PermissionsSetApproveAllSourceRPC PermissionsSetApproveAllSource = "rpc"
+	// Allow-all was enabled by a slash command.
+	PermissionsSetApproveAllSourceSlashCommand PermissionsSetApproveAllSource = "slash_command"
 )
 
 // Whether this item is a queued user message or a queued slash command / model change
@@ -5569,7 +5684,9 @@ const (
 type QueuePendingItemsKind string
 
 const (
+	// A queued slash command or model-change command.
 	QueuePendingItemsKindCommand QueuePendingItemsKind = "command"
+	// A queued user message.
 	QueuePendingItemsKindMessage QueuePendingItemsKind = "message"
 )
 
@@ -5577,9 +5694,12 @@ const (
 type ReasoningSummary string
 
 const (
-	ReasoningSummaryConcise  ReasoningSummary = "concise"
+	// Request a concise summary of the model's reasoning.
+	ReasoningSummaryConcise ReasoningSummary = "concise"
+	// Request a detailed summary of the model's reasoning.
 	ReasoningSummaryDetailed ReasoningSummary = "detailed"
-	ReasoningSummaryNone     ReasoningSummary = "none"
+	// Do not request reasoning summaries from the model.
+	ReasoningSummaryNone ReasoningSummary = "none"
 )
 
 // Per-session remote mode. "off" disables remote, "export" exports session events to GitHub
@@ -5589,9 +5709,12 @@ const (
 type RemoteSessionMode string
 
 const (
+	// Export session events to GitHub without enabling remote steering.
 	RemoteSessionModeExport RemoteSessionMode = "export"
-	RemoteSessionModeOff    RemoteSessionMode = "off"
-	RemoteSessionModeOn     RemoteSessionMode = "on"
+	// Disable remote session export and steering.
+	RemoteSessionModeOff RemoteSessionMode = "off"
+	// Enable both remote session export and remote steering.
+	RemoteSessionModeOn RemoteSessionMode = "on"
 )
 
 // The UI mode the agent was in when this message was sent. Defaults to the session's
@@ -5599,19 +5722,26 @@ const (
 type SendAgentMode string
 
 const (
-	SendAgentModeAutopilot   SendAgentMode = "autopilot"
+	// The agent is working autonomously toward task completion.
+	SendAgentModeAutopilot SendAgentMode = "autopilot"
+	// The agent is responding interactively to the user.
 	SendAgentModeInteractive SendAgentMode = "interactive"
-	SendAgentModePlan        SendAgentMode = "plan"
-	SendAgentModeShell       SendAgentMode = "shell"
+	// The agent is preparing a plan before making changes.
+	SendAgentModePlan SendAgentMode = "plan"
+	// The agent is in shell-focused UI mode.
+	SendAgentModeShell SendAgentMode = "shell"
 )
 
 // Type of GitHub reference
 type SendAttachmentGithubReferenceType string
 
 const (
+	// GitHub discussion reference.
 	SendAttachmentGithubReferenceTypeDiscussion SendAttachmentGithubReferenceType = "discussion"
-	SendAttachmentGithubReferenceTypeIssue      SendAttachmentGithubReferenceType = "issue"
-	SendAttachmentGithubReferenceTypePr         SendAttachmentGithubReferenceType = "pr"
+	// GitHub issue reference.
+	SendAttachmentGithubReferenceTypeIssue SendAttachmentGithubReferenceType = "issue"
+	// GitHub pull request reference.
+	SendAttachmentGithubReferenceTypePr SendAttachmentGithubReferenceType = "pr"
 )
 
 // Type discriminator for SendAttachment.
@@ -5630,7 +5760,9 @@ const (
 type SendMode string
 
 const (
-	SendModeEnqueue   SendMode = "enqueue"
+	// Append the message to the normal session queue.
+	SendModeEnqueue SendMode = "enqueue"
+	// Interject the message during the in-progress turn.
 	SendModeImmediate SendMode = "immediate"
 )
 
@@ -5640,7 +5772,9 @@ const (
 type SessionContextHostType string
 
 const (
-	SessionContextHostTypeAdo    SessionContextHostType = "ado"
+	// Session repository is hosted on Azure DevOps.
+	SessionContextHostTypeAdo SessionContextHostType = "ado"
+	// Session repository is hosted on GitHub.
 	SessionContextHostTypeGithub SessionContextHostType = "github"
 )
 
@@ -5648,7 +5782,9 @@ const (
 type SessionFsErrorCode string
 
 const (
-	SessionFsErrorCodeENOENT  SessionFsErrorCode = "ENOENT"
+	// The requested path does not exist.
+	SessionFsErrorCodeENOENT SessionFsErrorCode = "ENOENT"
+	// The filesystem operation failed for an unspecified reason.
 	SessionFsErrorCodeUNKNOWN SessionFsErrorCode = "UNKNOWN"
 )
 
@@ -5656,15 +5792,19 @@ const (
 type SessionFsReaddirWithTypesEntryType string
 
 const (
+	// The entry is a directory.
 	SessionFsReaddirWithTypesEntryTypeDirectory SessionFsReaddirWithTypesEntryType = "directory"
-	SessionFsReaddirWithTypesEntryTypeFile      SessionFsReaddirWithTypesEntryType = "file"
+	// The entry is a file.
+	SessionFsReaddirWithTypesEntryTypeFile SessionFsReaddirWithTypesEntryType = "file"
 )
 
 // Path conventions used by this filesystem
 type SessionFsSetProviderConventions string
 
 const (
-	SessionFsSetProviderConventionsPosix   SessionFsSetProviderConventions = "posix"
+	// Paths use POSIX path conventions.
+	SessionFsSetProviderConventionsPosix SessionFsSetProviderConventions = "posix"
+	// Paths use Windows path conventions.
 	SessionFsSetProviderConventionsWindows SessionFsSetProviderConventions = "windows"
 )
 
@@ -5673,9 +5813,12 @@ const (
 type SessionFsSqliteQueryType string
 
 const (
-	SessionFsSqliteQueryTypeExec  SessionFsSqliteQueryType = "exec"
+	// Execute DDL or multi-statement SQL without returning rows.
+	SessionFsSqliteQueryTypeExec SessionFsSqliteQueryType = "exec"
+	// Execute a SELECT-style query and return rows.
 	SessionFsSqliteQueryTypeQuery SessionFsSqliteQueryType = "query"
-	SessionFsSqliteQueryTypeRun   SessionFsSqliteQueryType = "run"
+	// Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata.
+	SessionFsSqliteQueryTypeRun SessionFsSqliteQueryType = "run"
 )
 
 // Constant value. Always "github".
@@ -5704,8 +5847,11 @@ const (
 type SessionLogLevel string
 
 const (
-	SessionLogLevelError   SessionLogLevel = "error"
-	SessionLogLevelInfo    SessionLogLevel = "info"
+	// Error message describing a failure.
+	SessionLogLevelError SessionLogLevel = "error"
+	// Informational message.
+	SessionLogLevelInfo SessionLogLevel = "info"
+	// Warning message that may require attention.
 	SessionLogLevelWarning SessionLogLevel = "warning"
 )
 
@@ -5713,9 +5859,12 @@ const (
 type SessionMode string
 
 const (
-	SessionModeAutopilot   SessionMode = "autopilot"
+	// The agent is working autonomously toward task completion.
+	SessionModeAutopilot SessionMode = "autopilot"
+	// The agent is responding interactively to the user.
 	SessionModeInteractive SessionMode = "interactive"
-	SessionModePlan        SessionMode = "plan"
+	// The agent is preparing a plan before making changes.
+	SessionModePlan SessionMode = "plan"
 )
 
 // Hosting platform type of the repository
@@ -5724,7 +5873,9 @@ const (
 type SessionWorkingDirectoryContextHostType string
 
 const (
-	SessionWorkingDirectoryContextHostTypeAdo    SessionWorkingDirectoryContextHostType = "ado"
+	// The working directory repository is hosted on Azure DevOps.
+	SessionWorkingDirectoryContextHostTypeAdo SessionWorkingDirectoryContextHostType = "ado"
+	// The working directory repository is hosted on GitHub.
 	SessionWorkingDirectoryContextHostTypeGithub SessionWorkingDirectoryContextHostType = "github"
 )
 
@@ -5732,8 +5883,11 @@ const (
 type ShellKillSignal string
 
 const (
-	ShellKillSignalSIGINT  ShellKillSignal = "SIGINT"
+	// Send an interrupt signal to the process.
+	ShellKillSignalSIGINT ShellKillSignal = "SIGINT"
+	// Forcefully terminate the process.
 	ShellKillSignalSIGKILL ShellKillSignal = "SIGKILL"
+	// Request graceful process termination.
 	ShellKillSignalSIGTERM ShellKillSignal = "SIGTERM"
 )
 
@@ -5741,7 +5895,9 @@ const (
 type ShutdownType string
 
 const (
-	ShutdownTypeError   ShutdownType = "error"
+	// The session is shutting down because of an error.
+	ShutdownTypeError ShutdownType = "error"
+	// The session is shutting down normally.
 	ShutdownTypeRoutine ShutdownType = "routine"
 )
 
@@ -5749,19 +5905,27 @@ const (
 type SkillSource string
 
 const (
-	SkillSourceBuiltin         SkillSource = "builtin"
-	SkillSourceCustom          SkillSource = "custom"
-	SkillSourceInherited       SkillSource = "inherited"
-	SkillSourcePersonalAgents  SkillSource = "personal-agents"
+	// Skill bundled with the runtime.
+	SkillSourceBuiltin SkillSource = "builtin"
+	// Skill loaded from a configured custom skill directory.
+	SkillSourceCustom SkillSource = "custom"
+	// Skill discovered from a parent directory in the current workspace tree.
+	SkillSourceInherited SkillSource = "inherited"
+	// Skill defined in the user's personal agents skill directory.
+	SkillSourcePersonalAgents SkillSource = "personal-agents"
+	// Skill defined in the user's Copilot skill directory.
 	SkillSourcePersonalCopilot SkillSource = "personal-copilot"
-	SkillSourcePlugin          SkillSource = "plugin"
-	SkillSourceProject         SkillSource = "project"
+	// Skill provided by an installed plugin.
+	SkillSourcePlugin SkillSource = "plugin"
+	// Skill defined in the current project's skill directories.
+	SkillSourceProject SkillSource = "project"
 )
 
 // Optional completion hint for the input (e.g. 'directory' for filesystem path completion)
 type SlashCommandInputCompletion string
 
 const (
+	// Input should complete filesystem directories.
 	SlashCommandInputCompletionDirectory SlashCommandInputCompletion = "directory"
 )
 
@@ -5769,9 +5933,10 @@ const (
 type SlashCommandInvocationResultKind string
 
 const (
-	SlashCommandInvocationResultKindAgentPrompt SlashCommandInvocationResultKind = "agent-prompt"
-	SlashCommandInvocationResultKindCompleted   SlashCommandInvocationResultKind = "completed"
-	SlashCommandInvocationResultKindText        SlashCommandInvocationResultKind = "text"
+	SlashCommandInvocationResultKindAgentPrompt      SlashCommandInvocationResultKind = "agent-prompt"
+	SlashCommandInvocationResultKindCompleted        SlashCommandInvocationResultKind = "completed"
+	SlashCommandInvocationResultKindSelectSubcommand SlashCommandInvocationResultKind = "select-subcommand"
+	SlashCommandInvocationResultKindText             SlashCommandInvocationResultKind = "text"
 )
 
 // Coarse command category for grouping and behavior: runtime built-in, skill-backed
@@ -5779,9 +5944,12 @@ const (
 type SlashCommandKind string
 
 const (
+	// Command implemented by the runtime.
 	SlashCommandKindBuiltin SlashCommandKind = "builtin"
-	SlashCommandKindClient  SlashCommandKind = "client"
-	SlashCommandKindSkill   SlashCommandKind = "skill"
+	// Command registered by an SDK client or extension.
+	SlashCommandKindClient SlashCommandKind = "client"
+	// Command backed by a skill.
+	SlashCommandKindSkill SlashCommandKind = "skill"
 )
 
 // Type discriminator for TaskAgentProgress.
@@ -5798,8 +5966,10 @@ const (
 type TaskExecutionMode string
 
 const (
+	// The task is managed in the background.
 	TaskExecutionModeBackground TaskExecutionMode = "background"
-	TaskExecutionModeSync       TaskExecutionMode = "sync"
+	// The task was started with synchronous waiting.
+	TaskExecutionModeSync TaskExecutionMode = "sync"
 )
 
 // Type discriminator for TaskInfo.
@@ -5817,7 +5987,9 @@ const (
 type TaskShellInfoAttachmentMode string
 
 const (
+	// The shell runs in a managed PTY session.
 	TaskShellInfoAttachmentModeAttached TaskShellInfoAttachmentMode = "attached"
+	// The shell runs as an independent background process.
 	TaskShellInfoAttachmentModeDetached TaskShellInfoAttachmentMode = "detached"
 )
 
@@ -5826,11 +5998,16 @@ const (
 type TaskStatus string
 
 const (
+	// The task was cancelled before completion.
 	TaskStatusCancelled TaskStatus = "cancelled"
+	// The task finished successfully.
 	TaskStatusCompleted TaskStatus = "completed"
-	TaskStatusFailed    TaskStatus = "failed"
-	TaskStatusIdle      TaskStatus = "idle"
-	TaskStatusRunning   TaskStatus = "running"
+	// The task finished with an error.
+	TaskStatusFailed TaskStatus = "failed"
+	// The task is waiting for additional input.
+	TaskStatusIdle TaskStatus = "idle"
+	// The task is actively executing.
+	TaskStatusRunning TaskStatus = "running"
 )
 
 // User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist
@@ -5838,8 +6015,11 @@ const (
 type UIAutoModeSwitchResponse string
 
 const (
-	UIAutoModeSwitchResponseNo        UIAutoModeSwitchResponse = "no"
-	UIAutoModeSwitchResponseYes       UIAutoModeSwitchResponse = "yes"
+	// Decline the automatic mode switch.
+	UIAutoModeSwitchResponseNo UIAutoModeSwitchResponse = "no"
+	// Allow the automatic mode switch for this turn.
+	UIAutoModeSwitchResponseYes UIAutoModeSwitchResponse = "yes"
+	// Allow this mode switch and persist the preference.
 	UIAutoModeSwitchResponseYesAlways UIAutoModeSwitchResponse = "yes_always"
 )
 
@@ -5854,8 +6034,11 @@ const (
 type UIElicitationResponseAction string
 
 const (
-	UIElicitationResponseActionAccept  UIElicitationResponseAction = "accept"
-	UIElicitationResponseActionCancel  UIElicitationResponseAction = "cancel"
+	// The user submitted the requested form values.
+	UIElicitationResponseActionAccept UIElicitationResponseAction = "accept"
+	// The user dismissed the elicitation request.
+	UIElicitationResponseActionCancel UIElicitationResponseAction = "cancel"
+	// The user explicitly declined to provide the requested input.
 	UIElicitationResponseActionDecline UIElicitationResponseAction = "decline"
 )
 
@@ -5863,18 +6046,24 @@ const (
 type UIElicitationSchemaPropertyNumberType string
 
 const (
+	// Integer JSON number.
 	UIElicitationSchemaPropertyNumberTypeInteger UIElicitationSchemaPropertyNumberType = "integer"
-	UIElicitationSchemaPropertyNumberTypeNumber  UIElicitationSchemaPropertyNumberType = "number"
+	// Any JSON number.
+	UIElicitationSchemaPropertyNumberTypeNumber UIElicitationSchemaPropertyNumberType = "number"
 )
 
 // Optional format hint that constrains the accepted input.
 type UIElicitationSchemaPropertyStringFormat string
 
 const (
-	UIElicitationSchemaPropertyStringFormatDate     UIElicitationSchemaPropertyStringFormat = "date"
+	// Calendar date string format.
+	UIElicitationSchemaPropertyStringFormatDate UIElicitationSchemaPropertyStringFormat = "date"
+	// Date-time string format.
 	UIElicitationSchemaPropertyStringFormatDateTime UIElicitationSchemaPropertyStringFormat = "date-time"
-	UIElicitationSchemaPropertyStringFormatEmail    UIElicitationSchemaPropertyStringFormat = "email"
-	UIElicitationSchemaPropertyStringFormatURI      UIElicitationSchemaPropertyStringFormat = "uri"
+	// Email address string format.
+	UIElicitationSchemaPropertyStringFormatEmail UIElicitationSchemaPropertyStringFormat = "email"
+	// URI string format.
+	UIElicitationSchemaPropertyStringFormatURI UIElicitationSchemaPropertyStringFormat = "uri"
 )
 
 // Type discriminator for UIElicitationSchemaProperty.
@@ -5900,10 +6089,14 @@ const (
 type UIExitPlanModeAction string
 
 const (
-	UIExitPlanModeActionAutopilot      UIExitPlanModeAction = "autopilot"
+	// Exit plan mode and continue in autopilot mode.
+	UIExitPlanModeActionAutopilot UIExitPlanModeAction = "autopilot"
+	// Exit plan mode and continue in autopilot mode with parallel subagent execution.
 	UIExitPlanModeActionAutopilotFleet UIExitPlanModeAction = "autopilot_fleet"
-	UIExitPlanModeActionExitOnly       UIExitPlanModeAction = "exit_only"
-	UIExitPlanModeActionInteractive    UIExitPlanModeAction = "interactive"
+	// Exit plan mode without starting implementation.
+	UIExitPlanModeActionExitOnly UIExitPlanModeAction = "exit_only"
+	// Exit plan mode and continue interactively.
+	UIExitPlanModeActionInteractive UIExitPlanModeAction = "interactive"
 )
 
 // Kind discriminator for UserToolSessionApproval.
@@ -5923,7 +6116,9 @@ const (
 type WorkspacesGetWorkspaceResultWorkspaceHostType string
 
 const (
-	WorkspacesGetWorkspaceResultWorkspaceHostTypeAdo    WorkspacesGetWorkspaceResultWorkspaceHostType = "ado"
+	// Workspace repository is hosted on Azure DevOps.
+	WorkspacesGetWorkspaceResultWorkspaceHostTypeAdo WorkspacesGetWorkspaceResultWorkspaceHostType = "ado"
+	// Workspace repository is hosted on GitHub.
 	WorkspacesGetWorkspaceResultWorkspaceHostTypeGithub WorkspacesGetWorkspaceResultWorkspaceHostType = "github"
 )
 
@@ -5931,7 +6126,9 @@ const (
 type WorkspaceSummaryHostType string
 
 const (
-	WorkspaceSummaryHostTypeAdo    WorkspaceSummaryHostType = "ado"
+	// Workspace summary repository is hosted on Azure DevOps.
+	WorkspaceSummaryHostTypeAdo WorkspaceSummaryHostType = "ado"
+	// Workspace summary repository is hosted on GitHub.
 	WorkspaceSummaryHostTypeGithub WorkspaceSummaryHostType = "github"
 )
 

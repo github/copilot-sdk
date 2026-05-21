@@ -2198,8 +2198,8 @@ public sealed partial class AssistantUsageData
     /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    [JsonPropertyName("ttftMs")]
-    public TimeSpan? Ttft { get; set; }
+    [JsonPropertyName("timeToFirstTokenMs")]
+    public TimeSpan? TimeToFirstToken { get; set; }
 }
 
 /// <summary>Failed LLM API call metadata for telemetry.</summary>
@@ -3781,6 +3781,8 @@ public sealed partial class ToolExecutionCompleteContentResourceLink : ToolExecu
     public string? Title { get; set; }
 
     /// <summary>URI identifying the resource.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
 }
@@ -3799,6 +3801,8 @@ public sealed partial class EmbeddedTextResourceContents
     public required string Text { get; set; }
 
     /// <summary>URI identifying the resource.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
 }
@@ -3818,6 +3822,8 @@ public sealed partial class EmbeddedBlobResourceContents
     public string? MimeType { get; set; }
 
     /// <summary>URI identifying the resource.</summary>
+    [Url]
+    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
 }
@@ -5308,10 +5314,10 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     /// <summary>Gets the value associated with this <see cref="WorkingDirectoryContextHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>github</c> value.</summary>
+    /// <summary>Repository is hosted on GitHub.</summary>
     public static WorkingDirectoryContextHostType Github { get; } = new("github");
 
-    /// <summary>Gets the <c>ado</c> value.</summary>
+    /// <summary>Repository is hosted on Azure DevOps.</summary>
     public static WorkingDirectoryContextHostType Ado { get; } = new("ado");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkingDirectoryContextHostType"/> instances are equivalent.</summary>
@@ -5369,13 +5375,13 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
     /// <summary>Gets the value associated with this <see cref="ReasoningSummary"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>none</c> value.</summary>
+    /// <summary>Do not request reasoning summaries from the model.</summary>
     public static ReasoningSummary None { get; } = new("none");
 
-    /// <summary>Gets the <c>concise</c> value.</summary>
+    /// <summary>Request a concise summary of the model's reasoning.</summary>
     public static ReasoningSummary Concise { get; } = new("concise");
 
-    /// <summary>Gets the <c>detailed</c> value.</summary>
+    /// <summary>Request a detailed summary of the model's reasoning.</summary>
     public static ReasoningSummary Detailed { get; } = new("detailed");
 
     /// <summary>Returns a value indicating whether two <see cref="ReasoningSummary"/> instances are equivalent.</summary>
@@ -5433,13 +5439,13 @@ public readonly struct SessionMode : IEquatable<SessionMode>
     /// <summary>Gets the value associated with this <see cref="SessionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>interactive</c> value.</summary>
+    /// <summary>The agent is responding interactively to the user.</summary>
     public static SessionMode Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>plan</c> value.</summary>
+    /// <summary>The agent is preparing a plan before making changes.</summary>
     public static SessionMode Plan { get; } = new("plan");
 
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    /// <summary>The agent is working autonomously toward task completion.</summary>
     public static SessionMode Autopilot { get; } = new("autopilot");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionMode"/> instances are equivalent.</summary>
@@ -5497,13 +5503,13 @@ public readonly struct PlanChangedOperation : IEquatable<PlanChangedOperation>
     /// <summary>Gets the value associated with this <see cref="PlanChangedOperation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>create</c> value.</summary>
+    /// <summary>The plan file was created.</summary>
     public static PlanChangedOperation Create { get; } = new("create");
 
-    /// <summary>Gets the <c>update</c> value.</summary>
+    /// <summary>The plan file was updated.</summary>
     public static PlanChangedOperation Update { get; } = new("update");
 
-    /// <summary>Gets the <c>delete</c> value.</summary>
+    /// <summary>The plan file was deleted.</summary>
     public static PlanChangedOperation Delete { get; } = new("delete");
 
     /// <summary>Returns a value indicating whether two <see cref="PlanChangedOperation"/> instances are equivalent.</summary>
@@ -5561,10 +5567,10 @@ public readonly struct WorkspaceFileChangedOperation : IEquatable<WorkspaceFileC
     /// <summary>Gets the value associated with this <see cref="WorkspaceFileChangedOperation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>create</c> value.</summary>
+    /// <summary>The workspace file was created.</summary>
     public static WorkspaceFileChangedOperation Create { get; } = new("create");
 
-    /// <summary>Gets the <c>update</c> value.</summary>
+    /// <summary>The workspace file was updated.</summary>
     public static WorkspaceFileChangedOperation Update { get; } = new("update");
 
     /// <summary>Returns a value indicating whether two <see cref="WorkspaceFileChangedOperation"/> instances are equivalent.</summary>
@@ -5622,10 +5628,10 @@ public readonly struct HandoffSourceType : IEquatable<HandoffSourceType>
     /// <summary>Gets the value associated with this <see cref="HandoffSourceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>remote</c> value.</summary>
+    /// <summary>The handoff originated from a remote session.</summary>
     public static HandoffSourceType Remote { get; } = new("remote");
 
-    /// <summary>Gets the <c>local</c> value.</summary>
+    /// <summary>The handoff originated from a local session.</summary>
     public static HandoffSourceType Local { get; } = new("local");
 
     /// <summary>Returns a value indicating whether two <see cref="HandoffSourceType"/> instances are equivalent.</summary>
@@ -5683,10 +5689,10 @@ public readonly struct ShutdownType : IEquatable<ShutdownType>
     /// <summary>Gets the value associated with this <see cref="ShutdownType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>routine</c> value.</summary>
+    /// <summary>The session ended normally.</summary>
     public static ShutdownType Routine { get; } = new("routine");
 
-    /// <summary>Gets the <c>error</c> value.</summary>
+    /// <summary>The session ended because of a crash or fatal error.</summary>
     public static ShutdownType Error { get; } = new("error");
 
     /// <summary>Returns a value indicating whether two <see cref="ShutdownType"/> instances are equivalent.</summary>
@@ -5744,16 +5750,16 @@ public readonly struct UserMessageAgentMode : IEquatable<UserMessageAgentMode>
     /// <summary>Gets the value associated with this <see cref="UserMessageAgentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>interactive</c> value.</summary>
+    /// <summary>The agent is responding interactively to the user.</summary>
     public static UserMessageAgentMode Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>plan</c> value.</summary>
+    /// <summary>The agent is preparing a plan before making changes.</summary>
     public static UserMessageAgentMode Plan { get; } = new("plan");
 
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    /// <summary>The agent is working autonomously toward task completion.</summary>
     public static UserMessageAgentMode Autopilot { get; } = new("autopilot");
 
-    /// <summary>Gets the <c>shell</c> value.</summary>
+    /// <summary>The agent is in shell-focused UI mode.</summary>
     public static UserMessageAgentMode Shell { get; } = new("shell");
 
     /// <summary>Returns a value indicating whether two <see cref="UserMessageAgentMode"/> instances are equivalent.</summary>
@@ -5811,13 +5817,13 @@ public readonly struct UserMessageAttachmentGithubReferenceType : IEquatable<Use
     /// <summary>Gets the value associated with this <see cref="UserMessageAttachmentGithubReferenceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>issue</c> value.</summary>
+    /// <summary>GitHub issue reference.</summary>
     public static UserMessageAttachmentGithubReferenceType Issue { get; } = new("issue");
 
-    /// <summary>Gets the <c>pr</c> value.</summary>
+    /// <summary>GitHub pull request reference.</summary>
     public static UserMessageAttachmentGithubReferenceType Pr { get; } = new("pr");
 
-    /// <summary>Gets the <c>discussion</c> value.</summary>
+    /// <summary>GitHub discussion reference.</summary>
     public static UserMessageAttachmentGithubReferenceType Discussion { get; } = new("discussion");
 
     /// <summary>Returns a value indicating whether two <see cref="UserMessageAttachmentGithubReferenceType"/> instances are equivalent.</summary>
@@ -5875,10 +5881,10 @@ public readonly struct AssistantMessageToolRequestType : IEquatable<AssistantMes
     /// <summary>Gets the value associated with this <see cref="AssistantMessageToolRequestType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>function</c> value.</summary>
+    /// <summary>Standard function-style tool call.</summary>
     public static AssistantMessageToolRequestType Function { get; } = new("function");
 
-    /// <summary>Gets the <c>custom</c> value.</summary>
+    /// <summary>Custom grammar-based tool call.</summary>
     public static AssistantMessageToolRequestType Custom { get; } = new("custom");
 
     /// <summary>Returns a value indicating whether two <see cref="AssistantMessageToolRequestType"/> instances are equivalent.</summary>
@@ -5936,16 +5942,16 @@ public readonly struct AssistantUsageApiEndpoint : IEquatable<AssistantUsageApiE
     /// <summary>Gets the value associated with this <see cref="AssistantUsageApiEndpoint"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>/chat/completions</c> value.</summary>
+    /// <summary>Chat Completions API endpoint.</summary>
     public static AssistantUsageApiEndpoint ChatCompletions { get; } = new("/chat/completions");
 
-    /// <summary>Gets the <c>/v1/messages</c> value.</summary>
+    /// <summary>Anthropic Messages API endpoint.</summary>
     public static AssistantUsageApiEndpoint V1Messages { get; } = new("/v1/messages");
 
-    /// <summary>Gets the <c>/responses</c> value.</summary>
+    /// <summary>Responses API endpoint.</summary>
     public static AssistantUsageApiEndpoint Responses { get; } = new("/responses");
 
-    /// <summary>Gets the <c>ws:/responses</c> value.</summary>
+    /// <summary>WebSocket Responses API endpoint.</summary>
     public static AssistantUsageApiEndpoint WsResponses { get; } = new("ws:/responses");
 
     /// <summary>Returns a value indicating whether two <see cref="AssistantUsageApiEndpoint"/> instances are equivalent.</summary>
@@ -6003,13 +6009,13 @@ public readonly struct ModelCallFailureSource : IEquatable<ModelCallFailureSourc
     /// <summary>Gets the value associated with this <see cref="ModelCallFailureSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>top_level</c> value.</summary>
+    /// <summary>Model call from the top-level agent.</summary>
     public static ModelCallFailureSource TopLevel { get; } = new("top_level");
 
-    /// <summary>Gets the <c>subagent</c> value.</summary>
+    /// <summary>Model call from a sub-agent.</summary>
     public static ModelCallFailureSource Subagent { get; } = new("subagent");
 
-    /// <summary>Gets the <c>mcp_sampling</c> value.</summary>
+    /// <summary>Model call from MCP sampling.</summary>
     public static ModelCallFailureSource McpSampling { get; } = new("mcp_sampling");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelCallFailureSource"/> instances are equivalent.</summary>
@@ -6067,13 +6073,13 @@ public readonly struct AbortReason : IEquatable<AbortReason>
     /// <summary>Gets the value associated with this <see cref="AbortReason"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>user_initiated</c> value.</summary>
+    /// <summary>The local user requested the abort, for example by pressing Ctrl+C in the CLI.</summary>
     public static AbortReason UserInitiated { get; } = new("user_initiated");
 
-    /// <summary>Gets the <c>remote_command</c> value.</summary>
+    /// <summary>A remote command requested the abort.</summary>
     public static AbortReason RemoteCommand { get; } = new("remote_command");
 
-    /// <summary>Gets the <c>user_abort</c> value.</summary>
+    /// <summary>An MCP server delivered a user.abort notification.</summary>
     public static AbortReason UserAbort { get; } = new("user_abort");
 
     /// <summary>Returns a value indicating whether two <see cref="AbortReason"/> instances are equivalent.</summary>
@@ -6131,10 +6137,10 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
     /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>light</c> value.</summary>
+    /// <summary>Icon intended for light themes.</summary>
     public static ToolExecutionCompleteContentResourceLinkIconTheme Light { get; } = new("light");
 
-    /// <summary>Gets the <c>dark</c> value.</summary>
+    /// <summary>Icon intended for dark themes.</summary>
     public static ToolExecutionCompleteContentResourceLinkIconTheme Dark { get; } = new("dark");
 
     /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteContentResourceLinkIconTheme"/> instances are equivalent.</summary>
@@ -6192,10 +6198,10 @@ public readonly struct SystemMessageRole : IEquatable<SystemMessageRole>
     /// <summary>Gets the value associated with this <see cref="SystemMessageRole"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>system</c> value.</summary>
+    /// <summary>System prompt message.</summary>
     public static SystemMessageRole System { get; } = new("system");
 
-    /// <summary>Gets the <c>developer</c> value.</summary>
+    /// <summary>Developer instruction message.</summary>
     public static SystemMessageRole Developer { get; } = new("developer");
 
     /// <summary>Returns a value indicating whether two <see cref="SystemMessageRole"/> instances are equivalent.</summary>
@@ -6253,10 +6259,10 @@ public readonly struct SystemNotificationAgentCompletedStatus : IEquatable<Syste
     /// <summary>Gets the value associated with this <see cref="SystemNotificationAgentCompletedStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>completed</c> value.</summary>
+    /// <summary>The agent completed successfully.</summary>
     public static SystemNotificationAgentCompletedStatus Completed { get; } = new("completed");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
+    /// <summary>The agent failed.</summary>
     public static SystemNotificationAgentCompletedStatus Failed { get; } = new("failed");
 
     /// <summary>Returns a value indicating whether two <see cref="SystemNotificationAgentCompletedStatus"/> instances are equivalent.</summary>
@@ -6314,10 +6320,10 @@ public readonly struct PermissionRequestMemoryAction : IEquatable<PermissionRequ
     /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>store</c> value.</summary>
+    /// <summary>Store a new memory.</summary>
     public static PermissionRequestMemoryAction Store { get; } = new("store");
 
-    /// <summary>Gets the <c>vote</c> value.</summary>
+    /// <summary>Vote on an existing memory.</summary>
     public static PermissionRequestMemoryAction Vote { get; } = new("vote");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionRequestMemoryAction"/> instances are equivalent.</summary>
@@ -6375,10 +6381,10 @@ public readonly struct PermissionRequestMemoryDirection : IEquatable<PermissionR
     /// <summary>Gets the value associated with this <see cref="PermissionRequestMemoryDirection"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>upvote</c> value.</summary>
+    /// <summary>Vote that the memory is useful or accurate.</summary>
     public static PermissionRequestMemoryDirection Upvote { get; } = new("upvote");
 
-    /// <summary>Gets the <c>downvote</c> value.</summary>
+    /// <summary>Vote that the memory is incorrect or outdated.</summary>
     public static PermissionRequestMemoryDirection Downvote { get; } = new("downvote");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionRequestMemoryDirection"/> instances are equivalent.</summary>
@@ -6436,13 +6442,13 @@ public readonly struct PermissionPromptRequestPathAccessKind : IEquatable<Permis
     /// <summary>Gets the value associated with this <see cref="PermissionPromptRequestPathAccessKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>read</c> value.</summary>
+    /// <summary>Read access to a filesystem path.</summary>
     public static PermissionPromptRequestPathAccessKind Read { get; } = new("read");
 
-    /// <summary>Gets the <c>shell</c> value.</summary>
+    /// <summary>Shell command access involving a filesystem path.</summary>
     public static PermissionPromptRequestPathAccessKind Shell { get; } = new("shell");
 
-    /// <summary>Gets the <c>write</c> value.</summary>
+    /// <summary>Write access to a filesystem path.</summary>
     public static PermissionPromptRequestPathAccessKind Write { get; } = new("write");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionPromptRequestPathAccessKind"/> instances are equivalent.</summary>
@@ -6500,10 +6506,10 @@ public readonly struct ElicitationRequestedMode : IEquatable<ElicitationRequeste
     /// <summary>Gets the value associated with this <see cref="ElicitationRequestedMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>form</c> value.</summary>
+    /// <summary>Structured form-based elicitation.</summary>
     public static ElicitationRequestedMode Form { get; } = new("form");
 
-    /// <summary>Gets the <c>url</c> value.</summary>
+    /// <summary>Browser URL-based elicitation.</summary>
     public static ElicitationRequestedMode Url { get; } = new("url");
 
     /// <summary>Returns a value indicating whether two <see cref="ElicitationRequestedMode"/> instances are equivalent.</summary>
@@ -6561,13 +6567,13 @@ public readonly struct ElicitationCompletedAction : IEquatable<ElicitationComple
     /// <summary>Gets the value associated with this <see cref="ElicitationCompletedAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>accept</c> value.</summary>
+    /// <summary>The user submitted the requested form.</summary>
     public static ElicitationCompletedAction Accept { get; } = new("accept");
 
-    /// <summary>Gets the <c>decline</c> value.</summary>
+    /// <summary>The user explicitly declined the request.</summary>
     public static ElicitationCompletedAction Decline { get; } = new("decline");
 
-    /// <summary>Gets the <c>cancel</c> value.</summary>
+    /// <summary>The user dismissed the request.</summary>
     public static ElicitationCompletedAction Cancel { get; } = new("cancel");
 
     /// <summary>Returns a value indicating whether two <see cref="ElicitationCompletedAction"/> instances are equivalent.</summary>
@@ -6625,13 +6631,13 @@ public readonly struct AutoModeSwitchResponse : IEquatable<AutoModeSwitchRespons
     /// <summary>Gets the value associated with this <see cref="AutoModeSwitchResponse"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>yes</c> value.</summary>
+    /// <summary>Switch models for this request.</summary>
     public static AutoModeSwitchResponse Yes { get; } = new("yes");
 
-    /// <summary>Gets the <c>yes_always</c> value.</summary>
+    /// <summary>Switch models now and keep using the replacement automatically.</summary>
     public static AutoModeSwitchResponse YesAlways { get; } = new("yes_always");
 
-    /// <summary>Gets the <c>no</c> value.</summary>
+    /// <summary>Do not switch models.</summary>
     public static AutoModeSwitchResponse No { get; } = new("no");
 
     /// <summary>Returns a value indicating whether two <see cref="AutoModeSwitchResponse"/> instances are equivalent.</summary>
@@ -6689,16 +6695,16 @@ public readonly struct ExitPlanModeAction : IEquatable<ExitPlanModeAction>
     /// <summary>Gets the value associated with this <see cref="ExitPlanModeAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>exit_only</c> value.</summary>
+    /// <summary>Exit plan mode without starting implementation.</summary>
     public static ExitPlanModeAction ExitOnly { get; } = new("exit_only");
 
-    /// <summary>Gets the <c>interactive</c> value.</summary>
+    /// <summary>Exit plan mode and continue in interactive mode.</summary>
     public static ExitPlanModeAction Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    /// <summary>Exit plan mode and continue autonomously.</summary>
     public static ExitPlanModeAction Autopilot { get; } = new("autopilot");
 
-    /// <summary>Gets the <c>autopilot_fleet</c> value.</summary>
+    /// <summary>Exit plan mode and continue with parallel autonomous workers.</summary>
     public static ExitPlanModeAction AutopilotFleet { get; } = new("autopilot_fleet");
 
     /// <summary>Returns a value indicating whether two <see cref="ExitPlanModeAction"/> instances are equivalent.</summary>
@@ -6756,25 +6762,25 @@ public readonly struct SkillSource : IEquatable<SkillSource>
     /// <summary>Gets the value associated with this <see cref="SkillSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>project</c> value.</summary>
+    /// <summary>Skill defined in the current project's skill directories.</summary>
     public static SkillSource Project { get; } = new("project");
 
-    /// <summary>Gets the <c>inherited</c> value.</summary>
+    /// <summary>Skill discovered from a parent directory in the current workspace tree.</summary>
     public static SkillSource Inherited { get; } = new("inherited");
 
-    /// <summary>Gets the <c>personal-copilot</c> value.</summary>
+    /// <summary>Skill defined in the user's Copilot skill directory.</summary>
     public static SkillSource PersonalCopilot { get; } = new("personal-copilot");
 
-    /// <summary>Gets the <c>personal-agents</c> value.</summary>
+    /// <summary>Skill defined in the user's personal agents skill directory.</summary>
     public static SkillSource PersonalAgents { get; } = new("personal-agents");
 
-    /// <summary>Gets the <c>plugin</c> value.</summary>
+    /// <summary>Skill provided by an installed plugin.</summary>
     public static SkillSource Plugin { get; } = new("plugin");
 
-    /// <summary>Gets the <c>custom</c> value.</summary>
+    /// <summary>Skill loaded from a configured custom skill directory.</summary>
     public static SkillSource Custom { get; } = new("custom");
 
-    /// <summary>Gets the <c>builtin</c> value.</summary>
+    /// <summary>Skill bundled with the runtime.</summary>
     public static SkillSource Builtin { get; } = new("builtin");
 
     /// <summary>Returns a value indicating whether two <see cref="SkillSource"/> instances are equivalent.</summary>
@@ -6832,16 +6838,16 @@ public readonly struct McpServerSource : IEquatable<McpServerSource>
     /// <summary>Gets the value associated with this <see cref="McpServerSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>user</c> value.</summary>
+    /// <summary>Server configured in the user's global MCP configuration.</summary>
     public static McpServerSource User { get; } = new("user");
 
-    /// <summary>Gets the <c>workspace</c> value.</summary>
+    /// <summary>Server configured by the current workspace.</summary>
     public static McpServerSource Workspace { get; } = new("workspace");
 
-    /// <summary>Gets the <c>plugin</c> value.</summary>
+    /// <summary>Server contributed by an installed plugin.</summary>
     public static McpServerSource Plugin { get; } = new("plugin");
 
-    /// <summary>Gets the <c>builtin</c> value.</summary>
+    /// <summary>Server bundled with the runtime.</summary>
     public static McpServerSource Builtin { get; } = new("builtin");
 
     /// <summary>Returns a value indicating whether two <see cref="McpServerSource"/> instances are equivalent.</summary>
@@ -6899,22 +6905,22 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
     /// <summary>Gets the value associated with this <see cref="McpServerStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>connected</c> value.</summary>
+    /// <summary>The server is connected and available.</summary>
     public static McpServerStatus Connected { get; } = new("connected");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
+    /// <summary>The server failed to connect or initialize.</summary>
     public static McpServerStatus Failed { get; } = new("failed");
 
-    /// <summary>Gets the <c>needs-auth</c> value.</summary>
+    /// <summary>The server requires authentication before it can connect.</summary>
     public static McpServerStatus NeedsAuth { get; } = new("needs-auth");
 
-    /// <summary>Gets the <c>pending</c> value.</summary>
+    /// <summary>The server connection is still being established.</summary>
     public static McpServerStatus Pending { get; } = new("pending");
 
-    /// <summary>Gets the <c>disabled</c> value.</summary>
+    /// <summary>The server is configured but disabled.</summary>
     public static McpServerStatus Disabled { get; } = new("disabled");
 
-    /// <summary>Gets the <c>not_configured</c> value.</summary>
+    /// <summary>The server is not configured for this session.</summary>
     public static McpServerStatus NotConfigured { get; } = new("not_configured");
 
     /// <summary>Returns a value indicating whether two <see cref="McpServerStatus"/> instances are equivalent.</summary>
@@ -6972,10 +6978,10 @@ public readonly struct ExtensionsLoadedExtensionSource : IEquatable<ExtensionsLo
     /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>project</c> value.</summary>
+    /// <summary>Extension discovered from the current project.</summary>
     public static ExtensionsLoadedExtensionSource Project { get; } = new("project");
 
-    /// <summary>Gets the <c>user</c> value.</summary>
+    /// <summary>Extension discovered from the user's extension directory.</summary>
     public static ExtensionsLoadedExtensionSource User { get; } = new("user");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionsLoadedExtensionSource"/> instances are equivalent.</summary>
@@ -7033,16 +7039,16 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     /// <summary>Gets the value associated with this <see cref="ExtensionsLoadedExtensionStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>running</c> value.</summary>
+    /// <summary>The extension process is running.</summary>
     public static ExtensionsLoadedExtensionStatus Running { get; } = new("running");
 
-    /// <summary>Gets the <c>disabled</c> value.</summary>
+    /// <summary>The extension is installed but disabled.</summary>
     public static ExtensionsLoadedExtensionStatus Disabled { get; } = new("disabled");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
+    /// <summary>The extension failed to start or crashed.</summary>
     public static ExtensionsLoadedExtensionStatus Failed { get; } = new("failed");
 
-    /// <summary>Gets the <c>starting</c> value.</summary>
+    /// <summary>The extension process is starting.</summary>
     public static ExtensionsLoadedExtensionStatus Starting { get; } = new("starting");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionsLoadedExtensionStatus"/> instances are equivalent.</summary>
