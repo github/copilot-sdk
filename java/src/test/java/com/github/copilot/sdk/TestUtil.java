@@ -55,14 +55,14 @@ public final class TestUtil {
      *         {@code null} if none was found
      */
     static String findCliPath() {
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
         String envPath = System.getenv("COPILOT_CLI_PATH");
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;
+        }
+
+        String copilotInPath = findCopilotInPath();
+        if (copilotInPath != null) {
+            return copilotInPath;
         }
 
         Path current = Paths.get(System.getProperty("user.dir"));
