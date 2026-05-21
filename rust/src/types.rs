@@ -3199,7 +3199,7 @@ pub enum ElicitationMode {
 /// An incoming elicitation request from the CLI (provider side).
 ///
 /// Received via `elicitation.requested` session event when the session has
-/// an [`ElicitationHandler`](crate::handler::ElicitationHandler) installed.
+/// an [`ElicitationHandler`] installed.
 /// The provider should render a form or dialog and return an
 /// [`ElicitationResult`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
