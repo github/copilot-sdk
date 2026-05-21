@@ -76,7 +76,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
-    config.request_user_input = Some(true);
     let config = config
         .with_permission_handler(handler.clone())
         .with_user_input_handler(handler)
