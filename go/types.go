@@ -476,8 +476,14 @@ type MCPServerConfig interface {
 }
 
 // MCPStdioServerConfig configures a local/stdio MCP server.
+//
+// The Tools field controls which tools from the server are exposed:
+//   - nil (omitted from the wire): all tools (CLI default)
+//   - []string{"*"}: explicit "all tools"
+//   - []string{}: no tools
+//   - []string{"foo","bar"}: only those tools
 type MCPStdioServerConfig struct {
-	Tools   []string          `json:"tools"`
+	Tools   []string          `json:"tools,omitempty"`
 	Timeout int               `json:"timeout,omitempty"`
 	Command string            `json:"command"`
 	Args    []string          `json:"args,omitempty"`
@@ -500,8 +506,10 @@ func (c MCPStdioServerConfig) MarshalJSON() ([]byte, error) {
 }
 
 // MCPHTTPServerConfig configures a remote MCP server (HTTP or SSE).
+//
+// See [MCPStdioServerConfig] for the semantics of the Tools field.
 type MCPHTTPServerConfig struct {
-	Tools   []string          `json:"tools"`
+	Tools   []string          `json:"tools,omitempty"`
 	Timeout int               `json:"timeout,omitempty"`
 	URL     string            `json:"url"`
 	Headers map[string]string `json:"headers,omitempty"`
@@ -986,11 +994,11 @@ type ProviderConfig struct {
 	// custom fine-tune name) differs from ModelID.
 	// Falls back to ModelID, then SessionConfig.Model.
 	WireModel string `json:"wireModel,omitempty"`
-	// MaxInputTokens overrides the resolved model's default max prompt tokens.
+	// MaxPromptTokens overrides the resolved model's default max prompt tokens.
 	// The runtime triggers conversation compaction before sending a request
 	// when the prompt (system message, history, tool definitions, user
 	// message) would exceed this limit.
-	MaxInputTokens int `json:"maxPromptTokens,omitempty"`
+	MaxPromptTokens int `json:"maxPromptTokens,omitempty"`
 	// MaxOutputTokens overrides the resolved model's default max output
 	// tokens. When hit, the model stops generating and returns a truncated
 	// response.
