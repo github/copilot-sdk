@@ -8,50 +8,46 @@ export async function getFinalAssistantMessage(
     session: CopilotSession,
     { alreadyIdle = false }: { alreadyIdle?: boolean } = {}
 ): Promise<AssistantMessageEvent> {
-    // We don't know whether the answer has already arrived or not, so race both possibilities
-    return new Promise<AssistantMessageEvent>(async (resolve, reject) => {
-        getFutureFinalResponse(session).then(resolve).catch(reject);
-        getExistingFinalResponse(session, alreadyIdle)
-            .then((msg) => {
-                if (msg) {
-                    resolve(msg);
-                }
-            })
-            .catch(reject);
-    });
+    // Start listening for the answer immediately so we don't miss any events that arrive
+    // between the existing-messages RPC starting and the subscription being installed.
+    const futurePromise = getFutureFinalResponse(session);
+    // We may end up returning from the existing-messages path; attach a noop handler so
+    // the unawaited future-response rejection doesn't surface as an unhandled rejection.
+    futurePromise.catch(() => {});
+
+    const existing = await getExistingFinalResponse(session, alreadyIdle);
+    if (existing) {
+        return existing;
+    }
+    return futurePromise;
 }
 
-function getExistingFinalResponse(
+async function getExistingFinalResponse(
     session: CopilotSession,
     alreadyIdle: boolean = false
 ): Promise<AssistantMessageEvent | undefined> {
-    return new Promise<AssistantMessageEvent | undefined>(async (resolve, reject) => {
-        const messages = await session.getEvents();
-        const finalUserMessageIndex = messages.findLastIndex((m) => m.type === "user.message");
-        const currentTurnMessages =
-            finalUserMessageIndex < 0 ? messages : messages.slice(finalUserMessageIndex);
+    const messages = await session.getEvents();
+    const finalUserMessageIndex = messages.findLastIndex((m) => m.type === "user.message");
+    const currentTurnMessages =
+        finalUserMessageIndex < 0 ? messages : messages.slice(finalUserMessageIndex);
 
-        const currentTurnError = currentTurnMessages.find((m) => m.type === "session.error");
-        if (currentTurnError) {
-            const error = new Error(currentTurnError.data.message);
-            error.stack = currentTurnError.data.stack;
-            reject(error);
-            return;
-        }
+    const currentTurnError = currentTurnMessages.find((m) => m.type === "session.error");
+    if (currentTurnError) {
+        const error = new Error(currentTurnError.data.message);
+        error.stack = currentTurnError.data.stack;
+        throw error;
+    }
 
-        const sessionIdleMessageIndex = alreadyIdle
-            ? currentTurnMessages.length
-            : currentTurnMessages.findIndex((m) => m.type === "session.idle");
-        if (sessionIdleMessageIndex !== -1) {
-            const lastAssistantMessage = currentTurnMessages
-                .slice(0, sessionIdleMessageIndex)
-                .findLast((m) => m.type === "assistant.message");
-            resolve(lastAssistantMessage as AssistantMessageEvent | undefined);
-            return;
-        }
+    const sessionIdleMessageIndex = alreadyIdle
+        ? currentTurnMessages.length
+        : currentTurnMessages.findIndex((m) => m.type === "session.idle");
+    if (sessionIdleMessageIndex !== -1) {
+        return currentTurnMessages
+            .slice(0, sessionIdleMessageIndex)
+            .findLast((m) => m.type === "assistant.message") as AssistantMessageEvent | undefined;
+    }
 
-        resolve(undefined);
-    });
+    return undefined;
 }
 
 function getFutureFinalResponse(session: CopilotSession): Promise<AssistantMessageEvent> {

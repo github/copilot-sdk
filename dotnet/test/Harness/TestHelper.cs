@@ -22,7 +22,7 @@ public static class TestHelper
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
         // Both `finalAssistantMessage` and `sawIdle` are set from two threads — the
-        // subscription callback (CLI read loop) and CheckExistingMessages (RPC reply).
+        // subscription callback (CLI read loop) and CheckExistingMessagesAsync (RPC reply).
         // We complete only once we've observed both, regardless of which path saw which.
         var stateLock = new object();
         AssistantMessageEvent? finalAssistantMessage = null;
@@ -59,14 +59,29 @@ public static class TestHelper
         });
 
         // Backfill from already-delivered messages so we don't lose events that arrived
-        // between SendAsync returning and the subscription being installed.
-        CheckExistingMessages();
+        // between SendAsync returning and the subscription being installed. Run it
+        // concurrently with the live subscription, but keep the Task observable so any
+        // exception is propagated through tcs (not the unobserved-task handler) and so
+        // we can drain it deterministically below.
+        var backfill = CheckExistingMessagesAsync();
 
-        cts.Token.Register(() => tcs.TrySetException(new TimeoutException("Timeout waiting for assistant message")));
+        using var registration = cts.Token.Register(
+            static state => ((TaskCompletionSource<AssistantMessageEvent>)state!).TrySetException(
+                new TimeoutException("Timeout waiting for assistant message")),
+            tcs);
 
-        return await tcs.Task;
+        try
+        {
+            return await tcs.Task;
+        }
+        finally
+        {
+            // Drain the backfill before our `using` scopes (cts, subscription) dispose.
+            // Any exception was already routed through tcs above, so swallow here.
+            try { await backfill.ConfigureAwait(false); } catch { }
+        }
 
-        async void CheckExistingMessages()
+        async Task CheckExistingMessagesAsync()
         {
             try
             {
