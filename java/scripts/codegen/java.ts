@@ -102,6 +102,13 @@ interface JavaTypeResult {
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
 
+// Definitions and generated type names from the session-events schema, populated
+// during generateSessionEvents so that cross-schema $ref resolution in generateRpcTypes
+// can look up types like SessionEvent and PermissionPromptRequest.
+let sessionEventsDefinitions: Record<string, JSONSchema7> = {};
+const generatedSessionEventsTypes = new Set<string>();
+const SESSION_EVENTS_PACKAGE = "com.github.copilot.sdk.generated";
+
 /**
  * Resolve a $ref in a JSON Schema against the current definitions.
  * Returns the resolved schema, or the original if no $ref is present.
@@ -131,6 +138,28 @@ function schemaTypeToJava(
 
     // Resolve $ref first — register standalone types for generation
     if (schema.$ref) {
+        // Handle cross-schema refs (e.g. "session-events.schema.json#/definitions/X")
+        if (!schema.$ref.startsWith("#")) {
+            const hashIdx = schema.$ref.indexOf("#");
+            const schemaFile = hashIdx >= 0 ? schema.$ref.substring(0, hashIdx) : schema.$ref;
+            const pointer = hashIdx >= 0 ? schema.$ref.substring(hashIdx + 1) : "";
+            const typeName = pointer.replace(/^\/definitions\//, "");
+            if (schemaFile === "session-events.schema.json" && typeName) {
+                if (generatedSessionEventsTypes.has(typeName)) {
+                    // Already generated in the session-events package — use with import
+                    imports.add(`${SESSION_EVENTS_PACKAGE}.${typeName}`);
+                    return { javaType: typeName, imports };
+                }
+                // Not a pre-generated standalone type; resolve inline from session-events defs
+                const extDef = sessionEventsDefinitions[typeName];
+                if (extDef) {
+                    return schemaTypeToJava(extDef, required, context, propName, nestedTypes);
+                }
+            }
+            console.warn(`[codegen] Unresolved cross-schema $ref: ${schema.$ref}`);
+            return { javaType: "Object", imports };
+        }
+
         const name = schema.$ref.replace(/^#\/definitions\//, "");
         const resolved = currentDefinitions[name];
         if (resolved) {
@@ -314,20 +343,30 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
 
+    // Store session-events definitions for cross-schema $ref resolution during RPC generation
+    sessionEventsDefinitions = currentDefinitions;
+    generatedSessionEventsTypes.clear();
+
     const variants = extractEventVariants(schema);
     const packageName = "com.github.copilot.sdk.generated";
     const packageDir = `src/generated/java/com/github/copilot/sdk/generated`;
 
     // Generate base SessionEvent class
     await generateSessionEventBaseClass(variants, packageName, packageDir);
+    generatedSessionEventsTypes.add("SessionEvent");
+    generatedSessionEventsTypes.add("UnknownSessionEvent");
 
     // Generate one class file per event variant
     for (const variant of variants) {
         await generateEventVariantClass(variant, packageName, packageDir);
+        generatedSessionEventsTypes.add(variant.className);
     }
 
     // Generate standalone types discovered via $ref resolution
     await generatePendingStandaloneTypes(packageName, packageDir, GENERATED_FROM_SESSION_EVENTS);
+    for (const typeName of pendingStandaloneTypes.keys()) {
+        generatedSessionEventsTypes.add(typeName);
+    }
 
     console.log(`✅ Generated ${variants.length + 1} session event files`);
 }
