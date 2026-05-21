@@ -4,7 +4,7 @@
         <TargetFrameworks>net8.0;net10.0;netstandard2.0</TargetFrameworks>
         <RootNamespace>GitHub.Copilot</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <Version>0.1.0</Version>
+        <Version>0.0.0-dev</Version>
         <Description>SDK for programmatic control of GitHub Copilot CLI</Description>
         <Authors>GitHub</Authors>
         <Company>GitHub</Company>
