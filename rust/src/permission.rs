@@ -1,81 +1,64 @@
-//! Permission-policy helpers that compose with an existing
-//! [`SessionHandler`](crate::handler::SessionHandler).
+//! Permission policy primitives that produce a [`PermissionHandler`].
 //!
-//! These wrap an inner handler and override **only** permission requests,
-//! forwarding every other event (tool calls, user input, elicitation,
-//! session events) to the inner handler. Use them when you have a custom
-//! tool handler — typically a [`ToolHandlerRouter`](crate::tool::ToolHandlerRouter) —
-//! but want a one-line policy for permission prompts.
+//! Compose these into a session via the builder methods
+//! [`SessionConfig::approve_all_permissions`](crate::types::SessionConfig::approve_all_permissions),
+//! [`deny_all_permissions`](crate::types::SessionConfig::deny_all_permissions),
+//! and [`approve_permissions_if`](crate::types::SessionConfig::approve_permissions_if).
+//! The same primitives are also available as standalone functions that
+//! return an `Arc<dyn PermissionHandler>` you can install via
+//! [`SessionConfig::with_permission_handler`](crate::types::SessionConfig::with_permission_handler).
 //!
-//! For a full handler that approves or denies everything, see
+//! For a one-shot approve / deny without composition, see
 //! [`ApproveAllHandler`](crate::handler::ApproveAllHandler) and
 //! [`DenyAllHandler`](crate::handler::DenyAllHandler).
-//!
-//! # Example
-//!
-//! ```rust,no_run
-//! # use std::sync::Arc;
-//! # use github_copilot_sdk::handler::ApproveAllHandler;
-//! # use github_copilot_sdk::permission;
-//! # use github_copilot_sdk::tool::ToolHandlerRouter;
-//! let router = ToolHandlerRouter::new(vec![], Arc::new(ApproveAllHandler));
-//! // Inherit the router's tool dispatch but auto-approve all permission prompts:
-//! let handler = permission::approve_all(Arc::new(router));
-//! ```
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::handler::{HandlerEvent, HandlerResponse, PermissionResult, SessionHandler};
-use crate::types::PermissionRequestData;
+use crate::handler::{PermissionHandler, PermissionResult};
+use crate::types::{PermissionRequestData, RequestId, SessionId};
 
-/// Wrap `inner` so that every [`HandlerEvent::PermissionRequest`] is
-/// auto-approved. All other events are forwarded to `inner`.
-pub fn approve_all(inner: Arc<dyn SessionHandler>) -> Arc<dyn SessionHandler> {
-    Arc::new(PermissionOverrideHandler {
-        inner,
+/// Return a [`PermissionHandler`] that approves every request.
+pub fn approve_all() -> Arc<dyn PermissionHandler> {
+    Arc::new(PolicyHandler {
         policy: Policy::ApproveAll,
     })
 }
 
-/// Wrap `inner` so that every [`HandlerEvent::PermissionRequest`] is
-/// auto-denied. All other events are forwarded to `inner`.
-pub fn deny_all(inner: Arc<dyn SessionHandler>) -> Arc<dyn SessionHandler> {
-    Arc::new(PermissionOverrideHandler {
-        inner,
+/// Return a [`PermissionHandler`] that denies every request.
+pub fn deny_all() -> Arc<dyn PermissionHandler> {
+    Arc::new(PolicyHandler {
         policy: Policy::DenyAll,
     })
 }
 
-/// Wrap `inner` with a closure-based policy: `predicate` is called for each
-/// permission request; `true` approves, `false` denies. All other events
-/// are forwarded to `inner`.
+/// Return a [`PermissionHandler`] that consults a predicate for each
+/// request. `true` approves, `false` denies.
 ///
 /// ```rust,no_run
-/// # use std::sync::Arc;
-/// # use github_copilot_sdk::handler::ApproveAllHandler;
 /// # use github_copilot_sdk::permission;
-/// let inner = Arc::new(ApproveAllHandler);
-/// let handler = permission::approve_if(inner, |data| {
-///     // Inspect data.extra (the raw JSON payload) for custom policy.
+/// let handler = permission::approve_if(|data| {
 ///     data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
 /// });
 /// # let _ = handler;
 /// ```
-pub fn approve_if<F>(inner: Arc<dyn SessionHandler>, predicate: F) -> Arc<dyn SessionHandler>
+pub fn approve_if<F>(predicate: F) -> Arc<dyn PermissionHandler>
 where
     F: Fn(&PermissionRequestData) -> bool + Send + Sync + 'static,
 {
-    Arc::new(PermissionOverrideHandler {
-        inner,
+    Arc::new(PolicyHandler {
         policy: Policy::Predicate(Arc::new(predicate)),
     })
 }
 
-/// Internal permission policy stored on `SessionConfig::permission_policy`.
-/// Applied to the handler at `Client::create_session` time so the order of
-/// `with_handler` and `approve_all_permissions` is irrelevant.
+/// Internal policy enum used by both the standalone helpers and the
+/// `SessionConfig` policy builders.
+///
+/// Stored as `pub(crate)` on `SessionConfig::permission_policy` so that
+/// the order of `with_permission_handler(...)` and the policy builders
+/// does not matter -- the policy is applied at `Client::create_session`
+/// time.
 #[derive(Clone)]
 pub(crate) enum Policy {
     ApproveAll,
@@ -93,49 +76,49 @@ impl std::fmt::Debug for Policy {
     }
 }
 
-/// Wrap `inner` with a stored [`Policy`]. Used by `Client::create_session`
-/// after the handler and policy fields are both finalised.
-pub(crate) fn apply_policy(
-    inner: Arc<dyn SessionHandler>,
-    policy: Policy,
-) -> Arc<dyn SessionHandler> {
-    Arc::new(PermissionOverrideHandler { inner, policy })
+/// Resolve the effective permission handler for a session, given the
+/// caller-supplied handler and policy. Called by `Client::create_session`
+/// and `Client::resume_session`.
+///
+/// Semantics:
+/// - When `policy` is `Some`, the policy entirely replaces the handler
+///   for permission decisions. (Caller-supplied handler, if any, is
+///   discarded -- the policy is what answers permission requests.)
+/// - When `policy` is `None` and `handler` is `Some`, the handler stands.
+/// - When both are `None`, returns `None` (no handler -- the SDK sends
+///   `requestPermission: false`).
+pub(crate) fn resolve_handler(
+    handler: Option<Arc<dyn PermissionHandler>>,
+    policy: Option<Policy>,
+) -> Option<Arc<dyn PermissionHandler>> {
+    match (handler, policy) {
+        (_, Some(policy)) => Some(Arc::new(PolicyHandler { policy })),
+        (Some(h), None) => Some(h),
+        (None, None) => None,
+    }
 }
 
-struct PermissionOverrideHandler {
-    inner: Arc<dyn SessionHandler>,
+struct PolicyHandler {
     policy: Policy,
 }
 
 #[async_trait]
-impl SessionHandler for PermissionOverrideHandler {
-    fn wants_permission_dispatch(&self) -> bool {
-        true
-    }
-
-    fn wants_elicitation_dispatch(&self) -> bool {
-        self.inner.wants_elicitation_dispatch()
-    }
-
-    fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
-        self.inner.wants_external_tool_dispatch(tool_name)
-    }
-
-    async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
-        match event {
-            HandlerEvent::PermissionRequest { ref data, .. } => {
-                let approved = match &self.policy {
-                    Policy::ApproveAll => true,
-                    Policy::DenyAll => false,
-                    Policy::Predicate(f) => f(data),
-                };
-                HandlerResponse::Permission(if approved {
-                    PermissionResult::Approved
-                } else {
-                    PermissionResult::Denied
-                })
-            }
-            other => self.inner.on_event(other).await,
+impl PermissionHandler for PolicyHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        _request_id: RequestId,
+        data: PermissionRequestData,
+    ) -> PermissionResult {
+        let approved = match &self.policy {
+            Policy::ApproveAll => true,
+            Policy::DenyAll => false,
+            Policy::Predicate(f) => f(&data),
+        };
+        if approved {
+            PermissionResult::Approved
+        } else {
+            PermissionResult::Denied
         }
     }
 }
@@ -143,61 +126,91 @@ impl SessionHandler for PermissionOverrideHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::handler::ApproveAllHandler;
-    use crate::types::{RequestId, SessionId};
 
-    fn request() -> HandlerEvent {
-        HandlerEvent::PermissionRequest {
-            session_id: SessionId::from("s1"),
-            request_id: RequestId::new("1"),
-            data: PermissionRequestData {
-                extra: serde_json::json!({"tool": "shell"}),
-                ..Default::default()
-            },
+    fn data() -> PermissionRequestData {
+        PermissionRequestData {
+            extra: serde_json::json!({ "tool": "shell" }),
+            ..Default::default()
         }
     }
 
     #[tokio::test]
-    async fn approve_all_approves_permission_requests() {
-        let h = approve_all(Arc::new(ApproveAllHandler));
-        match h.on_event(request()).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+    async fn approve_all_approves() {
+        let h = approve_all();
+        assert!(matches!(
+            h.handle(SessionId::from("s"), RequestId::new("1"), data()).await,
+            PermissionResult::Approved
+        ));
     }
 
     #[tokio::test]
-    async fn deny_all_denies_permission_requests() {
-        let h = deny_all(Arc::new(ApproveAllHandler));
-        match h.on_event(request()).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied, got {other:?}"),
-        }
+    async fn deny_all_denies() {
+        let h = deny_all();
+        assert!(matches!(
+            h.handle(SessionId::from("s"), RequestId::new("1"), data()).await,
+            PermissionResult::Denied
+        ));
     }
 
     #[tokio::test]
     async fn approve_if_consults_predicate() {
-        let h = approve_if(Arc::new(ApproveAllHandler), |data| {
-            data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
-        });
-        match h.on_event(request()).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied for shell, got {other:?}"),
-        }
+        let h = approve_if(|d| d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell"));
+        assert!(matches!(
+            h.handle(SessionId::from("s"), RequestId::new("1"), data()).await,
+            PermissionResult::Denied
+        ));
     }
 
     #[tokio::test]
-    async fn non_permission_events_forward_to_inner() {
-        let h = deny_all(Arc::new(ApproveAllHandler));
-        let event = HandlerEvent::UserInput {
-            session_id: SessionId::from("s1"),
-            question: "continue?".to_string(),
-            choices: None,
-            allow_freeform: None,
-        };
-        match h.on_event(event).await {
-            HandlerResponse::UserInput(None) => {}
-            other => panic!("expected UserInput forwarded, got {other:?}"),
+    async fn resolve_handler_policy_wins() {
+        struct AlwaysApprove;
+        #[async_trait]
+        impl PermissionHandler for AlwaysApprove {
+            async fn handle(
+                &self,
+                _: SessionId,
+                _: RequestId,
+                _: PermissionRequestData,
+            ) -> PermissionResult {
+                PermissionResult::Approved
+            }
         }
+        let resolved =
+            resolve_handler(Some(Arc::new(AlwaysApprove)), Some(Policy::DenyAll)).unwrap();
+        // Policy wins -- the AlwaysApprove handler is discarded.
+        assert!(matches!(
+            resolved
+                .handle(SessionId::from("s"), RequestId::new("1"), data())
+                .await,
+            PermissionResult::Denied
+        ));
+    }
+
+    #[tokio::test]
+    async fn resolve_handler_with_only_handler() {
+        struct H;
+        #[async_trait]
+        impl PermissionHandler for H {
+            async fn handle(
+                &self,
+                _: SessionId,
+                _: RequestId,
+                _: PermissionRequestData,
+            ) -> PermissionResult {
+                PermissionResult::Approved
+            }
+        }
+        let resolved = resolve_handler(Some(Arc::new(H)), None).unwrap();
+        assert!(matches!(
+            resolved
+                .handle(SessionId::from("s"), RequestId::new("1"), data())
+                .await,
+            PermissionResult::Approved
+        ));
+    }
+
+    #[test]
+    fn resolve_handler_with_neither_returns_none() {
+        assert!(resolve_handler(None, None).is_none());
     }
 }

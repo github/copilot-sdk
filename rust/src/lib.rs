@@ -10,7 +10,7 @@ pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
 pub mod hooks;
 mod jsonrpc;
-/// Permission-policy helpers that wrap an existing [`handler::SessionHandler`].
+/// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 /// GitHub Copilot CLI binary resolution (env var, embedded, PATH search).
 pub mod resolve;
@@ -30,6 +30,7 @@ pub mod trace_context;
 pub mod transforms;
 /// Protocol types shared between the SDK and the GitHub Copilot CLI.
 pub mod types;
+mod wire;
 
 /// Auto-generated protocol types from Copilot JSON Schemas.
 pub mod generated;

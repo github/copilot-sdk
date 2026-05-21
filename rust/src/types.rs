@@ -12,7 +12,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::handler::SessionHandler;
+use crate::handler::{
+    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
+    UserInputHandler,
+};
 use crate::hooks::SessionHooks;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
@@ -1060,10 +1063,11 @@ pub struct SessionConfig {
     /// `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_user_input: Option<bool>,
-    /// Enable `permission.request` JSON-RPC calls from the CLI. Defaults
-    /// to `Some(true)` via [`SessionConfig::default`]; the default
-    /// [`NoopHandler`](crate::handler::NoopHandler) leaves requests pending
-    /// for the consumer to resolve.
+    /// Enable `permission.request` JSON-RPC calls from the CLI.
+    /// Derived from [`Self::permission_handler`] presence at
+    /// [`Client::create_session`](crate::Client::create_session) time;
+    /// callers should install a [`PermissionHandler`] rather than
+    /// setting this directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_permission: Option<bool>,
     /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
@@ -1174,19 +1178,40 @@ pub struct SessionConfig {
     /// See [`SessionFsProvider`].
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
-    /// Session-level event handler. The default is
-    /// [`NoopHandler`](crate::handler::NoopHandler) — permission requests
-    /// and external tool calls are left pending for the consumer to resolve.
-    /// Use [`with_handler`](Self::with_handler) to install a custom handler.
+    /// Optional permission-request handler. When `None`, the SDK sends
+    /// `requestPermission: false` on the wire so the runtime does not
+    /// emit `permission.requested` broadcasts to this client.
     #[serde(skip)]
-    pub handler: Option<Arc<dyn SessionHandler>>,
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional elicitation-request handler. When `None`,
+    /// `requestElicitation: false` goes on the wire.
+    #[serde(skip)]
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional user-input handler. When `None`,
+    /// `requestUserInput: false` goes on the wire and the `ask_user`
+    /// tool is disabled.
+    #[serde(skip)]
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Optional exit-plan-mode handler. When `None`,
+    /// `requestExitPlanMode: false` goes on the wire.
+    #[serde(skip)]
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    /// Optional auto-mode-switch handler. When `None`,
+    /// `requestAutoModeSwitch: false` goes on the wire.
+    #[serde(skip)]
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    /// Client-defined tool handlers. The SDK builds an internal
+    /// name-keyed registry from these and dispatches to the matching
+    /// handler when the CLI broadcasts `external_tool.requested`.
+    #[serde(skip)]
+    pub tool_handlers: Vec<Arc<dyn crate::tool::ToolHandler>>,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     /// Permission policy applied to the handler. Stored separately from
-    /// `handler` so that the order of `with_handler` and
+    /// `permission_handler` so the order of `with_permission_handler` and
     /// `approve_all_permissions` (and friends) is irrelevant.
     #[serde(skip)]
     pub(crate) permission_policy: Option<crate::permission::Policy>,
@@ -1245,7 +1270,27 @@ impl std::fmt::Debug for SessionConfig {
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
             )
-            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "permission_handler",
+                &self.permission_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "elicitation_handler",
+                &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "user_input_handler",
+                &self.user_input_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "exit_plan_mode_handler",
+                &self.exit_plan_mode_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "auto_mode_switch_handler",
+                &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("tool_handlers_count", &self.tool_handlers.len())
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -1256,11 +1301,11 @@ impl std::fmt::Debug for SessionConfig {
 }
 
 impl Default for SessionConfig {
-    /// Permission and elicitation flows are enabled by default. When no handler
-    /// is provided, the SDK installs `NoopHandler`, so permission and external
-    /// tool requests remain pending until the consumer responds out-of-band.
-    /// Callers that want the wire surface fully disabled set these explicitly
-    /// to `Some(false)`.
+    /// All wire-level "request" flags and handler fields start unset.
+    /// Install a [`PermissionHandler`] via
+    /// [`with_permission_handler`](Self::with_permission_handler) and
+    /// the SDK derives `requestPermission: true` on the wire at
+    /// [`Client::create_session`](crate::Client::create_session) time.
     fn default() -> Self {
         Self {
             session_id: None,
@@ -1275,10 +1320,10 @@ impl Default for SessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
-            request_user_input: Some(true),
+            request_user_input: None,
             request_permission: None,
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
+            request_exit_plan_mode: None,
+            request_auto_mode_switch: None,
             request_elicitation: None,
             skill_directories: None,
             instruction_directories: None,
@@ -1299,7 +1344,12 @@ impl Default for SessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
-            handler: None,
+            permission_handler: None,
+            elicitation_handler: None,
+            user_input_handler: None,
+            exit_plan_mode_handler: None,
+            auto_mode_switch_handler: None,
+            tool_handlers: Vec::new(),
             hooks_handler: None,
             permission_policy: None,
             transform: None,
@@ -1308,9 +1358,114 @@ impl Default for SessionConfig {
 }
 
 impl SessionConfig {
-    /// Install a custom [`SessionHandler`] for this session.
-    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
-        self.handler = Some(handler);
+    /// Build the [`SessionCreateWire`] payload for `session.create` from
+    /// this config. Derives the request_* wire flags from handler
+    /// presence and the policy field; clones plain fields.
+    pub(crate) fn to_wire(&self, session_id: SessionId) -> crate::wire::SessionCreateWire {
+        let permission_active =
+            self.permission_handler.is_some() || self.permission_policy.is_some();
+        crate::wire::SessionCreateWire {
+            session_id,
+            model: self.model.clone(),
+            client_name: self.client_name.clone(),
+            reasoning_effort: self.reasoning_effort.clone(),
+            streaming: self.streaming,
+            system_message: self.system_message.clone(),
+            tools: self.merged_tool_wire_definitions(),
+            available_tools: self.available_tools.clone(),
+            excluded_tools: self.excluded_tools.clone(),
+            mcp_servers: self.mcp_servers.clone(),
+            env_value_mode: "direct",
+            enable_config_discovery: self.enable_config_discovery,
+            request_user_input: self.user_input_handler.is_some(),
+            request_permission: permission_active,
+            request_exit_plan_mode: self.exit_plan_mode_handler.is_some(),
+            request_auto_mode_switch: self.auto_mode_switch_handler.is_some(),
+            request_elicitation: self.elicitation_handler.is_some(),
+            hooks: self.hooks_handler.is_some(),
+            skill_directories: self.skill_directories.clone(),
+            instruction_directories: self.instruction_directories.clone(),
+            disabled_skills: self.disabled_skills.clone(),
+            custom_agents: self.custom_agents.clone(),
+            default_agent: self.default_agent.clone(),
+            agent: self.agent.clone(),
+            infinite_sessions: self.infinite_sessions.clone(),
+            provider: self.provider.clone(),
+            enable_session_telemetry: self.enable_session_telemetry,
+            model_capabilities: self.model_capabilities.clone(),
+            config_dir: self.config_dir.clone(),
+            working_directory: self.working_directory.clone(),
+            github_token: self.github_token.clone(),
+            remote_session: self.remote_session.clone(),
+            cloud: self.cloud.clone(),
+            include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            commands: self.commands.as_ref().map(|cmds| {
+                cmds.iter()
+                    .map(|c| crate::wire::CommandWireDefinition {
+                        name: c.name.clone(),
+                        description: c.description.clone(),
+                    })
+                    .collect()
+            }),
+        }
+    }
+
+    /// Merge caller-supplied `tools` (declaration-only) with the `tool()`
+    /// definitions extracted from each [`tool_handlers`](Self::tool_handlers)
+    /// entry. Returns `None` only when both sources are empty.
+    fn merged_tool_wire_definitions(&self) -> Option<Vec<Tool>> {
+        let mut out: Vec<Tool> = self.tools.clone().unwrap_or_default();
+        for handler in &self.tool_handlers {
+            out.push(handler.tool());
+        }
+        if out.is_empty() { None } else { Some(out) }
+    }
+
+    /// Install a [`PermissionHandler`] for this session. When omitted, the
+    /// SDK sends `requestPermission: false` on the wire and the runtime
+    /// short-circuits permission prompts for this client.
+    pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
+        self.permission_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ElicitationHandler`]. When omitted, the SDK sends
+    /// `requestElicitation: false` on the wire.
+    pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
+        self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
+    /// to be enabled.
+    pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
+        self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ExitPlanModeHandler`].
+    pub fn with_exit_plan_mode_handler(mut self, handler: Arc<dyn ExitPlanModeHandler>) -> Self {
+        self.exit_plan_mode_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`AutoModeSwitchHandler`].
+    pub fn with_auto_mode_switch_handler(
+        mut self,
+        handler: Arc<dyn AutoModeSwitchHandler>,
+    ) -> Self {
+        self.auto_mode_switch_handler = Some(handler);
+        self
+    }
+
+    /// Install tool handlers for this session. Each handler must report a
+    /// unique [`Tool::name`]; the SDK rejects duplicates at
+    /// [`Client::create_session`](crate::Client::create_session) time.
+    pub fn with_tool_handlers<I>(mut self, handlers: I) -> Self
+    where
+        I: IntoIterator<Item = Arc<dyn crate::tool::ToolHandler>>,
+    {
+        self.tool_handlers = handlers.into_iter().collect();
         self
     }
 
@@ -1347,9 +1502,10 @@ impl SessionConfig {
     }
 
     /// Auto-approve every permission request on this session. Stored as a
-    /// policy that's applied to the configured handler at
+    /// policy that's applied at
     /// [`Client::create_session`](crate::Client::create_session) time, so
-    /// order with [`with_handler`](Self::with_handler) is irrelevant.
+    /// order with [`with_permission_handler`](Self::with_permission_handler)
+    /// is irrelevant.
     pub fn approve_all_permissions(mut self) -> Self {
         self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
@@ -1736,9 +1892,29 @@ pub struct ResumeSessionConfig {
     /// [`Client::force_stop`]: crate::Client::force_stop
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
-    /// Session-level event handler. See [`SessionConfig::handler`].
+    /// Optional permission-request handler. See
+    /// [`SessionConfig::permission_handler`].
     #[serde(skip)]
-    pub handler: Option<Arc<dyn SessionHandler>>,
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional elicitation handler. See
+    /// [`SessionConfig::elicitation_handler`].
+    #[serde(skip)]
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional user-input handler. See
+    /// [`SessionConfig::user_input_handler`].
+    #[serde(skip)]
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Optional exit-plan-mode handler. See
+    /// [`SessionConfig::exit_plan_mode_handler`].
+    #[serde(skip)]
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    /// Optional auto-mode-switch handler. See
+    /// [`SessionConfig::auto_mode_switch_handler`].
+    #[serde(skip)]
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    /// Tool handlers. See [`SessionConfig::tool_handlers`].
+    #[serde(skip)]
+    pub tool_handlers: Vec<Arc<dyn crate::tool::ToolHandler>>,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
@@ -1795,7 +1971,27 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
             )
-            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "permission_handler",
+                &self.permission_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "elicitation_handler",
+                &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "user_input_handler",
+                &self.user_input_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "exit_plan_mode_handler",
+                &self.exit_plan_mode_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "auto_mode_switch_handler",
+                &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("tool_handlers_count", &self.tool_handlers.len())
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
@@ -1808,6 +2004,66 @@ impl std::fmt::Debug for ResumeSessionConfig {
 }
 
 impl ResumeSessionConfig {
+    /// Build the [`SessionResumeWire`] payload for `session.resume` from
+    /// this config. Derives the request_* wire flags from handler
+    /// presence and the policy field; clones plain fields.
+    pub(crate) fn to_wire(&self) -> crate::wire::SessionResumeWire {
+        let permission_active =
+            self.permission_handler.is_some() || self.permission_policy.is_some();
+        crate::wire::SessionResumeWire {
+            session_id: self.session_id.clone(),
+            client_name: self.client_name.clone(),
+            reasoning_effort: self.reasoning_effort.clone(),
+            streaming: self.streaming,
+            system_message: self.system_message.clone(),
+            tools: self.merged_tool_wire_definitions(),
+            available_tools: self.available_tools.clone(),
+            excluded_tools: self.excluded_tools.clone(),
+            mcp_servers: self.mcp_servers.clone(),
+            env_value_mode: "direct",
+            enable_config_discovery: self.enable_config_discovery,
+            request_user_input: self.user_input_handler.is_some(),
+            request_permission: permission_active,
+            request_exit_plan_mode: self.exit_plan_mode_handler.is_some(),
+            request_auto_mode_switch: self.auto_mode_switch_handler.is_some(),
+            request_elicitation: self.elicitation_handler.is_some(),
+            hooks: self.hooks_handler.is_some(),
+            skill_directories: self.skill_directories.clone(),
+            instruction_directories: self.instruction_directories.clone(),
+            disabled_skills: self.disabled_skills.clone(),
+            custom_agents: self.custom_agents.clone(),
+            default_agent: self.default_agent.clone(),
+            agent: self.agent.clone(),
+            infinite_sessions: self.infinite_sessions.clone(),
+            provider: self.provider.clone(),
+            enable_session_telemetry: self.enable_session_telemetry,
+            model_capabilities: self.model_capabilities.clone(),
+            config_dir: self.config_dir.clone(),
+            working_directory: self.working_directory.clone(),
+            github_token: self.github_token.clone(),
+            remote_session: self.remote_session.clone(),
+            include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            commands: self.commands.as_ref().map(|cmds| {
+                cmds.iter()
+                    .map(|c| crate::wire::CommandWireDefinition {
+                        name: c.name.clone(),
+                        description: c.description.clone(),
+                    })
+                    .collect()
+            }),
+            suppress_resume_event: self.suppress_resume_event,
+            continue_pending_work: self.continue_pending_work,
+        }
+    }
+
+    fn merged_tool_wire_definitions(&self) -> Option<Vec<Tool>> {
+        let mut out: Vec<Tool> = self.tools.clone().unwrap_or_default();
+        for handler in &self.tool_handlers {
+            out.push(handler.tool());
+        }
+        if out.is_empty() { None } else { Some(out) }
+    }
+
     /// Construct a `ResumeSessionConfig` with the given session ID and all
     /// other fields left unset. Combine with `.with_*` builders or struct
     /// update syntax (`..ResumeSessionConfig::new(id)`) to populate the
@@ -1825,10 +2081,10 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
-            request_user_input: Some(true),
+            request_user_input: None,
             request_permission: None,
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
+            request_exit_plan_mode: None,
+            request_auto_mode_switch: None,
             request_elicitation: None,
             skill_directories: None,
             instruction_directories: None,
@@ -1850,16 +2106,57 @@ impl ResumeSessionConfig {
             session_fs_provider: None,
             suppress_resume_event: None,
             continue_pending_work: None,
-            handler: None,
+            permission_handler: None,
+            elicitation_handler: None,
+            user_input_handler: None,
+            exit_plan_mode_handler: None,
+            auto_mode_switch_handler: None,
+            tool_handlers: Vec::new(),
             hooks_handler: None,
             permission_policy: None,
             transform: None,
         }
     }
 
-    /// Install a custom [`SessionHandler`] for this session.
-    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
-        self.handler = Some(handler);
+    /// Install a [`PermissionHandler`] for the resumed session.
+    pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
+        self.permission_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ElicitationHandler`] for the resumed session.
+    pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
+        self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`UserInputHandler`] for the resumed session.
+    pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
+        self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ExitPlanModeHandler`] for the resumed session.
+    pub fn with_exit_plan_mode_handler(mut self, handler: Arc<dyn ExitPlanModeHandler>) -> Self {
+        self.exit_plan_mode_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`AutoModeSwitchHandler`] for the resumed session.
+    pub fn with_auto_mode_switch_handler(
+        mut self,
+        handler: Arc<dyn AutoModeSwitchHandler>,
+    ) -> Self {
+        self.auto_mode_switch_handler = Some(handler);
+        self
+    }
+
+    /// Install tool handlers for the resumed session.
+    pub fn with_tool_handlers<I>(mut self, handlers: I) -> Self
+    where
+        I: IntoIterator<Item = Arc<dyn crate::tool::ToolHandler>>,
+    {
+        self.tool_handlers = handlers.into_iter().collect();
         self
     }
 
@@ -3132,8 +3429,7 @@ pub enum PermissionRequestKind {
 ///
 /// Used for both the `permission.request` RPC call (which expects a response)
 /// and `permission.requested` notifications (fire-and-forget). Contains the
-/// full params object. Note that `requestId` is also available as a separate
-/// field on `HandlerEvent::PermissionRequest`.
+/// full params object.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestData {
@@ -3314,24 +3610,24 @@ mod tests {
     #[test]
     fn session_config_default_enables_permission_flow_flags() {
         let cfg = SessionConfig::default();
-        assert_eq!(cfg.request_user_input, Some(true));
-        // request_permission / request_elicitation are derived from the
-        // installed SessionHandler at Client::create_session time; the
-        // default config leaves them unset.
+        // All wire flags start unset; the SDK derives them from handler
+        // presence at Client::create_session time.
+        assert_eq!(cfg.request_user_input, None);
         assert_eq!(cfg.request_permission, None);
         assert_eq!(cfg.request_elicitation, None);
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
+        assert_eq!(cfg.request_exit_plan_mode, None);
+        assert_eq!(cfg.request_auto_mode_switch, None);
     }
 
     #[test]
     fn resume_session_config_new_enables_permission_flow_flags() {
         let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
-        assert_eq!(cfg.request_user_input, Some(true));
+        // All wire flags start unset on resume too.
+        assert_eq!(cfg.request_user_input, None);
         assert_eq!(cfg.request_permission, None);
         assert_eq!(cfg.request_elicitation, None);
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
+        assert_eq!(cfg.request_exit_plan_mode, None);
+        assert_eq!(cfg.request_auto_mode_switch, None);
     }
 
     #[test]
@@ -3869,189 +4165,127 @@ mod tests {
 mod permission_builder_tests {
     use std::sync::Arc;
 
-    use crate::handler::{
-        ApproveAllHandler, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
-    };
+    use crate::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+    use crate::permission;
     use crate::types::{
         PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
     };
 
-    fn permission_event() -> HandlerEvent {
-        HandlerEvent::PermissionRequest {
-            session_id: SessionId::from("s1"),
-            request_id: RequestId::new("1"),
-            data: PermissionRequestData {
-                extra: serde_json::json!({"tool": "shell"}),
-                ..Default::default()
-            },
+    fn data() -> PermissionRequestData {
+        PermissionRequestData {
+            extra: serde_json::json!({"tool": "shell"}),
+            ..Default::default()
         }
     }
 
     /// Apply the same policy-resolution logic that `Client::create_session`
     /// uses, so tests exercise the effective handler.
-    fn resolve(mut cfg: SessionConfig) -> Arc<dyn SessionHandler> {
-        let base = cfg
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        match cfg.permission_policy.take() {
-            Some(policy) => crate::permission::apply_policy(base, policy),
-            None => base,
-        }
+    fn resolve_create(mut cfg: SessionConfig) -> Option<Arc<dyn PermissionHandler>> {
+        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
     }
 
-    fn resolve_resume(mut cfg: ResumeSessionConfig) -> Arc<dyn SessionHandler> {
-        let base = cfg
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        match cfg.permission_policy.take() {
-            Some(policy) => crate::permission::apply_policy(base, policy),
-            None => base,
-        }
+    fn resolve_resume(mut cfg: ResumeSessionConfig) -> Option<Arc<dyn PermissionHandler>> {
+        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
     }
 
-    async fn dispatch(handler: &Arc<dyn SessionHandler>) -> HandlerResponse {
-        handler.on_event(permission_event()).await
+    async fn dispatch(handler: &Arc<dyn PermissionHandler>) -> PermissionResult {
+        handler
+            .handle(SessionId::from("s1"), RequestId::new("1"), data())
+            .await
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_wraps_existing_handler() {
+    async fn approve_all_with_handler_present_approves() {
         let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        match dispatch(&resolve(cfg)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_create(cfg).expect("policy + handler yields handler");
+        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_defaults_to_noop_inner() {
-        // Without with_handler, resolution defaults to NoopHandler. The
-        // approve-all wrap intercepts permission events.
+    async fn approve_all_standalone_produces_handler() {
         let cfg = SessionConfig::default().approve_all_permissions();
-        match dispatch(&resolve(cfg)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_create(cfg).expect("policy alone yields handler");
+        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
     }
 
-    /// Phase I: order independence. Both call orders must produce the same
-    /// effective approve-all policy.
+    /// Phase I: order between with_permission_handler and the policy
+    /// builder must not matter.
     #[tokio::test]
-    async fn session_config_approve_all_is_order_independent() {
-        let cfg_a = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+    async fn approve_all_is_order_independent() {
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let cfg_b = SessionConfig::default()
+        let b = SessionConfig::default()
             .approve_all_permissions()
-            .with_handler(Arc::new(ApproveAllHandler));
-
-        match dispatch(&resolve(cfg_a)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("order A: expected Approved, got {other:?}"),
-        }
-        match dispatch(&resolve(cfg_b)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("order B: expected Approved, got {other:?}"),
-        }
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Approved));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Approved));
     }
 
-    /// Phase I: same for deny_all_permissions.
     #[tokio::test]
-    async fn session_config_deny_all_is_order_independent() {
-        let cfg_a = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+    async fn deny_all_is_order_independent() {
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .deny_all_permissions();
-        let cfg_b = SessionConfig::default()
+        let b = SessionConfig::default()
             .deny_all_permissions()
-            .with_handler(Arc::new(ApproveAllHandler));
-
-        match dispatch(&resolve(cfg_a)).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("order A: expected Denied, got {other:?}"),
-        }
-        match dispatch(&resolve(cfg_b)).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("order B: expected Denied, got {other:?}"),
-        }
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Denied));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Denied));
     }
 
-    /// Phase I: same for approve_permissions_if.
     #[tokio::test]
-    async fn session_config_approve_permissions_if_is_order_independent() {
-        let predicate = |data: &PermissionRequestData| {
-            data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+    async fn approve_permissions_if_consults_predicate() {
+        let cfg = SessionConfig::default().approve_permissions_if(|d| {
+            d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+        });
+        let h = resolve_create(cfg).unwrap();
+        assert!(matches!(dispatch(&h).await, PermissionResult::Denied));
+    }
+
+    #[tokio::test]
+    async fn approve_permissions_if_is_order_independent() {
+        let predicate = |d: &PermissionRequestData| {
+            d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
         };
-        let cfg_a = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_permissions_if(predicate);
-        let cfg_b = SessionConfig::default()
+        let b = SessionConfig::default()
             .approve_permissions_if(predicate)
-            .with_handler(Arc::new(ApproveAllHandler));
-
-        match dispatch(&resolve(cfg_a)).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("order A: expected Denied for shell, got {other:?}"),
-        }
-        match dispatch(&resolve(cfg_b)).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("order B: expected Denied for shell, got {other:?}"),
-        }
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Denied));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Denied));
     }
 
     #[tokio::test]
-    async fn session_config_deny_all_denies() {
-        let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
-            .deny_all_permissions();
-        match dispatch(&resolve(cfg)).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn session_config_approve_permissions_if_consults_predicate() {
-        let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
-            .approve_permissions_if(|data| {
-                data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
-            });
-        match dispatch(&resolve(cfg)).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied for shell, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn resume_session_config_approve_all_wraps_existing_handler() {
+    async fn resume_session_config_approve_all_works() {
         let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
-            .with_handler(Arc::new(ApproveAllHandler))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        match dispatch(&resolve_resume(cfg)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_resume(cfg).unwrap();
+        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
     }
 
     #[tokio::test]
     async fn resume_session_config_approve_all_is_order_independent() {
-        let cfg_a = ResumeSessionConfig::new(SessionId::from("s1"))
-            .with_handler(Arc::new(ApproveAllHandler))
+        let a = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let cfg_b = ResumeSessionConfig::new(SessionId::from("s1"))
+        let b = ResumeSessionConfig::new(SessionId::from("s1"))
             .approve_all_permissions()
-            .with_handler(Arc::new(ApproveAllHandler));
-
-        match dispatch(&resolve_resume(cfg_a)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("order A: expected Approved, got {other:?}"),
-        }
-        match dispatch(&resolve_resume(cfg_b)).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("order B: expected Approved, got {other:?}"),
-        }
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_resume(a).unwrap();
+        let hb = resolve_resume(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Approved));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Approved));
     }
 }

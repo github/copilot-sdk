@@ -1,14 +1,16 @@
 //! Typed tool definition framework.
 //!
-//! Provides the [`ToolHandler`](crate::tool::ToolHandler) trait for implementing tools as named types,
-//! and [`ToolHandlerRouter`](crate::tool::ToolHandlerRouter) for automatic dispatch of tool calls within a
-//! [`SessionHandler`](crate::handler::SessionHandler).
+//! Provides the [`ToolHandler`](crate::tool::ToolHandler) trait for
+//! implementing tools as named types. Install tool handlers on a session
+//! via
+//! [`SessionConfig::with_tool_handlers`](crate::types::SessionConfig::with_tool_handlers);
+//! the SDK builds an internal name-keyed registry and dispatches to the
+//! matching handler when the CLI broadcasts `external_tool.requested`.
 //!
 //! Enable the `derive` feature for `schema_for`, which generates JSON
 //! Schema from Rust types via `schemars`.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use async_trait::async_trait;
 /// Re-export of [`schemars::JsonSchema`] for deriving tool parameter schemas.
@@ -16,11 +18,7 @@ use async_trait::async_trait;
 pub use schemars::JsonSchema;
 
 use crate::Error;
-use crate::handler::{PermissionResult, SessionHandler, UserInputResponse};
-use crate::types::{
-    ElicitationRequest, ElicitationResult, PermissionRequestData, RequestId, SessionEvent,
-    SessionId, Tool, ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded,
-};
+use crate::types::{Tool, ToolBinaryResult, ToolInvocation, ToolResult, ToolResultExpanded};
 
 /// Generate a JSON Schema [`Value`](serde_json::Value) from a Rust type.
 ///
@@ -227,9 +225,10 @@ pub trait ToolHandler: Send + Sync {
 /// Define a tool from an async function (or closure) that takes a typed,
 /// `JsonSchema`-derived parameter struct.
 ///
-/// The returned `Box<dyn ToolHandler>` plugs directly into
-/// [`ToolHandlerRouter::new`]. JSON Schema for the parameter type is generated
-/// via [`schema_for`] at construction time.
+/// The returned `Box<dyn ToolHandler>` can be installed on a session via
+/// [`SessionConfig::with_tool_handlers`](crate::types::SessionConfig::with_tool_handlers).
+/// JSON Schema for the parameter type is generated via [`schema_for`] at
+/// construction time.
 ///
 /// The handler bound (`Fn(ToolInvocation, P) -> Fut + Send + Sync + 'static`)
 /// accepts both bare `async fn` items and closures — the same shape as
@@ -331,136 +330,6 @@ where
         handler,
         _marker: std::marker::PhantomData,
     })
-}
-
-/// A [`SessionHandler`] that dispatches tool calls to registered
-/// [`ToolHandler`] implementations by name.
-///
-/// For tool calls matching a registered handler, the handler is invoked
-/// directly. All other events (permissions, user input, unrecognized tools)
-/// are forwarded to the inner handler.
-///
-/// # Example
-///
-/// ```rust,no_run
-/// use std::sync::Arc;
-/// use github_copilot_sdk::handler::ApproveAllHandler;
-/// use github_copilot_sdk::tool::ToolHandlerRouter;
-///
-/// let router = ToolHandlerRouter::new(
-///     vec![/* Box::new(MyTool), ... */],
-///     Arc::new(ApproveAllHandler),
-/// );
-///
-/// // Use router.tools() in SessionConfig
-/// // Use Arc::new(router) as the session handler
-/// ```
-pub struct ToolHandlerRouter {
-    handlers: HashMap<String, Box<dyn ToolHandler>>,
-    inner: Arc<dyn SessionHandler>,
-}
-
-impl std::fmt::Debug for ToolHandlerRouter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut tools: Vec<_> = self.handlers.keys().collect();
-        tools.sort();
-        f.debug_struct("ToolHandlerRouter")
-            .field("tool_count", &self.handlers.len())
-            .field("tools", &tools)
-            .finish()
-    }
-}
-
-impl ToolHandlerRouter {
-    /// Create a router from tool handler impls and a fallback handler.
-    ///
-    /// Call [`tools()`](Self::tools) to get the tool definitions for
-    /// [`SessionConfig::tools`](crate::SessionConfig::tools).
-    pub fn new(tools: Vec<Box<dyn ToolHandler>>, inner: Arc<dyn SessionHandler>) -> Self {
-        let mut handlers = HashMap::new();
-        for tool in tools {
-            handlers.insert(tool.tool().name.clone(), tool);
-        }
-        Self { handlers, inner }
-    }
-
-    /// Tool definitions for [`SessionConfig::tools`](crate::SessionConfig::tools).
-    pub fn tools(&self) -> Vec<Tool> {
-        self.handlers.values().map(|h| h.tool()).collect()
-    }
-}
-
-#[async_trait]
-impl SessionHandler for ToolHandlerRouter {
-    fn wants_permission_dispatch(&self) -> bool {
-        self.inner.wants_permission_dispatch()
-    }
-
-    fn wants_elicitation_dispatch(&self) -> bool {
-        self.inner.wants_elicitation_dispatch()
-    }
-
-    fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
-        self.handlers.contains_key(tool_name) || self.inner.wants_external_tool_dispatch(tool_name)
-    }
-
-    async fn on_external_tool(&self, invocation: ToolInvocation) -> ToolResult {
-        let Some(handler) = self.handlers.get(&invocation.tool_name) else {
-            return self.inner.on_external_tool(invocation).await;
-        };
-        match handler.call(invocation).await {
-            Ok(result) => result,
-            Err(e) => {
-                let msg = e.to_string();
-                ToolResult::Expanded(ToolResultExpanded {
-                    text_result_for_llm: msg.clone(),
-                    result_type: "failure".to_string(),
-                    binary_results_for_llm: None,
-                    session_log: None,
-                    error: Some(msg),
-                    tool_telemetry: None,
-                })
-            }
-        }
-    }
-
-    async fn on_session_event(&self, session_id: SessionId, event: SessionEvent) {
-        self.inner.on_session_event(session_id, event).await
-    }
-
-    async fn on_permission_request(
-        &self,
-        session_id: SessionId,
-        request_id: RequestId,
-        data: PermissionRequestData,
-    ) -> PermissionResult {
-        self.inner
-            .on_permission_request(session_id, request_id, data)
-            .await
-    }
-
-    async fn on_user_input(
-        &self,
-        session_id: SessionId,
-        question: String,
-        choices: Option<Vec<String>>,
-        allow_freeform: Option<bool>,
-    ) -> Option<UserInputResponse> {
-        self.inner
-            .on_user_input(session_id, question, choices, allow_freeform)
-            .await
-    }
-
-    async fn on_elicitation(
-        &self,
-        session_id: SessionId,
-        request_id: RequestId,
-        request: ElicitationRequest,
-    ) -> ElicitationResult {
-        self.inner
-            .on_elicitation(session_id, request_id, request)
-            .await
-    }
 }
 
 #[cfg(test)]
@@ -717,233 +586,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn router_dispatches_to_correct_handler() {
-        struct ToolA;
-        #[async_trait]
-        impl ToolHandler for ToolA {
-            fn tool(&self) -> Tool {
-                Tool {
-                    name: "tool_a".to_string(),
-                    namespaced_name: None,
-                    description: "A".to_string(),
-                    parameters: HashMap::new(),
-                    instructions: None,
-                    ..Default::default()
-                }
-            }
-
-            async fn call(&self, _inv: ToolInvocation) -> Result<ToolResult, Error> {
-                Ok(ToolResult::Text("a_result".to_string()))
-            }
-        }
-
-        struct ToolB;
-        #[async_trait]
-        impl ToolHandler for ToolB {
-            fn tool(&self) -> Tool {
-                Tool {
-                    name: "tool_b".to_string(),
-                    namespaced_name: None,
-                    description: "B".to_string(),
-                    parameters: HashMap::new(),
-                    instructions: None,
-                    ..Default::default()
-                }
-            }
-
-            async fn call(&self, _inv: ToolInvocation) -> Result<ToolResult, Error> {
-                Ok(ToolResult::Text("b_result".to_string()))
-            }
-        }
-
-        let router = ToolHandlerRouter::new(
-            vec![Box::new(ToolA), Box::new(ToolB)],
-            Arc::new(crate::handler::ApproveAllHandler),
-        );
-
-        let tools = router.tools();
-        assert_eq!(tools.len(), 2);
-
-        let response = router
-            .on_external_tool(ToolInvocation {
-                session_id: SessionId::from("s1"),
-                tool_call_id: "tc1".to_string(),
-                tool_name: "tool_b".to_string(),
-                arguments: serde_json::json!({}),
-                traceparent: None,
-                tracestate: None,
-            })
-            .await;
-        match response {
-            ToolResult::Text(s) => assert_eq!(s, "b_result"),
-            _ => panic!("expected ToolResult::Text"),
-        }
-    }
-
-    #[tokio::test]
-    async fn router_falls_through_for_unknown_tool() {
-        use std::sync::atomic::{AtomicBool, Ordering};
-
-        struct FallbackHandler {
-            called: AtomicBool,
-        }
-        #[async_trait]
-        impl SessionHandler for FallbackHandler {
-            async fn on_external_tool(&self, _inv: ToolInvocation) -> ToolResult {
-                self.called.store(true, Ordering::Relaxed);
-                ToolResult::Text("fallback".to_string())
-            }
-        }
-
-        let fallback = Arc::new(FallbackHandler {
-            called: AtomicBool::new(false),
-        });
-        let router = ToolHandlerRouter::new(vec![], fallback.clone());
-
-        let response = router
-            .on_external_tool(ToolInvocation {
-                session_id: SessionId::from("s1"),
-                tool_call_id: "tc1".to_string(),
-                tool_name: "unknown".to_string(),
-                arguments: serde_json::json!({}),
-                traceparent: None,
-                tracestate: None,
-            })
-            .await;
-        assert!(fallback.called.load(Ordering::Relaxed));
-        match response {
-            ToolResult::Text(s) => assert_eq!(s, "fallback"),
-            _ => panic!("expected fallback result"),
-        }
-    }
-
-    #[tokio::test]
-    async fn router_returns_failure_on_handler_error() {
-        struct FailTool;
-        #[async_trait]
-        impl ToolHandler for FailTool {
-            fn tool(&self) -> Tool {
-                Tool {
-                    name: "bad_tool".to_string(),
-                    namespaced_name: None,
-                    description: "Always fails".to_string(),
-                    parameters: HashMap::new(),
-                    instructions: None,
-                    ..Default::default()
-                }
-            }
-
-            async fn call(&self, _inv: ToolInvocation) -> Result<ToolResult, Error> {
-                Err(Error::Rpc {
-                    code: -1,
-                    message: "intentional failure".to_string(),
-                })
-            }
-        }
-
-        let router = ToolHandlerRouter::new(
-            vec![Box::new(FailTool)],
-            Arc::new(crate::handler::ApproveAllHandler),
-        );
-
-        let response = router
-            .on_external_tool(ToolInvocation {
-                session_id: SessionId::from("s1"),
-                tool_call_id: "tc1".to_string(),
-                tool_name: "bad_tool".to_string(),
-                arguments: serde_json::json!({}),
-                traceparent: None,
-                tracestate: None,
-            })
-            .await;
-        match response {
-            ToolResult::Expanded(exp) => {
-                assert_eq!(exp.result_type, "failure");
-                assert!(exp.error.unwrap().contains("intentional failure"));
-            }
-            _ => panic!("expected expanded failure result"),
-        }
-    }
-
-    #[tokio::test]
-    async fn router_forwards_non_tool_events() {
-        struct PermHandler;
-        #[async_trait]
-        impl SessionHandler for PermHandler {
-            async fn on_permission_request(
-                &self,
-                _session_id: SessionId,
-                _request_id: RequestId,
-                _data: PermissionRequestData,
-            ) -> PermissionResult {
-                PermissionResult::Denied
-            }
-        }
-
-        let router = ToolHandlerRouter::new(vec![], Arc::new(PermHandler));
-
-        let response = router
-            .on_permission_request(
-                SessionId::from("s1"),
-                RequestId::new("r1"),
-                PermissionRequestData {
-                    extra: serde_json::json!({}),
-                    ..Default::default()
-                },
-            )
-            .await;
-        assert!(matches!(response, PermissionResult::Denied));
-    }
-
-    #[tokio::test]
-    async fn router_default_on_event_dispatches_via_per_event_methods() {
-        // Regression: callers using the legacy on_event entry point should
-        // still get correct dispatch through the inherited default impl.
-        use crate::handler::{HandlerEvent, HandlerResponse};
-
-        struct OkTool;
-        #[async_trait]
-        impl ToolHandler for OkTool {
-            fn tool(&self) -> Tool {
-                Tool {
-                    name: "ok_tool".to_string(),
-                    namespaced_name: None,
-                    description: "ok".to_string(),
-                    parameters: HashMap::new(),
-                    instructions: None,
-                    ..Default::default()
-                }
-            }
-
-            async fn call(&self, _inv: ToolInvocation) -> Result<ToolResult, Error> {
-                Ok(ToolResult::Text("ok".to_string()))
-            }
-        }
-
-        let router = ToolHandlerRouter::new(
-            vec![Box::new(OkTool)],
-            Arc::new(crate::handler::ApproveAllHandler),
-        );
-
-        let response = router
-            .on_event(HandlerEvent::ExternalTool {
-                invocation: ToolInvocation {
-                    session_id: SessionId::from("s1"),
-                    tool_call_id: "tc1".to_string(),
-                    tool_name: "ok_tool".to_string(),
-                    arguments: serde_json::json!({}),
-                    traceparent: None,
-                    tracestate: None,
-                },
-            })
-            .await;
-        match response {
-            HandlerResponse::ToolResult(ToolResult::Text(s)) => assert_eq!(s, "ok"),
-            _ => panic!("expected ToolResult via default on_event"),
-        }
-    }
-
     // Tests requiring `schemars` (the `derive` feature).
     #[cfg(feature = "derive")]
     mod derive_tests {
@@ -1046,18 +688,18 @@ mod tests {
         }
 
         #[tokio::test]
-        async fn router_with_schema_for_tools() {
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(GetWeatherTool)],
-                Arc::new(crate::handler::ApproveAllHandler),
-            );
+        async fn schema_for_derived_tool_round_trips_through_call() {
+            let tool: Box<dyn ToolHandler> = Box::new(GetWeatherTool);
 
-            let tools = router.tools();
-            assert_eq!(tools.len(), 1);
-            assert_eq!(tools[0].name, "get_weather");
+            // Tool definition exposes the schema-derived parameter set.
+            let def = tool.tool();
+            assert_eq!(def.name, "get_weather");
 
-            let response = router
-                .on_external_tool(ToolInvocation {
+            // Calling the tool with matching arguments returns the
+            // expected typed result. (Per-name dispatch is the SDK's
+            // concern; here we exercise just the handler contract.)
+            let result = tool
+                .call(ToolInvocation {
                     session_id: SessionId::from("s1"),
                     tool_call_id: "tc1".to_string(),
                     tool_name: "get_weather".to_string(),
@@ -1065,8 +707,9 @@ mod tests {
                     traceparent: None,
                     tracestate: None,
                 })
-                .await;
-            match response {
+                .await
+                .expect("ToolHandler::call should succeed for matching args");
+            match result {
                 ToolResult::Text(s) => assert!(s.contains("Portland")),
                 _ => panic!("expected ToolResult::Text"),
             }
