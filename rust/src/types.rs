@@ -1108,6 +1108,18 @@ pub struct SessionConfig {
     /// are declared via [`canvases`](Self::canvases).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_canvas_renderer: Option<bool>,
+    /// Extension surface opt-in: when `true`, the runtime wires extension
+    /// management tools (`extensions_reload`, `extensions_manage`) and the
+    /// per-extension tool dispatch onto the session for this connection.
+    /// Default off — SDK callers that don't intend to expose the extension
+    /// surface stay clean.
+    ///
+    /// Requires the runtime to have the `EXTENSIONS` experimental feature
+    /// flag enabled (set via `GITHUB_COPILOT_EXPERIMENTAL_EXTENSIONS=true`
+    /// or the global Copilot config). If the flag is off the runtime
+    /// silently skips wiring even when this is `Some(true)`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_extensions: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1245,6 +1257,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1310,6 +1323,7 @@ impl Default for SessionConfig {
             request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             request_canvas_renderer: None,
+            request_extensions: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1537,6 +1551,14 @@ impl SessionConfig {
         self
     }
 
+    /// Extension surface opt-in: wire extension management tools and per-extension
+    /// tool dispatch onto the session. Requires the runtime to have the
+    /// `EXTENSIONS` experimental feature flag enabled.
+    pub fn with_request_extensions(mut self, enable: bool) -> Self {
+        self.request_extensions = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -1730,6 +1752,10 @@ pub struct ResumeSessionConfig {
     /// [`SessionConfig::request_canvas_renderer`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_canvas_renderer: Option<bool>,
+    /// Extension surface opt-in on resume; see
+    /// [`SessionConfig::request_extensions`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_extensions: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1846,6 +1872,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("request_auto_mode_switch", &self.request_auto_mode_switch)
             .field("request_elicitation", &self.request_elicitation)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1910,6 +1937,7 @@ impl ResumeSessionConfig {
             request_auto_mode_switch: Some(true),
             request_elicitation: Some(true),
             request_canvas_renderer: None,
+            request_extensions: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -2105,6 +2133,13 @@ impl ResumeSessionConfig {
     /// Renderer-side opt-in (V1.1) on resume: surface canvas agent tools to the model.
     pub fn with_request_canvas_renderer(mut self, enable: bool) -> Self {
         self.request_canvas_renderer = Some(enable);
+        self
+    }
+
+    /// Extension surface opt-in on resume; see
+    /// [`SessionConfig::with_request_extensions`].
+    pub fn with_request_extensions(mut self, enable: bool) -> Self {
+        self.request_extensions = Some(enable);
         self
     }
 

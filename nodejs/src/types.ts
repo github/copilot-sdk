@@ -1369,6 +1369,19 @@ export interface SessionConfig {
     requestCanvasRenderer?: boolean;
 
     /**
+     * Extension surface opt-in: when true, the runtime wires extension
+     * management tools (`extensions_reload`, `extensions_manage`) and the
+     * per-extension tool dispatch onto the session for this connection.
+     * Default off — SDK callers that don't intend to expose the extension
+     * surface stay clean.
+     *
+     * Requires the runtime to have the `EXTENSIONS` experimental feature
+     * flag enabled. If the flag is off, the runtime silently skips wiring
+     * even when this is true.
+     */
+    requestExtensions?: boolean;
+
+    /**
      * Slash commands registered for this session.
      * When the CLI has a TUI, each command appears as `/name` for the user to invoke.
      * The handler is called when the user executes the command.
@@ -1575,6 +1588,7 @@ export type ResumeSessionConfig = Pick<
     | "tools"
     | "canvases"
     | "requestCanvasRenderer"
+    | "requestExtensions"
     | "commands"
     | "systemMessage"
     | "availableTools"

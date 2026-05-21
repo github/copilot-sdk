@@ -814,6 +814,7 @@ export class CopilotClient {
                 })),
                 canvases: config.canvases?.map((c) => c.declaration),
                 requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -959,6 +960,7 @@ export class CopilotClient {
                 })),
                 canvases: config.canvases?.map((c) => c.declaration),
                 requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
