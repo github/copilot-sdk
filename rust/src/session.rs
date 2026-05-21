@@ -793,13 +793,11 @@ impl Client {
             .clone()
             .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
         config.session_id = Some(session_id.clone());
-        let canvases = std::mem::take(&mut config.canvases);
-        let canvas_registry = Arc::new(crate::canvas::build_registry(&canvases));
+        let canvas_registry = Arc::new(crate::canvas::build_registry(&config.canvases));
+        // `canvases` serializes via `Canvas::serialize` -> `CanvasDeclaration`
+        // (handler arcs are not part of the wire shape); the registry is
+        // retained locally to dispatch `canvas.action.invoke` callbacks.
         let mut params = serde_json::to_value(&config)?;
-        // `canvases` is serialized via `Vec<Canvas>` custom impl on `config`
-        // (handler arcs dropped); the registry is retained locally to dispatch
-        // `canvas.action.invoke` callbacks.
-        let _ = canvases;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
 
@@ -927,10 +925,10 @@ impl Client {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
         let session_id = config.session_id.clone();
-        let canvases = std::mem::take(&mut config.canvases);
-        let canvas_registry = Arc::new(crate::canvas::build_registry(&canvases));
+        let canvas_registry = Arc::new(crate::canvas::build_registry(&config.canvases));
+        // See `create_session` for the rationale: `canvases` serializes via
+        // `Canvas::serialize` -> `CanvasDeclaration`; handlers are not on the wire.
         let mut params = serde_json::to_value(&config)?;
-        let _ = canvases;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
 
