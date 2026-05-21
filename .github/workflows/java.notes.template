@@ -1,12 +1,10 @@
 # Installation
 
-ℹ️ **Public Preview:** This is the official Java SDK for GitHub Copilot. This repository treats the official .NET and Node.js SDKs for GitHub Copilot as reference implementations. These SDKs are all officially supported as GitHub open source projects. The Java implementation follows the backward compatibility guarantees offered by the reference implementations. While in public preview, minor breaking changes may still occur between releases.
+ℹ️ **Public Preview:** This is the official Java SDK for GitHub Copilot. This repository treats the official .NET and Node.js SDKs for GitHub Copilot as reference implementations. These SDKs are all officially supported as GitHub open source projects. The Java implementation follows the backward compatibility guarantees offered by the reference implementations.
 
 ⚠️ **Artifact versioning plan:** Releases of this implementation track releases of the reference implementation. For each release of the reference implementation, there may follow a corresponding relase of this implementation with the same number as the reference implementation. Release identifiers of the reference implementation are in the form `vMaj.Min.Micro`. For example v0.1.32. The corresponding maven version for the release will be `Maj.Min.Micro-java.N`, where `Maj`, `Min` and `Micro` are the corresponding numbers for the reference impementation release, and `N` is a monotonically increasing sequence number starting with 0 for each release. See the corrseponding architectural decision record for more information in the `docs/adr` directory of the source code.
   
 📦 [View on Maven Central](https://central.sonatype.com/artifact/${GROUP_ID}/${ARTIFACT_ID}/${VERSION})
-
-📖 [Documentation](https://github.github.io/copilot-sdk-java/${VERSION}/) · [Javadoc](https://github.github.io/copilot-sdk-java/${VERSION}/apidocs/index.html)
 
 ## Maven
 ```xml
