@@ -1,8 +1,8 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var cliUrl = Environment.GetEnvironmentVariable("COPILOT_CLI_URL") ?? "localhost:3000";
 
-using var client = new CopilotClient(new CopilotClientOptions { CliUrl = cliUrl });
+using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl) });
 await client.StartAsync();
 
 try

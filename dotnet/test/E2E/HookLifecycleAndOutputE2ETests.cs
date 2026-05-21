@@ -3,10 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.AI;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// E2E coverage for every handler exposed on <see cref="SessionHooks"/>:
@@ -43,7 +44,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
         Assert.NotEmpty(sessionStartInputs);
         Assert.Equal("new", sessionStartInputs[0].Source);
-        Assert.True(sessionStartInputs[0].Timestamp > 0);
+        Assert.True(sessionStartInputs[0].Timestamp > DateTimeOffset.UnixEpoch);
         Assert.False(string.IsNullOrEmpty(sessionStartInputs[0].Cwd));
 
         await session.DisposeAsync();
@@ -71,7 +72,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
         Assert.NotEmpty(userPromptInputs);
         Assert.Contains("Say hello", userPromptInputs[0].Prompt);
-        Assert.True(userPromptInputs[0].Timestamp > 0);
+        Assert.True(userPromptInputs[0].Timestamp > DateTimeOffset.UnixEpoch);
         Assert.False(string.IsNullOrEmpty(userPromptInputs[0].Cwd));
 
         await session.DisposeAsync();
@@ -116,7 +117,7 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
                 OnErrorOccurred = (input, invocation) =>
                 {
                     Assert.Equal(session!.SessionId, invocation.SessionId);
-                    Assert.True(input.Timestamp > 0);
+                    Assert.True(input.Timestamp > DateTimeOffset.UnixEpoch);
                     Assert.False(string.IsNullOrEmpty(input.Cwd));
                     Assert.False(string.IsNullOrEmpty(input.Error));
                     Assert.Contains(input.ErrorContext, ValidErrorContexts);

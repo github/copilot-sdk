@@ -1,13 +1,13 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 using System.Collections.Concurrent;
-using GitHub.Copilot.SDK;
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Microsoft.Data.Sqlite;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 internal record SqliteCall(string SessionId, string QueryType, string Query);
 
@@ -174,19 +174,19 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
         throw new FileNotFoundException($"Path does not exist: {path}");
     }
 
-    protected override Task MkdirAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
+    protected override Task MakeDirectoryAsync(string path, bool recursive, int? mode, CancellationToken cancellationToken)
     {
         _directories[Resolve(path)] = 0;
         return Task.CompletedTask;
     }
 
-    protected override Task<IList<string>> ReaddirAsync(string path, CancellationToken cancellationToken)
+    protected override Task<IList<string>> ReadDirectoryAsync(string path, CancellationToken cancellationToken)
         => Task.FromResult<IList<string>>([]);
 
-    protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReaddirWithTypesAsync(string path, CancellationToken cancellationToken)
+    protected override Task<IList<SessionFsReaddirWithTypesEntry>> ReadDirectoryWithTypesAsync(string path, CancellationToken cancellationToken)
         => Task.FromResult<IList<SessionFsReaddirWithTypesEntry>>([]);
 
-    protected override Task RmAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
+    protected override Task RemoveAsync(string path, bool recursive, bool force, CancellationToken cancellationToken)
     {
         var key = Resolve(path);
         Files.TryRemove(key, out _);

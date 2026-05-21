@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Verifies the shape and ordering of <see cref="SessionEvent"/>s emitted from the
@@ -25,7 +25,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -55,7 +55,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -91,7 +91,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -114,7 +114,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -163,7 +163,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -194,7 +194,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     {
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions
         {
@@ -225,7 +225,7 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             Prompt = "Read the file 'order.txt' and tell me what the number is.",
         });
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var types = messages.Select(m => m.Type).ToList();
 
         // Verify complete event ordering contract:

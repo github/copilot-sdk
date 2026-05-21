@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Custom fixture for multi-client commands/elicitation tests.
@@ -22,9 +22,9 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        Client1 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            TcpConnectionToken = SharedToken,
+            Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken),
         }, persistent: true);
     }
 
@@ -65,13 +65,12 @@ public class MultiClientCommandsElicitationE2ETests
         });
         await initSession.DisposeAsync();
 
-        var port = Client1.ActualPort
-            ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
+        var port = Client1.RuntimePort
+            ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
         });
     }
 
@@ -112,7 +111,7 @@ public class MultiClientCommandsElicitationE2ETests
         var commandsChangedTcs = new TaskCompletionSource<CommandsChangedEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub = session1.On(evt =>
+        using var sub = session1.On<SessionEvent>(evt =>
         {
             if (evt is CommandsChangedEvent changed)
             {
@@ -133,7 +132,7 @@ public class MultiClientCommandsElicitationE2ETests
                     Handler = _ => Task.CompletedTask,
                 },
             ],
-            DisableResume = true,
+            SuppressResumeEvent = true,
         });
 
         var commandsChanged = await commandsChangedTcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -160,7 +159,7 @@ public class MultiClientCommandsElicitationE2ETests
         var capChangedTcs = new TaskCompletionSource<CapabilitiesChangedEvent>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub = session1.On(evt =>
+        using var sub = session1.On<SessionEvent>(evt =>
         {
             if (evt is CapabilitiesChangedEvent capEvt)
             {
@@ -177,7 +176,7 @@ public class MultiClientCommandsElicitationE2ETests
                 Action = Rpc.UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
-            DisableResume = true,
+            SuppressResumeEvent = true,
         });
 
         var capEvent = await capChangedTcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -206,7 +205,7 @@ public class MultiClientCommandsElicitationE2ETests
         var capEnabledTcs = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var subEnabled = session1.On(evt =>
+        using var subEnabled = session1.On<SessionEvent>(evt =>
         {
             if (evt is CapabilitiesChangedEvent { Data.Ui.Elicitation: true })
             {
@@ -215,12 +214,11 @@ public class MultiClientCommandsElicitationE2ETests
         });
 
         // Use a dedicated client (client3) so we can stop it without affecting client2
-        var port = Client1.ActualPort
-            ?? throw new InvalidOperationException("Client1 ActualPort is null");
+        var port = Client1.RuntimePort
+            ?? throw new InvalidOperationException("Client1 RuntimePort is null");
         _client3 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientCommandsElicitationFixture.SharedToken,
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
         });
 
         // Client3 joins WITH elicitation handler
@@ -232,7 +230,7 @@ public class MultiClientCommandsElicitationE2ETests
                 Action = Rpc.UIElicitationResponseAction.Accept,
                 Content = new Dictionary<string, object>(),
             }),
-            DisableResume = true,
+            SuppressResumeEvent = true,
         });
 
         await capEnabledTcs.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -242,7 +240,7 @@ public class MultiClientCommandsElicitationE2ETests
         var capDisabledTcs = new TaskCompletionSource<bool>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var subDisabled = session1.On(evt =>
+        using var subDisabled = session1.On<SessionEvent>(evt =>
         {
             if (evt is CapabilitiesChangedEvent { Data.Ui.Elicitation: false })
             {

@@ -5,7 +5,7 @@
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class ClientSessionManagementE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "client_api", output)
@@ -46,6 +46,14 @@ public class ClientSessionManagementE2ETests(E2ETestFixture fixture, ITestOutput
     public async Task Should_Get_Null_Last_Session_Id_Before_Any_Sessions_Exist()
     {
         await Client.StartAsync();
+
+        // Other tests in this class create sessions, and xUnit doesn't guarantee
+        // test execution order. Clear any leftover sessions so this test sees a
+        // genuinely empty state regardless of order.
+        foreach (var existing in await Client.ListSessionsAsync())
+        {
+            await Client.DeleteSessionAsync(existing.SessionId);
+        }
 
         var result = await Client.GetLastSessionIdAsync();
 

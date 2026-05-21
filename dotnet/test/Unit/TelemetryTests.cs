@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.Reflection;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public class TelemetryTests
 {
@@ -91,7 +91,7 @@ public class TelemetryTests
 
     private static T InvokeTelemetryHelper<T>(string name, params object?[] args)
     {
-        var helperType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.SDK.TelemetryHelpers", throwOnError: true)!;
+        var helperType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.TelemetryHelpers", throwOnError: true)!;
         var method = helperType.GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic)!;
         return (T)method.Invoke(null, args)!;
     }

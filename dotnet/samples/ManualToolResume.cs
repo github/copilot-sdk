@@ -1,8 +1,8 @@
 #:project ../src/GitHub.Copilot.SDK.csproj
 
 using System.ComponentModel;
-using GitHub.Copilot.SDK;
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 
 var tool = ManualToolDeclaration();
@@ -80,7 +80,7 @@ static async Task<T> WaitForEventAsync<T>(CopilotSession session, Func<T, bool>?
 {
     var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
     IDisposable? subscription = null;
-    subscription = session.On(evt =>
+    subscription = session.On<SessionEvent>(evt =>
     {
         if (evt is T typed && (predicate?.Invoke(typed) ?? true))
         {

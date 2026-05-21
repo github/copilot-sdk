@@ -1,8 +1,8 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,7 +17,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 
 /// <summary>
 /// Provides a client for interacting with the Copilot CLI server.
@@ -41,7 +41,7 @@ namespace GitHub.Copilot.SDK;
 /// await using var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll, Model = "gpt-4" });
 ///
 /// // Handle events
-/// using var subscription = session.On(evt =>
+/// using var subscription = session.On&lt;SessionEvent&gt;(evt =>
 /// {
 ///     if (evt is AssistantMessageEvent assistantMessage)
 ///         Console.WriteLine(assistantMessage.Data?.Content);
@@ -71,28 +71,28 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
 
     private readonly CopilotClientOptions _options;
+    private readonly RuntimeConnection _connection;
     private readonly ILogger _logger;
     private Task<Connection>? _connectionTask;
-    private volatile bool _disconnected;
     private bool _disposed;
     private readonly int? _optionsPort;
     private readonly string? _optionsHost;
-    private readonly string? _effectiveConnectionToken;
     private int? _actualPort;
     private int? _negotiatedProtocolVersion;
     private List<ModelInfo>? _modelsCache;
     private readonly SemaphoreSlim _modelsCacheLock = new(1, 1);
     private readonly Func<CancellationToken, Task<IList<ModelInfo>>>? _onListModels;
-    private readonly List<Action<SessionLifecycleEvent>> _lifecycleHandlers = [];
-    private readonly Dictionary<string, List<Action<SessionLifecycleEvent>>> _typedLifecycleHandlers = [];
+    private readonly List<LifecycleSubscription> _lifecycleHandlers = [];
     private readonly object _lifecycleHandlersLock = new();
     private ServerRpc? _serverRpc;
+
+    private sealed record LifecycleSubscription(Type EventType, Action<SessionLifecycleEvent> Handler);
 
     /// <summary>
     /// Gets the typed RPC client for server-scoped methods (no session required).
     /// </summary>
     /// <remarks>
-    /// The client must be started before accessing this property. Use <see cref="StartAsync"/> or set <see cref="CopilotClientOptions.AutoStart"/> to true.
+    /// The client must be started before accessing this property. Call <see cref="StartAsync"/> before use.
     /// </remarks>
     /// <exception cref="ObjectDisposedException">Thrown if the client has been disposed.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the client is not started.</exception>
@@ -101,91 +101,77 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         : _serverRpc ?? throw new InvalidOperationException("Client is not started. Call StartAsync first.");
 
     /// <summary>
-    /// Gets the actual TCP port the CLI server is listening on, if using TCP transport.
+    /// Gets the actual TCP port the runtime is listening on, if using TCP transport.
     /// </summary>
-    public int? ActualPort => _actualPort;
+    public int? RuntimePort => _actualPort;
 
     /// <summary>
     /// Creates a new instance of <see cref="CopilotClient"/>.
     /// </summary>
     /// <param name="options">Options for creating the client. If null, default options are used.</param>
-    /// <exception cref="ArgumentException">Thrown when mutually exclusive options are provided (e.g., CliUrl with UseStdio or CliPath).</exception>
     /// <example>
     /// <code>
-    /// // Default options - spawns CLI server using stdio
+    /// // Default options - spawns the bundled runtime using stdio
     /// var client = new CopilotClient();
     ///
-    /// // Connect to an existing server
-    /// var client = new CopilotClient(new CopilotClientOptions { CliUrl = "localhost:3000", UseStdio = false });
+    /// // Connect to an existing runtime
+    /// var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri("localhost:3000") });
     ///
-    /// // Custom CLI path with specific log level
+    /// // Custom runtime path with specific log level
     /// var client = new CopilotClient(new CopilotClientOptions
     /// {
-    ///     CliPath = "/usr/local/bin/copilot",
-    ///     LogLevel = "debug"
+    ///     Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
+    ///     LogLevel = CopilotLogLevel.Debug
     /// });
     /// </code>
     /// </example>
     public CopilotClient(CopilotClientOptions? options = null)
     {
         _options = options ?? new();
+        _connection = _options.Connection ?? RuntimeConnection.ForStdio();
 
-        // Validate mutually exclusive options
-        if (!string.IsNullOrEmpty(_options.CliUrl) && (_options.UseStdio == true || _options.CliPath != null))
+        switch (_connection)
         {
-            throw new ArgumentException("CliUrl is mutually exclusive with UseStdio and CliPath");
-        }
+            case StdioRuntimeConnection:
+                break;
 
-        // When CliUrl is provided, force TCP mode (we connect to an external server, not spawn one)
-        if (!string.IsNullOrEmpty(_options.CliUrl))
-        {
-            _options.UseStdio = false;
-        }
-        else
-        {
-            _options.UseStdio ??= true;
-        }
+            case TcpRuntimeConnection tcp:
+                if (tcp.ConnectionToken is { Length: 0 })
+                {
+                    throw new ArgumentException("ConnectionToken must be a non-empty string or null.", nameof(options));
+                }
+                // Auto-generate a connection token when the SDK spawns the runtime over TCP
+                // so the loopback listener is safe by default.
+                tcp.ConnectionToken ??= Guid.NewGuid().ToString();
+                break;
 
-        // Validate auth options with external server
-        if (!string.IsNullOrEmpty(_options.CliUrl) && (!string.IsNullOrEmpty(_options.GitHubToken) || _options.UseLoggedInUser != null))
-        {
-            throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be used with CliUrl (external server manages its own auth)");
-        }
+            case UriRuntimeConnection uri:
+                if (string.IsNullOrEmpty(uri.Url))
+                {
+                    throw new ArgumentException("UriRuntimeConnection.Url must be a non-empty string.", nameof(options));
+                }
+                if (!string.IsNullOrEmpty(_options.GitHubToken) || _options.UseLoggedInUser != null)
+                {
+                    throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.ForUri (the existing runtime manages its own auth).", nameof(options));
+                }
+                var parsed = ParseRuntimeUrl(uri.Url);
+                _optionsHost = parsed.Host;
+                _optionsPort = parsed.Port;
+                break;
 
-        if (_options.TcpConnectionToken is not null)
-        {
-            if (_options.TcpConnectionToken.Length == 0)
-            {
-                throw new ArgumentException("TcpConnectionToken must be a non-empty string");
-            }
-            if (_options.UseStdio == true)
-            {
-                throw new ArgumentException("TcpConnectionToken cannot be used with UseStdio = true");
-            }
+            default:
+                throw new ArgumentException($"Unsupported RuntimeConnection type: {_connection.GetType().Name}", nameof(options));
         }
-
-        var sdkSpawnsCli = _options.UseStdio == false && string.IsNullOrEmpty(_options.CliUrl);
-        _effectiveConnectionToken = _options.TcpConnectionToken
-            ?? (sdkSpawnsCli ? Guid.NewGuid().ToString() : null);
 
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
-
-        // Parse CliUrl if provided
-        if (!string.IsNullOrEmpty(_options.CliUrl))
-        {
-            var uri = ParseCliUrl(_options.CliUrl!);
-            _optionsHost = uri.Host;
-            _optionsPort = uri.Port;
-        }
     }
 
     /// <summary>
-    /// Parses a CLI URL into a URI with host and port.
+    /// Parses a runtime URL into a URI with host and port.
     /// </summary>
     /// <param name="url">The URL to parse. Supports formats: "port", "host:port", "http://host:port".</param>
-    /// <returns>A <see cref="Uri"/> containing the parsed host and port.</returns>
-    private static Uri ParseCliUrl(string url)
+    private static Uri ParseRuntimeUrl(string url)
     {
         // If it's just a port number, treat as localhost
         if (int.TryParse(url, out var port))
@@ -209,17 +195,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <param name="cancellationToken">A <see cref="CancellationToken"/> that can be used to cancel the operation.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <remarks>
-    /// <para>
     /// If the server is not already running and the client is configured to spawn one (default), it will be started.
-    /// If connecting to an external server (via CliUrl), only establishes the connection.
-    /// </para>
-    /// <para>
-    /// This method is called automatically when creating a session if <see cref="CopilotClientOptions.AutoStart"/> is true (default).
-    /// </para>
+    /// If connecting to an external runtime (via RuntimeConnection.ForUri), only establishes the connection.
     /// </remarks>
     /// <example>
     /// <code>
-    /// var client = new CopilotClient(new CopilotClientOptions { AutoStart = false });
+    /// var client = new CopilotClient();
     /// await client.StartAsync();
     /// // Now ready to create sessions
     /// </code>
@@ -231,7 +212,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         async Task<Connection> StartCoreAsync(CancellationToken ct)
         {
             _logger.LogDebug("Starting Copilot client");
-            _disconnected = false;
 
             var startTimestamp = Stopwatch.GetTimestamp();
             Connection? connection = null;
@@ -239,16 +219,16 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             try
             {
-                if (_optionsHost is not null && _optionsPort is not null)
+                if (_connection is UriRuntimeConnection)
                 {
-                    // External server (TCP)
+                    // External runtime
                     _actualPort = _optionsPort;
                     connection = await ConnectToServerAsync(null, _optionsHost, _optionsPort, null, ct);
                 }
                 else
                 {
                     // Child process (stdio or TCP)
-                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(_options, _effectiveConnectionToken, _logger, ct);
+                    var (startedProcess, portOrNull, stderrBuffer) = await StartCliServerAsync(ct);
                     cliProcess = startedProcess;
                     _actualPort = portOrNull;
                     connection = await ConnectToServerAsync(cliProcess, portOrNull is null ? null : "localhost", portOrNull, stderrBuffer, ct);
@@ -522,7 +502,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <returns>A task that resolves to provide the <see cref="CopilotSession"/>.</returns>
     /// <remarks>
     /// Sessions maintain conversation state, handle events, and manage tool execution.
-    /// If the client is not connected and <see cref="CopilotClientOptions.AutoStart"/> is enabled (default),
+    /// If the client is not connected,
     /// this will automatically start the connection.
     /// </remarks>
     /// <example>
@@ -570,8 +550,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
-        session.RegisterExitPlanModeHandler(config.OnExitPlanMode);
-        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitch);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -586,9 +566,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         if (config.OnEvent != null)
         {
-            session.On(config.OnEvent);
+            session.On<SessionEvent>(config.OnEvent);
         }
-        ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -616,8 +596,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableSessionTelemetry,
                 (bool?)true,
                 config.OnUserInputRequest != null ? true : null,
-                config.OnExitPlanMode != null ? true : null,
-                config.OnAutoModeSwitch != null ? true : null,
+                config.OnExitPlanModeRequest != null ? true : null,
+                config.OnAutoModeSwitchRequest != null ? true : null,
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.Streaming is true ? true : null,
@@ -728,8 +708,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         session.RegisterPermissionHandler(config.OnPermissionRequest);
         session.RegisterCommands(config.Commands);
         session.RegisterElicitationHandler(config.OnElicitationRequest);
-        session.RegisterExitPlanModeHandler(config.OnExitPlanMode);
-        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitch);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
         if (config.OnUserInputRequest != null)
         {
             session.RegisterUserInputHandler(config.OnUserInputRequest);
@@ -744,9 +724,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         if (config.OnEvent != null)
         {
-            session.On(config.OnEvent);
+            session.On<SessionEvent>(config.OnEvent);
         }
-        ConfigureSessionFsHandlers(session, config.CreateSessionFsHandler);
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -774,13 +754,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.EnableSessionTelemetry,
                 (bool?)true,
                 config.OnUserInputRequest != null ? true : null,
-                config.OnExitPlanMode != null ? true : null,
-                config.OnAutoModeSwitch != null ? true : null,
+                config.OnExitPlanModeRequest != null ? true : null,
+                config.OnAutoModeSwitchRequest != null ? true : null,
                 hasHooks ? true : null,
                 config.WorkingDirectory,
                 config.ConfigDir,
                 config.EnableConfigDiscovery,
-                config.DisableResume is true ? true : null,
+                config.SuppressResumeEvent is true ? true : null,
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
@@ -830,32 +810,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             totalTimestamp,
             sessionId);
         return session;
-    }
-
-    /// <summary>
-    /// Gets the current connection state of the client.
-    /// </summary>
-    /// <value>
-    /// The current <see cref="ConnectionState"/>: Disconnected, Connecting, Connected, or Error.
-    /// </value>
-    /// <example>
-    /// <code>
-    /// if (client.State == ConnectionState.Connected)
-    /// {
-    ///     var session = await client.CreateSessionAsync(new() { OnPermissionRequest = PermissionHandler.ApproveAll });
-    /// }
-    /// </code>
-    /// </example>
-    public ConnectionState State
-    {
-        get
-        {
-            if (_connectionTask == null) return ConnectionState.Disconnected;
-            if (_connectionTask.IsFaulted) return ConnectionState.Error;
-            if (!_connectionTask.IsCompleted) return ConnectionState.Connecting;
-            if (_disconnected) return ConnectionState.Disconnected;
-            return ConnectionState.Connected;
-        }
     }
 
     /// <summary>
@@ -1130,103 +1084,59 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Subscribes to all session lifecycle events.
+    /// Subscribes to session lifecycle events of a specific kind.
     /// </summary>
-    /// <remarks>
-    /// Lifecycle events are emitted when sessions are created, deleted, updated,
-    /// or change foreground/background state (in TUI+server mode).
-    /// </remarks>
-    /// <param name="handler">A callback function that receives lifecycle events.</param>
-    /// <returns>An IDisposable that, when disposed, unsubscribes the handler.</returns>
+    /// <typeparam name="T">
+    /// The lifecycle event type to listen for. Pass a derived type such as
+    /// <see cref="SessionCreatedEvent"/> to filter by kind, or
+    /// <see cref="SessionLifecycleEvent"/> to receive every lifecycle event.
+    /// </typeparam>
+    /// <param name="handler">A callback invoked when a matching lifecycle event arrives.</param>
+    /// <returns>An <see cref="IDisposable"/> that, when disposed, unsubscribes the handler.</returns>
     /// <example>
     /// <code>
-    /// using var subscription = client.On(evt =>
-    /// {
-    ///     Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
-    /// });
-    /// </code>
-    /// </example>
-    public IDisposable On(Action<SessionLifecycleEvent> handler)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-
-        lock (_lifecycleHandlersLock)
-        {
-            _lifecycleHandlers.Add(handler);
-        }
-
-        return new ActionDisposable(() =>
-        {
-            lock (_lifecycleHandlersLock)
-            {
-                _lifecycleHandlers.Remove(handler);
-            }
-        });
-    }
-
-    /// <summary>
-    /// Subscribes to a specific session lifecycle event type.
-    /// </summary>
-    /// <param name="eventType">The event type to listen for (use SessionLifecycleEventTypes constants).</param>
-    /// <param name="handler">A callback function that receives events of the specified type.</param>
-    /// <returns>An IDisposable that, when disposed, unsubscribes the handler.</returns>
-    /// <example>
-    /// <code>
-    /// using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
+    /// using var sub = client.OnLifecycle&lt;SessionForegroundEvent&gt;(evt =&gt;
     /// {
     ///     Console.WriteLine($"Session {evt.SessionId} is now in foreground");
     /// });
     /// </code>
     /// </example>
-    public IDisposable On(string eventType, Action<SessionLifecycleEvent> handler)
+    public IDisposable OnLifecycle<T>(Action<T> handler) where T : SessionLifecycleEvent
     {
-        ArgumentNullException.ThrowIfNull(eventType);
         ArgumentNullException.ThrowIfNull(handler);
+
+        var subscription = new LifecycleSubscription(typeof(T), evt => handler((T)evt));
 
         lock (_lifecycleHandlersLock)
         {
-            if (!_typedLifecycleHandlers.TryGetValue(eventType, out var handlers))
-            {
-                handlers = [];
-                _typedLifecycleHandlers[eventType] = handlers;
-            }
-
-            handlers.Add(handler);
+            _lifecycleHandlers.Add(subscription);
         }
 
         return new ActionDisposable(() =>
         {
             lock (_lifecycleHandlersLock)
             {
-                if (_typedLifecycleHandlers.TryGetValue(eventType, out var handlers))
-                {
-                    handlers.Remove(handler);
-                }
+                _lifecycleHandlers.Remove(subscription);
             }
         });
     }
 
     private void DispatchLifecycleEvent(SessionLifecycleEvent evt)
     {
-        List<Action<SessionLifecycleEvent>> typedHandlers;
-        List<Action<SessionLifecycleEvent>> wildcardHandlers;
-
+        List<LifecycleSubscription> snapshot;
         lock (_lifecycleHandlersLock)
         {
-            typedHandlers = _typedLifecycleHandlers.TryGetValue(evt.Type, out var handlers)
-                ? [.. handlers]
-                : [];
-            wildcardHandlers = [.. _lifecycleHandlers];
+            snapshot = [.. _lifecycleHandlers];
         }
 
-        foreach (var handler in typedHandlers)
+        var eventType = evt.GetType();
+        foreach (var subscription in snapshot)
         {
-            try { handler(evt); } catch { /* Ignore handler errors */ }
-        }
-
-        foreach (var handler in wildcardHandlers)
-        {
-            try { handler(evt); } catch { /* Ignore handler errors */ }
+            if (!subscription.EventType.IsAssignableFrom(eventType))
+            {
+                continue;
+            }
+            try { subscription.Handler(evt); } catch { /* Ignore handler errors */ }
         }
     }
 
@@ -1309,11 +1219,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private Task<Connection> EnsureConnectedAsync(CancellationToken cancellationToken)
     {
-        if (_connectionTask is null && !_options.AutoStart)
-        {
-            throw new InvalidOperationException($"Client not connected. Call {nameof(StartAsync)}() first.");
-        }
-
         // If already started or starting, this will return the existing task
         return (Task<Connection>)StartAsync(cancellationToken);
     }
@@ -1343,11 +1248,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (createSessionFsHandler is null)
         {
             throw new InvalidOperationException(
-                "CreateSessionFsHandler is required in the session config when CopilotClientOptions.SessionFs is configured.");
+                "CreateSessionFsProvider is required in the session config when CopilotClientOptions.SessionFs is configured.");
         }
 
         var provider = createSessionFsHandler(session)
-            ?? throw new InvalidOperationException("CreateSessionFsHandler returned null.");
+            ?? throw new InvalidOperationException("CreateSessionFsProvider returned null.");
 
         if (_options.SessionFs.Capabilities?.Sqlite == true && provider is not ISessionFsSqliteProvider)
         {
@@ -1366,8 +1271,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         int? serverVersion;
         try
         {
+            var token = _connection switch
+            {
+                TcpRuntimeConnection tcp => tcp.ConnectionToken,
+                UriRuntimeConnection uri => uri.ConnectionToken,
+                _ => null,
+            };
             var connectResponse = await InvokeRpcAsync<ConnectResult>(
-                connection.Rpc, "connect", [new ConnectRequest { Token = _effectiveConnectionToken }], connection.StderrBuffer, cancellationToken);
+                connection.Rpc, "connect", [new ConnectRequest { Token = token }], connection.StderrBuffer, cancellationToken);
             serverVersion = (int)connectResponse.ProtocolVersion;
         }
         catch (IOException ex) when (ex.InnerException is RemoteRpcException remoteEx && IsUnsupportedConnectMethod(remoteEx))
@@ -1410,32 +1321,42 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             || string.Equals(ex.Message, "Unhandled method connect", StringComparison.Ordinal);
     }
 
-    private static async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CopilotClientOptions options, string? connectionToken, ILogger logger, CancellationToken cancellationToken)
+    private async Task<(Process Process, int? DetectedLocalhostTcpPort, StringBuilder StderrBuffer)> StartCliServerAsync(CancellationToken cancellationToken)
     {
-        // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled CLI - no PATH fallback
+        var options = _options;
+        var logger = _logger;
+        var childProcessConnection = (ChildProcessRuntimeConnection)_connection;
+        var tcpConnection = _connection as TcpRuntimeConnection;
+        var useStdio = _connection is StdioRuntimeConnection;
+
+        // Use explicit path, COPILOT_CLI_PATH env var (from options.Environment or process env), or bundled runtime - no PATH fallback
         var envCliPath = options.Environment is not null && options.Environment.TryGetValue("COPILOT_CLI_PATH", out var envValue) ? envValue
             : System.Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-        var cliPath = options.CliPath
+        var cliPath = childProcessConnection.Path
             ?? envCliPath
             ?? GetBundledCliPath(out var searchedPath)
-            ?? throw new InvalidOperationException($"Copilot CLI not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath.");
-        var cliPathSource = options.CliPath is not null ? "Options" : envCliPath is not null ? "Environment" : "Bundled";
+            ?? throw new InvalidOperationException($"Copilot runtime not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.ForStdio(path: ...) / RuntimeConnection.ForTcp(path: ...).");
+        var cliPathSource = childProcessConnection.Path is not null ? "Options" : envCliPath is not null ? "Environment" : "Bundled";
         var args = new List<string>();
 
-        if (options.CliArgs != null)
+        if (childProcessConnection.Args != null)
         {
-            args.AddRange(options.CliArgs);
+            args.AddRange(childProcessConnection.Args);
         }
 
-        args.AddRange(["--headless", "--no-auto-update", "--log-level", options.LogLevel]);
+        args.AddRange(["--headless", "--no-auto-update"]);
+        if (options.LogLevel is { } logLevel && !string.IsNullOrEmpty(logLevel.Value))
+        {
+            args.AddRange(["--log-level", logLevel.Value]);
+        }
 
-        if (options.UseStdio == true)
+        if (useStdio)
         {
             args.Add("--stdio");
         }
-        else if (options.Port > 0)
+        else if (tcpConnection is { Port: > 0 } tcp)
         {
-            args.AddRange(["--port", options.Port.ToString(CultureInfo.InvariantCulture)]);
+            args.AddRange(["--port", tcp.Port.ToString(CultureInfo.InvariantCulture)]);
         }
 
         // Add auth-related flags
@@ -1456,24 +1377,24 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             args.AddRange(["--session-idle-timeout", options.SessionIdleTimeoutSeconds.Value.ToString(CultureInfo.InvariantCulture)]);
         }
 
-        if (options.Remote)
+        if (options.EnableRemoteSessions)
         {
             args.Add("--remote");
         }
 
         var (fileName, processArgs) = ResolveCliCommand(cliPath, args);
-        var configuredPort = options.UseStdio == true ? (int?)null : options.Port;
-        LogStartingCopilotCli(logger, cliPath, fileName, cliPathSource, options.UseStdio == true, configuredPort);
+        var configuredPort = useStdio ? (int?)null : tcpConnection?.Port;
+        LogStartingCopilotCli(logger, cliPath, fileName, cliPathSource, useStdio, configuredPort);
 
         var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
             Arguments = string.Join(" ", processArgs.Select(ProcessArgumentEscaper.Escape)),
             UseShellExecute = false,
-            RedirectStandardInput = options.UseStdio == true,
+            RedirectStandardInput = useStdio,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            WorkingDirectory = options.Cwd,
+            WorkingDirectory = options.WorkingDirectory,
             CreateNoWindow = true
         };
 
@@ -1494,14 +1415,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             startInfo.Environment["COPILOT_SDK_AUTH_TOKEN"] = options.GitHubToken;
         }
 
-        if (!string.IsNullOrEmpty(connectionToken))
+        if (tcpConnection?.ConnectionToken is { Length: > 0 } token)
         {
-            startInfo.Environment["COPILOT_CONNECTION_TOKEN"] = connectionToken;
+            startInfo.Environment["COPILOT_CONNECTION_TOKEN"] = token;
         }
 
-        if (!string.IsNullOrEmpty(options.CopilotHome))
+        if (!string.IsNullOrEmpty(options.BaseDirectory))
         {
-            startInfo.Environment["COPILOT_HOME"] = options.CopilotHome;
+            startInfo.Environment["COPILOT_HOME"] = options.BaseDirectory;
         }
 
         // Set telemetry environment variables if configured
@@ -1547,7 +1468,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }, cancellationToken);
 
             var detectedLocalhostTcpPort = (int?)null;
-            if (options.UseStdio != true)
+            if (!useStdio)
             {
                 // Wait for port announcement
                 var portWaitTimestamp = Stopwatch.GetTimestamp();
@@ -1560,7 +1481,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                     if (line is null)
                     {
                         await stderrReader;
-                        throw CreateCliExitedException("CLI process exited unexpectedly", stderrBuffer);
+                        throw CreateCliExitedException("Runtime process exited unexpectedly", stderrBuffer);
                     }
 
                     if (logger.IsEnabled(LogLevel.Debug))
@@ -1640,11 +1561,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         Stream inputStream, outputStream;
         NetworkStream? networkStream = null;
 
-        if (_options.UseStdio == true)
+        if (_connection is StdioRuntimeConnection)
         {
             if (cliProcess == null)
             {
-                throw new InvalidOperationException("CLI process not started");
+                throw new InvalidOperationException("Runtime process not started");
             }
 
             inputStream = cliProcess.StandardOutput.BaseStream;
@@ -1708,9 +1629,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             "CopilotClient.ConnectToServerAsync transport setup complete. Elapsed={Elapsed}",
             setupTimestamp);
 
-        // Transition state to Disconnected if the JSON-RPC connection drops
-        _ = rpc.Completion.ContinueWith(_ => _disconnected = true, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-
         _serverRpc = new ServerRpc(rpc);
 
         return new Connection(rpc, cliProcess, networkStream, stderrBuffer);
@@ -1730,7 +1648,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         options.TypeInfoResolverChain.Add(TypesJsonContext.Default);
         options.TypeInfoResolverChain.Add(CopilotSession.SessionJsonContext.Default);
         options.TypeInfoResolverChain.Add(SessionEventsJsonContext.Default);
-        options.TypeInfoResolverChain.Add(SDK.Rpc.RpcJsonContext.Default);
+        options.TypeInfoResolverChain.Add(GitHub.Copilot.Rpc.RpcJsonContext.Default);
 
         options.MakeReadOnly();
 
@@ -1798,13 +1716,19 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         public void OnSessionLifecycle(string type, string sessionId, JsonElement? metadata)
         {
-            var evt = new SessionLifecycleEvent
+            SessionLifecycleEvent evt = type switch
             {
-                Type = type,
-                SessionId = sessionId
+                "session.created" => new SessionCreatedEvent(),
+                "session.deleted" => new SessionDeletedEvent(),
+                "session.updated" => new SessionUpdatedEvent(),
+                "session.foreground" => new SessionForegroundEvent(),
+                "session.background" => new SessionBackgroundEvent(),
+                _ => new SessionLifecycleEvent()
             };
 
-            if (metadata != null)
+            evt.Type = type;
+            evt.SessionId = sessionId;
+            if (metadata is not null)
             {
                 evt.Metadata = JsonSerializer.Deserialize(
                     metadata.Value.GetRawText(),
@@ -2083,7 +2007,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkingDirectory,
         string? ConfigDir,
         bool? EnableConfigDiscovery,
-        bool? DisableResume,
+        bool? SuppressResumeEvent,
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
         IDictionary<string, McpServerConfig>? McpServers,
@@ -2214,7 +2138,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 /// back through Microsoft.Extensions.AI without JSON serialization.
 /// </summary>
 /// <param name="toolResult">The tool result to wrap.</param>
-public class ToolResultAIContent(ToolResultObject toolResult) : AIContent
+public sealed class ToolResultAIContent(ToolResultObject toolResult) : AIContent
 {
     /// <summary>
     /// Gets the underlying <see cref="ToolResultObject"/>.

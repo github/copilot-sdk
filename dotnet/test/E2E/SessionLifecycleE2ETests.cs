@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Lifecycle coverage at the <see cref="CopilotClient"/> level: listing
@@ -84,7 +84,7 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
             Prompt = "What is 2+2? Reply with just the number.",
         });
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         Assert.NotEmpty(messages);
 
         // Should have at least session.start, user.message, assistant.message
@@ -130,8 +130,8 @@ public class SessionLifecycleE2ETests(E2ETestFixture fixture, ITestOutputHelper 
         var session1Events = new List<SessionEvent>();
         var session2Events = new List<SessionEvent>();
 
-        session1.On(evt => { lock (session1Events) { session1Events.Add(evt); } });
-        session2.On(evt => { lock (session2Events) { session2Events.Add(evt); } });
+        session1.On<SessionEvent>(evt => { lock (session1Events) { session1Events.Add(evt); } });
+        session2.On<SessionEvent>(evt => { lock (session2Events) { session2Events.Add(evt); } });
 
         // Send to both sessions
         await session1.SendAndWaitAsync(new MessageOptions

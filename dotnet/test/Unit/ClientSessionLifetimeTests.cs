@@ -11,7 +11,7 @@ using System.Text;
 using System.Text.Json;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public sealed class ClientSessionLifetimeTests
 {
@@ -19,7 +19,7 @@ public sealed class ClientSessionLifetimeTests
     public async Task Dropped_Session_Remains_Rooted_By_Client()
     {
         await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         var weakSession = await CreateDroppedSessionAsync(client);
 
@@ -36,7 +36,7 @@ public sealed class ClientSessionLifetimeTests
     public async Task Disposed_Session_Is_Removed_From_Client()
     {
         await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         var session = await client.CreateSessionAsync(new SessionConfig
         {
@@ -54,7 +54,7 @@ public sealed class ClientSessionLifetimeTests
     {
         await using var server = await FakeCopilotServer.StartAsync();
         server.DelayDestroy();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         var session = await client.CreateSessionAsync(new SessionConfig
         {
@@ -77,7 +77,7 @@ public sealed class ClientSessionLifetimeTests
     public async Task StopAsync_Removes_Rooted_Sessions()
     {
         await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         _ = await client.CreateSessionAsync(new SessionConfig
         {
@@ -95,7 +95,7 @@ public sealed class ClientSessionLifetimeTests
     {
         await using var server = await FakeCopilotServer.StartAsync();
         server.DelayDestroy();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         _ = await client.CreateSessionAsync(new SessionConfig
         {
@@ -118,7 +118,7 @@ public sealed class ClientSessionLifetimeTests
     public async Task ResumeSessionAsync_Throws_When_Same_Client_Already_Tracks_Session()
     {
         await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         var sessionId = "same-session-id";
         await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -140,7 +140,7 @@ public sealed class ClientSessionLifetimeTests
     public async Task Generated_Session_Rpc_Throws_When_Session_Disposed()
     {
         await using var server = await FakeCopilotServer.StartAsync();
-        await using var client = new CopilotClient(new CopilotClientOptions { CliUrl = server.Url });
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
 
         var session = await client.CreateSessionAsync(new SessionConfig
         {

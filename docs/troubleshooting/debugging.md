@@ -73,7 +73,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <!-- docs-validate: skip -->
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.Logging;
 
 // Using ILogger
@@ -164,7 +164,7 @@ func main() {
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliArgs = new[] { "--log-dir", "/path/to/logs" }
+    Connection = RuntimeConnection.ForStdio(args: new[] { "--log-dir", "/path/to/logs" })
 });
 ```
 

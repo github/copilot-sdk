@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_tasks_and_handlers", output)
@@ -101,7 +101,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.Equal("general-purpose", task.AgentType);
         Assert.Equal("Reply with TASK_AGENT_DONE exactly.", task.Prompt);
         Assert.Equal("SDK background agent coverage", task.Description);
-        Assert.Equal(GitHub.Copilot.SDK.Rpc.TaskExecutionMode.Background, task.ExecutionMode);
+        Assert.Equal(GitHub.Copilot.Rpc.TaskExecutionMode.Background, task.ExecutionMode);
         Assert.False(task.CanPromoteToBackground.GetValueOrDefault());
         Assert.NotEqual(default, task.StartedAt);
 
@@ -114,8 +114,8 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 task = await FindAgentTaskAsync(session, started.AgentId);
                 return task?.LatestResponse?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
                     || task?.Result?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true
-                    || task?.Status == GitHub.Copilot.SDK.Rpc.TaskStatus.Completed
-                    || task?.Status == GitHub.Copilot.SDK.Rpc.TaskStatus.Failed;
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Completed
+                    || task?.Status == GitHub.Copilot.Rpc.TaskStatus.Failed;
             },
             timeout: TimeSpan.FromSeconds(60),
             timeoutMessage: $"Background agent task '{started.AgentId}' did not produce a final observable state.");
@@ -123,7 +123,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.NotNull(task);
         Assert.Contains("TASK_AGENT_DONE", task.LatestResponse ?? task.Result ?? string.Empty);
 
-        if (task.Status == GitHub.Copilot.SDK.Rpc.TaskStatus.Idle)
+        if (task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle)
         {
             var cancel = await session.Rpc.Tasks.CancelAsync(started.AgentId);
             Assert.True(cancel.Cancelled);

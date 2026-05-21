@@ -109,7 +109,7 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "Analyze my codebase"})
 ### C# (.NET)
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var client = new CopilotClient();
 
@@ -201,7 +201,7 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss ear
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class ResumeSessionExample
 {

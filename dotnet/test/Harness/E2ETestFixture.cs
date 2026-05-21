@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test;
+namespace GitHub.Copilot.Test;
 
 public class E2ETestFixture : IAsyncLifetime
 {
@@ -17,9 +17,9 @@ public class E2ETestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        Client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            TcpConnectionToken = SharedTcpConnectionToken,
+            Connection = RuntimeConnection.ForTcp(connectionToken: SharedTcpConnectionToken),
         }, persistent: true);
     }
 

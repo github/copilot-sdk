@@ -10,7 +10,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
-namespace GitHub.Copilot.SDK.Test.Harness;
+namespace GitHub.Copilot.Test.Harness;
 
 public sealed partial class CapiProxy : IAsyncDisposable
 {

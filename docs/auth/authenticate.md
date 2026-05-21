@@ -77,7 +77,7 @@ client := copilot.NewClient(nil)
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 // Default: uses logged-in user credentials
 await using var client = new CopilotClient();
@@ -179,23 +179,23 @@ client := copilot.NewClient(&copilot.ClientOptions{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var userAccessToken = "token";
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,
+    GitHubToken = userAccessToken,
     UseLoggedInUser = false,
 });
 ```
 <!-- /docs-validate: hidden -->
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,     // Token from OAuth flow
+    GitHubToken = userAccessToken,     // Token from OAuth flow
     UseLoggedInUser = false,           // Don't use stored CLI credentials
 });
 ```

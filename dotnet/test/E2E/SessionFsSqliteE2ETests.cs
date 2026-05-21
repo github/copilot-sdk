@@ -1,13 +1,13 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "session_fs_sqlite", output)
@@ -30,7 +30,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            CreateSessionFsHandler = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
+            CreateSessionFsProvider = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
         });
 
         var msg = await session.SendAndWaitAsync(new MessageOptions
@@ -60,7 +60,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            CreateSessionFsHandler = s =>
+            CreateSessionFsProvider = s =>
             {
                 handler = new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls);
                 return handler;
@@ -68,7 +68,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
 
         var events = new List<SessionEvent>();
-        using var _ = session.On(evt => events.Add(evt));
+        using var _ = session.On<SessionEvent>(evt => events.Add(evt));
 
         await session.SendAndWaitAsync(new MessageOptions
         {

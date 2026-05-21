@@ -302,8 +302,8 @@ function wrapCodeForValidation(block: CodeBlock): string {
       }
 
       // Always ensure SDK using is present
-      if (!usings.some(u => u.includes("GitHub.Copilot.SDK"))) {
-        usings.push("using GitHub.Copilot.SDK;");
+      if (!usings.some(u => u.includes("GitHub.Copilot"))) {
+        usings.push("using GitHub.Copilot;");
       }
 
       // Generate a unique class name based on block location
@@ -336,8 +336,8 @@ ${indentedCode}
       }
     } else {
       // Has structure, but may still need using directive
-      if (!code.includes("using GitHub.Copilot.SDK;")) {
-        code = "using GitHub.Copilot.SDK;\n" + code;
+      if (!code.includes("using GitHub.Copilot;")) {
+        code = "using GitHub.Copilot;\n" + code;
       }
     }
   }

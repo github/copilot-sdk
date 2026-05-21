@@ -1,8 +1,8 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-namespace GitHub.Copilot.SDK.Test.Harness;
+namespace GitHub.Copilot.Test.Harness;
 
 public static class TestHelper
 {
@@ -40,7 +40,7 @@ public static class TestHelper
             if (snapshot != null && idle) tcs.TrySetResult(snapshot);
         }
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             switch (evt)
             {
@@ -91,7 +91,7 @@ public static class TestHelper
 
     private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle)
     {
-        var messages = (await session.GetMessagesAsync()).ToList();
+        var messages = (await session.GetEventsAsync()).ToList();
 
         var lastUserIdx = messages.FindLastIndex(m => m is UserMessageEvent);
         var currentTurn = lastUserIdx < 0 ? messages : messages.Skip(lastUserIdx).ToList();
@@ -127,7 +127,7 @@ public static class TestHelper
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? DefaultEventTimeout);
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

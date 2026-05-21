@@ -5,7 +5,7 @@
 using System.Text.Json;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public class SessionEventSerializationTests
 {

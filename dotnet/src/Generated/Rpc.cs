@@ -16,7 +16,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 
-namespace GitHub.Copilot.SDK.Rpc;
+namespace GitHub.Copilot.Rpc;
 
 /// <summary>Server liveness response, including the echoed message, current server timestamp, and protocol version.</summary>
 public sealed class PingResult
@@ -7204,13 +7204,13 @@ public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
         /// <inheritdoc />
         public override ModelPickerCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelPickerCategory value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerCategory));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerCategory));
         }
     }
 }
@@ -7272,13 +7272,13 @@ public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCat
         /// <inheritdoc />
         public override ModelPickerPriceCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelPickerPriceCategory value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerPriceCategory));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerPriceCategory));
         }
     }
 }
@@ -7337,13 +7337,13 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
         /// <inheritdoc />
         public override ModelPolicyState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelPolicyState value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPolicyState));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPolicyState));
         }
     }
 }
@@ -7405,13 +7405,13 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
         /// <inheritdoc />
         public override DiscoveredMcpServerType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
         }
     }
 }
@@ -7467,13 +7467,13 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
         /// <inheritdoc />
         public override SessionFsSetProviderConventions Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsSetProviderConventions value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSetProviderConventions));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSetProviderConventions));
         }
     }
 }
@@ -7530,13 +7530,13 @@ public readonly struct ConnectedRemoteSessionMetadataKind : IEquatable<Connected
         /// <inheritdoc />
         public override ConnectedRemoteSessionMetadataKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ConnectedRemoteSessionMetadataKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectedRemoteSessionMetadataKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectedRemoteSessionMetadataKind));
         }
     }
 }
@@ -7593,13 +7593,13 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
         /// <inheritdoc />
         public override SessionContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionContextHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionContextHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionContextHostType));
         }
     }
 }
@@ -7662,13 +7662,13 @@ public readonly struct SendAgentMode : IEquatable<SendAgentMode>
         /// <inheritdoc />
         public override SendAgentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SendAgentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAgentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAgentMode));
         }
     }
 }
@@ -7728,13 +7728,13 @@ public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttach
         /// <inheritdoc />
         public override SendAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SendAttachmentGithubReferenceType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAttachmentGithubReferenceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAttachmentGithubReferenceType));
         }
     }
 }
@@ -7791,13 +7791,13 @@ public readonly struct SendMode : IEquatable<SendMode>
         /// <inheritdoc />
         public override SendMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SendMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendMode));
         }
     }
 }
@@ -7857,13 +7857,13 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
         /// <inheritdoc />
         public override SessionLogLevel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionLogLevel value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLogLevel));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLogLevel));
         }
     }
 }
@@ -7935,13 +7935,13 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
         /// <inheritdoc />
         public override AuthInfoType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AuthInfoType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
         }
     }
 }
@@ -7998,13 +7998,13 @@ public readonly struct WorkspacesWorkspaceDetailsHostType : IEquatable<Workspace
         /// <inheritdoc />
         public override WorkspacesWorkspaceDetailsHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, WorkspacesWorkspaceDetailsHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesWorkspaceDetailsHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesWorkspaceDetailsHostType));
         }
     }
 }
@@ -8067,13 +8067,13 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
         /// <inheritdoc />
         public override InstructionsSourcesLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, InstructionsSourcesLocation value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesLocation));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesLocation));
         }
     }
 }
@@ -8145,13 +8145,13 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
         /// <inheritdoc />
         public override InstructionsSourcesType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, InstructionsSourcesType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesType));
         }
     }
 }
@@ -8220,13 +8220,13 @@ public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
         /// <inheritdoc />
         public override AgentInfoSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AgentInfoSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
         }
     }
 }
@@ -8283,13 +8283,13 @@ public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
         /// <inheritdoc />
         public override TaskExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, TaskExecutionMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskExecutionMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskExecutionMode));
         }
     }
 }
@@ -8355,13 +8355,13 @@ public readonly struct TaskStatus : IEquatable<TaskStatus>
         /// <inheritdoc />
         public override TaskStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, TaskStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskStatus));
         }
     }
 }
@@ -8418,13 +8418,13 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
         /// <inheritdoc />
         public override TaskShellInfoAttachmentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, TaskShellInfoAttachmentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
         }
     }
 }
@@ -8484,13 +8484,13 @@ public readonly struct McpSamplingExecutionAction : IEquatable<McpSamplingExecut
         /// <inheritdoc />
         public override McpSamplingExecutionAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpSamplingExecutionAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSamplingExecutionAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSamplingExecutionAction));
         }
     }
 }
@@ -8547,13 +8547,13 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
         /// <inheritdoc />
         public override McpSetEnvValueModeDetails Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpSetEnvValueModeDetails value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
         }
     }
 }
@@ -8610,13 +8610,13 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
         /// <inheritdoc />
         public override OptionsUpdateEnvValueMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, OptionsUpdateEnvValueMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateEnvValueMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateEnvValueMode));
         }
     }
 }
@@ -8673,13 +8673,13 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
         /// <inheritdoc />
         public override ExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionSource));
         }
     }
 }
@@ -8742,13 +8742,13 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
         /// <inheritdoc />
         public override ExtensionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionStatus));
         }
     }
 }
@@ -8802,13 +8802,13 @@ public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInpu
         /// <inheritdoc />
         public override SlashCommandInputCompletion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SlashCommandInputCompletion value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandInputCompletion));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandInputCompletion));
         }
     }
 }
@@ -8868,13 +8868,13 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
         /// <inheritdoc />
         public override SlashCommandKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SlashCommandKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
         }
     }
 }
@@ -8934,13 +8934,13 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
         /// <inheritdoc />
         public override UIElicitationResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UIElicitationResponseAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIElicitationResponseAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIElicitationResponseAction));
         }
     }
 }
@@ -9000,13 +9000,13 @@ public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchRes
         /// <inheritdoc />
         public override UIAutoModeSwitchResponse Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UIAutoModeSwitchResponse value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIAutoModeSwitchResponse));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIAutoModeSwitchResponse));
         }
     }
 }
@@ -9069,13 +9069,13 @@ public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
         /// <inheritdoc />
         public override UIExitPlanModeAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UIExitPlanModeAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIExitPlanModeAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIExitPlanModeAction));
         }
     }
 }
@@ -9132,13 +9132,13 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
         /// <inheritdoc />
         public override PermissionsConfigureAdditionalContentExclusionPolicyScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionsConfigureAdditionalContentExclusionPolicyScope value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsConfigureAdditionalContentExclusionPolicyScope));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsConfigureAdditionalContentExclusionPolicyScope));
         }
     }
 }
@@ -9201,13 +9201,13 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
         /// <inheritdoc />
         public override PermissionsSetApproveAllSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionsSetApproveAllSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsSetApproveAllSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsSetApproveAllSource));
         }
     }
 }
@@ -9264,13 +9264,13 @@ public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModif
         /// <inheritdoc />
         public override PermissionsModifyRulesScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionsModifyRulesScope value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsModifyRulesScope));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsModifyRulesScope));
         }
     }
 }
@@ -9327,13 +9327,13 @@ public readonly struct PermissionLocationType : IEquatable<PermissionLocationTyp
         /// <inheritdoc />
         public override PermissionLocationType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionLocationType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionLocationType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionLocationType));
         }
     }
 }
@@ -9393,13 +9393,13 @@ public readonly struct MetadataSnapshotCurrentMode : IEquatable<MetadataSnapshot
         /// <inheritdoc />
         public override MetadataSnapshotCurrentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, MetadataSnapshotCurrentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotCurrentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotCurrentMode));
         }
     }
 }
@@ -9456,13 +9456,13 @@ public readonly struct MetadataSnapshotRemoteMetadataTaskType : IEquatable<Metad
         /// <inheritdoc />
         public override MetadataSnapshotRemoteMetadataTaskType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, MetadataSnapshotRemoteMetadataTaskType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotRemoteMetadataTaskType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotRemoteMetadataTaskType));
         }
     }
 }
@@ -9519,13 +9519,13 @@ public readonly struct WorkspaceSummaryHostType : IEquatable<WorkspaceSummaryHos
         /// <inheritdoc />
         public override WorkspaceSummaryHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, WorkspaceSummaryHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceSummaryHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceSummaryHostType));
         }
     }
 }
@@ -9582,13 +9582,13 @@ public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<Sessi
         /// <inheritdoc />
         public override SessionWorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionWorkingDirectoryContextHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionWorkingDirectoryContextHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionWorkingDirectoryContextHostType));
         }
     }
 }
@@ -9648,13 +9648,13 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
         /// <inheritdoc />
         public override ShellKillSignal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ShellKillSignal value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellKillSignal));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellKillSignal));
         }
     }
 }
@@ -9711,13 +9711,13 @@ public readonly struct QueuePendingItemsKind : IEquatable<QueuePendingItemsKind>
         /// <inheritdoc />
         public override QueuePendingItemsKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, QueuePendingItemsKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(QueuePendingItemsKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(QueuePendingItemsKind));
         }
     }
 }
@@ -9774,13 +9774,13 @@ public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
         /// <inheritdoc />
         public override EventsCursorStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, EventsCursorStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsCursorStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsCursorStatus));
         }
     }
 }
@@ -9837,13 +9837,13 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
         /// <inheritdoc />
         public override EventsAgentScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, EventsAgentScope value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsAgentScope));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsAgentScope));
         }
     }
 }
@@ -9903,13 +9903,13 @@ public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
         /// <inheritdoc />
         public override RemoteSessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, RemoteSessionMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemoteSessionMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemoteSessionMode));
         }
     }
 }
@@ -9965,13 +9965,13 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
         /// <inheritdoc />
         public override SessionFsErrorCode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsErrorCode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsErrorCode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsErrorCode));
         }
     }
 }
@@ -10027,13 +10027,13 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
         /// <inheritdoc />
         public override SessionFsReaddirWithTypesEntryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsReaddirWithTypesEntryType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsReaddirWithTypesEntryType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsReaddirWithTypesEntryType));
         }
     }
 }
@@ -10092,13 +10092,13 @@ public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQuer
         /// <inheritdoc />
         public override SessionFsSqliteQueryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsSqliteQueryType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSqliteQueryType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSqliteQueryType));
         }
     }
 }
@@ -13087,225 +13087,225 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(long))]
 [JsonSerializable(typeof(string))]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AbortData), TypeInfoPropertyName = "SessionEventsAbortData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AbortEvent), TypeInfoPropertyName = "SessionEventsAbortEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AbortReason), TypeInfoPropertyName = "SessionEventsAbortReason")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantIntentEvent), TypeInfoPropertyName = "SessionEventsAssistantIntentEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageData), TypeInfoPropertyName = "SessionEventsAssistantMessageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageDeltaData), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageToolRequest), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequest")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageToolRequestType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningData), TypeInfoPropertyName = "SessionEventsAssistantReasoningData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnEndData), TypeInfoPropertyName = "SessionEventsAssistantTurnEndData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnEndEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnEndEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnStartData), TypeInfoPropertyName = "SessionEventsAssistantTurnStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnStartEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageApiEndpoint), TypeInfoPropertyName = "SessionEventsAssistantUsageApiEndpoint")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageCopilotUsage), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageQuotaSnapshot), TypeInfoPropertyName = "SessionEventsAssistantUsageQuotaSnapshot")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CapabilitiesChangedEvent), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CapabilitiesChangedUI), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedUI")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandCompletedData), TypeInfoPropertyName = "SessionEventsCommandCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandCompletedEvent), TypeInfoPropertyName = "SessionEventsCommandCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandExecuteData), TypeInfoPropertyName = "SessionEventsCommandExecuteData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandExecuteEvent), TypeInfoPropertyName = "SessionEventsCommandExecuteEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandQueuedData), TypeInfoPropertyName = "SessionEventsCommandQueuedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandQueuedEvent), TypeInfoPropertyName = "SessionEventsCommandQueuedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandsChangedCommand), TypeInfoPropertyName = "SessionEventsCommandsChangedCommand")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandsChangedData), TypeInfoPropertyName = "SessionEventsCommandsChangedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandsChangedEvent), TypeInfoPropertyName = "SessionEventsCommandsChangedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CompactionCompleteCompactionTokensUsed), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsed")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CompactionCompleteCompactionTokensUsedCopilotUsage), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CustomAgentsUpdatedAgent), TypeInfoPropertyName = "SessionEventsCustomAgentsUpdatedAgent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationCompletedAction), TypeInfoPropertyName = "SessionEventsElicitationCompletedAction")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationCompletedData), TypeInfoPropertyName = "SessionEventsElicitationCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationCompletedEvent), TypeInfoPropertyName = "SessionEventsElicitationCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedData), TypeInfoPropertyName = "SessionEventsElicitationRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedEvent), TypeInfoPropertyName = "SessionEventsElicitationRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedMode), TypeInfoPropertyName = "SessionEventsElicitationRequestedMode")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedSchema), TypeInfoPropertyName = "SessionEventsElicitationRequestedSchema")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedBlobResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedBlobResourceContents")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedTextResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedTextResourceContents")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeAction), TypeInfoPropertyName = "SessionEventsExitPlanModeAction")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeCompletedData), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeCompletedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeRequestedData), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeRequestedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExtensionsLoadedExtension), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtension")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExtensionsLoadedExtensionSource), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExtensionsLoadedExtensionStatus), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolCompletedData), TypeInfoPropertyName = "SessionEventsExternalToolCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionCompletedEvent), TypeInfoPropertyName = "SessionEventsPermissionCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestPath), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPath")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestPathAccessKind), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPathAccessKind")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestRead), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestRead")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestUrl")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWrite")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequest), TypeInfoPropertyName = "SessionEventsPermissionRequest")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionRequestCustomTool")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMemoryAction), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryAction")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMemoryDirection), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryDirection")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestRead), TypeInfoPropertyName = "SessionEventsPermissionRequestRead")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestShell), TypeInfoPropertyName = "SessionEventsPermissionRequestShell")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestShellCommand), TypeInfoPropertyName = "SessionEventsPermissionRequestShellCommand")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestShellPossibleUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestShellPossibleUrl")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestUrl")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionRequestWrite")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestedData), TypeInfoPropertyName = "SessionEventsPermissionRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestedEvent), TypeInfoPropertyName = "SessionEventsPermissionRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionResult), TypeInfoPropertyName = "SessionEventsPermissionResult")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRule), TypeInfoPropertyName = "SessionEventsPermissionRule")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingRequestedEvent), TypeInfoPropertyName = "SessionEventsSamplingRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SessionEvent), TypeInfoPropertyName = "SessionEventsSessionEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SessionMode), TypeInfoPropertyName = "SessionEventsSessionMode")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownCodeChanges), TypeInfoPropertyName = "SessionEventsShutdownCodeChanges")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetric), TypeInfoPropertyName = "SessionEventsShutdownModelMetric")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetricRequests), TypeInfoPropertyName = "SessionEventsShutdownModelMetricRequests")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetricTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownModelMetricTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetricUsage), TypeInfoPropertyName = "SessionEventsShutdownModelMetricUsage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownType), TypeInfoPropertyName = "SessionEventsShutdownType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillInvokedData), TypeInfoPropertyName = "SessionEventsSkillInvokedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillInvokedEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentCompletedData), TypeInfoPropertyName = "SessionEventsSubagentCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentCompletedEvent), TypeInfoPropertyName = "SessionEventsSubagentCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentDeselectedData), TypeInfoPropertyName = "SessionEventsSubagentDeselectedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentFailedEvent), TypeInfoPropertyName = "SessionEventsSubagentFailedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentSelectedData), TypeInfoPropertyName = "SessionEventsSubagentSelectedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentSelectedEvent), TypeInfoPropertyName = "SessionEventsSubagentSelectedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentStartedEvent), TypeInfoPropertyName = "SessionEventsSubagentStartedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageData), TypeInfoPropertyName = "SessionEventsSystemMessageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageEvent), TypeInfoPropertyName = "SessionEventsSystemMessageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageMetadata), TypeInfoPropertyName = "SessionEventsSystemMessageMetadata")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageRole), TypeInfoPropertyName = "SessionEventsSystemMessageRole")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotification), TypeInfoPropertyName = "SessionEventsSystemNotification")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationAgentCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationAgentCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompletedStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationShellDetachedCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellDetachedCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentAudio), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentAudio")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentImage), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentImage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResource), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceDetails), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceDetails")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceLink), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLink")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceLinkIcon), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIcon")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceLinkIconTheme), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIconTheme")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentTerminal), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentTerminal")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentText), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentText")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteData), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionPartialResultEvent), TypeInfoPropertyName = "SessionEventsToolExecutionPartialResultEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionProgressData), TypeInfoPropertyName = "SessionEventsToolExecutionProgressData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionProgressEvent), TypeInfoPropertyName = "SessionEventsToolExecutionProgressEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionStartData), TypeInfoPropertyName = "SessionEventsToolExecutionStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionStartEvent), TypeInfoPropertyName = "SessionEventsToolExecutionStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolUserRequestedData), TypeInfoPropertyName = "SessionEventsToolUserRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolUserRequestedEvent), TypeInfoPropertyName = "SessionEventsToolUserRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputCompletedData), TypeInfoPropertyName = "SessionEventsUserInputCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputCompletedEvent), TypeInfoPropertyName = "SessionEventsUserInputCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputRequestedData), TypeInfoPropertyName = "SessionEventsUserInputRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputRequestedEvent), TypeInfoPropertyName = "SessionEventsUserInputRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAgentMode), TypeInfoPropertyName = "SessionEventsUserMessageAgentMode")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachment), TypeInfoPropertyName = "SessionEventsUserMessageAttachment")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentBlob), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentBlob")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentDirectory), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentDirectory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentFile), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFile")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFileLineRange")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentGithubReference), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReference")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReferenceType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelection), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelection")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetails")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsEnd")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsStart")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageData), TypeInfoPropertyName = "SessionEventsUserMessageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageEvent), TypeInfoPropertyName = "SessionEventsUserMessageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalCommands), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCommands")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalCustomTool), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCustomTool")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.AbortData), TypeInfoPropertyName = "SessionEventsAbortData")]
+[JsonSerializable(typeof(GitHub.Copilot.AbortEvent), TypeInfoPropertyName = "SessionEventsAbortEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AbortReason), TypeInfoPropertyName = "SessionEventsAbortReason")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantIntentEvent), TypeInfoPropertyName = "SessionEventsAssistantIntentEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageData), TypeInfoPropertyName = "SessionEventsAssistantMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageDeltaData), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequest), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestType")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningData), TypeInfoPropertyName = "SessionEventsAssistantReasoningData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnEndData), TypeInfoPropertyName = "SessionEventsAssistantTurnEndData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnEndEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnEndEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartData), TypeInfoPropertyName = "SessionEventsAssistantTurnStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageApiEndpoint), TypeInfoPropertyName = "SessionEventsAssistantUsageApiEndpoint")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsage), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageQuotaSnapshot), TypeInfoPropertyName = "SessionEventsAssistantUsageQuotaSnapshot")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
+[JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedEvent), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedUI), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedUI")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandCompletedData), TypeInfoPropertyName = "SessionEventsCommandCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandCompletedEvent), TypeInfoPropertyName = "SessionEventsCommandCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandExecuteData), TypeInfoPropertyName = "SessionEventsCommandExecuteData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandExecuteEvent), TypeInfoPropertyName = "SessionEventsCommandExecuteEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandQueuedData), TypeInfoPropertyName = "SessionEventsCommandQueuedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandQueuedEvent), TypeInfoPropertyName = "SessionEventsCommandQueuedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandsChangedCommand), TypeInfoPropertyName = "SessionEventsCommandsChangedCommand")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandsChangedData), TypeInfoPropertyName = "SessionEventsCommandsChangedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandsChangedEvent), TypeInfoPropertyName = "SessionEventsCommandsChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsed), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsed")]
+[JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsedCopilotUsage), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.CustomAgentsUpdatedAgent), TypeInfoPropertyName = "SessionEventsCustomAgentsUpdatedAgent")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedAction), TypeInfoPropertyName = "SessionEventsElicitationCompletedAction")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedData), TypeInfoPropertyName = "SessionEventsElicitationCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedEvent), TypeInfoPropertyName = "SessionEventsElicitationCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedData), TypeInfoPropertyName = "SessionEventsElicitationRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedEvent), TypeInfoPropertyName = "SessionEventsElicitationRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedMode), TypeInfoPropertyName = "SessionEventsElicitationRequestedMode")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedSchema), TypeInfoPropertyName = "SessionEventsElicitationRequestedSchema")]
+[JsonSerializable(typeof(GitHub.Copilot.EmbeddedBlobResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedBlobResourceContents")]
+[JsonSerializable(typeof(GitHub.Copilot.EmbeddedTextResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedTextResourceContents")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeAction), TypeInfoPropertyName = "SessionEventsExitPlanModeAction")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeCompletedData), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeCompletedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeRequestedData), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeRequestedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ExtensionsLoadedExtension), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtension")]
+[JsonSerializable(typeof(GitHub.Copilot.ExtensionsLoadedExtensionSource), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionSource")]
+[JsonSerializable(typeof(GitHub.Copilot.ExtensionsLoadedExtensionStatus), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedData), TypeInfoPropertyName = "SessionEventsExternalToolCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
+[JsonSerializable(typeof(GitHub.Copilot.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
+[JsonSerializable(typeof(GitHub.Copilot.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
+[JsonSerializable(typeof(GitHub.Copilot.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
+[JsonSerializable(typeof(GitHub.Copilot.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
+[JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedEvent), TypeInfoPropertyName = "SessionEventsPermissionCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestPath), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPath")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestPathAccessKind), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPathAccessKind")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestRead), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestRead")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequest), TypeInfoPropertyName = "SessionEventsPermissionRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionRequestCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemoryAction), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryAction")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemoryDirection), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryDirection")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestRead), TypeInfoPropertyName = "SessionEventsPermissionRequestRead")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShell), TypeInfoPropertyName = "SessionEventsPermissionRequestShell")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShellCommand), TypeInfoPropertyName = "SessionEventsPermissionRequestShellCommand")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShellPossibleUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestShellPossibleUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionRequestWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedData), TypeInfoPropertyName = "SessionEventsPermissionRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedEvent), TypeInfoPropertyName = "SessionEventsPermissionRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionResult), TypeInfoPropertyName = "SessionEventsPermissionResult")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRule), TypeInfoPropertyName = "SessionEventsPermissionRule")]
+[JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedEvent), TypeInfoPropertyName = "SessionEventsSamplingRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionEvent), TypeInfoPropertyName = "SessionEventsSessionEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionMode), TypeInfoPropertyName = "SessionEventsSessionMode")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownCodeChanges), TypeInfoPropertyName = "SessionEventsShutdownCodeChanges")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetric), TypeInfoPropertyName = "SessionEventsShutdownModelMetric")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricRequests), TypeInfoPropertyName = "SessionEventsShutdownModelMetricRequests")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownModelMetricTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricUsage), TypeInfoPropertyName = "SessionEventsShutdownModelMetricUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownType), TypeInfoPropertyName = "SessionEventsShutdownType")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedData), TypeInfoPropertyName = "SessionEventsSkillInvokedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedData), TypeInfoPropertyName = "SessionEventsSubagentCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedEvent), TypeInfoPropertyName = "SessionEventsSubagentCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedData), TypeInfoPropertyName = "SessionEventsSubagentDeselectedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentFailedEvent), TypeInfoPropertyName = "SessionEventsSubagentFailedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedData), TypeInfoPropertyName = "SessionEventsSubagentSelectedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedEvent), TypeInfoPropertyName = "SessionEventsSubagentSelectedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentStartedEvent), TypeInfoPropertyName = "SessionEventsSubagentStartedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageData), TypeInfoPropertyName = "SessionEventsSystemMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageEvent), TypeInfoPropertyName = "SessionEventsSystemMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageMetadata), TypeInfoPropertyName = "SessionEventsSystemMessageMetadata")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageRole), TypeInfoPropertyName = "SessionEventsSystemMessageRole")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotification), TypeInfoPropertyName = "SessionEventsSystemNotification")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompletedStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellDetachedCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellDetachedCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentAudio), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentAudio")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentImage), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentImage")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResource), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResource")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceDetails), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceDetails")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLink), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLink")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLinkIcon), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIcon")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLinkIconTheme), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIconTheme")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentTerminal), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentTerminal")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentText), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentText")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteData), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionPartialResultEvent), TypeInfoPropertyName = "SessionEventsToolExecutionPartialResultEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressData), TypeInfoPropertyName = "SessionEventsToolExecutionProgressData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressEvent), TypeInfoPropertyName = "SessionEventsToolExecutionProgressEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartData), TypeInfoPropertyName = "SessionEventsToolExecutionStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartEvent), TypeInfoPropertyName = "SessionEventsToolExecutionStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolUserRequestedData), TypeInfoPropertyName = "SessionEventsToolUserRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolUserRequestedEvent), TypeInfoPropertyName = "SessionEventsToolUserRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputCompletedData), TypeInfoPropertyName = "SessionEventsUserInputCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputCompletedEvent), TypeInfoPropertyName = "SessionEventsUserInputCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedData), TypeInfoPropertyName = "SessionEventsUserInputRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedEvent), TypeInfoPropertyName = "SessionEventsUserInputRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAgentMode), TypeInfoPropertyName = "SessionEventsUserMessageAgentMode")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachment), TypeInfoPropertyName = "SessionEventsUserMessageAttachment")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentBlob), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentBlob")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentDirectory), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentDirectory")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentFile), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFile")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFileLineRange")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentGithubReference), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReference")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReferenceType")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelection), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelection")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetails")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsEnd")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsStart")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageData), TypeInfoPropertyName = "SessionEventsUserMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageEvent), TypeInfoPropertyName = "SessionEventsUserMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCommands), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCommands")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCustomTool), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
 [JsonSerializable(typeof(AbortRequest))]
 [JsonSerializable(typeof(AbortResult))]
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
