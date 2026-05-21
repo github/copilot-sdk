@@ -1417,7 +1417,7 @@ export class CopilotClient {
      * @example
      * ```typescript
      * // Listen for when a session becomes foreground in TUI
-     * const unsubscribe = client.on("session.foreground", (event) => {
+     * const unsubscribe = client.onLifecycle("session.foreground", (event) => {
      *   console.log(`Session ${event.sessionId} is now displayed in TUI`);
      * });
      *
@@ -1425,7 +1425,7 @@ export class CopilotClient {
      * unsubscribe();
      * ```
      */
-    on<K extends SessionLifecycleEventType>(
+    onLifecycle<K extends SessionLifecycleEventType>(
         eventType: K,
         handler: TypedSessionLifecycleHandler<K>
     ): () => void;
@@ -1438,7 +1438,7 @@ export class CopilotClient {
      *
      * @example
      * ```typescript
-     * const unsubscribe = client.on((event) => {
+     * const unsubscribe = client.onLifecycle((event) => {
      *   switch (event.type) {
      *     case "session.foreground":
      *       console.log(`Session ${event.sessionId} is now in foreground`);
@@ -1453,13 +1453,13 @@ export class CopilotClient {
      * unsubscribe();
      * ```
      */
-    on(handler: SessionLifecycleHandler): () => void;
+    onLifecycle(handler: SessionLifecycleHandler): () => void;
 
-    on<K extends SessionLifecycleEventType>(
+    onLifecycle<K extends SessionLifecycleEventType>(
         eventTypeOrHandler: K | SessionLifecycleHandler,
         handler?: TypedSessionLifecycleHandler<K>
     ): () => void {
-        // Overload 1: on(eventType, handler) - typed event subscription
+        // Overload 1: onLifecycle(eventType, handler) - typed event subscription
         if (typeof eventTypeOrHandler === "string" && handler) {
             const eventType = eventTypeOrHandler;
             if (!this.typedLifecycleHandlers.has(eventType)) {
@@ -1475,7 +1475,7 @@ export class CopilotClient {
             };
         }
 
-        // Overload 2: on(handler) - wildcard subscription
+        // Overload 2: onLifecycle(handler) - wildcard subscription
         const wildcardHandler = eventTypeOrHandler as SessionLifecycleHandler;
         this.sessionLifecycleHandlers.add(wildcardHandler);
         return () => {

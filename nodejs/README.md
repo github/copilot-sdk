@@ -172,7 +172,7 @@ Request the TUI to switch to displaying the specified session. Only available in
 Subscribe to a specific session lifecycle event type. Returns an unsubscribe function.
 
 ```typescript
-const unsubscribe = client.on("session.foreground", (event) => {
+const unsubscribe = client.onLifecycle("session.foreground", (event) => {
     console.log(`Session ${event.sessionId} is now in foreground`);
 });
 ```
@@ -182,7 +182,7 @@ const unsubscribe = client.on("session.foreground", (event) => {
 Subscribe to all session lifecycle events. Returns an unsubscribe function.
 
 ```typescript
-const unsubscribe = client.on((event) => {
+const unsubscribe = client.onLifecycle((event) => {
     console.log(`${event.type}: ${event.sessionId}`);
 });
 ```
@@ -414,7 +414,7 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 ### Manual Server Control
 
 ```typescript
-const client = new CopilotClient({ });
+const client = new CopilotClient({});
 
 // Start manually
 await client.start();
@@ -855,15 +855,15 @@ const session = await client.createSession({
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:
 
-| Kind                     | Meaning                                                                                       | Extra fields                                                            |
-| ------------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `"approve-once"`         | Allow this single request                                                                     | —                                                                       |
-| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                      | `approval?` (rule to remember), `domain?` (for URL approvals)           |
+| Kind                     | Meaning                                                                                      | Extra fields                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `"approve-once"`         | Allow this single request                                                                    | —                                                                       |
+| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                     | `approval?` (rule to remember), `domain?` (for URL approvals)           |
 | `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)      | `approval` (rule to persist), `locationKey` (location to persist under) |
 | `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
-| `"reject"`               | Deny the request                                                                              | `feedback?` (optional string surfaced to the agent)                     |
-| `"user-not-available"`   | Deny the request because no user is available to confirm it                                   | —                                                                       |
-| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)   | —                                                                       |
+| `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
+| `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
+| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)  | —                                                                       |
 
 ### Resuming Sessions
 
