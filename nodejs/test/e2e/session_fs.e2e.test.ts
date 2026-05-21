@@ -105,7 +105,7 @@ describe("Session Fs", async () => {
         const tcpConnectionToken = "session-fs-test-token";
         const client = new CopilotClient({
             // Use TCP so we can connect from a second client
-            tcpConnectionToken,
+            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
             env,
         });
         onTestFinished(() => client.forceStop());
