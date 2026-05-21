@@ -161,13 +161,13 @@ session.On(func(event copilot.SessionEvent) {
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class StreamingEventsExample
 {
     public static async Task Example(CopilotSession session)
     {
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is AssistantMessageDeltaEvent delta)
             {
@@ -180,7 +180,7 @@ public static class StreamingEventsExample
 <!-- /docs-validate: hidden -->
 
 ```csharp
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     if (evt is AssistantMessageDeltaEvent delta)
     {

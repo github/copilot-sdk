@@ -5,7 +5,7 @@
 using System.Text.Json;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public class PermissionRequestResultKindTests
 {
@@ -21,13 +21,6 @@ public class PermissionRequestResultKindTests
         Assert.Equal("reject", PermissionRequestResultKind.Rejected.Value);
         Assert.Equal("user-not-available", PermissionRequestResultKind.UserNotAvailable.Value);
         Assert.Equal("no-result", PermissionRequestResultKind.NoResult.Value);
-
-        // Deprecated aliases still resolve
-#pragma warning disable CS0618
-        Assert.Equal(PermissionRequestResultKind.Rejected, PermissionRequestResultKind.DeniedInteractivelyByUser);
-        Assert.Equal(PermissionRequestResultKind.UserNotAvailable, PermissionRequestResultKind.DeniedCouldNotRequestFromUser);
-        Assert.Equal(PermissionRequestResultKind.UserNotAvailable, PermissionRequestResultKind.DeniedByRules);
-#pragma warning restore CS0618
     }
 
     [Fact]

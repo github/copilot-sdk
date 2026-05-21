@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "mode_handlers", output)
@@ -28,7 +28,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnExitPlanMode = (request, invocation) =>
+            OnExitPlanModeRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(new ExitPlanModeResult
@@ -96,7 +96,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnAutoModeSwitch = (request, invocation) =>
+            OnAutoModeSwitchRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(AutoModeSwitchResponse.Yes);
@@ -176,7 +176,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30));
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

@@ -4,7 +4,7 @@
 
 ## Big picture 🔧
 
-- The repo implements language SDKs (Node/TS, Python, Go, .NET, Java) that speak to the **Copilot CLI** via **JSON‑RPC** (see `README.md` and `nodejs/src/client.ts`).
+- The repo implements language SDKs (Node/TS, Python, Go, .NET, Rust, Java) that speak to the **Copilot CLI** via **JSON‑RPC** (see `README.md` and `nodejs/src/client.ts`).
 - Typical flow: your App → SDK client → JSON-RPC → Copilot CLI (server mode). The CLI must be installed or you can connect to an external CLI server via the `CLI URL option (language-specific casing)` (Node: `cliUrl`, Go: `CLIUrl`, .NET: `CliUrl`, Python: `cli_url`, Java: `cliUrl`).
 
 ## Most important files to read first 📚

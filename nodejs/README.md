@@ -79,18 +79,17 @@ new CopilotClient(options?: CopilotClientOptions)
 
 **Options:**
 
-- `cliPath?: string` - Path to CLI executable (default: uses COPILOT_CLI_PATH env var or bundled instance)
-- `cliArgs?: string[]` - Extra arguments prepended before SDK-managed flags (e.g. `["./dist-cli/index.js"]` when using `node`)
-- `cliUrl?: string` - URL of existing CLI server to connect to (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `port?: number` - Server port (default: 0 for random)
-- `useStdio?: boolean` - Use stdio transport instead of TCP (default: true)
-- `logLevel?: string` - Log level (default: "info")
-- `autoStart?: boolean` - Auto-start server (default: true)
+- `connection?: RuntimeConnection` - How to connect to the Copilot runtime. Construct via the factory functions on `RuntimeConnection`:
+    - `RuntimeConnection.forStdio({ path?, args? })` (default) — spawn the runtime and communicate over its stdin/stdout.
+    - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args? })` — spawn the runtime as a TCP server.
+    - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`).
+- `cwd?: string` - Working directory for the runtime process (default: current process cwd).
+- `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
+- `logLevel?: string` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
-- `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `cliUrl`.
-- `copilotHome?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `cliUrl`.
-- `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the CLI process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
-- `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the CLI's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
+- `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `RuntimeConnection.forUri`.
+- `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 
 #### Methods
 
@@ -173,7 +172,7 @@ Request the TUI to switch to displaying the specified session. Only available in
 Subscribe to a specific session lifecycle event type. Returns an unsubscribe function.
 
 ```typescript
-const unsubscribe = client.on("session.foreground", (event) => {
+const unsubscribe = client.onLifecycle("session.foreground", (event) => {
     console.log(`Session ${event.sessionId} is now in foreground`);
 });
 ```
@@ -183,7 +182,7 @@ const unsubscribe = client.on("session.foreground", (event) => {
 Subscribe to all session lifecycle events. Returns an unsubscribe function.
 
 ```typescript
-const unsubscribe = client.on((event) => {
+const unsubscribe = client.onLifecycle((event) => {
     console.log(`${event.type}: ${event.sessionId}`);
 });
 ```
@@ -277,7 +276,7 @@ unsubscribe();
 
 Abort the currently processing message in this session.
 
-##### `getMessages(): Promise<SessionEvent[]>`
+##### `getEvents(): Promise<SessionEvent[]>`
 
 Get all events/messages from this session.
 
@@ -415,7 +414,7 @@ Note: `assistant.message` and `assistant.reasoning` (final events) are always se
 ### Manual Server Control
 
 ```typescript
-const client = new CopilotClient({ autoStart: false });
+const client = new CopilotClient({});
 
 // Start manually
 await client.start();
@@ -856,15 +855,15 @@ const session = await client.createSession({
 
 The handler must return one of the `PermissionDecision` shapes (or `{ kind: "no-result" }`). Approval scopes are present-tense — they describe the decision to apply, not the outcome reported back on session events:
 
-| Kind                     | Meaning                                                                                       | Extra fields                                                            |
-| ------------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `"approve-once"`         | Allow this single request                                                                     | —                                                                       |
-| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                      | `approval?` (rule to remember), `domain?` (for URL approvals)           |
+| Kind                     | Meaning                                                                                      | Extra fields                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `"approve-once"`         | Allow this single request                                                                    | —                                                                       |
+| `"approve-for-session"`  | Allow this request and remember the approval for the rest of the session                     | `approval?` (rule to remember), `domain?` (for URL approvals)           |
 | `"approve-for-location"` | Allow this request and persist the approval for this project location (git root or cwd)      | `approval` (rule to persist), `locationKey` (location to persist under) |
 | `"approve-permanently"`  | Allow this request and persist the approval across sessions (currently used for URL domains) | `domain` (URL domain to approve)                                        |
-| `"reject"`               | Deny the request                                                                              | `feedback?` (optional string surfaced to the agent)                     |
-| `"user-not-available"`   | Deny the request because no user is available to confirm it                                   | —                                                                       |
-| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)   | —                                                                       |
+| `"reject"`               | Deny the request                                                                             | `feedback?` (optional string surfaced to the agent)                     |
+| `"user-not-available"`   | Deny the request because no user is available to confirm it                                  | —                                                                       |
+| `"no-result"`            | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers)  | —                                                                       |
 
 ### Resuming Sessions
 
@@ -1026,7 +1025,7 @@ try {
 ## Requirements
 
 - Node.js >= 18.0.0
-- GitHub Copilot CLI installed and in PATH (or provide custom `cliPath`)
+- GitHub Copilot CLI installed and in PATH (or provide a custom `connection`)
 
 ## License
 

@@ -1,11 +1,11 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 
 var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    CliPath = cliPath,
+    Connection = RuntimeConnection.ForStdio(path: cliPath),
     GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 

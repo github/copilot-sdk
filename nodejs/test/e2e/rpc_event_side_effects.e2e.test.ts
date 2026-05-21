@@ -153,7 +153,7 @@ describe("Session RPC event side effects", async () => {
         try {
             await session.sendAndWait({ prompt: "Say SNAPSHOT_REWIND_TARGET exactly." });
 
-            const messages = await session.getMessages();
+            const messages = await session.getEvents();
             const userEvent = messages.find((event) => event.type === "user.message");
             expect(userEvent).toBeDefined();
             const targetEventId = userEvent!.id;
@@ -173,7 +173,7 @@ describe("Session RPC event side effects", async () => {
             expect(rewindEvent.data.eventsRemoved).toBe(truncateResult.eventsRemoved);
             expect(rewindEvent.data.upToEventId.toLowerCase()).toBe(targetEventId.toLowerCase());
 
-            const messagesAfter = await session.getMessages();
+            const messagesAfter = await session.getEvents();
             expect(messagesAfter.some((event) => event.id === targetEventId)).toBe(false);
         } finally {
             await session.disconnect();
@@ -185,7 +185,7 @@ describe("Session RPC event side effects", async () => {
         try {
             await session.sendAndWait({ prompt: "Say SNAPSHOT_REWIND_TARGET exactly." });
 
-            const messages = await session.getMessages();
+            const messages = await session.getEvents();
             const userEvent = messages.find((event) => event.type === "user.message");
             expect(userEvent).toBeDefined();
 

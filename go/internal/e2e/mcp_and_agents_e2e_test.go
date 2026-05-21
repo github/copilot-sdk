@@ -57,6 +57,47 @@ func TestMCPServersE2E(t *testing.T) {
 		session.Disconnect()
 	})
 
+	t.Run("accept MCP server config without args", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		mcpServers := map[string]copilot.MCPServerConfig{
+			"test-server": copilot.MCPStdioServerConfig{
+				Command: "echo",
+				Tools:   []string{"*"},
+			},
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			MCPServers:          mcpServers,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		if session.SessionID == "" {
+			t.Error("Expected non-empty session ID")
+		}
+
+		_, err = session.Send(t.Context(), copilot.MessageOptions{
+			Prompt: "What is 2+2?",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		if err != nil {
+			t.Fatalf("Failed to get final message: %v", err)
+		}
+
+		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "4") {
+			t.Errorf("Expected message to contain '4', got: %v", message.Data)
+		}
+
+		session.Disconnect()
+	})
+
 	t.Run("accept MCP server config on resume", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 

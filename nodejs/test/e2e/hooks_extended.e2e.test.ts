@@ -37,7 +37,7 @@ describe("Extended session hooks", async () => {
 
         expect(sessionStartInputs.length).toBeGreaterThan(0);
         expect(sessionStartInputs[0].source).toBe("new");
-        expect(sessionStartInputs[0].timestamp).toBeGreaterThan(0);
+        expect(sessionStartInputs[0].timestamp).toBeInstanceOf(Date);
         expect(sessionStartInputs[0].cwd).toBeDefined();
 
         await session.disconnect();
@@ -62,7 +62,7 @@ describe("Extended session hooks", async () => {
 
         expect(userPromptInputs.length).toBeGreaterThan(0);
         expect(userPromptInputs[0].prompt).toContain("Say hello");
-        expect(userPromptInputs[0].timestamp).toBeGreaterThan(0);
+        expect(userPromptInputs[0].timestamp).toBeInstanceOf(Date);
         expect(userPromptInputs[0].cwd).toBeDefined();
 
         await session.disconnect();
@@ -102,7 +102,7 @@ describe("Extended session hooks", async () => {
                 onErrorOccurred: async (input, invocation) => {
                     errorInputs.push(input);
                     expect(invocation.sessionId).toBe(session.sessionId);
-                    expect(input.timestamp).toBeGreaterThan(0);
+                    expect(input.timestamp).toBeInstanceOf(Date);
                     expect(input.cwd).toBeDefined();
                     expect(input.error).toBeDefined();
                     expect(["model_call", "tool_execution", "system", "user_input"]).toContain(

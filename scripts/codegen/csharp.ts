@@ -569,12 +569,12 @@ function getOrCreateEnum(
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override ${enumName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
+    lines.push(`            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
     lines.push(`        }`, "");
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override void Write(Utf8JsonWriter writer, ${enumName} value, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
+    lines.push(`            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
     lines.push(`        }`);
     lines.push(`    }`);
     lines.push(`}`, "");
@@ -1283,7 +1283,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 `);
 
     // Base class with XML doc
@@ -2243,7 +2243,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 
-namespace GitHub.Copilot.SDK.Rpc;
+namespace GitHub.Copilot.Rpc;
 `);
 
     for (const cls of classes) if (cls) lines.push(cls, "");
@@ -2264,7 +2264,7 @@ namespace GitHub.Copilot.SDK.Rpc;
             if (schemaFile !== "session-events.schema.json") continue;
             for (const name of [...names].sort()) {
                 const typeName = typeToClassName(name);
-                lines.push(`[JsonSerializable(typeof(GitHub.Copilot.SDK.${typeName}), TypeInfoPropertyName = "SessionEvents${typeName}")]`);
+                lines.push(`[JsonSerializable(typeof(GitHub.Copilot.${typeName}), TypeInfoPropertyName = "SessionEvents${typeName}")]`);
             }
         }
         for (const t of typeNames) lines.push(`[JsonSerializable(typeof(${t}))]`);

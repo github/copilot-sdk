@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "permissions", output)
 {
@@ -100,7 +100,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         // for the reject decision, which lets us assert the decision was honored
         // — not merely that the operation didn't happen.
         var userRejectedToolCall = false;
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
@@ -139,7 +139,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         });
         var permissionDenied = false;
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
@@ -266,7 +266,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         });
         var permissionDenied = false;
 
-        session2.On(evt =>
+        session2.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
@@ -344,7 +344,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             }
         });
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             switch (evt)
             {
@@ -442,7 +442,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             }
         });
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt)
             {
@@ -554,7 +554,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         try
         {
             var toolCompleted = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var subscription = session.On(evt =>
+            using var subscription = session.On<SessionEvent>(evt =>
             {
                 if (evt is ToolExecutionCompleteEvent done && done.Data.Success)
                 {

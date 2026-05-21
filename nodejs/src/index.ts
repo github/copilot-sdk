@@ -9,6 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
+export { RuntimeConnection } from "./types.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export {
     defineTool,
@@ -41,6 +42,9 @@ export type {
     AutoModeSwitchResponse,
     ConnectionState,
     CopilotClientOptions,
+    StdioRuntimeConnection,
+    TcpRuntimeConnection,
+    UriRuntimeConnection,
     CustomAgentConfig,
     ElicitationFieldValue,
     ElicitationHandler,
@@ -56,7 +60,7 @@ export type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InfiniteSessionConfig,
-    InputOptions,
+    UiInputOptions,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
@@ -78,13 +82,20 @@ export type {
     SectionTransformFn,
     SessionCapabilities,
     SessionConfig,
+    SessionConfigBase,
     SessionEvent,
     SessionEventHandler,
     SessionEventPayload,
     SessionEventType,
     SessionLifecycleEvent,
+    SessionLifecycleEventMetadata,
     SessionLifecycleEventType,
     SessionLifecycleHandler,
+    SessionCreatedEvent,
+    SessionDeletedEvent,
+    SessionUpdatedEvent,
+    SessionForegroundEvent,
+    SessionBackgroundEvent,
     SessionContext,
     SessionListFilter,
     SessionMetadata,

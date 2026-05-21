@@ -31,7 +31,7 @@ describe("joinSession", () => {
             config.onPermissionRequest!({ kind: "write" }, { sessionId: "session-123" })
         );
         expect(result).toEqual({ kind: "no-result" });
-        expect(config.disableResume).toBe(true);
+        expect(config.suppressResumeEvent).toBe(true);
     });
 
     it("preserves an explicit onPermissionRequest handler", async () => {
@@ -40,10 +40,10 @@ describe("joinSession", () => {
             .spyOn(CopilotClient.prototype, "resumeSession")
             .mockResolvedValue({} as any);
 
-        await joinSession({ onPermissionRequest: approveAll, disableResume: false });
+        await joinSession({ onPermissionRequest: approveAll, suppressResumeEvent: false });
 
         const [, config] = resumeSession.mock.calls[0]!;
         expect(config.onPermissionRequest).toBe(approveAll);
-        expect(config.disableResume).toBe(false);
+        expect(config.suppressResumeEvent).toBe(false);
     });
 });

@@ -1,13 +1,13 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_session_state", output)
@@ -116,7 +116,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         var workspace = await session.Rpc.Workspaces.GetWorkspaceAsync();
         Assert.NotNull(workspace.Workspace);
-        Assert.NotEqual(Guid.Empty, workspace.Workspace.Id);
+        Assert.NotEmpty(workspace.Workspace.Id);
     }
 
     [Theory]
@@ -252,7 +252,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var initialAnswer = await session.SendAndWaitAsync(new MessageOptions { Prompt = sourcePrompt });
         Assert.Contains("FORK_SOURCE_ALPHA", initialAnswer?.Data.Content ?? string.Empty);
 
-        var sourceConversation = GetConversationMessages(await session.GetMessagesAsync());
+        var sourceConversation = GetConversationMessages(await session.GetEventsAsync());
         Assert.Contains(sourceConversation, message => message.Role == "user" && message.Content == sourcePrompt);
         Assert.Contains(sourceConversation, message => message.Role == "assistant" && message.Content.Contains("FORK_SOURCE_ALPHA", StringComparison.Ordinal));
 
@@ -261,16 +261,16 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotEqual(session.SessionId, fork.SessionId);
 
         await using var forkedSession = await ResumeSessionAsync(fork.SessionId);
-        var forkedConversation = GetConversationMessages(await forkedSession.GetMessagesAsync());
+        var forkedConversation = GetConversationMessages(await forkedSession.GetEventsAsync());
         Assert.Equal(sourceConversation, forkedConversation.Take(sourceConversation.Count));
 
         var forkAnswer = await forkedSession.SendAndWaitAsync(new MessageOptions { Prompt = forkPrompt });
         Assert.Contains("FORK_CHILD_BETA", forkAnswer?.Data.Content ?? string.Empty);
 
-        var sourceAfterFork = GetConversationMessages(await session.GetMessagesAsync());
+        var sourceAfterFork = GetConversationMessages(await session.GetEventsAsync());
         Assert.DoesNotContain(sourceAfterFork, message => message.Content == forkPrompt);
 
-        var forkAfterPrompt = GetConversationMessages(await forkedSession.GetMessagesAsync());
+        var forkAfterPrompt = GetConversationMessages(await forkedSession.GetEventsAsync());
         Assert.Contains(forkAfterPrompt, message => message.Role == "user" && message.Content == forkPrompt);
         Assert.Contains(forkAfterPrompt, message => message.Role == "assistant" && message.Content.Contains("FORK_CHILD_BETA", StringComparison.Ordinal));
     }
@@ -298,7 +298,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotEqual(session.SessionId, forkSessionId);
 
         await using var forkedSession = await ResumeSessionAsync(forkSessionId);
-        Assert.Empty(GetConversationMessages(await forkedSession.GetMessagesAsync()));
+        Assert.Empty(GetConversationMessages(await forkedSession.GetEventsAsync()));
     }
 
     [Fact]
@@ -311,7 +311,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await session.SendAndWaitAsync(new MessageOptions { Prompt = firstPrompt });
         await session.SendAndWaitAsync(new MessageOptions { Prompt = secondPrompt });
 
-        var sourceEvents = await session.GetMessagesAsync();
+        var sourceEvents = await session.GetEventsAsync();
         var secondUserEvent = sourceEvents
             .OfType<UserMessageEvent>()
             .FirstOrDefault(e => string.Equals(e.Data.Content, secondPrompt, StringComparison.Ordinal))
@@ -325,7 +325,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotEqual(session.SessionId, fork.SessionId);
 
         await using var forkedSession = await ResumeSessionAsync(fork.SessionId);
-        var forkedEvents = await forkedSession.GetMessagesAsync();
+        var forkedEvents = await forkedSession.GetEventsAsync();
         Assert.DoesNotContain(forkedEvents, e => e.Id == secondUserEvent.Id);
 
         var forkedConversation = GetConversationMessages(forkedEvents);

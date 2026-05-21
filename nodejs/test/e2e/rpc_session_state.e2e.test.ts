@@ -151,7 +151,7 @@ describe("Session-scoped RPC", async () => {
         const initialAnswer = await session.sendAndWait({ prompt: sourcePrompt });
         expect(initialAnswer?.data.content ?? "").toContain("FORK_SOURCE_ALPHA");
 
-        const sourceConversation = getConversationMessages(await session.getMessages());
+        const sourceConversation = getConversationMessages(await session.getEvents());
         expect(
             sourceConversation.some((m) => m.role === "user" && m.content === sourcePrompt)
         ).toBe(true);
@@ -168,16 +168,16 @@ describe("Session-scoped RPC", async () => {
         const forkedSession = await client.resumeSession(fork.sessionId, {
             onPermissionRequest: approveAll,
         });
-        const forkedConversation = getConversationMessages(await forkedSession.getMessages());
+        const forkedConversation = getConversationMessages(await forkedSession.getEvents());
         expect(forkedConversation.slice(0, sourceConversation.length)).toEqual(sourceConversation);
 
         const forkAnswer = await forkedSession.sendAndWait({ prompt: forkPrompt });
         expect(forkAnswer?.data.content ?? "").toContain("FORK_CHILD_BETA");
 
-        const sourceAfterFork = getConversationMessages(await session.getMessages());
+        const sourceAfterFork = getConversationMessages(await session.getEvents());
         expect(sourceAfterFork.some((m) => m.content === forkPrompt)).toBe(false);
 
-        const forkAfterPrompt = getConversationMessages(await forkedSession.getMessages());
+        const forkAfterPrompt = getConversationMessages(await forkedSession.getEvents());
         expect(forkAfterPrompt.some((m) => m.role === "user" && m.content === forkPrompt)).toBe(
             true
         );
@@ -212,7 +212,7 @@ describe("Session-scoped RPC", async () => {
                 onPermissionRequest: approveAll,
             });
             try {
-                expect(getConversationMessages(await forkedSession.getMessages())).toEqual([]);
+                expect(getConversationMessages(await forkedSession.getEvents())).toEqual([]);
             } finally {
                 await forkedSession.disconnect();
             }
@@ -230,7 +230,7 @@ describe("Session-scoped RPC", async () => {
             await session.sendAndWait({ prompt: firstPrompt });
             await session.sendAndWait({ prompt: secondPrompt });
 
-            const sourceEvents = await session.getMessages();
+            const sourceEvents = await session.getEvents();
             const secondUserEvent = sourceEvents.find(
                 (event) => event.type === "user.message" && event.data.content === secondPrompt
             );
@@ -248,7 +248,7 @@ describe("Session-scoped RPC", async () => {
                 onPermissionRequest: approveAll,
             });
             try {
-                const forkedEvents = await forkedSession.getMessages();
+                const forkedEvents = await forkedSession.getEvents();
                 expect(forkedEvents.some((event) => event.id === boundaryEventId)).toBe(false);
 
                 const forkedConversation = getConversationMessages(forkedEvents);

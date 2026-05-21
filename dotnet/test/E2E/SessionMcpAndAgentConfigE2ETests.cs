@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "mcp_and_agents", output)
 {
@@ -32,6 +32,34 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
         // Simple interaction to verify session works
+        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
+
+        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+        Assert.NotNull(message);
+        Assert.Contains("4", message!.Data.Content);
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Accept_MCP_Server_Configuration_Without_Args()
+    {
+        var mcpServers = new Dictionary<string, McpServerConfig>
+        {
+            ["test-server"] = new McpStdioServerConfig
+            {
+                Command = "true",
+                Tools = ["*"]
+            }
+        };
+
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            McpServers = mcpServers
+        });
+
+        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+
         await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
 
         var message = await TestHelper.GetFinalAssistantMessageAsync(session);
@@ -269,7 +297,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                 Command = "node",
                 Args = [Path.Combine(testHarnessDir, "test-mcp-server.mjs")],
                 Env = new Dictionary<string, string> { ["TEST_SECRET"] = "hunter2" },
-                Cwd = testHarnessDir,
+                WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             }
         };
@@ -330,7 +358,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                     "--config",
                     configPath
                 ],
-                Cwd = testHarnessDir,
+                WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             }
         };

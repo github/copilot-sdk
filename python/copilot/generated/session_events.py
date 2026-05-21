@@ -693,7 +693,7 @@ class AssistantUsageData:
     quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
     reasoning_tokens: int | None = None
-    ttft: timedelta | None = None
+    time_to_first_token: timedelta | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageData":
@@ -715,7 +715,7 @@ class AssistantUsageData:
         quota_snapshots = from_union([from_none, lambda x: from_dict(AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
-        ttft = from_union([from_none, from_timedelta], obj.get("ttftMs"))
+        time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
         return AssistantUsageData(
             model=model,
             api_call_id=api_call_id,
@@ -734,7 +734,7 @@ class AssistantUsageData:
             quota_snapshots=quota_snapshots,
             reasoning_effort=reasoning_effort,
             reasoning_tokens=reasoning_tokens,
-            ttft=ttft,
+            time_to_first_token=time_to_first_token,
         )
 
     def to_dict(self) -> dict:
@@ -772,8 +772,8 @@ class AssistantUsageData:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_tokens is not None:
             result["reasoningTokens"] = from_union([from_none, to_int], self.reasoning_tokens)
-        if self.ttft is not None:
-            result["ttftMs"] = from_union([from_none, to_timedelta_int], self.ttft)
+        if self.time_to_first_token is not None:
+            result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta_int], self.time_to_first_token)
         return result
 
 
@@ -4829,95 +4829,137 @@ ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | Emb
 
 class AbortReason(Enum):
     "Finite reason code describing why the current turn was aborted"
+    # The local user requested the abort, for example by pressing Ctrl+C in the CLI.
     USER_INITIATED = "user_initiated"
+    # A remote command requested the abort.
     REMOTE_COMMAND = "remote_command"
+    # An MCP server delivered a user.abort notification.
     USER_ABORT = "user_abort"
 
 
 class AssistantMessageToolRequestType(Enum):
     "Tool call type: \"function\" for standard tool calls, \"custom\" for grammar-based tool calls. Defaults to \"function\" when absent."
+    # Standard function-style tool call.
     FUNCTION = "function"
+    # Custom grammar-based tool call.
     CUSTOM = "custom"
 
 
 class AssistantUsageApiEndpoint(Enum):
     "API endpoint used for this model call, matching CAPI supported_endpoints vocabulary"
+    # Chat Completions API endpoint.
     CHAT_COMPLETIONS = "/chat/completions"
+    # Anthropic Messages API endpoint.
     V1_MESSAGES = "/v1/messages"
+    # Responses API endpoint.
     RESPONSES = "/responses"
+    # WebSocket Responses API endpoint.
     WS_RESPONSES = "ws:/responses"
 
 
 class AutoModeSwitchResponse(Enum):
     "The user's auto-mode-switch choice"
+    # Switch models for this request.
     YES = "yes"
+    # Switch models now and keep using the replacement automatically.
     YES_ALWAYS = "yes_always"
+    # Do not switch models.
     NO = "no"
 
 
 class ElicitationCompletedAction(Enum):
     "The user action: \"accept\" (submitted form), \"decline\" (explicitly refused), or \"cancel\" (dismissed)"
+    # The user submitted the requested form.
     ACCEPT = "accept"
+    # The user explicitly declined the request.
     DECLINE = "decline"
+    # The user dismissed the request.
     CANCEL = "cancel"
 
 
 class ElicitationRequestedMode(Enum):
     "Elicitation mode; \"form\" for structured input, \"url\" for browser-based. Defaults to \"form\" when absent."
+    # Structured form-based elicitation.
     FORM = "form"
+    # Browser URL-based elicitation.
     URL = "url"
 
 
 class ExitPlanModeAction(Enum):
     "Exit plan mode action"
+    # Exit plan mode without starting implementation.
     EXIT_ONLY = "exit_only"
+    # Exit plan mode and continue in interactive mode.
     INTERACTIVE = "interactive"
+    # Exit plan mode and continue autonomously.
     AUTOPILOT = "autopilot"
+    # Exit plan mode and continue with parallel autonomous workers.
     AUTOPILOT_FLEET = "autopilot_fleet"
 
 
 class ExtensionsLoadedExtensionSource(Enum):
     "Discovery source"
+    # Extension discovered from the current project.
     PROJECT = "project"
+    # Extension discovered from the user's extension directory.
     USER = "user"
 
 
 class ExtensionsLoadedExtensionStatus(Enum):
     "Current status: running, disabled, failed, or starting"
+    # The extension process is running.
     RUNNING = "running"
+    # The extension is installed but disabled.
     DISABLED = "disabled"
+    # The extension failed to start or crashed.
     FAILED = "failed"
+    # The extension process is starting.
     STARTING = "starting"
 
 
 class HandoffSourceType(Enum):
     "Origin type of the session being handed off"
+    # The handoff originated from a remote session.
     REMOTE = "remote"
+    # The handoff originated from a local session.
     LOCAL = "local"
 
 
 class McpServerSource(Enum):
     "Configuration source: user, workspace, plugin, or builtin"
+    # Server configured in the user's global MCP configuration.
     USER = "user"
+    # Server configured by the current workspace.
     WORKSPACE = "workspace"
+    # Server contributed by an installed plugin.
     PLUGIN = "plugin"
+    # Server bundled with the runtime.
     BUILTIN = "builtin"
 
 
 class McpServerStatus(Enum):
     "Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"
+    # The server is connected and available.
     CONNECTED = "connected"
+    # The server failed to connect or initialize.
     FAILED = "failed"
+    # The server requires authentication before it can connect.
     NEEDS_AUTH = "needs-auth"
+    # The server connection is still being established.
     PENDING = "pending"
+    # The server is configured but disabled.
     DISABLED = "disabled"
+    # The server is not configured for this session.
     NOT_CONFIGURED = "not_configured"
 
 
 class ModelCallFailureSource(Enum):
     "Where the failed model call originated"
+    # Model call from the top-level agent.
     TOP_LEVEL = "top_level"
+    # Model call from a sub-agent.
     SUBAGENT = "subagent"
+    # Model call from MCP sampling.
     MCP_SAMPLING = "mcp_sampling"
 
 
@@ -4938,8 +4980,11 @@ class PermissionPromptRequestKind(Enum):
 
 class PermissionPromptRequestPathAccessKind(Enum):
     "Underlying permission kind that needs path approval"
+    # Read access to a filesystem path.
     READ = "read"
+    # Shell command access involving a filesystem path.
     SHELL = "shell"
+    # Write access to a filesystem path.
     WRITE = "write"
 
 
@@ -4959,13 +5004,17 @@ class PermissionRequestKind(Enum):
 
 class PermissionRequestMemoryAction(Enum):
     "Whether this is a store or vote memory operation"
+    # Store a new memory.
     STORE = "store"
+    # Vote on an existing memory.
     VOTE = "vote"
 
 
 class PermissionRequestMemoryDirection(Enum):
     "Vote direction (vote only)"
+    # Vote that the memory is useful or accurate.
     UPVOTE = "upvote"
+    # Vote that the memory is incorrect or outdated.
     DOWNVOTE = "downvote"
 
 
@@ -4984,51 +5033,73 @@ class PermissionResultKind(Enum):
 
 class PlanChangedOperation(Enum):
     "The type of operation performed on the plan file"
+    # The plan file was created.
     CREATE = "create"
+    # The plan file was updated.
     UPDATE = "update"
+    # The plan file was deleted.
     DELETE = "delete"
 
 
 class ReasoningSummary(Enum):
     "Reasoning summary mode used for model calls, if applicable (e.g. \"none\", \"concise\", \"detailed\")"
+    # Do not request reasoning summaries from the model.
     NONE = "none"
+    # Request a concise summary of the model's reasoning.
     CONCISE = "concise"
+    # Request a detailed summary of the model's reasoning.
     DETAILED = "detailed"
 
 
 class SessionMode(Enum):
     "The session mode the agent is operating in"
+    # The agent is responding interactively to the user.
     INTERACTIVE = "interactive"
+    # The agent is preparing a plan before making changes.
     PLAN = "plan"
+    # The agent is working autonomously toward task completion.
     AUTOPILOT = "autopilot"
 
 
 class ShutdownType(Enum):
     "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
+    # The session ended normally.
     ROUTINE = "routine"
+    # The session ended because of a crash or fatal error.
     ERROR = "error"
 
 
 class SkillSource(Enum):
     "Source location type (e.g., project, personal-copilot, plugin, builtin)"
+    # Skill defined in the current project's skill directories.
     PROJECT = "project"
+    # Skill discovered from a parent directory in the current workspace tree.
     INHERITED = "inherited"
+    # Skill defined in the user's Copilot skill directory.
     PERSONAL_COPILOT = "personal-copilot"
+    # Skill defined in the user's personal agents skill directory.
     PERSONAL_AGENTS = "personal-agents"
+    # Skill provided by an installed plugin.
     PLUGIN = "plugin"
+    # Skill loaded from a configured custom skill directory.
     CUSTOM = "custom"
+    # Skill bundled with the runtime.
     BUILTIN = "builtin"
 
 
 class SystemMessageRole(Enum):
     "Message role: \"system\" for system prompts, \"developer\" for developer-injected instructions"
+    # System prompt message.
     SYSTEM = "system"
+    # Developer instruction message.
     DEVELOPER = "developer"
 
 
 class SystemNotificationAgentCompletedStatus(Enum):
     "Whether the agent completed successfully or failed"
+    # The agent completed successfully.
     COMPLETED = "completed"
+    # The agent failed.
     FAILED = "failed"
 
 
@@ -5044,7 +5115,9 @@ class SystemNotificationType(Enum):
 
 class ToolExecutionCompleteContentResourceLinkIconTheme(Enum):
     "Theme variant this icon is intended for"
+    # Icon intended for light themes.
     LIGHT = "light"
+    # Icon intended for dark themes.
     DARK = "dark"
 
 
@@ -5060,16 +5133,23 @@ class ToolExecutionCompleteContentType(Enum):
 
 class UserMessageAgentMode(Enum):
     "The agent mode that was active when this message was sent"
+    # The agent is responding interactively to the user.
     INTERACTIVE = "interactive"
+    # The agent is preparing a plan before making changes.
     PLAN = "plan"
+    # The agent is working autonomously toward task completion.
     AUTOPILOT = "autopilot"
+    # The agent is in shell-focused UI mode.
     SHELL = "shell"
 
 
 class UserMessageAttachmentGithubReferenceType(Enum):
     "Type of GitHub reference"
+    # GitHub issue reference.
     ISSUE = "issue"
+    # GitHub pull request reference.
     PR = "pr"
+    # GitHub discussion reference.
     DISCUSSION = "discussion"
 
 
@@ -5096,13 +5176,17 @@ class UserToolSessionApprovalKind(Enum):
 
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
+    # Repository is hosted on GitHub.
     GITHUB = "github"
+    # Repository is hosted on Azure DevOps.
     ADO = "ado"
 
 
 class WorkspaceFileChangedOperation(Enum):
     "Whether the file was newly created or updated"
+    # The workspace file was created.
     CREATE = "create"
+    # The workspace file was updated.
     UPDATE = "update"
 
 

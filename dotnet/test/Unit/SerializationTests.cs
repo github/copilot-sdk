@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -7,9 +7,9 @@ using System.Text.Json;
 #if !NET8_0_OR_GREATER
 using System.Runtime.Serialization;
 #endif
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot.Rpc;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 /// <summary>
 /// Tests for JSON serialization compatibility with the SDK's configured options.
@@ -26,7 +26,7 @@ public class SerializationTests
             Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer provider-token" },
             ModelId = "gpt-4o",
             WireModel = "my-finetune-v3",
-            MaxInputTokens = 100_000,
+            MaxPromptTokens = 100_000,
             MaxOutputTokens = 4096
         };
 
@@ -46,7 +46,7 @@ public class SerializationTests
         Assert.Equal("Bearer provider-token", deserialized.Headers!["Authorization"]);
         Assert.Equal("gpt-4o", deserialized.ModelId);
         Assert.Equal("my-finetune-v3", deserialized.WireModel);
-        Assert.Equal(100_000, deserialized.MaxInputTokens);
+        Assert.Equal(100_000, deserialized.MaxPromptTokens);
         Assert.Equal(4096, deserialized.MaxOutputTokens);
     }
 
@@ -265,7 +265,7 @@ public class SerializationTests
         Assert.Equal("client-id", httpConfig.OauthClientId);
         Assert.False(httpConfig.OauthPublicClient);
         Assert.Equal(McpHttpServerConfigOauthGrantType.ClientCredentials, httpConfig.OauthGrantType);
-        Assert.Equal("*", Assert.Single(httpConfig.Tools));
+        Assert.Equal("*", Assert.Single(httpConfig.Tools!));
         Assert.Equal(3000, httpConfig.Timeout);
     }
 

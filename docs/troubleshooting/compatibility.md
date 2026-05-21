@@ -29,7 +29,7 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Queueing (enqueue mode) | `send({ mode: "enqueue" })` | Buffer for sequential processing (default) |
 | File attachments | `send({ attachments: [{ type: "file", path }] })` | Images auto-encoded and resized |
 | Directory attachments | `send({ attachments: [{ type: "directory", path }] })` | Attach directory context |
-| Get history | `getMessages()` | All session events |
+| Get history | `getEvents()` | All session events |
 | Abort | `abort()` | Cancel in-flight request |
 | **Tools** | | |
 | Register custom tools | `registerTools()` | Full JSON Schema support |
@@ -178,7 +178,7 @@ The `--share` option is not available via SDK. Workarounds:
    const events: SessionEvent[] = [];
    session.on((event) => events.push(event));
    // ... after conversation ...
-   const messages = await session.getMessages();
+   const messages = await session.getEvents();
    // Format as markdown yourself
    ```
 

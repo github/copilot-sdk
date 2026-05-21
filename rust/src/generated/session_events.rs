@@ -1305,7 +1305,7 @@ pub struct AssistantUsageData {
     pub reasoning_tokens: Option<i64>,
     /// Time to first token in milliseconds. Only available for streaming requests
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub ttft_ms: Option<i64>,
+    pub time_to_first_token_ms: Option<i64>,
 }
 
 /// Session event "model.call_failure". Failed LLM API call metadata for telemetry
@@ -2874,8 +2874,10 @@ pub struct SessionExtensionsLoadedData {
 /// Hosting platform type of the repository (github or ado)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkingDirectoryContextHostType {
+    /// Repository is hosted on GitHub.
     #[serde(rename = "github")]
     Github,
+    /// Repository is hosted on Azure DevOps.
     #[serde(rename = "ado")]
     Ado,
     /// Unknown variant for forward compatibility.
@@ -2887,10 +2889,13 @@ pub enum WorkingDirectoryContextHostType {
 /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReasoningSummary {
+    /// Do not request reasoning summaries from the model.
     #[serde(rename = "none")]
     None,
+    /// Request a concise summary of the model's reasoning.
     #[serde(rename = "concise")]
     Concise,
+    /// Request a detailed summary of the model's reasoning.
     #[serde(rename = "detailed")]
     Detailed,
     /// Unknown variant for forward compatibility.
@@ -2902,10 +2907,13 @@ pub enum ReasoningSummary {
 /// The session mode the agent is operating in
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionMode {
+    /// The agent is responding interactively to the user.
     #[serde(rename = "interactive")]
     Interactive,
+    /// The agent is preparing a plan before making changes.
     #[serde(rename = "plan")]
     Plan,
+    /// The agent is working autonomously toward task completion.
     #[serde(rename = "autopilot")]
     Autopilot,
     /// Unknown variant for forward compatibility.
@@ -2917,10 +2925,13 @@ pub enum SessionMode {
 /// The type of operation performed on the plan file
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PlanChangedOperation {
+    /// The plan file was created.
     #[serde(rename = "create")]
     Create,
+    /// The plan file was updated.
     #[serde(rename = "update")]
     Update,
+    /// The plan file was deleted.
     #[serde(rename = "delete")]
     Delete,
     /// Unknown variant for forward compatibility.
@@ -2932,8 +2943,10 @@ pub enum PlanChangedOperation {
 /// Whether the file was newly created or updated
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkspaceFileChangedOperation {
+    /// The workspace file was created.
     #[serde(rename = "create")]
     Create,
+    /// The workspace file was updated.
     #[serde(rename = "update")]
     Update,
     /// Unknown variant for forward compatibility.
@@ -2945,8 +2958,10 @@ pub enum WorkspaceFileChangedOperation {
 /// Origin type of the session being handed off
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HandoffSourceType {
+    /// The handoff originated from a remote session.
     #[serde(rename = "remote")]
     Remote,
+    /// The handoff originated from a local session.
     #[serde(rename = "local")]
     Local,
     /// Unknown variant for forward compatibility.
@@ -2958,8 +2973,10 @@ pub enum HandoffSourceType {
 /// Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShutdownType {
+    /// The session ended normally.
     #[serde(rename = "routine")]
     Routine,
+    /// The session ended because of a crash or fatal error.
     #[serde(rename = "error")]
     Error,
     /// Unknown variant for forward compatibility.
@@ -2971,12 +2988,16 @@ pub enum ShutdownType {
 /// The agent mode that was active when this message was sent
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserMessageAgentMode {
+    /// The agent is responding interactively to the user.
     #[serde(rename = "interactive")]
     Interactive,
+    /// The agent is preparing a plan before making changes.
     #[serde(rename = "plan")]
     Plan,
+    /// The agent is working autonomously toward task completion.
     #[serde(rename = "autopilot")]
     Autopilot,
+    /// The agent is in shell-focused UI mode.
     #[serde(rename = "shell")]
     Shell,
     /// Unknown variant for forward compatibility.
@@ -2988,8 +3009,10 @@ pub enum UserMessageAgentMode {
 /// Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantMessageToolRequestType {
+    /// Standard function-style tool call.
     #[serde(rename = "function")]
     Function,
+    /// Custom grammar-based tool call.
     #[serde(rename = "custom")]
     Custom,
     /// Unknown variant for forward compatibility.
@@ -3001,12 +3024,16 @@ pub enum AssistantMessageToolRequestType {
 /// API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AssistantUsageApiEndpoint {
+    /// Chat Completions API endpoint.
     #[serde(rename = "/chat/completions")]
     ChatCompletions,
+    /// Anthropic Messages API endpoint.
     #[serde(rename = "/v1/messages")]
     V1Messages,
+    /// Responses API endpoint.
     #[serde(rename = "/responses")]
     Responses,
+    /// WebSocket Responses API endpoint.
     #[serde(rename = "ws:/responses")]
     WsResponses,
     /// Unknown variant for forward compatibility.
@@ -3018,10 +3045,13 @@ pub enum AssistantUsageApiEndpoint {
 /// Where the failed model call originated
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ModelCallFailureSource {
+    /// Model call from the top-level agent.
     #[serde(rename = "top_level")]
     TopLevel,
+    /// Model call from a sub-agent.
     #[serde(rename = "subagent")]
     Subagent,
+    /// Model call from MCP sampling.
     #[serde(rename = "mcp_sampling")]
     McpSampling,
     /// Unknown variant for forward compatibility.
@@ -3033,10 +3063,13 @@ pub enum ModelCallFailureSource {
 /// Finite reason code describing why the current turn was aborted
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AbortReason {
+    /// The local user requested the abort, for example by pressing Ctrl+C in the CLI.
     #[serde(rename = "user_initiated")]
     UserInitiated,
+    /// A remote command requested the abort.
     #[serde(rename = "remote_command")]
     RemoteCommand,
+    /// An MCP server delivered a user.abort notification.
     #[serde(rename = "user_abort")]
     UserAbort,
     /// Unknown variant for forward compatibility.
@@ -3080,8 +3113,10 @@ pub enum ToolExecutionCompleteContentAudioType {
 /// Theme variant this icon is intended for
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ToolExecutionCompleteContentResourceLinkIconTheme {
+    /// Icon intended for light themes.
     #[serde(rename = "light")]
     Light,
+    /// Icon intended for dark themes.
     #[serde(rename = "dark")]
     Dark,
     /// Unknown variant for forward compatibility.
@@ -3129,8 +3164,10 @@ pub enum ToolExecutionCompleteContent {
 /// Message role: "system" for system prompts, "developer" for developer-injected instructions
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SystemMessageRole {
+    /// System prompt message.
     #[serde(rename = "system")]
     System,
+    /// Developer instruction message.
     #[serde(rename = "developer")]
     Developer,
     /// Unknown variant for forward compatibility.
@@ -3182,8 +3219,10 @@ pub enum PermissionRequestUrlKind {
 /// Whether this is a store or vote memory operation
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionRequestMemoryAction {
+    /// Store a new memory.
     #[serde(rename = "store")]
     Store,
+    /// Vote on an existing memory.
     #[serde(rename = "vote")]
     Vote,
     /// Unknown variant for forward compatibility.
@@ -3195,8 +3234,10 @@ pub enum PermissionRequestMemoryAction {
 /// Vote direction (vote only)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionRequestMemoryDirection {
+    /// Vote that the memory is useful or accurate.
     #[serde(rename = "upvote")]
     Upvote,
+    /// Vote that the memory is incorrect or outdated.
     #[serde(rename = "downvote")]
     Downvote,
     /// Unknown variant for forward compatibility.
@@ -3320,10 +3361,13 @@ pub enum PermissionPromptRequestCustomToolKind {
 /// Underlying permission kind that needs path approval
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PermissionPromptRequestPathAccessKind {
+    /// Read access to a filesystem path.
     #[serde(rename = "read")]
     Read,
+    /// Shell command access involving a filesystem path.
     #[serde(rename = "shell")]
     Shell,
+    /// Write access to a filesystem path.
     #[serde(rename = "write")]
     Write,
     /// Unknown variant for forward compatibility.
@@ -3551,8 +3595,10 @@ pub enum PermissionResult {
 /// Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElicitationRequestedMode {
+    /// Structured form-based elicitation.
     #[serde(rename = "form")]
     Form,
+    /// Browser URL-based elicitation.
     #[serde(rename = "url")]
     Url,
     /// Unknown variant for forward compatibility.
@@ -3572,10 +3618,13 @@ pub enum ElicitationRequestedSchemaType {
 /// The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElicitationCompletedAction {
+    /// The user submitted the requested form.
     #[serde(rename = "accept")]
     Accept,
+    /// The user explicitly declined the request.
     #[serde(rename = "decline")]
     Decline,
+    /// The user dismissed the request.
     #[serde(rename = "cancel")]
     Cancel,
     /// Unknown variant for forward compatibility.
@@ -3595,10 +3644,13 @@ pub enum McpOauthRequiredStaticClientConfigGrantType {
 /// The user's auto-mode-switch choice
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutoModeSwitchResponse {
+    /// Switch models for this request.
     #[serde(rename = "yes")]
     Yes,
+    /// Switch models now and keep using the replacement automatically.
     #[serde(rename = "yes_always")]
     YesAlways,
+    /// Do not switch models.
     #[serde(rename = "no")]
     No,
     /// Unknown variant for forward compatibility.
@@ -3610,12 +3662,16 @@ pub enum AutoModeSwitchResponse {
 /// Exit plan mode action
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExitPlanModeAction {
+    /// Exit plan mode without starting implementation.
     #[serde(rename = "exit_only")]
     ExitOnly,
+    /// Exit plan mode and continue in interactive mode.
     #[serde(rename = "interactive")]
     Interactive,
+    /// Exit plan mode and continue autonomously.
     #[serde(rename = "autopilot")]
     Autopilot,
+    /// Exit plan mode and continue with parallel autonomous workers.
     #[serde(rename = "autopilot_fleet")]
     AutopilotFleet,
     /// Unknown variant for forward compatibility.
@@ -3627,18 +3683,25 @@ pub enum ExitPlanModeAction {
 /// Source location type (e.g., project, personal-copilot, plugin, builtin)
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SkillSource {
+    /// Skill defined in the current project's skill directories.
     #[serde(rename = "project")]
     Project,
+    /// Skill discovered from a parent directory in the current workspace tree.
     #[serde(rename = "inherited")]
     Inherited,
+    /// Skill defined in the user's Copilot skill directory.
     #[serde(rename = "personal-copilot")]
     PersonalCopilot,
+    /// Skill defined in the user's personal agents skill directory.
     #[serde(rename = "personal-agents")]
     PersonalAgents,
+    /// Skill provided by an installed plugin.
     #[serde(rename = "plugin")]
     Plugin,
+    /// Skill loaded from a configured custom skill directory.
     #[serde(rename = "custom")]
     Custom,
+    /// Skill bundled with the runtime.
     #[serde(rename = "builtin")]
     Builtin,
     /// Unknown variant for forward compatibility.
@@ -3650,12 +3713,16 @@ pub enum SkillSource {
 /// Configuration source: user, workspace, plugin, or builtin
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerSource {
+    /// Server configured in the user's global MCP configuration.
     #[serde(rename = "user")]
     User,
+    /// Server configured by the current workspace.
     #[serde(rename = "workspace")]
     Workspace,
+    /// Server contributed by an installed plugin.
     #[serde(rename = "plugin")]
     Plugin,
+    /// Server bundled with the runtime.
     #[serde(rename = "builtin")]
     Builtin,
     /// Unknown variant for forward compatibility.
@@ -3667,16 +3734,22 @@ pub enum McpServerSource {
 /// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum McpServerStatus {
+    /// The server is connected and available.
     #[serde(rename = "connected")]
     Connected,
+    /// The server failed to connect or initialize.
     #[serde(rename = "failed")]
     Failed,
+    /// The server requires authentication before it can connect.
     #[serde(rename = "needs-auth")]
     NeedsAuth,
+    /// The server connection is still being established.
     #[serde(rename = "pending")]
     Pending,
+    /// The server is configured but disabled.
     #[serde(rename = "disabled")]
     Disabled,
+    /// The server is not configured for this session.
     #[serde(rename = "not_configured")]
     NotConfigured,
     /// Unknown variant for forward compatibility.
@@ -3688,8 +3761,10 @@ pub enum McpServerStatus {
 /// Discovery source
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionsLoadedExtensionSource {
+    /// Extension discovered from the current project.
     #[serde(rename = "project")]
     Project,
+    /// Extension discovered from the user's extension directory.
     #[serde(rename = "user")]
     User,
     /// Unknown variant for forward compatibility.
@@ -3701,12 +3776,16 @@ pub enum ExtensionsLoadedExtensionSource {
 /// Current status: running, disabled, failed, or starting
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionsLoadedExtensionStatus {
+    /// The extension process is running.
     #[serde(rename = "running")]
     Running,
+    /// The extension is installed but disabled.
     #[serde(rename = "disabled")]
     Disabled,
+    /// The extension failed to start or crashed.
     #[serde(rename = "failed")]
     Failed,
+    /// The extension process is starting.
     #[serde(rename = "starting")]
     Starting,
     /// Unknown variant for forward compatibility.

@@ -299,7 +299,7 @@ cargo run
 Create a new console project and add this to `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -557,7 +557,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -568,7 +568,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -800,17 +800,17 @@ tokio::spawn(async move {
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class EventSubscriptionExample
 {
     public static void Example(CopilotSession session)
     {
         // Subscribe to all events
-        var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+        var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
         // Filter by event type using pattern matching
-        session.On(ev =>
+        session.On<SessionEvent>(ev =>
         {
             switch (ev)
             {
@@ -832,10 +832,10 @@ public static class EventSubscriptionExample
 
 ```csharp
 // Subscribe to all events
-var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
 // Filter by event type using pattern matching
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     switch (ev)
     {
@@ -1159,7 +1159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
@@ -1190,7 +1190,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     Tools = [getWeather],
 });
 
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -1647,7 +1647,7 @@ cargo run
 Create a new console project and update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
@@ -1676,7 +1676,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -2067,12 +2067,11 @@ let session = client
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 // Use the client normally
