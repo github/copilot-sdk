@@ -56,7 +56,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 
 3. Verify `mvn clean verify` works from `java/` directory locally. Make necessary changes so the test infrastructure is copied locally, rather than checked out.
 
-### Phase 02: CI Workflows
+### ✅ Phase 02: CI Workflows
 
 **Goal**: Java CI runs on PRs and main pushes within the monorepo.
 
