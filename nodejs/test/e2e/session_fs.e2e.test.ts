@@ -9,7 +9,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/client.js";
-import { createSessionFsAdapter } from "../../src/index.js";
+import { createSessionFsAdapter, RuntimeConnection } from "../../src/index.js";
 import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
 import {
     approveAll,

@@ -12,7 +12,10 @@ describe("Multi-client broadcast", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
     const tcpConnectionToken = "multi-client-test-token";
     const ctx = await createSdkTestContext({
-        copilotClientOptions: { tcpConnectionToken },
+        useStdio: false,
+        copilotClientOptions: {
+            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
+        },
     });
     const client1 = ctx.copilotClient;
 

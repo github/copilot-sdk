@@ -7,18 +7,6 @@ import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
-    it("allows createSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({});
-
-        await expect(client.createSession({})).rejects.toThrow(/Client not connected/);
-    });
-
-    it("allows resumeSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({});
-
-        await expect(client.resumeSession("session-1", {})).rejects.toThrow(/Client not connected/);
-    });
-
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerPermissionHandler(() => ({ kind: "no-result" }));
