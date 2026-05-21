@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
-import { CopilotClient, CopilotClientOptions } from "../../../src";
+import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
 
@@ -66,14 +66,44 @@ export async function createSdkTestContext({
         XDG_STATE_HOME: homeDir,
     };
 
+    const userConn = copilotClientOptions?.connection;
+    let connection: RuntimeConnection;
+    if (userConn) {
+        // Caller supplied a RuntimeConnection — merge in the harness-managed
+        // CLI path (and stay on the same transport variant). Strip `kind`
+        // before forwarding to the factory opts since the factories don't
+        // accept it in their argument shape.
+        if (userConn.kind === "tcp") {
+            const { kind: _k, ...tcp } = userConn;
+            connection = RuntimeConnection.forTcp({
+                ...tcp,
+                path: tcp.path ?? process.env.COPILOT_CLI_PATH,
+            });
+        } else if (userConn.kind === "stdio") {
+            const { kind: _k, ...stdio } = userConn;
+            connection = RuntimeConnection.forStdio({
+                ...stdio,
+                path: stdio.path ?? process.env.COPILOT_CLI_PATH,
+            });
+        } else {
+            connection = userConn;
+        }
+    } else {
+        connection =
+            useStdio === false
+                ? RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })
+                : RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH });
+    }
+
+    const { connection: _ignoredConnection, ...remainingClientOptions } =
+        copilotClientOptions ?? {};
     const copilotClient = new CopilotClient({
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
-        cliPath: process.env.COPILOT_CLI_PATH,
+        connection,
         gitHubToken: authTokenToUse,
-        useStdio: useStdio,
-        ...copilotClientOptions,
+        ...remainingClientOptions,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };

@@ -5,7 +5,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
-import { approveAll } from "../../src/index.js";
+import { approveAll, RuntimeConnection } from "../../src/index.js";
 import type { MCPServerConfig } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -13,7 +13,7 @@ describe("Session MCP and skills RPC", async () => {
     // --yolo auto-approves extension permission gates at the CLI level,
     // preventing breakage from new gates (e.g., extension-permission-access).
     const { copilotClient: client, workDir } = await createSdkTestContext({
-        copilotClientOptions: { cliArgs: ["--yolo"] },
+        copilotClientOptions: { connection: RuntimeConnection.forStdio({ args: ["--yolo"] }) },
     });
 
     function createSkill(skillsDir: string, skillName: string, description: string): void {

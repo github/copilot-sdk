@@ -205,7 +205,7 @@ describe("Event Fidelity", async () => {
             prompt: "Read the file 'order.txt' and tell me what the number is.",
         });
 
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const types = messages.map((m) => m.type);
 
         const sessionStartIdx = types.indexOf("session.start");

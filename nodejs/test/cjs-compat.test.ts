@@ -43,7 +43,7 @@ describe("Dual ESM/CJS build (#528)", () => {
     it("CJS build resolves bundled CLI path", () => {
         const script = `
             const sdk = require(${JSON.stringify(join(distDir, "cjs/index.js"))});
-            const client = new sdk.CopilotClient({ autoStart: false });
+            const client = new sdk.CopilotClient({ });
             console.log('CJS CLI resolved: OK');
         `;
         const output = execFileSync(process.execPath, ["--eval", script], {
@@ -59,7 +59,7 @@ describe("Dual ESM/CJS build (#528)", () => {
         const script = `
             import { pathToFileURL } from 'node:url';
             const sdk = await import(pathToFileURL(${JSON.stringify(esmPath)}).href);
-            const client = new sdk.CopilotClient({ autoStart: false });
+            const client = new sdk.CopilotClient({ });
             console.log('ESM CLI resolved: OK');
         `;
         const output = execFileSync(process.execPath, ["--input-type=module", "--eval", script], {

@@ -82,7 +82,7 @@ describe("Session Lifecycle", async () => {
             prompt: "What is 2+2? Reply with just the number.",
         });
 
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         expect(messages.length).toBeGreaterThan(0);
 
         // Should have at least session.start, user.message, assistant.message, session.idle

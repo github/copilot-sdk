@@ -168,7 +168,7 @@ describe("Streaming Fidelity", async () => {
         expect(lastAssistant.data.content).toContain("255");
 
         // Verify the session was created with reasoning effort via getMessages
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const startEvent = messages.find((m) => m.type === "session.start");
         expect(startEvent).toBeDefined();
         expect(startEvent!.data.reasoningEffort).toBe("high");

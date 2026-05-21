@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -110,8 +110,8 @@ async function main() {
   console.log(`Authenticated as: ${user.login}${user.name ? ` (${user.name})` : ""}`);
 
   const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: accessToken,
+    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+    gitHubToken: accessToken,
   });
 
   try {

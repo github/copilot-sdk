@@ -6,7 +6,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/index.js";
 
 function startEphemeralClient(): CopilotClient {
-    const client = new CopilotClient({ useStdio: true });
+    const client = new CopilotClient();
     onTestFinished(async () => {
         try {
             await client.forceStop();

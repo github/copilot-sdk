@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { z } from "zod";
-import { CopilotClient, defineTool } from "../src/index.js";
+import { approveAll, CopilotClient, defineTool } from "@github/copilot-sdk";
 
 console.log("🚀 Starting Copilot SDK Example\n");
 
@@ -20,27 +20,23 @@ const lookupFactTool = defineTool("lookup_fact", {
     handler: ({ topic }) => facts[topic.toLowerCase()] ?? `No fact stored for ${topic}.`,
 });
 
-// Create client - will auto-start CLI server (searches PATH for "copilot")
-const client = new CopilotClient({ logLevel: "info" });
-const session = await client.createSession({ tools: [lookupFactTool] });
+await using client = new CopilotClient({ logLevel: "info" });
+await using session = await client.createSession({
+    onPermissionRequest: approveAll,
+    tools: [lookupFactTool],
+});
 console.log(`✅ Session created: ${session.sessionId}\n`);
 
-// Listen to events
 session.on((event) => {
     console.log(`📢 Event [${event.type}]:`, JSON.stringify(event.data, null, 2));
 });
 
-// Send a simple message
 console.log("💬 Sending message...");
-const result1 = await session.sendAndWait({ prompt: "Tell me 2+2" });
+const result1 = await session.sendAndWait("Tell me 2+2");
 console.log("📝 Response:", result1?.data.content);
 
-// Send another message that uses the tool
 console.log("💬 Sending follow-up message...");
-const result2 = await session.sendAndWait({ prompt: "Use lookup_fact to tell me about 'node'" });
+const result2 = await session.sendAndWait("Use lookup_fact to tell me about 'node'");
 console.log("📝 Response:", result2?.data.content);
 
-// Clean up
-await session.disconnect();
-await client.stop();
 console.log("✅ Done!");

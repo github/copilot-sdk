@@ -1,24 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import { approveAll, CopilotClient, RuntimeConnection, type ModelInfo } from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
-    it("allows createSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({ autoStart: false });
-
-        await expect(client.createSession({})).rejects.toThrow(/Client not connected/);
-    });
-
-    it("allows resumeSession without onPermissionRequest", async () => {
-        const client = new CopilotClient({ autoStart: false });
-
-        await expect(client.resumeSession("session-1", {})).rejects.toThrow(/Client not connected/);
-    });
-
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerPermissionHandler(() => ({ kind: "no-result" }));
@@ -276,7 +264,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer provider-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxInputTokens: 100_000,
+                maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -315,7 +303,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer resume-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxInputTokens: 100_000,
+                maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -488,8 +476,8 @@ describe("CopilotClient", () => {
 
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
-            onExitPlanMode: () => ({ approved: true }),
-            onAutoModeSwitch: () => "yes",
+            onExitPlanModeRequest: () => ({ approved: true }),
+            onAutoModeSwitchRequest: () => "yes",
         });
 
         expect(spy).toHaveBeenCalledWith(
@@ -557,45 +545,44 @@ describe("CopilotClient", () => {
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "8080",
+                connection: RuntimeConnection.forUri("8080"),
                 logLevel: "error",
             });
 
-            // Verify internal state
-            expect((client as any).actualPort).toBe(8080);
+            expect((client as any).runtimePort).toBe(8080);
             expect((client as any).actualHost).toBe("localhost");
             expect((client as any).isExternalServer).toBe(true);
         });
 
         it("should parse host:port URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "127.0.0.1:9000",
+                connection: RuntimeConnection.forUri("127.0.0.1:9000"),
                 logLevel: "error",
             });
 
-            expect((client as any).actualPort).toBe(9000);
+            expect((client as any).runtimePort).toBe(9000);
             expect((client as any).actualHost).toBe("127.0.0.1");
             expect((client as any).isExternalServer).toBe(true);
         });
 
         it("should parse http://host:port URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "http://localhost:7000",
+                connection: RuntimeConnection.forUri("http://localhost:7000"),
                 logLevel: "error",
             });
 
-            expect((client as any).actualPort).toBe(7000);
+            expect((client as any).runtimePort).toBe(7000);
             expect((client as any).actualHost).toBe("localhost");
             expect((client as any).isExternalServer).toBe(true);
         });
 
         it("should parse https://host:port URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "https://example.com:443",
+                connection: RuntimeConnection.forUri("https://example.com:443"),
                 logLevel: "error",
             });
 
-            expect((client as any).actualPort).toBe(443);
+            expect((client as any).runtimePort).toBe(443);
             expect((client as any).actualHost).toBe("example.com");
             expect((client as any).isExternalServer).toBe(true);
         });
@@ -603,7 +590,7 @@ describe("CopilotClient", () => {
         it("should throw error for invalid URL format", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "invalid-url",
+                    connection: RuntimeConnection.forUri("invalid-url"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid cliUrl format/);
@@ -612,7 +599,7 @@ describe("CopilotClient", () => {
         it("should throw error for invalid port - too high", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:99999",
+                    connection: RuntimeConnection.forUri("localhost:99999"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid port in cliUrl/);
@@ -621,7 +608,7 @@ describe("CopilotClient", () => {
         it("should throw error for invalid port - zero", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:0",
+                    connection: RuntimeConnection.forUri("localhost:0"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid port in cliUrl/);
@@ -630,57 +617,28 @@ describe("CopilotClient", () => {
         it("should throw error for invalid port - negative", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:-1",
+                    connection: RuntimeConnection.forUri("localhost:-1"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid port in cliUrl/);
         });
 
-        it("should throw error when cliUrl is used with useStdio", () => {
-            expect(() => {
-                new CopilotClient({
-                    cliUrl: "localhost:8080",
-                    useStdio: true,
-                    logLevel: "error",
-                });
-            }).toThrow(/cliUrl is mutually exclusive/);
-        });
-
-        it("should throw error when cliUrl is used with cliPath", () => {
-            expect(() => {
-                new CopilotClient({
-                    cliUrl: "localhost:8080",
-                    cliPath: "/path/to/cli",
-                    logLevel: "error",
-                });
-            }).toThrow(/cliUrl is mutually exclusive/);
-        });
-
-        it("should set useStdio to false when cliUrl is provided", () => {
-            const client = new CopilotClient({
-                cliUrl: "8080",
-                logLevel: "error",
-            });
-
-            expect(client["options"].useStdio).toBe(false);
-        });
-
         it("should mark client as using external server", () => {
             const client = new CopilotClient({
-                cliUrl: "localhost:8080",
+                connection: RuntimeConnection.forUri("localhost:8080"),
                 logLevel: "error",
             });
 
             expect((client as any).isExternalServer).toBe(true);
         });
 
-        it("should not resolve cliPath when cliUrl is provided", () => {
+        it("should not resolve a CLI path when forUri is used", () => {
             const client = new CopilotClient({
-                cliUrl: "localhost:8080",
+                connection: RuntimeConnection.forUri("localhost:8080"),
                 logLevel: "error",
             });
 
-            expect(client["options"].cliPath).toBeUndefined();
+            expect((client as any).resolvedCliPath).toBeUndefined();
         });
     });
 
@@ -758,41 +716,45 @@ describe("CopilotClient", () => {
             expect((client as any).options.useLoggedInUser).toBe(false);
         });
 
-        it("should accept copilotHome option", () => {
+        it("should accept baseDirectory option", () => {
             const client = new CopilotClient({
-                copilotHome: "/custom/copilot/home",
+                baseDirectory: "/custom/copilot/home",
                 logLevel: "error",
             });
 
-            expect((client as any).options.copilotHome).toBe("/custom/copilot/home");
+            expect((client as any).options.baseDirectory).toBe("/custom/copilot/home");
         });
 
-        it("should leave copilotHome undefined when not provided", () => {
+        it("should leave baseDirectory undefined when not provided", () => {
             const client = new CopilotClient({
                 logLevel: "error",
             });
 
-            expect((client as any).options.copilotHome).toBeUndefined();
+            expect((client as any).options.baseDirectory).toBeUndefined();
         });
 
-        it("should throw error when gitHubToken is used with cliUrl", () => {
+        it("should throw error when gitHubToken is used with forUri", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:8080",
+                    connection: RuntimeConnection.forUri("localhost:8080"),
                     gitHubToken: "gho_test_token",
                     logLevel: "error",
                 });
-            }).toThrow(/gitHubToken and useLoggedInUser cannot be used with cliUrl/);
+            }).toThrow(
+                /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
+            );
         });
 
-        it("should throw error when useLoggedInUser is used with cliUrl", () => {
+        it("should throw error when useLoggedInUser is used with forUri", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:8080",
+                    connection: RuntimeConnection.forUri("localhost:8080"),
                     useLoggedInUser: false,
                     logLevel: "error",
                 });
-            }).toThrow(/gitHubToken and useLoggedInUser cannot be used with cliUrl/);
+            }).toThrow(
+                /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
+            );
         });
     });
 
@@ -1456,8 +1418,8 @@ describe("CopilotClient", () => {
 
             await client.createSession({
                 onPermissionRequest: approveAll,
-                onExitPlanMode: () => ({ approved: true }),
-                onAutoModeSwitch: () => "yes_always",
+                onExitPlanModeRequest: () => ({ approved: true }),
+                onAutoModeSwitchRequest: () => "yes_always",
             });
 
             const createCallWithHandlers = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
@@ -1489,7 +1451,7 @@ describe("CopilotClient", () => {
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                onExitPlanMode: (request, invocation) => {
+                onExitPlanModeRequest: (request, invocation) => {
                     expect(invocation.sessionId).toBeDefined();
                     expect(request.summary).toBe("Review the plan");
                     expect(request.planContent).toBe("Plan body");
@@ -1501,7 +1463,7 @@ describe("CopilotClient", () => {
                         feedback: "Looks good",
                     };
                 },
-                onAutoModeSwitch: (request, invocation) => {
+                onAutoModeSwitchRequest: (request, invocation) => {
                     expect(invocation.sessionId).toBeDefined();
                     expect(request.errorCode).toBe("user_weekly_rate_limited");
                     expect(request.retryAfterSeconds).toBe(3600);

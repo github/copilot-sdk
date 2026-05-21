@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from "vitest";
-import { approveAll, CopilotClient } from "../../src/index.js";
+import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 describe("Per-session GitHub auth", async () => {
@@ -83,7 +83,7 @@ describe("Per-session GitHub auth", async () => {
                 COPILOT_DEBUG_GITHUB_API_URL: env.COPILOT_API_URL,
             }),
             logLevel: "error",
-            cliPath: process.env.COPILOT_CLI_PATH,
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
             useLoggedInUser: false,
         });
 

@@ -61,7 +61,7 @@ describe("Client Lifecycle", async () => {
 
     it("should emit session lifecycle events", async () => {
         const events: SessionLifecycleEvent[] = [];
-        const unsubscribe = client.on((event: SessionLifecycleEvent) => {
+        const unsubscribe = client.onLifecycle((event: SessionLifecycleEvent) => {
             events.push(event);
         });
 
@@ -93,7 +93,7 @@ describe("Client Lifecycle", async () => {
 
     it("should receive session created lifecycle event", async () => {
         const created = deferred<SessionLifecycleEvent>();
-        const unsubscribe = client.on((evt) => {
+        const unsubscribe = client.onLifecycle((evt) => {
             if (evt.type === "session.created") {
                 created.resolve(evt);
             }
@@ -114,7 +114,7 @@ describe("Client Lifecycle", async () => {
 
     it("should filter session lifecycle events by type", async () => {
         const created = deferred<SessionLifecycleEvent>();
-        const unsubscribe = client.on("session.created", (evt) => {
+        const unsubscribe = client.onLifecycle("session.created", (evt) => {
             created.resolve(evt);
         });
 
@@ -134,12 +134,12 @@ describe("Client Lifecycle", async () => {
     it("disposing lifecycle subscription stops receiving events", async () => {
         let count = 0;
         const created = deferred<SessionLifecycleEvent>();
-        const unsubscribeFirst = client.on(() => {
+        const unsubscribeFirst = client.onLifecycle(() => {
             count += 1;
         });
         unsubscribeFirst();
 
-        const unsubscribeActive = client.on("session.created", (evt) => {
+        const unsubscribeActive = client.onLifecycle("session.created", (evt) => {
             created.resolve(evt);
         });
 
@@ -160,7 +160,7 @@ describe("Client Lifecycle", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
         const updated = deferred<SessionLifecycleEvent>();
-        const unsubscribe = client.on("session.updated", (evt) => {
+        const unsubscribe = client.onLifecycle("session.updated", (evt) => {
             if (evt.sessionId === session.sessionId) {
                 updated.resolve(evt);
             }
@@ -187,7 +187,7 @@ describe("Client Lifecycle", async () => {
         expect(message?.data.content).toContain("SESSION_DELETED_OK");
 
         const deleted = deferred<SessionLifecycleEvent>();
-        const unsubscribe = client.on("session.deleted", (evt) => {
+        const unsubscribe = client.onLifecycle("session.deleted", (evt) => {
             if (evt.sessionId === session.sessionId) {
                 deleted.resolve(evt);
             }

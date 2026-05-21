@@ -26,7 +26,7 @@ function getExistingFinalResponse(
     alreadyIdle: boolean = false
 ): Promise<AssistantMessageEvent | undefined> {
     return new Promise<AssistantMessageEvent | undefined>(async (resolve, reject) => {
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const finalUserMessageIndex = messages.findLastIndex((m) => m.type === "user.message");
         const currentTurnMessages =
             finalUserMessageIndex < 0 ? messages : messages.slice(finalUserMessageIndex);

@@ -1,10 +1,10 @@
-import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
+import { CopilotClient, defineTool, approveAll , RuntimeConnection } from "@github/copilot-sdk";
 import { z } from "zod";
 
 async function main() {
   const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
+    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+    gitHubToken: process.env.GITHUB_TOKEN,
   });
 
   try {
