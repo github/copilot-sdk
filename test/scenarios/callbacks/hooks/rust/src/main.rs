@@ -102,7 +102,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
     let config = config
-        .with_handler(Arc::new(ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
         .with_hooks(hooks);
 
     let session = client.create_session(config).await?;

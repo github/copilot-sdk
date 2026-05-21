@@ -28,7 +28,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         "glob".to_string(),
         "view".to_string(),
     ]);
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 

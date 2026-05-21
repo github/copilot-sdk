@@ -103,7 +103,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     // hooks: true is set automatically when a hooks handler is provided.
     let config = SessionConfig::default()
-        .with_handler(Arc::new(ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
         .with_hooks(Arc::new(AuditHooks));
     let session = client.create_session(config).await?;
 

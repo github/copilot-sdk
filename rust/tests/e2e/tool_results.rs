@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use github_copilot_sdk::generated::session_events::{SessionEventType, ToolExecutionCompleteData};
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Error, SessionConfig, Tool, ToolInvocation, ToolResult, ToolResultExpanded,
 };
@@ -196,13 +196,15 @@ async fn create_tool_session<T>(
 where
     T: ToolHandler + 'static,
 {
-    let router = ToolHandlerRouter::new(vec![Box::new(tool)], Arc::new(ApproveAllHandler));
-    let tools = router.tools();
+    let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(tool)];
+    let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+    let __perm = Arc::new(ApproveAllHandler);
     client
         .create_session(
             SessionConfig::default()
                 .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                .with_handler(Arc::new(router))
+                .with_permission_handler(__perm)
+                .with_tool_handlers(tool_handlers)
                 .with_tools(tools),
         )
         .await

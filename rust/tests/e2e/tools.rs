@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use github_copilot_sdk::handler::{ApproveAllHandler, PermissionResult, SessionHandler};
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Error, PermissionRequestData, RequestId, SessionConfig, SessionId, Tool, ToolInvocation,
     ToolResult,
@@ -47,16 +47,15 @@ async fn invokes_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(EncryptStringTool)],
-                Arc::new(ApproveAllHandler),
-            );
-            let tools = router.tools();
+            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(EncryptStringTool)];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
+                        .with_tool_handlers(tool_handlers)
                         .with_tools(tools),
                 )
                 .await
@@ -82,14 +81,15 @@ async fn handles_tool_calling_errors() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router =
-                ToolHandlerRouter::new(vec![Box::new(ErrorTool)], Arc::new(ApproveAllHandler));
-            let tools = router.tools();
+            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(ErrorTool)];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
+                        .with_tool_handlers(tool_handlers)
                         .with_tools(tools),
                 )
                 .await
@@ -132,16 +132,15 @@ async fn can_receive_and_return_complex_types() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(DbQueryTool)],
-                Arc::new(ApproveAllHandler),
-            );
-            let tools = router.tools();
+            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(DbQueryTool)];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
+                        .with_tool_handlers(tool_handlers)
                         .with_tools(tools),
                 )
                 .await
@@ -174,14 +173,15 @@ async fn overrides_built_in_tool_with_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router =
-                ToolHandlerRouter::new(vec![Box::new(CustomGrepTool)], Arc::new(ApproveAllHandler));
-            let tools = router.tools();
+            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(CustomGrepTool)];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
+                        .with_tool_handlers(tool_handlers)
                         .with_tools(tools),
                 )
                 .await
@@ -212,13 +212,15 @@ async fn skippermission_sent_in_tool_definition() {
                 permission_tx,
                 decision: PermissionResult::Denied,
             });
-            let router = ToolHandlerRouter::new(vec![Box::new(SafeLookupTool)], handler);
-            let tools = router.tools();
+            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(SafeLookupTool)];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = handler;
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
+                        .with_tool_handlers(tool_handlers)
                         .with_tools(tools),
                 )
                 .await
@@ -262,13 +264,15 @@ async fn invokes_custom_tool_with_permission_handler() {
                     permission_tx,
                     decision: PermissionResult::Approved,
                 });
-                let router = ToolHandlerRouter::new(vec![Box::new(EncryptStringTool)], handler);
-                let tools = router.tools();
+                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(EncryptStringTool)];
+                let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+                let __perm = handler;
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
+                            .with_tool_handlers(tool_handlers)
                             .with_tools(tools),
                     )
                     .await
@@ -306,16 +310,16 @@ async fn denies_custom_tool_when_permission_denied() {
                     permission_tx,
                     decision: PermissionResult::Denied,
                 });
-                let router = ToolHandlerRouter::new(
-                    vec![Box::new(TrackedEncryptStringTool { call_tx })],
-                    handler,
-                );
-                let tools = router.tools();
+                let tool_handlers: Vec<Arc<dyn ToolHandler>> =
+                    vec![Arc::new(TrackedEncryptStringTool { call_tx })];
+                let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+                let __perm = handler;
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
+                            .with_tool_handlers(tool_handlers)
                             .with_tools(tools),
                     )
                     .await
@@ -351,21 +355,17 @@ async fn should_execute_multiple_custom_tools_in_parallel_single_turn() {
                 let client = ctx.start_client().await;
                 let (city_tx, mut city_rx) = mpsc::unbounded_channel();
                 let (country_tx, mut country_rx) = mpsc::unbounded_channel();
-                let router = ToolHandlerRouter::new(
-                    vec![
-                        Box::new(LookupCityTool { call_tx: city_tx }),
-                        Box::new(LookupCountryTool {
+                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(LookupCityTool { call_tx: city_tx }), Arc::new(LookupCountryTool {
                             call_tx: country_tx,
-                        }),
-                    ],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                        })];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
+                            .with_tool_handlers(tool_handlers)
                             .with_tools(tools),
                     )
                     .await
@@ -403,21 +403,20 @@ async fn should_respect_availabletools_and_excludedtools_combined() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let (excluded_tx, mut excluded_rx) = mpsc::unbounded_channel();
-                let router = ToolHandlerRouter::new(
-                    vec![
-                        Box::new(AllowedTool),
-                        Box::new(ExcludedTool {
-                            call_tx: excluded_tx,
-                        }),
-                    ],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![
+                    Arc::new(AllowedTool),
+                    Arc::new(ExcludedTool {
+                        call_tx: excluded_tx,
+                    }),
+                ];
+                let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+                let __perm = Arc::new(ApproveAllHandler);
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
+                            .with_tool_handlers(tool_handlers)
                             .with_tools(tools)
                             .with_available_tools(["allowed_tool", "excluded_tool"])
                             .with_excluded_tools(["excluded_tool"]),
@@ -693,8 +692,8 @@ struct RecordingPermissionHandler {
 }
 
 #[async_trait::async_trait]
-impl SessionHandler for RecordingPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for RecordingPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,

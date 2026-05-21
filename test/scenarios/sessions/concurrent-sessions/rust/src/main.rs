@@ -19,7 +19,7 @@ fn make_config(system: &str) -> SessionConfig {
     config.model = Some("claude-haiku-4.5".to_string());
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
-    config.with_handler(Arc::new(ApproveAllHandler))
+    config.with_permission_handler(Arc::new(ApproveAllHandler))
 }
 
 #[tokio::main]

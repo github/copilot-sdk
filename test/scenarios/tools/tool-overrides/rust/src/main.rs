@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandlerRouter, define_tool};
+use github_copilot_sdk::tool::{ToolHandler, define_tool};
 use github_copilot_sdk::types::{SessionConfig, ToolResult};
 use github_copilot_sdk::{Client, ClientOptions};
 use schemars::JsonSchema;
@@ -23,16 +23,15 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     opts.github_token = std::env::var("GITHUB_TOKEN").ok();
     let client = Client::start(opts).await?;
 
-    let grep_tool = define_tool(
+    let grep_tool: Arc<dyn ToolHandler> = Arc::from(define_tool(
         "grep",
         "A custom grep implementation that overrides the built-in",
         |_inv, params: GrepParams| async move {
             Ok(ToolResult::Text(format!("CUSTOM_GREP_RESULT: {}", params.query)))
         },
-    );
+    ));
 
-    let router = ToolHandlerRouter::new(vec![grep_tool], Arc::new(ApproveAllHandler));
-    let mut tools = router.tools();
+    let mut tools = vec![grep_tool.tool()];
     for t in tools.iter_mut() {
         if t.name == "grep" {
             t.overrides_built_in_tool = true;
@@ -42,7 +41,9 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
     config.tools = Some(tools);
-    let config = config.with_handler(Arc::new(router));
+    let config = config
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .with_tool_handlers(vec![grep_tool]);
 
     let session = client.create_session(config).await?;
 

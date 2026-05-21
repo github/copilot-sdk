@@ -131,7 +131,7 @@ async fn should_produce_deltas_after_session_resume() {
                     .resume_session(
                         ResumeSessionConfig::new(session_id)
                             .with_streaming(true)
-                            .with_handler(Arc::new(ApproveAllHandler))
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN),
                     )
                     .await
@@ -188,7 +188,7 @@ async fn should_not_produce_deltas_after_session_resume_with_streaming_disabled(
                     .resume_session(
                         ResumeSessionConfig::new(session_id)
                             .with_streaming(false)
-                            .with_handler(Arc::new(ApproveAllHandler))
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN),
                     )
                     .await

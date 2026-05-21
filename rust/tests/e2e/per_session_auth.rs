@@ -22,7 +22,8 @@ async fn session_uses_client_token_when_no_session_token_is_supplied() {
 
                 let session = client
                     .create_session(
-                        SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)),
+                        SessionConfig::default()
+                            .with_permission_handler(Arc::new(ApproveAllHandler)),
                     )
                     .await
                     .expect("create session");
@@ -62,7 +63,7 @@ async fn session_token_overrides_client_token() {
                 let session = client
                     .create_session(
                         SessionConfig::default()
-                            .with_handler(Arc::new(ApproveAllHandler))
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
                             .with_github_token("bob-token"),
                     )
                     .await
@@ -95,7 +96,8 @@ async fn session_auth_status_is_unauthenticated_without_token() {
                 let client = ctx.start_client().await;
                 let session = client
                     .create_session(
-                        SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)),
+                        SessionConfig::default()
+                            .with_permission_handler(Arc::new(ApproveAllHandler)),
                     )
                     .await
                     .expect("create session");
@@ -130,7 +132,7 @@ async fn session_fails_with_invalid_token() {
                 let err = match client
                     .create_session(
                         SessionConfig::default()
-                            .with_handler(Arc::new(ApproveAllHandler))
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
                             .with_github_token("invalid-token"),
                     )
                     .await

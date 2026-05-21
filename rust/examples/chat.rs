@@ -13,39 +13,29 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{
-    HandlerEvent, HandlerResponse, PermissionResult, SessionHandler, UserInputResponse,
-};
-use github_copilot_sdk::types::{MessageOptions, SessionConfig, SessionEvent};
+use github_copilot_sdk::handler::{ApproveAllHandler, UserInputHandler, UserInputResponse};
+use github_copilot_sdk::types::{MessageOptions, SessionConfig, SessionEvent, SessionId};
 use github_copilot_sdk::{Client, ClientOptions};
 
-/// Handler that prints assistant message deltas as they stream in
-/// and auto-approves permissions.
-struct ChatHandler;
+/// User input handler that prompts on stdin.
+struct StdinUserInputHandler;
 
 #[async_trait]
-impl SessionHandler for ChatHandler {
-    async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
-        match event {
-            HandlerEvent::SessionEvent { event, .. } => {
-                print_event(&event);
-                HandlerResponse::Ok
-            }
-            HandlerEvent::PermissionRequest { .. } => {
-                HandlerResponse::Permission(PermissionResult::Approved)
-            }
-            HandlerEvent::UserInput { question, .. } => {
-                // Prompt the user on behalf of the agent.
-                print!("\n[agent asks] {question}\n> ");
-                io::stdout().flush().ok();
-                let answer = read_line().unwrap_or_default();
-                HandlerResponse::UserInput(Some(UserInputResponse {
-                    answer,
-                    was_freeform: true,
-                }))
-            }
-            _ => HandlerResponse::Ok,
-        }
+impl UserInputHandler for StdinUserInputHandler {
+    async fn handle(
+        &self,
+        _session_id: SessionId,
+        question: String,
+        _choices: Option<Vec<String>>,
+        _allow_freeform: Option<bool>,
+    ) -> Option<UserInputResponse> {
+        print!("\n[agent asks] {question}\n> ");
+        io::stdout().flush().ok();
+        let answer = read_line()?;
+        Some(UserInputResponse {
+            answer,
+            was_freeform: true,
+        })
     }
 }
 
@@ -91,9 +81,11 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
 
     let config = {
-        let mut cfg = SessionConfig::default();
+        let mut cfg = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .with_user_input_handler(Arc::new(StdinUserInputHandler));
         cfg.streaming = Some(true);
-        cfg.with_handler(Arc::new(ChatHandler))
+        cfg
     };
     let session = client.create_session(config).await?;
 
@@ -101,6 +93,14 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         "Session {} started. Type a message (Ctrl-D to quit).\n",
         session.id()
     );
+
+    // Spawn a task to print streamed assistant deltas as session events arrive.
+    let mut events = session.subscribe();
+    tokio::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            print_event(&event);
+        }
+    });
 
     loop {
         print!("> ");

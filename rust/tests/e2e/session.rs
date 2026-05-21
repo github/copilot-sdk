@@ -7,7 +7,7 @@ use github_copilot_sdk::generated::session_events::{
     SessionStartData, SessionWarningData, UserMessageData,
 };
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::types::LogLevel as SessionLogLevel;
 use github_copilot_sdk::{
     Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
@@ -329,14 +329,15 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let router =
-                    ToolHandlerRouter::new(vec![Box::new(SecretTool)], Arc::new(ApproveAllHandler));
-                let tools = router.tools();
+                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(SecretTool)];
+                let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+                let __perm = Arc::new(ApproveAllHandler);
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
+                            .with_tool_handlers(tool_handlers)
                             .with_tools(tools)
                             .with_default_agent(DefaultAgentConfig {
                                 excluded_tools: Some(vec!["secret_tool".to_string()]),
@@ -364,16 +365,15 @@ async fn should_create_session_with_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(SecretNumberTool)],
-                Arc::new(ApproveAllHandler),
-            );
-            let tools = router.tools();
+            let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(SecretNumberTool)];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
+                        .with_tool_handlers(tool_handlers)
                         .with_tools(tools),
                 )
                 .await
@@ -405,7 +405,7 @@ async fn should_throw_error_when_resuming_non_existent_session() {
                 let config = ResumeSessionConfig::new(github_copilot_sdk::SessionId::new(
                     "non-existent-session-id",
                 ))
-                .with_handler(Arc::new(ApproveAllHandler))
+                .with_permission_handler(Arc::new(ApproveAllHandler))
                 .with_github_token(super::support::DEFAULT_TEST_TOKEN);
 
                 assert!(client.resume_session(config).await.is_err());
@@ -494,7 +494,9 @@ async fn should_resume_a_session_using_the_same_client() {
                 let resumed = client
                     .resume_session(
                         ResumeSessionConfig::new(session_id.clone())
-                            .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
+                            .with_permission_handler(Arc::new(
+                                github_copilot_sdk::handler::ApproveAllHandler,
+                            ))
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN),
                     )
                     .await
@@ -551,7 +553,9 @@ async fn should_resume_a_session_using_a_new_client() {
                     .resume_session(
                         ResumeSessionConfig::new(session_id.clone())
                             .with_continue_pending_work(true)
-                            .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
+                            .with_permission_handler(Arc::new(
+                                github_copilot_sdk::handler::ApproveAllHandler,
+                            ))
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN),
                     )
                     .await
@@ -1485,7 +1489,7 @@ async fn should_resume_session_with_custom_provider() {
                 let session_id = session.id().clone();
 
                 let mut config = ResumeSessionConfig::new(session_id.clone())
-                    .with_handler(Arc::new(ApproveAllHandler));
+                    .with_permission_handler(Arc::new(ApproveAllHandler));
                 config.provider = Some(
                     ProviderConfig::new("https://api.openai.com/v1")
                         .with_provider_type("openai")

@@ -129,7 +129,7 @@ impl E2eContext {
 
     pub fn approve_all_session_config(&self) -> SessionConfig {
         SessionConfig::default()
-            .with_handler(std::sync::Arc::new(ApproveAllHandler))
+            .with_permission_handler(std::sync::Arc::new(ApproveAllHandler))
             .with_github_token(DEFAULT_TEST_TOKEN)
     }
 

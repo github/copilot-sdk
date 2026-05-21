@@ -30,9 +30,7 @@ use async_trait::async_trait;
 #[cfg(feature = "derive")]
 use github_copilot_sdk::handler::ApproveAllHandler;
 #[cfg(feature = "derive")]
-use github_copilot_sdk::tool::{
-    JsonSchema, ToolHandler, ToolHandlerRouter, schema_for, tool_parameters,
-};
+use github_copilot_sdk::tool::{JsonSchema, ToolHandler, schema_for, tool_parameters};
 #[cfg(feature = "derive")]
 use github_copilot_sdk::types::{MessageOptions, SessionConfig, Tool, ToolInvocation, ToolResult};
 #[cfg(feature = "derive")]
@@ -145,19 +143,18 @@ impl ToolHandler for RollDiceTool {
 #[cfg(feature = "derive")]
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let router = ToolHandlerRouter::new(
-        vec![Box::new(GetWeatherTool), Box::new(RollDiceTool)],
-        Arc::new(ApproveAllHandler),
-    );
-    let tools = router.tools();
-    let handler = Arc::new(router);
+    let tool_handlers: Vec<Arc<dyn ToolHandler>> =
+        vec![Arc::new(GetWeatherTool), Arc::new(RollDiceTool)];
+    let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
 
     let client = Client::start(ClientOptions::default()).await?;
 
     let config = {
-        let mut cfg = SessionConfig::default();
+        let mut cfg = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .with_tool_handlers(tool_handlers);
         cfg.tools = Some(tools);
-        cfg.with_handler(handler)
+        cfg
     };
     let session = client.create_session(config).await?;
 

@@ -335,7 +335,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{PermissionRequestData, RequestId, SessionId};
+    use crate::types::SessionId;
 
     struct EchoTool;
 

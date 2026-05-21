@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Client, Error, OtelExporterType, SessionConfig, TelemetryConfig, Tool, ToolInvocation,
     ToolResult,
@@ -36,18 +36,17 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 ))
                 .await
                 .expect("start client");
-                let router = ToolHandlerRouter::new(
-                    vec![Box::new(EchoTelemetryTool {
+                let tool_handlers: Vec<Arc<dyn ToolHandler>> = vec![Arc::new(EchoTelemetryTool {
                         name: tool_name.to_string(),
-                    })],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                    })];
+            let tools: Vec<Tool> = tool_handlers.iter().map(|h| h.tool()).collect();
+            let __perm = Arc::new(ApproveAllHandler);
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
+                            .with_tool_handlers(tool_handlers)
                             .with_tools(tools),
                     )
                     .await

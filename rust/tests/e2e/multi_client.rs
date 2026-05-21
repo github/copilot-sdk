@@ -1,13 +1,13 @@
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
 
 use async_trait::async_trait;
 use github_copilot_sdk::generated::session_events::{
     PermissionCompletedData, PermissionResult as EventPermissionResult, SessionEventType,
 };
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Client, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionEvent,
     SessionId, Tool, ToolInvocation, ToolResult, Transport,
@@ -34,7 +34,8 @@ async fn both_clients_see_tool_request_and_completion_events() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(selective_handler(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tool_handlers(selective_tools(vec![EchoTool::new(
                                 "magic_number",
                                 "seed",
                                 "MAGIC_",
@@ -49,7 +50,8 @@ async fn both_clients_see_tool_request_and_completion_events() {
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(selective_handler(Vec::new())),
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tool_handlers(selective_tools(Vec::new())),
                     )
                     .await
                     .expect("resume session");
@@ -117,7 +119,7 @@ async fn one_client_approves_permission_and_both_see_the_result() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(permission_handler_with_counter(
+                            .with_permission_handler(permission_handler_with_counter(
                                 PermissionResult::Approved,
                                 Arc::clone(&permission_requests),
                             )),
@@ -127,8 +129,9 @@ async fn one_client_approves_permission_and_both_see_the_result() {
                 let client2 = start_external_client(ctx, port).await;
                 let session2 = client2
                     .resume_session(
-                        resume_config(session1.id().clone())
-                            .with_handler(permission_handler(PermissionResult::NoResult)),
+                        resume_config(session1.id().clone()).with_permission_handler(
+                            permission_handler(PermissionResult::NoResult),
+                        ),
                     )
                     .await
                     .expect("resume session");
@@ -205,15 +208,16 @@ async fn one_client_rejects_permission_and_both_see_the_result() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(permission_handler(PermissionResult::Denied)),
+                            .with_permission_handler(permission_handler(PermissionResult::Denied)),
                     )
                     .await
                     .expect("create session");
                 let client2 = start_external_client(ctx, port).await;
                 let session2 = client2
                     .resume_session(
-                        resume_config(session1.id().clone())
-                            .with_handler(permission_handler(PermissionResult::NoResult)),
+                        resume_config(session1.id().clone()).with_permission_handler(
+                            permission_handler(PermissionResult::NoResult),
+                        ),
                     )
                     .await
                     .expect("resume session");
@@ -283,7 +287,7 @@ async fn two_clients_register_different_tools_and_agent_uses_both() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(selective_handler(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
                                 "city_lookup",
                                 "countryCode",
                                 "CITY_FOR_",
@@ -298,7 +302,7 @@ async fn two_clients_register_different_tools_and_agent_uses_both() {
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(selective_handler(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
                                 "currency_lookup",
                                 "countryCode",
                                 "CURRENCY_FOR_",
@@ -351,7 +355,7 @@ async fn disconnecting_client_removes_its_tools() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(selective_handler(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
                                 "stable_tool",
                                 "input",
                                 "STABLE_",
@@ -366,7 +370,7 @@ async fn disconnecting_client_removes_its_tools() {
                 let _session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(selective_handler(vec![EchoTool::new(
+                            .with_permission_handler(Arc::new(ApproveAllHandler)).with_tool_handlers(selective_tools(vec![EchoTool::new(
                                 "ephemeral_tool",
                                 "input",
                                 "EPHEMERAL_",
@@ -422,7 +426,8 @@ async fn disconnecting_client_removes_its_tools() {
 fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
-        .with_handler(selective_handler(Vec::new()))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .with_tool_handlers(selective_tools(Vec::new()))
         .with_suppress_resume_event(true)
 }
 
@@ -450,8 +455,11 @@ fn free_tcp_port() -> u16 {
     listener.local_addr().expect("local addr").port()
 }
 
-fn selective_handler(tools: Vec<EchoTool>) -> Arc<SelectiveToolHandler> {
-    Arc::new(SelectiveToolHandler { tools })
+fn selective_tools(tools: Vec<EchoTool>) -> Vec<Arc<dyn ToolHandler>> {
+    tools
+        .into_iter()
+        .map(|t| Arc::new(t) as Arc<dyn ToolHandler>)
+        .collect()
 }
 
 fn permission_handler(result: PermissionResult) -> Arc<PermissionDecisionHandler> {
@@ -496,14 +504,8 @@ struct PermissionDecisionHandler {
 }
 
 #[async_trait]
-impl SessionHandler for PermissionDecisionHandler {
-    fn wants_permission_dispatch(&self) -> bool {
-        // NoResult means "I'm declining to respond"; surface that via
-        // the wire flag so the runtime doesn't even broadcast to us.
-        !matches!(self.result, PermissionResult::NoResult)
-    }
-
-    async fn on_permission_request(
+impl PermissionHandler for PermissionDecisionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -516,40 +518,17 @@ impl SessionHandler for PermissionDecisionHandler {
     }
 }
 
-struct SelectiveToolHandler {
-    tools: Vec<EchoTool>,
-}
-
 #[async_trait]
-impl SessionHandler for SelectiveToolHandler {
-    fn wants_permission_dispatch(&self) -> bool {
-        true
+impl ToolHandler for EchoTool {
+    fn tool(&self) -> Tool {
+        EchoTool::tool_definition(self.name, self.argument_name)
     }
 
-    fn wants_external_tool_dispatch(&self, tool_name: &str) -> bool {
-        self.tools.iter().any(|t| t.name == tool_name)
-    }
-
-    async fn on_permission_request(
+    async fn call(
         &self,
-        _session_id: SessionId,
-        _request_id: RequestId,
-        _data: PermissionRequestData,
-    ) -> PermissionResult {
-        PermissionResult::Approved
-    }
-
-    async fn on_external_tool(&self, invocation: ToolInvocation) -> ToolResult {
-        if let Some(tool) = self
-            .tools
-            .iter()
-            .find(|tool| tool.name == invocation.tool_name)
-        {
-            return tool.call(invocation);
-        }
-
-        tokio::time::sleep(Duration::from_secs(30)).await;
-        ToolResult::Text(format!("Ignoring unowned tool {}", invocation.tool_name))
+        invocation: ToolInvocation,
+    ) -> Result<ToolResult, github_copilot_sdk::Error> {
+        Ok(EchoTool::call(self, invocation))
     }
 }
 

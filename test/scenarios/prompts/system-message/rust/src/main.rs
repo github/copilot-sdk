@@ -23,7 +23,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     config.model = Some("claude-haiku-4.5".to_string());
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 

@@ -63,7 +63,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     });
 
-    let config = SessionConfig::default().with_handler(Arc::new(ApproveAllHandler));
+    let config = SessionConfig::default().with_permission_handler(Arc::new(ApproveAllHandler));
     let session = client.create_session(config).await?;
     println!("[client] session created: {}", session.id());
 

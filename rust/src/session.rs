@@ -31,8 +31,7 @@ use crate::types::{
     ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
     PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
     SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultExpanded, TraceContext, UiInputOptions,
-    ensure_attachment_display_names,
+    ToolResult, ToolResultExpanded, TraceContext, UiInputOptions, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -51,19 +50,6 @@ pub(crate) struct SessionHandlers {
     pub exit_plan_mode: Option<Arc<dyn ExitPlanModeHandler>>,
     pub auto_mode_switch: Option<Arc<dyn AutoModeSwitchHandler>>,
     pub tools: Arc<HashMap<String, Arc<dyn crate::tool::ToolHandler>>>,
-}
-
-impl SessionHandlers {
-    pub(crate) fn empty() -> Self {
-        Self {
-            permission: None,
-            elicitation: None,
-            user_input: None,
-            exit_plan_mode: None,
-            auto_mode_switch: None,
-            tools: Arc::new(HashMap::new()),
-        }
-    }
 }
 
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
@@ -794,6 +780,19 @@ impl Client {
     /// broadcast (and silently skips dispatch if one arrives anyway).
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
+        let session_id = config
+            .session_id
+            .clone()
+            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
+        config.session_id = Some(session_id.clone());
+        if config.hooks_handler.is_some() && config.hooks.is_none() {
+            config.hooks = Some(true);
+        }
+        if let Some(transforms) = config.transform.clone() {
+            inject_transform_sections(&mut config, transforms.as_ref());
+        }
+        let wire = config.to_wire(session_id.clone());
+
         let permission_handler = crate::permission::resolve_handler(
             config.permission_handler.take(),
             config.permission_policy.take(),
@@ -841,18 +840,6 @@ impl Client {
             ));
         }
 
-        if hooks.is_some() && config.hooks.is_none() {
-            config.hooks = Some(true);
-        }
-        if let Some(ref transforms) = transforms {
-            inject_transform_sections(&mut config, transforms.as_ref());
-        }
-        let session_id = config
-            .session_id
-            .clone()
-            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
-        config.session_id = Some(session_id.clone());
-        let wire = config.to_wire(session_id.clone());
         let mut params = serde_json::to_value(&wire)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
@@ -948,6 +935,15 @@ impl Client {
     /// fields are unset.
     pub async fn resume_session(&self, mut config: ResumeSessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
+        let session_id = config.session_id.clone();
+        if config.hooks_handler.is_some() && config.hooks.is_none() {
+            config.hooks = Some(true);
+        }
+        if let Some(transforms) = config.transform.clone() {
+            inject_transform_sections_resume(&mut config, transforms.as_ref());
+        }
+        let wire = config.to_wire();
+
         let permission_handler = crate::permission::resolve_handler(
             config.permission_handler.take(),
             config.permission_policy.take(),
@@ -995,14 +991,6 @@ impl Client {
             ));
         }
 
-        if hooks.is_some() && config.hooks.is_none() {
-            config.hooks = Some(true);
-        }
-        if let Some(ref transforms) = transforms {
-            inject_transform_sections_resume(&mut config, transforms.as_ref());
-        }
-        let session_id = config.session_id.clone();
-        let wire = config.to_wire();
         let mut params = serde_json::to_value(&wire)?;
         let trace_ctx = self.resolve_trace_context().await;
         inject_trace_context(&mut params, &trace_ctx);
@@ -1568,8 +1556,7 @@ async fn handle_notification(
                         tool_name = %tool_name,
                         "ToolHandler::call dispatch"
                     );
-                    let result_value =
-                        serde_json::to_value(tool_result).unwrap_or(Value::Null);
+                    let result_value = serde_json::to_value(tool_result).unwrap_or(Value::Null);
                     let rpc_start = Instant::now();
                     let _ = client
                         .call(
@@ -2179,8 +2166,10 @@ mod tests {
             json!({ "kind": "reject" })
         );
         assert_eq!(
-            serde_json::to_value(permission_request_response(&PermissionResult::UserNotAvailable))
-                .expect("serializing fallback permission response should succeed"),
+            serde_json::to_value(permission_request_response(
+                &PermissionResult::UserNotAvailable
+            ))
+            .expect("serializing fallback permission response should succeed"),
             json!({ "kind": "reject" })
         );
     }

@@ -138,7 +138,8 @@ mod tests {
     async fn approve_all_approves() {
         let h = approve_all();
         assert!(matches!(
-            h.handle(SessionId::from("s"), RequestId::new("1"), data()).await,
+            h.handle(SessionId::from("s"), RequestId::new("1"), data())
+                .await,
             PermissionResult::Approved
         ));
     }
@@ -147,7 +148,8 @@ mod tests {
     async fn deny_all_denies() {
         let h = deny_all();
         assert!(matches!(
-            h.handle(SessionId::from("s"), RequestId::new("1"), data()).await,
+            h.handle(SessionId::from("s"), RequestId::new("1"), data())
+                .await,
             PermissionResult::Denied
         ));
     }
@@ -156,7 +158,8 @@ mod tests {
     async fn approve_if_consults_predicate() {
         let h = approve_if(|d| d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell"));
         assert!(matches!(
-            h.handle(SessionId::from("s"), RequestId::new("1"), data()).await,
+            h.handle(SessionId::from("s"), RequestId::new("1"), data())
+                .await,
             PermissionResult::Denied
         ));
     }

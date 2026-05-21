@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use github_copilot_sdk::generated::session_events::{
     CapabilitiesChangedData, CommandsChangedData, SessionEventType,
 };
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{
+    ApproveAllHandler, ElicitationHandler, PermissionHandler, PermissionResult,
+};
 use github_copilot_sdk::{
     Client, CommandContext, CommandDefinition, CommandHandler, ElicitationRequest,
     ElicitationResult, RequestId, ResumeSessionConfig, SessionId, Transport,
@@ -102,7 +104,8 @@ async fn capabilities_changed_fires_when_second_client_joins_with_elicitation_ha
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(Arc::new(ElicitationApproveHandler)),
+                            .with_permission_handler(Arc::new(ElicitationApproveHandler))
+                            .with_elicitation_handler(Arc::new(ElicitationApproveHandler)),
                     )
                     .await
                     .expect("resume session with elicitation handler");
@@ -156,7 +159,8 @@ async fn capabilities_changed_fires_when_elicitation_provider_disconnects() {
                 let _session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(Arc::new(ElicitationApproveHandler)),
+                            .with_permission_handler(Arc::new(ElicitationApproveHandler))
+                            .with_elicitation_handler(Arc::new(ElicitationApproveHandler)),
                     )
                     .await
                     .expect("resume session with elicitation handler");
@@ -193,7 +197,7 @@ async fn capabilities_changed_fires_when_elicitation_provider_disconnects() {
 fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
-        .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
         .with_suppress_resume_event(true)
 }
 
@@ -233,8 +237,8 @@ impl CommandHandler for NoopCommandHandler {
 struct ElicitationApproveHandler;
 
 #[async_trait]
-impl SessionHandler for ElicitationApproveHandler {
-    async fn on_permission_request(
+impl PermissionHandler for ElicitationApproveHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -242,8 +246,11 @@ impl SessionHandler for ElicitationApproveHandler {
     ) -> PermissionResult {
         PermissionResult::Approved
     }
+}
 
-    async fn on_elicitation(
+#[async_trait]
+impl ElicitationHandler for ElicitationApproveHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,

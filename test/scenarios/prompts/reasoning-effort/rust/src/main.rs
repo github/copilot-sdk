@@ -22,7 +22,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     config.reasoning_effort = Some("low".to_string());
     config.available_tools = Some(Vec::new());
     config.system_message = Some(sysmsg);
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 
