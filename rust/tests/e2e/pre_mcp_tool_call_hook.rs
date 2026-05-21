@@ -27,7 +27,7 @@ fn meta_echo_mcp_servers(repo_root: &std::path::Path) -> HashMap<String, McpServ
                 "node".to_string()
             },
             args: vec![server_path],
-            cwd: Some(harness_dir.to_string_lossy().to_string()),
+            working_directory: Some(harness_dir.to_string_lossy().to_string()),
             ..McpStdioServerConfig::default()
         }),
     )])
