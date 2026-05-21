@@ -26,7 +26,7 @@ public class MultiClientTestFixture : IAsyncLifetime
         Ctx = await E2ETestContext.CreateAsync();
         Client1 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Tcp(connectionToken: SharedToken),
+            Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken),
         }, persistent: true);
     }
 
@@ -68,7 +68,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
 
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
         });
     }
 
@@ -333,7 +333,7 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var port = Client1.RuntimePort!.Value;
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
         });
 
         // Now only stable_tool should be available

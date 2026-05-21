@@ -50,12 +50,12 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Should_Allow_Resume_And_Continue_Conversation_After_Suspend()
     {
         const string sharedToken = "suspend-shared-token";
-        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: sharedToken) });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: sharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
         string sessionId;
-        await using (var client1 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.Uri(cliUrl, connectionToken: sharedToken) }))
+        await using (var client1 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: sharedToken) }))
         {
             var session1 = await client1.CreateSessionAsync(new SessionConfig
             {
@@ -76,7 +76,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         // A different client should be able to pick the session back up. The previous
         // turn was completed before suspend, so there is no pending work to continue.
-        await using var client2 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.Uri(cliUrl, connectionToken: sharedToken) });
+        await using var client2 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: sharedToken) });
         var session2 = await client2.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,

@@ -120,7 +120,7 @@ public abstract class RuntimeConnection
     /// </summary>
     /// <param name="path">Path to the runtime executable. When <c>null</c>, the bundled runtime is used.</param>
     /// <param name="args">Extra command-line arguments to pass to the runtime process.</param>
-    public static StdioRuntimeConnection Stdio(string? path = null, IList<string>? args = null)
+    public static StdioRuntimeConnection ForStdio(string? path = null, IList<string>? args = null)
         => new() { Path = path, Args = args };
 
     /// <summary>
@@ -132,7 +132,7 @@ public abstract class RuntimeConnection
     /// When <c>null</c>, a GUID is generated automatically.</param>
     /// <param name="path">Path to the runtime executable. When <c>null</c>, the bundled runtime is used.</param>
     /// <param name="args">Extra command-line arguments to pass to the runtime process.</param>
-    public static TcpRuntimeConnection Tcp(int port = 0, string? connectionToken = null, string? path = null, IList<string>? args = null)
+    public static TcpRuntimeConnection ForTcp(int port = 0, string? connectionToken = null, string? path = null, IList<string>? args = null)
         => new() { Port = port, ConnectionToken = connectionToken, Path = path, Args = args };
 
     /// <summary>
@@ -140,7 +140,7 @@ public abstract class RuntimeConnection
     /// </summary>
     /// <param name="url">URL of the runtime to connect to. Accepts <c>"port"</c>, <c>"host:port"</c>, or a full URL.</param>
     /// <param name="connectionToken">Optional shared secret to authenticate the connection.</param>
-    public static UriRuntimeConnection Uri(string url, string? connectionToken = null)
+    public static UriRuntimeConnection ForUri(string url, string? connectionToken = null)
         => new() { Url = url, ConnectionToken = connectionToken };
 }
 
@@ -160,7 +160,7 @@ public abstract class ChildProcessRuntimeConnection : RuntimeConnection
 
 /// <summary>
 /// Spawns a runtime child process and communicates over stdin/stdout. Construct via
-/// <see cref="RuntimeConnection.Stdio(string?, IList{string}?)"/>.
+/// <see cref="RuntimeConnection.ForStdio(string?, IList{string}?)"/>.
 /// </summary>
 public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 {
@@ -169,7 +169,7 @@ public sealed class StdioRuntimeConnection : ChildProcessRuntimeConnection
 
 /// <summary>
 /// Spawns a runtime child process listening on a TCP socket. Construct via
-/// <see cref="RuntimeConnection.Tcp(int, string?, string?, IList{string}?)"/>.
+/// <see cref="RuntimeConnection.ForTcp(int, string?, string?, IList{string}?)"/>.
 /// </summary>
 public sealed class TcpRuntimeConnection : ChildProcessRuntimeConnection
 {
@@ -190,7 +190,7 @@ public sealed class TcpRuntimeConnection : ChildProcessRuntimeConnection
 
 /// <summary>
 /// Connects to an already-running runtime at the specified URL. Construct via
-/// <see cref="RuntimeConnection.Uri(string, string?)"/>.
+/// <see cref="RuntimeConnection.ForUri(string, string?)"/>.
 /// </summary>
 public sealed class UriRuntimeConnection : RuntimeConnection
 {
@@ -241,7 +241,7 @@ public sealed class CopilotClientOptions
 
     /// <summary>
     /// How to connect to the runtime. When <c>null</c>, the default is
-    /// <see cref="RuntimeConnection.Stdio(string?, IList{string}?)"/> with the bundled runtime.
+    /// <see cref="RuntimeConnection.ForStdio(string?, IList{string}?)"/> with the bundled runtime.
     /// </summary>
     public RuntimeConnection? Connection { get; set; }
 
@@ -255,7 +255,7 @@ public sealed class CopilotClientOptions
     /// Sets the <c>COPILOT_HOME</c> environment variable on the spawned runtime.
     /// When <see langword="null"/>, the runtime defaults to <c>~/.copilot</c>.
     /// Ignored when connecting to an existing runtime via
-    /// <see cref="RuntimeConnection.Uri(string, string?)"/>.
+    /// <see cref="RuntimeConnection.ForUri(string, string?)"/>.
     /// </summary>
     public string? BaseDirectory { get; set; }
 
@@ -317,7 +317,7 @@ public sealed class CopilotClientOptions
     /// Sessions without activity for this duration are automatically cleaned up.
     /// Set to <c>0</c> or leave as <see langword="null"/> to disable (sessions live indefinitely).
     /// This option is only used when the SDK spawns the runtime; it is ignored
-    /// when connecting to an external runtime via <see cref="RuntimeConnection.Uri(string, string?)"/>.
+    /// when connecting to an external runtime via <see cref="RuntimeConnection.ForUri(string, string?)"/>.
     /// </summary>
     public int? SessionIdleTimeoutSeconds { get; set; }
 
@@ -326,7 +326,7 @@ public sealed class CopilotClientOptions
     /// When true, sessions in a GitHub repository working directory are
     /// accessible from GitHub web and mobile.
     /// This option is only used when the SDK spawns the runtime; it is ignored
-    /// when connecting to an external runtime via <see cref="RuntimeConnection.Uri(string, string?)"/>.
+    /// when connecting to an external runtime via <see cref="RuntimeConnection.ForUri(string, string?)"/>.
     /// </summary>
     public bool EnableRemoteSessions { get; set; }
 

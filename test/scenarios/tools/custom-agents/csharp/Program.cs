@@ -5,7 +5,7 @@ var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.Stdio(path: cliPath),
+    Connection = RuntimeConnection.ForStdio(path: cliPath),
     GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 

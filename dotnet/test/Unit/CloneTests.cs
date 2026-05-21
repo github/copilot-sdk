@@ -13,7 +13,7 @@ public class CloneTests
     {
         var original = new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Tcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
+            Connection = RuntimeConnection.ForTcp(port: 8080, connectionToken: "tok", path: "/usr/bin/copilot", args: ["--verbose", "--debug"]),
             WorkingDirectory = "/home/user",
             LogLevel = CopilotLogLevel.Debug,
             Environment = new Dictionary<string, string> { ["KEY"] = "value" },
@@ -40,7 +40,7 @@ public class CloneTests
     [Fact]
     public void CopilotClientOptions_Clone_ConnectionIsShared()
     {
-        var connection = RuntimeConnection.Stdio();
+        var connection = RuntimeConnection.ForStdio();
         var original = new CopilotClientOptions { Connection = connection };
 
         var clone = original.Clone();

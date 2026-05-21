@@ -102,7 +102,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         // preventing breakage from new gates (e.g., extension-permission-access).
         await using var yoloClient = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Stdio(args: ["--yolo"]),
+            Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
         });
         await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
         {
@@ -188,7 +188,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         // preventing breakage from new gates (e.g., extension-permission-access).
         await using var yoloClient = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Stdio(args: ["--yolo"]),
+            Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
         });
         await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
         {

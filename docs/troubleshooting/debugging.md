@@ -164,7 +164,7 @@ func main() {
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.Stdio(args: new[] { "--log-dir", "/path/to/logs" })
+    Connection = RuntimeConnection.ForStdio(args: new[] { "--log-dir", "/path/to/logs" })
 });
 ```
 

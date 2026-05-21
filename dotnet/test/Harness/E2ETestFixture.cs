@@ -19,7 +19,7 @@ public class E2ETestFixture : IAsyncLifetime
         Ctx = await E2ETestContext.CreateAsync();
         Client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Tcp(connectionToken: SharedTcpConnectionToken),
+            Connection = RuntimeConnection.ForTcp(connectionToken: SharedTcpConnectionToken),
         }, persistent: true);
     }
 

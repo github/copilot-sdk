@@ -139,7 +139,7 @@ if response != nil {
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.Stdio(path: "/usr/local/bin/copilot"),
+    Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
 });
 
 await using var session = await client.CreateSessionAsync(

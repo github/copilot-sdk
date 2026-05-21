@@ -4,7 +4,7 @@ var cliUrl = Environment.GetEnvironmentVariable("COPILOT_CLI_URL") ?? "localhost
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.Uri(cliUrl),
+    Connection = RuntimeConnection.ForUri(cliUrl),
 });
 
 await client.StartAsync();

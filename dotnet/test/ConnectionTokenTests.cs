@@ -22,7 +22,7 @@ public class ConnectionTokenTestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        GoodClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.Tcp(connectionToken: Token) });
+        GoodClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: Token) });
 
         await GoodClient.StartAsync();
         Port = GoodClient.RuntimePort
@@ -59,7 +59,7 @@ public class ConnectionTokenTests : IClassFixture<ConnectionTokenTestFixture>
     [Fact]
     public async Task Rejects_A_Wrong_Token()
     {
-        var wrongClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri($"localhost:{_fixture.Port}", connectionToken: "wrong") });
+        var wrongClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri($"localhost:{_fixture.Port}", connectionToken: "wrong") });
 
         try
         {
@@ -76,7 +76,7 @@ public class ConnectionTokenTests : IClassFixture<ConnectionTokenTestFixture>
     [Fact]
     public async Task Rejects_A_Missing_Token_When_One_Is_Required()
     {
-        var noTokenClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri($"localhost:{_fixture.Port}") });
+        var noTokenClient = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri($"localhost:{_fixture.Port}") });
 
         try
         {

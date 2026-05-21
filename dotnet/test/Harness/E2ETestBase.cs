@@ -93,7 +93,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
         var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: E2ETestFixture.SharedTcpConnectionToken),
         });
         return await client.ResumeSessionAsync(sessionId, config);
     }

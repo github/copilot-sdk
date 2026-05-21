@@ -115,12 +115,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// var client = new CopilotClient();
     ///
     /// // Connect to an existing runtime
-    /// var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.Uri("localhost:3000") });
+    /// var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri("localhost:3000") });
     ///
     /// // Custom runtime path with specific log level
     /// var client = new CopilotClient(new CopilotClientOptions
     /// {
-    ///     Connection = RuntimeConnection.Stdio(path: "/usr/local/bin/copilot"),
+    ///     Connection = RuntimeConnection.ForStdio(path: "/usr/local/bin/copilot"),
     ///     LogLevel = CopilotLogLevel.Debug
     /// });
     /// </code>
@@ -128,7 +128,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     public CopilotClient(CopilotClientOptions? options = null)
     {
         _options = options ?? new();
-        _connection = _options.Connection ?? RuntimeConnection.Stdio();
+        _connection = _options.Connection ?? RuntimeConnection.ForStdio();
 
         switch (_connection)
         {
@@ -152,7 +152,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 }
                 if (!string.IsNullOrEmpty(_options.GitHubToken) || _options.UseLoggedInUser != null)
                 {
-                    throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.Uri (the existing runtime manages its own auth).", nameof(options));
+                    throw new ArgumentException("GitHubToken and UseLoggedInUser cannot be combined with RuntimeConnection.ForUri (the existing runtime manages its own auth).", nameof(options));
                 }
                 var parsed = ParseRuntimeUrl(uri.Url);
                 _optionsHost = parsed.Host;
@@ -196,7 +196,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     /// <remarks>
     /// If the server is not already running and the client is configured to spawn one (default), it will be started.
-    /// If connecting to an external runtime (via RuntimeConnection.Uri), only establishes the connection.
+    /// If connecting to an external runtime (via RuntimeConnection.ForUri), only establishes the connection.
     /// </remarks>
     /// <example>
     /// <code>
@@ -1335,7 +1335,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var cliPath = childProcessConnection.Path
             ?? envCliPath
             ?? GetBundledCliPath(out var searchedPath)
-            ?? throw new InvalidOperationException($"Copilot runtime not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.Stdio(path: ...) / RuntimeConnection.Tcp(path: ...).");
+            ?? throw new InvalidOperationException($"Copilot runtime not found at '{searchedPath}'. Ensure the SDK NuGet package was restored correctly or provide an explicit RuntimeConnection.ForStdio(path: ...) / RuntimeConnection.ForTcp(path: ...).");
         var cliPathSource = childProcessConnection.Path is not null ? "Options" : envCliPath is not null ? "Environment" : "Bundled";
         var args = new List<string>();
 

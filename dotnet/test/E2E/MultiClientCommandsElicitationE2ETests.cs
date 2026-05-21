@@ -24,7 +24,7 @@ public class MultiClientCommandsElicitationFixture : IAsyncLifetime
         Ctx = await E2ETestContext.CreateAsync();
         Client1 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Tcp(connectionToken: SharedToken),
+            Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken),
         }, persistent: true);
     }
 
@@ -70,7 +70,7 @@ public class MultiClientCommandsElicitationE2ETests
 
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
         });
     }
 
@@ -218,7 +218,7 @@ public class MultiClientCommandsElicitationE2ETests
             ?? throw new InvalidOperationException("Client1 RuntimePort is null");
         _client3 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientCommandsElicitationFixture.SharedToken),
         });
 
         // Client3 joins WITH elicitation handler

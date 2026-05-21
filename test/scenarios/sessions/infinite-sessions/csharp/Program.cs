@@ -2,7 +2,7 @@ using GitHub.Copilot;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.Stdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
+    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
     GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
 });
 

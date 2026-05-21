@@ -111,7 +111,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
                 {
                     LogLevel = CopilotLogLevel.Error,
                     SessionFs = SessionFsConfig,
-                    Connection = RuntimeConnection.Uri($"localhost:{port}", connectionToken: "session-fs-shared-token"),
+                    Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: "session-fs-shared-token"),
                 });
 
             try
@@ -456,8 +456,8 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     private CopilotClient CreateSessionFsClient(string providerRoot, bool useStdio = true, string? tcpConnectionToken = null)
     {
         RuntimeConnection connection = useStdio
-            ? RuntimeConnection.Stdio()
-            : RuntimeConnection.Tcp(connectionToken: tcpConnectionToken);
+            ? RuntimeConnection.ForStdio()
+            : RuntimeConnection.ForTcp(connectionToken: tcpConnectionToken);
 
         Directory.CreateDirectory(providerRoot);
         return Ctx.CreateClient(
