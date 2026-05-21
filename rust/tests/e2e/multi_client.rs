@@ -41,7 +41,6 @@ async fn both_clients_see_tool_request_and_completion_events() {
                                 "MAGIC_",
                                 "_42",
                             )]))
-                            .with_tools([EchoTool::tool_definition("magic_number", "seed")])
                             .with_available_tools(["magic_number"]),
                     )
                     .await
@@ -293,7 +292,6 @@ async fn two_clients_register_different_tools_and_agent_uses_both() {
                                 "CITY_FOR_",
                                 "",
                             )]))
-                            .with_tools([EchoTool::tool_definition("city_lookup", "countryCode")])
                             .with_available_tools(["city_lookup", "currency_lookup"]),
                     )
                     .await
@@ -308,7 +306,6 @@ async fn two_clients_register_different_tools_and_agent_uses_both() {
                                 "CURRENCY_FOR_",
                                 "",
                             )]))
-                            .with_tools([EchoTool::tool_definition("currency_lookup", "countryCode")])
                             .with_available_tools(["city_lookup", "currency_lookup"]),
                     )
                     .await
@@ -361,7 +358,6 @@ async fn disconnecting_client_removes_its_tools() {
                                 "STABLE_",
                                 "",
                             )]))
-                            .with_tools([EchoTool::tool_definition("stable_tool", "input")])
                             .with_available_tools(["stable_tool", "ephemeral_tool"]),
                     )
                     .await
@@ -376,7 +372,6 @@ async fn disconnecting_client_removes_its_tools() {
                                 "EPHEMERAL_",
                                 "",
                             )]))
-                            .with_tools([EchoTool::tool_definition("ephemeral_tool", "input")])
                             .with_available_tools(["stable_tool", "ephemeral_tool"]),
                     )
                     .await
