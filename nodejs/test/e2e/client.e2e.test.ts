@@ -13,6 +13,44 @@ function onTestFinishedForceStop(client: CopilotClient) {
 }
 
 describe("Client", () => {
+    it.each([
+        { transport: "stdio", connection: () => undefined },
+        { transport: "tcp", connection: () => RuntimeConnection.forTcp() },
+    ])("allows createSession without onPermissionRequest ($transport)", async ({ connection }) => {
+        const client = new CopilotClient({ connection: connection() });
+        onTestFinishedForceStop(client);
+
+        await using const session = await client.createSession({});
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+    });
+
+    it("allows resumeSession without onPermissionRequest", async () => {
+        const connectionToken = "client-e2e-resume-token";
+
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forTcp({ connectionToken }),
+        });
+        onTestFinishedForceStop(client);
+
+        await using const originalSession = await client.createSession({});
+
+        const port = (client as unknown as { runtimePort: number | null }).runtimePort;
+        if (port == null) {
+            throw new Error("Client must be using TCP transport to support multi-client resume.");
+        }
+
+        const resumeClient = new CopilotClient({
+            connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
+        });
+        onTestFinishedForceStop(resumeClient);
+
+        await using const resumedSession = await resumeClient.resumeSession(
+            originalSession.sessionId,
+            {}
+        );
+        expect(resumedSession.sessionId).toBe(originalSession.sessionId);
+    });
+
     it("should start and connect to server using stdio", async () => {
         const client = new CopilotClient();
         onTestFinishedForceStop(client);
