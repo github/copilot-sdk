@@ -50,6 +50,7 @@ import type {
     UserInputResponse,
 } from "./types.js";
 
+/** @internal */
 export const NO_RESULT_PERMISSION_V2_ERROR =
     "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
 
@@ -1043,19 +1044,6 @@ export class CopilotSession {
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
-    }
-
-    /**
-     * @deprecated Use {@link disconnect} instead. This method will be removed in a future release.
-     *
-     * Disconnects this session and releases all in-memory resources.
-     * Session data on disk is preserved for later resumption.
-     *
-     * @returns A promise that resolves when the session is disconnected
-     * @throws Error if the connection fails
-     */
-    async destroy(): Promise<void> {
-        return this.disconnect();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */

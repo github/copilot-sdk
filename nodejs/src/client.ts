@@ -603,7 +603,11 @@ export class CopilotClient {
 
         if (this.socket) {
             try {
+                // .end() initiates the close, but we also .destroy() to make
+                // sure the underlying handle is released so the Node event
+                // loop can exit cleanly without an explicit process.exit().
                 this.socket.end();
+                this.socket.destroy();
             } catch (error) {
                 errors.push(
                     new Error(
@@ -617,7 +621,13 @@ export class CopilotClient {
         // Kill CLI process (only if we spawned it)
         if (this.cliProcess && !this.isExternalServer) {
             try {
+                // Detach stdio streams so they don't keep the event loop alive
+                // while we wait for the child to exit.
+                this.cliProcess.stdin?.destroy();
+                this.cliProcess.stdout?.destroy();
+                this.cliProcess.stderr?.destroy();
                 this.cliProcess.kill();
+                this.cliProcess.unref();
             } catch (error) {
                 errors.push(
                     new Error(
@@ -638,6 +648,22 @@ export class CopilotClient {
         this.processExitPromise = null;
 
         return errors;
+    }
+
+    /**
+     * Alias for {@link stop} that lets `CopilotClient` participate in `await using`
+     * blocks for automatic cleanup.
+     *
+     * @example
+     * ```typescript
+     * await using client = new CopilotClient();
+     * const session = await client.createSession({ onPermissionRequest: approveAll });
+     * await session.sendAndWait("Hello");
+     * // client.stop() is called automatically when the block exits.
+     * ```
+     */
+    async [Symbol.asyncDispose](): Promise<void> {
+        await this.stop();
     }
 
     /**
