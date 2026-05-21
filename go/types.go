@@ -860,9 +860,9 @@ type SessionConfig struct {
 	// handler. Equivalent to calling session.On(handler) immediately after creation,
 	// but executes earlier in the lifecycle so no events are missed.
 	OnEvent SessionEventHandler
-	// CreateSessionFsHandler supplies a handler for session filesystem operations.
+	// CreateSessionFsProvider supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) SessionFsProvider
+	CreateSessionFsProvider func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. Each command appears as
 	// /name in the CLI TUI for the user to invoke. The Handler is called when the
 	// command is executed.
@@ -997,8 +997,8 @@ type ElicitationContext struct {
 // If the handler returns an error the SDK auto-cancels the request.
 type ElicitationHandler func(ctx ElicitationContext) (ElicitationResult, error)
 
-// InputOptions configures a text input field for the Input convenience method.
-type InputOptions struct {
+// UiInputOptions configures a text input field for the Input convenience method.
+type UiInputOptions struct {
 	// Title label for the input field.
 	Title string
 	// Description text shown below the field.
@@ -1123,9 +1123,9 @@ type ResumeSessionConfig struct {
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
-	// CreateSessionFsHandler supplies a handler for session filesystem operations.
+	// CreateSessionFsProvider supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) SessionFsProvider
+	CreateSessionFsProvider func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.

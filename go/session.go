@@ -157,6 +157,14 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 	return response.MessageID, nil
 }
 
+// SendPrompt is a convenience wrapper for [Session.Send] that takes a plain
+// prompt string instead of a [MessageOptions] struct. Equivalent to:
+//
+//	session.Send(ctx, copilot.MessageOptions{Prompt: prompt})
+func (s *Session) SendPrompt(ctx context.Context, prompt string) (string, error) {
+	return s.Send(ctx, MessageOptions{Prompt: prompt})
+}
+
 // SendAndWait sends a message to this session and waits until the session becomes idle.
 //
 // This is a convenience method that combines [Session.Send] with waiting for
@@ -235,6 +243,15 @@ func (s *Session) SendAndWait(ctx context.Context, options MessageOptions) (*Ses
 	case <-ctx.Done(): // TODO: remove once session.Send honors the context
 		return nil, fmt.Errorf("waiting for session.idle: %w", ctx.Err())
 	}
+}
+
+// SendPromptAndWait is a convenience wrapper for [Session.SendAndWait] that
+// takes a plain prompt string instead of a [MessageOptions] struct. Equivalent
+// to:
+//
+//	session.SendAndWait(ctx, copilot.MessageOptions{Prompt: prompt})
+func (s *Session) SendPromptAndWait(ctx context.Context, prompt string) (*SessionEvent, error) {
+	return s.SendAndWait(ctx, MessageOptions{Prompt: prompt})
 }
 
 // On subscribes to events from this session.
@@ -834,7 +851,7 @@ func (ui *SessionUI) Select(ctx context.Context, message string, options []strin
 
 // Input shows a text input dialog. Returns the entered text, or empty string and
 // false if the user declines/cancels.
-func (ui *SessionUI) Input(ctx context.Context, message string, opts *InputOptions) (string, bool, error) {
+func (ui *SessionUI) Input(ctx context.Context, message string, opts *UiInputOptions) (string, bool, error) {
 	if err := ui.session.assertElicitation(); err != nil {
 		return "", false, err
 	}
@@ -1233,14 +1250,6 @@ func (s *Session) Disconnect() error {
 	s.elicitationMu.Unlock()
 
 	return nil
-}
-
-// Deprecated: Use [Session.Disconnect] instead. Destroy will be removed in a future release.
-//
-// Destroy closes this session and releases all in-memory resources.
-// Session data on disk is preserved for later resumption.
-func (s *Session) Destroy() error {
-	return s.Disconnect()
 }
 
 // Abort aborts the currently processing message in this session.

@@ -44,7 +44,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -81,7 +81,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -111,7 +111,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -173,7 +173,7 @@ func TestSessionFsE2E(t *testing.T) {
 		suppliedFileContent := strings.Repeat("x", 100_000)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("get_big_string", "Returns a large string",
 					func(_ struct{}, inv copilot.ToolInvocation) (string, error) {
@@ -218,7 +218,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -257,7 +257,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -299,7 +299,7 @@ func TestSessionFsE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -408,7 +408,7 @@ func (h *testSessionFsHandler) Stat(path string) (*copilot.SessionFsFileInfo, er
 	}, nil
 }
 
-func (h *testSessionFsHandler) Mkdir(path string, recursive bool, mode *int) error {
+func (h *testSessionFsHandler) MakeDirectory(path string, recursive bool, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	perm := os.FileMode(0o777)
 	if mode != nil {
@@ -420,7 +420,7 @@ func (h *testSessionFsHandler) Mkdir(path string, recursive bool, mode *int) err
 	return os.Mkdir(fullPath, perm)
 }
 
-func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {
+func (h *testSessionFsHandler) ReadDirectory(path string) ([]string, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
@@ -432,7 +432,7 @@ func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {
 	return names, nil
 }
 
-func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
+func (h *testSessionFsHandler) ReadDirectoryWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
@@ -451,7 +451,7 @@ func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFsRea
 	return result, nil
 }
 
-func (h *testSessionFsHandler) Rm(path string, recursive bool, force bool) error {
+func (h *testSessionFsHandler) Remove(path string, recursive bool, force bool) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	var err error
 	if recursive {
@@ -533,7 +533,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	sessionID := "handler-session"
 	handler := &testSessionFsHandler{root: providerRoot, sessionID: sessionID}
 
-	if err := handler.Mkdir("/workspace/nested", true, nil); err != nil {
+	if err := handler.MakeDirectory("/workspace/nested", true, nil); err != nil {
 		t.Fatalf("Mkdir failed: %v", err)
 	}
 
@@ -575,7 +575,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 		t.Errorf("Expected content 'hello world', got %q", content)
 	}
 
-	entries, err := handler.Readdir("/workspace/nested")
+	entries, err := handler.ReadDirectory("/workspace/nested")
 	if err != nil {
 		t.Fatalf("Readdir failed: %v", err)
 	}
@@ -583,7 +583,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 		t.Errorf("Expected entries to contain 'file.txt', got %v", entries)
 	}
 
-	typedEntries, err := handler.ReaddirWithTypes("/workspace/nested")
+	typedEntries, err := handler.ReadDirectoryWithTypes("/workspace/nested")
 	if err != nil {
 		t.Fatalf("ReaddirWithTypes failed: %v", err)
 	}
@@ -616,7 +616,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 		t.Errorf("Expected renamed content 'hello world', got %q", renamedContent)
 	}
 
-	if err := handler.Rm("/workspace/nested/renamed.txt", false, false); err != nil {
+	if err := handler.Remove("/workspace/nested/renamed.txt", false, false); err != nil {
 		t.Fatalf("Rm failed: %v", err)
 	}
 	removed, err := handler.Exists("/workspace/nested/renamed.txt")
@@ -628,7 +628,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	}
 
 	// Force removing a missing path should succeed.
-	if err := handler.Rm("/workspace/nested/missing.txt", false, true); err != nil {
+	if err := handler.Remove("/workspace/nested/missing.txt", false, true); err != nil {
 		t.Errorf("Rm with force on missing path should not error, got %v", err)
 	}
 

@@ -187,7 +187,6 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Abort(ctx context.Context) error` - Abort the currently processing message
 - `GetEvents(ctx context.Context) ([]SessionEvent, error)` - Get event history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
-- `Destroy() error` - _(Deprecated)_ Use `Disconnect()` instead
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
@@ -799,7 +798,7 @@ confirmed, err := ui.Confirm(ctx, "Deploy to production?")
 choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
 
 // Text input — returns (text, ok bool, error)
-name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.InputOptions{
+name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UiInputOptions{
     Title:       "Release Name",
     Description: "A short name for the release",
     MinLength:   copilot.Int(1),

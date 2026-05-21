@@ -713,13 +713,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	c.sessionsMux.Unlock()
 
 	if c.options.SessionFs != nil {
-		if config.CreateSessionFsHandler == nil {
+		if config.CreateSessionFsProvider == nil {
 			c.sessionsMux.Lock()
 			delete(c.sessions, sessionID)
 			c.sessionsMux.Unlock()
-			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
+			return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
 		}
-		provider := config.CreateSessionFsHandler(session)
+		provider := config.CreateSessionFsProvider(session)
 		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
 			if _, ok := provider.(SessionFsSqliteProvider); !ok {
 				c.sessionsMux.Lock()
@@ -898,13 +898,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	c.sessionsMux.Unlock()
 
 	if c.options.SessionFs != nil {
-		if config.CreateSessionFsHandler == nil {
+		if config.CreateSessionFsProvider == nil {
 			c.sessionsMux.Lock()
 			delete(c.sessions, sessionID)
 			c.sessionsMux.Unlock()
-			return nil, fmt.Errorf("CreateSessionFsHandler is required in session config when SessionFs is enabled in client options")
+			return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
 		}
-		provider := config.CreateSessionFsHandler(session)
+		provider := config.CreateSessionFsProvider(session)
 		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
 			if _, ok := provider.(SessionFsSqliteProvider); !ok {
 				c.sessionsMux.Lock()
