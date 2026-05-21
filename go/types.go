@@ -650,11 +650,15 @@ type MCPServerConfig interface {
 //
 // The Tools field controls which tools from the server are exposed:
 //   - nil (omitted from the wire): all tools (CLI default)
-//   - []string{"*"}: explicit "all tools"
-//   - []string{}: no tools
-//   - []string{"foo","bar"}: only those tools
+//   - &[]string{"*"}: explicit "all tools"
+//   - &[]string{}: no tools
+//   - &[]string{"foo","bar"}: only those tools
+//
+// The pointer-to-slice form is required to distinguish "omitted" (all tools)
+// from "empty list" (no tools) on the wire, matching TypeScript's
+// `tools?: string[]` and C#'s `IList<string>?` semantics.
 type MCPStdioServerConfig struct {
-	Tools   []string          `json:"tools,omitempty"`
+	Tools   *[]string         `json:"tools,omitempty"`
 	Timeout int               `json:"timeout,omitempty"`
 	Command string            `json:"command"`
 	Args    []string          `json:"args,omitempty"`
@@ -680,7 +684,7 @@ func (c MCPStdioServerConfig) MarshalJSON() ([]byte, error) {
 //
 // See [MCPStdioServerConfig] for the semantics of the Tools field.
 type MCPHTTPServerConfig struct {
-	Tools   []string          `json:"tools,omitempty"`
+	Tools   *[]string         `json:"tools,omitempty"`
 	Timeout int               `json:"timeout,omitempty"`
 	URL     string            `json:"url"`
 	Headers map[string]string `json:"headers,omitempty"`

@@ -120,7 +120,7 @@ func main() {
             "my-local-server": copilot.MCPStdioServerConfig{
                 Command: "node",
                 Args:    []string{"./mcp-server.js"},
-                Tools:   []string{"*"},
+                Tools:   &[]string{"*"},
             },
         },
     })

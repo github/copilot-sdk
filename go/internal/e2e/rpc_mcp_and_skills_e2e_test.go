@@ -112,7 +112,7 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 				serverName: copilot.MCPStdioServerConfig{
 					Command: "echo",
 					Args:    []string{"rpc-list-mcp-server"},
-					Tools:   []string{"*"},
+					Tools:   &[]string{"*"},
 				},
 			},
 		})
