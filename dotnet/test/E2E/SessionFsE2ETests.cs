@@ -531,7 +531,7 @@ public class SessionFsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken cancellationToken = default)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var reader = new StreamReader(stream);
         return await reader.ReadToEndAsync(cancellationToken);
     }

@@ -115,12 +115,12 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
             StartInfo = new ProcessStartInfo("git")
             {
                 WorkingDirectory = projectDir,
+                Arguments = "init -q",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                UseShellExecute = false,
             }
         };
-        process.StartInfo.ArgumentList.Add("init");
-        process.StartInfo.ArgumentList.Add("-q");
 
         if (!process.Start())
         {

@@ -166,7 +166,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         return _proxy.SetCopilotUserByTokenAsync(token, response);
     }
 
-    public IReadOnlyDictionary<string, string> GetEnvironment()
+    public Dictionary<string, string> GetEnvironment()
     {
         var env = Environment.GetEnvironmentVariables()
             .Cast<System.Collections.DictionaryEntry>()

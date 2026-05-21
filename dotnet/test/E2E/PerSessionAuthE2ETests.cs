@@ -37,7 +37,7 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         }, autoInjectGitHubToken: false);
     }
 
-    private static Dictionary<string, string> WithoutAuthEnv(IReadOnlyDictionary<string, string> env)
+    private static Dictionary<string, string> WithoutAuthEnv(Dictionary<string, string> env)
     {
         var result = new Dictionary<string, string>(env)
         {
