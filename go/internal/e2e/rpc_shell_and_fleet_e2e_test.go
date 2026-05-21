@@ -196,7 +196,7 @@ func waitForFleetCompletion(t *testing.T, session *copilot.Session, contentNeedl
 	t.Helper()
 	deadline := time.Now().Add(120 * time.Second)
 	for time.Now().Before(deadline) {
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err == nil {
 			for _, evt := range messages {
 				if d, ok := evt.Data.(*copilot.AssistantMessageData); ok && strings.Contains(strings.ToLower(d.Content), contentNeedle) {

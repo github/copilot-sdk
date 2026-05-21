@@ -13,8 +13,10 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("explicit token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
-			opts.TCPConnectionToken = "right-token"
+			opts.Connection = copilot.TcpConnection{
+				Path:            ctx.CLIPath,
+				ConnectionToken: "right-token",
+			}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -34,7 +36,7 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("auto-generated token round-trips successfully", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
+			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -54,22 +56,26 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("sibling client with wrong token is rejected", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		good := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
-			opts.TCPConnectionToken = "right-token"
+			opts.Connection = copilot.TcpConnection{
+				Path:            ctx.CLIPath,
+				ConnectionToken: "right-token",
+			}
 		})
 		t.Cleanup(func() { good.ForceStop() })
 
 		if err := good.Start(t.Context()); err != nil {
 			t.Fatalf("good client Start failed: %v", err)
 		}
-		port := good.ActualPort()
+		port := good.RuntimePort()
 		if port == 0 {
 			t.Fatalf("expected non-zero port from TCP mode client")
 		}
 
 		bad := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl:             fmt.Sprintf("localhost:%d", port),
-			TCPConnectionToken: "wrong",
+			Connection: copilot.UriConnection{
+				URL:             fmt.Sprintf("localhost:%d", port),
+				ConnectionToken: "wrong",
+			},
 		})
 		t.Cleanup(func() { bad.ForceStop() })
 
@@ -85,21 +91,23 @@ func TestConnectionToken(t *testing.T) {
 	t.Run("sibling client with no token is rejected", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		good := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
-			opts.TCPConnectionToken = "right-token"
+			opts.Connection = copilot.TcpConnection{
+				Path:            ctx.CLIPath,
+				ConnectionToken: "right-token",
+			}
 		})
 		t.Cleanup(func() { good.ForceStop() })
 
 		if err := good.Start(t.Context()); err != nil {
 			t.Fatalf("good client Start failed: %v", err)
 		}
-		port := good.ActualPort()
+		port := good.RuntimePort()
 		if port == 0 {
 			t.Fatalf("expected non-zero port from TCP mode client")
 		}
 
 		none := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl: fmt.Sprintf("localhost:%d", port),
+			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", port)},
 		})
 		t.Cleanup(func() { none.ForceStop() })
 

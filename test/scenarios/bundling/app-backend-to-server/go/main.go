@@ -53,7 +53,7 @@ func chatHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: cliURL(),
+		Connection: copilot.UriConnection{URL: cliURL()},
 	})
 
 	ctx := context.Background()

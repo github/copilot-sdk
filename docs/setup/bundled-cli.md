@@ -71,7 +71,7 @@ await client.stop()
 <summary><strong>Go</strong></summary>
 
 > [!NOTE]
-> The Go SDK does not bundle the CLI. You must install the CLI separately or set `CLIPath` to point to an existing binary. See [Local CLI Setup](./local-cli.md) for details.
+> The Go SDK does not bundle the CLI. You must install the CLI separately or set `Connection` to point to an existing binary. See [Local CLI Setup](./local-cli.md) for details.
 
 <!-- docs-validate: hidden -->
 ```go
@@ -137,7 +137,7 @@ Console.WriteLine(response?.Data.Content);
 <summary><strong>Java</strong></summary>
 
 > [!NOTE]
-> The Java SDK does not bundle or embed the Copilot CLI. You must install the CLI separately and configure its path via `cliPath` or the `COPILOT_CLI_PATH` environment variable.
+> The Java SDK does not bundle or embed the Copilot CLI. You must install the CLI separately and configure its path via `Connection` or the `COPILOT_CLI_PATH` environment variable.
 
 ```java
 import com.github.copilot.sdk.CopilotClient;

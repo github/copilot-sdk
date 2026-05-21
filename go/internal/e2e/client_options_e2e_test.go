@@ -17,60 +17,20 @@ import (
 // Go's ClientOptions is a plain struct with no setter validation; equivalent behavior is covered
 // in package-level unit tests.
 func TestClientOptionsE2E(t *testing.T) {
-	t.Run("autostart false requires explicit start", func(t *testing.T) {
-		ctx := testharness.NewTestContext(t)
-		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.AutoStart = copilot.Bool(false)
-		})
-		t.Cleanup(func() { client.ForceStop() })
-
-		if got := client.State(); got != copilot.StateDisconnected {
-			t.Errorf("Expected initial state Disconnected, got %v", got)
-		}
-
-		if _, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		}); err == nil {
-			t.Fatal("Expected CreateSession to fail when AutoStart=false and Start was not called")
-		}
-
-		if err := client.Start(t.Context()); err != nil {
-			t.Fatalf("Start failed: %v", err)
-		}
-		if got := client.State(); got != copilot.StateConnected {
-			t.Errorf("Expected state Connected after Start, got %v", got)
-		}
-
-		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-		})
-		if err != nil {
-			t.Fatalf("CreateSession failed after Start: %v", err)
-		}
-		if session.SessionID == "" {
-			t.Error("Expected non-empty session id")
-		}
-		session.Disconnect()
-	})
-
 	t.Run("should listen on configured tcp port", func(t *testing.T) {
 		ctx := testharness.NewTestContext(t)
 		port := getAvailableTcpPort(t)
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
-			opts.Port = port
+			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath, Port: port}
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
 		if err := client.Start(t.Context()); err != nil {
 			t.Fatalf("Start failed: %v", err)
 		}
-		if got := client.State(); got != copilot.StateConnected {
-			t.Errorf("Expected state Connected, got %v", got)
-		}
-		if got := client.ActualPort(); got != port {
-			t.Errorf("Expected ActualPort=%d, got %d", port, got)
+		if got := client.RuntimePort(); got != port {
+			t.Errorf("Expected RuntimePort=%d, got %d", port, got)
 		}
 
 		// Ping over the connection to confirm it is usable.
@@ -138,10 +98,11 @@ func TestClientOptionsE2E(t *testing.T) {
 		}
 
 		client := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.AutoStart = copilot.Bool(false)
-			opts.CLIPath = cliPath
-			opts.CLIArgs = []string{"--capture-file", capturePath}
-			opts.CopilotHome = filepath.Join(ctx.WorkDir, "copilot-home-from-option")
+			opts.Connection = copilot.StdioConnection{
+				Path: cliPath,
+				Args: []string{"--capture-file", capturePath},
+			}
+			opts.BaseDirectory = filepath.Join(ctx.WorkDir, "copilot-home-from-option")
 			opts.Env = append([]string{}, opts.Env...)
 			opts.Env = append(opts.Env, "COPILOT_HOME="+filepath.Join(ctx.WorkDir, "copilot-home-from-env"))
 			opts.GitHubToken = "process-option-token"
@@ -276,23 +237,19 @@ func TestClientOptionsUnit(t *testing.T) {
 		}
 	})
 
-	t.Run("should panic when GitHubToken used with CliUrl", func(t *testing.T) {
-		// Mirrors: Should_Throw_When_GitHubToken_Used_With_CliUrl
-		// Go's NewClient validates mutually exclusive auth + CLIUrl combinations
-		// with panic() instead of an exception.
+	t.Run("should panic when GitHubToken used with UriConnection", func(t *testing.T) {
 		assertPanics(t, func() {
 			_ = copilot.NewClient(&copilot.ClientOptions{
-				CLIUrl:      "localhost:8080",
+				Connection:  copilot.UriConnection{URL: "localhost:8080"},
 				GitHubToken: "gho_test_token",
 			})
 		})
 	})
 
-	t.Run("should panic when UseLoggedInUser used with CliUrl", func(t *testing.T) {
-		// Mirrors: Should_Throw_When_UseLoggedInUser_Used_With_CliUrl
+	t.Run("should panic when UseLoggedInUser used with UriConnection", func(t *testing.T) {
 		assertPanics(t, func() {
 			_ = copilot.NewClient(&copilot.ClientOptions{
-				CLIUrl:          "localhost:8080",
+				Connection:      copilot.UriConnection{URL: "localhost:8080"},
 				UseLoggedInUser: copilot.Bool(false),
 			})
 		})

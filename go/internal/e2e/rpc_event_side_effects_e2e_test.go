@@ -168,7 +168,7 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 			t.Fatalf("Failed to create persisted message: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read messages: %v", err)
 		}
@@ -203,7 +203,7 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 			t.Fatalf("Expected rewind count %d, got %+v", truncateResult.EventsRemoved, rewindData)
 		}
 
-		messagesAfter, err := session.GetMessages(t.Context())
+		messagesAfter, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read messages after truncate: %v", err)
 		}
@@ -224,7 +224,7 @@ func TestRpcEventSideEffectsE2E(t *testing.T) {
 			t.Fatalf("Failed to create persisted message: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to read messages: %v", err)
 		}

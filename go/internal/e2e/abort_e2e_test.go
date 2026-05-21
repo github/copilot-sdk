@@ -22,7 +22,7 @@ func TestAbortE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			Streaming:           true,
+			Streaming:           copilot.Bool(true),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)

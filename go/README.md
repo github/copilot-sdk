@@ -94,7 +94,7 @@ Follow these steps to embed the CLI:
 1. Run `go get -tool github.com/github/copilot-sdk/go/cmd/bundler`. This is a one-time setup step per project.
 2. Run `go tool bundler` in your build environment just before building your application.
 
-That's it! When your application calls `copilot.NewClient` without a `CLIPath` nor the `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
+That's it! When your application calls `copilot.NewClient` without a `Connection` field (or with an empty `StdioConnection{}`) and no `COPILOT_CLI_PATH` environment variable, the SDK will automatically install the embedded CLI to a cache directory and use it for all operations.
 
 ## API Reference
 
@@ -110,8 +110,8 @@ That's it! When your application calls `copilot.NewClient` without a `CLIPath` n
 - `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
 - `DeleteSession(sessionID string) error` - Delete a session permanently
 - `GetLastSessionID(ctx context.Context) (*string, error)` - Get the ID of the most recently updated session
-- `GetState() ConnectionState` - Get connection state
 - `Ping(message string) (*PingResponse, error)` - Ping the server
+- `RuntimePort() int` - TCP port the runtime is listening on (0 if stdio)
 - `GetForegroundSessionID(ctx context.Context) (*string, error)` - Get the session ID currently displayed in TUI (TUI+server mode only)
 - `SetForegroundSessionID(ctx context.Context, sessionID string) error` - Request TUI to display a specific session (TUI+server mode only)
 - `On(handler SessionLifecycleHandler) func()` - Subscribe to all lifecycle events; returns unsubscribe function
@@ -136,18 +136,20 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 
 **ClientOptions:**
 
-- `CLIPath` (string): Path to CLI executable (default: "copilot" or `COPILOT_CLI_PATH` env var)
-- `CLIUrl` (string): URL of existing CLI server (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `Cwd` (string): Working directory for CLI process
-- `CopilotHome` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When empty, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `CLIUrl`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location. You can vary `CopilotHome` per client independently of the shared extracted binary location.
-- `Port` (int): Server port for TCP mode (default: 0 for random)
-- `UseStdio` (bool): Use stdio transport instead of TCP (default: true)
-- `LogLevel` (string): Log level (default: "info")
-- `AutoStart` (\*bool): Auto-start server on first use (default: true). Use `Bool(false)` to disable.
-- `Env` ([]string): Environment variables for CLI process (default: inherits from current process)
+- `Connection` (RuntimeConnection): How the SDK connects to the runtime. Construct via one of:
+  - `StdioConnection{Path, Args}` — spawn a runtime over stdio (the default if `Connection` is nil)
+  - `TcpConnection{Port, ConnectionToken, Path, Args}` — spawn a runtime that listens on TCP
+  - `UriConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
+
+  When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
+- `Cwd` (string): Working directory for the runtime process
+- `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `UriConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
+- `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
+- `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
 - `GitHubToken` (string): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CLIUrl`.
-- `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `UseLoggedInUser` (\*bool): Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `UriConnection`.
+- `EnableRemoteSessions` (bool): Enable remote session support (Mission Control integration). Ignored with `UriConnection`.
+- `Telemetry` (\*TelemetryConfig): OpenTelemetry configuration for the runtime. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 
 **SessionConfig:**
 
@@ -160,7 +162,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   - **replace**: Replaces the entire prompt with `Content`
   - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
-- `Streaming` (bool): Enable streaming delta events
+- `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
 - `OnPermissionRequest` (PermissionHandlerFunc): Optional handler called before each tool execution to approve or deny it. When nil, permission requests are emitted as events and left pending for manual resolution. Use `copilot.PermissionHandler.ApproveAll` to allow everything, or provide a custom function for fine-grained control. See [Permission Handling](#permission-handling) section.
 - `OnUserInputRequest` (UserInputHandler): Handler for user input requests from the agent (enables ask_user tool). See [User Input Requests](#user-input-requests) section.
@@ -174,7 +176,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Tools` ([]Tool): Tools to expose when resuming
 - `ReasoningEffort` (string): Reasoning effort level for models that support it
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
-- `Streaming` (bool): Enable streaming delta events
+- `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `Commands` ([]CommandDefinition): Slash-commands. See [Commands](#commands) section.
 - `OnElicitationRequest` (ElicitationHandler): Elicitation handler. See [Elicitation Requests](#elicitation-requests-serverclient) section.
 
@@ -183,15 +185,14 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `Send(ctx context.Context, options MessageOptions) (string, error)` - Send a message
 - `On(handler SessionEventHandler) func()` - Subscribe to events (returns unsubscribe function)
 - `Abort(ctx context.Context) error` - Abort the currently processing message
-- `GetMessages(ctx context.Context) ([]SessionEvent, error)` - Get message history
+- `GetEvents(ctx context.Context) ([]SessionEvent, error)` - Get event history
 - `Disconnect() error` - Disconnect the session (releases in-memory resources, preserves disk state)
-- `Destroy() error` - _(Deprecated)_ Use `Disconnect()` instead
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
 ### Helper Functions
 
-- `Bool(v bool) *bool` - Helper to create bool pointers for `AutoStart` option
+- `Bool(v bool) *bool` - Helper to create bool pointers (e.g. for `Streaming`)
 - `Int(v int) *int` - Helper to create int pointers for `MinLength`, `MaxLength`
 - `String(v string) *string` - Helper to create string pointers
 - `Float64(v float64) *float64` - Helper to create float64 pointers
@@ -398,7 +399,7 @@ func main() {
 
     session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
         Model:     "gpt-5",
-        Streaming: true,
+        Streaming: copilot.Bool(true),
     })
     if err != nil {
         log.Fatal(err)
@@ -439,7 +440,7 @@ func main() {
 }
 ```
 
-When `Streaming: true`:
+When `Streaming: copilot.Bool(true)`:
 
 - `assistant.message_delta` events are sent with `DeltaContent` containing incremental text
 - `assistant.reasoning_delta` events are sent with `DeltaContent` for reasoning/chain-of-thought (model-dependent)
@@ -797,7 +798,7 @@ confirmed, err := ui.Confirm(ctx, "Deploy to production?")
 choice, ok, err := ui.Select(ctx, "Pick an environment", []string{"staging", "production"})
 
 // Text input — returns (text, ok bool, error)
-name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.InputOptions{
+name, ok, err := ui.Input(ctx, "Enter the release name", &copilot.UiInputOptions{
     Title:       "Release Name",
     Description: "A short name for the release",
     MinLength:   copilot.Int(1),

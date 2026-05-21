@@ -90,7 +90,7 @@ func GetNextEventOfType(session *copilot.Session, eventType copilot.SessionEvent
 }
 
 func getExistingFinalResponse(ctx context.Context, session *copilot.Session, alreadyIdle bool) (*copilot.SessionEvent, error) {
-	messages, err := session.GetMessages(ctx)
+	messages, err := session.GetEvents(ctx)
 	if err != nil {
 		return nil, err
 	}

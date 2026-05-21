@@ -16,7 +16,7 @@ func main() {
 	}
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: cliUrl,
+		Connection: copilot.UriConnection{URL: cliUrl},
 	})
 
 	ctx := context.Background()

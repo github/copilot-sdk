@@ -17,7 +17,7 @@ const reset = "\033[0m"
 func main() {
 	ctx := context.Background()
 	cliPath := filepath.Join("..", "..", "nodejs", "node_modules", "@github", "copilot", "index.js")
-	client := copilot.NewClient(&copilot.ClientOptions{CLIPath: cliPath})
+	client := copilot.NewClient(&copilot.ClientOptions{Connection: copilot.StdioConnection{Path: cliPath}})
 	if err := client.Start(ctx); err != nil {
 		panic(err)
 	}

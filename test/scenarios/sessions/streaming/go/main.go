@@ -22,7 +22,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "claude-haiku-4.5",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 	})
 	if err != nil {
 		log.Fatal(err)
