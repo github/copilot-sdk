@@ -31,7 +31,7 @@ internal static class TestDownlevelPathExtensions
 
     private static string JoinCore(params string?[] paths)
     {
-        var sb = new Text.StringBuilder();
+        var sb = new System.Text.StringBuilder();
         foreach (var path in paths)
         {
             if (string.IsNullOrEmpty(path))
@@ -50,7 +50,7 @@ internal static class TestDownlevelPathExtensions
         return sb.ToString();
     }
 
-    private static bool EndsWithSeparator(Text.StringBuilder sb) =>
+    private static bool EndsWithSeparator(System.Text.StringBuilder sb) =>
         sb.Length > 0 && (sb[sb.Length - 1] == Path.DirectorySeparatorChar || sb[sb.Length - 1] == Path.AltDirectorySeparatorChar);
 }
 
