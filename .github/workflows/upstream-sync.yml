@@ -122,6 +122,32 @@ jobs:
             fi
           fi
 
+      - name: Remove excluded paths
+        if: steps.check.outputs.already_up_to_date != 'true'
+        run: |
+          # GitHub Agentic Workflows (gh-aw) need COPILOT_GITHUB_TOKEN
+          # which forks don't have — strip them so CI doesn't fail every sync.
+          EXCLUDE_PATHS=(
+            ".github/agents"
+            ".github/aw"
+            ".github/workflows/sdk-consistency-review.lock.yml"
+            ".github/workflows/sdk-consistency-review.md"
+            ".github/workflows/cross-repo-issue-analysis.lock.yml"
+            ".github/workflows/cross-repo-issue-analysis.md"
+            ".github/workflows/issue-triage.lock.yml"
+            ".github/workflows/issue-triage.md"
+            ".github/workflows/release-changelog.lock.yml"
+            ".github/workflows/release-changelog.md"
+          )
+          for path in "${EXCLUDE_PATHS[@]}"; do
+            if [ -e "$path" ]; then
+              echo "  排除: $path"
+              git rm -rf --ignore-unmatch "$path" 2>/dev/null || rm -rf "$path"
+            fi
+          done
+          # Stage the removals (and any other resolved files)
+          git add -A
+
       - name: Commit and push
         if: steps.check.outputs.already_up_to_date != 'true' && steps.merge.outputs.needs_manual_review != 'true'
         run: |
