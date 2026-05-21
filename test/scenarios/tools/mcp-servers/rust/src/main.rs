@@ -25,7 +25,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
             .map(|s| s.split(' ').map(str::to_string).collect())
             .unwrap_or_default();
         let stdio = McpStdioServerConfig {
-            tools: vec!["*".to_string()],
             command: cmd.clone(),
             args,
             ..Default::default()
