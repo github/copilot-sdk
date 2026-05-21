@@ -22,7 +22,11 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
     private readonly List<SqliteCall> _sqliteCalls = [];
 
-    [SkipOnNetFramework("Microsoft.Data.Sqlite native library loading is not supported on .NET Framework")]
+#if NETFRAMEWORK
+    [Fact(Skip = "Microsoft.Data.Sqlite native library loading is not supported on .NET Framework")]
+#else
+    [Fact]
+#endif
     public async Task Should_Route_Sql_Queries_Through_The_Sessionfs_Sqlite_Handler()
     {
         await using var client = CreateSessionFsClient();
@@ -51,7 +55,11 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await session.DisposeAsync();
     }
 
-    [SkipOnNetFramework("Microsoft.Data.Sqlite native library loading is not supported on .NET Framework")]
+#if NETFRAMEWORK
+    [Fact(Skip = "Microsoft.Data.Sqlite native library loading is not supported on .NET Framework")]
+#else
+    [Fact]
+#endif
     public async Task Should_Allow_Subagents_To_Use_Sql_Tool_Via_Inherited_Sessionfs()
     {
         await using var client = CreateSessionFsClient();
