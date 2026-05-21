@@ -187,7 +187,8 @@ export interface CopilotClientOptions {
     baseDirectory?: string;
 
     /**
-     * Log level for the Copilot runtime.
+     * Log level for the Copilot runtime. When omitted, the runtime uses its
+     * own default (currently `"info"`).
      */
     logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all";
 

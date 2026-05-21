@@ -229,7 +229,7 @@ export class CopilotClient {
     private resolvedEnv: Record<string, string | undefined>;
     private options: {
         cwd: string;
-        logLevel: string;
+        logLevel?: string;
         gitHubToken?: string;
         useLoggedInUser: boolean;
         telemetry?: TelemetryConfig;
@@ -375,7 +375,7 @@ export class CopilotClient {
 
         this.options = {
             cwd: options.cwd ?? process.cwd(),
-            logLevel: options.logLevel || "info",
+            logLevel: options.logLevel,
             gitHubToken: options.gitHubToken,
             // Default useLoggedInUser to false when gitHubToken is provided, otherwise true.
             useLoggedInUser: options.useLoggedInUser ?? (options.gitHubToken ? false : true),
@@ -1491,13 +1491,11 @@ export class CopilotClient {
             // Clear stderr buffer for fresh capture
             this.stderrBuffer = "";
 
-            const args = [
-                ...this.connectionExtraArgs,
-                "--headless",
-                "--no-auto-update",
-                "--log-level",
-                this.options.logLevel,
-            ];
+            const args = [...this.connectionExtraArgs, "--headless", "--no-auto-update"];
+
+            if (this.options.logLevel) {
+                args.push("--log-level", this.options.logLevel);
+            }
 
             // Choose transport mode based on the resolved connection config.
             if (this.connectionConfig.kind === "stdio") {
