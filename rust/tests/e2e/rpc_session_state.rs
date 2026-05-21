@@ -666,7 +666,7 @@ async fn should_fork_session_with_persisted_messages() {
                     )
                     .await
                     .expect("resume fork");
-                let forked_messages = forked.get_messages().await.expect("forked messages");
+                let forked_messages = forked.get_events().await.expect("forked messages");
                 assert!(contains_user_message(
                     &forked_messages,
                     "Say FORK_SOURCE_ALPHA exactly."
@@ -682,7 +682,7 @@ async fn should_fork_session_with_persisted_messages() {
                     .expect("send fork")
                     .expect("fork answer");
                 assert!(assistant_message_content(&fork_answer).contains("FORK_CHILD_BETA"));
-                let source_after = session.get_messages().await.expect("source messages");
+                let source_after = session.get_events().await.expect("source messages");
                 assert!(!contains_user_message(
                     &source_after,
                     "Now say FORK_CHILD_BETA exactly."
@@ -736,7 +736,7 @@ async fn should_handle_forking_session_without_persisted_events() {
                             .expect("resume fork");
                         assert!(
                             !forked
-                                .get_messages()
+                                .get_events()
                                 .await
                                 .expect("forked messages")
                                 .iter()
@@ -793,7 +793,7 @@ async fn should_fork_session_to_event_id_excluding_boundary_event() {
                     .send_and_wait("Say FORK_BOUNDARY_SECOND exactly.")
                     .await
                     .expect("send second");
-                let source_events = session.get_messages().await.expect("messages");
+                let source_events = session.get_events().await.expect("messages");
                 let boundary_id = source_events
                     .iter()
                     .find(|event| {
@@ -825,7 +825,7 @@ async fn should_fork_session_to_event_id_excluding_boundary_event() {
                     )
                     .await
                     .expect("resume fork");
-                let forked_events = forked.get_messages().await.expect("forked messages");
+                let forked_events = forked.get_events().await.expect("forked messages");
                 assert!(contains_user_message(
                     &forked_events,
                     "Say FORK_BOUNDARY_FIRST exactly."

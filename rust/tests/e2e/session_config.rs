@@ -165,7 +165,7 @@ async fn should_use_custom_session_id() {
                 .expect("create session");
 
             assert_eq!(session.id(), &requested_session_id);
-            let messages = session.get_messages().await.expect("messages");
+            let messages = session.get_events().await.expect("messages");
             let start_event = messages
                 .iter()
                 .find(|event| event.parsed_type() == SessionEventType::SessionStart)
@@ -202,7 +202,7 @@ async fn should_apply_reasoning_effort_on_session_create() {
                     .expect("create session");
 
                 let start_event = session
-                    .get_messages()
+                    .get_events()
                     .await
                     .expect("messages")
                     .into_iter()
@@ -258,7 +258,7 @@ async fn should_apply_all_reasoning_effort_values_on_session_create() {
                         .unwrap_or_else(|err| panic!("create session with effort {effort}: {err}"));
 
                     let start_event = session
-                        .get_messages()
+                        .get_events()
                         .await
                         .expect("messages")
                         .into_iter()

@@ -486,7 +486,7 @@ async fn should_wait_for_slow_permission_handler() {
                 release_tx.send(()).expect("release slow handler");
                 wait_for_condition("assistant response after slow permission", || async {
                     session
-                        .get_messages()
+                        .get_events()
                         .await
                         .expect("get messages")
                         .iter()

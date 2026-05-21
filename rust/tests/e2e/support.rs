@@ -410,7 +410,7 @@ pub async fn wait_for_final_assistant_message(session: &Session) -> SessionEvent
 #[allow(dead_code, reason = "used by follow-on E2E ports")]
 pub async fn last_assistant_message(session: &Session) -> SessionEvent {
     session
-        .get_messages()
+        .get_events()
         .await
         .expect("get session messages")
         .into_iter()

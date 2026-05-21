@@ -101,7 +101,7 @@ let _id = session
     .await?;
 
 // Message history
-let messages = session.get_messages().await?;
+let messages = session.get_events().await?;
 
 // Abort the current agent turn
 session.abort().await?;

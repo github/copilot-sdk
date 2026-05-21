@@ -41,7 +41,7 @@ async fn should_throw_when_getting_messages_from_disconnected_session() {
                     .expect("create session");
                 session.disconnect().await.expect("disconnect session");
 
-                assert!(session.get_messages().await.is_err());
+                assert!(session.get_events().await.is_err());
 
                 client.stop().await.expect("stop client");
             })

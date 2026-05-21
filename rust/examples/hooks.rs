@@ -128,6 +128,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         println!("\n{text}");
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

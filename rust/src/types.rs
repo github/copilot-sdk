@@ -1750,9 +1750,9 @@ pub struct ResumeSessionConfig {
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Force-fail resume if the session does not exist on disk, instead of
-    /// silently starting a new session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disable_resume: Option<bool>,
+    /// silently starting a new session. Wire field name stays `disableResume`.
+    #[serde(rename = "disableResume", skip_serializing_if = "Option::is_none")]
+    pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
     /// was dropped. Use this together with [`Client::force_stop`] to hand
@@ -1824,7 +1824,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
             .field("transform", &self.transform.as_ref().map(|_| "<set>"))
-            .field("disable_resume", &self.disable_resume)
+            .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
             .finish()
     }
@@ -1871,7 +1871,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
-            disable_resume: None,
+            suppress_resume_event: None,
             continue_pending_work: None,
             handler: None,
             hooks_handler: None,
@@ -2163,8 +2163,8 @@ impl ResumeSessionConfig {
 
     /// Force-fail resume if the session does not exist on disk, instead
     /// of silently starting a new session.
-    pub fn with_disable_resume(mut self, disable: bool) -> Self {
-        self.disable_resume = Some(disable);
+    pub fn with_suppress_resume_event(mut self, suppress: bool) -> Self {
+        self.suppress_resume_event = Some(suppress);
         self
     }
 
@@ -3465,7 +3465,7 @@ mod tests {
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
-            .with_disable_resume(true)
+            .with_suppress_resume_event(true)
             .with_continue_pending_work(true);
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
@@ -3500,7 +3500,7 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
-        assert_eq!(cfg.disable_resume, Some(true));
+        assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
     }
 
@@ -3518,6 +3518,26 @@ mod tests {
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
         let wire = serde_json::to_value(&cfg).unwrap();
         assert!(wire.get("continuePendingWork").is_none());
+    }
+
+    /// The Rust field is `suppress_resume_event`, but the wire field stays
+    /// `disableResume` to preserve compatibility with the runtime and other
+    /// SDKs.
+    #[test]
+    fn resume_session_config_serializes_suppress_resume_event_to_disable_resume_on_wire() {
+        let cfg =
+            ResumeSessionConfig::new(SessionId::from("sess-1")).with_suppress_resume_event(true);
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(wire["disableResume"], true);
+        assert!(wire.get("suppressResumeEvent").is_none());
+
+        // Round-trip: deserialize from the wire shape.
+        let json = serde_json::json!({
+            "sessionId": "sess-2",
+            "disableResume": true,
+        });
+        let parsed: ResumeSessionConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(parsed.suppress_resume_event, Some(true));
     }
 
     /// `instruction_directories` must serialize to wire as

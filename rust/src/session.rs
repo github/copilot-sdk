@@ -446,8 +446,8 @@ impl Session {
         }
     }
 
-    /// Retrieve the session's message history.
-    pub async fn get_messages(&self) -> Result<Vec<SessionEvent>, Error> {
+    /// Retrieve the session's timeline events.
+    pub async fn get_events(&self) -> Result<Vec<SessionEvent>, Error> {
         let result = self
             .client
             .call(
@@ -457,6 +457,12 @@ impl Session {
             .await?;
         let response: GetMessagesResponse = serde_json::from_value(result)?;
         Ok(response.events)
+    }
+
+    /// Deprecated alias for [`get_events`](Self::get_events).
+    #[deprecated(since = "0.1.0", note = "Use `get_events()` instead")]
+    pub async fn get_messages(&self) -> Result<Vec<SessionEvent>, Error> {
+        self.get_events().await
     }
 
     /// Abort the current agent turn.
@@ -519,11 +525,11 @@ impl Session {
         Ok(())
     }
 
-    /// Alias for [`disconnect`](Self::disconnect).
-    ///
-    /// Named after the `session.destroy` wire RPC. Prefer `disconnect` in
-    /// new code — the wire-level "destroy" is misleading because on-disk
-    /// state is preserved.
+    /// Deprecated alias for [`disconnect`](Self::disconnect). The
+    /// underlying wire RPC happens to be named `session.destroy`, but it
+    /// only severs the connection — on-disk session state is preserved.
+    /// Prefer `disconnect` in new code.
+    #[deprecated(since = "0.1.0", note = "Use `disconnect()` instead")]
     pub async fn destroy(&self) -> Result<(), Error> {
         self.disconnect().await
     }

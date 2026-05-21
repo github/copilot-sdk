@@ -37,7 +37,7 @@ async fn shouldcreateanddisconnectsessions() {
                 .expect("create session");
 
             assert_uuid_like(session.id());
-            let messages = session.get_messages().await.expect("get messages");
+            let messages = session.get_events().await.expect("get messages");
             assert!(!messages.is_empty(), "expected initial session events");
             let start = messages[0]
                 .typed_data::<SessionStartData>()
@@ -46,7 +46,7 @@ async fn shouldcreateanddisconnectsessions() {
 
             session.disconnect().await.expect("disconnect session");
             assert!(
-                session.get_messages().await.is_err(),
+                session.get_events().await.is_err(),
                 "disconnected session should no longer serve message history"
             );
             client.stop().await.expect("stop client");
@@ -447,7 +447,7 @@ async fn should_abort_a_session() {
             session.abort().await.expect("abort session");
             idle.await.expect("idle task");
 
-            let messages = session.get_messages().await.expect("get messages");
+            let messages = session.get_events().await.expect("get messages");
             assert!(messages
                 .iter()
                 .any(|event| event.parsed_type() == SessionEventType::Abort));
@@ -558,7 +558,7 @@ async fn should_resume_a_session_using_a_new_client() {
                     .expect("resume session");
                 assert_eq!(resumed.id(), &session_id);
 
-                let messages = resumed.get_messages().await.expect("get messages");
+                let messages = resumed.get_events().await.expect("get messages");
                 assert!(
                     messages
                         .iter()
@@ -1389,7 +1389,7 @@ async fn should_send_with_mode_property() {
             .await;
 
             let user_message = session
-                .get_messages()
+                .get_events()
                 .await
                 .expect("get messages")
                 .into_iter()
@@ -1507,7 +1507,7 @@ async fn latest_user_message(
     session: &github_copilot_sdk::session::Session,
 ) -> github_copilot_sdk::SessionEvent {
     session
-        .get_messages()
+        .get_events()
         .await
         .expect("get messages")
         .into_iter()

@@ -117,6 +117,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     }
 
     println!("\nGoodbye.");
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

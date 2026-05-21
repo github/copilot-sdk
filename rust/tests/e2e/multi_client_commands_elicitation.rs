@@ -200,7 +200,7 @@ fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
         .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
-        .with_disable_resume(true)
+        .with_suppress_resume_event(true)
 }
 
 async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {

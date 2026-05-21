@@ -394,7 +394,7 @@ async fn session_rpc_methods_send_correct_method_names() {
             match expected_method {
                 "session.abort" => s.abort().await.map(|_| ()),
                 "session.log" => s.log("test msg", None).await,
-                "session.destroy" => s.destroy().await,
+                "session.destroy" => s.disconnect().await,
                 _ => unreachable!(),
             }
         });
@@ -966,7 +966,7 @@ async fn get_messages_returns_typed_events() {
 
     let handle = tokio::spawn({
         let session = session.clone();
-        async move { session.get_messages().await.unwrap() }
+        async move { session.get_events().await.unwrap() }
     });
 
     let request = server.read_request().await;
@@ -988,6 +988,37 @@ async fn get_messages_returns_typed_events() {
     let events = timeout(TIMEOUT, handle).await.unwrap().unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].event_type, "user.message");
+}
+
+#[tokio::test]
+#[allow(deprecated)]
+async fn deprecated_get_messages_alias_still_works() {
+    let (session, mut server) = create_session_pair(Arc::new(NoopHandler)).await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.get_messages().await.unwrap() }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.getMessages");
+    server
+        .respond(
+            &request,
+            serde_json::json!({
+                "events": [{
+                    "id": "e1",
+                    "timestamp": "2025-01-01T00:00:00Z",
+                    "type": "user.message",
+                    "data": { "text": "hi" },
+                }]
+            }),
+        )
+        .await;
+
+    let events = timeout(TIMEOUT, handle).await.unwrap().unwrap();
+    assert_eq!(events.len(), 1);
 }
 
 #[tokio::test]

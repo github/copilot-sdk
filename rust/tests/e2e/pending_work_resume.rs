@@ -228,7 +228,7 @@ async fn should_report_continuependingwork_true_in_resume_event() {
                     .await
                     .expect("resume session");
                 let resume_event = session2
-                    .get_messages()
+                    .get_events()
                     .await
                     .expect("messages")
                     .into_iter()

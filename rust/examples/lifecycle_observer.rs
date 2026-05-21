@@ -97,7 +97,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         )
         .await?;
 
-    session.destroy().await?;
+    session.disconnect().await?;
 
     // Synchronous shutdown — useful in panicking-cleanup paths or tests
     // where you don't have an async runtime available to await `stop()`.

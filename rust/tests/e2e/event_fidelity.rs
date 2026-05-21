@@ -318,7 +318,7 @@ async fn should_preserve_message_order_in_getmessages_after_tool_use() {
                     .await
                     .expect("send");
 
-                let messages = session.get_messages().await.expect("get messages");
+                let messages = session.get_events().await.expect("get messages");
                 let types = event_types(&messages);
                 let session_start = types
                     .iter()

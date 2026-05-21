@@ -425,7 +425,7 @@ fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
         .with_handler(selective_handler(Vec::new()))
-        .with_disable_resume(true)
+        .with_suppress_resume_event(true)
 }
 
 async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {

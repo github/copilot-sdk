@@ -260,7 +260,7 @@ async fn should_emit_streaming_deltas_with_reasoning_effort_configured() {
                 assert!(assistant.content.contains("255"));
 
                 let start = session
-                    .get_messages()
+                    .get_events()
                     .await
                     .expect("get messages")
                     .into_iter()
