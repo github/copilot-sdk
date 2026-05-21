@@ -228,7 +228,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         {
             throw new ArgumentException(
                 "Specify either useStdio or options.Connection, not both. " +
-                "Use options.Connection (e.g. RuntimeConnection.Stdio() / RuntimeConnection.Tcp()) to control transport when supplying a Connection.",
+                "Use options.Connection (e.g. RuntimeConnection.ForStdio() / RuntimeConnection.ForTcp()) to control transport when supplying a Connection.",
                 nameof(useStdio));
         }
 
@@ -237,8 +237,8 @@ public sealed class E2ETestContext : IAsyncDisposable
         {
             case null:
                 options.Connection = useStdio == false
-                    ? RuntimeConnection.Tcp(path: cliPath)
-                    : RuntimeConnection.Stdio(path: cliPath);
+                    ? RuntimeConnection.ForTcp(path: cliPath)
+                    : RuntimeConnection.ForStdio(path: cliPath);
                 break;
             case ChildProcessRuntimeConnection child when child.Path is null:
                 child.Path = cliPath;
