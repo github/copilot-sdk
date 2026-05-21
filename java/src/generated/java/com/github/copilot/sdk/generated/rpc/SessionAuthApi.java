@@ -18,6 +18,8 @@ import javax.annotation.processing.Generated;
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public final class SessionAuthApi {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
+
     private final RpcCaller caller;
     private final String sessionId;
 
@@ -29,10 +31,27 @@ public final class SessionAuthApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionAuthGetStatusResult> getStatus() {
         return caller.invoke("session.auth.getStatus", java.util.Map.of("sessionId", this.sessionId), SessionAuthGetStatusResult.class);
+    }
+
+    /**
+     * New auth credentials to install on the session. Omit to leave credentials unchanged.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionAuthSetCredentialsResult> setCredentials(SessionAuthSetCredentialsParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.auth.setCredentials", _p, SessionAuthSetCredentialsResult.class);
     }
 
 }

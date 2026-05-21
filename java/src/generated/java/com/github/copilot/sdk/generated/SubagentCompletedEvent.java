@@ -44,11 +44,11 @@ public final class SubagentCompletedEvent extends SessionEvent {
         /** Model used by the sub-agent */
         @JsonProperty("model") String model,
         /** Total number of tool calls made by the sub-agent */
-        @JsonProperty("totalToolCalls") Double totalToolCalls,
+        @JsonProperty("totalToolCalls") Long totalToolCalls,
         /** Total tokens (input + output) consumed by the sub-agent */
-        @JsonProperty("totalTokens") Double totalTokens,
+        @JsonProperty("totalTokens") Long totalTokens,
         /** Wall-clock duration of the sub-agent execution in milliseconds */
-        @JsonProperty("durationMs") Double durationMs
+        @JsonProperty("durationMs") Long durationMs
     ) {
     }
 }

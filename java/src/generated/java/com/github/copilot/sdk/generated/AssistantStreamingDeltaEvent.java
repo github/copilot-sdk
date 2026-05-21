@@ -36,7 +36,7 @@ public final class AssistantStreamingDeltaEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record AssistantStreamingDeltaEventData(
         /** Cumulative total bytes received from the streaming response so far */
-        @JsonProperty("totalResponseSizeBytes") Double totalResponseSizeBytes
+        @JsonProperty("totalResponseSizeBytes") Long totalResponseSizeBytes
     ) {
     }
 }

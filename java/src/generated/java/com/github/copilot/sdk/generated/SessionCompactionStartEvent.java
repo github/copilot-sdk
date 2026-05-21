@@ -36,11 +36,11 @@ public final class SessionCompactionStartEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionCompactionStartEventData(
         /** Token count from system message(s) at compaction start */
-        @JsonProperty("systemTokens") Double systemTokens,
+        @JsonProperty("systemTokens") Long systemTokens,
         /** Token count from non-system messages (user, assistant, tool) at compaction start */
-        @JsonProperty("conversationTokens") Double conversationTokens,
+        @JsonProperty("conversationTokens") Long conversationTokens,
         /** Token count from tool definitions at compaction start */
-        @JsonProperty("toolDefinitionsTokens") Double toolDefinitionsTokens
+        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens
     ) {
     }
 }

@@ -54,4 +54,34 @@ public final class SessionHistoryApi {
         return caller.invoke("session.history.truncate", _p, SessionHistoryTruncateResult.class);
     }
 
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionHistoryCancelBackgroundCompactionResult> cancelBackgroundCompaction() {
+        return caller.invoke("session.history.cancelBackgroundCompaction", java.util.Map.of("sessionId", this.sessionId), SessionHistoryCancelBackgroundCompactionResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionHistoryAbortManualCompactionResult> abortManualCompaction() {
+        return caller.invoke("session.history.abortManualCompaction", java.util.Map.of("sessionId", this.sessionId), SessionHistoryAbortManualCompactionResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionHistorySummarizeForHandoffResult> summarizeForHandoff() {
+        return caller.invoke("session.history.summarizeForHandoff", java.util.Map.of("sessionId", this.sessionId), SessionHistorySummarizeForHandoffResult.class);
+    }
+
 }

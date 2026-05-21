@@ -25,16 +25,16 @@ public record AssistantUsageQuotaSnapshot(
     /** Whether the user has an unlimited usage entitlement */
     @JsonProperty("isUnlimitedEntitlement") Boolean isUnlimitedEntitlement,
     /** Total requests allowed by the entitlement */
-    @JsonProperty("entitlementRequests") Double entitlementRequests,
+    @JsonProperty("entitlementRequests") Long entitlementRequests,
     /** Number of requests already consumed */
-    @JsonProperty("usedRequests") Double usedRequests,
+    @JsonProperty("usedRequests") Long usedRequests,
     /** Whether usage is still permitted after quota exhaustion */
     @JsonProperty("usageAllowedWithExhaustedQuota") Boolean usageAllowedWithExhaustedQuota,
     /** Number of requests over the entitlement limit */
     @JsonProperty("overage") Double overage,
     /** Whether overage is allowed when quota is exhausted */
     @JsonProperty("overageAllowedWithExhaustedQuota") Boolean overageAllowedWithExhaustedQuota,
-    /** Percentage of quota remaining (0.0 to 1.0) */
+    /** Percentage of quota remaining (0 to 100) */
     @JsonProperty("remainingPercentage") Double remainingPercentage,
     /** Date when the quota resets */
     @JsonProperty("resetDate") OffsetDateTime resetDate
