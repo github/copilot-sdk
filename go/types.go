@@ -371,11 +371,34 @@ type AutoModeSwitchRequestHandler func(request AutoModeSwitchRequest, invocation
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
-	SessionID string `json:"sessionId"`
-	Timestamp int64  `json:"timestamp"`
-	Cwd       string `json:"cwd"`
-	ToolName  string `json:"toolName"`
-	ToolArgs  any    `json:"toolArgs"`
+	SessionID string    `json:"sessionId"`
+	Timestamp time.Time `json:"-"`
+	Cwd       string    `json:"cwd"`
+	ToolName  string    `json:"toolName"`
+	ToolArgs  any       `json:"toolArgs"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PreToolUseHookInput) MarshalJSON() ([]byte, error) {
+	type alias PreToolUseHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PreToolUseHookInput) UnmarshalJSON(data []byte) error {
+	type alias PreToolUseHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // PreToolUseHookOutput is the output for a pre-tool-use hook
@@ -392,12 +415,35 @@ type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation
 
 // PostToolUseHookInput is the input for a post-tool-use hook
 type PostToolUseHookInput struct {
-	SessionID  string `json:"sessionId"`
-	Timestamp  int64  `json:"timestamp"`
-	Cwd        string `json:"cwd"`
-	ToolName   string `json:"toolName"`
-	ToolArgs   any    `json:"toolArgs"`
-	ToolResult any    `json:"toolResult"`
+	SessionID  string    `json:"sessionId"`
+	Timestamp  time.Time `json:"-"`
+	Cwd        string    `json:"cwd"`
+	ToolName   string    `json:"toolName"`
+	ToolArgs   any       `json:"toolArgs"`
+	ToolResult any       `json:"toolResult"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PostToolUseHookInput) MarshalJSON() ([]byte, error) {
+	type alias PostToolUseHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PostToolUseHookInput) UnmarshalJSON(data []byte) error {
+	type alias PostToolUseHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // PostToolUseHookOutput is the output for a post-tool-use hook
@@ -412,10 +458,33 @@ type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocati
 
 // UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
 type UserPromptSubmittedHookInput struct {
-	SessionID string `json:"sessionId"`
-	Timestamp int64  `json:"timestamp"`
-	Cwd       string `json:"cwd"`
-	Prompt    string `json:"prompt"`
+	SessionID string    `json:"sessionId"`
+	Timestamp time.Time `json:"-"`
+	Cwd       string    `json:"cwd"`
+	Prompt    string    `json:"prompt"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h UserPromptSubmittedHookInput) MarshalJSON() ([]byte, error) {
+	type alias UserPromptSubmittedHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *UserPromptSubmittedHookInput) UnmarshalJSON(data []byte) error {
+	type alias UserPromptSubmittedHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // UserPromptSubmittedHookOutput is the output for a user-prompt-submitted hook
@@ -430,11 +499,34 @@ type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocat
 
 // SessionStartHookInput is the input for a session-start hook
 type SessionStartHookInput struct {
-	SessionID     string `json:"sessionId"`
-	Timestamp     int64  `json:"timestamp"`
-	Cwd           string `json:"cwd"`
-	Source        string `json:"source"` // "startup", "resume", "new"
-	InitialPrompt string `json:"initialPrompt,omitempty"`
+	SessionID     string    `json:"sessionId"`
+	Timestamp     time.Time `json:"-"`
+	Cwd           string    `json:"cwd"`
+	Source        string    `json:"source"` // "startup", "resume", "new"
+	InitialPrompt string    `json:"initialPrompt,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h SessionStartHookInput) MarshalJSON() ([]byte, error) {
+	type alias SessionStartHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *SessionStartHookInput) UnmarshalJSON(data []byte) error {
+	type alias SessionStartHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // SessionStartHookOutput is the output for a session-start hook
@@ -448,12 +540,35 @@ type SessionStartHandler func(input SessionStartHookInput, invocation HookInvoca
 
 // SessionEndHookInput is the input for a session-end hook
 type SessionEndHookInput struct {
-	SessionID    string `json:"sessionId"`
-	Timestamp    int64  `json:"timestamp"`
-	Cwd          string `json:"cwd"`
-	Reason       string `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
-	FinalMessage string `json:"finalMessage,omitempty"`
-	Error        string `json:"error,omitempty"`
+	SessionID    string    `json:"sessionId"`
+	Timestamp    time.Time `json:"-"`
+	Cwd          string    `json:"cwd"`
+	Reason       string    `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
+	FinalMessage string    `json:"finalMessage,omitempty"`
+	Error        string    `json:"error,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h SessionEndHookInput) MarshalJSON() ([]byte, error) {
+	type alias SessionEndHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *SessionEndHookInput) UnmarshalJSON(data []byte) error {
+	type alias SessionEndHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // SessionEndHookOutput is the output for a session-end hook
@@ -468,12 +583,35 @@ type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation
 
 // ErrorOccurredHookInput is the input for an error-occurred hook
 type ErrorOccurredHookInput struct {
-	SessionID    string `json:"sessionId"`
-	Timestamp    int64  `json:"timestamp"`
-	Cwd          string `json:"cwd"`
-	Error        string `json:"error"`
-	ErrorContext string `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
-	Recoverable  bool   `json:"recoverable"`
+	SessionID    string    `json:"sessionId"`
+	Timestamp    time.Time `json:"-"`
+	Cwd          string    `json:"cwd"`
+	Error        string    `json:"error"`
+	ErrorContext string    `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
+	Recoverable  bool      `json:"recoverable"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h ErrorOccurredHookInput) MarshalJSON() ([]byte, error) {
+	type alias ErrorOccurredHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *ErrorOccurredHookInput) UnmarshalJSON(data []byte) error {
+	type alias ErrorOccurredHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // ErrorOccurredHookOutput is the output for an error-occurred hook
