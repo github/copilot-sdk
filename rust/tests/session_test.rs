@@ -702,35 +702,15 @@ async fn force_stop_is_idempotent_with_no_child() {
     // Stream-based clients have no child process. force_stop should be a
     // no-op and safe to call multiple times.
     let (client, _server_read, _server_write) = make_client();
-    assert_eq!(
-        client.state(),
-        github_copilot_sdk::ConnectionState::Connected
-    );
     client.force_stop();
-    assert_eq!(
-        client.state(),
-        github_copilot_sdk::ConnectionState::Disconnected
-    );
     client.force_stop();
-    assert_eq!(
-        client.state(),
-        github_copilot_sdk::ConnectionState::Disconnected
-    );
     assert!(client.pid().is_none());
 }
 
 #[tokio::test]
-async fn stop_transitions_state_to_disconnected() {
+async fn stop_is_safe_to_call() {
     let (client, _server_read, _server_write) = make_client();
-    assert_eq!(
-        client.state(),
-        github_copilot_sdk::ConnectionState::Connected
-    );
     client.stop().await.expect("stop should succeed");
-    assert_eq!(
-        client.state(),
-        github_copilot_sdk::ConnectionState::Disconnected
-    );
 }
 
 #[tokio::test]

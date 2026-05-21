@@ -267,22 +267,20 @@ fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
 }
 
 async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {
-    Client::start(
-        ctx.client_options_with_transport(Transport::Tcp { port })
-            .with_tcp_connection_token(SHARED_TOKEN),
-    )
+    Client::start(ctx.client_options_with_transport(Transport::Tcp {
+        port,
+        connection_token: Some(SHARED_TOKEN.to_string()),
+    }))
     .await
     .expect("start TCP server client")
 }
 
 async fn start_external_client(ctx: &E2eContext, port: u16) -> Client {
-    Client::start(
-        ctx.client_options_with_transport(Transport::External {
-            host: "127.0.0.1".to_string(),
-            port,
-        })
-        .with_tcp_connection_token(SHARED_TOKEN),
-    )
+    Client::start(ctx.client_options_with_transport(Transport::External {
+        host: "127.0.0.1".to_string(),
+        port,
+        connection_token: Some(SHARED_TOKEN.to_string()),
+    }))
     .await
     .expect("start external client")
 }

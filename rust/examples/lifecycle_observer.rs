@@ -39,7 +39,7 @@ use github_copilot_sdk::{Client, ClientOptions};
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
     let client = Client::start(ClientOptions::default()).await?;
-    println!("[client] state: {:?}", client.state());
+    println!("[client] started, pid: {:?}", client.pid());
 
     // Wildcard lifecycle subscriber: see every session.lifecycle event,
     // counting deletions inline by filtering on event_type.
@@ -65,7 +65,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     let config = SessionConfig::default().with_handler(Arc::new(ApproveAllHandler));
     let session = client.create_session(config).await?;
-    println!("[client] state after create: {:?}", client.state());
+    println!("[client] session created: {}", session.id());
 
     // Per-session observer: see every assistant message, tool call, etc.
     // Subscribers fire alongside the constructor handler; they're great for
@@ -103,7 +103,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     // where you don't have an async runtime available to await `stop()`.
     // For graceful shutdown in normal flow, prefer `client.stop().await`.
     client.force_stop();
-    println!("[client] state after force_stop: {:?}", client.state());
+    println!("[client] force-stopped");
 
     // Stopping the client closes the broadcast senders, so the consumer
     // tasks observe `RecvError::Closed` and exit cleanly.

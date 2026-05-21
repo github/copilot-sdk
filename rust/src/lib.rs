@@ -289,6 +289,10 @@ pub enum Transport {
     Tcp {
         /// Port to listen on (0 for OS-assigned).
         port: u16,
+        /// Optional connection token. When `None` and the SDK is spawning
+        /// the CLI, the SDK auto-generates a 128-bit hex token so the
+        /// loopback listener is safe by default.
+        connection_token: Option<String>,
     },
     /// Connect to an already-running CLI server (no process spawning).
     External {
@@ -296,6 +300,9 @@ pub enum Transport {
         host: String,
         /// Port of the running server.
         port: u16,
+        /// Optional connection token. Required when the external server
+        /// was started with a token, ignored otherwise.
+        connection_token: Option<String>,
     },
 }
 
@@ -393,23 +400,13 @@ pub struct ClientOptions {
     /// auth, telemetry buffers). When set, exported as `COPILOT_HOME` to
     /// the spawned CLI process. Useful for sandboxing test runs or
     /// running multiple isolated SDK instances side-by-side.
-    pub copilot_home: Option<PathBuf>,
-    /// Optional connection token for TCP transport. Sent to the CLI in
-    /// the `connect` handshake and exported as `COPILOT_CONNECTION_TOKEN`
-    /// to spawned CLI processes. Required when the CLI server was started
-    /// with a token, ignored otherwise.
-    ///
-    /// When the SDK spawns its own CLI in TCP mode and this is left
-    /// `None`, a UUID is generated automatically so the loopback listener
-    /// is safe by default. Combining with [`Transport::Stdio`] is invalid
-    /// and surfaces as an error from [`Client::start`].
-    pub tcp_connection_token: Option<String>,
+    pub base_directory: Option<PathBuf>,
     /// Enable remote session support (Mission Control integration).
     /// When `true`, the SDK passes `--remote` to the spawned CLI process so
     /// sessions in a GitHub repository working directory are accessible from
     /// GitHub web and mobile. Ignored when connecting to an external server
     /// via [`Transport::External`].
-    pub remote: bool,
+    pub enable_remote_sessions: bool,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -442,12 +439,8 @@ impl std::fmt::Debug for ClientOptions {
                 &self.on_get_trace_context.as_ref().map(|_| "<set>"),
             )
             .field("telemetry", &self.telemetry)
-            .field("copilot_home", &self.copilot_home)
-            .field(
-                "tcp_connection_token",
-                &self.tcp_connection_token.as_ref().map(|_| "<redacted>"),
-            )
-            .field("remote", &self.remote)
+            .field("base_directory", &self.base_directory)
+            .field("enable_remote_sessions", &self.enable_remote_sessions)
             .finish()
     }
 }
@@ -652,9 +645,8 @@ impl Default for ClientOptions {
             session_fs: None,
             on_get_trace_context: None,
             telemetry: None,
-            copilot_home: None,
-            tcp_connection_token: None,
-            remote: false,
+            base_directory: None,
+            enable_remote_sessions: false,
         }
     }
 }
@@ -800,23 +792,15 @@ impl ClientOptions {
 
     /// Override the directory where the CLI persists its state. Set as
     /// `COPILOT_HOME` on the spawned CLI process.
-    pub fn with_copilot_home(mut self, home: impl Into<PathBuf>) -> Self {
-        self.copilot_home = Some(home.into());
-        self
-    }
-
-    /// Set the connection token for TCP transport. Sent in the `connect`
-    /// handshake and exported as `COPILOT_CONNECTION_TOKEN` to spawned
-    /// CLI processes.
-    pub fn with_tcp_connection_token(mut self, token: impl Into<String>) -> Self {
-        self.tcp_connection_token = Some(token.into());
+    pub fn with_base_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.base_directory = Some(dir.into());
         self
     }
 
     /// Enable remote session support (Mission Control). Passes `--remote`
     /// to the spawned CLI process.
-    pub fn with_remote(mut self, enabled: bool) -> Self {
-        self.remote = enabled;
+    pub fn with_enable_remote_sessions(mut self, enabled: bool) -> Self {
+        self.enable_remote_sessions = enabled;
         self
     }
 }
@@ -930,39 +914,48 @@ impl Client {
                 ));
             }
         }
-        // Validate token + transport combination. Stdio cannot use a
-        // connection token; auto-generate a UUID when the SDK spawns
-        // its own CLI in TCP mode and no explicit token was set.
-        if let Some(token) = &options.tcp_connection_token {
-            if token.is_empty() {
+        // Validate token shape. Stdio variants no longer carry a token
+        // (enforced by the type). For Tcp/External, empty-string is
+        // rejected eagerly.
+        match &options.transport {
+            Transport::Tcp {
+                connection_token: Some(t),
+                ..
+            }
+            | Transport::External {
+                connection_token: Some(t),
+                ..
+            } if t.is_empty() => {
                 return Err(Error::InvalidConfig(
-                    "tcp_connection_token must be a non-empty string".to_string(),
+                    "connection_token must be a non-empty string".to_string(),
                 ));
             }
-            if matches!(options.transport, Transport::Stdio) {
-                return Err(Error::InvalidConfig(
-                    "tcp_connection_token cannot be used with Transport::Stdio".to_string(),
-                ));
-            }
+            _ => {}
         }
-        let effective_connection_token: Option<String> = match &options.transport {
-            Transport::Stdio => None,
-            Transport::Tcp { .. } => Some(
-                options
-                    .tcp_connection_token
-                    .clone()
-                    .unwrap_or_else(generate_connection_token),
-            ),
-            Transport::External { .. } => options.tcp_connection_token.clone(),
+        // Capture (and where needed, auto-generate) the token actually sent
+        // to the server. For Tcp, the SDK auto-generates one when the
+        // caller leaves it unset so the loopback listener is safe by
+        // default.
+        let (mut options, effective_connection_token) = {
+            let mut options = options;
+            let effective = match &mut options.transport {
+                Transport::Stdio => None,
+                Transport::Tcp {
+                    connection_token, ..
+                } => {
+                    if connection_token.is_none() {
+                        *connection_token = Some(generate_connection_token());
+                    }
+                    connection_token.clone()
+                }
+                Transport::External {
+                    connection_token, ..
+                } => connection_token.clone(),
+            };
+            (options, effective)
         };
-        let mut options = options;
-        if matches!(options.transport, Transport::Tcp { .. })
-            && options.tcp_connection_token.is_none()
-        {
-            // Auto-generated tokens flow to the spawned CLI via env, so
-            // make the field reflect what we'll actually send.
-            options.tcp_connection_token = effective_connection_token.clone();
-        }
+        let _ = &mut options;
+        let effective_connection_token: Option<String> = effective_connection_token;
         let session_fs_config = options.session_fs.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
@@ -994,7 +987,11 @@ impl Client {
         };
 
         let client = match options.transport {
-            Transport::External { ref host, port } => {
+            Transport::External {
+                ref host,
+                port,
+                connection_token: _,
+            } => {
                 info!(host = %host, port = %port, "connecting to external CLI server");
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect((host.as_str(), port)).await?;
@@ -1017,7 +1014,10 @@ impl Client {
                     effective_connection_token.clone(),
                 )?
             }
-            Transport::Tcp { port } => {
+            Transport::Tcp {
+                port,
+                connection_token: _,
+            } => {
                 let (mut child, actual_port) = Self::spawn_tcp(&program, &options, port).await?;
                 let connect_start = Instant::now();
                 let stream = TcpStream::connect(("127.0.0.1", actual_port)).await?;
@@ -1281,10 +1281,14 @@ impl Client {
                 );
             }
         }
-        if let Some(home) = &options.copilot_home {
-            command.env("COPILOT_HOME", home);
+        if let Some(dir) = &options.base_directory {
+            command.env("COPILOT_HOME", dir);
         }
-        if let Some(token) = &options.tcp_connection_token {
+        if let Transport::Tcp {
+            connection_token: Some(token),
+            ..
+        } = &options.transport
+        {
             command.env("COPILOT_CONNECTION_TOKEN", token);
         }
         for (key, value) in &options.env {
@@ -1343,7 +1347,7 @@ impl Client {
     }
 
     fn remote_args(options: &ClientOptions) -> Vec<String> {
-        if options.remote {
+        if options.enable_remote_sessions {
             vec!["--remote".to_string()]
         } else {
             Vec::new()
@@ -1581,8 +1585,8 @@ impl Client {
     ///
     /// # Handshake sequence
     ///
-    /// 1. Sends the `connect` JSON-RPC method, forwarding
-    ///    [`ClientOptions::tcp_connection_token`] (or the auto-generated
+    /// 1. Sends the `connect` JSON-RPC method, forwarding the
+    ///    [`Transport`]'s `connection_token` (or the auto-generated
     ///    token for SDK-spawned TCP servers) as the `token` param. This
     ///    is the canonical handshake used by all SDK languages and is
     ///    what the CLI uses to enforce loopback authentication when
@@ -1647,7 +1651,7 @@ impl Client {
 
     /// Send the `connect` JSON-RPC handshake. Returns the server's
     /// reported protocol version, or `None` if the server omits it.
-    /// Forwards [`ClientOptions::tcp_connection_token`] (or the
+    /// Forwards the [`Transport`]'s `connection_token` (or the
     /// auto-generated token for SDK-spawned TCP servers) as the `token`
     /// param. Server-side, the token is required when the server was
     /// started with `COPILOT_CONNECTION_TOKEN`.
@@ -1981,16 +1985,6 @@ impl Client {
     pub fn subscribe_lifecycle(&self) -> LifecycleSubscription {
         LifecycleSubscription::new(self.inner.lifecycle_tx.subscribe())
     }
-
-    /// Return the current [`ConnectionState`].
-    ///
-    /// The state advances to [`Connected`](ConnectionState::Connected) once
-    /// [`Client::start`] / [`Client::from_streams`] returns successfully and
-    /// drops to [`Disconnected`](ConnectionState::Disconnected) after
-    /// [`stop`](Self::stop) or [`force_stop`](Self::force_stop).
-    pub fn state(&self) -> ConnectionState {
-        *self.inner.state.lock()
-    }
 }
 
 impl Drop for ClientInner {
@@ -2050,7 +2044,7 @@ mod tests {
             .with_use_logged_in_user(false)
             .with_log_level(LogLevel::Debug)
             .with_session_idle_timeout_seconds(120)
-            .with_remote(true);
+            .with_enable_remote_sessions(true);
         assert!(matches!(opts.program, CliProgram::Path(_)));
         assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
         assert_eq!(opts.working_directory, PathBuf::from("/tmp"));
@@ -2067,7 +2061,7 @@ mod tests {
         assert_eq!(opts.use_logged_in_user, Some(false));
         assert!(matches!(opts.log_level, Some(LogLevel::Debug)));
         assert_eq!(opts.session_idle_timeout_seconds, Some(120));
-        assert!(opts.remote);
+        assert!(opts.enable_remote_sessions);
     }
 
     #[test]
@@ -2270,7 +2264,7 @@ mod tests {
 
     #[test]
     fn build_command_sets_copilot_home_env_when_configured() {
-        let opts = ClientOptions::new().with_copilot_home(PathBuf::from("/custom/copilot"));
+        let opts = ClientOptions::new().with_base_directory(PathBuf::from("/custom/copilot"));
         let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
         assert_eq!(
             env_value(&cmd, "COPILOT_HOME"),
@@ -2284,7 +2278,10 @@ mod tests {
 
     #[test]
     fn build_command_sets_connection_token_env_when_configured() {
-        let opts = ClientOptions::new().with_tcp_connection_token("secret-token");
+        let opts = ClientOptions::new().with_transport(Transport::Tcp {
+            port: 0,
+            connection_token: Some("secret-token".to_string()),
+        });
         let cmd = Client::build_command(Path::new("/bin/echo"), &opts);
         assert_eq!(
             env_value(&cmd, "COPILOT_CONNECTION_TOKEN"),
@@ -2297,26 +2294,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn start_rejects_token_with_stdio_transport() {
+    async fn start_rejects_empty_connection_token() {
         let opts = ClientOptions::new()
-            .with_tcp_connection_token("token-123")
+            .with_transport(Transport::Tcp {
+                port: 0,
+                connection_token: Some(String::new()),
+            })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
         assert!(matches!(err, Error::InvalidConfig(_)), "got {err:?}");
-        let Error::InvalidConfig(msg) = err else {
-            unreachable!()
-        };
-        assert!(
-            msg.contains("Stdio"),
-            "error should explain the stdio incompatibility: {msg}"
-        );
     }
 
     #[tokio::test]
-    async fn start_rejects_empty_connection_token() {
+    async fn start_rejects_empty_external_connection_token() {
         let opts = ClientOptions::new()
-            .with_tcp_connection_token("")
-            .with_transport(Transport::Tcp { port: 0 })
+            .with_transport(Transport::External {
+                host: "127.0.0.1".to_string(),
+                port: 1,
+                connection_token: Some(String::new()),
+            })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
         assert!(matches!(err, Error::InvalidConfig(_)), "got {err:?}");
@@ -2392,7 +2388,7 @@ mod tests {
     #[test]
     fn remote_args_emit_flag_when_enabled() {
         let opts = ClientOptions {
-            remote: true,
+            enable_remote_sessions: true,
             ..Default::default()
         };
         assert_eq!(Client::remote_args(&opts), vec!["--remote".to_string()]);

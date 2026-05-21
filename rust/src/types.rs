@@ -22,17 +22,12 @@ pub use crate::session_fs::{
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;
 
-/// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
-///
-/// The state advances from `Connecting` → `Connected` during construction,
-/// transitions to `Disconnected` after [`Client::stop`](crate::Client::stop) or
-/// [`Client::force_stop`](crate::Client::force_stop), and lands in
-/// `Error` if startup fails or the underlying transport tears down
-/// unexpectedly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// Lifecycle state of a [`Client`](crate::Client) connection. Internal —
+/// not part of the public API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 #[non_exhaustive]
-pub enum ConnectionState {
+pub(crate) enum ConnectionState {
     /// No CLI process is attached or the process has exited cleanly.
     Disconnected,
     /// The client is starting up (spawning the CLI, negotiating protocol).
@@ -3705,11 +3700,10 @@ mod tests {
     }
 
     #[test]
-    fn connection_state_error_serializes_to_match_go() {
-        let json = serde_json::to_string(&ConnectionState::Error).unwrap();
-        assert_eq!(json, "\"error\"");
-        let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
-        assert_eq!(parsed, ConnectionState::Error);
+    fn connection_state_distinguishes_variants() {
+        // ConnectionState is now an internal type; verify we can construct
+        // and compare the variants used by the lifecycle code paths.
+        assert_ne!(ConnectionState::Connected, ConnectionState::Disconnected);
     }
 
     /// `agentId` is the sub-agent attribution field added in copilot-sdk
@@ -3769,19 +3763,14 @@ mod tests {
     }
 
     #[test]
-    fn connection_state_other_variants_serialize_as_lowercase() {
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Disconnected).unwrap(),
-            "\"disconnected\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Connecting).unwrap(),
-            "\"connecting\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Connected).unwrap(),
-            "\"connected\""
-        );
+    fn connection_state_variants_compile() {
+        // Defensive smoke test: all variants must be constructable from
+        // within the crate. (The enum was demoted from pub to pub(crate)
+        // in Phase D; this test guards against accidental removal.)
+        let _ = ConnectionState::Disconnected;
+        let _ = ConnectionState::Connecting;
+        let _ = ConnectionState::Connected;
+        let _ = ConnectionState::Error;
     }
 
     #[test]

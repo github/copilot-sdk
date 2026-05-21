@@ -52,10 +52,10 @@ async fn should_listen_on_configured_tcp_port() {
         |ctx| {
             Box::pin(async move {
                 let port = get_available_tcp_port();
-                let client = Client::start(
-                    ctx.client_options_with_transport(Transport::Tcp { port })
-                        .with_tcp_connection_token("configured-port-token"),
-                )
+                let client = Client::start(ctx.client_options_with_transport(Transport::Tcp {
+                    port,
+                    connection_token: Some("configured-port-token".to_string()),
+                }))
                 .await
                 .expect("start TCP client");
 
@@ -200,14 +200,23 @@ async fn auto_start_false_requires_explicit_start() {
         &options.program,
         github_copilot_sdk::CliProgram::Resolve
     ));
-    assert!(options.copilot_home.is_none());
+    assert!(options.base_directory.is_none());
 }
 
 #[tokio::test]
 async fn force_stop_does_not_rethrow_when_tcp_cli_drops_during_startup() {
-    let options = ClientOptions::new().with_transport(Transport::Tcp { port: 0 });
+    let options = ClientOptions::new().with_transport(Transport::Tcp {
+        port: 0,
+        connection_token: None,
+    });
 
-    assert!(matches!(options.transport, Transport::Tcp { port: 0 }));
+    assert!(matches!(
+        options.transport,
+        Transport::Tcp {
+            port: 0,
+            connection_token: None
+        }
+    ));
 }
 
 #[tokio::test]
@@ -215,6 +224,7 @@ async fn startasync_cleans_up_tcp_cli_process_when_connect_fails() {
     let options = ClientOptions::new().with_transport(Transport::External {
         host: "127.0.0.1".to_string(),
         port: get_available_tcp_port(),
+        connection_token: None,
     });
 
     assert!(matches!(options.transport, Transport::External { .. }));
@@ -239,6 +249,7 @@ async fn should_throw_when_githubtoken_used_with_cliurl() {
         .with_transport(Transport::External {
             host: "localhost".to_string(),
             port: 12345,
+            connection_token: None,
         })
         .with_github_token("token");
 
@@ -262,6 +273,7 @@ async fn should_throw_when_useloggedinuser_used_with_cliurl() {
         .with_transport(Transport::External {
             host: "localhost".to_string(),
             port: 12345,
+            connection_token: None,
         })
         .with_use_logged_in_user(true);
 

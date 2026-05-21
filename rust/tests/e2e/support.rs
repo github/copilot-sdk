@@ -119,10 +119,10 @@ impl E2eContext {
 
     #[expect(dead_code, reason = "used by follow-on E2E ports")]
     pub async fn start_tcp_client(&self, port: u16, token: &str) -> Client {
-        Client::start(
-            self.client_options_with_transport(Transport::Tcp { port })
-                .with_tcp_connection_token(token),
-        )
+        Client::start(self.client_options_with_transport(Transport::Tcp {
+            port,
+            connection_token: Some(token.to_string()),
+        }))
         .await
         .expect("start TCP E2E client")
     }
