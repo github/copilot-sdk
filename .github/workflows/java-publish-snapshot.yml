@@ -1,4 +1,4 @@
-name: Publish Snapshot to Maven Central
+name: Java Publish Snapshot to Maven Central
 
 env:
   HUSKY: 0

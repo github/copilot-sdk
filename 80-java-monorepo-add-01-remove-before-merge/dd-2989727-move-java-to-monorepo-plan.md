@@ -80,7 +80,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 5. Update `dependabot.yaml`:
    - Add Maven ecosystem entry for `/java`
 
-### Phase 03: Publish Workflows
+### ⌛ Phase 03: Publish Workflows
 
 **Goal**: Java can be independently published from the monorepo.
 

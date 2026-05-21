@@ -1,121 +1,121 @@
-name: Run Java smoke test
+name: "Java smoke test"
 
 on:
-    workflow_dispatch:
-    workflow_call:
-        secrets:
-            COPILOT_GITHUB_TOKEN:
-                required: true
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      COPILOT_GITHUB_TOKEN:
+        required: true
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-    smoke-test-jdk17:
-        name: Build SDK and run smoke test (JDK 17)
-        runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/main'
-        defaults:
-            run:
-                shell: bash
-                working-directory: ./java
-        steps:
-            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+  smoke-test-jdk17:
+    name: Build SDK and run smoke test (JDK 17)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-            - name: Set up JDK 17
-              uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
-              with:
-                  java-version: "17"
-                  distribution: "microsoft"
-                  cache: "maven"
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "17"
+          distribution: "microsoft"
+          cache: "maven"
 
-            - uses: ./.github/actions/setup-copilot
+      - uses: ./.github/actions/setup-copilot
 
-            - name: Build SDK and install to local repo
-              run: mvn -DskipTests -Pskip-test-harness clean install
+      - name: Build SDK and install to local repo
+        run: mvn -DskipTests -Pskip-test-harness clean install
 
-            - name: Create and run smoke test via Copilot CLI
-              env:
-                  COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-              run: |
-                  cat > /tmp/smoke-test-prompt.txt << 'PROMPT_EOF'
-                  You are running inside the copilot-sdk monorepo, in the java/ subdirectory.
-                  The SDK has already been built and installed into the local Maven repository.
-                  JDK 17 and Maven are already installed and on PATH.
+      - name: Create and run smoke test via Copilot CLI
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/smoke-test-prompt.txt << 'PROMPT_EOF'
+          You are running inside the copilot-sdk monorepo, in the java/ subdirectory.
+          The SDK has already been built and installed into the local Maven repository.
+          JDK 17 and Maven are already installed and on PATH.
 
-                  Execute the prompt at `src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
+          Execute the prompt at `src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
 
-                  **Critical override — disable SNAPSHOT updates (but allow downloads):** The goal of this workflow is to validate the SDK SNAPSHOT that was just built and installed locally, not any newer SNAPSHOT that might exist in a remote repository. To ensure Maven does not download a newer timestamped SNAPSHOT of the SDK while still allowing it to download any missing plugins or dependencies, you must run the smoke-test Maven build without `-U` and with `--no-snapshot-updates`, so that it uses the locally installed SDK artifact. Use `mvn --no-snapshot-updates clean package` instead of `mvn -U clean package` or `mvn -o clean package`.
+          **Critical override — disable SNAPSHOT updates (but allow downloads):** The goal of this workflow is to validate the SDK SNAPSHOT that was just built and installed locally, not any newer SNAPSHOT that might exist in a remote repository. To ensure Maven does not download a newer timestamped SNAPSHOT of the SDK while still allowing it to download any missing plugins or dependencies, you must run the smoke-test Maven build without `-U` and with `--no-snapshot-updates`, so that it uses the locally installed SDK artifact. Use `mvn --no-snapshot-updates clean package` instead of `mvn -U clean package` or `mvn -o clean package`.
 
-                  **Critical override — do NOT run the jar:** Stop after the `mvn --no-snapshot-updates clean package` build succeeds. Do NOT execute Step 4 (java -jar) or Step 5 (verify exit code) from the prompt. The workflow will run the jar in a separate deterministic step to guarantee the exit code propagates correctly.
+          **Critical override — do NOT run the jar:** Stop after the `mvn --no-snapshot-updates clean package` build succeeds. Do NOT execute Step 4 (java -jar) or Step 5 (verify exit code) from the prompt. The workflow will run the jar in a separate deterministic step to guarantee the exit code propagates correctly.
 
-                  Follow steps 1-3 only: create the `smoke-test/` directory, create `pom.xml` and the Java source file exactly as specified, and build with `mvn --no-snapshot-updates clean package` (no SNAPSHOT updates and without `-U`).
+          Follow steps 1-3 only: create the `smoke-test/` directory, create `pom.xml` and the Java source file exactly as specified, and build with `mvn --no-snapshot-updates clean package` (no SNAPSHOT updates and without `-U`).
 
-                  If any step fails, exit with a non-zero exit code. Do not silently fix errors.
-                  PROMPT_EOF
+          If any step fails, exit with a non-zero exit code. Do not silently fix errors.
+          PROMPT_EOF
 
-                  copilot --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
+          copilot --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
 
-            - name: Run smoke test jar
-              env:
-                  COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-              run: |
-                  cd smoke-test
-                  java -jar ./target/copilot-sdk-smoketest-1.0-SNAPSHOT.jar
-                  echo "Smoke test passed (exit code 0)"
+      - name: Run smoke test jar
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          cd smoke-test
+          java -jar ./target/copilot-sdk-smoketest-1.0-SNAPSHOT.jar
+          echo "Smoke test passed (exit code 0)"
 
-    smoke-test-java25:
-        name: Build SDK and run smoke test (JDK 25)
-        runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/main'
-        defaults:
-            run:
-                shell: bash
-                working-directory: ./java
-        steps:
-            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+  smoke-test-java25:
+    name: Build SDK and run smoke test (JDK 25)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./java
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-            - name: Set up JDK 25
-              uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
-              with:
-                  java-version: "25"
-                  distribution: "microsoft"
-                  cache: "maven"
+      - name: Set up JDK 25
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+          cache: "maven"
 
-            - uses: ./.github/actions/setup-copilot
+      - uses: ./.github/actions/setup-copilot
 
-            - name: Build SDK and install to local repo
-              run: mvn -DskipTests -Pskip-test-harness clean install
+      - name: Build SDK and install to local repo
+        run: mvn -DskipTests -Pskip-test-harness clean install
 
-            - name: Create and run smoke test via Copilot CLI
-              env:
-                  COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-              run: |
-                  cat > /tmp/smoke-test-prompt.txt << 'PROMPT_EOF'
-                  You are running inside the copilot-sdk monorepo, in the java/ subdirectory.
-                  The SDK has already been built and installed into the local Maven repository.
-                  JDK 25 and Maven are already installed and on PATH.
+      - name: Create and run smoke test via Copilot CLI
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/smoke-test-prompt.txt << 'PROMPT_EOF'
+          You are running inside the copilot-sdk monorepo, in the java/ subdirectory.
+          The SDK has already been built and installed into the local Maven repository.
+          JDK 25 and Maven are already installed and on PATH.
 
-                  Execute the prompt at `src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
+          Execute the prompt at `src/test/prompts/PROMPT-smoke-test.md` with the following critical overrides:
 
-                  **Critical override — disable SNAPSHOT updates (but allow downloads):** The goal of this workflow is to validate the SDK SNAPSHOT that was just built and installed locally, not any newer SNAPSHOT that might exist in a remote repository. To ensure Maven does not download a newer timestamped SNAPSHOT of the SDK while still allowing it to download any missing plugins or dependencies, you must run the smoke-test Maven build without `-U` and with `--no-snapshot-updates`, so that it uses the locally installed SDK artifact. Use `mvn --no-snapshot-updates clean package` instead of `mvn -U clean package` or `mvn -o clean package`.
+          **Critical override — disable SNAPSHOT updates (but allow downloads):** The goal of this workflow is to validate the SDK SNAPSHOT that was just built and installed locally, not any newer SNAPSHOT that might exist in a remote repository. To ensure Maven does not download a newer timestamped SNAPSHOT of the SDK while still allowing it to download any missing plugins or dependencies, you must run the smoke-test Maven build without `-U` and with `--no-snapshot-updates`, so that it uses the locally installed SDK artifact. Use `mvn --no-snapshot-updates clean package` instead of `mvn -U clean package` or `mvn -o clean package`.
 
-                  **Critical override — do NOT run the jar:** Stop after the `mvn --no-snapshot-updates clean package` build succeeds. Do NOT execute Step 4 (java -jar) or Step 5 (verify exit code) from the prompt. The workflow will run the jar in a separate deterministic step to guarantee the exit code propagates correctly.
+          **Critical override — do NOT run the jar:** Stop after the `mvn --no-snapshot-updates clean package` build succeeds. Do NOT execute Step 4 (java -jar) or Step 5 (verify exit code) from the prompt. The workflow will run the jar in a separate deterministic step to guarantee the exit code propagates correctly.
 
-                  **Critical override — enable Virtual Threads for JDK 25:** After creating the Java source file from the README "Quick Start" section but BEFORE building, you must modify the source file to enable virtual thread support. The Quick Start code contains inline comments that start with `// JDK 25+:` — these are instructions. Find every such comment and follow what it says (comment out lines it says to comment out, uncomment lines it says to uncomment). Add any imports required by the newly uncommented code (e.g. `java.util.concurrent.Executors`).
-                  Also set `maven.compiler.source` and `maven.compiler.target` to `25` in the `pom.xml`.
+          **Critical override — enable Virtual Threads for JDK 25:** After creating the Java source file from the README "Quick Start" section but BEFORE building, you must modify the source file to enable virtual thread support. The Quick Start code contains inline comments that start with `// JDK 25+:` — these are instructions. Find every such comment and follow what it says (comment out lines it says to comment out, uncomment lines it says to uncomment). Add any imports required by the newly uncommented code (e.g. `java.util.concurrent.Executors`).
+          Also set `maven.compiler.source` and `maven.compiler.target` to `25` in the `pom.xml`.
 
-                  Follow steps 1-3 only: create the `smoke-test/` directory, create `pom.xml` and the Java source file exactly as specified, apply the JDK 25 virtual thread modifications described above, and build with `mvn --no-snapshot-updates clean package` (no SNAPSHOT updates and without `-U`).
+          Follow steps 1-3 only: create the `smoke-test/` directory, create `pom.xml` and the Java source file exactly as specified, apply the JDK 25 virtual thread modifications described above, and build with `mvn --no-snapshot-updates clean package` (no SNAPSHOT updates and without `-U`).
 
-                  If any step fails, exit with a non-zero exit code. Do not silently fix errors.
-                  PROMPT_EOF
+          If any step fails, exit with a non-zero exit code. Do not silently fix errors.
+          PROMPT_EOF
 
-                  copilot --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
+          copilot --yolo --prompt "$(cat /tmp/smoke-test-prompt.txt)"
 
-            - name: Run smoke test jar
-              env:
-                  COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-              run: |
-                  cd smoke-test
-                  java -jar ./target/copilot-sdk-smoketest-1.0-SNAPSHOT.jar
-                  echo "Smoke test passed (exit code 0)"
+      - name: Run smoke test jar
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          cd smoke-test
+          java -jar ./target/copilot-sdk-smoketest-1.0-SNAPSHOT.jar
+          echo "Smoke test passed (exit code 0)"

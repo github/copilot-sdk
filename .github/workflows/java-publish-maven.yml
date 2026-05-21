@@ -1,4 +1,4 @@
-name: Publish to Maven Central
+name: Java Publish to Maven Central
 
 env:
   # Disable Husky Git hooks in CI to prevent local development hooks
