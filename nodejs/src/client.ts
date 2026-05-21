@@ -235,7 +235,7 @@ export class CopilotClient {
         telemetry?: TelemetryConfig;
         baseDirectory?: string;
         sessionIdleTimeoutSeconds: number;
-        remote: boolean;
+        enableRemoteSessions: boolean;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -382,7 +382,7 @@ export class CopilotClient {
             telemetry: options.telemetry,
             baseDirectory: options.baseDirectory,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
-            remote: options.remote ?? false,
+            enableRemoteSessions: options.enableRemoteSessions ?? false,
         };
     }
 
@@ -1525,7 +1525,7 @@ export class CopilotClient {
                 );
             }
 
-            if (this.options.remote) {
+            if (this.options.enableRemoteSessions) {
                 args.push("--remote");
             }
 

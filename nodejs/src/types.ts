@@ -277,7 +277,7 @@ export interface CopilotClientOptions {
      * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      * @default false
      */
-    remote?: boolean;
+    enableRemoteSessions?: boolean;
 
     /**
      * @internal Hook used by `joinSession()` to construct a client that talks
