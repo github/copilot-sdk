@@ -873,13 +873,13 @@ import type { PermissionDecisionRequest } from "./generated/rpc.js";
 
 /**
  * Permission decision result returned from a {@link PermissionHandler}.
- * The discriminated `kind` field selects the decision; `feedback` is
- * optional free-form text forwarded to the model along with the decision.
+ * The discriminated `kind` field selects the decision. Variant-specific
+ * fields (e.g. `feedback` on `{ kind: "reject" }`) come from the generated
+ * `PermissionDecisionRequest["result"]` union.
  */
-export type PermissionRequestResult = (
+export type PermissionRequestResult =
     | PermissionDecisionRequest["result"]
-    | { kind: "no-result" }
-) & { feedback?: string };
+    | { kind: "no-result" };
 
 export type PermissionHandler = (
     request: PermissionRequest,
