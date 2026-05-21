@@ -1,0 +1,57 @@
+name: Publish Snapshot to Maven Central
+
+env:
+  HUSKY: 0
+
+on:
+  schedule:
+    - cron: "0 7 * * 1-5" # Mon-Fri at 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-snapshot
+  cancel-in-progress: false
+
+jobs:
+  publish-snapshot:
+    name: Publish SNAPSHOT to Maven Central
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-copilot
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "17"
+          distribution: "microsoft"
+          cache: "maven"
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+
+      - name: Verify version is a SNAPSHOT
+        working-directory: ./java
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "Publishing version: $VERSION"
+          if [[ "$VERSION" != *"-SNAPSHOT" ]]; then
+            echo "ERROR: This workflow only publishes SNAPSHOT versions. Current version: $VERSION"
+            exit 1
+          fi
+          echo "### Snapshot Publish" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository:** Maven Central Snapshots" >> $GITHUB_STEP_SUMMARY
+
+      - name: Deploy Snapshot
+        working-directory: ./java
+        run: mvn -B deploy -DskipTests
+        env:
+          MAVEN_USERNAME: ${{ secrets.JAVA_MAVEN_CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.JAVA_MAVEN_CENTRAL_PASSWORD }}

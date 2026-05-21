@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.sdk.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event "session.error". Error details for timeline display including message and optional diagnostic information
+ *
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+public final class SessionErrorEvent extends SessionEvent {
+
+    @Override
+    public String getType() { return "session.error"; }
+
+    @JsonProperty("data")
+    private SessionErrorEventData data;
+
+    public SessionErrorEventData getData() { return data; }
+    public void setData(SessionErrorEventData data) { this.data = data; }
+
+    /** Data payload for {@link SessionErrorEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record SessionErrorEventData(
+        /** Category of error (e.g., "authentication", "authorization", "quota", "rate_limit", "context_limit", "query") */
+        @JsonProperty("errorType") String errorType,
+        /** Fine-grained error code from the upstream provider, when available. For `errorType: "rate_limit"`, this is one of the `RateLimitErrorCode` values (e.g., `"user_weekly_rate_limited"`, `"user_global_rate_limited"`, `"rate_limited"`, `"user_model_rate_limited"`, `"integration_rate_limited"`). For `errorType: "quota"`, this is the CAPI quota error code (e.g., `"quota_exceeded"`, `"session_quota_exceeded"`, `"billing_not_configured"`). */
+        @JsonProperty("errorCode") String errorCode,
+        /** Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt. */
+        @JsonProperty("eligibleForAutoSwitch") Boolean eligibleForAutoSwitch,
+        /** Human-readable error message */
+        @JsonProperty("message") String message,
+        /** Error stack trace, when available */
+        @JsonProperty("stack") String stack,
+        /** HTTP status code from the upstream request, if applicable */
+        @JsonProperty("statusCode") Long statusCode,
+        /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
+        @JsonProperty("providerCallId") String providerCallId,
+        /** Optional URL associated with this error that the user can open in a browser */
+        @JsonProperty("url") String url
+    ) {
+    }
+}

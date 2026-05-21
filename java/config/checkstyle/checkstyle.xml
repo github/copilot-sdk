@@ -1,0 +1,52 @@
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+    Checkstyle configuration for GitHub Copilot SDK for Java.
+    Focuses on ensuring core public API classes have proper Javadoc documentation.
+    Excludes JSON DTOs and event data classes which are self-documenting.
+-->
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="error"/>
+
+    <!-- Exclude module descriptor, json package, events package, and generated package (self-documenting DTOs) -->
+    <module name="BeforeExecutionExclusionFileFilter">
+        <property name="fileNamePattern" value="(^|.*[\\/])module-info\.java$|.*[\\/](json|events|generated|rpc)[\\/].*\.java$"/>
+    </module>
+
+    <module name="TreeWalker">
+        <!-- Require Javadoc on public types (classes, interfaces, enums) -->
+        <module name="MissingJavadocType">
+            <property name="scope" value="public"/>
+            <property name="excludeScope" value="nothing"/>
+            <property name="skipAnnotations" value="Generated"/>
+            <!-- Exclude nested/inner classes -->
+            <property name="tokens" value="CLASS_DEF, INTERFACE_DEF, ENUM_DEF, ANNOTATION_DEF"/>
+        </module>
+
+        <!-- Require Javadoc on public methods, but allow missing on getters/setters -->
+        <module name="MissingJavadocMethod">
+            <property name="scope" value="public"/>
+            <property name="minLineCount" value="-1"/>
+            <property name="allowedAnnotations" value="Override, Deprecated, Generated"/>
+            <property name="allowMissingPropertyJavadoc" value="true"/>
+        </module>
+
+        <!-- Validate Javadoc format on types -->
+        <module name="JavadocType">
+            <property name="scope" value="public"/>
+            <property name="allowMissingParamTags" value="true"/>
+            <property name="allowUnknownTags" value="true"/>
+        </module>
+
+        <!-- Ensure Javadoc has proper structure -->
+        <module name="JavadocStyle">
+            <property name="scope" value="public"/>
+            <property name="checkFirstSentence" value="false"/>
+            <property name="checkEmptyJavadoc" value="true"/>
+            <property name="checkHtml" value="false"/>
+        </module>
+    </module>
+</module>
