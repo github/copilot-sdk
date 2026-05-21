@@ -877,9 +877,7 @@ import type { PermissionDecisionRequest } from "./generated/rpc.js";
  * fields (e.g. `feedback` on `{ kind: "reject" }`) come from the generated
  * `PermissionDecisionRequest["result"]` union.
  */
-export type PermissionRequestResult =
-    | PermissionDecisionRequest["result"]
-    | { kind: "no-result" };
+export type PermissionRequestResult = PermissionDecisionRequest["result"] | { kind: "no-result" };
 
 export type PermissionHandler = (
     request: PermissionRequest,
