@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -135,34 +134,40 @@ func TestEventFidelityE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		pendingModified := make(chan *copilot.SessionEvent, 1)
+		var mu sync.Mutex
+		var events []copilot.SessionEvent
 		session.On(func(event copilot.SessionEvent) {
-			if _, ok := event.Data.(*copilot.PendingMessagesModifiedData); ok {
-				select {
-				case pendingModified <- &event:
-				default:
-				}
-			}
+			mu.Lock()
+			events = append(events, event)
+			mu.Unlock()
 		})
 
-		if _, err := session.Send(t.Context(), copilot.MessageOptions{
+		// SendAndWait collects everything in one round trip and matches the
+		// pattern of every other test in this file (and the Rust E2E equivalent),
+		// avoiding the split fire-and-forget + helper pattern that previously
+		// made this test prone to flakes.
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 9+9? Reply with just the number.",
-		}); err != nil {
-			t.Fatalf("Send failed: %v", err)
-		}
-
-		select {
-		case evt := <-pendingModified:
-			if evt == nil {
-				t.Error("Expected a non-nil pending_messages.modified event")
-			}
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for pending_messages.modified event")
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		})
 		if err != nil {
-			t.Fatalf("Failed to get final assistant message: %v", err)
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		snapshot := snapshotEventFidelityEvents(&mu, &events)
+
+		var pendingEvent *copilot.SessionEvent
+		for i := range snapshot {
+			if _, ok := snapshot[i].Data.(*copilot.PendingMessagesModifiedData); ok {
+				pendingEvent = &snapshot[i]
+				break
+			}
+		}
+		if pendingEvent == nil {
+			t.Error("Expected to observe a pending_messages.modified event")
+		}
+
+		if answer == nil {
+			t.Fatal("Expected SendAndWait to return an assistant message")
 		}
 		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
 			t.Errorf("Expected answer to contain '18', got %v", answer.Data)

@@ -136,22 +136,26 @@ public class EventFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     public async Task Should_Emit_Pending_Messages_Modified_Event_When_Message_Queue_Changes()
     {
         var session = await CreateSessionAsync();
-        var pendingMessagesModified = TestHelper.GetNextEventOfTypeAsync<PendingMessagesModifiedEvent>(
-            session,
-            static _ => true,
-            timeout: TimeSpan.FromSeconds(60),
-            timeoutDescription: "pending_messages.modified event");
+        var events = new List<SessionEvent>();
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
-        await session.SendAsync(new MessageOptions
+        // Use SendAndWaitAsync + a single event collector to match the pattern
+        // of every other test in this fixture (and the Rust E2E equivalent).
+        // The earlier SendAsync + GetFinalAssistantMessageAsync split relied
+        // on a custom helper with an async-void backfill and required juggling
+        // two independently-timed awaits, which has been observed to flake in
+        // CI.
+        var answer = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "What is 9+9? Reply with just the number.",
-        });
+        }, timeout: TimeSpan.FromSeconds(120));
 
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session);
-        var pendingEvent = await pendingMessagesModified;
+        PendingMessagesModifiedEvent? pendingEvent;
+        lock (events) { pendingEvent = events.OfType<PendingMessagesModifiedEvent>().FirstOrDefault(); }
 
         Assert.NotNull(pendingEvent);
-        Assert.Contains("18", answer?.Data.Content ?? string.Empty);
+        Assert.NotNull(answer);
+        Assert.Contains("18", answer!.Data.Content);
 
         await session.DisposeAsync();
     }
