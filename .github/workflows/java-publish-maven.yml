@@ -1,4 +1,4 @@
-name: Java Publish to Maven Central
+name: "Java Publish to Maven Central"
 
 env:
   # Disable Husky Git hooks in CI to prevent local development hooks
@@ -154,7 +154,7 @@ jobs:
           mvn -B release:prepare \
             -DreleaseVersion=${{ steps.versions.outputs.release_version }} \
             -DdevelopmentVersion=${{ steps.versions.outputs.dev_version }} \
-            -DtagNameFormat=v@{project.version} \
+            -DtagNameFormat=java/v@{project.version} \
             -DpushChanges=true \
             -Darguments="-DskipTests"
         env:
@@ -202,7 +202,7 @@ jobs:
           VERSION="${{ needs.publish-maven.outputs.version }}"
           GROUP_ID="com.github"
           ARTIFACT_ID="copilot-sdk-java"
-          CURRENT_TAG="v${VERSION}"
+          CURRENT_TAG="java/v${VERSION}"
 
           if gh release view "${CURRENT_TAG}" >/dev/null 2>&1; then
             echo "Release ${CURRENT_TAG} already exists. Skipping creation."
@@ -214,8 +214,7 @@ jobs:
           RELEASE_NOTES=$(envsubst < $GITHUB_WORKSPACE/.github/workflows/notes.template)
 
           # Get the previous tag for generating notes
-          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-java(-preview)?\.[0-9]+)?$' \
+          PREV_TAG=$(git tag --list 'java/v*' --sort=-version:refname \
             | grep -Fxv "${CURRENT_TAG}" \
             | head -n 1)
 
@@ -235,13 +234,5 @@ jobs:
           ${{ inputs.prerelease == true && 'GH_ARGS+=("--prerelease")' || '' }}
 
           gh release create "${GH_ARGS[@]}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Move 'latest' tag to new release
-        run: |
-          VERSION="${{ needs.publish-maven.outputs.version }}"
-          git tag -f latest "v${VERSION}"
-          git push origin latest --force
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
