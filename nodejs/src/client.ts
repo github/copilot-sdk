@@ -2061,7 +2061,7 @@ export class CopilotClient {
     private async handleHostExtensionInvoke(params: {
         sessionId: string;
         request: { id?: string; method: string; params?: unknown };
-    }): Promise<{ id?: string; result?: unknown; error?: CanvasError }> {
+    }): Promise<{ ok: true; result: unknown } | { ok: false; error: CanvasError }> {
         if (!params || typeof params.sessionId !== "string" || !params.request) {
             throw new Error("Invalid hostExtension.invoke payload");
         }
@@ -2069,7 +2069,7 @@ export class CopilotClient {
         if (!session) {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
-        const { id, method, params: inner } = params.request;
+        const { method, params: inner } = params.request;
         // Canvas V1.1: only `canvas.action.invoke` is in use. Other inner methods
         // are dead in the V1.1 cutover; reject explicitly so misrouted calls
         // don't silently no-op.
@@ -2083,7 +2083,7 @@ export class CopilotClient {
         const canvas = session.getCanvas(actionParams.canvasId);
         if (!canvas) {
             return {
-                id,
+                ok: false,
                 error: {
                     code: "canvas_not_found",
                     message: `No canvas registered with id "${actionParams.canvasId}"`,
@@ -2093,11 +2093,14 @@ export class CopilotClient {
         }
         try {
             const result = await dispatchCanvasAction(canvas, params.sessionId, actionParams);
-            return { id, result };
+            return { ok: true, result };
         } catch (e) {
             if (e && typeof e === "object" && "code" in e && "message" in e) {
                 const ce = e as CanvasError;
-                return { id, error: { code: ce.code, message: ce.message, name: ce.name } };
+                return {
+                    ok: false,
+                    error: { code: ce.code, message: ce.message, name: ce.name } as CanvasError,
+                };
             }
             throw e;
         }
