@@ -62,8 +62,10 @@ public static class TestHelper
         // between SendAsync returning and the subscription being installed. Run it
         // concurrently with the live subscription, but keep the Task observable so any
         // exception is propagated through tcs (not the unobserved-task handler) and so
-        // we can drain it deterministically below.
-        var backfill = CheckExistingMessagesAsync();
+        // we can drain it deterministically below. Pass cts.Token so the backfill is
+        // bounded by the same timeout as the wait itself, and so a hung GetEventsAsync
+        // can't block the drain in `finally`.
+        var backfill = CheckExistingMessagesAsync(cts.Token);
 
         using var registration = cts.Token.Register(
             static state => ((TaskCompletionSource<AssistantMessageEvent>)state!).TrySetException(
@@ -82,11 +84,11 @@ public static class TestHelper
             catch (Exception) { /* intentionally ignored: already propagated via tcs */ }
         }
 
-        async Task CheckExistingMessagesAsync()
+        async Task CheckExistingMessagesAsync(CancellationToken cancellationToken)
         {
             try
             {
-                var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle);
+                var (existingFinal, existingIdle) = await GetExistingMessagesAsync(session, alreadyIdle, cancellationToken);
                 lock (stateLock)
                 {
                     // Preserve a newer message captured by the subscription in the meantime.
@@ -105,9 +107,9 @@ public static class TestHelper
         }
     }
 
-    private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle)
+    private static async Task<(AssistantMessageEvent? Final, bool SawIdle)> GetExistingMessagesAsync(CopilotSession session, bool alreadyIdle, CancellationToken cancellationToken = default)
     {
-        var messages = (await session.GetEventsAsync()).ToList();
+        var messages = (await session.GetEventsAsync(cancellationToken)).ToList();
 
         var lastUserIdx = messages.FindLastIndex(m => m is UserMessageEvent);
         var currentTurn = lastUserIdx < 0 ? messages : messages.Skip(lastUserIdx).ToList();
