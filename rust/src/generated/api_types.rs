@@ -199,12 +199,24 @@ pub mod rpc_methods {
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
     /// `session.plugins.list`
     pub const SESSION_PLUGINS_LIST: &str = "session.plugins.list";
+    /// `session.canvas.open`
+    pub const SESSION_CANVAS_OPEN: &str = "session.canvas.open";
+    /// `session.canvas.focus`
+    pub const SESSION_CANVAS_FOCUS: &str = "session.canvas.focus";
+    /// `session.canvas.close`
+    pub const SESSION_CANVAS_CLOSE: &str = "session.canvas.close";
+    /// `session.canvas.reload`
+    pub const SESSION_CANVAS_RELOAD: &str = "session.canvas.reload";
+    /// `session.canvas.invokeAction`
+    pub const SESSION_CANVAS_INVOKEACTION: &str = "session.canvas.invokeAction";
     /// `session.options.update`
     pub const SESSION_OPTIONS_UPDATE: &str = "session.options.update";
     /// `session.lsp.initialize`
     pub const SESSION_LSP_INITIALIZE: &str = "session.lsp.initialize";
     /// `session.extensions.list`
     pub const SESSION_EXTENSIONS_LIST: &str = "session.extensions.list";
+    /// `session.extensions.discoverCanvases`
+    pub const SESSION_EXTENSIONS_DISCOVERCANVASES: &str = "session.extensions.discoverCanvases";
     /// `session.extensions.enable`
     pub const SESSION_EXTENSIONS_ENABLE: &str = "session.extensions.enable";
     /// `session.extensions.disable`
@@ -1164,17 +1176,22 @@ pub struct ExecuteCommandResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Extension {
-    /// Source-qualified ID (e.g., 'project:my-ext', 'user:auth-helper')
+    /// Full extension ID: `<source>.<publisher>.<name>` (or `<source>.<name>` when
+    /// the manifest has no publisher)
     pub id: String,
-    /// Extension name (directory name)
+    /// Extension name (manifest name or directory name)
     pub name: String,
     /// Process ID if the extension is running
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pid: Option<i64>,
-    /// Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/)
+    /// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/),
+    /// or host registration
     pub source: ExtensionSource,
-    /// Current status: running, disabled, failed, or starting
+    /// Current status: running, disabled, failed, starting, or unavailable
     pub status: ExtensionStatus,
+    /// Reason the extension is unavailable, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<String>,
 }
 
 /// Extensions discovered for the session, with their current status.
@@ -1192,7 +1209,7 @@ pub struct ExtensionList {
     pub extensions: Vec<Extension>,
 }
 
-/// Source-qualified extension identifier to disable for the session.
+/// Request parameters for `session.canvas.invokeAction`.
 ///
 /// <div class="warning">
 ///
@@ -1202,12 +1219,301 @@ pub struct ExtensionList {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ExtensionsDisableRequest {
-    /// Source-qualified extension ID to disable
+pub struct CanvasInvokeActionRequest {
+    /// Canvas instance id returned from `session.canvas.open` or `open_canvas`.
+    pub instance_id: String,
+    /// Extension-defined action name declared in the canvas's `agentActions[]`
+    /// manifest entry. The lifecycle verbs (`canvas.open` / `canvas.focus` /
+    /// `canvas.close` / `canvas.reload`) are reserved and rejected.
+    pub action_name: String,
+    /// Optional input forwarded to the extension's action handler.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+}
+
+/// Result returned from `session.canvas.invokeAction`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasInvokeActionResult {
+    /// Provider's action result payload (may be absent for fire-and-forget
+    /// actions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
+/// Request parameters for `session.canvas.open`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasOpenRequest {
+    /// Canonical extension id that owns the canvas (e.g. `host.github.markdown`).
+    pub extension_id: String,
+    /// Canvas contribution id declared in the extension's manifest.
+    pub canvas_id: String,
+    /// Optional opaque payload forwarded to the extension's `canvas.open`
+    /// handler. Validated against the canvas's manifest-declared `inputSchema`
+    /// (when present) at the dispatch boundary; mismatches return the
+    /// `canvas_input_invalid` error code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+}
+
+/// Result returned from `session.canvas.open`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasOpenResult {
+    /// Canvas instance id; pass to focus/close/reload or invokeAction.
+    pub instance_id: String,
+    /// URL the host should render. Absent for native (hosted-in-app) canvases.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Request parameters for `session.canvas.focus`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasFocusRequest {
+    /// Canvas instance id returned from `session.canvas.open` or `open_canvas`.
+    pub instance_id: String,
+}
+
+/// Request parameters for `session.canvas.close`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasCloseRequest {
+    /// Canvas instance id returned from `session.canvas.open` or `open_canvas`.
+    pub instance_id: String,
+}
+
+/// Request parameters for `session.canvas.reload`.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasReloadRequest {
+    /// Canvas instance id returned from `session.canvas.open` or `open_canvas`.
+    pub instance_id: String,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverCanvasesImplementationNative {
+    /// Provider ID registered via hostExtension.invoke
     pub id: String,
 }
 
-/// Source-qualified extension identifier to enable for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverCanvasesImplementationUrl {
+    /// Optional provider ID; ignored by the runtime
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+}
+
+/// Per-canvas implementation routing.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum ExtensionsDiscoverCanvasesImplementation {
+    /// Host renders the canvas in-process
+    Native(ExtensionsDiscoverCanvasesImplementationNative),
+    /// Provider returns a URL from its open handler
+    Url(ExtensionsDiscoverCanvasesImplementationUrl),
+}
+
+/// Expected canvas.open result shape when known
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverCanvasesOpenResult {
+    /// Expected open result category
+    pub kind: ExtensionsDiscoverCanvasesOpenKind,
+    /// Whether canvas.open must return a URL
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url_required: Option<bool>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverCanvases {
+    /// Backing storage metadata from the manifest
+    #[serde(default)]
+    pub backing: HashMap<String, serde_json::Value>,
+    /// Canvas contribution ID
+    pub canvas_id: String,
+    /// Command metadata from the manifest
+    #[serde(default)]
+    pub commands: Vec<serde_json::Value>,
+    /// Canvas description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Human-readable canvas display name
+    pub display_name: String,
+    /// Extension description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_description: Option<String>,
+    /// Human-readable extension display name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_display_name: Option<String>,
+    /// Full extension ID that owns the canvas
+    pub extension_id: String,
+    /// Extension package name
+    pub extension_name: String,
+    /// File association metadata from the manifest
+    #[serde(default)]
+    pub file_associations: Vec<serde_json::Value>,
+    /// Per-canvas implementation routing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation: Option<ExtensionsDiscoverCanvasesImplementation>,
+    /// How the extension implementation is invoked
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub implementation_kind: Option<ExtensionsDiscoverCanvasesImplementationKind>,
+    /// Expected canvas.open result shape when known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_result: Option<ExtensionsDiscoverCanvasesOpenResult>,
+    /// Presentation metadata from the manifest
+    #[serde(default)]
+    pub presentation: HashMap<String, serde_json::Value>,
+    /// Qualified canvas ID
+    pub qualified_id: String,
+    /// Runtime metadata from the manifest
+    #[serde(default)]
+    pub runtime: HashMap<String, serde_json::Value>,
+    /// Extension discovery source
+    pub source: ExtensionsDiscoverCanvasesSource,
+    /// Parent extension status
+    pub status: ExtensionsDiscoverCanvasesStatus,
+    /// Canvas title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Toolbar metadata from the manifest
+    #[serde(default)]
+    pub toolbar: Vec<serde_json::Value>,
+    /// Reason the canvas is unavailable, if known
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unavailable_reason: Option<String>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverCanvasesRequest {
+    /// Optional canvas contribution ID or qualified canvas ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
+    /// Optional full extension ID to filter by
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
+    /// When false, omit unavailable canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_unavailable: Option<bool>,
+}
+
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDiscoverCanvasesResult {
+    /// Canvas contributions discovered by the runtime
+    pub canvases: Vec<ExtensionsDiscoverCanvases>,
+}
+
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionsDisableRequest {
+    /// Full extension ID to disable
+    pub id: String,
+}
+
 ///
 /// <div class="warning">
 ///
@@ -1218,7 +1524,7 @@ pub struct ExtensionsDisableRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtensionsEnableRequest {
-    /// Source-qualified extension ID to enable
+    /// Full extension ID to enable
     pub id: String,
 }
 
@@ -8893,19 +9199,30 @@ pub enum EventsCursorStatus {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+/// Discovery source: project (.github/extensions/), user (~/.copilot/extensions/),
+/// or host registration
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ExtensionSource {
     #[serde(rename = "project")]
     Project,
     #[serde(rename = "user")]
     User,
+    #[serde(rename = "host")]
+    Host,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
     Unknown,
 }
 
-/// Current status: running, disabled, failed, or starting
+/// Current status: running, disabled, failed, starting, or unavailable
 ///
 /// <div class="warning">
 ///
@@ -8923,6 +9240,98 @@ pub enum ExtensionStatus {
     Failed,
     #[serde(rename = "starting")]
     Starting,
+    #[serde(rename = "unavailable")]
+    Unavailable,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How the extension implementation is invoked
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtensionsDiscoverCanvasesImplementationKind {
+    #[serde(rename = "path")]
+    Path,
+    #[serde(rename = "host")]
+    Host,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Expected open result category
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtensionsDiscoverCanvasesOpenKind {
+    #[serde(rename = "url")]
+    Url,
+    #[serde(rename = "hosted")]
+    Hosted,
+    #[serde(rename = "unknown")]
+    UnknownValue,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Extension discovery source
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtensionsDiscoverCanvasesSource {
+    #[serde(rename = "project")]
+    Project,
+    #[serde(rename = "user")]
+    User,
+    #[serde(rename = "host")]
+    Host,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Parent extension status
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExtensionsDiscoverCanvasesStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "disabled")]
+    Disabled,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "starting")]
+    Starting,
+    #[serde(rename = "unavailable")]
+    Unavailable,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

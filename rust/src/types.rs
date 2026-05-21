@@ -308,6 +308,12 @@ pub struct Tool {
     /// for MCP tools).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespaced_name: Option<String>,
+    /// Optional runtime namespace for this external tool definition.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Canvas contribution ID for canvas-scoped external tool definitions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
     /// Description of what the tool does.
     #[serde(default)]
     pub description: String,
@@ -365,6 +371,18 @@ impl Tool {
     /// `"playwright/navigate"` for MCP tools).
     pub fn with_namespaced_name(mut self, namespaced_name: impl Into<String>) -> Self {
         self.namespaced_name = Some(namespaced_name.into());
+        self
+    }
+
+    /// Set the runtime namespace for this external tool definition.
+    pub fn with_namespace(mut self, namespace: impl Into<String>) -> Self {
+        self.namespace = Some(namespace.into());
+        self
+    }
+
+    /// Set the canvas contribution ID for canvas-scoped external tool definitions.
+    pub fn with_canvas_id(mut self, canvas_id: impl Into<String>) -> Self {
+        self.canvas_id = Some(canvas_id.into());
         self
     }
 
@@ -965,6 +983,110 @@ fn default_env_value_mode() -> String {
     "direct".into()
 }
 
+/// Temporary host-provided extension registration payload for the runtime canvas POC.
+///
+/// This mirrors the runtime stdio contract and should be replaced by the upstream
+/// `github/copilot-sdk` generated type once protocol parity lands there.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct ExtensionRegistrationConfig {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extension_roots: Vec<PathBuf>,
+    /// Bare extension manifests registered by the host. Each entry is a
+    /// `copilot-extension.json` payload (not wrapped); per-canvas
+    /// `contributes.canvases[].implementation: { kind, id }` routes
+    /// `canvas.action.invoke` dispatch.
+    #[serde(
+        default,
+        rename = "hostExtensions",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub host_extensions: Vec<Value>,
+}
+
+/// Host-advertised runtime capabilities. The runtime gates corresponding
+/// agent tools based on what the host implements.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct HostCapabilitiesConfig {
+    /// When `true`, the runtime exposes the canvas agent tools
+    /// (`open_canvas`, `focus_canvas`, `close_canvas`, `reload_canvas`,
+    /// `discover_canvases`) and adds the `canvas-host` session capability.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas: Option<bool>,
+}
+
+/// Server-to-client hosted extension callback request.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct HostedExtensionInvokeRequest {
+    pub session_id: SessionId,
+    pub request: HostedExtensionRequest,
+}
+
+/// Hosted extension action/lifecycle request envelope.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct HostedExtensionRequest {
+    pub id: String,
+    pub implementation_id: String,
+    pub method: String,
+    pub params: Value,
+}
+
+/// Structured response envelope for hosted extension callbacks.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+#[allow(missing_docs)]
+pub enum HostedExtensionResponse {
+    Success(HostedExtensionSuccessResponse),
+    Error(HostedExtensionErrorResponse),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct HostedExtensionSuccessResponse {
+    pub ok: bool,
+    pub result: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct HostedExtensionErrorResponse {
+    pub ok: bool,
+    pub error: HostedExtensionError,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[allow(missing_docs)]
+pub struct HostedExtensionError {
+    pub code: String,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_capabilities: Vec<String>,
+}
+
+impl HostedExtensionResponse {
+    #[allow(missing_docs)]
+    pub fn error(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::Error(HostedExtensionErrorResponse {
+            ok: false,
+            error: HostedExtensionError {
+                code: code.into(),
+                message: message.into(),
+                required_capabilities: Vec::new(),
+            },
+        })
+    }
+}
+
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1165,6 +1287,15 @@ pub struct SessionConfig {
     /// associated [`CommandHandler`] is called when executed.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Host-provided extension registrations for the temporary canvas POC.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_registrations: Option<ExtensionRegistrationConfig>,
+    /// Host-advertised runtime capabilities (gates canvas agent tools, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_capabilities: Option<HostCapabilitiesConfig>,
+    /// Ask the runtime to route hosted extension callbacks over this SDK connection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_host_extension: Option<bool>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
@@ -1233,6 +1364,8 @@ impl std::fmt::Debug for SessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("extension_registrations", &self.extension_registrations)
+            .field("request_host_extension", &self.request_host_extension)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1290,6 +1423,9 @@ impl Default for SessionConfig {
             cloud: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            extension_registrations: None,
+            host_capabilities: None,
+            request_host_extension: None,
             session_fs_provider: None,
             handler: None,
             hooks_handler: None,
@@ -1743,6 +1879,15 @@ pub struct ResumeSessionConfig {
     /// so the resume payload re-supplies the registration.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
+    /// Host-provided extension registrations for the temporary canvas POC.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_registrations: Option<ExtensionRegistrationConfig>,
+    /// Host-advertised runtime capabilities (gates canvas agent tools, etc.).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_capabilities: Option<HostCapabilitiesConfig>,
+    /// Ask the runtime to route hosted extension callbacks over this SDK connection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_host_extension: Option<bool>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -1814,6 +1959,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 &self.include_sub_agent_streaming_events,
             )
             .field("commands", &self.commands)
+            .field("extension_registrations", &self.extension_registrations)
+            .field("request_host_extension", &self.request_host_extension)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1870,6 +2017,9 @@ impl ResumeSessionConfig {
             remote_session: None,
             include_sub_agent_streaming_events: None,
             commands: None,
+            extension_registrations: None,
+            host_capabilities: None,
+            request_host_extension: None,
             session_fs_provider: None,
             disable_resume: None,
             continue_pending_work: None,
@@ -2834,6 +2984,15 @@ pub struct ToolInvocation {
     pub tool_call_id: String,
     /// Name of the tool being invoked.
     pub tool_name: String,
+    /// Extension ID for dispatcher-routed extension tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
+    /// Optional namespace for the tool invocation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Canvas ID for dispatcher-routed canvas extension tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
     /// Tool arguments as JSON.
     pub arguments: Value,
     /// W3C Trace Context `traceparent` header propagated from the CLI's
@@ -3194,6 +3353,12 @@ pub struct PermissionRequestData {
     /// to a specific tool invocation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+    /// Optional namespace for runtime-scoped tool permission requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Optional canvas id for canvas-scoped permission requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
     /// The full permission request params from the CLI. The shape varies by
     /// permission type and CLI version, so we preserve it as `Value`.
     #[serde(flatten)]
@@ -3241,10 +3406,11 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
-        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionRegistrationConfig,
+        GitHubReferenceType, HostCapabilitiesConfig, InfiniteSessionConfig, PermissionRequestData,
+        ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolInvocation, ToolResult,
+        ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -3253,6 +3419,8 @@ mod tests {
         let tool = Tool::new("greet")
             .with_description("Say hello")
             .with_namespaced_name("hello/greet")
+            .with_namespace("tools")
+            .with_canvas_id("markdown")
             .with_instructions("Pass the user's name")
             .with_parameters(json!({
                 "type": "object",
@@ -3264,10 +3432,126 @@ mod tests {
         assert_eq!(tool.name, "greet");
         assert_eq!(tool.description, "Say hello");
         assert_eq!(tool.namespaced_name.as_deref(), Some("hello/greet"));
+        assert_eq!(tool.namespace.as_deref(), Some("tools"));
+        assert_eq!(tool.canvas_id.as_deref(), Some("markdown"));
         assert_eq!(tool.instructions.as_deref(), Some("Pass the user's name"));
         assert_eq!(tool.parameters.get("type").unwrap(), &json!("object"));
         assert!(tool.overrides_built_in_tool);
         assert!(tool.skip_permission);
+    }
+
+    #[test]
+    fn session_config_serializes_hosted_extension_handoff_fields() {
+        let cfg = SessionConfig {
+            extension_registrations: Some(ExtensionRegistrationConfig {
+                extension_roots: vec![PathBuf::from("/tmp/ext")],
+                host_extensions: vec![json!({
+                    "manifestVersion": 1,
+                    "name": "markdown",
+                    "publisher": "github",
+                    "contributes": {
+                        "canvases": [{
+                            "id": "markdown",
+                            "implementation": { "kind": "native", "id": "github-app.markdown" }
+                        }]
+                    }
+                })],
+            }),
+            host_capabilities: Some(HostCapabilitiesConfig { canvas: Some(true) }),
+            request_host_extension: Some(true),
+            ..Default::default()
+        };
+
+        let value = serde_json::to_value(cfg).expect("serialize session config");
+
+        assert_eq!(
+            value["extensionRegistrations"]["extensionRoots"],
+            json!(["/tmp/ext"])
+        );
+        assert_eq!(
+            value["extensionRegistrations"]["hostExtensions"][0]["contributes"]["canvases"][0]["implementation"]
+                ["id"],
+            "github-app.markdown"
+        );
+        assert!(
+            value["extensionRegistrations"]["hostExtensions"][0]
+                .get("manifest")
+                .is_none(),
+            "hostExtensions items are bare manifests, not wrapped"
+        );
+        assert_eq!(value["hostCapabilities"]["canvas"], true);
+        assert_eq!(value["requestHostExtension"], true);
+    }
+
+    #[test]
+    fn resume_session_config_serializes_hosted_extension_handoff_fields() {
+        let mut cfg = ResumeSessionConfig::new(SessionId::from("session-1"));
+        cfg.extension_registrations = Some(ExtensionRegistrationConfig {
+            extension_roots: Vec::new(),
+            host_extensions: vec![json!({
+                "manifestVersion": 1,
+                "name": "markdown",
+                "publisher": "github"
+            })],
+        });
+        cfg.host_capabilities = Some(HostCapabilitiesConfig { canvas: Some(true) });
+        cfg.request_host_extension = Some(true);
+
+        let value = serde_json::to_value(cfg).expect("serialize resume config");
+
+        assert_eq!(
+            value["extensionRegistrations"]["hostExtensions"][0]["name"],
+            "markdown"
+        );
+        assert_eq!(value["hostCapabilities"]["canvas"], true);
+        assert_eq!(value["requestHostExtension"], true);
+    }
+
+    #[test]
+    fn external_tool_invocation_uses_namespace_field() {
+        let invocation: ToolInvocation = serde_json::from_value(json!({
+            "sessionId": "session-1",
+            "toolCallId": "call-1",
+            "toolName": "increment",
+            "extensionId": "github.markdown",
+            "namespace": "canvas.tools",
+            "canvasId": "markdown",
+            "arguments": { "amount": 1 }
+        }))
+        .expect("deserialize invocation");
+
+        assert_eq!(invocation.extension_id.as_deref(), Some("github.markdown"));
+        assert_eq!(invocation.namespace.as_deref(), Some("canvas.tools"));
+        assert_eq!(invocation.canvas_id.as_deref(), Some("markdown"));
+        let value = serde_json::to_value(invocation).expect("serialize invocation");
+        assert_eq!(value["extensionId"], "github.markdown");
+        assert_eq!(value["namespace"], "canvas.tools");
+        assert_eq!(value["canvasId"], "markdown");
+        assert!(value.get("collection").is_none());
+    }
+
+    #[test]
+    fn permission_request_accepts_namespace_and_canvas_id() {
+        let request: PermissionRequestData = serde_json::from_value(json!({
+            "kind": "custom-tool",
+            "toolCallId": "call-1",
+            "namespace": "canvas.hostActions",
+            "canvasId": "markdown",
+            "promptRequest": {
+                "kind": "custom-tool",
+                "toolName": "open_canvas"
+            }
+        }))
+        .expect("deserialize permission request");
+
+        assert_eq!(request.namespace.as_deref(), Some("canvas.hostActions"));
+        assert_eq!(request.canvas_id.as_deref(), Some("markdown"));
+        assert_eq!(
+            request.extra["promptRequest"]["toolName"].as_str(),
+            Some("open_canvas")
+        );
+        assert!(request.extra.get("namespace").is_none());
+        assert!(request.extra.get("canvasId").is_none());
     }
 
     #[test]

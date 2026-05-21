@@ -1948,6 +1948,12 @@ pub struct PermissionRequestCustomTool {
     pub tool_description: String,
     /// Name of the custom tool
     pub tool_name: String,
+    /// Extension operation namespace for routing and policy context
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Canvas contribution ID for canvas-scoped custom tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
 }
 
 /// Hook confirmation permission request
@@ -2138,6 +2144,12 @@ pub struct PermissionPromptRequestCustomTool {
     pub tool_description: String,
     /// Name of the custom tool
     pub tool_name: String,
+    /// Extension operation namespace for routing and policy context
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Canvas contribution ID for canvas-scoped custom tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
 }
 
 /// Path access permission prompt
@@ -2595,6 +2607,15 @@ pub struct ExternalToolRequestedData {
     pub tool_call_id: String,
     /// Name of the external tool to invoke
     pub tool_name: String,
+    /// Extension ID for dispatcher-routed extension tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
+    /// Optional namespace for the external tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Canvas ID for dispatcher-routed canvas extension tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvas_id: Option<String>,
     /// W3C Trace Context traceparent header for the execute_tool span
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,

@@ -95,5 +95,6 @@ fn running_extension(id: &str, name: &str) -> Extension {
             ExtensionSource::Project
         },
         status: ExtensionStatus::Running,
+        unavailable_reason: None,
     }
 }

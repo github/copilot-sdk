@@ -28,11 +28,11 @@ use crate::trace_context::inject_trace_context;
 use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, GetMessagesResponse, InputOptions, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
-    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultExpanded, ToolResultResponse, TraceContext,
-    ensure_attachment_display_names,
+    ElicitationResult, ExitPlanModeData, GetMessagesResponse, HostedExtensionInvokeRequest,
+    InputOptions, MessageOptions, PermissionRequestData, RequestId, ResumeSessionConfig,
+    SectionOverride, SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
+    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, ToolResultResponse,
+    TraceContext, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -1343,6 +1343,8 @@ async fn handle_notification(
                     PermissionRequestData {
                         kind: None,
                         tool_call_id: None,
+                        namespace: None,
+                        canvas_id: None,
                         extra: notification.event.data.clone(),
                     }
                 });
@@ -1475,6 +1477,9 @@ async fn handle_notification(
                         session_id: sid.clone(),
                         tool_call_id: data.tool_call_id,
                         tool_name: data.tool_name,
+                        extension_id: data.extension_id,
+                        namespace: data.namespace,
+                        canvas_id: data.canvas_id,
                         arguments: data
                             .arguments
                             .unwrap_or(Value::Object(serde_json::Map::new())),
@@ -1797,6 +1802,52 @@ async fn handle_request(
             let _ = client.send_response(&rpc_response).await;
         }
 
+        "hostExtension.invoke" => {
+            let host_request: HostedExtensionInvokeRequest =
+                match request.params.as_ref().and_then(|p| {
+                    serde_json::from_value::<HostedExtensionInvokeRequest>(p.clone()).ok()
+                }) {
+                    Some(host_request) => host_request,
+                    None => {
+                        let _ = send_error_response(
+                            client,
+                            request.id,
+                            error_codes::INVALID_PARAMS,
+                            "invalid hostExtension.invoke params",
+                        )
+                        .await;
+                        return;
+                    }
+                };
+
+            let handler_start = Instant::now();
+            let response = handler
+                .on_event(HandlerEvent::HostedExtension {
+                    session_id: host_request.session_id,
+                    request: host_request.request,
+                })
+                .await;
+            tracing::debug!(
+                elapsed_ms = handler_start.elapsed().as_millis(),
+                session_id = %sid,
+                "SessionHandler::on_hosted_extension dispatch"
+            );
+            let result = match response {
+                HandlerResponse::HostedExtension(response) => serde_json::json!(response),
+                _ => serde_json::json!(crate::types::HostedExtensionResponse::error(
+                    "unexpected_handler_response",
+                    "Unexpected handler response for hostExtension.invoke",
+                )),
+            };
+            let rpc_response = JsonRpcResponse {
+                jsonrpc: "2.0".to_string(),
+                id: request.id,
+                result: Some(result),
+                error: None,
+            };
+            let _ = client.send_response(&rpc_response).await;
+        }
+
         "userInput.request" => {
             let params = request.params.as_ref();
             let Some(question) = params
@@ -1965,6 +2016,8 @@ async fn handle_request(
                 serde_json::from_value(raw_params.clone()).unwrap_or(PermissionRequestData {
                     kind: None,
                     tool_call_id: None,
+                    namespace: None,
+                    canvas_id: None,
                     extra: raw_params,
                 });
 

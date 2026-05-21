@@ -85,6 +85,10 @@ pub enum Error {
         code: i32,
         /// Human-readable error message.
         message: String,
+        /// Optional structured error data carried alongside the response.
+        /// Used by the runtime to convey extension-specific error codes
+        /// (e.g. `canvas_input_invalid`) and structured details.
+        data: Option<serde_json::Value>,
     },
 
     /// Session-scoped error (not found, agent error, timeout, etc.).
@@ -1528,6 +1532,7 @@ impl Client {
             return Err(Error::Rpc {
                 code: err.code,
                 message: err.message,
+                data: err.data,
             });
         }
         Ok(response.result.unwrap_or(serde_json::Value::Null))
@@ -2032,6 +2037,7 @@ mod tests {
         let err = Error::Rpc {
             code: -1,
             message: "bad".into(),
+            data: None,
         };
         assert!(!err.is_transport_failure());
     }
