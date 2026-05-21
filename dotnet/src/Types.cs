@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -1215,7 +1215,7 @@ public sealed class PreToolUseHookInput
     /// Current working directory of the session.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
     /// Name of the tool about to be executed.
@@ -1272,6 +1272,83 @@ public sealed class PreToolUseHookOutput
 }
 
 /// <summary>
+/// Input for a pre-MCP-tool-call hook.
+/// </summary>
+public sealed class PreMcpToolCallHookInput
+{
+    /// <summary>
+    /// The runtime session ID of the session that triggered the hook.
+    /// </summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Unix timestamp in milliseconds when the hook was triggered.
+    /// </summary>
+    [JsonPropertyName("timestamp")]
+    [JsonConverter(typeof(UnixMillisecondsDateTimeOffsetConverter))]
+    public DateTimeOffset Timestamp { get; set; }
+
+    /// <summary>
+    /// Current working directory of the session.
+    /// </summary>
+    [JsonPropertyName("cwd")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Name of the MCP server being called.
+    /// </summary>
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Name of the MCP tool being called.
+    /// </summary>
+    [JsonPropertyName("toolName")]
+    public string ToolName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Arguments for the MCP tool call.
+    /// </summary>
+    [JsonPropertyName("arguments")]
+    public JsonElement? Arguments { get; set; }
+
+    /// <summary>
+    /// Tool call ID, if available.
+    /// </summary>
+    [JsonPropertyName("toolCallId")]
+    public string? ToolCallId { get; set; }
+
+    /// <summary>
+    /// MCP request metadata, if present.
+    /// </summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? Meta { get; set; }
+}
+
+/// <summary>
+/// Output for a pre-MCP-tool-call hook.
+/// </summary>
+/// <remarks>
+/// <para>The <see cref="MetaToUse"/> property controls outgoing MCP request metadata:</para>
+/// <list type="bullet">
+/// <item><description>Return <c>null</c> from the hook handler: preserve existing <c>_meta</c> (no-op).</description></item>
+/// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> left as <c>null</c>: omit <c>_meta</c> from the request.</description></item>
+/// <item><description>Return a <see cref="PreMcpToolCallHookOutput"/> with <see cref="MetaToUse"/> set to a <see cref="JsonElement"/> object: replace <c>_meta</c> with that object.</description></item>
+/// </list>
+/// </remarks>
+public sealed class PreMcpToolCallHookOutput
+{
+    /// <summary>
+    /// Hook-controlled metadata to use for the outgoing MCP request.
+    /// See class remarks for semantics.
+    /// </summary>
+    [JsonPropertyName("metaToUse")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public JsonElement? MetaToUse { get; set; }
+}
+
+/// <summary>
 /// Input for a post-tool-use hook.
 /// </summary>
 public sealed class PostToolUseHookInput
@@ -1293,7 +1370,7 @@ public sealed class PostToolUseHookInput
     /// Current working directory of the session.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
     /// Name of the tool that was executed.
@@ -1360,7 +1437,7 @@ public sealed class UserPromptSubmittedHookInput
     /// Current working directory of the session.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
     /// The user's prompt text.
@@ -1415,7 +1492,7 @@ public sealed class SessionStartHookInput
     /// Current working directory of the session.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
     /// Source of the session start.
@@ -1475,7 +1552,7 @@ public sealed class SessionEndHookInput
     /// Current working directory of the session.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
     /// Reason for session end.
@@ -1549,7 +1626,7 @@ public sealed class ErrorOccurredHookInput
     /// Current working directory of the session.
     /// </summary>
     [JsonPropertyName("cwd")]
-    public string Cwd { get; set; } = string.Empty;
+    public string WorkingDirectory { get; set; } = string.Empty;
 
     /// <summary>
     /// Error message describing what went wrong.
@@ -1620,6 +1697,11 @@ public sealed class SessionHooks
     /// Handler called before a tool is executed.
     /// </summary>
     public Func<PreToolUseHookInput, HookInvocation, Task<PreToolUseHookOutput?>>? OnPreToolUse { get; set; }
+
+    /// <summary>
+    /// Handler called before an MCP tool is called.
+    /// </summary>
+    public Func<PreMcpToolCallHookInput, HookInvocation, Task<PreMcpToolCallHookOutput?>>? OnPreMcpToolCall { get; set; }
 
     /// <summary>
     /// Handler called after a tool has been executed.

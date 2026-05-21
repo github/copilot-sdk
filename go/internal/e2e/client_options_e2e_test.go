@@ -137,7 +137,7 @@ func TestClientOptionsE2E(t *testing.T) {
 		assertArgValue(t, args, "--session-idle-timeout", "17")
 
 		expectedCwd, _ := filepath.Abs(ctx.WorkDir)
-		actualCwd, _ := filepath.Abs(capture.Cwd)
+		actualCwd, _ := filepath.Abs(capture.WorkingDirectory)
 		if expectedCwd != actualCwd {
 			t.Errorf("Expected cwd=%q, got %q", expectedCwd, actualCwd)
 		}
@@ -323,7 +323,7 @@ func assertArgValue(t *testing.T, args []string, name, expected string) {
 // capturedCli mirrors the JSON file written by the fake stdio CLI script.
 type capturedCli struct {
 	Args     []string          `json:"args"`
-	Cwd      string            `json:"cwd"`
+	WorkingDirectory      string            `json:"cwd"`
 	Requests []capturedRequest `json:"requests"`
 	Env      map[string]string `json:"env"`
 }

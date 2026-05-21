@@ -894,8 +894,8 @@ func TestSessionE2E(t *testing.T) {
 		// Verify context field is present on sessions
 		for _, s := range sessions {
 			if s.Context != nil {
-				if s.Context.Cwd == "" {
-					t.Error("Expected context.Cwd to be non-empty when context is present")
+				if s.Context.WorkingDirectory == "" {
+					t.Error("Expected context.WorkingDirectory to be non-empty when context is present")
 				}
 			}
 		}
@@ -1006,8 +1006,8 @@ func TestSessionE2E(t *testing.T) {
 
 		// Verify context field
 		if metadata.Context != nil {
-			if metadata.Context.Cwd == "" {
-				t.Error("Expected context.Cwd to be non-empty when context is present")
+			if metadata.Context.WorkingDirectory == "" {
+				t.Error("Expected context.WorkingDirectory to be non-empty when context is present")
 			}
 		}
 

@@ -1010,7 +1010,7 @@ export interface BaseHookInput {
     sessionId: string;
     /** Time at which the hook event was emitted by the runtime. */
     timestamp: Date;
-    cwd: string;
+    workingDirectory: string;
 }
 
 /**
@@ -1039,6 +1039,38 @@ export type PreToolUseHandler = (
     input: PreToolUseHookInput,
     invocation: { sessionId: string }
 ) => Promise<PreToolUseHookOutput | void> | PreToolUseHookOutput | void;
+
+/**
+ * Input for pre-MCP-tool-call hook
+ */
+export interface PreMcpToolCallHookInput extends BaseHookInput {
+    toolCallId?: string;
+    serverName: string;
+    toolName: string;
+    arguments: unknown;
+    _meta?: Record<string, unknown>;
+}
+
+/**
+ * Output for pre-MCP-tool-call hook
+ */
+export interface PreMcpToolCallHookOutput {
+    /**
+     * Hook-controlled metadata to use for the outgoing MCP request.
+     * - undefined/absent: preserve the current request `_meta`
+     * - object: use this object as request `_meta`
+     * - null: omit `_meta`
+     */
+    metaToUse?: Record<string, unknown> | null;
+}
+
+/**
+ * Handler for pre-MCP-tool-call hook
+ */
+export type PreMcpToolCallHandler = (
+    input: PreMcpToolCallHookInput,
+    invocation: { sessionId: string }
+) => Promise<PreMcpToolCallHookOutput | void> | PreMcpToolCallHookOutput | void;
 
 /**
  * Input for post-tool-use hook
@@ -1175,6 +1207,11 @@ export interface SessionHooks {
      * Called before a tool is executed
      */
     onPreToolUse?: PreToolUseHandler;
+
+    /**
+     * Called before an MCP tool is called
+     */
+    onPreMcpToolCall?: PreMcpToolCallHandler;
 
     /**
      * Called after a tool is executed

@@ -1245,6 +1245,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
                         invocation)
                     : null,
+                "preMcpToolCall" => hooks.OnPreMcpToolCall != null
+                    ? await hooks.OnPreMcpToolCall(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreMcpToolCallHookInput)!,
+                        invocation)
+                    : null,
                 "postToolUse" => hooks.OnPostToolUse != null
                     ? await hooks.OnPostToolUse(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
@@ -1607,6 +1612,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(GetMessagesResponse))]
     [JsonSerializable(typeof(PostToolUseHookInput))]
     [JsonSerializable(typeof(PostToolUseHookOutput))]
+    [JsonSerializable(typeof(PreMcpToolCallHookInput))]
+    [JsonSerializable(typeof(PreMcpToolCallHookOutput))]
     [JsonSerializable(typeof(PreToolUseHookInput))]
     [JsonSerializable(typeof(PreToolUseHookOutput))]
     [JsonSerializable(typeof(SendMessageRequest))]

@@ -620,7 +620,7 @@ class PreToolUseHookInput(TypedDict):
 
     sessionId: str
     timestamp: int
-    cwd: str
+    workingDirectory: str
     toolName: str
     toolArgs: Any
 
@@ -641,12 +641,43 @@ PreToolUseHandler = Callable[
 ]
 
 
+class PreMcpToolCallHookInput(TypedDict):
+    """Input for pre-MCP-tool-call hook"""
+
+    sessionId: str
+    timestamp: int
+    workingDirectory: str
+    serverName: str
+    toolName: str
+    arguments: Any
+    toolCallId: NotRequired[str]
+    _meta: NotRequired[dict[str, Any]]
+
+
+class PreMcpToolCallHookOutput(TypedDict, total=False):
+    """Output for pre-MCP-tool-call hook.
+
+    metaToUse semantics:
+    - Key absent: preserve the current request _meta
+    - Key present with None value: omit _meta from the request
+    - Key present with dict value: use this dict as request _meta
+    """
+
+    metaToUse: dict[str, Any] | None
+
+
+PreMcpToolCallHandler = Callable[
+    [PreMcpToolCallHookInput, dict[str, str]],
+    PreMcpToolCallHookOutput | None | Awaitable[PreMcpToolCallHookOutput | None],
+]
+
+
 class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
     sessionId: str
     timestamp: int
-    cwd: str
+    workingDirectory: str
     toolName: str
     toolArgs: Any
     toolResult: Any
@@ -671,7 +702,7 @@ class UserPromptSubmittedHookInput(TypedDict):
 
     sessionId: str
     timestamp: int
-    cwd: str
+    workingDirectory: str
     prompt: str
 
 
@@ -694,7 +725,7 @@ class SessionStartHookInput(TypedDict):
 
     sessionId: str
     timestamp: int
-    cwd: str
+    workingDirectory: str
     source: Literal["startup", "resume", "new"]
     initialPrompt: NotRequired[str]
 
@@ -717,7 +748,7 @@ class SessionEndHookInput(TypedDict):
 
     sessionId: str
     timestamp: int
-    cwd: str
+    workingDirectory: str
     reason: Literal["complete", "error", "abort", "timeout", "user_exit"]
     finalMessage: NotRequired[str]
     error: NotRequired[str]
@@ -742,7 +773,7 @@ class ErrorOccurredHookInput(TypedDict):
 
     sessionId: str
     timestamp: int
-    cwd: str
+    workingDirectory: str
     error: str
     errorContext: Literal["model_call", "tool_execution", "system", "user_input"]
     recoverable: bool
@@ -767,6 +798,7 @@ class SessionHooks(TypedDict, total=False):
     """Configuration for session hooks"""
 
     on_pre_tool_use: PreToolUseHandler
+    on_pre_mcp_tool_call: PreMcpToolCallHandler
     on_post_tool_use: PostToolUseHandler
     on_user_prompt_submitted: UserPromptSubmittedHandler
     on_session_start: SessionStartHandler
@@ -2180,6 +2212,7 @@ class CopilotSession:
 
         handler_map = {
             "preToolUse": hooks.get("on_pre_tool_use"),
+            "preMcpToolCall": hooks.get("on_pre_mcp_tool_call"),
             "postToolUse": hooks.get("on_post_tool_use"),
             "userPromptSubmitted": hooks.get("on_user_prompt_submitted"),
             "sessionStart": hooks.get("on_session_start"),
@@ -2193,6 +2226,9 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
+            # Remap wire key "cwd" to public API key "workingDirectory"
+            if "cwd" in input_data:
+                input_data = {**input_data, "workingDirectory": input_data.pop("cwd")}
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
