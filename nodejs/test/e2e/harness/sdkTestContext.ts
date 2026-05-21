@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
-import { CopilotClient, CopilotClientOptions } from "../../../src";
+import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
 import { formatError, retry } from "./sdkTestHelper";
 
@@ -66,13 +66,17 @@ export async function createSdkTestContext({
         XDG_STATE_HOME: homeDir,
     };
 
+    const connection: RuntimeConnection =
+        useStdio === false
+            ? RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })
+            : RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH });
+
     const copilotClient = new CopilotClient({
         cwd: workDir,
         env,
         logLevel: logLevel || "error",
-        cliPath: process.env.COPILOT_CLI_PATH,
+        connection,
         gitHubToken: authTokenToUse,
-        useStdio: useStdio,
         ...copilotClientOptions,
     });
 

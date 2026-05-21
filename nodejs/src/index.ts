@@ -9,6 +9,7 @@
  */
 
 export { CopilotClient } from "./client.js";
+export { RuntimeConnection } from "./types.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export {
     defineTool,
@@ -41,6 +42,9 @@ export type {
     AutoModeSwitchResponse,
     ConnectionState,
     CopilotClientOptions,
+    StdioRuntimeConnection,
+    TcpRuntimeConnection,
+    UriRuntimeConnection,
     CustomAgentConfig,
     ElicitationFieldValue,
     ElicitationHandler,

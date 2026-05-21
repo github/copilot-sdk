@@ -1,6 +1,6 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient, approveAll } from "../../src/index.js";
+import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
@@ -14,7 +14,7 @@ function onTestFinishedForceStop(client: CopilotClient) {
 
 describe("Client", () => {
     it("should start and connect to server using stdio", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -29,7 +29,7 @@ describe("Client", () => {
     });
 
     it("should start and connect to server using tcp", async () => {
-        const client = new CopilotClient({ useStdio: false });
+        const client = new CopilotClient({ connection: RuntimeConnection.forTcp() });
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -51,7 +51,7 @@ describe("Client", () => {
             // saying "Cannot call write after a stream was destroyed"
             // because the JSON-RPC logic is still trying to write to stdin after
             // the process has exited.
-            const client = new CopilotClient({ useStdio: false });
+            const client = new CopilotClient({ connection: RuntimeConnection.forTcp() });
 
             await client.createSession({ onPermissionRequest: approveAll });
 
@@ -83,7 +83,7 @@ describe("Client", () => {
     });
 
     it("should get status with version and protocol info", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -99,7 +99,7 @@ describe("Client", () => {
     });
 
     it("should get auth status", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -115,7 +115,7 @@ describe("Client", () => {
     });
 
     it("should list models when authenticated", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -143,8 +143,7 @@ describe("Client", () => {
 
     it("should report error with stderr when CLI fails to start", async () => {
         const client = new CopilotClient({
-            cliArgs: ["--nonexistent-flag-for-testing"],
-            useStdio: true,
+            connection: RuntimeConnection.forStdio({ args: ["--nonexistent-flag-for-testing"] }),
         });
         onTestFinishedForceStop(client);
 

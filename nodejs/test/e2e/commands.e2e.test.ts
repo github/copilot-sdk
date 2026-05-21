@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, describe, expect, it } from "vitest";
-import { CopilotClient, approveAll } from "../../src/index.js";
+import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
 import type { SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -11,7 +11,6 @@ describe("Commands", async () => {
     // Use TCP mode so a second client can connect to the same CLI process
     const tcpConnectionToken = "commands-test-token";
     const ctx = await createSdkTestContext({
-        useStdio: false,
         copilotClientOptions: { tcpConnectionToken },
     });
     const client1 = ctx.copilotClient;
@@ -20,8 +19,8 @@ describe("Commands", async () => {
     const initSession = await client1.createSession({ onPermissionRequest: approveAll });
     await initSession.disconnect();
 
-    const { actualPort } = client1 as unknown as { actualPort: number };
-    const client2 = new CopilotClient({ cliUrl: `localhost:${actualPort}`, tcpConnectionToken });
+    const { runtimePort } = client1 as unknown as { runtimePort: number };
+    const client2 = new CopilotClient({ connection: RuntimeConnection.forUri(`localhost:${runtimePort}`, { connectionToken: tcpConnectionToken }) });
 
     afterAll(async () => {
         await client2.stop();

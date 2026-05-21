@@ -45,6 +45,7 @@ import type {
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,
+    InternalRuntimeConnection,
     ModelInfo,
     ResumeSessionConfig,
     SectionTransformFn,
@@ -209,7 +210,7 @@ function getBundledCliPath(): string {
  * const client = new CopilotClient();
  *
  * // Or connect to an existing server
- * const client = new CopilotClient({ cliUrl: "localhost:3000" });
+ * const client = new CopilotClient({ connection: RuntimeConnection.forUri("localhost:3000") });
  *
  * // Create a session
  * const session = await client.createSession({ onPermissionRequest: approveAll, model: "gpt-4" });
@@ -232,32 +233,26 @@ export class CopilotClient {
     private cliProcess: ChildProcess | null = null;
     private connection: MessageConnection | null = null;
     private socket: Socket | null = null;
-    private actualPort: number | null = null;
+    private runtimePort: number | null = null;
     private actualHost: string = "localhost";
     private state: ConnectionState = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
-    private options: Required<
-        Omit<
-            CopilotClientOptions,
-            | "cliPath"
-            | "cliUrl"
-            | "gitHubToken"
-            | "useLoggedInUser"
-            | "onListModels"
-            | "telemetry"
-            | "onGetTraceContext"
-            | "sessionFs"
-            | "tcpConnectionToken"
-            | "copilotHome"
-        >
-    > & {
-        cliPath?: string;
-        cliUrl?: string;
+    /** Resolved connection mode chosen in the constructor. */
+    private connectionConfig: InternalRuntimeConnection;
+    /** Resolved path to the runtime executable (only used for child-process kinds). */
+    private resolvedCliPath: string | undefined;
+    /** Resolved environment passed to the spawned runtime. */
+    private resolvedEnv: Record<string, string | undefined>;
+    private options: {
+        cwd: string;
+        logLevel: string;
         gitHubToken?: string;
-        useLoggedInUser?: boolean;
+        useLoggedInUser: boolean;
         telemetry?: TelemetryConfig;
-        copilotHome?: string;
+        baseDirectory?: string;
+        sessionIdleTimeoutSeconds: number;
+        remote: boolean;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -311,73 +306,72 @@ export class CopilotClient {
      * Creates a new CopilotClient instance.
      *
      * @param options - Configuration options for the client
-     * @throws Error if mutually exclusive options are provided (e.g., cliUrl with useStdio or cliPath)
      *
      * @example
      * ```typescript
-     * // Default options - spawns CLI server using stdio
+     * // Default: spawns the bundled runtime over stdio
      * const client = new CopilotClient();
      *
-     * // Connect to an existing server
-     * const client = new CopilotClient({ cliUrl: "localhost:3000" });
-     *
-     * // Custom CLI path with specific log level
+     * // Connect to an existing runtime
      * const client = new CopilotClient({
-     *   cliPath: "/usr/local/bin/copilot",
-     *   logLevel: "debug"
+     *   connection: RuntimeConnection.forUri("localhost:3000"),
+     * });
+     *
+     * // Spawn the runtime over TCP on a chosen port
+     * const client = new CopilotClient({
+     *   connection: RuntimeConnection.forTcp({ port: 9001 }),
+     * });
+     *
+     * // Use a custom runtime binary
+     * const client = new CopilotClient({
+     *   connection: RuntimeConnection.forStdio({ path: "/usr/local/bin/copilot" }),
+     *   logLevel: "debug",
      * });
      * ```
      */
     constructor(options: CopilotClientOptions = {}) {
-        // Validate mutually exclusive options
-        if (options.cliUrl && (options.useStdio === true || options.cliPath)) {
-            throw new Error("cliUrl is mutually exclusive with useStdio and cliPath");
-        }
+        // Resolve the connection mode. `_internalConnection` is set by
+        // `joinSession()` to opt into the parent-process stdio path; consumers
+        // should always go through the public `connection` field.
+        const conn: InternalRuntimeConnection =
+            options._internalConnection ?? options.connection ?? { kind: "stdio" };
 
-        if (options.isChildProcess && (options.cliUrl || options.useStdio === false)) {
+        if (
+            conn.kind === "uri" &&
+            (options.gitHubToken !== undefined || options.useLoggedInUser !== undefined)
+        ) {
             throw new Error(
-                "isChildProcess must be used in conjunction with useStdio and not with cliUrl"
+                "gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri (external server manages its own auth)"
             );
         }
-
-        // Validate auth options with external server
-        if (options.cliUrl && (options.gitHubToken || options.useLoggedInUser !== undefined)) {
-            throw new Error(
-                "gitHubToken and useLoggedInUser cannot be used with cliUrl (external server manages its own auth)"
-            );
-        }
-
-        if (options.tcpConnectionToken !== undefined) {
-            if (
-                typeof options.tcpConnectionToken !== "string" ||
-                options.tcpConnectionToken.length === 0
-            ) {
-                throw new Error("tcpConnectionToken must be a non-empty string");
-            }
-            if (options.useStdio === true) {
-                throw new Error("tcpConnectionToken cannot be used with useStdio: true");
+        if (conn.kind === "tcp" && conn.connectionToken !== undefined) {
+            if (typeof conn.connectionToken !== "string" || conn.connectionToken.length === 0) {
+                throw new Error("connectionToken must be a non-empty string");
             }
         }
 
-        const willUseStdio = options.cliUrl ? false : (options.useStdio ?? true);
-        const sdkSpawnsCli = !willUseStdio && !options.cliUrl && !options.isChildProcess;
-        this.effectiveConnectionToken =
-            options.tcpConnectionToken ?? (sdkSpawnsCli ? randomUUID() : undefined);
+        this.connectionConfig = conn;
 
         if (options.sessionFs) {
             this.validateSessionFsConfig(options.sessionFs);
         }
 
-        // Parse cliUrl if provided
-        if (options.cliUrl) {
-            const { host, port } = this.parseCliUrl(options.cliUrl);
+        // Pre-parse the URI host/port and mark as external if applicable.
+        if (conn.kind === "uri") {
+            const { host, port } = this.parseCliUrl(conn.url);
             this.actualHost = host;
-            this.actualPort = port;
+            this.runtimePort = port;
+            this.isExternalServer = true;
+        } else if (conn.kind === "parent-process") {
             this.isExternalServer = true;
         }
 
-        if (options.isChildProcess) {
-            this.isExternalServer = true;
+        // Effective TCP connection token: explicit, else auto-generated when we
+        // spawn our own runtime over TCP, else undefined.
+        if (conn.kind === "tcp") {
+            this.effectiveConnectionToken = conn.connectionToken ?? randomUUID();
+        } else if (conn.kind === "uri") {
+            this.effectiveConnectionToken = conn.connectionToken;
         }
 
         this.onListModels = options.onListModels;
@@ -385,28 +379,31 @@ export class CopilotClient {
         this.sessionFsConfig = options.sessionFs ?? null;
 
         const effectiveEnv = options.env ?? process.env;
-        this.options = {
-            cliPath: options.cliUrl
-                ? undefined
-                : options.cliPath || effectiveEnv.COPILOT_CLI_PATH || getBundledCliPath(),
-            cliArgs: options.cliArgs ?? [],
-            cwd: options.cwd ?? process.cwd(),
-            port: options.port || 0,
-            useStdio: options.cliUrl ? false : (options.useStdio ?? true), // Default to stdio unless cliUrl is provided
-            isChildProcess: options.isChildProcess ?? false,
-            cliUrl: options.cliUrl,
-            logLevel: options.logLevel || "debug",
+        this.resolvedEnv = effectiveEnv;
+        this.resolvedCliPath =
+            conn.kind === "stdio" || conn.kind === "tcp"
+                ? (conn.path ?? effectiveEnv.COPILOT_CLI_PATH ?? getBundledCliPath())
+                : undefined;
 
-            env: effectiveEnv,
+        // Collect extra CLI args from the connection variant (if any).
+        const connArgs: readonly string[] =
+            conn.kind === "stdio" || conn.kind === "tcp" ? (conn.args ?? []) : [];
+        this.connectionExtraArgs = [...connArgs];
+
+        this.options = {
+            cwd: options.cwd ?? process.cwd(),
+            logLevel: options.logLevel || "debug",
             gitHubToken: options.gitHubToken,
-            // Default useLoggedInUser to false when gitHubToken is provided, otherwise true
+            // Default useLoggedInUser to false when gitHubToken is provided, otherwise true.
             useLoggedInUser: options.useLoggedInUser ?? (options.gitHubToken ? false : true),
             telemetry: options.telemetry,
-            copilotHome: options.copilotHome,
+            baseDirectory: options.baseDirectory,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             remote: options.remote ?? false,
         };
     }
+
+    private connectionExtraArgs: string[] = [];
 
     /**
      * Parse CLI URL into host and port
@@ -636,7 +633,7 @@ export class CopilotClient {
         }
 
         this.state = "disconnected";
-        this.actualPort = null;
+        this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
 
@@ -713,7 +710,7 @@ export class CopilotClient {
         }
 
         this.state = "disconnected";
-        this.actualPort = null;
+        this.runtimePort = null;
         this.stderrBuffer = "";
         this.processExitPromise = null;
     }
@@ -1480,18 +1477,21 @@ export class CopilotClient {
             this.stderrBuffer = "";
 
             const args = [
-                ...this.options.cliArgs,
+                ...this.connectionExtraArgs,
                 "--headless",
                 "--no-auto-update",
                 "--log-level",
                 this.options.logLevel,
             ];
 
-            // Choose transport mode
-            if (this.options.useStdio) {
+            // Choose transport mode based on the resolved connection config.
+            if (this.connectionConfig.kind === "stdio") {
                 args.push("--stdio");
-            } else if (this.options.port > 0) {
-                args.push("--port", this.options.port.toString());
+            } else if (this.connectionConfig.kind === "tcp") {
+                const requestedPort = this.connectionConfig.port ?? 0;
+                if (requestedPort > 0) {
+                    args.push("--port", requestedPort.toString());
+                }
             }
 
             // Add auth-related flags
@@ -1517,7 +1517,7 @@ export class CopilotClient {
             }
 
             // Suppress debug/trace output that might pollute stdout
-            const envWithoutNodeDebug = { ...this.options.env };
+            const envWithoutNodeDebug = { ...this.resolvedEnv };
             delete envWithoutNodeDebug.NODE_DEBUG;
 
             // Set auth token in environment if provided
@@ -1529,11 +1529,11 @@ export class CopilotClient {
                 envWithoutNodeDebug.COPILOT_CONNECTION_TOKEN = this.effectiveConnectionToken;
             }
 
-            if (this.options.copilotHome) {
-                envWithoutNodeDebug.COPILOT_HOME = this.options.copilotHome;
+            if (this.options.baseDirectory) {
+                envWithoutNodeDebug.COPILOT_HOME = this.options.baseDirectory;
             }
 
-            if (!this.options.cliPath) {
+            if (!this.resolvedCliPath) {
                 throw new Error(
                     "Path to Copilot CLI is required. Please provide it via the cliPath option, or use cliUrl to rely on a remote CLI."
                 );
@@ -1558,28 +1558,28 @@ export class CopilotClient {
             }
 
             // Verify CLI exists before attempting to spawn
-            if (!existsSync(this.options.cliPath)) {
+            if (!existsSync(this.resolvedCliPath)) {
                 throw new Error(
-                    `Copilot CLI not found at ${this.options.cliPath}. Ensure @github/copilot is installed.`
+                    `Copilot CLI not found at ${this.resolvedCliPath}. Ensure @github/copilot is installed.`
                 );
             }
 
-            const stdioConfig: ["pipe", "pipe", "pipe"] | ["ignore", "pipe", "pipe"] = this.options
-                .useStdio
-                ? ["pipe", "pipe", "pipe"]
-                : ["ignore", "pipe", "pipe"];
+            const stdioConfig: ["pipe", "pipe", "pipe"] | ["ignore", "pipe", "pipe"] =
+                this.connectionConfig.kind === "stdio"
+                    ? ["pipe", "pipe", "pipe"]
+                    : ["ignore", "pipe", "pipe"];
 
             // For .js files, spawn node explicitly; for executables, spawn directly
-            const isJsFile = this.options.cliPath.endsWith(".js");
+            const isJsFile = this.resolvedCliPath.endsWith(".js");
             if (isJsFile) {
-                this.cliProcess = spawn(getNodeExecPath(), [this.options.cliPath, ...args], {
+                this.cliProcess = spawn(getNodeExecPath(), [this.resolvedCliPath, ...args], {
                     stdio: stdioConfig,
                     cwd: this.options.cwd,
                     env: envWithoutNodeDebug,
                     windowsHide: true,
                 });
             } else {
-                this.cliProcess = spawn(this.options.cliPath, args, {
+                this.cliProcess = spawn(this.resolvedCliPath, args, {
                     stdio: stdioConfig,
                     cwd: this.options.cwd,
                     env: envWithoutNodeDebug,
@@ -1591,7 +1591,7 @@ export class CopilotClient {
             let resolved = false;
 
             // For stdio mode, we're ready immediately after spawn
-            if (this.options.useStdio) {
+            if (this.connectionConfig.kind === "stdio") {
                 resolved = true;
                 resolve();
             } else {
@@ -1600,7 +1600,7 @@ export class CopilotClient {
                     stdout += data.toString();
                     const match = stdout.match(/listening on port (\d+)/i);
                     if (match && !resolved) {
-                        this.actualPort = parseInt(match[1], 10);
+                        this.runtimePort = parseInt(match[1], 10);
                         resolved = true;
                         resolve();
                     }
@@ -1688,12 +1688,14 @@ export class CopilotClient {
      * Connect to the CLI server (via socket or stdio)
      */
     private async connectToServer(): Promise<void> {
-        if (this.options.isChildProcess) {
-            return this.connectToParentProcessViaStdio();
-        } else if (this.options.useStdio) {
-            return this.connectToChildProcessViaStdio();
-        } else {
-            return this.connectViaTcp();
+        switch (this.connectionConfig.kind) {
+            case "parent-process":
+                return this.connectToParentProcessViaStdio();
+            case "stdio":
+                return this.connectToChildProcessViaStdio();
+            case "tcp":
+            case "uri":
+                return this.connectViaTcp();
         }
     }
 
@@ -1744,7 +1746,7 @@ export class CopilotClient {
      * Connect to the CLI server via TCP socket
      */
     private async connectViaTcp(): Promise<void> {
-        if (!this.actualPort) {
+        if (!this.runtimePort) {
             throw new Error("Server port not available");
         }
 
@@ -1756,7 +1758,7 @@ export class CopilotClient {
                 reject(new Error("Timeout connecting to CLI server"));
             }, 10000);
 
-            this.socket.connect(this.actualPort!, this.actualHost, () => {
+            this.socket.connect(this.runtimePort!, this.actualHost, () => {
                 clearTimeout(connectionTimeout);
                 // Create JSON-RPC connection
                 this.connection = createMessageConnection(

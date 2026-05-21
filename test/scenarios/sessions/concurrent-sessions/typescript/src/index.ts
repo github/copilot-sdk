@@ -5,7 +5,7 @@ const ROBOT_PROMPT = `You are a robot. Always say BEEP BOOP!`;
 
 async function main() {
   const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
+    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
     githubToken: process.env.GITHUB_TOKEN,
   });
 

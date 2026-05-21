@@ -58,82 +58,154 @@ export interface TelemetryConfig {
     captureContent?: boolean;
 }
 
+/**
+ * Configures how a {@link CopilotClient} connects to the Copilot runtime.
+ * Construct via the factory functions on {@link RuntimeConnection}.
+ */
+export type RuntimeConnection =
+    | StdioRuntimeConnection
+    | TcpRuntimeConnection
+    | UriRuntimeConnection;
+
+/**
+ * Spawns a runtime child process and communicates over its stdin/stdout.
+ * This is the default if no {@link CopilotClientOptions.connection} is set.
+ */
+export interface StdioRuntimeConnection {
+    readonly kind: "stdio";
+    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
+    readonly path?: string;
+    /** Extra command-line arguments to pass to the runtime process. */
+    readonly args?: readonly string[];
+}
+
+/**
+ * Spawns a runtime child process that listens on a TCP socket and connects to it.
+ */
+export interface TcpRuntimeConnection {
+    readonly kind: "tcp";
+    /**
+     * TCP port to listen on. `0` (the default) auto-allocates a free port.
+     * If the chosen port is already in use, startup fails.
+     */
+    readonly port?: number;
+    /**
+     * Optional shared secret the SDK sends to the spawned runtime to authenticate
+     * the TCP connection. When omitted, a UUID is generated automatically so the
+     * loopback listener is safe by default.
+     */
+    readonly connectionToken?: string;
+    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
+    readonly path?: string;
+    /** Extra command-line arguments to pass to the runtime process. */
+    readonly args?: readonly string[];
+}
+
+/**
+ * Connects to an already-running runtime at the specified URL. The SDK does not
+ * spawn a process in this mode.
+ */
+export interface UriRuntimeConnection {
+    readonly kind: "uri";
+    /**
+     * URL of the runtime to connect to. Accepts `"port"`, `"host:port"`, or a
+     * full URL (`"http://host:port"`).
+     */
+    readonly url: string;
+    /** Optional shared secret to authenticate the connection. */
+    readonly connectionToken?: string;
+}
+
+/** Factory functions for constructing {@link RuntimeConnection} instances. */
+export const RuntimeConnection = {
+    /**
+     * Spawn a runtime child process and communicate over its stdin/stdout.
+     * This is the default if no {@link CopilotClientOptions.connection} is set.
+     */
+    forStdio(opts: { path?: string; args?: readonly string[] } = {}): StdioRuntimeConnection {
+        return { kind: "stdio", path: opts.path, args: opts.args };
+    },
+    /**
+     * Spawn a runtime child process that listens on a TCP socket and connect to it.
+     */
+    forTcp(
+        opts: {
+            port?: number;
+            connectionToken?: string;
+            path?: string;
+            args?: readonly string[];
+        } = {}
+    ): TcpRuntimeConnection {
+        return {
+            kind: "tcp",
+            port: opts.port,
+            connectionToken: opts.connectionToken,
+            path: opts.path,
+            args: opts.args,
+        };
+    },
+    /**
+     * Connect to an already-running runtime at the given URL. The SDK does not
+     * spawn a process in this mode.
+     */
+    forUri(url: string, opts: { connectionToken?: string } = {}): UriRuntimeConnection {
+        return { kind: "uri", url, connectionToken: opts.connectionToken };
+    },
+} as const;
+
+/**
+ * @internal Marker used by `joinSession()` to signal that the SDK is running
+ * as a child process of the Copilot runtime and should use its own stdio to
+ * talk back to the parent. Not part of the public API.
+ */
+export interface ParentProcessRuntimeConnection {
+    readonly kind: "parent-process";
+}
+
+/** @internal */
+export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntimeConnection;
+
 export interface CopilotClientOptions {
     /**
-     * Path to the CLI executable or JavaScript entry point.
-     * If not specified, uses the bundled CLI from the @github/copilot package.
+     * How to connect to the Copilot runtime. When omitted, defaults to
+     * {@link RuntimeConnection.forStdio} with the bundled runtime.
      */
-    cliPath?: string;
+    connection?: RuntimeConnection;
 
     /**
-     * Extra arguments to pass to the CLI executable (inserted before SDK-managed args)
-     */
-    cliArgs?: string[];
-
-    /**
-     * Working directory for the CLI process
-     * If not set, inherits the current process's working directory
+     * Working directory for the runtime process.
+     * If not set, inherits the current process's working directory.
      */
     cwd?: string;
 
     /**
      * Base directory for Copilot data (session state, config, etc.).
-     * Sets the COPILOT_HOME environment variable on the spawned CLI process.
-     * When not set, the CLI defaults to ~/.copilot.
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link cliUrl}.
+     * Sets the COPILOT_HOME environment variable on the spawned runtime.
+     * When not set, the runtime defaults to ~/.copilot.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      */
-    copilotHome?: string;
+    baseDirectory?: string;
 
     /**
-     * Port for the CLI server (TCP mode only)
-     * @default 0 (random available port)
-     */
-    port?: number;
-
-    /**
-     * Use stdio transport instead of TCP
-     * When true, communicates with CLI via stdin/stdout pipes
-     * @default true
-     */
-    useStdio?: boolean;
-
-    /**
-     * When true, indicates the SDK is running as a child process of the Copilot CLI server, and should
-     * use its own stdio for communicating with the existing parent process. Can only be used in combination
-     * with useStdio: true.
-     */
-    isChildProcess?: boolean;
-
-    /**
-     * URL of an existing Copilot CLI server to connect to over TCP
-     * When provided, the client will not spawn a CLI process
-     * Format: "host:port" or "http://host:port" or just "port" (defaults to localhost)
-     * Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
-     * Mutually exclusive with cliPath, useStdio
-     */
-    cliUrl?: string;
-
-    /**
-     * Log level for the CLI server
+     * Log level for the Copilot runtime.
      */
     logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all";
 
     /**
-     * Environment variables to pass to the CLI process. If not set, inherits process.env.
+     * Environment variables to pass to the runtime process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;
 
     /**
      * GitHub token to use for authentication.
-     * When provided, the token is passed to the CLI server via environment variable.
+     * When provided, the token is passed to the runtime via environment variable.
      * This takes priority over other authentication methods.
      */
     gitHubToken?: string;
 
     /**
      * Whether to use the logged-in user for authentication.
-     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+     * When true, the runtime will attempt to use stored OAuth tokens or gh CLI auth.
      * When false, only explicit tokens (gitHubToken or environment variables) are used.
      * @default true (but defaults to false when gitHubToken is provided)
      */
@@ -142,15 +214,15 @@ export interface CopilotClientOptions {
     /**
      * Custom handler for listing available models.
      * When provided, client.listModels() calls this handler instead of
-     * querying the CLI server. Useful in BYOK mode to return models
+     * querying the runtime. Useful in BYOK mode to return models
      * available from your custom provider.
      */
     onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
 
     /**
-     * OpenTelemetry configuration for the CLI process.
+     * OpenTelemetry configuration for the runtime process.
      * When provided, the corresponding OTel environment variables are set
-     * on the spawned CLI server.
+     * on the spawned runtime.
      */
     telemetry?: TelemetryConfig;
 
@@ -192,29 +264,25 @@ export interface CopilotClientOptions {
      * Server-wide idle timeout for sessions in seconds.
      * Sessions without activity for this duration are automatically cleaned up.
      * Set to 0 or omit to disable (sessions live indefinitely).
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link cliUrl}.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      * @default undefined (disabled)
      */
     sessionIdleTimeoutSeconds?: number;
 
     /**
-     * Connection token for the headless CLI server (TCP only). When the SDK
-     * spawns its own CLI in TCP mode and this is omitted, a UUID is generated
-     * automatically so the loopback listener is safe by default. Rejected with
-     * `useStdio: true` (stdio is pre-authenticated by transport).
-     */
-    tcpConnectionToken?: string;
-
-    /**
      * Enable remote session support (Mission Control integration).
      * When true, sessions in a GitHub repository working directory are
      * accessible from GitHub web and mobile.
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link cliUrl}.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      * @default false
      */
     remote?: boolean;
+
+    /**
+     * @internal Hook used by `joinSession()` to construct a client that talks
+     * to its parent process over stdio. Not part of the public API.
+     */
+    _internalConnection?: InternalRuntimeConnection;
 }
 
 /**

@@ -79,18 +79,17 @@ new CopilotClient(options?: CopilotClientOptions)
 
 **Options:**
 
-- `cliPath?: string` - Path to CLI executable (default: uses COPILOT_CLI_PATH env var or bundled instance)
-- `cliArgs?: string[]` - Extra arguments prepended before SDK-managed flags (e.g. `["./dist-cli/index.js"]` when using `node`)
-- `cliUrl?: string` - URL of existing CLI server to connect to (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`). When provided, the client will not spawn a CLI process.
-- `port?: number` - Server port (default: 0 for random)
-- `useStdio?: boolean` - Use stdio transport instead of TCP (default: true)
-- `logLevel?: string` - Log level (default: "info")
-- `autoStart?: boolean` - Auto-start server (default: true)
+- `connection?: RuntimeConnection` - How to connect to the Copilot runtime. Construct via the factory functions on `RuntimeConnection`:
+    - `RuntimeConnection.forStdio({ path?, args? })` (default) — spawn the runtime and communicate over its stdin/stdout.
+    - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args? })` — spawn the runtime as a TCP server.
+    - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`).
+- `cwd?: string` - Working directory for the runtime process (default: current process cwd).
+- `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
+- `logLevel?: string` - Log level (default: "info").
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
-- `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `cliUrl`.
-- `copilotHome?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `cliUrl`.
-- `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the CLI process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
-- `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the CLI's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
+- `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `RuntimeConnection.forUri`.
+- `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
 
 #### Methods
 
@@ -1026,7 +1025,7 @@ try {
 ## Requirements
 
 - Node.js >= 18.0.0
-- GitHub Copilot CLI installed and in PATH (or provide custom `cliPath`)
+- GitHub Copilot CLI installed and in PATH (or provide a custom `connection`)
 
 ## License
 

@@ -4,9 +4,7 @@ async function main() {
   const permissionLog: string[] = [];
 
   const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && {
-      cliPath: process.env.COPILOT_CLI_PATH,
-    }),
+    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
     githubToken: process.env.GITHUB_TOKEN,
   });
 
