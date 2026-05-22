@@ -2,16 +2,14 @@ import asyncio
 import os
 import sys
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            connection=RuntimeConnection.for_uri(
-                os.environ.get("COPILOT_CLI_URL", "localhost:3000"),
-            ),
-        )
+        connection=RuntimeConnection.for_uri(
+            os.environ.get("COPILOT_CLI_URL", "localhost:3000"),
+        ),
     )
 
     try:

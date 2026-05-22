@@ -32,9 +32,9 @@ const client = new CopilotClient({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
-client = CopilotClient(CopilotClientOptions(log_level="debug"))
+client = CopilotClient(log_level="debug")
 ```
 
 </details>

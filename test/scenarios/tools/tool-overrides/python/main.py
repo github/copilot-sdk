@@ -3,7 +3,7 @@ import os
 
 from pydantic import BaseModel, Field
 
-from copilot import CopilotClient, CopilotClientOptions, define_tool
+from copilot import CopilotClient, define_tool
 from copilot.session import PermissionHandler
 
 
@@ -22,9 +22,7 @@ def custom_grep(params: GrepParams) -> str:
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            github_token=os.environ.get("GITHUB_TOKEN"),
-        )
+        github_token=os.environ.get("GITHUB_TOKEN"),
     )
 
     try:

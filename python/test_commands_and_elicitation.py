@@ -10,7 +10,7 @@ from collections.abc import Callable
 
 import pytest
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import (
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
@@ -49,9 +49,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_forwards_commands_in_session_create_rpc(self):
         """Verifies that commands (name + description) are serialized in session.create payload."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -90,9 +88,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_forwards_commands_in_session_resume_rpc(self):
         """Verifies that commands are serialized in session.resume payload."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -130,9 +126,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_routes_command_execute_event_to_correct_handler(self):
         """Verifies the command dispatch works for command.execute events."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -203,9 +197,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_sends_error_when_command_handler_throws(self):
         """Verifies error is sent via RPC when a command handler raises."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -263,9 +255,7 @@ class TestCommands:
     @pytest.mark.asyncio
     async def test_sends_error_for_unknown_command(self):
         """Verifies error is sent via RPC for an unrecognized command."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -326,9 +316,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_reads_capabilities_from_session_create_response(self):
         """Verifies capabilities are parsed from session.create response."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -352,9 +340,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_defaults_capabilities_when_not_injected(self):
         """Verifies capabilities default to empty when server returns none."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -371,9 +357,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_elicitation_throws_when_capability_is_missing(self):
         """Verifies that UI methods throw when elicitation is not supported."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -400,9 +384,7 @@ class TestUiElicitation:
     @pytest.mark.asyncio
     async def test_confirm_throws_when_capability_is_missing(self):
         """Verifies confirm throws when elicitation is not supported."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -426,9 +408,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_request_elicitation_flag_when_handler_provided(self):
         """Verifies requestElicitation=true is sent when onElicitationContext is provided."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -460,9 +440,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_does_not_send_request_elicitation_when_no_handler(self):
         """Verifies requestElicitation=false when no handler is provided."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -490,9 +468,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_mode_callback_flags_when_handlers_provided(self):
         """Verifies mode callback flags are sent when handlers are provided."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -531,9 +507,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_mode_callback_flags_on_resume_when_handlers_provided(self):
         """Verifies mode callback flags are sent on session.resume."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -566,9 +540,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_dispatches_mode_callback_requests_to_registered_handlers(self):
         """Verifies direct mode requests are dispatched to registered handlers."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -630,9 +602,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_sends_cancel_when_elicitation_handler_throws(self):
         """Verifies auto-cancel when the elicitation handler raises."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -677,9 +647,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_dispatches_elicitation_requested_event_to_handler(self):
         """Verifies that an elicitation.requested event dispatches to the handler."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -740,9 +708,7 @@ class TestOnElicitationContext:
     @pytest.mark.asyncio
     async def test_elicitation_handler_receives_full_schema(self):
         """Verifies that requestedSchema passes type, properties, and required to handler."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:
@@ -818,9 +784,7 @@ class TestCapabilitiesChanged:
     @pytest.mark.asyncio
     async def test_capabilities_changed_event_updates_session(self):
         """Verifies that a capabilities.changed event updates session capabilities."""
-        client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        )
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
         try:

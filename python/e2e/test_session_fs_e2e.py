@@ -14,7 +14,6 @@ import pytest_asyncio
 
 from copilot import (
     CopilotClient,
-    CopilotClientOptions,
     RuntimeConnection,
     SessionFsConfig,
     define_tool,
@@ -50,13 +49,11 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def session_fs_client(ctx: E2ETestContext):
     client = CopilotClient(
-        CopilotClientOptions(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
-            github_token=DEFAULT_GITHUB_TOKEN,
-            session_fs=SESSION_FS_CONFIG,
-        )
+        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+        working_directory=ctx.work_dir,
+        env=ctx.get_env(),
+        github_token=DEFAULT_GITHUB_TOKEN,
+        session_fs=SESSION_FS_CONFIG,
     )
     yield client
     try:
@@ -122,12 +119,10 @@ class TestSessionFs:
 
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
         client1 = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_tcp(path=ctx.cli_path),
-                working_directory=ctx.work_dir,
-                env=ctx.get_env(),
-                github_token=DEFAULT_GITHUB_TOKEN,
-            )
+            connection=RuntimeConnection.for_tcp(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
         )
         session = None
         client2 = None
@@ -140,10 +135,8 @@ class TestSessionFs:
             assert actual_port is not None
 
             client2 = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(f"localhost:{actual_port}"),
-                    session_fs=SESSION_FS_CONFIG,
-                )
+                connection=RuntimeConnection.for_uri(f"localhost:{actual_port}"),
+                session_fs=SESSION_FS_CONFIG,
             )
 
             with pytest.raises(Exception):

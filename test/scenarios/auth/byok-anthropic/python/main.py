@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
@@ -14,7 +14,7 @@ if not ANTHROPIC_API_KEY:
 
 
 async def main():
-    client = CopilotClient(CopilotClientOptions())
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

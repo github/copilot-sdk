@@ -27,13 +27,13 @@ const client = new CopilotClient({
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
-client = CopilotClient(CopilotClientOptions(
+client = CopilotClient(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },
-))
+)
 ```
 
 </details>

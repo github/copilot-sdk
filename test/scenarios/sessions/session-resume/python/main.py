@@ -1,14 +1,12 @@
 import asyncio
 import os
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            github_token=os.environ.get("GITHUB_TOKEN"),
-        )
+        github_token=os.environ.get("GITHUB_TOKEN"),
     )
 
     try:

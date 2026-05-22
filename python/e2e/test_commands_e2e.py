@@ -15,7 +15,7 @@ import tempfile
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import CommandDefinition, PermissionHandler
 
 from .testharness.context import SNAPSHOTS_DIR, get_cli_path_for_tests
@@ -55,14 +55,12 @@ class CommandsMultiClientContext:
 
         # Client 1 uses TCP mode so a second client can connect
         self._client1 = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_tcp(
-                    path=self.cli_path, connection_token="py-tcp-shared-test-token"
-                ),
-                working_directory=self.work_dir,
-                env=self._get_env(),
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_tcp(
+                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+            ),
+            working_directory=self.work_dir,
+            env=self._get_env(),
+            github_token=github_token,
         )
 
         # Trigger connection to get the port
@@ -75,10 +73,8 @@ class CommandsMultiClientContext:
         assert actual_port is not None
 
         self._client2 = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_uri(
-                    f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
-                )
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 

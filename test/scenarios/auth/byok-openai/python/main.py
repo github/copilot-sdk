@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "claude-haiku-4.5")
@@ -14,7 +14,7 @@ if not OPENAI_API_KEY:
 
 
 async def main():
-    client = CopilotClient(CopilotClientOptions())
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

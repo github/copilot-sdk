@@ -1,16 +1,14 @@
 import asyncio
 import os
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 SYSTEM_PROMPT = """You are a helpful assistant. Answer questions about attached files concisely."""
 
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            github_token=os.environ.get("GITHUB_TOKEN"),
-        )
+        github_token=os.environ.get("GITHUB_TOKEN"),
     )
 
     try:

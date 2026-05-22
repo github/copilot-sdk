@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.rpc import (
     AccountGetQuotaRequest,
     MCPDiscoverRequest,
@@ -55,12 +55,10 @@ def _make_authed_client(ctx: E2ETestContext, token: str) -> CopilotClient:
     env = ctx.get_env()
     env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
     return CopilotClient(
-        CopilotClientOptions(
-            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-            working_directory=ctx.work_dir,
-            env=env,
-            github_token=token,
-        )
+        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+        working_directory=ctx.work_dir,
+        env=env,
+        github_token=token,
     )
 
 

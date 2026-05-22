@@ -165,9 +165,7 @@ class RuntimeConnection:
 
     Example:
         >>> CopilotClient()  # default: stdio with the bundled runtime
-        >>> CopilotClient(
-        ...     CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
-        ... )
+        >>> CopilotClient(connection=RuntimeConnection.for_uri("localhost:3000"))
     """
 
     @staticmethod
@@ -282,73 +280,25 @@ class UriRuntimeConnection(RuntimeConnection):
 
 
 @dataclass
-class CopilotClientOptions:
-    """Configuration options for a :class:`CopilotClient`.
+class _CopilotClientOptions:
+    """Internal configuration carrier used by :class:`CopilotClient`.
 
-    All process-management options (``working_directory``, ``log_level``,
-    ``env``, ``github_token``, …) apply only when the SDK spawns the runtime
-    (stdio / tcp connections). They are ignored when connecting to an
-    existing runtime via :meth:`RuntimeConnection.uri`.
+    This is not part of the public API: ``CopilotClient`` accepts all of
+    these options as keyword arguments directly.
     """
 
     connection: RuntimeConnection | None = None
-    """How to reach the runtime.
-
-    Defaults to :meth:`RuntimeConnection.stdio` with the bundled binary.
-    """
-
     working_directory: str | None = None
-    """Working directory for the runtime process. ``None`` uses the current directory."""
-
     log_level: LogLevel = "info"
-    """Log level for the runtime process."""
-
     env: dict[str, str] | None = None
-    """Environment variables for the runtime process. ``None`` inherits the current env."""
-
     github_token: str | None = None
-    """GitHub token for authentication. Takes priority over other auth methods."""
-
     base_directory: str | None = None
-    """Base directory for Copilot data (session state, config, etc.).
-
-    Sets the ``COPILOT_HOME`` environment variable on the spawned runtime.
-    When ``None``, the runtime defaults to ``~/.copilot``.
-    """
-
     use_logged_in_user: bool | None = None
-    """Use the logged-in user for authentication.
-
-    ``None`` (default) resolves to ``True`` unless ``github_token`` is set.
-    """
-
     telemetry: TelemetryConfig | None = None
-    """OpenTelemetry configuration. Providing this enables telemetry."""
-
     session_fs: SessionFsConfig | None = None
-    """Connection-level session filesystem provider configuration."""
-
     session_idle_timeout_seconds: int | None = None
-    """Server-wide session idle timeout in seconds.
-
-    Sessions without activity for this duration are automatically cleaned up.
-    Set to ``None`` or ``0`` to disable.
-    """
-
     enable_remote_sessions: bool = False
-    """Enable remote session support (Mission Control integration).
-
-    When ``True``, sessions in a GitHub repository working directory are
-    accessible from GitHub web and mobile.
-    """
-
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
-    """Custom handler for :meth:`CopilotClient.list_models`.
-
-    When provided, the handler is called instead of querying the runtime
-    server. Matches the ``onListModels`` / ``OnListModels`` option in the
-    TypeScript and .NET SDKs.
-    """
 
 
 # ============================================================================
@@ -1082,21 +1032,65 @@ class CopilotClient:
 
         >>> # Or connect to an existing server
         >>> client = CopilotClient(
-        ...     CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
+        ...     connection=RuntimeConnection.for_uri("localhost:3000"),
         ... )
     """
 
     def __init__(
         self,
-        options: CopilotClientOptions | None = None,
+        *,
+        connection: RuntimeConnection | None = None,
+        working_directory: str | None = None,
+        log_level: LogLevel = "info",
+        env: dict[str, str] | None = None,
+        github_token: str | None = None,
+        base_directory: str | None = None,
+        use_logged_in_user: bool | None = None,
+        telemetry: TelemetryConfig | None = None,
+        session_fs: SessionFsConfig | None = None,
+        session_idle_timeout_seconds: int | None = None,
+        enable_remote_sessions: bool = False,
+        on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
     ):
         """
         Initialize a new CopilotClient.
 
+        All process-management options (``working_directory``, ``log_level``,
+        ``env``, ``github_token``, …) apply only when the SDK spawns the runtime
+        (stdio / tcp connections). They are ignored when connecting to an
+        existing runtime via :meth:`RuntimeConnection.for_uri`.
+
         Args:
-            options: Client configuration. Defaults to ``CopilotClientOptions()``
-                with a default :meth:`RuntimeConnection.for_stdio` connection using
-                the bundled runtime binary.
+            connection: How to reach the runtime. Defaults to
+                :meth:`RuntimeConnection.for_stdio` with the bundled binary.
+            working_directory: Working directory for the runtime process.
+                ``None`` uses the current directory.
+            log_level: Log level for the runtime process. Defaults to ``"info"``.
+            env: Environment variables for the runtime process. ``None`` inherits
+                the current env.
+            github_token: GitHub token for authentication. Takes priority over
+                other auth methods.
+            base_directory: Base directory for Copilot data (session state,
+                config, etc.). Sets the ``COPILOT_HOME`` environment variable on
+                the spawned runtime. When ``None``, the runtime defaults to
+                ``~/.copilot``.
+            use_logged_in_user: Use the logged-in user for authentication.
+                ``None`` (default) resolves to ``True`` unless ``github_token``
+                is set.
+            telemetry: OpenTelemetry configuration. Providing this enables
+                telemetry.
+            session_fs: Connection-level session filesystem provider
+                configuration.
+            session_idle_timeout_seconds: Server-wide session idle timeout in
+                seconds. Sessions without activity for this duration are
+                automatically cleaned up. Set to ``None`` or ``0`` to disable.
+            enable_remote_sessions: Enable remote session support (Mission
+                Control integration). When ``True``, sessions in a GitHub
+                repository working directory are accessible from GitHub web
+                and mobile.
+            on_list_models: Custom handler for :meth:`list_models`. When
+                provided, the handler is called instead of querying the runtime
+                server.
 
         Example:
             >>> # Default — spawns runtime using stdio with the bundled binary
@@ -1104,24 +1098,34 @@ class CopilotClient:
             >>>
             >>> # Connect to an existing runtime
             >>> client = CopilotClient(
-            ...     CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
+            ...     connection=RuntimeConnection.for_uri("localhost:3000"),
             ... )
             >>>
             >>> # Custom runtime path with specific log level
             >>> client = CopilotClient(
-            ...     CopilotClientOptions(
-            ...         connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot"),
-            ...         log_level="debug",
-            ...     )
+            ...     connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot"),
+            ...     log_level="debug",
             ... )
         """
-        if options is None:
-            options = CopilotClientOptions()
+        options = _CopilotClientOptions(
+            connection=connection,
+            working_directory=working_directory,
+            log_level=log_level,
+            env=env,
+            github_token=github_token,
+            base_directory=base_directory,
+            use_logged_in_user=use_logged_in_user,
+            telemetry=telemetry,
+            session_fs=session_fs,
+            session_idle_timeout_seconds=session_idle_timeout_seconds,
+            enable_remote_sessions=enable_remote_sessions,
+            on_list_models=on_list_models,
+        )
         connection = (
             options.connection if options.connection is not None else RuntimeConnection.for_stdio()
         )
 
-        self._options: CopilotClientOptions = options
+        self._options: _CopilotClientOptions = options
         self._connection: RuntimeConnection = connection
         self._on_list_models = options.on_list_models
 

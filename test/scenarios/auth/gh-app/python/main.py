@@ -4,7 +4,7 @@ import os
 import time
 import urllib.request
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 DEVICE_CODE_URL = "https://github.com/login/device/code"
 ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -79,7 +79,7 @@ async def main():
     display_name = f" ({user.get('name')})" if user.get("name") else ""
     print(f"Authenticated as: {user.get('login')}{display_name}")
 
-    client = CopilotClient(CopilotClientOptions(github_token=token))
+    client = CopilotClient(github_token=token)
 
     try:
         session = await client.create_session(model="claude-haiku-4.5")

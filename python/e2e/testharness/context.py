@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 
 from .proxy import CapiProxy
 
@@ -79,15 +79,13 @@ class E2ETestContext:
 
         # Create the shared client (like Node.js/Go do)
         self._client = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_stdio(
-                    path=self.cli_path,
-                    args=tuple(cli_args or []),
-                ),
-                working_directory=self.work_dir,
-                env=self.get_env(),
-                github_token=DEFAULT_GITHUB_TOKEN,
-            )
+            connection=RuntimeConnection.for_stdio(
+                path=self.cli_path,
+                args=tuple(cli_args or []),
+            ),
+            working_directory=self.work_dir,
+            env=self.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
         )
 
     async def teardown(self, test_failed: bool = False):

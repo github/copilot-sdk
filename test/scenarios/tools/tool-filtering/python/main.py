@@ -1,16 +1,14 @@
 import asyncio
 import os
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 SYSTEM_PROMPT = """You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available."""
 
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            github_token=os.environ.get("GITHUB_TOKEN"),
-        )
+        github_token=os.environ.get("GITHUB_TOKEN"),
     )
 
     try:

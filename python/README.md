@@ -133,22 +133,20 @@ async with CopilotClient() as client:
 > **Note:** For manual lifecycle management, see [Manual Resource Management](#manual-resource-management) above.
 
 ```python
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 
 # Connect to an existing CLI server
-client = CopilotClient(
-    CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
-)
+client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:3000"))
 ```
 
 **CopilotClient Constructor:**
 
 ```python
-CopilotClient()                          # spawn the bundled runtime with defaults
-CopilotClient(CopilotClientOptions(...)) # customise via options
+CopilotClient()                                                   # spawn the bundled runtime with defaults
+CopilotClient(connection=..., log_level="debug", github_token=..., ...)
 ```
 
-**CopilotClientOptions** — configure the client:
+All options are kw-only parameters:
 
 - `connection` (RuntimeConnection | None): How to reach the runtime. Use
   `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`, or
@@ -161,6 +159,7 @@ CopilotClient(CopilotClientOptions(...)) # customise via options
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `enable_remote_sessions` (bool): Enable remote/cloud session support (default: False).
+- `on_list_models` (callable | None): Custom handler for `list_models()`. When provided, the handler is called instead of querying the runtime.
 
 **RuntimeConnection variants:**
 
@@ -531,13 +530,13 @@ async with await client.create_session(
 The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export and automatic W3C Trace Context propagation.
 
 ```python
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
-client = CopilotClient(CopilotClientOptions(
+client = CopilotClient(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },
-))
+)
 ```
 
 **TelemetryConfig options:**

@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.session_events import SessionModelChangeData
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolResult
@@ -243,12 +243,10 @@ class TestSessions:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         new_client = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-                working_directory=ctx.work_dir,
-                env=ctx.get_env(),
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
         )
 
         try:

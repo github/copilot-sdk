@@ -2,7 +2,7 @@ import asyncio
 import os
 import sys
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY")
@@ -15,7 +15,7 @@ if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
 
 
 async def main():
-    client = CopilotClient(CopilotClientOptions())
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

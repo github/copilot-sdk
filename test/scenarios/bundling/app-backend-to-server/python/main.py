@@ -6,7 +6,7 @@ import urllib.request
 
 from flask import Flask, jsonify, request
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 
 app = Flask(__name__)
 
@@ -14,7 +14,7 @@ CLI_URL = os.environ.get("CLI_URL", os.environ.get("COPILOT_CLI_URL", "localhost
 
 
 async def ask_copilot(prompt: str) -> str:
-    client = CopilotClient(CopilotClientOptions(connection=RuntimeConnection.for_uri(CLI_URL)))
+    client = CopilotClient(connection=RuntimeConnection.for_uri(CLI_URL))
 
     try:
         session = await client.create_session(model="claude-haiku-4.5")

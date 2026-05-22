@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.rpc import PermissionDecisionUserNotAvailable
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
@@ -37,12 +37,10 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
             path=ctx.cli_path, connection_token="py-tcp-shared-test-token"
         )
     return CopilotClient(
-        CopilotClientOptions(
-            connection=connection,
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
-            github_token=github_token,
-        )
+        connection=connection,
+        working_directory=ctx.work_dir,
+        env=ctx.get_env(),
+        github_token=github_token,
     )
 
 
@@ -107,10 +105,8 @@ class TestSuspend:
             session_id: str
 
             first_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             try:
@@ -128,10 +124,8 @@ class TestSuspend:
                 await _safe_force_stop(first_client)
 
             resumed_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             try:

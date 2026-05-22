@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.rpc import (
     HandlePendingToolCallRequest,
     PermissionDecisionRequest,
@@ -43,12 +43,10 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
             path=ctx.cli_path, connection_token="py-tcp-shared-test-token"
         )
     return CopilotClient(
-        CopilotClientOptions(
-            connection=connection,
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
-            github_token=github_token,
-        )
+        connection=connection,
+        working_directory=ctx.work_dir,
+        env=ctx.get_env(),
+        github_token=github_token,
     )
 
 
@@ -156,10 +154,8 @@ class TestPendingWorkResume:
                 return f"ORIGINAL_SHOULD_NOT_RUN_{args.get('value', '')}"
 
             suspended_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             session1 = await suspended_client.create_session(
@@ -186,10 +182,8 @@ class TestPendingWorkResume:
                     return f"PERMISSION_RESUMED_{args['value'].upper()}"
 
                 resumed_client = CopilotClient(
-                    CopilotClientOptions(
-                        connection=RuntimeConnection.for_uri(
-                            cli_url, connection_token="py-tcp-shared-test-token"
-                        )
+                    connection=RuntimeConnection.for_uri(
+                        cli_url, connection_token="py-tcp-shared-test-token"
                     )
                 )
                 try:
@@ -245,10 +239,8 @@ class TestPendingWorkResume:
                 return await release_original
 
             suspended_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             session1 = await suspended_client.create_session(
@@ -270,10 +262,8 @@ class TestPendingWorkResume:
                 await suspended_client.force_stop()
 
                 resumed_client = CopilotClient(
-                    CopilotClientOptions(
-                        connection=RuntimeConnection.for_uri(
-                            cli_url, connection_token="py-tcp-shared-test-token"
-                        )
+                    connection=RuntimeConnection.for_uri(
+                        cli_url, connection_token="py-tcp-shared-test-token"
                     )
                 )
                 try:
@@ -329,10 +319,8 @@ class TestPendingWorkResume:
                 return await release_b
 
             suspended_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             session1 = await suspended_client.create_session(
@@ -364,10 +352,8 @@ class TestPendingWorkResume:
                 await suspended_client.force_stop()
 
                 resumed_client = CopilotClient(
-                    CopilotClientOptions(
-                        connection=RuntimeConnection.for_uri(
-                            cli_url, connection_token="py-tcp-shared-test-token"
-                        )
+                    connection=RuntimeConnection.for_uri(
+                        cli_url, connection_token="py-tcp-shared-test-token"
                     )
                 )
                 try:
@@ -412,10 +398,8 @@ class TestPendingWorkResume:
             cli_url = f"localhost:{server.runtime_port}"
 
             first_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             try:
@@ -432,10 +416,8 @@ class TestPendingWorkResume:
                 await _safe_force_stop(first_client)
 
             resumed_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             try:
@@ -477,10 +459,8 @@ class TestPendingWorkResume:
             cli_url = f"localhost:{server.runtime_port}"
 
             suspended_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             session1 = await suspended_client.create_session(
@@ -502,10 +482,8 @@ class TestPendingWorkResume:
                 await suspended_client.force_stop()
 
                 resumed_client = CopilotClient(
-                    CopilotClientOptions(
-                        connection=RuntimeConnection.for_uri(
-                            cli_url, connection_token="py-tcp-shared-test-token"
-                        )
+                    connection=RuntimeConnection.for_uri(
+                        cli_url, connection_token="py-tcp-shared-test-token"
                     )
                 )
                 try:
@@ -558,10 +536,8 @@ class TestPendingWorkResume:
             cli_url = f"localhost:{server.runtime_port}"
 
             first_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             try:
@@ -579,10 +555,8 @@ class TestPendingWorkResume:
                 await _safe_force_stop(first_client)
 
             resumed_client = CopilotClient(
-                CopilotClientOptions(
-                    connection=RuntimeConnection.for_uri(
-                        cli_url, connection_token="py-tcp-shared-test-token"
-                    )
+                connection=RuntimeConnection.for_uri(
+                    cli_url, connection_token="py-tcp-shared-test-token"
                 )
             )
             try:

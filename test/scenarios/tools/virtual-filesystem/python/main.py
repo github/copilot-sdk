@@ -3,7 +3,7 @@ import os
 
 from pydantic import BaseModel, Field
 
-from copilot import CopilotClient, CopilotClientOptions, define_tool
+from copilot import CopilotClient, define_tool
 from copilot.generated.rpc import PermissionDecisionApproveOnce
 
 # In-memory virtual filesystem
@@ -50,9 +50,7 @@ async def auto_approve_tool(input_data, invocation):
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            github_token=os.environ.get("GITHUB_TOKEN"),
-        )
+        github_token=os.environ.get("GITHUB_TOKEN"),
     )
 
     try:

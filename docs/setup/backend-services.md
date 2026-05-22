@@ -144,12 +144,12 @@ res.json({ content: response?.data.content });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient(CopilotClientOptions(
+client = CopilotClient(
     connection=RuntimeConnection.for_uri("localhost:4321"),
-))
+)
 await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-{int(time.time())}")

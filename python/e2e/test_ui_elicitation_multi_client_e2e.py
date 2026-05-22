@@ -16,7 +16,7 @@ import tempfile
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.session_events import CapabilitiesChangedData
 from copilot.session import (
     ElicitationContext,
@@ -62,14 +62,12 @@ class ElicitationMultiClientContext:
 
         # Client 1 uses TCP mode so additional clients can connect
         self._client1 = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_tcp(
-                    path=self.cli_path, connection_token="py-tcp-shared-test-token"
-                ),
-                working_directory=self.work_dir,
-                env=self._get_env(),
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_tcp(
+                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+            ),
+            working_directory=self.work_dir,
+            env=self._get_env(),
+            github_token=github_token,
         )
 
         # Trigger connection to obtain the TCP port
@@ -82,10 +80,8 @@ class ElicitationMultiClientContext:
         assert self._actual_port is not None
 
         self._client2 = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_uri(
-                    f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
-                )
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 
@@ -139,10 +135,8 @@ class ElicitationMultiClientContext:
         """Create a new external client connected to the same CLI server."""
         assert self._actual_port is not None
         return CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_uri(
-                    f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
-                )
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 

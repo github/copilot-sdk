@@ -1,16 +1,14 @@
 import asyncio
 import os
 
-from copilot import CopilotClient, CopilotClientOptions
+from copilot import CopilotClient
 
 PIRATE_PROMPT = """You are a pirate. Always respond in pirate speak. Say 'Arrr!' in every response. Use nautical terms and pirate slang throughout."""
 
 
 async def main():
     client = CopilotClient(
-        CopilotClientOptions(
-            github_token=os.environ.get("GITHUB_TOKEN"),
-        )
+        github_token=os.environ.get("GITHUB_TOKEN"),
     )
 
     try:

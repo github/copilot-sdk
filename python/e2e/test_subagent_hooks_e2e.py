@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from copilot.client import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot.client import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -50,12 +50,10 @@ class TestSubagentHooks:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         client = CopilotClient(
-            CopilotClientOptions(
-                connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
-                working_directory=ctx.work_dir,
-                env=env,
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=env,
+            github_token=github_token,
         )
 
         session = await client.create_session(

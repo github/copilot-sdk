@@ -20,7 +20,7 @@ import socket
 
 import pytest
 
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.rpc import PingRequest
 from copilot.session import PermissionHandler
 
@@ -38,10 +38,10 @@ def _make_options(
     cli_path: str | None = None,
     cli_args: list[str] | None = None,
     **overrides,
-) -> CopilotClientOptions:
-    """Build a ``CopilotClientOptions`` pre-populated for the test harness."""
+) -> dict[str, object]:
+    """Build CopilotClient kwargs pre-populated for the test harness."""
     if use_tcp:
-        connection = RuntimeConnection.for_tcp(
+        connection: RuntimeConnection = RuntimeConnection.for_tcp(
             port=port,
             connection_token=connection_token,
             path=cli_path if cli_path is not None else ctx.cli_path,
@@ -52,7 +52,7 @@ def _make_options(
             path=cli_path if cli_path is not None else ctx.cli_path,
             args=tuple(cli_args or []),
         )
-    base = {
+    base: dict[str, object] = {
         "connection": connection,
         "working_directory": ctx.work_dir,
         "env": ctx.get_env(),
@@ -61,7 +61,7 @@ def _make_options(
         ),
     }
     base.update(overrides)
-    return CopilotClientOptions(**base)
+    return base
 
 
 def _get_available_port() -> int:
@@ -166,7 +166,7 @@ def _assert_arg_value(args: list[str], name: str, expected_value: str) -> None:
 class TestClientOptions:
     async def test_should_listen_on_configured_tcp_port(self, ctx: E2ETestContext):
         port = _get_available_port()
-        client = CopilotClient(_make_options(ctx, use_tcp=True, port=port))
+        client = CopilotClient(**_make_options(ctx, use_tcp=True, port=port))
         try:
             await client.start()
             assert client.runtime_port == port
@@ -182,7 +182,7 @@ class TestClientOptions:
         with open(os.path.join(client_cwd, "marker.txt"), "w") as f:
             f.write("I am in the client cwd")
 
-        client = CopilotClient(_make_options(ctx, working_directory=client_cwd))
+        client = CopilotClient(**_make_options(ctx, working_directory=client_cwd))
         try:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -272,51 +272,3 @@ class TestClientOptions:
                 await client.stop()
             except Exception:
                 await client.force_stop()
-
-
-# ---------------------------------------------------------------------------
-# Unit-style tests mirroring the property-only tests in
-# dotnet/test/ClientOptionsTests.cs. These exercise the CopilotClientOptions
-# dataclass shape only — no client / proxy required.
-# ---------------------------------------------------------------------------
-
-
-class TestSubprocessOptions:
-    """Mirrors the unit-style ClientOptions tests in the C# baseline."""
-
-    async def test_should_accept_github_token_option(self):
-        # Mirrors: Should_Accept_GitHubToken_Option
-        config = CopilotClientOptions(github_token="gho_test_token")
-        assert config.github_token == "gho_test_token"
-
-    async def test_should_default_use_logged_in_user_to_none(self):
-        # Mirrors: Should_Default_UseLoggedInUser_To_Null
-        config = CopilotClientOptions()
-        assert config.use_logged_in_user is None
-
-    async def test_should_allow_explicit_use_logged_in_user_false(self):
-        # Mirrors: Should_Allow_Explicit_UseLoggedInUser_False
-        config = CopilotClientOptions(use_logged_in_user=False)
-        assert config.use_logged_in_user is False
-
-    async def test_should_allow_explicit_use_logged_in_user_true_with_github_token(self):
-        # Mirrors: Should_Allow_Explicit_UseLoggedInUser_True_With_GitHubToken
-        config = CopilotClientOptions(github_token="gho_test_token", use_logged_in_user=True)
-        assert config.use_logged_in_user is True
-        assert config.github_token == "gho_test_token"
-
-    # NOTE: Should_Throw_When_GitHubToken_Used_With_CliUrl and
-    # Should_Throw_When_UseLoggedInUser_Used_With_CliUrl from the C# baseline
-    # do not apply to Python: ExternalServerConfig has no github_token /
-    # use_logged_in_user fields at all (they live only on CopilotClientOptions),
-    # so the conflicting configuration is impossible to express.
-
-    async def test_should_default_session_idle_timeout_seconds_to_none(self):
-        # Mirrors: Should_Default_SessionIdleTimeoutSeconds_To_Null
-        config = CopilotClientOptions()
-        assert config.session_idle_timeout_seconds is None
-
-    async def test_should_accept_session_idle_timeout_seconds_option(self):
-        # Mirrors: Should_Accept_SessionIdleTimeoutSeconds_Option
-        config = CopilotClientOptions(session_idle_timeout_seconds=600)
-        assert config.session_idle_timeout_seconds == 600
