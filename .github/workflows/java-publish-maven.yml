@@ -118,15 +118,6 @@ jobs:
         run: |
           VERSION="${{ steps.versions.outputs.release_version }}"
 
-          # Read the reference implementation SDK commit hash that this release is synced to
-          REFERENCE_IMPL_HASH=$(cat .lastmerge)
-          REFERENCE_IMPL_SHORT="${REFERENCE_IMPL_HASH:0:7}"
-          REFERENCE_IMPL_URL="https://github.com/github/copilot-sdk/commit/${REFERENCE_IMPL_HASH}"
-          echo "Reference implementation SDK sync: ${REFERENCE_IMPL_SHORT} (${REFERENCE_IMPL_URL})"
-
-          # Update CHANGELOG.md with release version and Reference implementation sync hash
-          $GITHUB_WORKSPACE/.github/scripts/release/update-changelog.sh "${VERSION}" "${REFERENCE_IMPL_HASH}"
-
           # Update version in README.md (supports any version qualifier like -java.N, -java-preview.N, -beta-java.N)
           sed -i "s|<version>[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*</version>|<version>${VERSION}</version>|g" README.md
           sed -i "s|copilot-sdk-java:[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\(-[a-z][a-z0-9-]*\.[0-9][0-9]*\)*|copilot-sdk-java:${VERSION}|g" README.md
@@ -140,7 +131,7 @@ jobs:
           sed -i 's|copilot-sdk-java:${project\.version}|copilot-sdk-java:'"${VERSION}"'|g' jbang-example.java
 
           # Commit the documentation changes before release:prepare (requires clean working directory)
-          git add CHANGELOG.md README.md jbang-example.java
+          git add README.md jbang-example.java
           git commit -m "docs: update version references to ${VERSION}"
 
           # Save the commit SHA for potential rollback
@@ -234,5 +225,9 @@ jobs:
           ${{ inputs.prerelease == true && 'GH_ARGS+=("--prerelease")' || '' }}
 
           gh release create "${GH_ARGS[@]}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Trigger changelog generation
+        run: gh workflow run release-changelog.lock.yml -f tag="java/v${{ needs.publish-maven.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
