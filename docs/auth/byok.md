@@ -369,21 +369,23 @@ const client = new CopilotClient({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, CopilotClientOptions
 from copilot.client import ModelInfo, ModelCapabilities, ModelSupports, ModelLimits
 
-client = CopilotClient({
-    "on_list_models": lambda: [
-        ModelInfo(
-            id="my-custom-model",
-            name="My Custom Model",
-            capabilities=ModelCapabilities(
-                supports=ModelSupports(vision=False, reasoning_effort=False),
-                limits=ModelLimits(max_context_window_tokens=128000),
-            ),
-        )
-    ],
-})
+client = CopilotClient(
+    CopilotClientOptions(
+        on_list_models=lambda: [
+            ModelInfo(
+                id="my-custom-model",
+                name="My Custom Model",
+                capabilities=ModelCapabilities(
+                    supports=ModelSupports(vision=False, reasoning_effort=False),
+                    limits=ModelLimits(max_context_window_tokens=128000),
+                ),
+            )
+        ],
+    ),
+)
 ```
 
 </details>

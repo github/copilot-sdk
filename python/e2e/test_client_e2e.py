@@ -24,14 +24,12 @@ class TestClient:
 
         try:
             await client.start()
-            assert client.get_state() == "connected"
 
             pong = await client.ping("test message")
             assert pong.message == "pong: test message"
             assert pong.timestamp is not None
 
             await client.stop()
-            assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
@@ -43,14 +41,12 @@ class TestClient:
 
         try:
             await client.start()
-            assert client.get_state() == "connected"
 
             pong = await client.ping("test message")
             assert pong.message == "pong: test message"
             assert pong.timestamp is not None
 
             await client.stop()
-            assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
@@ -77,8 +73,6 @@ class TestClient:
                 assert len(exc.exceptions) > 0
                 assert isinstance(exc.exceptions[0], StopError)
                 assert "Failed to disconnect session" in exc.exceptions[0].message
-            else:
-                assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
@@ -90,7 +84,6 @@ class TestClient:
 
         await client.create_session(on_permission_request=PermissionHandler.approve_all)
         await client.force_stop()
-        assert client.get_state() == "disconnected"
 
     @pytest.mark.asyncio
     async def test_should_get_status_with_version_and_protocol_info(self):
@@ -321,8 +314,10 @@ class TestClient:
             return custom_models
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH)),
-            on_list_models=on_list_models,
+            CopilotClientOptions(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                on_list_models=on_list_models,
+            ),
         )
 
         try:
@@ -359,8 +354,10 @@ class TestClient:
             return custom_models
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH)),
-            on_list_models=on_list_models,
+            CopilotClientOptions(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                on_list_models=on_list_models,
+            ),
         )
 
         try:

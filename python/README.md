@@ -144,12 +144,8 @@ client = CopilotClient(
 **CopilotClient Constructor:**
 
 ```python
-CopilotClient(
-    options=None,        # CopilotClientOptions | None
-    *,
-    auto_start=True,     # auto-start server on first use
-    on_list_models=None, # custom handler for list_models()
-)
+CopilotClient()                          # spawn the bundled runtime with defaults
+CopilotClient(CopilotClientOptions(...)) # customise via options
 ```
 
 **CopilotClientOptions** — configure the client:

@@ -475,8 +475,10 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH)),
-            on_list_models=handler,
+            CopilotClientOptions(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                on_list_models=handler,
+            ),
         )
         await client.start()
         try:
@@ -507,8 +509,10 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH)),
-            on_list_models=handler,
+            CopilotClientOptions(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                on_list_models=handler,
+            ),
         )
         await client.start()
         try:
@@ -536,8 +540,10 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH)),
-            on_list_models=handler,
+            CopilotClientOptions(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                on_list_models=handler,
+            ),
         )
         await client.start()
         try:
@@ -567,8 +573,10 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH)),
-            on_list_models=handler,
+            CopilotClientOptions(
+                connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+                on_list_models=handler,
+            ),
         )
         models = await client.list_models()
         assert len(handler_calls) == 1

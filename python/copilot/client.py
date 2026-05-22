@@ -81,7 +81,7 @@ logger = logging.getLogger(__name__)
 # Connection Types
 # ============================================================================
 
-ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
+_ConnectionState = Literal["disconnected", "connecting", "connected", "error"]
 
 LogLevel = Literal["none", "error", "warning", "info", "debug", "all"]
 
@@ -340,6 +340,14 @@ class CopilotClientOptions:
 
     When ``True``, sessions in a GitHub repository working directory are
     accessible from GitHub web and mobile.
+    """
+
+    on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
+    """Custom handler for :meth:`CopilotClient.list_models`.
+
+    When provided, the handler is called instead of querying the runtime
+    server. Matches the ``onListModels`` / ``OnListModels`` option in the
+    TypeScript and .NET SDKs.
     """
 
 
@@ -1081,21 +1089,14 @@ class CopilotClient:
     def __init__(
         self,
         options: CopilotClientOptions | None = None,
-        *,
-        auto_start: bool = True,
-        on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
     ):
         """
         Initialize a new CopilotClient.
 
         Args:
             options: Client configuration. Defaults to ``CopilotClientOptions()``
-                with a default :meth:`RuntimeConnection.stdio` connection using
+                with a default :meth:`RuntimeConnection.for_stdio` connection using
                 the bundled runtime binary.
-            auto_start: Automatically start the connection on first use
-                (default: ``True``).
-            on_list_models: Custom handler for :meth:`list_models`. When provided,
-                the handler is called instead of querying the runtime server.
 
         Example:
             >>> # Default — spawns runtime using stdio with the bundled binary
@@ -1122,8 +1123,7 @@ class CopilotClient:
 
         self._options: CopilotClientOptions = options
         self._connection: RuntimeConnection = connection
-        self._auto_start = auto_start
-        self._on_list_models = on_list_models
+        self._on_list_models = options.on_list_models
 
         # Resolve connection-mode-specific state.
         self._actual_host: str = "localhost"
@@ -1180,7 +1180,7 @@ class CopilotClient:
 
         self._process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
-        self._state: ConnectionState = "disconnected"
+        self._state: _ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
         self._models_cache: list[ModelInfo] | None = None
@@ -1293,18 +1293,18 @@ class CopilotClient:
         """
         Start the CLI server and establish a connection.
 
-        If connecting to an already-running runtime (via :meth:`RuntimeConnection.uri`),
+        If connecting to an already-running runtime (via :meth:`RuntimeConnection.for_uri`),
         only establishes the connection. Otherwise, spawns the CLI server process
         and then connects.
 
-        This method is called automatically when creating a session if ``auto_start``
-        is True (default).
+        This method is called automatically when creating a session, so most
+        callers do not need to call it explicitly.
 
         Raises:
             RuntimeError: If the server fails to start or the connection fails.
 
         Example:
-            >>> client = CopilotClient(auto_start=False)
+            >>> client = CopilotClient()
             >>> await client.start()
             >>> # Now ready to create sessions
         """
@@ -1551,8 +1551,8 @@ class CopilotClient:
         Create a new conversation session with the Copilot CLI.
 
         Sessions maintain conversation state, handle events, and manage tool execution.
-        If the client is not connected and ``auto_start`` is enabled, this will
-        automatically start the connection.
+        If the client is not yet connected, this will automatically start the
+        connection.
 
         Args:
             on_permission_request: Optional handler for permission requests. When
@@ -1617,7 +1617,6 @@ class CopilotClient:
             A :class:`CopilotSession` instance for the new session.
 
         Raises:
-            RuntimeError: If the client is not connected and auto_start is disabled.
             ValueError: If ``on_permission_request`` is provided but not callable.
 
         Example:
@@ -1635,10 +1634,7 @@ class CopilotClient:
         if on_permission_request is not None and not callable(on_permission_request):
             raise ValueError("on_permission_request must be callable when provided.")
         if not self._client:
-            if self._auto_start:
-                await self.start()
-            else:
-                raise RuntimeError("Client not connected. Call start() first.")
+            await self.start()
 
         tool_defs = []
         if tools:
@@ -2016,10 +2012,7 @@ class CopilotClient:
         if on_permission_request is not None and not callable(on_permission_request):
             raise ValueError("on_permission_request must be callable when provided.")
         if not self._client:
-            if self._auto_start:
-                await self.start()
-            else:
-                raise RuntimeError("Client not connected. Call start() first.")
+            await self.start()
 
         tool_defs = []
         if tools:
@@ -2238,20 +2231,6 @@ class CopilotClient:
             session_id=session_id,
         )
         return session
-
-    def get_state(self) -> ConnectionState:
-        """
-        Get the current connection state of the client.
-
-        Returns:
-            The current connection state: "disconnected", "connecting",
-            "connected", or "error".
-
-        Example:
-            >>> if client.get_state() == "connected":
-            ...     session = await client.create_session()
-        """
-        return self._state
 
     async def ping(self, message: str | None = None) -> PingResponse:
         """

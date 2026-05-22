@@ -180,12 +180,7 @@ class TestClientLifecycle:
     async def test_stop_disconnects_client_and_disposes_rpc_surface(self, ctx: E2ETestContext):
         client = _make_isolated_client(ctx)
         await client.start()
-        try:
-            assert client.get_state() == "connected"
-        finally:
-            await client.stop()
-
-        assert client.get_state() == "disconnected"
+        await client.stop()
 
         with pytest.raises(RuntimeError):
             _ = client.rpc

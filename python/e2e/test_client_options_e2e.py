@@ -1,6 +1,6 @@
 """
 E2E coverage for ``CopilotClient`` configuration options exposed via
-``CopilotClientOptions`` / ``RuntimeConnection`` and ``CopilotClient(..., auto_start=...)``.
+``CopilotClientOptions`` and ``RuntimeConnection``.
 
 Mirrors ``dotnet/test/ClientOptionsTests.cs``. The two CliUrl-conflict tests
 (``Should_Throw_When_GitHubToken_Used_With_CliUrl`` and
@@ -164,38 +164,11 @@ def _assert_arg_value(args: list[str], name: str, expected_value: str) -> None:
 
 
 class TestClientOptions:
-    async def test_autostart_false_requires_explicit_start(self, ctx: E2ETestContext):
-        client = CopilotClient(_make_options(ctx), auto_start=False)
-        try:
-            assert client.get_state() == "disconnected"
-
-            with pytest.raises(RuntimeError) as exc_info:
-                await client.create_session(
-                    on_permission_request=PermissionHandler.approve_all,
-                )
-            # Python raises "Client not connected" — equivalent intent to C#'s "StartAsync".
-            assert (
-                "not connected" in str(exc_info.value).lower()
-                or "start" in str(exc_info.value).lower()
-            )
-
-            await client.start()
-            assert client.get_state() == "connected"
-
-            session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-            )
-            assert session.session_id
-            await session.disconnect()
-        finally:
-            await client.stop()
-
     async def test_should_listen_on_configured_tcp_port(self, ctx: E2ETestContext):
         port = _get_available_port()
         client = CopilotClient(_make_options(ctx, use_tcp=True, port=port))
         try:
             await client.start()
-            assert client.get_state() == "connected"
             assert client.runtime_port == port
 
             response = await client.rpc.ping(PingRequest(message="fixed-port"))
@@ -252,7 +225,6 @@ class TestClientOptions:
                 },
                 use_logged_in_user=False,
             ),
-            auto_start=False,
         )
         try:
             await client.start()
