@@ -551,11 +551,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
-        // Session should work normally with custom config dir
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-        Assert.Contains("2", assistantMessage!.Data.Content);
+        try
+        {
+            // Session should work normally with custom config dir.
+            var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+            Assert.NotNull(assistantMessage);
+            Assert.Contains("2", assistantMessage!.Data.Content);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
