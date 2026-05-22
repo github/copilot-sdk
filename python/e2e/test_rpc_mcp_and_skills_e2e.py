@@ -7,7 +7,9 @@ Mirrors ``dotnet/test/RpcMcpAndSkillsTests.cs`` (snapshot category
 
 from __future__ import annotations
 
+import asyncio
 import os
+import time
 import uuid
 from pathlib import Path
 
@@ -19,6 +21,7 @@ from copilot.generated.rpc import (
     ExtensionsEnableRequest,
     MCPDisableRequest,
     MCPEnableRequest,
+    McpServerStatus,
     SkillsDisableRequest,
     SkillsEnableRequest,
 )
@@ -27,6 +30,11 @@ from copilot.session import PermissionHandler
 from .testharness import E2ETestContext
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
+
+TEST_MCP_SERVER = str(
+    (Path(__file__).parents[2] / "test" / "harness" / "test-mcp-server.mjs").resolve()
+)
+TEST_HARNESS_DIR = str((Path(__file__).parents[2] / "test" / "harness").resolve())
 
 
 # --yolo auto-approves extension permission gates at the CLI level,
@@ -60,6 +68,37 @@ def _create_skill_directory(work_dir: str, skill_name: str, description: str) ->
     skills_dir.mkdir(parents=True, exist_ok=True)
     _create_skill(skills_dir, skill_name, description)
     return str(skills_dir)
+
+
+def _test_mcp_servers(*server_names: str) -> dict:
+    return {
+        server_name: {
+            "command": "node",
+            "args": [TEST_MCP_SERVER],
+            "tools": ["*"],
+            "working_directory": TEST_HARNESS_DIR,
+        }
+        for server_name in server_names
+    }
+
+
+async def _wait_for_mcp_server_status(
+    session, server_name: str, expected_status: McpServerStatus = McpServerStatus.CONNECTED
+) -> None:
+    deadline = time.monotonic() + 60
+    last_status = "<not listed>"
+
+    while time.monotonic() < deadline:
+        result = await session.rpc.mcp.list()
+        server = next((s for s in result.servers if s.name == server_name), None)
+        if server is not None and server.status == expected_status:
+            return
+        last_status = server.status if server is not None else "<not listed>"
+        await asyncio.sleep(0.2)
+
+    raise AssertionError(
+        f"{server_name} did not reach {expected_status.value}; last status was {last_status}"
+    )
 
 
 def _assert_skill(skills, skill_name: str, *, enabled: bool):
@@ -130,15 +169,10 @@ class TestRpcMcpAndSkills:
         server_name = "rpc-list-mcp-server"
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
-            mcp_servers={
-                server_name: {
-                    "command": "echo",
-                    "args": ["rpc-list-mcp-server"],
-                    "tools": ["*"],
-                }
-            },
+            mcp_servers=_test_mcp_servers(server_name),
         )
         try:
+            await _wait_for_mcp_server_status(session, server_name)
             result = await session.rpc.mcp.list()
             matching = [s for s in result.servers if s.name == server_name]
             assert len(matching) == 1

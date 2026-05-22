@@ -15,7 +15,7 @@ namespace GitHub.Copilot.Test.E2E;
 public class PreMcpToolCallHookE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "pre_mcp_tool_call_hook", output)
 {
-    private static string FindTestHarnessDir()
+    private static string FindMetaEchoTestHarnessDir()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
@@ -42,7 +42,7 @@ public class PreMcpToolCallHookE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Set_Meta_Via_PreMcpToolCall_Hook()
     {
-        var testHarnessDir = FindTestHarnessDir();
+        var testHarnessDir = FindMetaEchoTestHarnessDir();
         var hookInputs = new List<PreMcpToolCallHookInput>();
 
         var session = await CreateSessionAsync(new SessionConfig
@@ -84,7 +84,7 @@ public class PreMcpToolCallHookE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Replace_Meta_Via_PreMcpToolCall_Hook()
     {
-        var testHarnessDir = FindTestHarnessDir();
+        var testHarnessDir = FindMetaEchoTestHarnessDir();
         var hookInputs = new List<PreMcpToolCallHookInput>();
 
         var session = await CreateSessionAsync(new SessionConfig
@@ -125,7 +125,7 @@ public class PreMcpToolCallHookE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Remove_Meta_Via_PreMcpToolCall_Hook()
     {
-        var testHarnessDir = FindTestHarnessDir();
+        var testHarnessDir = FindMetaEchoTestHarnessDir();
         var hookInputs = new List<PreMcpToolCallHookInput>();
 
         var session = await CreateSessionAsync(new SessionConfig

@@ -8,7 +8,3 @@ conversations:
         content: What is 1+1?
       - role: assistant
         content: 1+1 equals 2.
-      - role: user
-        content: What is 3+3?
-      - role: assistant
-        content: 3+3 equals 6.

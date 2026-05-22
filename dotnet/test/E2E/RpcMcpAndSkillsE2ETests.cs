@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using Xunit;
 using Xunit.Abstractions;
 using RpcSkill = GitHub.Copilot.Rpc.Skill;
@@ -67,21 +68,14 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         const string serverName = "rpc-list-mcp-server";
         var session = await CreateSessionAsync(new SessionConfig
         {
-            McpServers = new Dictionary<string, McpServerConfig>
-            {
-                [serverName] = new McpStdioServerConfig
-                {
-                    Command = "echo",
-                    Args = ["rpc-list-mcp-server"],
-                    Tools = ["*"],
-                },
-            },
+            McpServers = CreateTestMcpServers(serverName),
         });
 
+        await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.Connected);
         var result = await session.Rpc.Mcp.ListAsync();
 
         var server = Assert.Single(result.Servers, server => string.Equals(server.Name, serverName, StringComparison.Ordinal));
-        Assert.False(string.IsNullOrWhiteSpace(server.Status.Value));
+        Assert.Equal(McpServerStatus.Connected, server.Status);
     }
 
     [Fact]
@@ -143,16 +137,9 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         var session = await CreateSessionAsync(new SessionConfig
         {
-            McpServers = new Dictionary<string, McpServerConfig>
-            {
-                ["configured-stdio-server"] = new McpStdioServerConfig
-                {
-                    Command = "echo",
-                    Args = ["configured-stdio-server"],
-                    Tools = ["*"],
-                },
-            },
+            McpServers = CreateTestMcpServers("configured-stdio-server"),
         });
+        await WaitForMcpServerStatusAsync(session, "configured-stdio-server", McpServerStatus.Connected);
 
         await AssertFailureAsync(
             () => session.Rpc.Mcp.Oauth.LoginAsync("missing-server"),
@@ -165,16 +152,9 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         const string serverName = "configured-stdio-server";
         var session = await CreateSessionAsync(new SessionConfig
         {
-            McpServers = new Dictionary<string, McpServerConfig>
-            {
-                [serverName] = new McpStdioServerConfig
-                {
-                    Command = "echo",
-                    Args = [serverName],
-                    Tools = ["*"],
-                },
-            },
+            McpServers = CreateTestMcpServers(serverName),
         });
+        await WaitForMcpServerStatusAsync(session, serverName, McpServerStatus.Connected);
 
         await AssertFailureAsync(
             () => session.Rpc.Mcp.Oauth.LoginAsync(serverName, forceReauth: true, clientName: "SDK E2E", callbackSuccessMessage: "Done"),

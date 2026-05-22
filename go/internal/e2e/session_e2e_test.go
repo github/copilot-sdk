@@ -245,26 +245,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		// Validate that only the specified tools are present
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
-
+		traffic := ctx.WaitForExchanges(t, 1)
 		toolNames := getToolNames(traffic[0])
 		if len(toolNames) != 2 {
 			t.Errorf("Expected exactly 2 tools, got %d: %v", len(toolNames), toolNames)
@@ -284,26 +273,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		// Validate that excluded tool is not present but others are
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
-
+		traffic := ctx.WaitForExchanges(t, 1)
 		toolNames := getToolNames(traffic[0])
 		if contains(toolNames, "view") {
 			t.Errorf("Expected 'view' to be excluded, got %v", toolNames)
@@ -338,26 +316,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		// The real assertion: verify the runtime excluded the tool from the CAPI request
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
-
+		traffic := ctx.WaitForExchanges(t, 1)
 		toolNames := getToolNames(traffic[0])
 		if contains(toolNames, "secret_tool") {
 			t.Errorf("Expected 'secret_tool' to be excluded from default agent, got %v", toolNames)

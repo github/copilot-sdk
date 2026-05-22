@@ -119,32 +119,36 @@ class TestSessions:
             available_tools=["view", "edit"],
         )
 
-        await session.send("What is 1+1?")
-        await get_final_assistant_message(session)
+        try:
+            await session.send("What is 1+1?")
 
-        # It only tells the model about the specified tools and no others
-        traffic = await ctx.get_exchanges()
-        tools = traffic[0]["request"]["tools"]
-        tool_names = [t["function"]["name"] for t in tools]
-        assert len(tool_names) == 2
-        assert "view" in tool_names
-        assert "edit" in tool_names
+            # It only tells the model about the specified tools and no others
+            traffic = await ctx.wait_for_exchanges()
+            tools = traffic[0]["request"]["tools"]
+            tool_names = [t["function"]["name"] for t in tools]
+            assert len(tool_names) == 2
+            assert "view" in tool_names
+            assert "edit" in tool_names
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_excludedTools(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all, excluded_tools=["view"]
         )
 
-        await session.send("What is 1+1?")
-        await get_final_assistant_message(session)
+        try:
+            await session.send("What is 1+1?")
 
-        # It has other tools, but not the one we excluded
-        traffic = await ctx.get_exchanges()
-        tools = traffic[0]["request"]["tools"]
-        tool_names = [t["function"]["name"] for t in tools]
-        assert "edit" in tool_names
-        assert "grep" in tool_names
-        assert "view" not in tool_names
+            # It has other tools, but not the one we excluded
+            traffic = await ctx.wait_for_exchanges()
+            tools = traffic[0]["request"]["tools"]
+            tool_names = [t["function"]["name"] for t in tools]
+            assert "edit" in tool_names
+            assert "grep" in tool_names
+            assert "view" not in tool_names
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_defaultAgent_excludedTools(
         self, ctx: E2ETestContext
@@ -165,14 +169,16 @@ class TestSessions:
             default_agent={"excluded_tools": ["secret_tool"]},
         )
 
-        await session.send("What is 1+1?")
-        await get_final_assistant_message(session)
+        try:
+            await session.send("What is 1+1?")
 
-        # The real assertion: verify the runtime excluded the tool from the CAPI request
-        traffic = await ctx.get_exchanges()
-        tools = traffic[0]["request"]["tools"]
-        tool_names = [t["function"]["name"] for t in tools]
-        assert "secret_tool" not in tool_names
+            # The real assertion: verify the runtime excluded the tool from the CAPI request
+            traffic = await ctx.wait_for_exchanges()
+            tools = traffic[0]["request"]["tools"]
+            tool_names = [t["function"]["name"] for t in tools]
+            assert "secret_tool" not in tool_names
+        finally:
+            await session.disconnect()
 
     # TODO: This test shows there's a race condition inside client.ts. If createSession
     # is called concurrently and autoStart is on, it may start multiple child processes.

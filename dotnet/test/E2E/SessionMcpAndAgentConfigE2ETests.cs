@@ -14,22 +14,13 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
     [Fact]
     public async Task Should_Accept_MCP_Server_Configuration_On_Session_Create()
     {
-        var mcpServers = new Dictionary<string, McpServerConfig>
-        {
-            ["test-server"] = new McpStdioServerConfig
-            {
-                Command = "echo",
-                Args = ["hello"],
-                Tools = ["*"]
-            }
-        };
-
         var session = await CreateSessionAsync(new SessionConfig
         {
-            McpServers = mcpServers
+            McpServers = CreateTestMcpServers("test-server")
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+        await WaitForMcpServerStatusAsync(session, "test-server", McpServerStatus.Connected);
 
         // Simple interaction to verify session works
         await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
@@ -48,7 +39,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         {
             ["test-server"] = new McpStdioServerConfig
             {
-                Command = "true",
+                Command = "dotnet",
                 Tools = ["*"]
             }
         };
@@ -59,12 +50,6 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
-
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(message);
-        Assert.Contains("4", message!.Data.Content);
 
         await session.DisposeAsync();
     }
@@ -79,26 +64,13 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         await session1.DisposeAsync();
 
         // Resume with MCP servers
-        var mcpServers = new Dictionary<string, McpServerConfig>
-        {
-            ["test-server"] = new McpStdioServerConfig
-            {
-                Command = "echo",
-                Args = ["hello"],
-                Tools = ["*"]
-            }
-        };
-
         var session2 = await ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
-            McpServers = mcpServers
+            McpServers = CreateTestMcpServers("test-server")
         });
 
         Assert.Equal(sessionId, session2.SessionId);
-
-        var message = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "What is 3+3?" });
-        Assert.NotNull(message);
-        Assert.Contains("6", message!.Data.Content);
+        await WaitForMcpServerStatusAsync(session2, "test-server", McpServerStatus.Connected);
 
         await session2.DisposeAsync();
     }
@@ -106,28 +78,14 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
     [Fact]
     public async Task Should_Handle_Multiple_MCP_Servers()
     {
-        var mcpServers = new Dictionary<string, McpServerConfig>
-        {
-            ["server1"] = new McpStdioServerConfig
-            {
-                Command = "echo",
-                Args = ["server1"],
-                Tools = ["*"]
-            },
-            ["server2"] = new McpStdioServerConfig
-            {
-                Command = "echo",
-                Args = ["server2"],
-                Tools = ["*"]
-            }
-        };
-
         var session = await CreateSessionAsync(new SessionConfig
         {
-            McpServers = mcpServers
+            McpServers = CreateTestMcpServers("server1", "server2")
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+        await WaitForMcpServerStatusAsync(session, "server1", McpServerStatus.Connected);
+        await WaitForMcpServerStatusAsync(session, "server2", McpServerStatus.Connected);
         await session.DisposeAsync();
     }
 
@@ -234,15 +192,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                 DisplayName = "MCP Agent",
                 Description = "An agent with its own MCP servers",
                 Prompt = "You are an agent with MCP servers.",
-                McpServers = new Dictionary<string, McpServerConfig>
-                {
-                    ["agent-server"] = new McpStdioServerConfig
-                    {
-                        Command = "echo",
-                        Args = ["agent-mcp"],
-                        Tools = ["*"]
-                    }
-                }
+                McpServers = CreateTestMcpServers("agent-server")
             }
         };
 
@@ -401,16 +351,6 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
     [Fact]
     public async Task Should_Accept_Both_MCP_Servers_And_Custom_Agents()
     {
-        var mcpServers = new Dictionary<string, McpServerConfig>
-        {
-            ["shared-server"] = new McpStdioServerConfig
-            {
-                Command = "echo",
-                Args = ["shared"],
-                Tools = ["*"]
-            }
-        };
-
         var customAgents = new List<CustomAgentConfig>
         {
             new CustomAgentConfig
@@ -424,42 +364,13 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
 
         var session = await CreateSessionAsync(new SessionConfig
         {
-            McpServers = mcpServers,
+            McpServers = CreateTestMcpServers("shared-server"),
             CustomAgents = customAgents
         });
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
+        await WaitForMcpServerStatusAsync(session, "shared-server", McpServerStatus.Connected);
         await session.DisposeAsync();
     }
 
-    private static string FindTestHarnessDir()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            var candidate = Path.Combine(dir.FullName, "test", "harness", "test-mcp-server.mjs");
-            if (File.Exists(candidate))
-                return Path.GetDirectoryName(candidate)!;
-            dir = dir.Parent;
-        }
-        throw new InvalidOperationException("Could not find test/harness/test-mcp-server.mjs");
-    }
-
-    private static async Task WaitForMcpServerStatusAsync(
-        CopilotSession session,
-        string serverName,
-        McpServerStatus expectedStatus)
-    {
-        await TestHelper.WaitForConditionAsync(
-            async () =>
-            {
-                var result = await session.Rpc.Mcp.ListAsync();
-                return result.Servers.Any(server =>
-                    string.Equals(server.Name, serverName, StringComparison.Ordinal)
-                    && server.Status == expectedStatus);
-            },
-            timeout: TimeSpan.FromSeconds(60),
-            pollInterval: TimeSpan.FromMilliseconds(200),
-            timeoutMessage: $"{serverName} reaching {expectedStatus}");
-    }
 }

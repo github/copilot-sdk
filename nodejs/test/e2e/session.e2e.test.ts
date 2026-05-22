@@ -3,7 +3,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { ParsedHttpExchange } from "../../../test/harness/replayingCapiProxy.js";
 import { CopilotClient, approveAll, defineTool, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext, isCI } from "./harness/sdkTestContext.js";
-import { getFinalAssistantMessage, getNextEventOfType } from "./harness/sdkTestHelper.js";
+import { getFinalAssistantMessage, getNextEventOfType, retry } from "./harness/sdkTestHelper.js";
 
 describe("Sessions", async () => {
     const {
@@ -13,6 +13,18 @@ describe("Sessions", async () => {
         workDir,
         env,
     } = await createSdkTestContext();
+
+    async function waitForExchanges(minimumCount = 1) {
+        await retry(
+            `capture ${minimumCount} chat completion request(s)`,
+            async () => {
+                const exchanges = await openAiEndpoint.getExchanges();
+                expect(exchanges.length).toBeGreaterThanOrEqual(minimumCount);
+            },
+            1_200
+        );
+        return openAiEndpoint.getExchanges();
+    }
 
     it.each([
         ["stdio", () => RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH })],
@@ -233,14 +245,18 @@ describe("Sessions", async () => {
             availableTools: ["view", "edit"],
         });
 
-        await session.sendAndWait({ prompt: "What is 1+1?" });
+        try {
+            await session.send({ prompt: "What is 1+1?" });
 
-        // It only tells the model about the specified tools and no others
-        const traffic = await openAiEndpoint.getExchanges();
-        expect(traffic[0].request.tools).toMatchObject([
-            { function: { name: "view" } },
-            { function: { name: "edit" } },
-        ]);
+            // It only tells the model about the specified tools and no others
+            const traffic = await waitForExchanges();
+            expect(traffic[0].request.tools).toMatchObject([
+                { function: { name: "view" } },
+                { function: { name: "edit" } },
+            ]);
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should create a session with excludedTools", async () => {
@@ -249,16 +265,20 @@ describe("Sessions", async () => {
             excludedTools: ["view"],
         });
 
-        await session.sendAndWait({ prompt: "What is 1+1?" });
+        try {
+            await session.send({ prompt: "What is 1+1?" });
 
-        // It has other tools, but not the one we excluded
-        const traffic = await openAiEndpoint.getExchanges();
-        const functionNames = traffic[0].request.tools?.map(
-            (t) => (t as { function: { name: string } }).function.name
-        );
-        expect(functionNames).toContain("edit");
-        expect(functionNames).toContain("grep");
-        expect(functionNames).not.toContain("view");
+            // It has other tools, but not the one we excluded
+            const traffic = await waitForExchanges();
+            const functionNames = traffic[0].request.tools?.map(
+                (t) => (t as { function: { name: string } }).function.name
+            );
+            expect(functionNames).toContain("edit");
+            expect(functionNames).toContain("grep");
+            expect(functionNames).not.toContain("view");
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should create a session with defaultAgent excludedTools", async () => {
@@ -280,18 +300,19 @@ describe("Sessions", async () => {
             },
         });
 
-        await session.sendAndWait({ prompt: "What is 1+1?" });
+        try {
+            await session.send({ prompt: "What is 1+1?" });
 
-        // The secret_tool should be registered with the runtime but not advertised
-        // to the default agent's underlying model call.
-        const traffic = await openAiEndpoint.getExchanges();
-        expect(traffic.length).toBeGreaterThan(0);
-        const functionNames = traffic[0].request.tools?.map(
-            (t) => (t as { function: { name: string } }).function.name
-        );
-        expect(functionNames).not.toContain("secret_tool");
-
-        await session.disconnect();
+            // The secret_tool should be registered with the runtime but not advertised
+            // to the default agent's underlying model call.
+            const traffic = await waitForExchanges();
+            const functionNames = traffic[0].request.tools?.map(
+                (t) => (t as { function: { name: string } }).function.name
+            );
+            expect(functionNames).not.toContain("secret_tool");
+        } finally {
+            await session.disconnect();
+        }
     });
 
     // TODO: This test shows there's a race condition inside client.ts. If createSession is called

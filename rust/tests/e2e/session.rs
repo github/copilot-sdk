@@ -273,7 +273,11 @@ async fn should_create_a_session_with_availabletools() {
                     .await
                     .expect("create session");
 
-                session.send_and_wait("What is 1+1?").await.expect("send");
+                session.send("What is 1+1?").await.expect("send");
+                wait_for_condition("captured CAPI exchange", || async {
+                    !ctx.exchanges().is_empty()
+                })
+                .await;
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert_eq!(tool_names.len(), 2);
@@ -305,7 +309,11 @@ async fn should_create_a_session_with_excludedtools() {
                     .await
                     .expect("create session");
 
-                session.send_and_wait("What is 1+1?").await.expect("send");
+                session.send("What is 1+1?").await.expect("send");
+                wait_for_condition("captured CAPI exchange", || async {
+                    !ctx.exchanges().is_empty()
+                })
+                .await;
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert!(!tool_names.contains(&"view".to_string()));
@@ -342,7 +350,11 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
                     .await
                     .expect("create session");
 
-                session.send_and_wait("What is 1+1?").await.expect("send");
+                session.send("What is 1+1?").await.expect("send");
+                wait_for_condition("captured CAPI exchange", || async {
+                    !ctx.exchanges().is_empty()
+                })
+                .await;
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert!(!tool_names.contains(&"secret_tool".to_string()));

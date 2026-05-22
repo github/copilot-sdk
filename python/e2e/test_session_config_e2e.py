@@ -422,11 +422,11 @@ class TestSessionConfig:
             available_tools=["view"],
         )
 
-        await session2.send_and_wait("What is 1+1?")
+        try:
+            await session2.send("What is 1+1?")
 
-        exchanges = await ctx.get_exchanges()
-        assert exchanges
-        assert _get_tool_names(exchanges[-1]) == ["view"]
-
-        await session2.disconnect()
-        await session1.disconnect()
+            exchanges = await ctx.wait_for_exchanges()
+            assert _get_tool_names(exchanges[-1]) == ["view"]
+        finally:
+            await session2.disconnect()
+            await session1.disconnect()
