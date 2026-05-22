@@ -472,6 +472,13 @@ pub struct AgentInfo {
     /// Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.
     pub id: String,
     /// MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(default)]
     pub mcp_servers: HashMap<String, serde_json::Value>,
     /// Preferred model id for this agent. When omitted, inherits the outer agent's model.
@@ -1102,7 +1109,7 @@ pub struct ConnectRemoteSessionParams {
 /// Optional connection token presented by the SDK client during the handshake.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ConnectRequest {
+pub(crate) struct ConnectRequest {
     /// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
@@ -1111,7 +1118,7 @@ pub struct ConnectRequest {
 /// Handshake result reporting the server's protocol version and package version on success.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ConnectResult {
+pub(crate) struct ConnectResult {
     /// Always true on success
     pub ok: bool,
     /// Server protocol version number
@@ -5160,8 +5167,9 @@ pub struct SendRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
     /// Optional provenance tag copied to the resulting user.message event. Supported values are `system`, `command-*`, and `schedule-*`.
+    #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<serde_json::Value>,
+    pub(crate) source: Option<serde_json::Value>,
     /// W3C Trace Context traceparent header for distributed tracing of this agent turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
@@ -6397,6 +6405,13 @@ pub struct SessionsSetAdditionalPluginsResult {}
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdateOptionsParams {
     /// Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(default)]
     pub additional_content_exclusion_policies: Vec<serde_json::Value>,
     /// Runtime context discriminator (e.g., `cli`, `actions`).
@@ -6475,6 +6490,13 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<serde_json::Value>,
     /// Reasoning effort for the selected model (model-defined enum).
@@ -6484,6 +6506,13 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
     /// Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<serde_json::Value>,
     /// Shell init profile (`None` or `NonInteractive`).

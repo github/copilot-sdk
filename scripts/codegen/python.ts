@@ -8,7 +8,7 @@
 
 import fs from "fs/promises";
 import path from "path";
-import type { JSONSchema7 } from "json-schema";
+import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import { fileURLToPath } from "url";
 import {
     cloneSchemaForCodegen,
@@ -25,7 +25,13 @@ import {
     isNodeFullyDeprecated,
     isSchemaDeprecated,
     isSchemaExperimental,
+    isSchemaInternal,
     postProcessSchema,
+    propagateInternalVisibility,
+    collectInternalSymbols,
+    collectInternalFieldsOnPublicTypes,
+    annotateInternalPythonFields,
+    renameInternalPythonSymbols,
     stripBooleanLiterals,
     writeGeneratedFile,
     collectDefinitionCollections,
@@ -675,6 +681,24 @@ function pushPyExperimentalComment(lines: string[], subject: PyExperimentalSubje
 
 function pushPyExperimentalApiGroupComment(lines: string[]): void {
     lines.push("# Experimental: this API group is experimental and may change or be removed.");
+}
+
+/**
+ * Emit `# Deprecated:` / `# Experimental:` / `# Internal:` comments above a
+ * dataclass field. Order matches our other codegens (deprecated, experimental,
+ * internal) and keeps the comments out of the field declaration itself.
+ */
+function pushPyFieldMarkers(lines: string[], propSchema: JSONSchema7 | null | undefined): void {
+    if (!propSchema) return;
+    if (isSchemaDeprecated(propSchema)) {
+        lines.push(`    # Deprecated: this field is deprecated.`);
+    }
+    if (isSchemaExperimental(propSchema)) {
+        lines.push(`    # Experimental: this field is part of an experimental API and may change or be removed.`);
+    }
+    if (isSchemaInternal(propSchema)) {
+        lines.push(`    # Internal: this field is an internal SDK API and is not part of the public surface.`);
+    }
 }
 
 /**
@@ -2057,9 +2081,11 @@ function emitPyClass(
     const fieldInfos = orderedFieldEntries.map(([propName, propSchema]) => {
         const isRequired = required.has(propName);
         const resolved = resolvePyPropertyType(propSchema, typeName, propName, isRequired, ctx);
+        const baseFieldName = toPyFieldName(propName, propSchema, ctx);
+        const fieldName = isSchemaInternal(propSchema) ? `_${baseFieldName}` : baseFieldName;
         return {
             jsonName: propName,
-            fieldName: toPyFieldName(propName, propSchema, ctx),
+            fieldName,
             isRequired,
             resolved,
         };
@@ -2092,9 +2118,8 @@ function emitPyClass(
 
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
-        if (isSchemaDeprecated(orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1] as JSONSchema7)) {
-            lines.push(`    # Deprecated: this field is deprecated.`);
-        }
+        const propSchema = orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1] as JSONSchema7 | undefined;
+        pushPyFieldMarkers(lines, propSchema);
         lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
     }
 
@@ -2217,7 +2242,7 @@ function emitPyFlatDiscriminatedUnion(
 
         return {
             jsonName: propName,
-            fieldName: toPyFieldName(propName, propSchema, ctx),
+            fieldName: isSchemaInternal(propSchema) ? `_${toPyFieldName(propName, propSchema, ctx)}` : toPyFieldName(propName, propSchema, ctx),
             isRequired: requiredInAll,
             resolved,
         };
@@ -2234,10 +2259,8 @@ function emitPyFlatDiscriminatedUnion(
     }
     for (const field of fieldInfos) {
         const suffix = field.isRequired ? "" : " = None";
-        const fieldSchema = orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1];
-        if (fieldSchema && isSchemaDeprecated(fieldSchema)) {
-            lines.push(`    # Deprecated: this field is deprecated.`);
-        }
+        const fieldSchema = orderedFieldEntries.find(([n]) => n === field.jsonName)?.[1] as JSONSchema7 | undefined;
+        pushPyFieldMarkers(lines, fieldSchema);
         lines.push(`    ${field.fieldName}: ${field.resolved.annotation}${suffix}`);
     }
     lines.push(``);
@@ -2624,8 +2647,10 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const processed = postProcessSchema(schema);
-    const code = generatePythonSessionEventsCode(processed);
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
+    let code = generatePythonSessionEventsCode(processed);
+    const { typeNames } = collectInternalSymbols(processed);
+    code = renameInternalPythonSymbols(code, typeNames);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/session_events.py", code);
     console.log(`  ✓ ${outPath}`);
@@ -3017,6 +3042,44 @@ def _patch_model_capabilities(data: dict) -> dict:
     finalCode = postProcessDiscriminatorDefaultsForPython(finalCode, refBasedUnions);
     finalCode = unwrapRedundantPythonLambdas(finalCode);
 
+    // Apply `_`-prefix to type names of internal RPC types so the leading-underscore
+    // Python convention signals "internal, no stability guarantees" to consumers.
+    {
+        const internalDefs = new Set<string>();
+        for (const [name, def] of Object.entries(rpcDefinitions.definitions)) {
+            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+                internalDefs.add(name);
+            }
+        }
+        for (const [name, def] of Object.entries(rpcDefinitions.$defs)) {
+            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+                internalDefs.add(name);
+            }
+        }
+        if (internalDefs.size > 0) {
+            finalCode = renameInternalPythonSymbols(finalCode, internalDefs);
+        }
+    }
+
+    // Annotate internal fields on otherwise-public RPC types with a `# Internal:`
+    // comment immediately above the field declaration. Quicktype's generated
+    // from_dict/to_dict reference field names in patterns that are brittle to
+    // regex-based identifier rewriting, so we annotate rather than rename. The
+    // marker is visible in IDE hovers and signals "internal, no stability
+    // guarantee" without breaking the wire-protocol round-trip.
+    {
+        const combinedSchema: JSONSchema7 = {
+            definitions: {
+                ...(rpcDefinitions.definitions as Record<string, JSONSchema7Definition>),
+                ...(rpcDefinitions.$defs as Record<string, JSONSchema7Definition>),
+            },
+        };
+        const fieldsByType = collectInternalFieldsOnPublicTypes(combinedSchema);
+        if (fieldsByType.size > 0) {
+            finalCode = annotateInternalPythonFields(finalCode, fieldsByType, toSnakeCase);
+        }
+    }
+
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);
     console.log(`  ✓ ${outPath}`);
 }
@@ -3141,7 +3204,8 @@ function emitRpcWrapper(lines: string[], node: Record<string, unknown>, isSessio
 }
 
 function emitMethod(lines: string[], name: string, method: RpcMethod, isSession: boolean, resolveType: (name: string) => string, groupExperimental = false, groupDeprecated = false): void {
-    const methodName = toSnakeCase(name);
+    const isInternal = method.visibility === "internal";
+    const methodName = (isInternal ? "_" : "") + toSnakeCase(name);
     const resultSchema = getMethodResultSchema(method);
     const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
     const effectiveResultSchema = nullableInner ?? resultSchema;

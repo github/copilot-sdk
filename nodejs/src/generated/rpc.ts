@@ -1186,13 +1186,11 @@ export interface AgentInfo {
   model?: string;
   /**
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
+   *
+   * @experimental
    */
   mcpServers?: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   };
   /**
    * Skill names preloaded into this agent's context. Omitted means none.
@@ -2146,11 +2144,7 @@ export interface ExternalToolTextResultForLlm {
    * Optional tool-specific telemetry
    */
   toolTelemetry?: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   };
   /**
    * Base64-encoded binary results returned to the model
@@ -5580,6 +5574,8 @@ export interface SendRequest {
   requiredTool?: string;
   /**
    * Optional provenance tag copied to the resulting user.message event. Supported values are `system`, `command-*`, and `schedule-*`.
+   *
+   * @internal
    */
   source?: {
     [k: string]: unknown | undefined;
@@ -6105,11 +6101,7 @@ export interface SessionFsSqliteQueryResult {
    * For SELECT: array of row objects. For others: empty array.
    */
   rows: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   }[];
   /**
    * Column names from the result set
@@ -6869,6 +6861,8 @@ export interface SessionUpdateOptionsParams {
   isExperimentalMode?: boolean;
   /**
    * Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.
+   *
+   * @experimental
    */
   provider?: {
     [k: string]: unknown | undefined;
@@ -6899,6 +6893,8 @@ export interface SessionUpdateOptionsParams {
   shellProcessFlags?: string[];
   /**
    * Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime.
+   *
+   * @experimental
    */
   sandboxConfig?: {
     [k: string]: unknown | undefined;
@@ -6978,10 +6974,10 @@ export interface SessionUpdateOptionsParams {
   eventsLogDirectory?: string;
   /**
    * Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.
+   *
+   * @experimental
    */
-  additionalContentExclusionPolicies?: {
-    [k: string]: unknown | undefined;
-  }[];
+  additionalContentExclusionPolicies?: unknown[];
   /**
    * Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
    */
@@ -7814,11 +7810,7 @@ export interface Tool {
    * JSON Schema for the tool's input parameters
    */
   parameters?: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   };
   /**
    * Optional instructions for how to use this tool effectively

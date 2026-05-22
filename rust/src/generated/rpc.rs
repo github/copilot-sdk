@@ -107,7 +107,7 @@ impl<'a> ClientRpc<'a> {
     /// # Returns
     ///
     /// Handshake result reporting the server's protocol version and package version on success.
-    pub async fn connect(&self, params: ConnectRequest) -> Result<ConnectResult, Error> {
+    pub(crate) async fn connect(&self, params: ConnectRequest) -> Result<ConnectResult, Error> {
         let wire_params = serde_json::to_value(params)?;
         let _value = self
             .client

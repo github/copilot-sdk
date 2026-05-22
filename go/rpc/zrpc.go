@@ -81,6 +81,7 @@ type AgentInfo struct {
 	ID string `json:"id"`
 	// MCP server configurations attached to this agent, keyed by server name. Server config
 	// shape mirrors the MCP `mcpServers` schema.
+	// Experimental: McpServers is part of an experimental API and may change or be removed.
 	McpServers map[string]any `json:"mcpServers,omitempty"`
 	// Preferred model id for this agent. When omitted, inherits the outer agent's model.
 	Model *string `json:"model,omitempty"`
@@ -3403,6 +3404,8 @@ type SendRequest struct {
 	RequiredTool *string `json:"requiredTool,omitempty"`
 	// Optional provenance tag copied to the resulting user.message event. Supported values are
 	// `system`, `command-*`, and `schedule-*`.
+	// Internal: Source is part of the SDK's internal API surface and is not intended for
+	// external use.
 	Source any `json:"source,omitempty"`
 	// W3C Trace Context traceparent header for distributed tracing of this agent turn
 	Traceparent *string `json:"traceparent,omitempty"`
@@ -4322,6 +4325,8 @@ type SessionTelemetrySetFeatureOverridesResult struct {
 type SessionUpdateOptionsParams struct {
 	// Additional content-exclusion policies to merge into the session's policy set. Opaque
 	// shape; see `ContentExclusionApiResponse` in the runtime.
+	// Experimental: AdditionalContentExclusionPolicies is part of an experimental API and may
+	// change or be removed.
 	AdditionalContentExclusionPolicies []any `json:"additionalContentExclusionPolicies,omitempty"`
 	// Runtime context discriminator (e.g., `cli`, `actions`).
 	AgentContext *string `json:"agentContext,omitempty"`
@@ -4382,12 +4387,14 @@ type SessionUpdateOptionsParams struct {
 	Model *string `json:"model,omitempty"`
 	// Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the
 	// runtime.
+	// Experimental: Provider is part of an experimental API and may change or be removed.
 	Provider any `json:"provider,omitempty"`
 	// Reasoning effort for the selected model (model-defined enum).
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Whether the session is running in an interactive UI.
 	RunningInInteractiveMode *bool `json:"runningInInteractiveMode,omitempty"`
 	// Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime.
+	// Experimental: SandboxConfig is part of an experimental API and may change or be removed.
 	SandboxConfig any `json:"sandboxConfig,omitempty"`
 	// Shell init profile (`None` or `NonInteractive`).
 	ShellInitProfile *string `json:"shellInitProfile,omitempty"`
