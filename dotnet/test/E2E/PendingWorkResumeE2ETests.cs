@@ -1,7 +1,8 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
@@ -21,7 +22,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
     public async Task Should_Continue_Pending_Permission_Request_After_Resume()
     {
         var originalPermissionRequest = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseOriginalPermission = new TaskCompletionSource<PermissionRequestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseOriginalPermission = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         var resumedToolInvoked = false;
 
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
@@ -59,10 +60,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             var session2 = await resumedTcpClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = true,
-                OnPermissionRequest = (_, _) => Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.NoResult
-                }),
+                OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(PermissionDecision.NoResult()),
                 Tools =
                 [
                     AIFunctionFactory.Create(
@@ -90,10 +88,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
         finally
         {
-            releaseOriginalPermission.TrySetResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable,
-            });
+            releaseOriginalPermission.TrySetResult(PermissionDecision.UserNotAvailable());
         }
 
         [Description("Transforms a value after permission is granted")]

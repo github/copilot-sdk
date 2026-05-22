@@ -13,9 +13,7 @@ use github_copilot_sdk::{Client, ClientOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let mcp_cmd = std::env::var("MCP_SERVER_CMD").ok();
     let mcp_args_env = std::env::var("MCP_SERVER_ARGS").ok();
@@ -25,7 +23,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
             .map(|s| s.split(' ').map(str::to_string).collect())
             .unwrap_or_default();
         let stdio = McpStdioServerConfig {
-            tools: vec!["*".to_string()],
             command: cmd.clone(),
             args,
             ..Default::default()
@@ -45,7 +42,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
     config.mcp_servers = mcp_servers;
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 
@@ -63,6 +60,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         println!("\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)");
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

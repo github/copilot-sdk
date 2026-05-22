@@ -2,7 +2,8 @@ import express from "express";
 import { CopilotClient } from "@github/copilot-sdk";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
-const CLI_URL = process.env.CLI_URL || process.env.COPILOT_CLI_URL || "localhost:3000";
+const CLI_URL =
+  process.env.CLI_URL || process.env.COPILOT_CLI_URL || "localhost:3000";
 
 const app = express();
 app.use(express.json());

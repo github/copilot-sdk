@@ -160,7 +160,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
 - `SystemMessage` (\*SystemMessageConfig): System message configuration. Supports three modes:
   - **append** (default): Appends `Content` after the SDK-managed prompt
   - **replace**: Replaces the entire prompt with `Content`
-  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
+  - **customize**: Selectively override individual sections via `Sections` map (keys: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`; values: `SectionOverride` with `Action` and optional `Content`)
 - `Provider` (\*ProviderConfig): Custom API provider configuration (BYOK). See [Custom Providers](#custom-providers) section.
 - `Streaming` (*bool): Enable streaming delta events (nil = runtime default)
 - `InfiniteSessions` (\*InfiniteSessionConfig): Automatic context compaction configuration
@@ -233,7 +233,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 })
 ```
 
-Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionLastInstructions`.
+Available section constants: `SectionIdentity`, `SectionTone`, `SectionToolEfficiency`, `SectionEnvironmentContext`, `SectionCodeChangeRules`, `SectionGuidelines`, `SectionSafety`, `SectionToolInstructions`, `SectionCustomInstructions`, `SectionRuntimeInstructions`, `SectionLastInstructions`.
 
 Each section override supports four actions:
 
@@ -594,45 +594,39 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 Provide your own `PermissionHandlerFunc` to inspect each request and apply custom logic:
 
 ```go
+import (
+    "fmt"
+
+    copilot "github.com/github/copilot-sdk/go"
+    "github.com/github/copilot-sdk/go/rpc"
+)
+
 session, err := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Model: "gpt-5",
-    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        // request.Kind — what type of operation is being requested:
-        //   copilot.KindShell  — executing a shell command
-        //   copilot.Write      — writing or editing a file
-        //   copilot.Read       — reading a file
-        //   copilot.MCP        — calling an MCP tool
-        //   copilot.CustomTool — calling one of your registered tools
-        //   copilot.URL        — fetching a URL
-        //   copilot.Memory     — accessing or updating Copilot-managed memory
-        //   copilot.Hook       — invoking a registered hook
-        // request.ToolCallID  — pointer to the tool call that triggered this request
-        // request.ToolName    — pointer to the name of the tool (for custom-tool / mcp)
-        // request.FileName    — pointer to the file being written (for write)
-        // request.FullCommandText — pointer to the full shell command (for shell)
-
-        if request.Kind == copilot.KindShell {
-            // Deny shell commands
-            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
+    OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        // Type-switch on the discriminated PermissionRequest variants to
+        // access per-kind fields:
+        if shell, ok := request.(*copilot.PermissionRequestShell); ok {
+            feedback := fmt.Sprintf("Refusing shell: %s", shell.FullCommandText)
+            return &rpc.PermissionDecisionReject{Feedback: &feedback}, nil
         }
-
-        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+        return &rpc.PermissionDecisionApproveOnce{}, nil
     },
 })
 ```
 
-### Permission Result Kinds
+### Permission Decisions
 
-The `Kind` field must be one of the canonical `PermissionRequestResultKind` constants. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+The handler returns an `rpc.PermissionDecision` — a sealed interface implemented by every decision variant:
 
-| Constant                                      | Wire value             | Meaning                                                                                     |
-| --------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
-| `PermissionRequestResultKindApproved`         | `"approve-once"`       | Allow this single request                                                                   |
-| `PermissionRequestResultKindRejected`         | `"reject"`             | Deny the request                                                                            |
-| `PermissionRequestResultKindUserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                 |
-| `PermissionRequestResultKindNoResult`         | `"no-result"`          | Leave the permission request unanswered (protocol v1 only; rejected by protocol v2 servers) |
+| Variant                                  | Meaning                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `&rpc.PermissionDecisionApproveOnce{}`   | Allow this single request                                                          |
+| `&rpc.PermissionDecisionReject{...}`     | Deny the request (set `Feedback` to forward a message to the LLM)                  |
+| `&rpc.PermissionDecisionUserNotAvailable{}` | Deny because no user is available to confirm                                    |
+| `&rpc.PermissionDecisionNoResult{}`      | Decline to respond, allowing another connected client to answer instead            |
 
-> The past-tense names `PermissionRequestResultKindDeniedInteractivelyByUser`, `PermissionRequestResultKindDeniedCouldNotRequestFromUser`, and `PermissionRequestResultKindDeniedByRules` remain as deprecated aliases for backward compatibility — prefer the canonical constants above in new code.
+Richer decisions (`PermissionDecisionApproveForSession`, `PermissionDecisionApproveForLocation`, `PermissionDecisionApprovePermanently`) carry per-kind approval payloads — instantiate the variant struct directly.
 
 ### Resuming Sessions
 

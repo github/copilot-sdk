@@ -5,6 +5,7 @@ setting meta, replacing meta, and removing meta.
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -58,7 +59,7 @@ class TestPreMcpToolCallHook:
             assert inputs[0].get("serverName") == "meta-echo"
             assert inputs[0].get("toolName") == "echo_meta"
             assert inputs[0].get("workingDirectory")
-            assert inputs[0].get("timestamp", 0) > 0
+            assert isinstance(inputs[0].get("timestamp"), datetime)
         finally:
             await session.disconnect()
 

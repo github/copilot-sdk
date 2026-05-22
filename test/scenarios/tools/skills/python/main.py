@@ -1,23 +1,18 @@
 import asyncio
-import os
 from pathlib import Path
 
 from copilot import CopilotClient
-from copilot.client import SubprocessConfig
-from copilot.session import PermissionRequestResult
+from copilot.generated.rpc import PermissionDecisionApproveOnce
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient()
 
     try:
         skills_dir = str(Path(__file__).resolve().parent.parent / "sample-skills")
 
         session = await client.create_session(
-            on_permission_request=lambda _, __: PermissionRequestResult(kind="approve-once"),
+            on_permission_request=lambda _, __: PermissionDecisionApproveOnce(),
             model="claude-haiku-4.5",
             skill_directories=[skills_dir],
             hooks={

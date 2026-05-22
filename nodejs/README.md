@@ -131,10 +131,6 @@ Resume an existing session. Returns the session with `workspacePath` populated i
 
 Ping the server to check connectivity.
 
-##### `getState(): ConnectionState`
-
-Get current connection state.
-
 ##### `listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]>`
 
 List all available sessions. Optionally filter by working directory context.
@@ -573,8 +569,8 @@ The SDK auto-injects environment context, tool instructions, and security guardr
 Use `mode: "customize"` to selectively override individual sections of the prompt while preserving the rest:
 
 ```typescript
-import { SYSTEM_PROMPT_SECTIONS } from "@github/copilot-sdk";
-import type { SectionOverride, SystemPromptSection } from "@github/copilot-sdk";
+import { SYSTEM_MESSAGE_SECTIONS } from "@github/copilot-sdk";
+import type { SectionOverride, SystemMessageSection } from "@github/copilot-sdk";
 
 const session = await client.createSession({
     model: "gpt-5",
@@ -597,7 +593,7 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`. Use the `SYSTEM_PROMPT_SECTIONS` constant for descriptions of each section.
+Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`. Use the `SYSTEM_MESSAGE_SECTIONS` constant for descriptions of each section.
 
 Each section override supports four actions:
 

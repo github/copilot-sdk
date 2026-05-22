@@ -194,21 +194,36 @@ func Int(v int) *int {
 	return &v
 }
 
-// Known system prompt section identifiers for the "customize" mode.
+// Known system message section identifiers for the "customize" mode.
 const (
-	SectionIdentity           = "identity"
-	SectionTone               = "tone"
-	SectionToolEfficiency     = "tool_efficiency"
+	// SectionIdentity is the agent identity preamble and mode statement.
+	SectionIdentity = "identity"
+	// SectionTone covers response style, conciseness rules, and output formatting preferences.
+	SectionTone = "tone"
+	// SectionToolEfficiency covers tool usage patterns, parallel calling, and batching guidelines.
+	SectionToolEfficiency = "tool_efficiency"
+	// SectionEnvironmentContext covers CWD, OS, git root, directory listing, and available tools.
 	SectionEnvironmentContext = "environment_context"
-	SectionCodeChangeRules    = "code_change_rules"
-	SectionGuidelines         = "guidelines"
-	SectionSafety             = "safety"
-	SectionToolInstructions   = "tool_instructions"
+	// SectionCodeChangeRules covers coding rules, linting/testing, ecosystem tools, and style.
+	SectionCodeChangeRules = "code_change_rules"
+	// SectionGuidelines covers tips, behavioral best practices, and behavioral guidelines.
+	SectionGuidelines = "guidelines"
+	// SectionSafety covers environment limitations, prohibited actions, and security policies.
+	SectionSafety = "safety"
+	// SectionToolInstructions covers per-tool usage instructions.
+	SectionToolInstructions = "tool_instructions"
+	// SectionCustomInstructions covers repository and organization custom instructions.
 	SectionCustomInstructions = "custom_instructions"
-	SectionLastInstructions   = "last_instructions"
+	// SectionRuntimeInstructions targets runtime-provided context and instructions
+	// (e.g. system notifications, memories, workspace context, mode-specific instructions,
+	// content-exclusion policy).
+	SectionRuntimeInstructions = "runtime_instructions"
+	// SectionLastInstructions covers end-of-prompt instructions: parallel tool calling,
+	// persistence, and task completion.
+	SectionLastInstructions = "last_instructions"
 )
 
-// SectionOverrideAction represents the action to perform on a system prompt section.
+// SectionOverrideAction represents the action to perform on a system message section.
 type SectionOverrideAction string
 
 const (
@@ -222,12 +237,12 @@ const (
 	SectionActionPrepend SectionOverrideAction = "prepend"
 )
 
-// SectionTransformFn is a callback that receives the current content of a system prompt section
+// SectionTransformFn is a callback that receives the current content of a system message section
 // and returns the transformed content. Used with the "transform" action to read-then-write
 // modify sections at runtime.
 type SectionTransformFn func(currentContent string) (string, error)
 
-// SectionOverride defines an override operation for a single system prompt section.
+// SectionOverride defines an override operation for a single system message section.
 type SectionOverride struct {
 	// Action is the operation to perform: "replace", "remove", "append", "prepend", or "transform".
 	Action SectionOverrideAction `json:"action,omitempty"`
@@ -268,42 +283,17 @@ type SystemMessageConfig struct {
 	Sections map[string]SectionOverride `json:"sections,omitempty"`
 }
 
-// PermissionRequestResultKind represents the kind of a permission request result.
-type PermissionRequestResultKind string
-
-const (
-	// PermissionRequestResultKindApproved indicates the permission was approved for this one instance.
-	PermissionRequestResultKindApproved PermissionRequestResultKind = "approve-once"
-
-	// PermissionRequestResultKindRejected indicates the permission was denied interactively by the user.
-	PermissionRequestResultKindRejected PermissionRequestResultKind = "reject"
-
-	// PermissionRequestResultKindUserNotAvailable indicates the permission was denied because
-	// user confirmation was unavailable.
-	PermissionRequestResultKindUserNotAvailable PermissionRequestResultKind = "user-not-available"
-
-	// PermissionRequestResultKindNoResult indicates no permission decision was made.
-	PermissionRequestResultKindNoResult PermissionRequestResultKind = "no-result"
-
-	// Deprecated: Use PermissionRequestResultKindRejected instead.
-	PermissionRequestResultKindDeniedInteractivelyByUser = PermissionRequestResultKindRejected
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedCouldNotRequestFromUser = PermissionRequestResultKindUserNotAvailable
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedByRules = PermissionRequestResultKindUserNotAvailable
-)
-
-// PermissionRequestResult represents the result of a permission request
-type PermissionRequestResult struct {
-	Kind  PermissionRequestResultKind `json:"kind"`
-	Rules []any                       `json:"rules,omitempty"`
-}
-
-// PermissionHandlerFunc executes a permission request
-// The handler should return a PermissionRequestResult. Returning an error denies the permission.
-type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
+// PermissionHandlerFunc executes a permission request.
+// The handler should return a [rpc.PermissionDecision]. Returning an error
+// causes the SDK to respond with [rpc.PermissionDecisionUserNotAvailable].
+//
+// Use the variant types directly:
+//
+//	&rpc.PermissionDecisionApproveOnce{}
+//	&rpc.PermissionDecisionReject{Feedback: &feedback}
+//	&rpc.PermissionDecisionUserNotAvailable{}
+//	&rpc.PermissionDecisionNoResult{}  // decline to respond; another client may answer
+type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error)
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {

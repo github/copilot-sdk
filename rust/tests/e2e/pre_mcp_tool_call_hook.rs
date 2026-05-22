@@ -20,7 +20,7 @@ fn meta_echo_mcp_servers(repo_root: &std::path::Path) -> HashMap<String, McpServ
     HashMap::from([(
         "meta-echo".to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
-            tools: vec!["*".to_string()],
+            tools: Some(vec!["*".to_string()]),
             command: if cfg!(windows) {
                 "node.exe".to_string()
             } else {

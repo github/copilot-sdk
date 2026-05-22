@@ -9,14 +9,12 @@ use github_copilot_sdk::{Client, ClientOptions};
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
     config.available_tools = Some(Vec::new());
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
     let session = client.create_session(config).await?;
 
     session
@@ -27,7 +25,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     // Note: do NOT destroy — `resume_session` needs the session to persist.
 
     let resume_config =
-        ResumeSessionConfig::new(session_id).with_handler(Arc::new(ApproveAllHandler));
+        ResumeSessionConfig::new(session_id).with_permission_handler(Arc::new(ApproveAllHandler));
     let resumed = client.resume_session(resume_config).await?;
     println!("Session resumed");
 
@@ -41,6 +39,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    resumed.destroy().await?;
+    resumed.disconnect().await?;
     Ok(())
 }

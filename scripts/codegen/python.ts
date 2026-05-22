@@ -263,6 +263,412 @@ function postProcessExternalUnionAliasesForPython(code: string, aliases: Map<str
     return code.replace(/\n{3,}/g, "\n\n");
 }
 
+/**
+ * Replace flat-merged dataclasses emitted by quicktype for $ref-based
+ * discriminated unions with proper Python unions: a `Name = VariantA | ...`
+ * alias plus a `_load_Name(obj)` dispatcher. Rewrites `Name.from_dict(x)` and
+ * `to_class(Name, x)` references to use the dispatcher / per-variant
+ * `.to_dict()` so callers transparently get the proper union shape.
+ *
+ * Detection: walk top-level definitions and pick those whose schema is an
+ * `anyOf`/`oneOf` of `$ref`s with a shared `const` discriminator. For each
+ * such definition we expect quicktype to already have emitted both the
+ * merged blob (which we'll delete) and the per-variant classes (which we
+ * keep).
+ *
+ * Returns the rewritten types-section code and the list of resolved union
+ * names; callers can re-apply `applyUnionRewritesToPython` to subsequently
+ * generated code (e.g. RPC method wrappers) so `Name.from_dict(x)` calls
+ * there also route through the new dispatcher.
+ */
+interface ResolvedRefBasedUnion {
+    aliasName: string;
+    discriminatorProp: string;
+    dispatch: Array<{ value: string; typeName: string }>;
+}
+function postProcessRefBasedDiscriminatedUnionsForPython(
+    code: string,
+    definitions: Record<string, JSONSchema7>,
+    definitionCollections: DefinitionCollections
+): { code: string; unions: ResolvedRefBasedUnion[] } {
+    interface UnionInfo {
+        aliasName: string;
+        variantNames: string[];
+        discriminatorProp: string;
+        dispatch: Array<{ value: string; typeName: string }>;
+        description: string | undefined;
+    }
+    const unions: UnionInfo[] = [];
+
+    for (const [defName, definition] of Object.entries(definitions)) {
+        const variants = (definition.anyOf ?? definition.oneOf) as JSONSchema7[] | undefined;
+        if (!Array.isArray(variants) || variants.length < 2) continue;
+        if (!variants.every((v) => typeof v === "object" && v !== null && typeof v.$ref === "string")) {
+            continue;
+        }
+
+        const variantRefNames = variants.map((v) => refTypeName(v.$ref as string, definitionCollections));
+        const resolvedVariants = variants.map(
+            (v) =>
+                resolveObjectSchema(v, definitionCollections) ??
+                resolveSchema(v, definitionCollections) ??
+                v
+        );
+        if (resolvedVariants.some((rv) => !rv || rv.properties === undefined)) continue;
+
+        const discriminator = findPyDiscriminator(resolvedVariants as JSONSchema7[]);
+        if (!discriminator) continue;
+
+        const aliasName = toPascalCase(defName);
+        const dispatch = variants.map((_, i) => {
+            const discProp = (resolvedVariants[i].properties as Record<string, JSONSchema7>)[
+                discriminator.property
+            ];
+            return {
+                value: String(discProp.const),
+                typeName: toPascalCase(variantRefNames[i]),
+            };
+        });
+
+        unions.push({
+            aliasName,
+            variantNames: variantRefNames.map(toPascalCase),
+            discriminatorProp: discriminator.property,
+            dispatch,
+            description: typeof definition.description === "string" ? definition.description : undefined,
+        });
+    }
+
+    const resolved: ResolvedRefBasedUnion[] = [];
+    if (unions.length === 0) return { code, unions: resolved };
+
+    const emittedClassNames = new Set<string>();
+    for (const match of code.matchAll(/^class (\w+)[:\(]/gm)) {
+        emittedClassNames.add(match[1]);
+    }
+    const acronymCandidates = (name: string): string[] => {
+        const substitutions: Array<[RegExp, string]> = [
+            [/Api/g, "API"],
+            [/Mcp/g, "MCP"],
+            [/Url/g, "URL"],
+            [/Json/g, "JSON"],
+            [/Http/g, "HTTP"],
+            [/Hmac/g, "HMAC"],
+            [/Tcp/g, "TCP"],
+            [/Sql/g, "SQL"],
+            [/Id\b/g, "ID"],
+            [/Llm/g, "LLM"],
+            [/Cli/g, "CLI"],
+        ];
+        const results = new Set<string>([name]);
+        for (const [pattern, replacement] of substitutions) {
+            for (const existing of [...results]) {
+                results.add(existing.replace(pattern, replacement));
+            }
+        }
+        return [...results];
+    };
+    const resolveActualName = (expected: string): string | undefined => {
+        for (const candidate of acronymCandidates(expected)) {
+            if (emittedClassNames.has(candidate)) return candidate;
+        }
+        return undefined;
+    };
+
+    for (const union of unions) {
+        const actualAliasName = resolveActualName(union.aliasName);
+        const actualVariantNames: string[] = [];
+        const actualDispatch: Array<{ value: string; typeName: string }> = [];
+        let allResolved = true;
+        for (let i = 0; i < union.variantNames.length; i++) {
+            const actual = resolveActualName(union.variantNames[i]);
+            if (!actual) {
+                allResolved = false;
+                break;
+            }
+            actualVariantNames.push(actual);
+            actualDispatch.push({ value: union.dispatch[i].value, typeName: actual });
+        }
+        if (!allResolved || !actualAliasName) {
+            continue;
+        }
+        resolved.push({
+            aliasName: actualAliasName,
+            discriminatorProp: union.discriminatorProp,
+            dispatch: actualDispatch,
+        });
+
+        const lines = code.split("\n");
+        let classStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i] === `class ${actualAliasName}:` || lines[i].startsWith(`class ${actualAliasName}(`)) {
+                classStart = i;
+                break;
+            }
+        }
+        if (classStart >= 0) {
+            let blockStart = classStart;
+            while (
+                blockStart > 0 &&
+                (lines[blockStart - 1] === "@dataclass" || /^# /.test(lines[blockStart - 1]))
+            ) {
+                blockStart--;
+            }
+            let blockEnd = classStart + 1;
+            while (blockEnd < lines.length) {
+                const ln = lines[blockEnd];
+                if (
+                    /^class \w/.test(ln) ||
+                    /^def \w/.test(ln) ||
+                    ln === "@dataclass" ||
+                    /^# (?:Experimental|Deprecated|Internal):/.test(ln)
+                ) {
+                    break;
+                }
+                blockEnd++;
+            }
+            lines.splice(blockStart, blockEnd - blockStart);
+            code = lines.join("\n");
+        }
+
+        const aliasLine = union.description
+            ? `# ${union.description.replace(/\n/g, " ")}\n${actualAliasName} = ${actualVariantNames.join(" | ")}`
+            : `${actualAliasName} = ${actualVariantNames.join(" | ")}`;
+
+        const dispatcherLines: string[] = [];
+        dispatcherLines.push(`def _load_${actualAliasName}(obj: Any) -> "${actualAliasName}":`);
+        dispatcherLines.push(`    assert isinstance(obj, dict)`);
+        dispatcherLines.push(`    kind = obj.get(${JSON.stringify(union.discriminatorProp)})`);
+        dispatcherLines.push(`    match kind:`);
+        for (const m of actualDispatch) {
+            dispatcherLines.push(`        case ${JSON.stringify(m.value)}: return ${m.typeName}.from_dict(obj)`);
+        }
+        dispatcherLines.push(
+            `        case _: raise ValueError(f"Unknown ${actualAliasName} ${union.discriminatorProp}: {kind!r}")`
+        );
+
+        code = `${code.trimEnd()}\n\n\n${aliasLine}\n\n\n${dispatcherLines.join("\n")}\n`;
+    }
+
+    code = applyUnionRewritesToPython(code, resolved);
+    return { code, unions: resolved };
+}
+
+/**
+ * Rewrite occurrences of `Name.from_dict(...)` to `_load_Name(...)` and
+ * `to_class(Name, x)` to `(x).to_dict()` for each union the caller passes in.
+ * Safe to apply repeatedly — re-running on already-rewritten code is a no-op.
+ */
+function applyUnionRewritesToPython(code: string, unions: ResolvedRefBasedUnion[]): string {
+    for (const union of unions) {
+        code = code.replace(
+            new RegExp(`\\b${union.aliasName}\\.from_dict\\b`, "g"),
+            `_load_${union.aliasName}`
+        );
+        code = code.replace(
+            new RegExp(`to_class\\(${union.aliasName},\\s*([^,)]+)\\)`, "g"),
+            `($1).to_dict()`
+        );
+    }
+    return code;
+}
+
+/**
+ * For each discriminated-union variant class, replace the dataclass-level
+ * discriminator field (e.g. ``kind: PermissionDecisionApproveOnceKind``) with
+ * a class-level constant (e.g. ``kind: ClassVar[str] = "approve-once"``).
+ * This lets users construct variants without supplying the discriminator
+ * value (``PermissionDecisionApproveOnce()`` instead of
+ * ``PermissionDecisionApproveOnce(kind=PermissionDecisionApproveOnceKind.APPROVE_ONCE)``),
+ * matching the TS / Rust / .NET / Go ergonomics for the same schema.
+ *
+ * Also rewrites the generated ``from_dict`` to skip parsing the discriminator
+ * (the dispatcher routed based on it; the variant class identity carries it)
+ * and ``to_dict`` to emit the constant directly.
+ */
+function postProcessDiscriminatorDefaultsForPython(
+    code: string,
+    unions: ResolvedRefBasedUnion[]
+): string {
+    // Build variant lookup: variant class name → { prop, value }.
+    const variantInfo = new Map<string, { prop: string; value: string }>();
+    for (const union of unions) {
+        for (const d of union.dispatch) {
+            // First-wins; multiple unions referencing the same variant share a
+            // discriminator/value pair anyway.
+            if (!variantInfo.has(d.typeName)) {
+                variantInfo.set(d.typeName, { prop: union.discriminatorProp, value: d.value });
+            }
+        }
+    }
+    if (variantInfo.size === 0) return code;
+
+    const lines = code.split("\n");
+    const out: string[] = [];
+    let usedClassVar = false;
+
+    let i = 0;
+    while (i < lines.length) {
+        const line = lines[i];
+        const classMatch = line.match(/^class (\w+)[:\(]/);
+        if (!classMatch) {
+            out.push(line);
+            i++;
+            continue;
+        }
+        const className = classMatch[1];
+        const info = variantInfo.get(className);
+        if (!info) {
+            out.push(line);
+            i++;
+            continue;
+        }
+
+        // Find the bounds of this class block: everything indented under it.
+        const classStart = i;
+        let classEnd = i + 1;
+        while (classEnd < lines.length) {
+            const ln = lines[classEnd];
+            if (
+                /^class \w/.test(ln) ||
+                /^def \w/.test(ln) ||
+                ln === "@dataclass" ||
+                /^# (?:Experimental|Deprecated|Internal):/.test(ln) ||
+                ln.startsWith("@dataclass(")
+            ) {
+                break;
+            }
+            classEnd++;
+        }
+        const block = lines.slice(classStart, classEnd);
+
+        // Locate the discriminator field declaration. Quicktype emits
+        // `    kind: PermissionDecisionApproveOnceKind` while the
+        // session-events codegen emits `    kind: str` — both match the
+        // simple `<indent><prop>: <Type>` shape (no default value, since the
+        // field is required in the schema).
+        const fieldPattern = new RegExp(`^(\\s+)${info.prop}: [\\w\\[\\], ]+$`);
+        let fieldIdx = -1;
+        for (let j = 1; j < block.length; j++) {
+            if (fieldPattern.test(block[j])) {
+                fieldIdx = j;
+                break;
+            }
+        }
+        if (fieldIdx < 0) {
+            // Variant class without an explicit discriminator field — leave alone.
+            out.push(...block);
+            i = classEnd;
+            continue;
+        }
+        const fieldIndent = (block[fieldIdx].match(/^(\s+)/) ?? ["", ""])[1];
+        const literal = JSON.stringify(info.value);
+        // Replace the field with a class-level constant.
+        block[fieldIdx] = `${fieldIndent}${info.prop}: ClassVar[str] = ${literal}`;
+        usedClassVar = true;
+
+        // Drop any field-trailing docstring lines that immediately followed the
+        // original field. Quicktype emits """..."""-style block strings; the
+        // session-events codegen does not emit per-field docstrings. We only
+        // touch the line at fieldIdx+1 if it's a docstring or blank.
+        // (Conservative: leave additional lines in place; they don't reference
+        // the dropped enum.)
+
+        // Rewrite from_dict / to_dict bodies.
+        for (let j = fieldIdx + 1; j < block.length; j++) {
+            const ln = block[j];
+
+            // Drop `<prop> = ...(obj.get("<prop>"))` parse line in from_dict.
+            const propAssignPattern = new RegExp(
+                `^\\s+${info.prop} = .+\\(obj\\.get\\(${JSON.stringify(info.prop)}\\)\\)`
+            );
+            if (propAssignPattern.test(ln)) {
+                block[j] = "<<<DROP>>>";
+                continue;
+            }
+
+            // Drop multi-line constructor kwarg of the form `    kind=kind,` —
+            // emitted by the session-events codegen when the constructor call
+            // is broken across lines.
+            const multilineKwargPattern = new RegExp(
+                `^\\s+${info.prop}=${info.prop},?\\s*$`
+            );
+            if (multilineKwargPattern.test(ln)) {
+                block[j] = "<<<DROP>>>";
+                continue;
+            }
+
+            // Convert `return X(a, prop, b)` (single-line positional) to drop
+            // the prop arg. Quicktype-emitted constructors are single-line.
+            const ctorMatch = ln.match(new RegExp(`^(\\s+)return ${className}\\((.*)\\)\\s*$`));
+            if (ctorMatch) {
+                const argList = ctorMatch[2];
+                const args = splitTopLevelCommasMulti(argList);
+                const filtered = args
+                    .map((a) => a.trim())
+                    .filter((a) => {
+                        const kw = a.match(/^([a-zA-Z_]\w*)\s*=/);
+                        const name = kw ? kw[1] : a;
+                        return name !== info.prop;
+                    });
+                block[j] = `${ctorMatch[1]}return ${className}(${filtered.join(", ")})`;
+                continue;
+            }
+
+            // Rewrite `result["<prop>"] = to_enum(<TypeName>, self.<prop>)` to
+            // emit the class-level constant directly.
+            const toDictPattern = new RegExp(
+                `^(\\s+)result\\[${JSON.stringify(info.prop)}\\] = .+`
+            );
+            if (toDictPattern.test(ln)) {
+                const indent = (ln.match(/^(\s+)/) ?? ["", ""])[1];
+                block[j] = `${indent}result[${JSON.stringify(info.prop)}] = self.${info.prop}`;
+                continue;
+            }
+        }
+
+        out.push(...block.filter((l) => l !== "<<<DROP>>>"));
+        i = classEnd;
+    }
+
+    let result = out.join("\n");
+    if (usedClassVar) {
+        result = ensureClassVarImport(result);
+    }
+    return result;
+}
+
+function splitTopLevelCommasMulti(s: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (c === "(" || c === "[" || c === "{") depth++;
+        else if (c === ")" || c === "]" || c === "}") depth--;
+        else if (c === "," && depth === 0) {
+            parts.push(s.slice(start, i));
+            start = i + 1;
+        }
+    }
+    parts.push(s.slice(start));
+    return parts.filter((p) => p.trim().length > 0);
+}
+
+function ensureClassVarImport(code: string): string {
+    // Already imported?
+    if (/\bfrom typing import [^\n]*\bClassVar\b/.test(code)) return code;
+    return code.replace(
+        /^from typing import (.+)$/m,
+        (_match, names) => {
+            const list = names.split(",").map((n: string) => n.trim()).filter(Boolean);
+            list.push("ClassVar");
+            list.sort();
+            return `from typing import ${[...new Set(list)].join(", ")}`;
+        }
+    );
+}
+
 function pushPyExperimentalComment(lines: string[], subject: PyExperimentalSubject, indent = ""): void {
     lines.push(pyExperimentalComment(subject, indent));
 }
@@ -859,6 +1265,7 @@ interface PyCodegenCtx {
     usesTimedelta: boolean;
     usesIntegerTimedelta: boolean;
     definitions: DefinitionCollections;
+    refBasedUnions: ResolvedRefBasedUnion[];
 }
 
 function toEnumMemberName(value: string): string {
@@ -966,6 +1373,104 @@ function pyDurationResolvedType(ctx: PyCodegenCtx, isInteger: boolean): PyResolv
         annotation: "timedelta",
         fromExpr: (expr) => `from_timedelta(${expr})`,
         toExpr: (expr) => (isInteger ? `to_timedelta_int(${expr})` : `to_timedelta(${expr})`),
+    };
+}
+
+/**
+ * Emit a "$ref-based discriminated union" — a Python equivalent of the
+ * polymorphic hierarchies that TS / Rust / .NET / Go produce for the same
+ * schema shape. Given a definition like
+ *
+ *     "PermissionRequest": { "anyOf": [ {"$ref": "#/.../PermissionRequestShell"}, ... ] }
+ *
+ * where every variant is a `$ref` to a sibling definition and the variants
+ * share a `const` discriminator property (e.g. `kind`), emit each variant as a
+ * standalone `@dataclass`, plus a union alias and a `from_dict` dispatcher.
+ *
+ * Returns the resolved type or `undefined` if the schema doesn't match the
+ * expected shape (caller falls back to other paths).
+ */
+function tryEmitPyRefBasedDiscriminatedUnion(
+    aliasName: string,
+    resolved: JSONSchema7,
+    ctx: PyCodegenCtx
+): PyResolvedType | undefined {
+    const variants = (resolved.anyOf ?? resolved.oneOf) as JSONSchema7[] | undefined;
+    if (!Array.isArray(variants) || variants.length < 2) return undefined;
+
+    const variantRefNames: string[] = [];
+    for (const v of variants) {
+        if (!v || typeof v !== "object") return undefined;
+        const ref = (v as JSONSchema7).$ref;
+        if (typeof ref !== "string" || !ref.startsWith("#/definitions/")) {
+            return undefined;
+        }
+        variantRefNames.push(refTypeName(ref, ctx.definitions));
+    }
+
+    const resolvedVariants = variants.map(
+        (v) =>
+            resolveObjectSchema(v, ctx.definitions) ??
+            resolveSchema(v, ctx.definitions) ??
+            (v as JSONSchema7)
+    );
+    if (resolvedVariants.some((rv) => !rv || rv.properties === undefined)) {
+        return undefined;
+    }
+    const discriminator = findPyDiscriminator(resolvedVariants as JSONSchema7[]);
+    if (!discriminator) return undefined;
+
+    const variantTypeNames: string[] = [];
+    const dispatch: Array<{ value: string; typeName: string }> = [];
+    for (let i = 0; i < variants.length; i++) {
+        const variantTypeName = toPascalCase(variantRefNames[i]);
+        const variantSchema = resolveObjectSchema(variants[i], ctx.definitions);
+        if (variantSchema) {
+            emitPyClass(variantTypeName, variantSchema, ctx, variantSchema.description);
+        }
+        variantTypeNames.push(variantTypeName);
+        const discProp = resolvedVariants[i].properties?.[discriminator.property] as JSONSchema7;
+        dispatch.push({ value: String(discProp.const), typeName: variantTypeName });
+    }
+
+    if (!ctx.aliasesByName.has(aliasName)) {
+        const lines: string[] = [];
+        if (resolved.description) {
+            lines.push(`# ${resolved.description}`);
+        }
+        lines.push(`${aliasName} = ${variantTypeNames.join(" | ")}`);
+        ctx.aliasesByName.add(aliasName);
+        ctx.aliases.push(lines.join("\n"));
+        ctx.refBasedUnions.push({
+            aliasName,
+            discriminatorProp: discriminator.property,
+            dispatch,
+        });
+    }
+
+    const dispatcherName = `_load_${aliasName}`;
+    if (!ctx.generatedNames.has(dispatcherName)) {
+        ctx.generatedNames.add(dispatcherName);
+        const lines: string[] = [];
+        lines.push(`def ${dispatcherName}(obj: Any) -> "${aliasName}":`);
+        lines.push(`    assert isinstance(obj, dict)`);
+        lines.push(`    kind = obj.get(${JSON.stringify(discriminator.property)})`);
+        lines.push(`    match kind:`);
+        for (const m of dispatch) {
+            lines.push(
+                `        case ${JSON.stringify(m.value)}: return ${m.typeName}.from_dict(obj)`
+            );
+        }
+        lines.push(
+            `        case _: raise ValueError(f"Unknown ${aliasName} ${discriminator.property}: {kind!r}")`
+        );
+        ctx.classes.push(lines.join("\n"));
+    }
+
+    return {
+        annotation: aliasName,
+        fromExpr: (expr) => `${dispatcherName}(${expr})`,
+        toExpr: (expr) => `${expr}.to_dict()`,
     };
 }
 
@@ -1228,6 +1733,17 @@ function resolvePyPropertyType(
                 return isRequired ? enumResolved : pyOptionalResolvedType(enumResolved);
             }
 
+            // Emit "$ref"-based discriminated unions as proper Python unions
+            // (per-variant dataclasses + alias + dispatcher) rather than flat
+            // merged dataclasses. Matches the polymorphic hierarchies emitted
+            // by the TS / Rust / .NET / Go SDKs for the same schema shape.
+            if (resolved.anyOf || resolved.oneOf) {
+                const unionResolved = tryEmitPyRefBasedDiscriminatedUnion(typeName, resolved, ctx);
+                if (unionResolved) {
+                    return isRequired ? unionResolved : pyOptionalResolvedType(unionResolved);
+                }
+            }
+
             const resolvedObject = resolveObjectSchema(propSchema, ctx.definitions);
             if (isNamedPyObjectSchema(resolvedObject)) {
                 emitPyClass(typeName, resolvedObject, ctx, resolvedObject.description);
@@ -1275,6 +1791,21 @@ function resolvePyPropertyType(
         if (nonNull.length > 1) {
             const discriminator = findPyDiscriminator(nonNull);
             if (discriminator) {
+                // Prefer the proper per-variant union shape when every variant
+                // is a `$ref` to a sibling definition. Same rationale as in the
+                // top-level $ref branch above: matches TS/Rust/.NET/Go.
+                if (variantSchemas.every((s) => typeof s.$ref === "string")) {
+                    const unionResolved = tryEmitPyRefBasedDiscriminatedUnion(
+                        nestedName,
+                        propSchema,
+                        ctx
+                    );
+                    if (unionResolved) {
+                        return hasNull || !isRequired
+                            ? pyOptionalResolvedType(unionResolved)
+                            : unionResolved;
+                    }
+                }
                 emitPyFlatDiscriminatedUnion(
                     nestedName,
                     discriminator.property,
@@ -1753,6 +2284,7 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
         usesTimedelta: false,
         usesIntegerTimedelta: false,
         definitions: collectDefinitionCollections(schema as Record<string, unknown>),
+        refBasedUnions: [],
     };
 
     for (const variant of variants) {
@@ -2082,7 +2614,9 @@ export function generatePythonSessionEventsCode(schema: JSONSchema7): string {
     out.push(``);
     out.push(``);
 
-    return postProcessPythonSessionEventCode(out.join("\n"));
+    let finalCode = postProcessPythonSessionEventCode(out.join("\n"));
+    finalCode = postProcessDiscriminatorDefaultsForPython(finalCode, ctx.refBasedUnions);
+    return finalCode;
 }
 
 async function generateSessionEvents(schemaPath?: string): Promise<void> {
@@ -2206,6 +2740,14 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
         inputData,
         lang: "python",
         rendererOptions: { "python-version": "3.7" },
+        // Disable quicktype's structural-equality merging of class types.
+        // It produces fuzzy synthesized names (e.g. ``PermissionDecisionApproveForIonApproval``
+        // as the merge of ``PermissionDecisionApproveFor{Session,Location}Approval``) which
+        // are unstable: any future divergence between the variants would silently change
+        // the generated class name. We rely on the schema's named definitions and resolve
+        // structural unions via :func:`postProcessRefBasedDiscriminatedUnionsForPython`,
+        // so the merging is also redundant.
+        inferenceFlags: { combineClasses: false },
     });
 
     let typesCode = qtResult.lines.join("\n");
@@ -2221,6 +2763,12 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     typesCode = collapsePlaceholderPythonDataclasses(typesCode, knownDefNames);
     typesCode = postProcessExternalUnionAliasesForPython(typesCode, externalUnionAliases);
     typesCode = postProcessExternalRefsForPython(typesCode, externalRefs.placeholderNames, externalEnumNames);
+    const { code: typesCodeAfterUnions, unions: refBasedUnions } = postProcessRefBasedDiscriminatedUnionsForPython(
+        typesCode,
+        allDefinitions,
+        allDefinitionCollections
+    );
+    typesCode = typesCodeAfterUnions;
     typesCode = modernizePython(typesCode);
 
     // Fix quicktype's Enum-suffix renaming: quicktype sometimes renames "Xyz" to
@@ -2370,6 +2918,7 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
 AUTO-GENERATED FILE - DO NOT EDIT
 Generated from: api.schema.json
 """
+from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -2461,6 +3010,11 @@ def _patch_model_capabilities(data: dict) -> dict:
         /(_patch_model_capabilities\(await self\._client\.request\("models\.list"[^)]*\)[^)]*\))/,
         "$1)",
     );
+    // Apply union rewrites to the assembled code so RPC method wrappers
+    // generated after the types section also route Name.from_dict / to_class
+    // through the discriminator dispatcher.
+    finalCode = applyUnionRewritesToPython(finalCode, refBasedUnions);
+    finalCode = postProcessDiscriminatorDefaultsForPython(finalCode, refBasedUnions);
     finalCode = unwrapRedundantPythonLambdas(finalCode);
 
     const outPath = await writeGeneratedFile("python/copilot/generated/rpc.py", finalCode);

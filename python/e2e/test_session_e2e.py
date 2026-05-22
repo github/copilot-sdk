@@ -2,11 +2,11 @@
 
 import base64
 import os
+from datetime import datetime
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.session_events import SessionModelChangeData
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolResult
@@ -23,7 +23,7 @@ class TestSessions:
         )
         assert session.session_id
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         assert len(messages) > 0
         assert messages[0].type.value == "session.start"
         assert messages[0].data.session_id == session.session_id
@@ -32,7 +32,7 @@ class TestSessions:
         await session.disconnect()
 
         with pytest.raises(Exception, match="Session not found"):
-            await session.get_messages()
+            await session.get_events()
 
     async def test_should_have_stateful_conversation(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -119,32 +119,36 @@ class TestSessions:
             available_tools=["view", "edit"],
         )
 
-        await session.send("What is 1+1?")
-        await get_final_assistant_message(session)
+        try:
+            await session.send("What is 1+1?")
 
-        # It only tells the model about the specified tools and no others
-        traffic = await ctx.get_exchanges()
-        tools = traffic[0]["request"]["tools"]
-        tool_names = [t["function"]["name"] for t in tools]
-        assert len(tool_names) == 2
-        assert "view" in tool_names
-        assert "edit" in tool_names
+            # It only tells the model about the specified tools and no others
+            traffic = await ctx.wait_for_exchanges()
+            tools = traffic[0]["request"]["tools"]
+            tool_names = [t["function"]["name"] for t in tools]
+            assert len(tool_names) == 2
+            assert "view" in tool_names
+            assert "edit" in tool_names
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_excludedTools(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all, excluded_tools=["view"]
         )
 
-        await session.send("What is 1+1?")
-        await get_final_assistant_message(session)
+        try:
+            await session.send("What is 1+1?")
 
-        # It has other tools, but not the one we excluded
-        traffic = await ctx.get_exchanges()
-        tools = traffic[0]["request"]["tools"]
-        tool_names = [t["function"]["name"] for t in tools]
-        assert "edit" in tool_names
-        assert "grep" in tool_names
-        assert "view" not in tool_names
+            # It has other tools, but not the one we excluded
+            traffic = await ctx.wait_for_exchanges()
+            tools = traffic[0]["request"]["tools"]
+            tool_names = [t["function"]["name"] for t in tools]
+            assert "edit" in tool_names
+            assert "grep" in tool_names
+            assert "view" not in tool_names
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_defaultAgent_excludedTools(
         self, ctx: E2ETestContext
@@ -165,14 +169,16 @@ class TestSessions:
             default_agent={"excluded_tools": ["secret_tool"]},
         )
 
-        await session.send("What is 1+1?")
-        await get_final_assistant_message(session)
+        try:
+            await session.send("What is 1+1?")
 
-        # The real assertion: verify the runtime excluded the tool from the CAPI request
-        traffic = await ctx.get_exchanges()
-        tools = traffic[0]["request"]["tools"]
-        tool_names = [t["function"]["name"] for t in tools]
-        assert "secret_tool" not in tool_names
+            # The real assertion: verify the runtime excluded the tool from the CAPI request
+            traffic = await ctx.wait_for_exchanges()
+            tools = traffic[0]["request"]["tools"]
+            tool_names = [t["function"]["name"] for t in tools]
+            assert "secret_tool" not in tool_names
+        finally:
+            await session.disconnect()
 
     # TODO: This test shows there's a race condition inside client.ts. If createSession
     # is called concurrently and autoStart is on, it may start multiple child processes.
@@ -194,7 +200,7 @@ class TestSessions:
 
         # All are connected
         for s in [s1, s2, s3]:
-            messages = await s.get_messages()
+            messages = await s.get_events()
             assert len(messages) > 0
             assert messages[0].type.value == "session.start"
             assert messages[0].data.session_id == s.session_id
@@ -203,7 +209,7 @@ class TestSessions:
         await asyncio.gather(s1.disconnect(), s2.disconnect(), s3.disconnect())
         for s in [s1, s2, s3]:
             with pytest.raises(Exception, match="Session not found"):
-                await s.get_messages()
+                await s.get_events()
 
     async def test_should_resume_a_session_using_the_same_client(self, ctx: E2ETestContext):
         # Create initial session
@@ -243,12 +249,10 @@ class TestSessions:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         new_client = CopilotClient(
-            SubprocessConfig(
-                cli_path=ctx.cli_path,
-                working_directory=ctx.work_dir,
-                env=ctx.get_env(),
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=ctx.get_env(),
+            github_token=github_token,
         )
 
         try:
@@ -257,7 +261,7 @@ class TestSessions:
             )
             assert session2.session_id == session_id
 
-            messages = await session2.get_messages()
+            messages = await session2.get_events()
             message_types = [m.type.value for m in messages]
             assert "user.message" in message_types
             assert "session.resume" in message_types
@@ -295,21 +299,21 @@ class TestSessions:
         sessions = await ctx.client.list_sessions()
         assert isinstance(sessions, list)
 
-        session_ids = [s.sessionId for s in sessions]
+        session_ids = [s.session_id for s in sessions]
         assert session1.session_id in session_ids
         assert session2.session_id in session_ids
 
         # Verify session metadata structure
         for session_data in sessions:
-            assert hasattr(session_data, "sessionId")
-            assert hasattr(session_data, "startTime")
-            assert hasattr(session_data, "modifiedTime")
-            assert hasattr(session_data, "isRemote")
+            assert hasattr(session_data, "session_id")
+            assert hasattr(session_data, "start_time")
+            assert hasattr(session_data, "modified_time")
+            assert hasattr(session_data, "is_remote")
             # summary is optional
-            assert isinstance(session_data.sessionId, str)
-            assert isinstance(session_data.startTime, str)
-            assert isinstance(session_data.modifiedTime, str)
-            assert isinstance(session_data.isRemote, bool)
+            assert isinstance(session_data.session_id, str)
+            assert isinstance(session_data.start_time, datetime)
+            assert isinstance(session_data.modified_time, datetime)
+            assert isinstance(session_data.is_remote, bool)
 
         # Verify context field is present
         for session_data in sessions:
@@ -333,7 +337,7 @@ class TestSessions:
 
         # Verify session exists in the list
         sessions = await ctx.client.list_sessions()
-        session_ids = [s.sessionId for s in sessions]
+        session_ids = [s.session_id for s in sessions]
         assert session_id in session_ids
 
         # Delete the session
@@ -341,7 +345,7 @@ class TestSessions:
 
         # Verify session no longer exists in the list
         sessions_after = await ctx.client.list_sessions()
-        session_ids_after = [s.sessionId for s in sessions_after]
+        session_ids_after = [s.session_id for s in sessions_after]
         assert session_id not in session_ids_after
 
         # Verify we cannot resume the deleted session
@@ -365,10 +369,10 @@ class TestSessions:
         # Get metadata for the session we just created
         metadata = await ctx.client.get_session_metadata(session.session_id)
         assert metadata is not None
-        assert metadata.sessionId == session.session_id
-        assert isinstance(metadata.startTime, str)
-        assert isinstance(metadata.modifiedTime, str)
-        assert isinstance(metadata.isRemote, bool)
+        assert metadata.session_id == session.session_id
+        assert isinstance(metadata.start_time, datetime)
+        assert isinstance(metadata.modified_time, datetime)
+        assert isinstance(metadata.is_remote, bool)
 
         # Verify context field is present
         if metadata.context is not None:
@@ -499,7 +503,7 @@ class TestSessions:
         _ = await wait_for_session_idle
 
         # The session should still be alive and usable after abort
-        messages = await session.get_messages()
+        messages = await session.get_events()
         assert len(messages) > 0
 
         # Verify an abort event exists in messages
@@ -555,7 +559,7 @@ class TestSessions:
         assert "session.idle" in event_types
 
         # Verify the assistant response contains the expected answer.
-        # session.idle is ephemeral and not in get_messages(), but we already
+        # session.idle is ephemeral and not in get_events(), but we already
         # confirmed idle via the live event handler above.
         assistant_message = await get_final_assistant_message(session, already_idle=True)
         assert "300" in assistant_message.data.content
@@ -696,13 +700,13 @@ class TestSessions:
             ],
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         attachments = user_messages[-1].data.attachments
         assert attachments is not None and len(attachments) == 1
         attachment = attachments[0]
-        assert attachment.type.value == "file"
+        assert attachment.type == "file"
         assert attachment.display_name == "attached-file.txt"
         assert attachment.path == file_path
         assert attachment.line_range is not None
@@ -734,13 +738,13 @@ class TestSessions:
             ],
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         attachments = user_messages[-1].data.attachments
         assert attachments is not None and len(attachments) == 1
         attachment = attachments[0]
-        assert attachment.type.value == "directory"
+        assert attachment.type == "directory"
         assert attachment.display_name == "attached-directory"
         assert attachment.path == directory_path
 
@@ -773,13 +777,13 @@ class TestSessions:
             ],
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         attachments = user_messages[-1].data.attachments
         assert attachments is not None and len(attachments) == 1
         attachment = attachments[0]
-        assert attachment.type.value == "selection"
+        assert attachment.type == "selection"
         assert attachment.display_name == "selected-file.cs"
         assert attachment.file_path == file_path
         assert attachment.text == 'string Value = "SELECTION_SENTINEL";'
@@ -822,7 +826,7 @@ class TestSessions:
         our_session = None
         for _ in range(50):
             sessions = await ctx.client.list_sessions()
-            our_session = next((s for s in sessions if s.sessionId == session.session_id), None)
+            our_session = next((s for s in sessions if s.session_id == session.session_id), None)
             if our_session is not None:
                 break
             await asyncio.sleep(0.1)
@@ -854,9 +858,9 @@ class TestSessions:
                 break
             await asyncio.sleep(0.1)
         assert metadata is not None
-        assert metadata.sessionId == session.session_id
-        assert isinstance(metadata.startTime, str) and metadata.startTime
-        assert isinstance(metadata.modifiedTime, str) and metadata.modifiedTime
+        assert metadata.session_id == session.session_id
+        assert isinstance(metadata.start_time, datetime)
+        assert isinstance(metadata.modified_time, datetime)
 
         not_found = await ctx.client.get_session_metadata("non-existent-session-id")
         assert not_found is None
@@ -1085,7 +1089,7 @@ class TestSessions:
             mode="plan",  # type: ignore[arg-type]
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         last = user_messages[-1].data

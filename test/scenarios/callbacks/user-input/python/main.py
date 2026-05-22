@@ -1,15 +1,13 @@
 import asyncio
-import os
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
-from copilot.session import PermissionRequestResult
 
+from copilot import CopilotClient
+from copilot.generated.rpc import PermissionDecisionApproveOnce
 
 input_log: list[str] = []
 
 
 async def auto_approve_permission(request, invocation):
-    return PermissionRequestResult(kind="approve-once")
+    return PermissionDecisionApproveOnce()
 
 
 async def auto_approve_tool(input_data, invocation):
@@ -22,19 +20,14 @@ async def handle_user_input(request, invocation):
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient()
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "on_permission_request": auto_approve_permission,
-                "on_user_input_request": handle_user_input,
-                "hooks": {"on_pre_tool_use": auto_approve_tool},
-            }
+            model="claude-haiku-4.5",
+            on_permission_request=auto_approve_permission,
+            on_user_input_request=handle_user_input,
+            hooks={"on_pre_tool_use": auto_approve_tool},
         )
 
         response = await session.send_and_wait(

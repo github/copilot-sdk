@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use github_copilot_sdk::generated::api_types::{
     ExtensionsDisableRequest, ExtensionsEnableRequest, McpDisableRequest, McpEnableRequest,
@@ -136,7 +137,7 @@ async fn should_list_mcp_servers_with_configured_server() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_mcp_servers(test_mcp_servers(server_name)),
+                            .with_mcp_servers(test_mcp_servers(ctx.repo_root(), server_name)),
                     )
                     .await
                     .expect("create session");
@@ -280,10 +281,9 @@ async fn should_report_error_when_mcp_oauth_server_is_not_configured() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_mcp_servers(test_mcp_servers("configured-stdio-server")),
-                    )
+                    .create_session(ctx.approve_all_session_config().with_mcp_servers(
+                        test_mcp_servers(ctx.repo_root(), "configured-stdio-server"),
+                    ))
                     .await
                     .expect("create session");
 
@@ -319,7 +319,7 @@ async fn should_report_error_when_mcp_oauth_server_is_not_remote() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_mcp_servers(test_mcp_servers(server_name)),
+                            .with_mcp_servers(test_mcp_servers(ctx.repo_root(), server_name)),
                     )
                     .await
                     .expect("create session");
@@ -434,13 +434,24 @@ fn assert_skill(
     skill
 }
 
-fn test_mcp_servers(message: &str) -> HashMap<String, McpServerConfig> {
+fn test_mcp_servers(repo_root: &Path, server_name: &str) -> HashMap<String, McpServerConfig> {
+    let harness_dir = repo_root.join("test").join("harness");
+    let server_path = harness_dir
+        .join("test-mcp-server.mjs")
+        .to_string_lossy()
+        .to_string();
+
     HashMap::from([(
-        message.to_string(),
+        server_name.to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
-            tools: vec!["*".to_string()],
-            command: echo_command(),
-            args: echo_args(message),
+            tools: Some(vec!["*".to_string()]),
+            command: if cfg!(windows) {
+                "node.exe".to_string()
+            } else {
+                "node".to_string()
+            },
+            args: vec![server_path],
+            working_directory: Some(harness_dir.to_string_lossy().to_string()),
             ..McpStdioServerConfig::default()
         }),
     )])
@@ -460,24 +471,4 @@ async fn expect_err_contains<T>(
             .contains(&expected.to_ascii_lowercase()),
         "expected error to contain {expected:?}, got {err}"
     );
-}
-
-#[cfg(windows)]
-fn echo_command() -> String {
-    "cmd".to_string()
-}
-
-#[cfg(not(windows))]
-fn echo_command() -> String {
-    "echo".to_string()
-}
-
-#[cfg(windows)]
-fn echo_args(message: &str) -> Vec<String> {
-    vec!["/C".to_string(), "echo".to_string(), message.to_string()]
-}
-
-#[cfg(not(windows))]
-fn echo_args(message: &str) -> Vec<String> {
-    vec![message.to_string()]
 }

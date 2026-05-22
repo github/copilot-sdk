@@ -7,7 +7,8 @@ use github_copilot_sdk::generated::session_events::{
     ExitPlanModeCompletedData, ExitPlanModeRequestedData, SessionEventType, SessionModelChangeData,
 };
 use github_copilot_sdk::handler::{
-    AutoModeSwitchResponse as HandlerAutoModeSwitchResponse, ExitPlanModeResult, SessionHandler,
+    AutoModeSwitchHandler, AutoModeSwitchResponse as HandlerAutoModeSwitchResponse,
+    ExitPlanModeHandler, ExitPlanModeResult,
 };
 use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
 use serde_json::json;
@@ -34,12 +35,8 @@ struct AutoModeHandler {
 }
 
 #[async_trait]
-impl SessionHandler for ModeHandler {
-    async fn on_exit_plan_mode(
-        &self,
-        session_id: SessionId,
-        data: ExitPlanModeData,
-    ) -> ExitPlanModeResult {
+impl ExitPlanModeHandler for ModeHandler {
+    async fn handle(&self, session_id: SessionId, data: ExitPlanModeData) -> ExitPlanModeResult {
         let _ = self.requests.send((session_id, data));
         ExitPlanModeResult {
             approved: true,
@@ -50,8 +47,8 @@ impl SessionHandler for ModeHandler {
 }
 
 #[async_trait]
-impl SessionHandler for AutoModeHandler {
-    async fn on_auto_mode_switch(
+impl AutoModeSwitchHandler for AutoModeHandler {
+    async fn handle(
         &self,
         session_id: SessionId,
         error_code: Option<String>,
@@ -78,7 +75,7 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(MODE_HANDLER_TOKEN)
-                            .with_handler(Arc::new(ModeHandler {
+                            .with_exit_plan_mode_handler(Arc::new(ModeHandler {
                                 requests: request_tx,
                             }))
                             .approve_all_permissions(),
@@ -198,7 +195,7 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(MODE_HANDLER_TOKEN)
-                            .with_handler(Arc::new(AutoModeHandler {
+                            .with_auto_mode_switch_handler(Arc::new(AutoModeHandler {
                                 requests: request_tx,
                             }))
                             .approve_all_permissions(),

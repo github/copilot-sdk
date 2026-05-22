@@ -22,9 +22,9 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    ["identity"] = new SectionOverride
+                    [SystemMessageSection.Identity] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {
@@ -33,7 +33,7 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
                             return content;
                         }
                     },
-                    ["tone"] = new SectionOverride
+                    [SystemMessageSection.Tone] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {
@@ -68,9 +68,9 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    ["identity"] = new SectionOverride
+                    [SystemMessageSection.Identity] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {
@@ -108,13 +108,13 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    ["safety"] = new SectionOverride
+                    [SystemMessageSection.Safety] = new SectionOverride
                     {
                         Action = SectionOverrideAction.Remove
                     },
-                    ["identity"] = new SectionOverride
+                    [SystemMessageSection.Identity] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {

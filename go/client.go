@@ -52,8 +52,6 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
-
 func validateSessionFsConfig(config *SessionFsConfig) error {
 	if config == nil {
 		return nil
@@ -666,7 +664,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnErrorOccurred != nil) {
 		req.Hooks = Bool(true)
 	}
-	req.RequestPermission = Bool(true)
+	if config.OnPermissionRequest != nil {
+		req.RequestPermission = Bool(true)
+	}
 
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
@@ -841,7 +841,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.InfiniteSessions = config.InfiniteSessions
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
-	req.RequestPermission = Bool(true)
+	if config.OnPermissionRequest != nil {
+		req.RequestPermission = Bool(true)
+	}
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -1380,7 +1382,7 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 }
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
-const minProtocolVersion = 2
+const minProtocolVersion = 3
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
 // verifies the server's protocol version. Falls back to `ping` against legacy servers
@@ -1736,15 +1738,9 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 }
 
 // setupNotificationHandler configures handlers for session events and RPC requests.
-// Protocol v3 servers send tool calls and permission requests as broadcast session events.
-// Protocol v2 servers use the older tool.call / permission.request RPC model.
-// We always register v2 adapters because handlers are set up before version negotiation;
-// a v3 server will simply never send these requests.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
-	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequestV2))
-	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
@@ -1897,121 +1893,4 @@ func (c *Client) handleSystemMessageTransform(req systemMessageTransformRequest)
 		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
 	}
 	return resp, nil
-}
-
-// ========================================================================
-// Protocol v2 backward-compatibility adapters
-// ========================================================================
-
-// toolCallRequestV2 is the v2 RPC request payload for tool.call.
-type toolCallRequestV2 struct {
-	SessionID   string `json:"sessionId"`
-	ToolCallID  string `json:"toolCallId"`
-	ToolName    string `json:"toolName"`
-	Arguments   any    `json:"arguments"`
-	Traceparent string `json:"traceparent,omitempty"`
-	Tracestate  string `json:"tracestate,omitempty"`
-}
-
-// toolCallResponseV2 is the v2 RPC response payload for tool.call.
-type toolCallResponseV2 struct {
-	Result ToolResult `json:"result"`
-}
-
-// permissionRequestV2 is the v2 RPC request payload for permission.request.
-type permissionRequestV2 struct {
-	SessionID string            `json:"sessionId"`
-	Request   PermissionRequest `json:"permissionRequest"`
-}
-
-// permissionResponseV2 is the v2 RPC response payload for permission.request.
-type permissionResponseV2 struct {
-	Result PermissionRequestResult `json:"result"`
-}
-
-// handleToolCallRequestV2 handles a v2-style tool.call RPC request from the server.
-func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallResponseV2, *jsonrpc2.Error) {
-	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	handler, ok := session.getToolHandler(req.ToolName)
-	if !ok {
-		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", req.ToolName),
-			ResultType:       "failure",
-			Error:            fmt.Sprintf("tool '%s' not supported", req.ToolName),
-			ToolTelemetry:    map[string]any{},
-		}}, nil
-	}
-
-	ctx := contextWithTraceParent(context.Background(), req.Traceparent, req.Tracestate)
-
-	invocation := ToolInvocation{
-		SessionID:    req.SessionID,
-		ToolCallID:   req.ToolCallID,
-		ToolName:     req.ToolName,
-		Arguments:    req.Arguments,
-		TraceContext: ctx,
-	}
-
-	result, err := handler(invocation)
-	if err != nil {
-		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
-			ResultType:       "failure",
-			Error:            err.Error(),
-			ToolTelemetry:    map[string]any{},
-		}}, nil
-	}
-
-	return &toolCallResponseV2{Result: result}, nil
-}
-
-// handlePermissionRequestV2 handles a v2-style permission.request RPC request from the server.
-func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permissionResponseV2, *jsonrpc2.Error) {
-	if req.SessionID == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	handler := session.getPermissionHandler()
-	if handler == nil {
-		return &permissionResponseV2{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
-	}
-
-	invocation := PermissionInvocation{
-		SessionID: session.SessionID,
-	}
-
-	result, err := handler(req.Request, invocation)
-	if err != nil {
-		return &permissionResponseV2{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
-	}
-	if result.Kind == "no-result" {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionV2Error}
-	}
-
-	return &permissionResponseV2{Result: result}, nil
 }

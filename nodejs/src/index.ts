@@ -16,7 +16,7 @@ export {
     approveAll,
     convertMcpCallToolResult,
     createSessionFsAdapter,
-    SYSTEM_PROMPT_SECTIONS,
+    SYSTEM_MESSAGE_SECTIONS,
 } from "./types.js";
 // Re-export the generated session-event types (every *Event interface and
 // its corresponding *Data payload type, plus supporting unions/aliases) so
@@ -40,7 +40,6 @@ export type {
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
-    ConnectionState,
     CopilotClientOptions,
     StdioRuntimeConnection,
     TcpRuntimeConnection,
@@ -110,7 +109,7 @@ export type {
     SystemMessageConfig,
     SystemMessageCustomizeConfig,
     SystemMessageReplaceConfig,
-    SystemPromptSection,
+    SystemMessageSection,
     TelemetryConfig,
     TraceContext,
     TraceContextProvider,

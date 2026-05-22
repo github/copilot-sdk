@@ -32,13 +32,12 @@ import {
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
-import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
+import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
-    ConnectionState,
     CopilotClientOptions,
     CustomAgentConfig,
     ExitPlanModeRequest,
@@ -62,9 +61,6 @@ import type {
     SystemMessageCustomizeConfig,
     TelemetryConfig,
     Tool,
-    ToolCallRequestPayload,
-    ToolCallResponsePayload,
-    ToolResultObject,
     TraceContextProvider,
     TypedSessionLifecycleHandler,
 } from "./types.js";
@@ -74,7 +70,7 @@ import { defaultJoinSessionPermissionHandler } from "./types.js";
  * Minimum protocol version this SDK can communicate with.
  * Servers reporting a version below this are rejected.
  */
-const MIN_PROTOCOL_VERSION = 2;
+const MIN_PROTOCOL_VERSION = 3;
 
 /**
  * Check if value is a Zod schema (has toJSONSchema method)
@@ -251,7 +247,7 @@ export class CopilotClient {
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
-    private state: ConnectionState = "disconnected";
+    private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
@@ -863,7 +859,7 @@ export class CopilotClient {
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
-                requestPermission: true,
+                requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
@@ -1037,22 +1033,6 @@ export class CopilotClient {
         }
 
         return session;
-    }
-
-    /**
-     * Gets the current connection state of the client.
-     *
-     * @returns The current connection state: "disconnected", "connecting", "connected", or "error"
-     *
-     * @example
-     * ```typescript
-     * if (client.getState() === "connected") {
-     *   const session = await client.createSession({ onPermissionRequest: approveAll });
-     * }
-     * ```
-     */
-    getState(): ConnectionState {
-        return this.state;
     }
 
     /**
@@ -1856,25 +1836,6 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
-        // Protocol v3 servers send tool calls and permission requests as broadcast events
-        // (external_tool.requested / permission.requested) handled in CopilotSession._dispatchEvent.
-        // Protocol v2 servers use the older tool.call / permission.request RPC model instead.
-        // We always register v2 adapters because handlers are set up before version negotiation;
-        // a v3 server will simply never send these requests.
-        this.connection.onRequest(
-            "tool.call",
-            async (params: ToolCallRequestPayload): Promise<ToolCallResponsePayload> =>
-                await this.handleToolCallRequestV2(params)
-        );
-
-        this.connection.onRequest(
-            "permission.request",
-            async (params: {
-                sessionId: string;
-                permissionRequest: unknown;
-            }): Promise<{ result: unknown }> => await this.handlePermissionRequestV2(params)
-        );
-
         this.connection.onRequest(
             "userInput.request",
             async (params: {
@@ -2121,133 +2082,5 @@ export class CopilotClient {
         }
 
         return await session._handleSystemMessageTransform(params.sections);
-    }
-
-    // ========================================================================
-    // Protocol v2 backward-compatibility adapters
-    // ========================================================================
-
-    /**
-     * Handles a v2-style tool.call RPC request from the server.
-     * Looks up the session and tool handler, executes it, and returns the result
-     * in the v2 response format.
-     */
-    private async handleToolCallRequestV2(
-        params: ToolCallRequestPayload
-    ): Promise<ToolCallResponsePayload> {
-        if (
-            !params ||
-            typeof params.sessionId !== "string" ||
-            typeof params.toolCallId !== "string" ||
-            typeof params.toolName !== "string"
-        ) {
-            throw new Error("Invalid tool call payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Unknown session ${params.sessionId}`);
-        }
-
-        const handler = session.getToolHandler(params.toolName);
-        if (!handler) {
-            return {
-                result: {
-                    textResultForLlm: `Tool '${params.toolName}' is not supported by this client instance.`,
-                    resultType: "failure",
-                    error: `tool '${params.toolName}' not supported`,
-                    toolTelemetry: {},
-                },
-            };
-        }
-
-        try {
-            const traceparent = (params as { traceparent?: string }).traceparent;
-            const tracestate = (params as { tracestate?: string }).tracestate;
-            const invocation = {
-                sessionId: params.sessionId,
-                toolCallId: params.toolCallId,
-                toolName: params.toolName,
-                arguments: params.arguments,
-                traceparent,
-                tracestate,
-            };
-            const result = await handler(params.arguments, invocation);
-            return { result: this.normalizeToolResultV2(result) };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return {
-                result: {
-                    textResultForLlm:
-                        "Invoking this tool produced an error. Detailed information is not available.",
-                    resultType: "failure",
-                    error: message,
-                    toolTelemetry: {},
-                },
-            };
-        }
-    }
-
-    /**
-     * Handles a v2-style permission.request RPC request from the server.
-     */
-    private async handlePermissionRequestV2(params: {
-        sessionId: string;
-        permissionRequest: unknown;
-    }): Promise<{ result: unknown }> {
-        if (!params || typeof params.sessionId !== "string" || !params.permissionRequest) {
-            throw new Error("Invalid permission request payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
-
-        try {
-            const result = await session._handlePermissionRequestV2(params.permissionRequest);
-            return { result };
-        } catch (error) {
-            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
-                throw error;
-            }
-            return {
-                result: {
-                    kind: "user-not-available",
-                },
-            };
-        }
-    }
-
-    private normalizeToolResultV2(result: unknown): ToolResultObject {
-        if (result === undefined || result === null) {
-            return {
-                textResultForLlm: "Tool returned no result",
-                resultType: "failure",
-                error: "tool returned no result",
-                toolTelemetry: {},
-            };
-        }
-
-        if (this.isToolResultObject(result)) {
-            return result;
-        }
-
-        const textResult = typeof result === "string" ? result : JSON.stringify(result);
-        return {
-            textResultForLlm: textResult,
-            resultType: "success",
-            toolTelemetry: {},
-        };
-    }
-
-    private isToolResultObject(value: unknown): value is ToolResultObject {
-        return (
-            typeof value === "object" &&
-            value !== null &&
-            "textResultForLlm" in value &&
-            typeof (value as ToolResultObject).textResultForLlm === "string" &&
-            "resultType" in value
-        );
     }
 }

@@ -1,7 +1,6 @@
 import asyncio
-import os
+
 from copilot import CopilotClient
-from copilot.client import SubprocessConfig
 from copilot.tools import Tool
 
 
@@ -10,10 +9,7 @@ async def analyze_handler(args):
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

@@ -60,14 +60,13 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionRequestResult
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_start": on_session_start,
         "on_pre_tool_use":  on_pre_tool_use,
@@ -89,6 +88,7 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func onSessionStart(input copilot.SessionStartHookInput, inv copilot.HookInvocation) (*copilot.SessionStartHookOutput, error) {
@@ -113,8 +113,8 @@ func main() {
 			OnPreToolUse:   onPreToolUse,
 			OnPostToolUse:  onPostToolUse,
 		},
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 	_ = session
@@ -133,8 +133,8 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
         OnPostToolUse:  onPostToolUse,
         // ... add only the hooks you need
     },
-    OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+    OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        return &rpc.PermissionDecisionApproveOnce{}, nil
     },
 })
 ```
@@ -147,6 +147,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class HooksExample
 {
@@ -170,7 +171,7 @@ public static class HooksExample
                 OnPostToolUse  = onPostToolUse,
             },
             OnPermissionRequest = (req, inv) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+                Task.FromResult(PermissionDecision.ApproveOnce()),
         });
     }
 }
@@ -190,7 +191,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
         // ... add only the hooks you need
     },
     OnPermissionRequest = (req, inv) =>
-        Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        Task.FromResult(PermissionDecision.ApproveOnce()),
 });
 ```
 
@@ -262,7 +263,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 READ_ONLY_TOOLS = ["read_file", "glob", "grep", "view"]
 
@@ -276,7 +277,7 @@ async def on_pre_tool_use(input_data, invocation):
     return {"permissionDecision": "allow"}
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={"on_pre_tool_use": on_pre_tool_use},
 )
 ```
@@ -294,6 +295,7 @@ import (
 	"context"
 	"fmt"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -314,8 +316,8 @@ func main() {
 				return &copilot.PreToolUseHookOutput{PermissionDecision: "allow"}, nil
 			},
 		},
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 	_ = session
@@ -349,6 +351,7 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class PermissionControlExample
 {
@@ -377,7 +380,7 @@ public static class PermissionControlExample
                 },
             },
             OnPermissionRequest = (req, inv) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+                Task.FromResult(PermissionDecision.ApproveOnce()),
         });
     }
 }
@@ -578,7 +581,7 @@ const session = await client.createSession({
 <!-- docs-validate: skip -->
 ```python
 import json, aiofiles
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 audit_log = []
 
@@ -630,7 +633,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -709,7 +712,7 @@ const session = await client.createSession({
 
 ```python
 import subprocess
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 async def on_session_end(input_data, invocation):
     sid = invocation["session_id"][:8]
@@ -728,7 +731,7 @@ async def on_error_occurred(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
@@ -932,7 +935,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 session_metrics = {}
 
@@ -963,7 +966,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,

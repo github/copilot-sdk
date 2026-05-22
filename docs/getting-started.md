@@ -665,13 +665,12 @@ unsubscribeIdle();
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 from copilot.generated.session_events import SessionEvent, SessionEventType
-from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 
-session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"))
+session = await client.create_session(on_permission_request=lambda req, inv: PermissionDecisionApproveOnce())
 
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
@@ -1909,7 +1908,7 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`.
+Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`.
 
 Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully—content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
 
@@ -1968,12 +1967,10 @@ const session = await client.createSession({ onPermissionRequest: approveAll });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient({
-    "cli_url": "localhost:4321"
-})
+client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:4321"))
 await client.start()
 
 # Use the client normally
@@ -2138,9 +2135,9 @@ Optional peer dependency: `@opentelemetry/api`
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(
+client = CopilotClient(CopilotClientOptions(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },

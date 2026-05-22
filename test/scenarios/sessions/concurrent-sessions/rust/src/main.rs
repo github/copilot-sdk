@@ -19,14 +19,12 @@ fn make_config(system: &str) -> SessionConfig {
     config.model = Some("claude-haiku-4.5".to_string());
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
-    config.with_handler(Arc::new(ApproveAllHandler))
+    config.with_permission_handler(Arc::new(ApproveAllHandler))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let session1 = client.create_session(make_config(PIRATE_PROMPT)).await?;
     let session2 = client.create_session(make_config(ROBOT_PROMPT)).await?;
@@ -47,7 +45,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    session1.destroy().await?;
-    session2.destroy().await?;
+    session1.disconnect().await?;
+    session2.disconnect().await?;
     Ok(())
 }

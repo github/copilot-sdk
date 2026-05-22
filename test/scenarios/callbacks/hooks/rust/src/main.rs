@@ -90,9 +90,7 @@ impl SessionHooks for HookLogger {
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let hook_log = Arc::new(Mutex::new(Vec::<String>::new()));
     let hooks = Arc::new(HookLogger {
@@ -102,7 +100,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
     let config = config
-        .with_handler(Arc::new(ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
         .with_hooks(hooks);
 
     let session = client.create_session(config).await?;
@@ -126,6 +124,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     }
     println!("\nTotal hooks fired: {}", log.len());
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

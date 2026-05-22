@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
 use github_copilot_sdk::hooks::{HookContext, PreToolUseInput, PreToolUseOutput, SessionHooks};
 use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionConfig, SessionId};
 use github_copilot_sdk::{Client, ClientOptions};
@@ -15,8 +15,8 @@ struct PermissionLogger {
 }
 
 #[async_trait]
-impl SessionHandler for PermissionLogger {
-    async fn on_permission_request(
+impl PermissionHandler for PermissionLogger {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -29,7 +29,7 @@ impl SessionHandler for PermissionLogger {
             .unwrap_or("")
             .to_string();
         self.log.lock().await.push(format!("approved:{tool_name}"));
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -50,9 +50,7 @@ impl SessionHooks for AllowAllHooks {
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let permission_log = Arc::new(Mutex::new(Vec::<String>::new()));
     let handler = Arc::new(PermissionLogger {
@@ -62,7 +60,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
     let config = config
-        .with_handler(handler)
+        .with_permission_handler(handler)
         .with_hooks(Arc::new(AllowAllHooks));
 
     let session = client.create_session(config).await?;
@@ -86,6 +84,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     }
     println!("\nTotal permission requests: {}", log.len());
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

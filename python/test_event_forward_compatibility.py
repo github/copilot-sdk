@@ -17,10 +17,8 @@ from copilot.generated.session_events import (
     ElicitationCompletedAction,
     ElicitationRequestedMode,
     ElicitationRequestedSchema,
-    PermissionPromptRequest,
-    PermissionPromptRequestKind,
-    PermissionRequest,
-    PermissionRequestKind,
+    PermissionPromptRequestMemory,
+    PermissionRequestMemory,
     PermissionRequestMemoryAction,
     SessionEventType,
     SessionTaskCompleteData,
@@ -149,13 +147,20 @@ class TestEventForwardCompatibility:
         the schema default instead of ``None`` and broke ``from_dict(to_dict(x))``
         round-trips for instances where the field was ``None``.
         """
+        from copilot.generated.session_events import (
+            _load_PermissionPromptRequest,
+            _load_PermissionRequest,
+        )
+
         # #1141: PermissionRequest.action defaults to None when missing.
-        request = PermissionRequest.from_dict({"kind": "memory", "fact": "remember this"})
+        request = _load_PermissionRequest({"kind": "memory", "fact": "remember this"})
+        assert isinstance(request, PermissionRequestMemory)
         assert request.action is None
         assert PermissionRequestMemoryAction.STORE.value == "store"  # sanity
 
         # #1140: PermissionPromptRequest.action defaults to None when missing.
-        prompt_request = PermissionPromptRequest.from_dict({"kind": "memory"})
+        prompt_request = _load_PermissionPromptRequest({"kind": "memory", "fact": "remember this"})
+        assert isinstance(prompt_request, PermissionPromptRequestMemory)
         assert prompt_request.action is None
 
         # #1139: SessionTaskCompleteData.summary defaults to None when missing.
@@ -175,14 +180,28 @@ class TestEventForwardCompatibility:
         task = SessionTaskCompleteData(success=None, summary=None)
         assert SessionTaskCompleteData.from_dict(task.to_dict()) == task
 
-        # #1140: PermissionPromptRequest round-trip with action=None.
-        prompt = PermissionPromptRequest(kind=PermissionPromptRequestKind.MEMORY)
+        # #1140: PermissionPromptRequestMemory round-trip with action=None.
+        prompt = PermissionPromptRequestMemory(fact="test-fact")
         assert prompt.action is None
         assert "action" not in prompt.to_dict()
-        assert PermissionPromptRequest.from_dict(prompt.to_dict()) == prompt
+        assert PermissionPromptRequestMemory.from_dict(prompt.to_dict()) == prompt
 
-        # #1141: PermissionRequest round-trip with action=None.
-        permission = PermissionRequest(kind=PermissionRequestKind.MEMORY)
+        # #1141: PermissionRequestMemory round-trip with action=None.
+        permission = PermissionRequestMemory(fact="test-fact")
         assert permission.action is None
         assert "action" not in permission.to_dict()
-        assert PermissionRequest.from_dict(permission.to_dict()) == permission
+        assert PermissionRequestMemory.from_dict(permission.to_dict()) == permission
+
+        # PermissionRequest is now a discriminated union; the dispatch loader
+        # should round-trip via the correct variant class.
+        from copilot.generated.session_events import _load_PermissionRequest
+
+        round_tripped = _load_PermissionRequest(permission.to_dict())
+        assert isinstance(round_tripped, PermissionRequestMemory)
+        assert round_tripped == permission
+        # PermissionPromptRequest likewise.
+        from copilot.generated.session_events import _load_PermissionPromptRequest
+
+        round_tripped_prompt = _load_PermissionPromptRequest(prompt.to_dict())
+        assert isinstance(round_tripped_prompt, PermissionPromptRequestMemory)
+        assert round_tripped_prompt == prompt

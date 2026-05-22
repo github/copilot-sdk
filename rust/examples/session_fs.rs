@@ -125,7 +125,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let session = client
         .create_session(
             SessionConfig::default()
-                .with_handler(Arc::new(ApproveAllHandler))
+                .with_permission_handler(Arc::new(ApproveAllHandler))
                 .with_session_fs_provider(provider),
         )
         .await?;

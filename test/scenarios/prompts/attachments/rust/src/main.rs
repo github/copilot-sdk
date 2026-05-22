@@ -13,9 +13,7 @@ const SYSTEM_PROMPT: &str =
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let mut sysmsg = SystemMessageConfig::default();
     sysmsg.mode = Some("replace".to_string());
@@ -25,7 +23,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     config.model = Some("claude-haiku-4.5".to_string());
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 
@@ -53,6 +51,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

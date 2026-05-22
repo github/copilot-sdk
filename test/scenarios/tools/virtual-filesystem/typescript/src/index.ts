@@ -1,11 +1,12 @@
-import { CopilotClient, defineTool , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import { z } from "zod";
 
 // In-memory virtual filesystem
 const virtualFs = new Map<string, string>();
 
 const createFile = defineTool("create_file", {
-  description: "Create or overwrite a file at the given path with the provided content",
+  description:
+    "Create or overwrite a file at the given path with the provided content",
   parameters: z.object({
     path: z.string().describe("File path"),
     content: z.string().describe("File content"),
@@ -38,10 +39,7 @@ const listFiles = defineTool("list_files", {
 });
 
 async function main() {
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-    gitHubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({

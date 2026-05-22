@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -15,9 +14,7 @@ You can only respond with text based on your training data.
 If asked about your capabilities or tools, clearly state that you have no tools available.`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
@@ -46,8 +43,8 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 }

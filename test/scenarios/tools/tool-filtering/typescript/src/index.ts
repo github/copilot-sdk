@@ -1,17 +1,15 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-    gitHubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
       model: "claude-haiku-4.5",
       systemMessage: {
         mode: "replace",
-        content: "You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available.",
+        content:
+          "You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available.",
       },
       availableTools: ["grep", "glob", "view"],
     });

@@ -40,14 +40,14 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 			})
 
 		permissionRequested := make(chan copilot.PermissionRequest, 1)
-		releasePermission := make(chan copilot.PermissionRequestResult, 1)
+		releasePermission := make(chan rpc.PermissionDecision, 1)
 
 		suspendedClient := ctx.NewClient(func(opts *copilot.ClientOptions) {
 			opts.Connection = copilot.UriConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
 		})
 		session1, err := suspendedClient.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{originalTool},
-			OnPermissionRequest: func(req copilot.PermissionRequest, _ copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, _ copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				select {
 				case permissionRequested <- req:
 				default:
@@ -114,8 +114,8 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 
 		session2, err := resumedClient.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			ContinuePendingWork: true,
-			OnPermissionRequest: func(_ copilot.PermissionRequest, _ copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
+			OnPermissionRequest: func(_ copilot.PermissionRequest, _ copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionNoResult{}, nil
 			},
 			Tools: []copilot.Tool{resumedTool},
 		})
@@ -154,7 +154,7 @@ func TestPendingWorkResumeE2E(t *testing.T) {
 
 		// Allow original handler to unblock so cleanup proceeds.
 		select {
-		case releasePermission <- copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindUserNotAvailable}:
+		case releasePermission <- &rpc.PermissionDecisionUserNotAvailable{}:
 		default:
 		}
 

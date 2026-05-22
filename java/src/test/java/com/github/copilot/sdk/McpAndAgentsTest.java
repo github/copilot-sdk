@@ -6,6 +6,7 @@ package com.github.copilot.sdk;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.github.copilot.sdk.generated.AssistantMessageEvent;
+import com.github.copilot.sdk.generated.rpc.McpServerStatus;
 import com.github.copilot.sdk.json.CustomAgentConfig;
 import com.github.copilot.sdk.json.DefaultAgentConfig;
 import com.github.copilot.sdk.json.McpServerConfig;
@@ -51,9 +53,33 @@ public class McpAndAgentsTest {
         }
     }
 
-    // Helper method to create an MCP stdio server configuration
-    private McpStdioServerConfig createLocalMcpServer(String command, List<String> args) {
-        return new McpStdioServerConfig().setCommand(command).setArgs(args).setTools(List.of("*"));
+    private Map<String, McpServerConfig> createTestMcpServers(String... serverNames) {
+        Map<String, McpServerConfig> servers = new HashMap<>();
+        for (String serverName : serverNames) {
+            servers.put(serverName, createTestMcpServer());
+        }
+        return servers;
+    }
+
+    private McpStdioServerConfig createTestMcpServer() {
+        Path harnessDir = ctx.getRepoRoot().resolve("test").resolve("harness");
+        return new McpStdioServerConfig().setCommand("node")
+                .setArgs(List.of(harnessDir.resolve("test-mcp-server.mjs").toString()))
+                .setWorkingDirectory(harnessDir.toString()).setTools(List.of("*"));
+    }
+
+    private void waitForMcpServerStatus(CopilotSession session, String serverName, McpServerStatus expectedStatus)
+            throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (System.nanoTime() < deadline) {
+            var result = session.getRpc().mcp.list().get(5, TimeUnit.SECONDS);
+            if (result.servers() != null && result.servers().stream()
+                    .anyMatch(server -> serverName.equals(server.name()) && expectedStatus == server.status())) {
+                return;
+            }
+            Thread.sleep(200);
+        }
+        fail(serverName + " did not reach " + expectedStatus);
     }
 
     // ============ MCP Server Tests ============
@@ -68,8 +94,7 @@ public class McpAndAgentsTest {
     void testShouldAcceptMcpServerConfigurationOnSessionCreate() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
-        var mcpServers = new HashMap<String, McpServerConfig>();
-        mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
+        var mcpServers = createTestMcpServers("test-server");
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(
@@ -77,6 +102,7 @@ public class McpAndAgentsTest {
                     .get();
 
             assertNotNull(session.getSessionId());
+            waitForMcpServerStatus(session, "test-server", McpServerStatus.CONNECTED);
 
             // Simple interaction to verify session works
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
@@ -108,20 +134,13 @@ public class McpAndAgentsTest {
             session1.sendAndWait(new MessageOptions().setPrompt("What is 1+1?")).get(60, TimeUnit.SECONDS);
 
             // Resume with MCP servers
-            var mcpServers = new HashMap<String, McpServerConfig>();
-            mcpServers.put("test-server", createLocalMcpServer("echo", List.of("hello")));
+            var mcpServers = createTestMcpServers("test-server");
 
             CopilotSession session2 = client.resumeSession(sessionId, new ResumeSessionConfig()
                     .setMcpServers(mcpServers).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertEquals(sessionId, session2.getSessionId());
-
-            AssistantMessageEvent response = session2.sendAndWait(new MessageOptions().setPrompt("What is 3+3?"))
-                    .get(60, TimeUnit.SECONDS);
-
-            assertNotNull(response);
-            assertTrue(response.getData().content().contains("6"),
-                    "Response should contain 6: " + response.getData().content());
+            waitForMcpServerStatus(session2, "test-server", McpServerStatus.CONNECTED);
 
             session2.close();
         }
@@ -139,9 +158,7 @@ public class McpAndAgentsTest {
         // count
         ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
-        var mcpServers = new HashMap<String, McpServerConfig>();
-        mcpServers.put("server1", createLocalMcpServer("echo", List.of("server1")));
-        mcpServers.put("server2", createLocalMcpServer("echo", List.of("server2")));
+        var mcpServers = createTestMcpServers("server1", "server2");
 
         try (CopilotClient client = ctx.createClient()) {
             CopilotSession session = client.createSession(
@@ -149,6 +166,8 @@ public class McpAndAgentsTest {
                     .get();
 
             assertNotNull(session.getSessionId());
+            waitForMcpServerStatus(session, "server1", McpServerStatus.CONNECTED);
+            waitForMcpServerStatus(session, "server2", McpServerStatus.CONNECTED);
             session.close();
         }
     }
@@ -261,8 +280,7 @@ public class McpAndAgentsTest {
         // Use combined snapshot since this uses both MCP servers and custom agents
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
-        var agentMcpServers = new HashMap<String, McpServerConfig>();
-        agentMcpServers.put("agent-server", createLocalMcpServer("echo", List.of("agent-mcp")));
+        var agentMcpServers = createTestMcpServers("agent-server");
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("mcp-agent")
                 .setDisplayName("MCP Agent").setDescription("An agent with its own MCP servers")
@@ -315,8 +333,7 @@ public class McpAndAgentsTest {
     void testShouldAcceptBothMcpServersAndCustomAgents() throws Exception {
         ctx.configureForTest("mcp_and_agents", "should_accept_both_mcp_servers_and_custom_agents");
 
-        var mcpServers = new HashMap<String, McpServerConfig>();
-        mcpServers.put("shared-server", createLocalMcpServer("echo", List.of("shared")));
+        var mcpServers = createTestMcpServers("shared-server");
 
         List<CustomAgentConfig> customAgents = List.of(new CustomAgentConfig().setName("combined-agent")
                 .setDisplayName("Combined Agent").setDescription("An agent using shared MCP servers")
@@ -327,6 +344,7 @@ public class McpAndAgentsTest {
                     .setCustomAgents(customAgents).setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
             assertNotNull(session.getSessionId());
+            waitForMcpServerStatus(session, "shared-server", McpServerStatus.CONNECTED);
 
             AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 7+7?")).get(60,
                     TimeUnit.SECONDS);

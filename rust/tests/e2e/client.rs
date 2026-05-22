@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use async_trait::async_trait;
 use github_copilot_sdk::{
-    CliProgram, Client, ClientOptions, ConnectionState, Error, ListModelsHandler, Model, Transport,
+    CliProgram, Client, ClientOptions, Error, ListModelsHandler, Model, Transport,
 };
 
 use super::support::with_e2e_context;
@@ -13,14 +13,11 @@ async fn should_start_ping_and_stop_stdio_client() {
     with_e2e_context("client", "should_start_ping_and_stop_stdio_client", |ctx| {
         Box::pin(async move {
             let client = ctx.start_client().await;
-            assert_eq!(client.state(), ConnectionState::Connected);
-
             let response = client.ping(Some("hello from rust")).await.expect("ping");
             assert_eq!(response.message, "pong: hello from rust");
             assert!(!response.timestamp.is_empty());
 
             client.stop().await.expect("stop client");
-            assert_eq!(client.state(), ConnectionState::Disconnected);
         })
     })
     .await;
@@ -30,19 +27,16 @@ async fn should_start_ping_and_stop_stdio_client() {
 async fn should_start_ping_and_stop_tcp_client() {
     with_e2e_context("client", "should_start_ping_and_stop_tcp_client", |ctx| {
         Box::pin(async move {
-            let client = Client::start(
-                ctx.client_options_with_transport(Transport::Tcp { port: 0 })
-                    .with_tcp_connection_token("tcp-e2e-token"),
-            )
+            let client = Client::start(ctx.client_options_with_transport(Transport::Tcp {
+                port: 0,
+                connection_token: Some("tcp-e2e-token".to_string()),
+            }))
             .await
             .expect("start TCP client");
-            assert_eq!(client.state(), ConnectionState::Connected);
-
             let response = client.ping(Some("tcp hello")).await.expect("ping");
             assert_eq!(response.message, "pong: tcp hello");
 
             client.stop().await.expect("stop client");
-            assert_eq!(client.state(), ConnectionState::Disconnected);
         })
     })
     .await;
@@ -121,7 +115,6 @@ async fn should_stop_client_with_active_session() {
                 .expect("create session");
 
             client.stop().await.expect("stop client");
-            assert_eq!(client.state(), ConnectionState::Disconnected);
         })
     })
     .await;
@@ -132,10 +125,7 @@ async fn should_force_stop_client() {
     with_e2e_context("client", "should_force_stop_client", |ctx| {
         Box::pin(async move {
             let client = ctx.start_client().await;
-            assert_eq!(client.state(), ConnectionState::Connected);
-
             client.force_stop();
-            assert_eq!(client.state(), ConnectionState::Disconnected);
         })
     })
     .await;
