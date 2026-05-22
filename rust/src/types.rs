@@ -1206,10 +1206,12 @@ pub struct SessionConfig {
     /// associated [`CommandHandler`] is called when executed.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
-    /// Canvas declarations. Each entry binds a [`CanvasDeclaration`] +
-    /// [`crate::canvas::CanvasHandler`] for this session; the runtime treats
-    /// the declaring connection as the live provider for every declared
-    /// canvas id. Serialized as an array of `CanvasDeclaration` on the wire.
+    /// Canvas declarations. Each entry binds a
+    /// [`CanvasDeclaration`](crate::canvas::CanvasDeclaration) +
+    /// [`CanvasHandler`](crate::canvas::CanvasHandler) for this session; the
+    /// runtime treats the declaring connection as the live provider for every
+    /// declared canvas id. Serialized as an array of `CanvasDeclaration` on
+    /// the wire.
     #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
     pub canvases: Vec<crate::canvas::Canvas>,
     /// Custom session filesystem provider for this session. Required when
