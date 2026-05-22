@@ -2,14 +2,14 @@ import asyncio
 import os
 from copilot import CopilotClient
 from copilot.client import SubprocessConfig
-from copilot.session import PermissionRequestResult
+from copilot.generated.rpc import PermissionDecisionApproveOnce
 
 
 input_log: list[str] = []
 
 
 async def auto_approve_permission(request, invocation):
-    return PermissionRequestResult(kind="approve-once")
+    return PermissionDecisionApproveOnce()
 
 
 async def auto_approve_tool(input_data, invocation):

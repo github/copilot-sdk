@@ -39,6 +39,7 @@ from ._telemetry import get_trace_context, trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
     ConnectRequest,
+    PermissionDecisionUserNotAvailable,
     RemoteSessionMode,
     ServerRpc,
     _InternalServerRpc,
@@ -46,8 +47,8 @@ from .generated.rpc import (
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
-    PermissionRequest,
     SessionEvent,
+    _load_PermissionRequest,
     session_event_from_dict,
 )
 from .session import (
@@ -61,6 +62,7 @@ from .session import (
     ExitPlanModeHandler,
     InfiniteSessionConfig,
     MCPServerConfig,
+    PermissionNoResult,
     ProviderConfig,
     ReasoningEffort,
     SectionTransformFn,
@@ -3193,22 +3195,14 @@ class CopilotClient:
             raise ValueError(f"unknown session {session_id}")
 
         try:
-            perm_request = PermissionRequest.from_dict(permission_request)
+            perm_request = _load_PermissionRequest(permission_request)
             result = await session._handle_permission_request(perm_request)
-            if result.kind == "no-result":
+            if isinstance(result, PermissionNoResult):
                 raise ValueError(NO_RESULT_PERMISSION_V2_ERROR)
-            return {"result": {"kind": result.kind}}
+            return {"result": result.to_dict()}
         except ValueError as exc:
             if str(exc) == NO_RESULT_PERMISSION_V2_ERROR:
                 raise
-            return {
-                "result": {
-                    "kind": "user-not-available",
-                }
-            }
+            return {"result": PermissionDecisionUserNotAvailable().to_dict()}
         except Exception:  # pylint: disable=broad-except
-            return {
-                "result": {
-                    "kind": "user-not-available",
-                }
-            }
+            return {"result": PermissionDecisionUserNotAvailable().to_dict()}

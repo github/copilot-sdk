@@ -16,7 +16,8 @@ import pytest
 
 from copilot import CopilotClient
 from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.generated.rpc import PermissionDecisionUserNotAvailable
+from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext
@@ -172,9 +173,7 @@ class TestSuspend:
             assert not tool_invoked
         finally:
             if not release_permission_handler.done():
-                release_permission_handler.set_result(
-                    PermissionRequestResult(kind="user-not-available")
-                )
+                release_permission_handler.set_result(PermissionDecisionUserNotAvailable())
             await _safe_disconnect(session)
 
     async def test_should_reject_pending_external_tool_when_suspending(self, ctx: E2ETestContext):

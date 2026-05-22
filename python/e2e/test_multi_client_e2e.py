@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field
 
 from copilot import CopilotClient, define_tool
 from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import ToolInvocation
 
 from .testharness import get_final_assistant_message
@@ -242,16 +243,14 @@ class TestMultiClientBroadcast:
         # Client 1 creates a session and manually approves permission requests
         session1 = await mctx.client1.create_session(
             on_permission_request=lambda request, invocation: (
-                permission_requests.append(request) or PermissionRequestResult(kind="approve-once")
+                permission_requests.append(request) or PermissionDecisionApproveOnce()
             ),
         )
 
         # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="no-result"
-            ),
+            on_permission_request=lambda request, invocation: PermissionNoResult(),
         )
 
         client1_events = []
@@ -289,17 +288,13 @@ class TestMultiClientBroadcast:
         """One client rejects a permission request and both see the result."""
         # Client 1 creates a session and denies all permission requests
         session1 = await mctx.client1.create_session(
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="reject"
-            ),
+            on_permission_request=lambda request, invocation: PermissionDecisionReject(),
         )
 
         # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="no-result"
-            ),
+            on_permission_request=lambda request, invocation: PermissionNoResult(),
         )
 
         client1_events = []

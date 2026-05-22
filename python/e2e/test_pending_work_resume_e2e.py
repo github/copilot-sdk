@@ -18,8 +18,12 @@ import pytest
 
 from copilot import CopilotClient
 from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.generated.rpc import HandlePendingToolCallRequest, PermissionDecisionRequest
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.generated.rpc import (
+    HandlePendingToolCallRequest,
+    PermissionDecisionRequest,
+    PermissionDecisionUserNotAvailable,
+)
+from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message
@@ -182,9 +186,7 @@ class TestPendingWorkResume:
                 try:
                     session2 = await resumed_client.resume_session(
                         session_id,
-                        on_permission_request=lambda req, inv: PermissionRequestResult(
-                            kind="user-not-available"
-                        ),
+                        on_permission_request=lambda req, inv: PermissionDecisionUserNotAvailable(),
                         continue_pending_work=True,
                         tools=[_make_pending_tool("resume_permission_tool", resumed_tool_handler)],
                     )
@@ -212,7 +214,7 @@ class TestPendingWorkResume:
                     await _safe_force_stop(resumed_client)
             finally:
                 if not release_original.done():
-                    release_original.set_result(PermissionRequestResult(kind="user-not-available"))
+                    release_original.set_result(PermissionDecisionUserNotAvailable())
         finally:
             await _safe_force_stop(server)
 

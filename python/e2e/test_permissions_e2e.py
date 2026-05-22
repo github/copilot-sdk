@@ -6,12 +6,17 @@ import asyncio
 
 import pytest
 
+from copilot.generated.rpc import (
+    PermissionDecisionApproveOnce,
+    PermissionDecisionReject,
+    PermissionDecisionUserNotAvailable,
+)
 from copilot.generated.session_events import (
     PermissionRequest,
     SessionIdleData,
     ToolExecutionCompleteData,
 )
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.session import PermissionHandler, PermissionNoResult, PermissionRequestResult
 
 from .testharness import E2ETestContext
 from .testharness.helper import read_file, write_file
@@ -29,7 +34,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             assert invocation["session_id"] == session.session_id
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -52,7 +57,7 @@ class TestPermissions:
         def on_permission_request(
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
-            return PermissionRequestResult(kind="reject")
+            return PermissionDecisionReject()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -97,7 +102,7 @@ class TestPermissions:
         """Test that tool operations are denied when handler explicitly denies"""
 
         def deny_all(request, invocation):
-            return PermissionRequestResult()
+            return PermissionDecisionUserNotAvailable()
 
         session = await ctx.client.create_session(on_permission_request=deny_all)
 
@@ -138,7 +143,7 @@ class TestPermissions:
         await session1.send_and_wait("What is 1+1?")
 
         def deny_all(request, invocation):
-            return PermissionRequestResult()
+            return PermissionDecisionUserNotAvailable()
 
         session2 = await ctx.client.resume_session(session_id, on_permission_request=deny_all)
 
@@ -190,7 +195,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             permission_requests.append(request)
             await asyncio.sleep(0)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -216,7 +221,7 @@ class TestPermissions:
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
             permission_requests.append(request)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session2 = await ctx.client.resume_session(
             session_id, on_permission_request=on_permission_request
@@ -260,7 +265,7 @@ class TestPermissions:
                 received_tool_call_id = True
                 assert isinstance(request.tool_call_id, str)
                 assert len(request.tool_call_id) > 0
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
 
@@ -289,7 +294,7 @@ class TestPermissions:
                 handler_entered.set_result(True)
             await asyncio.wait_for(release_handler, timeout=30.0)
             add_event("permission-complete", tool_call_id)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=slow_permission)
 
@@ -376,7 +381,7 @@ class TestPermissions:
         def deny_noresult(request: PermissionRequest, invocation: dict) -> PermissionRequestResult:
             if not permission_called.done():
                 permission_called.set_result(True)
-            return PermissionRequestResult(kind="no-result")
+            return PermissionNoResult()
 
         session = await ctx.client.create_session(on_permission_request=deny_noresult)
         try:
@@ -399,7 +404,7 @@ class TestPermissions:
         ) -> PermissionRequestResult:
             nonlocal handler_call_count
             handler_call_count += 1
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(on_permission_request=counting_handler)
         try:
@@ -458,7 +463,7 @@ class TestPermissions:
             if permission_request_count >= 2 and not both_started.done():
                 both_started.set_result(True)
             await asyncio.wait_for(both_started, timeout=30.0)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         def first_tool_handler(invocation: ToolInvocation) -> ToolResult:
             nonlocal first_tool_called

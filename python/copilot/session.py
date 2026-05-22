@@ -32,8 +32,9 @@ from .generated.rpc import (
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
-    PermissionDecisionKind,
+    PermissionDecisionApproveOnce,
     PermissionDecisionRequest,
+    PermissionDecisionUserNotAvailable,
     SessionLogLevel,
     SessionRpc,
     UIElicitationRequest,
@@ -231,19 +232,26 @@ SystemMessageConfig = (
 # Permission Types
 # ============================================================================
 
-PermissionRequestResultKind = Literal[
-    "approve-once",
-    "reject",
-    "user-not-available",
-    "no-result",
-]
-
 
 @dataclass
-class PermissionRequestResult:
-    """Result of a permission request."""
+class PermissionNoResult:
+    """Sentinel returned by a permission handler to leave the request unanswered.
 
-    kind: PermissionRequestResultKind = "user-not-available"
+    Only meaningful against protocol-v1 servers. v2 servers reject ``no-result``
+    responses; the SDK raises :class:`ValueError` if a v2 server receives one.
+    Mirrors the ``{kind: "no-result"}`` extension TS adds to its ``PermissionDecision``
+    union (see ``nodejs/src/types.ts:883``).
+    """
+
+    kind: Literal["no-result"] = "no-result"
+
+
+# The decision returned by a permission handler. Identical shape to the wire
+# ``PermissionDecision`` discriminated union, plus a :class:`PermissionNoResult`
+# sentinel for v1 servers. Construct via the generated variant classes:
+# ``PermissionDecisionApproveOnce(kind=...)``, ``PermissionDecisionReject(kind=...,
+# feedback=...)``, etc.
+PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
 _PermissionHandlerFn = Callable[
@@ -257,7 +265,7 @@ class PermissionHandler:
     def approve_all(
         request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
-        return PermissionRequestResult(kind="approve-once")
+        return PermissionDecisionApproveOnce()
 
 
 # ============================================================================
@@ -1703,18 +1711,14 @@ class CopilotSession:
             )
 
             result = cast(PermissionRequestResult, result)
-            if result.kind == "no-result":
+            if isinstance(result, PermissionNoResult):
                 return
-
-            perm_result = PermissionDecision(
-                kind=PermissionDecisionKind(result.kind),
-            )
 
             rpc_start = time.perf_counter()
             await self.rpc.permissions.handle_pending_permission_request(
                 PermissionDecisionRequest(
                     request_id=request_id,
-                    result=perm_result,
+                    result=result,
                 )
             )
             log_timing(
@@ -1730,9 +1734,7 @@ class CopilotSession:
                 await self.rpc.permissions.handle_pending_permission_request(
                     PermissionDecisionRequest(
                         request_id=request_id,
-                        result=PermissionDecision(
-                            kind=PermissionDecisionKind.USER_NOT_AVAILABLE,
-                        ),
+                        result=PermissionDecisionUserNotAvailable(),
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
@@ -1995,8 +1997,8 @@ class CopilotSession:
             handler = self._permission_handler
 
         if not handler:
-            # No handler registered, deny permission
-            return PermissionRequestResult()
+            # No handler registered, deny permission.
+            return PermissionDecisionUserNotAvailable()
 
         try:
             handler_start = time.perf_counter()
@@ -2012,13 +2014,13 @@ class CopilotSession:
             )
             return cast(PermissionRequestResult, result)
         except Exception:  # pylint: disable=broad-except
-            # Handler failed, deny permission
+            # Handler failed, deny permission.
             logger.debug(
                 "Error handling permission request",
                 extra={"session_id": self.session_id},
                 exc_info=True,
             )
-            return PermissionRequestResult()
+            return PermissionDecisionUserNotAvailable()
 
     def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
         """

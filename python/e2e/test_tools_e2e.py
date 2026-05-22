@@ -6,7 +6,8 @@ import pytest
 from pydantic import BaseModel, Field
 
 from copilot import define_tool
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
 from .testharness import E2ETestContext, get_final_assistant_message
@@ -148,7 +149,7 @@ class TestTools:
         def tracking_handler(request, invocation):
             nonlocal did_run_permission_request
             did_run_permission_request = True
-            return PermissionRequestResult(kind="no-result")
+            return PermissionNoResult()
 
         session = await ctx.client.create_session(
             on_permission_request=tracking_handler, tools=[safe_lookup]
@@ -191,7 +192,7 @@ class TestTools:
 
         def on_permission_request(request, invocation):
             permission_requests.append(request)
-            return PermissionRequestResult(kind="approve-once")
+            return PermissionDecisionApproveOnce()
 
         session = await ctx.client.create_session(
             on_permission_request=on_permission_request, tools=[encrypt_string]
@@ -219,7 +220,7 @@ class TestTools:
             return params.input.upper()
 
         def on_permission_request(request, invocation):
-            return PermissionRequestResult(kind="reject")
+            return PermissionDecisionReject()
 
         session = await ctx.client.create_session(
             on_permission_request=on_permission_request, tools=[encrypt_string]
