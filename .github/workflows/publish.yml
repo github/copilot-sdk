@@ -167,6 +167,14 @@ jobs:
           workspaces: "rust"
       - name: Set version
         run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+      - name: Snapshot CLI version + hashes for build.rs
+        run: bash scripts/snapshot-bundled-cli-version.sh
+      - name: Verify snapshot file exists
+        run: |
+          if [[ ! -f bundled_cli_version.txt ]]; then
+            echo "::error::bundled_cli_version.txt was not generated. The Snapshot step must run before packaging."
+            exit 1
+          fi
       - name: Package (dry run)
         run: cargo publish --dry-run --allow-dirty
       - name: Upload artifact

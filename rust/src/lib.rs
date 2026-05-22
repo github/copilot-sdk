@@ -4,7 +4,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
 /// Bundled CLI binary extraction and caching.
-pub mod embeddedcli;
+pub(crate) mod embeddedcli;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -13,7 +13,7 @@ mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
 /// GitHub Copilot CLI binary resolution (env var, embedded, PATH search).
-pub mod resolve;
+pub(crate) mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
 pub mod session;
@@ -326,12 +326,13 @@ impl From<PathBuf> for CliProgram {
 
 /// Options for starting a [`Client`].
 ///
-/// When `program` is [`CliProgram::Resolve`] (the default),
-/// [`Client::start`] automatically resolves the binary via
-/// [`resolve::copilot_binary()`] — checking `COPILOT_CLI_PATH`, the
-/// embedded CLI, and then the system PATH and common install locations.
+/// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
+/// uses the bundled Copilot CLI that was embedded at build time (via the
+/// default `bundled-cli` cargo feature).
 ///
-/// Set `program` to [`CliProgram::Path`] to use an explicit binary.
+/// Set `program` to [`CliProgram::Path`] to use an explicit binary instead.
+/// This is the required path if you've opted out of bundling via
+/// `default-features = false`.
 #[non_exhaustive]
 pub struct ClientOptions {
     /// How to locate the CLI binary.
@@ -408,6 +409,20 @@ pub struct ClientOptions {
     /// GitHub web and mobile. Ignored when connecting to an external server
     /// via [`Transport::External`].
     pub enable_remote_sessions: bool,
+    /// Override the directory where the bundled CLI binary is extracted on
+    /// first use.
+    ///
+    /// When `None` (the default), the SDK extracts the embedded CLI to
+    /// `<platform cache dir>/github-copilot-sdk-{version}/copilot[.exe]`,
+    /// where the cache dir is [`dirs::cache_dir()`] —
+    /// `%LOCALAPPDATA%` on Windows, `~/Library/Caches/` on macOS,
+    /// `$XDG_CACHE_HOME` (or `~/.cache/`) on Linux. Use this knob to
+    /// redirect the extraction (e.g. to a session-scoped temp directory in
+    /// CI runners) without changing the global cache layout.
+    ///
+    /// Ignored when the SDK was built without a bundled CLI (i.e. with
+    /// `default-features = false` to disable the `bundled-cli` feature).
+    pub bundled_cli_extract_dir: Option<PathBuf>,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -442,6 +457,7 @@ impl std::fmt::Debug for ClientOptions {
             .field("telemetry", &self.telemetry)
             .field("base_directory", &self.base_directory)
             .field("enable_remote_sessions", &self.enable_remote_sessions)
+            .field("bundled_cli_extract_dir", &self.bundled_cli_extract_dir)
             .finish()
     }
 }
@@ -648,6 +664,7 @@ impl Default for ClientOptions {
             telemetry: None,
             base_directory: None,
             enable_remote_sessions: false,
+            bundled_cli_extract_dir: None,
         }
     }
 }
@@ -802,6 +819,13 @@ impl ClientOptions {
     /// to the spawned CLI process.
     pub fn with_enable_remote_sessions(mut self, enabled: bool) -> Self {
         self.enable_remote_sessions = enabled;
+        self
+    }
+
+    /// Override the directory where the bundled CLI binary is extracted on
+    /// first use. See [`Self::bundled_cli_extract_dir`].
+    pub fn with_bundled_cli_extract_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.bundled_cli_extract_dir = Some(dir.into());
         self
     }
 }
@@ -962,7 +986,9 @@ impl Client {
                 path.clone()
             }
             CliProgram::Resolve => {
-                let resolved = resolve::copilot_binary()?;
+                let resolved = resolve::copilot_binary_with_extract_dir(
+                    options.bundled_cli_extract_dir.as_deref(),
+                )?;
                 info!(path = %resolved.display(), "resolved copilot CLI");
                 #[cfg(windows)]
                 {
