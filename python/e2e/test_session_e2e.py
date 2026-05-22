@@ -2,6 +2,7 @@
 
 import base64
 import os
+from datetime import datetime
 
 import pytest
 
@@ -306,8 +307,8 @@ class TestSessions:
             assert hasattr(session_data, "isRemote")
             # summary is optional
             assert isinstance(session_data.sessionId, str)
-            assert isinstance(session_data.startTime, str)
-            assert isinstance(session_data.modifiedTime, str)
+            assert isinstance(session_data.startTime, datetime)
+            assert isinstance(session_data.modifiedTime, datetime)
             assert isinstance(session_data.isRemote, bool)
 
         # Verify context field is present
@@ -365,8 +366,8 @@ class TestSessions:
         metadata = await ctx.client.get_session_metadata(session.session_id)
         assert metadata is not None
         assert metadata.sessionId == session.session_id
-        assert isinstance(metadata.startTime, str)
-        assert isinstance(metadata.modifiedTime, str)
+        assert isinstance(metadata.startTime, datetime)
+        assert isinstance(metadata.modifiedTime, datetime)
         assert isinstance(metadata.isRemote, bool)
 
         # Verify context field is present
@@ -854,8 +855,8 @@ class TestSessions:
             await asyncio.sleep(0.1)
         assert metadata is not None
         assert metadata.sessionId == session.session_id
-        assert isinstance(metadata.startTime, str) and metadata.startTime
-        assert isinstance(metadata.modifiedTime, str) and metadata.modifiedTime
+        assert isinstance(metadata.startTime, datetime)
+        assert isinstance(metadata.modifiedTime, datetime)
 
         not_found = await ctx.client.get_session_metadata("non-existent-session-id")
         assert not_found is None

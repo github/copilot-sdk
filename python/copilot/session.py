@@ -18,6 +18,7 @@ import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
@@ -627,7 +628,7 @@ class PreToolUseHookInput(TypedDict):
     """Input for pre-tool-use hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     toolName: str
     toolArgs: Any
@@ -653,7 +654,7 @@ class PreMcpToolCallHookInput(TypedDict):
     """Input for pre-MCP-tool-call hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     serverName: str
     toolName: str
@@ -684,7 +685,7 @@ class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     toolName: str
     toolArgs: Any
@@ -709,7 +710,7 @@ class UserPromptSubmittedHookInput(TypedDict):
     """Input for user-prompt-submitted hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     prompt: str
 
@@ -732,7 +733,7 @@ class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     source: Literal["startup", "resume", "new"]
     initialPrompt: NotRequired[str]
@@ -755,7 +756,7 @@ class SessionEndHookInput(TypedDict):
     """Input for session-end hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     reason: Literal["complete", "error", "abort", "timeout", "user_exit"]
     finalMessage: NotRequired[str]
@@ -780,7 +781,7 @@ class ErrorOccurredHookInput(TypedDict):
     """Input for error-occurred hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     error: str
     errorContext: Literal["model_call", "tool_execution", "system", "user_input"]
@@ -2229,9 +2230,18 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            # Remap wire key "cwd" to public API key "workingDirectory"
-            if "cwd" in input_data:
-                input_data = {**input_data, "workingDirectory": input_data.pop("cwd")}
+            # Normalize input from the wire format:
+            # - Remap wire key "cwd" to public API key "workingDirectory".
+            # - Convert "timestamp" from epoch milliseconds to ``datetime`` so
+            #   hook handlers see a timezone-aware ``datetime`` rather than a
+            #   raw integer (matches TS PR #1357 Phase E).
+            transformed = dict(input_data)
+            if "cwd" in transformed:
+                transformed["workingDirectory"] = transformed.pop("cwd")
+            timestamp = transformed.get("timestamp")
+            if isinstance(timestamp, (int, float)):
+                transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
+            input_data = transformed
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result

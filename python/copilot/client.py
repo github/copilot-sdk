@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Literal, TypedDict, cast, overload
+from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
@@ -812,8 +812,8 @@ class SessionMetadata:
     """Metadata about a session"""
 
     sessionId: str  # Session identifier
-    startTime: str  # ISO 8601 timestamp when session was created
-    modifiedTime: str  # ISO 8601 timestamp when session was last modified
+    startTime: datetime  # Timestamp when session was created
+    modifiedTime: datetime  # Timestamp when session was last modified
     isRemote: bool  # Whether the session is remote
     summary: str | None = None  # Optional summary of the session
     context: SessionContext | None = None  # Working directory context
@@ -835,8 +835,8 @@ class SessionMetadata:
         context = SessionContext.from_dict(context_dict) if context_dict else None
         return SessionMetadata(
             sessionId=str(sessionId),
-            startTime=str(startTime),
-            modifiedTime=str(modifiedTime),
+            startTime=_parse_session_timestamp(startTime),
+            modifiedTime=_parse_session_timestamp(modifiedTime),
             isRemote=bool(isRemote),
             summary=summary,
             context=context,
@@ -845,14 +845,26 @@ class SessionMetadata:
     def to_dict(self) -> dict:
         result: dict = {}
         result["sessionId"] = self.sessionId
-        result["startTime"] = self.startTime
-        result["modifiedTime"] = self.modifiedTime
+        result["startTime"] = self.startTime.isoformat()
+        result["modifiedTime"] = self.modifiedTime.isoformat()
         result["isRemote"] = self.isRemote
         if self.summary is not None:
             result["summary"] = self.summary
         if self.context is not None:
             result["context"] = self.context.to_dict()
         return result
+
+
+def _parse_session_timestamp(value: Any) -> datetime:
+    """Parse a wire-format timestamp into ``datetime``.
+
+    Accepts either an ISO-8601 string (server-sent JSON) or an existing
+    ``datetime`` (round-tripped from a previous parse). Returns the value
+    as-is if it's already a ``datetime``.
+    """
+    if isinstance(value, datetime):
+        return value
+    return from_datetime(value)
 
 
 # ============================================================================
@@ -872,37 +884,95 @@ SessionLifecycleEventType = Literal[
 class SessionLifecycleEventMetadata:
     """Metadata for session lifecycle events."""
 
-    startTime: str
-    modifiedTime: str
+    startTime: datetime
+    modifiedTime: datetime
     summary: str | None = None
 
     @staticmethod
     def from_dict(data: dict) -> SessionLifecycleEventMetadata:
         return SessionLifecycleEventMetadata(
-            startTime=data.get("startTime", ""),
-            modifiedTime=data.get("modifiedTime", ""),
+            startTime=_parse_session_timestamp(data.get("startTime", "")),
+            modifiedTime=_parse_session_timestamp(data.get("modifiedTime", "")),
             summary=data.get("summary"),
         )
 
 
 @dataclass
-class SessionLifecycleEvent:
-    """Session lifecycle event notification."""
+class SessionLifecycleEventBase:
+    """Base for session lifecycle event variants.
 
-    type: SessionLifecycleEventType
+    Construct concrete variants directly (e.g. :class:`SessionCreatedEvent`,
+    :class:`SessionDeletedEvent`); pattern-match on the variant class to
+    branch on the event kind.
+    """
+
     sessionId: str
     metadata: SessionLifecycleEventMetadata | None = None
 
-    @staticmethod
-    def from_dict(data: dict) -> SessionLifecycleEvent:
-        metadata = None
-        if "metadata" in data and data["metadata"]:
-            metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])
-        return SessionLifecycleEvent(
-            type=data.get("type", "session.updated"),
-            sessionId=data.get("sessionId", ""),
-            metadata=metadata,
-        )
+
+@dataclass
+class SessionCreatedEvent(SessionLifecycleEventBase):
+    """Emitted when a session is created."""
+
+    type: ClassVar[Literal["session.created"]] = "session.created"
+
+
+@dataclass
+class SessionDeletedEvent(SessionLifecycleEventBase):
+    """Emitted when a session is deleted."""
+
+    type: ClassVar[Literal["session.deleted"]] = "session.deleted"
+
+
+@dataclass
+class SessionUpdatedEvent(SessionLifecycleEventBase):
+    """Emitted when a session is updated (summary/title/etc. changed)."""
+
+    type: ClassVar[Literal["session.updated"]] = "session.updated"
+
+
+@dataclass
+class SessionForegroundEvent(SessionLifecycleEventBase):
+    """Emitted when a session moves to the foreground (TUI+server mode)."""
+
+    type: ClassVar[Literal["session.foreground"]] = "session.foreground"
+
+
+@dataclass
+class SessionBackgroundEvent(SessionLifecycleEventBase):
+    """Emitted when a session moves to the background (TUI+server mode)."""
+
+    type: ClassVar[Literal["session.background"]] = "session.background"
+
+
+SessionLifecycleEvent = (
+    SessionCreatedEvent
+    | SessionDeletedEvent
+    | SessionUpdatedEvent
+    | SessionForegroundEvent
+    | SessionBackgroundEvent
+)
+
+
+def _session_lifecycle_event_from_dict(data: dict) -> SessionLifecycleEvent:
+    """Construct the correct :class:`SessionLifecycleEvent` variant from a wire dict."""
+    metadata = None
+    if "metadata" in data and data["metadata"]:
+        metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])
+    session_id = data.get("sessionId", "")
+    match data.get("type"):
+        case "session.created":
+            return SessionCreatedEvent(sessionId=session_id, metadata=metadata)
+        case "session.deleted":
+            return SessionDeletedEvent(sessionId=session_id, metadata=metadata)
+        case "session.foreground":
+            return SessionForegroundEvent(sessionId=session_id, metadata=metadata)
+        case "session.background":
+            return SessionBackgroundEvent(sessionId=session_id, metadata=metadata)
+        case _:
+            # Default to ``session.updated`` for unknown event types so consumers
+            # keep working across server upgrades.
+            return SessionUpdatedEvent(sessionId=session_id, metadata=metadata)
 
 
 SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
@@ -2922,7 +2992,7 @@ class CopilotClient:
                     session._dispatch_event(event)
             elif method == "session.lifecycle":
                 # Handle session lifecycle events
-                lifecycle_event = SessionLifecycleEvent.from_dict(params)
+                lifecycle_event = _session_lifecycle_event_from_dict(params)
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
@@ -3047,7 +3117,7 @@ class CopilotClient:
                     session._dispatch_event(event)
             elif method == "session.lifecycle":
                 # Handle session lifecycle events
-                lifecycle_event = SessionLifecycleEvent.from_dict(params)
+                lifecycle_event = _session_lifecycle_event_from_dict(params)
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
