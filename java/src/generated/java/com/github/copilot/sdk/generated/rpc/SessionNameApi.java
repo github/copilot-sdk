@@ -31,6 +31,8 @@ public final class SessionNameApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionNameGetResult> get() {
@@ -42,12 +44,29 @@ public final class SessionNameApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<Void> set(SessionNameSetParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.name.set", _p, Void.class);
+    }
+
+    /**
+     * Auto-generated session summary to apply as the session's name when no user-set name exists.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionNameSetAutoResult> setAuto(SessionNameSetAutoParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.name.setAuto", _p, SessionNameSetAutoResult.class);
     }
 
 }

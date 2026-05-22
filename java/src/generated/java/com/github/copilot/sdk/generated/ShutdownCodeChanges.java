@@ -23,9 +23,9 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShutdownCodeChanges(
     /** Total number of lines added during the session */
-    @JsonProperty("linesAdded") Double linesAdded,
+    @JsonProperty("linesAdded") Long linesAdded,
     /** Total number of lines removed during the session */
-    @JsonProperty("linesRemoved") Double linesRemoved,
+    @JsonProperty("linesRemoved") Long linesRemoved,
     /** List of file paths that were modified during the session */
     @JsonProperty("filesModified") List<String> filesModified
 ) {

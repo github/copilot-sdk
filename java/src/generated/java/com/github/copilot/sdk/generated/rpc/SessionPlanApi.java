@@ -31,6 +31,8 @@ public final class SessionPlanApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionPlanReadResult> read() {
@@ -42,6 +44,8 @@ public final class SessionPlanApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<Void> update(SessionPlanUpdateParams params) {
@@ -52,6 +56,8 @@ public final class SessionPlanApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<Void> delete() {

@@ -34,12 +34,24 @@ public final class SessionToolsApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionToolsHandlePendingToolCallResult> handlePendingToolCall(SessionToolsHandlePendingToolCallParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.tools.handlePendingToolCall", _p, SessionToolsHandlePendingToolCallResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> initializeAndValidate() {
+        return caller.invoke("session.tools.initializeAndValidate", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
 }

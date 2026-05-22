@@ -53,7 +53,7 @@ public final class AssistantMessageEvent extends SessionEvent {
         /** Generation phase for phased-output models (e.g., thinking vs. response phases) */
         @JsonProperty("phase") String phase,
         /** Actual output token count from the API response (completion_tokens), used for accurate token accounting */
-        @JsonProperty("outputTokens") Double outputTokens,
+        @JsonProperty("outputTokens") Long outputTokens,
         /** CAPI interaction ID for correlating this message with upstream telemetry */
         @JsonProperty("interactionId") String interactionId,
         /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
