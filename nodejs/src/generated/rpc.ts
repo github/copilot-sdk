@@ -1118,11 +1118,11 @@ export interface AccountQuotaSnapshot {
    */
   remainingPercentage: number;
   /**
-   * Number of overage requests made this period
+   * Number of additional usage requests made this period
    */
   overage: number;
   /**
-   * Whether overage is allowed when quota is exhausted
+   * Whether additional usage is allowed when quota is exhausted
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
@@ -1188,7 +1188,11 @@ export interface AgentInfo {
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
    */
   mcpServers?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Skill names preloaded into this agent's context. Omitted means none.
@@ -2142,7 +2146,11 @@ export interface ExternalToolTextResultForLlm {
    * Optional tool-specific telemetry
    */
   toolTelemetry?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Base64-encoded binary results returned to the model
@@ -2491,6 +2499,19 @@ export interface HistoryCompactContextWindow {
    * Token count from tool definitions
    */
   toolDefinitionsTokens?: number;
+}
+/**
+ * Optional compaction parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryCompactRequest".
+ */
+/** @experimental */
+export interface HistoryCompactRequest {
+  /**
+   * Optional user-provided instructions to focus the compaction summary
+   */
+  customInstructions?: string;
 }
 /**
  * Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
@@ -5315,6 +5336,30 @@ export interface ScheduleStopResult {
   entry?: ScheduleEntry;
 }
 /**
+ * Secret values to add to the redaction filter.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SecretsAddFilterValuesRequest".
+ */
+export interface SecretsAddFilterValuesRequest {
+  /**
+   * Raw secret values to register for redaction
+   */
+  values: string[];
+}
+/**
+ * Confirmation that the secret values were registered.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SecretsAddFilterValuesResult".
+ */
+export interface SecretsAddFilterValuesResult {
+  /**
+   * Whether the values were successfully registered
+   */
+  ok: true;
+}
+/**
  * File attachment
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6060,7 +6105,11 @@ export interface SessionFsSqliteQueryResult {
    * For SELECT: array of row objects. For others: empty array.
    */
   rows: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   }[];
   /**
    * Column names from the result set
@@ -6930,7 +6979,9 @@ export interface SessionUpdateOptionsParams {
   /**
    * Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.
    */
-  additionalContentExclusionPolicies?: unknown[];
+  additionalContentExclusionPolicies?: {
+    [k: string]: unknown | undefined;
+  }[];
   /**
    * Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
    */
@@ -7763,7 +7814,11 @@ export interface Tool {
    * JSON Schema for the tool's input parameters
    */
   parameters?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Optional instructions for how to use this tool effectively
@@ -8745,6 +8800,17 @@ export function createServerRpc(connection: MessageConnection) {
              */
             getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", params),
+        },
+        secrets: {
+            /**
+             * Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
+             *
+             * @param params Secret values to add to the redaction filter.
+             *
+             * @returns Confirmation that the secret values were registered.
+             */
+            addFilterValues: async (params: SecretsAddFilterValuesRequest): Promise<SecretsAddFilterValuesResult> =>
+                connection.sendRequest("secrets.addFilterValues", params),
         },
         mcp: {
             config: {
@@ -9997,10 +10063,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Compacts the session history to reduce context usage.
              *
+             * @param params Optional compaction parameters.
+             *
              * @returns Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
              */
-            compact: async (): Promise<HistoryCompactResult> =>
-                connection.sendRequest("session.history.compact", { sessionId }),
+            compact: async (params?: HistoryCompactRequest): Promise<HistoryCompactResult> =>
+                connection.sendRequest("session.history.compact", { sessionId, ...params }),
             /**
              * Truncates persisted session history to a specific event.
              *

@@ -83,7 +83,7 @@ class E2ETestContext:
             SubprocessConfig(
                 cli_path=self.cli_path,
                 cli_args=cli_args or [],
-                cwd=self.work_dir,
+                working_directory=self.work_dir,
                 env=self.get_env(),
                 github_token=DEFAULT_GITHUB_TOKEN,
             )

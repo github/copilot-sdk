@@ -465,6 +465,16 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		}
 		return hooks.OnPreToolUse(input, invocation)
 
+	case "preMcpToolCall":
+		if hooks.OnPreMcpToolCall == nil {
+			return nil, nil
+		}
+		var input PreMcpToolCallHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnPreMcpToolCall(input, invocation)
+
 	case "postToolUse":
 		if hooks.OnPostToolUse == nil {
 			return nil, nil

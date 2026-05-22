@@ -1356,8 +1356,6 @@ public sealed partial class SessionErrorData
     public int? StatusCode { get; set; }
 
     /// <summary>Optional URL associated with this error that the user can open in a browser.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
@@ -1432,8 +1430,6 @@ public sealed partial class SessionInfoData
     public string? Tip { get; set; }
 
     /// <summary>Optional URL associated with this message that the user can open in a browser.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
@@ -1447,8 +1443,6 @@ public sealed partial class SessionWarningData
     public required string Message { get; set; }
 
     /// <summary>Optional URL associated with this warning that the user can open in a browser.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("url")]
     public string? Url { get; set; }
@@ -1541,8 +1535,6 @@ public sealed partial class SessionHandoffData
     public required DateTimeOffset HandoffTime { get; set; }
 
     /// <summary>GitHub host URL for the source session (e.g., https://github.com or https://tenant.ghe.com).</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("host")]
     public string? Host { get; set; }
@@ -1680,8 +1672,9 @@ public sealed partial class SessionShutdownData
     public double? TotalNanoAiu { get; set; }
 
     /// <summary>Total number of premium API requests used during the session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalPremiumRequests")]
-    public required double TotalPremiumRequests { get; set; }
+    public double? TotalPremiumRequests { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -1804,6 +1797,11 @@ public sealed partial class SessionCompactionCompleteData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("conversationTokens")]
     public long? ConversationTokens { get; set; }
+
+    /// <summary>User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("customInstructions")]
+    public string? CustomInstructions { get; set; }
 
     /// <summary>Error message if compaction failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2369,6 +2367,11 @@ public sealed partial class ToolExecutionCompleteData
     [JsonPropertyName("result")]
     public ToolExecutionCompleteResult? Result { get; set; }
 
+    /// <summary>Whether this tool execution ran inside a sandbox container.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("sandboxed")]
+    public bool? Sandboxed { get; set; }
+
     /// <summary>Whether the tool execution completed successfully.</summary>
     [JsonPropertyName("success")]
     public required bool Success { get; set; }
@@ -2800,8 +2803,6 @@ public sealed partial class McpOauthRequiredData
     public required string ServerName { get; set; }
 
     /// <summary>URL of the MCP server that requires OAuth.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("serverUrl")]
     public required string ServerUrl { get; set; }
 
@@ -3180,12 +3181,14 @@ public sealed partial class ShutdownCodeChanges
 public sealed partial class ShutdownModelMetricRequests
 {
     /// <summary>Cumulative cost multiplier for requests to this model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cost")]
-    public required double Cost { get; set; }
+    public double? Cost { get; set; }
 
     /// <summary>Total number of API requests made to this model.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("count")]
-    public required long Count { get; set; }
+    public long? Count { get; set; }
 }
 
 /// <summary>Schema for the `ShutdownModelMetricTokenDetail` type.</summary>
@@ -3471,8 +3474,6 @@ public sealed partial class UserMessageAttachmentGithubReference : UserMessageAt
     public required string Title { get; set; }
 
     /// <summary>URL to the referenced item on GitHub.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -3607,11 +3608,11 @@ public sealed partial class AssistantUsageQuotaSnapshot
     [JsonPropertyName("isUnlimitedEntitlement")]
     public required bool IsUnlimitedEntitlement { get; set; }
 
-    /// <summary>Number of requests over the entitlement limit.</summary>
+    /// <summary>Number of additional usage requests made this period.</summary>
     [JsonPropertyName("overage")]
     public required double Overage { get; set; }
 
-    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    /// <summary>Whether additional usage is allowed when quota is exhausted.</summary>
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     public required bool OverageAllowedWithExhaustedQuota { get; set; }
 
@@ -3781,8 +3782,6 @@ public sealed partial class ToolExecutionCompleteContentResourceLink : ToolExecu
     public string? Title { get; set; }
 
     /// <summary>URI identifying the resource.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
 }
@@ -3801,8 +3800,6 @@ public sealed partial class EmbeddedTextResourceContents
     public required string Text { get; set; }
 
     /// <summary>URI identifying the resource.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
 }
@@ -3822,8 +3819,6 @@ public sealed partial class EmbeddedBlobResourceContents
     public string? MimeType { get; set; }
 
     /// <summary>URI identifying the resource.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("uri")]
     public required string Uri { get; set; }
 }
@@ -4168,8 +4163,6 @@ public sealed partial class PermissionRequestShellCommand
 public sealed partial class PermissionRequestShellPossibleUrl
 {
     /// <summary>URL that may be accessed by the command.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -4331,8 +4324,6 @@ public sealed partial class PermissionRequestUrl : PermissionRequest
     public string? ToolCallId { get; set; }
 
     /// <summary>URL to be fetched.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -4644,8 +4635,6 @@ public sealed partial class PermissionPromptRequestUrl : PermissionPromptRequest
     public string? ToolCallId { get; set; }
 
     /// <summary>URL to be fetched.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }

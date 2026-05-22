@@ -24,6 +24,8 @@ pub mod rpc_methods {
     pub const TOOLS_LIST: &str = "tools.list";
     /// `account.getQuota`
     pub const ACCOUNT_GETQUOTA: &str = "account.getQuota";
+    /// `secrets.addFilterValues`
+    pub const SECRETS_ADDFILTERVALUES: &str = "secrets.addFilterValues";
     /// `mcp.config.list`
     pub const MCP_CONFIG_LIST: &str = "mcp.config.list";
     /// `mcp.config.add`
@@ -429,9 +431,9 @@ pub struct AccountQuotaSnapshot {
     pub entitlement_requests: i64,
     /// Whether the user has an unlimited usage entitlement
     pub is_unlimited_entitlement: bool,
-    /// Number of overage requests made this period
+    /// Number of additional usage requests made this period
     pub overage: f64,
-    /// Whether overage is allowed when quota is exhausted
+    /// Whether additional usage is allowed when quota is exhausted
     pub overage_allowed_with_exhausted_quota: bool,
     /// Percentage of entitlement remaining
     pub remaining_percentage: f64,
@@ -1810,6 +1812,22 @@ pub struct HistoryCompactContextWindow {
     /// Token count from tool definitions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_definitions_tokens: Option<i64>,
+}
+
+/// Optional compaction parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryCompactRequest {
+    /// Optional user-provided instructions to focus the compaction summary
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_instructions: Option<String>,
 }
 
 /// Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
@@ -4907,6 +4925,22 @@ pub struct ScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Secret values to add to the redaction filter.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretsAddFilterValuesRequest {
+    /// Raw secret values to register for redaction
+    pub values: Vec<String>,
+}
+
+/// Confirmation that the secret values were registered.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretsAddFilterValuesResult {
+    /// Whether the values were successfully registered
+    pub ok: bool,
 }
 
 /// Blob attachment with inline base64-encoded data
@@ -10515,21 +10549,6 @@ pub struct SessionShellExecResult {
 pub struct SessionShellKillResult {
     /// Whether the signal was sent successfully
     pub killed: bool,
-}
-
-/// Identifies the target session.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionHistoryCompactParams {
-    /// Target session identifier
-    pub session_id: SessionId,
 }
 
 /// Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.

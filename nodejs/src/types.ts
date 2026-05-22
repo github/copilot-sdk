@@ -176,7 +176,7 @@ export interface CopilotClientOptions {
      * Working directory for the runtime process.
      * If not set, inherits the current process's working directory.
      */
-    cwd?: string;
+    workingDirectory?: string;
 
     /**
      * Base directory for Copilot data (session state, config, etc.).
@@ -298,13 +298,15 @@ export type ToolBinaryResult = {
     description?: string;
 };
 
+export type ToolTelemetry = Record<string, Record<string, unknown> | undefined>;
+
 export type ToolResultObject = {
     textResultForLlm: string;
     binaryResultsForLlm?: ToolBinaryResult[];
     resultType: ToolResultType;
     error?: string;
     sessionLog?: string;
-    toolTelemetry?: Record<string, unknown>;
+    toolTelemetry?: ToolTelemetry;
 };
 
 export type ToolResult = string | ToolResultObject;
@@ -1010,7 +1012,7 @@ export interface BaseHookInput {
     sessionId: string;
     /** Time at which the hook event was emitted by the runtime. */
     timestamp: Date;
-    cwd: string;
+    workingDirectory: string;
 }
 
 /**
@@ -1039,6 +1041,38 @@ export type PreToolUseHandler = (
     input: PreToolUseHookInput,
     invocation: { sessionId: string }
 ) => Promise<PreToolUseHookOutput | void> | PreToolUseHookOutput | void;
+
+/**
+ * Input for pre-MCP-tool-call hook
+ */
+export interface PreMcpToolCallHookInput extends BaseHookInput {
+    toolCallId?: string;
+    serverName: string;
+    toolName: string;
+    arguments: unknown;
+    _meta?: Record<string, unknown>;
+}
+
+/**
+ * Output for pre-MCP-tool-call hook
+ */
+export interface PreMcpToolCallHookOutput {
+    /**
+     * Hook-controlled metadata to use for the outgoing MCP request.
+     * - undefined/absent: preserve the current request `_meta`
+     * - object: use this object as request `_meta`
+     * - null: omit `_meta`
+     */
+    metaToUse?: Record<string, unknown> | null;
+}
+
+/**
+ * Handler for pre-MCP-tool-call hook
+ */
+export type PreMcpToolCallHandler = (
+    input: PreMcpToolCallHookInput,
+    invocation: { sessionId: string }
+) => Promise<PreMcpToolCallHookOutput | void> | PreMcpToolCallHookOutput | void;
 
 /**
  * Input for post-tool-use hook
@@ -1177,6 +1211,11 @@ export interface SessionHooks {
     onPreToolUse?: PreToolUseHandler;
 
     /**
+     * Called before an MCP tool is called
+     */
+    onPreMcpToolCall?: PreMcpToolCallHandler;
+
+    /**
      * Called after a tool is executed
      */
     onPostToolUse?: PostToolUseHandler;
@@ -1238,7 +1277,10 @@ export interface MCPStdioServerConfig extends MCPServerConfigBase {
      * Environment variables to pass to the server.
      */
     env?: Record<string, string>;
-    cwd?: string;
+    /**
+     * Working directory for the server process.
+     */
+    workingDirectory?: string;
 }
 
 /**
@@ -1810,7 +1852,7 @@ export type ConnectionState = "disconnected" | "connecting" | "connected" | "err
  */
 export interface SessionContext {
     /** Working directory where the session was created */
-    cwd: string;
+    workingDirectory: string;
     /** Git repository root (if in a git repo) */
     gitRoot?: string;
     /** GitHub repository in "owner/repo" format */
@@ -1858,8 +1900,8 @@ export interface SessionFsConfig {
  * Filter options for listing sessions
  */
 export interface SessionListFilter {
-    /** Filter by exact cwd match */
-    cwd?: string;
+    /** Filter by exact working directory match */
+    workingDirectory?: string;
     /** Filter by git root */
     gitRoot?: string;
     /** Filter by repository (owner/repo format) */
@@ -1877,7 +1919,7 @@ export interface SessionMetadata {
     modifiedTime: Date;
     summary?: string;
     isRemote: boolean;
-    /** Working directory context (cwd, git info) from session creation */
+    /** Working directory context (working directory, git info) from session creation */
     context?: SessionContext;
 }
 

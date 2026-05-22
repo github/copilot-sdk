@@ -58,8 +58,8 @@ func validateSessionFsConfig(config *SessionFsConfig) error {
 	if config == nil {
 		return nil
 	}
-	if config.InitialCwd == "" {
-		return errors.New("SessionFs.InitialCwd is required")
+	if config.InitialWorkingDirectory == "" {
+		return errors.New("SessionFs.InitialWorkingDirectory is required")
 	}
 	if config.SessionStatePath == "" {
 		return errors.New("SessionFs.SessionStatePath is required")
@@ -353,7 +353,7 @@ func (c *Client) Start(ctx context.Context) error {
 	// If a session filesystem provider was configured, register it.
 	if c.options.SessionFs != nil {
 		req := &rpc.SessionFsSetProviderRequest{
-			InitialCwd:       c.options.SessionFs.InitialCwd,
+			InitialCwd:       c.options.SessionFs.InitialWorkingDirectory,
 			SessionStatePath: c.options.SessionFs.SessionStatePath,
 			Conventions:      c.options.SessionFs.Conventions,
 		}
@@ -658,6 +658,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.RequestUserInput = Bool(true)
 	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+		config.Hooks.OnPreMcpToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
@@ -810,6 +811,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.RequestUserInput = Bool(true)
 	}
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
+		config.Hooks.OnPreMcpToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
@@ -943,7 +945,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 // Returns a list of SessionMetadata for all available sessions, including their IDs,
 // timestamps, optional summaries, and context information.
 //
-// An optional filter can be provided to filter sessions by cwd, git root, repository, or branch.
+// An optional filter can be provided to filter sessions by working directory, git root, repository, or branch.
 //
 // Example:
 //
@@ -1499,8 +1501,8 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 	configureProcAttr(c.process)
 
 	// Set working directory if specified
-	if c.options.Cwd != "" {
-		c.process.Dir = c.options.Cwd
+	if c.options.WorkingDirectory != "" {
+		c.process.Dir = c.options.WorkingDirectory
 	}
 
 	c.process.Env = append([]string{}, c.options.Env...)

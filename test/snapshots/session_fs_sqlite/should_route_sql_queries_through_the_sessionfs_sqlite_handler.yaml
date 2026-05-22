@@ -16,20 +16,11 @@ conversations:
             function:
               name: report_intent
               arguments: '{"intent":"Creating database table"}'
-      - role: assistant
-        tool_calls:
           - id: toolcall_1
             type: function
             function:
               name: sql
               arguments: '{"description":"Create items table","query":"CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)"}'
-      - role: assistant
-        tool_calls:
-          - id: toolcall_2
-            type: function
-            function:
-              name: sql
-              arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
   - messages:
       - role: system
         content: ${system}
@@ -49,17 +40,19 @@ conversations:
             function:
               name: sql
               arguments: '{"description":"Create items table","query":"CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT)"}'
-          - id: toolcall_2
-            type: function
-            function:
-              name: sql
-              arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
       - role: tool
         tool_call_id: toolcall_0
         content: Intent logged
       - role: tool
         tool_call_id: toolcall_1
         content: Schema operation completed successfully.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_2
+            type: function
+            function:
+              name: sql
+              arguments: "{\"description\":\"Insert Widget row\",\"query\":\"INSERT INTO items (id, name) VALUES ('a1', 'Widget')\"}"
       - role: tool
         tool_call_id: toolcall_2
         content: "1 row(s) inserted. Last inserted row ID: 1."

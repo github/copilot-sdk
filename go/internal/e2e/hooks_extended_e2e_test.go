@@ -110,7 +110,7 @@ func TestHooksExtendedE2E(t *testing.T) {
 		if inputs[0].Source != "new" {
 			t.Errorf("Expected source 'new', got %q", inputs[0].Source)
 		}
-		if inputs[0].Cwd == "" {
+		if inputs[0].WorkingDirectory == "" {
 			t.Error("Expected non-empty cwd in sessionStart hook input")
 		}
 	})

@@ -1469,7 +1469,7 @@ export interface ShutdownData {
   /**
    * Total number of premium API requests used during the session
    */
-  totalPremiumRequests: number;
+  totalPremiumRequests?: number;
 }
 /**
  * Aggregate code change metrics for the session
@@ -1512,11 +1512,11 @@ export interface ShutdownModelMetricRequests {
   /**
    * Cumulative cost multiplier for requests to this model
    */
-  cost: number;
+  cost?: number;
   /**
    * Total number of API requests made to this model
    */
-  count: number;
+  count?: number;
 }
 /**
  * Schema for the `ShutdownModelMetricTokenDetail` type.
@@ -1748,6 +1748,10 @@ export interface CompactionCompleteData {
    * Token count from non-system messages (user, assistant, tool) after compaction
    */
   conversationTokens?: number;
+  /**
+   * User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.
+   */
+  customInstructions?: string;
   /**
    * Error message if compaction failed
    */
@@ -2400,7 +2404,9 @@ export interface AssistantMessageData {
   /**
    * Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
    */
-  anthropicAdvisorBlocks?: unknown[];
+  anthropicAdvisorBlocks?: {
+    [k: string]: unknown | undefined;
+  }[];
   /**
    * Anthropic advisor model ID used for this response, for timeline display on replay
    */
@@ -2776,11 +2782,11 @@ export interface AssistantUsageQuotaSnapshot {
    */
   isUnlimitedEntitlement: boolean;
   /**
-   * Number of requests over the entitlement limit
+   * Number of additional usage requests made this period
    */
   overage: number;
   /**
-   * Whether overage is allowed when quota is exhausted
+   * Whether additional usage is allowed when quota is exhausted
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
@@ -3155,6 +3161,10 @@ export interface ToolExecutionCompleteData {
   parentToolCallId?: string;
   result?: ToolExecutionCompleteResult;
   /**
+   * Whether this tool execution ran inside a sandbox container
+   */
+  sandboxed?: boolean;
+  /**
    * Whether the tool execution completed successfully
    */
   success: boolean;
@@ -3166,7 +3176,11 @@ export interface ToolExecutionCompleteData {
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
   toolTelemetry?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -3872,7 +3886,11 @@ export interface SystemMessageMetadata {
    * Template variables used when constructing the prompt
    */
   variables?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
 }
 /**
@@ -5118,7 +5136,11 @@ export interface ElicitationRequestedSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * List of required field names

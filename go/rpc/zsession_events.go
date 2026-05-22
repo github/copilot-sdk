@@ -258,6 +258,8 @@ type SessionCompactionCompleteData struct {
 	CompactionTokensUsed *CompactionCompleteCompactionTokensUsed `json:"compactionTokensUsed,omitempty"`
 	// Token count from non-system messages (user, assistant, tool) after compaction
 	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
+	// User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.
+	CustomInstructions *string `json:"customInstructions,omitempty"`
 	// Error message if compaction failed
 	Error *string `json:"error,omitempty"`
 	// Number of messages removed during compaction
@@ -1052,7 +1054,7 @@ type SessionShutdownData struct {
 	// Session-wide accumulated nano-AI units cost
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
-	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
+	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
 }
 
 func (*SessionShutdownData) sessionEventData()      {}
@@ -1267,6 +1269,8 @@ type ToolExecutionCompleteData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
+	// Whether this tool execution ran inside a sandbox container
+	Sandboxed *bool `json:"sandboxed,omitempty"`
 	// Whether the tool execution completed successfully
 	Success bool `json:"success"`
 	// Unique identifier for the completed tool call
@@ -1486,9 +1490,9 @@ type AssistantUsageQuotaSnapshot struct {
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
-	// Number of requests over the entitlement limit
+	// Number of additional usage requests made this period
 	Overage float64 `json:"overage"`
-	// Whether overage is allowed when quota is exhausted
+	// Whether additional usage is allowed when quota is exhausted
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
 	// Percentage of quota remaining (0 to 100)
 	RemainingPercentage float64 `json:"remainingPercentage"`
@@ -2233,9 +2237,9 @@ type ShutdownModelMetric struct {
 // Request count and cost metrics
 type ShutdownModelMetricRequests struct {
 	// Cumulative cost multiplier for requests to this model
-	Cost float64 `json:"cost"`
+	Cost *float64 `json:"cost,omitempty"`
 	// Total number of API requests made to this model
-	Count int64 `json:"count"`
+	Count *int64 `json:"count,omitempty"`
 }
 
 // Schema for the `ShutdownModelMetricTokenDetail` type.

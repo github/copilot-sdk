@@ -41,7 +41,7 @@ SESSION_STATE_PATH = (
 )
 
 SESSION_FS_CONFIG: SessionFsConfig = {
-    "initial_cwd": "/",
+    "initial_working_directory": "/",
     "session_state_path": SESSION_STATE_PATH,
     "conventions": "posix",
     "capabilities": {"sqlite": True},
@@ -202,7 +202,7 @@ async def sqlite_client(ctx: E2ETestContext):
     client = CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
-            cwd=ctx.work_dir,
+            working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=DEFAULT_GITHUB_TOKEN,
             session_fs=SESSION_FS_CONFIG,

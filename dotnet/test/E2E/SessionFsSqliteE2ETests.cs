@@ -14,7 +14,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 {
     private static readonly SessionFsConfig SessionFsConfig = new()
     {
-        InitialCwd = "/",
+        InitialWorkingDirectory = "/",
         SessionStatePath = "/session-state",
         Conventions = SessionFsSetProviderConventions.Posix,
         Capabilities = new SessionFsSetProviderCapabilities { Sqlite = true },

@@ -98,7 +98,7 @@ export async function createSdkTestContext({
     const { connection: _ignoredConnection, ...remainingClientOptions } =
         copilotClientOptions ?? {};
     const copilotClient = new CopilotClient({
-        cwd: workDir,
+        workingDirectory: workDir,
         env,
         logLevel: logLevel || "error",
         connection,

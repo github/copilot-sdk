@@ -135,14 +135,14 @@ func TestClient_URLParsing(t *testing.T) {
 }
 
 func TestClient_SessionFsConfig(t *testing.T) {
-	t.Run("should throw error when InitialCwd is missing", func(t *testing.T) {
+	t.Run("should throw error when InitialWorkingDirectory is missing", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for missing SessionFs.InitialCwd")
+				t.Error("Expected panic for missing SessionFs.InitialWorkingDirectory")
 			} else {
-				matched, _ := regexp.MatchString("SessionFs.InitialCwd is required", r.(string))
+				matched, _ := regexp.MatchString("SessionFs.InitialWorkingDirectory is required", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'SessionFs.InitialCwd is required', got: %v", r)
+					t.Errorf("Expected panic message to contain 'SessionFs.InitialWorkingDirectory is required', got: %v", r)
 				}
 			}
 		}()
@@ -169,8 +169,8 @@ func TestClient_SessionFsConfig(t *testing.T) {
 
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
-				InitialCwd:  "/",
-				Conventions: rpc.SessionFsSetProviderConventionsPosix,
+				InitialWorkingDirectory: "/",
+				Conventions:             rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})

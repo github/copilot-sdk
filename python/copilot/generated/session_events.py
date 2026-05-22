@@ -2406,6 +2406,7 @@ class SessionCompactionCompleteData:
     checkpoint_path: str | None = None
     compaction_tokens_used: CompactionCompleteCompactionTokensUsed | None = None
     conversation_tokens: int | None = None
+    custom_instructions: str | None = None
     error: str | None = None
     messages_removed: int | None = None
     post_compaction_tokens: int | None = None
@@ -2425,6 +2426,7 @@ class SessionCompactionCompleteData:
         checkpoint_path = from_union([from_none, from_str], obj.get("checkpointPath"))
         compaction_tokens_used = from_union([from_none, CompactionCompleteCompactionTokensUsed.from_dict], obj.get("compactionTokensUsed"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
+        custom_instructions = from_union([from_none, from_str], obj.get("customInstructions"))
         error = from_union([from_none, from_str], obj.get("error"))
         messages_removed = from_union([from_none, from_int], obj.get("messagesRemoved"))
         post_compaction_tokens = from_union([from_none, from_int], obj.get("postCompactionTokens"))
@@ -2441,6 +2443,7 @@ class SessionCompactionCompleteData:
             checkpoint_path=checkpoint_path,
             compaction_tokens_used=compaction_tokens_used,
             conversation_tokens=conversation_tokens,
+            custom_instructions=custom_instructions,
             error=error,
             messages_removed=messages_removed,
             post_compaction_tokens=post_compaction_tokens,
@@ -2464,6 +2467,8 @@ class SessionCompactionCompleteData:
             result["compactionTokensUsed"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsed, x)], self.compaction_tokens_used)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
+        if self.custom_instructions is not None:
+            result["customInstructions"] = from_union([from_none, from_str], self.custom_instructions)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
         if self.messages_removed is not None:
@@ -3087,7 +3092,6 @@ class SessionShutdownData:
     session_start_time: int
     shutdown_type: ShutdownType
     total_api_duration: timedelta
-    total_premium_requests: float
     conversation_tokens: int | None = None
     current_model: str | None = None
     current_tokens: int | None = None
@@ -3096,6 +3100,7 @@ class SessionShutdownData:
     token_details: dict[str, ShutdownTokenDetail] | None = None
     tool_definitions_tokens: int | None = None
     total_nano_aiu: float | None = None
+    total_premium_requests: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionShutdownData":
@@ -3105,7 +3110,6 @@ class SessionShutdownData:
         session_start_time = from_int(obj.get("sessionStartTime"))
         shutdown_type = parse_enum(ShutdownType, obj.get("shutdownType"))
         total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
-        total_premium_requests = from_float(obj.get("totalPremiumRequests"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
@@ -3114,13 +3118,13 @@ class SessionShutdownData:
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
+        total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
         return SessionShutdownData(
             code_changes=code_changes,
             model_metrics=model_metrics,
             session_start_time=session_start_time,
             shutdown_type=shutdown_type,
             total_api_duration=total_api_duration,
-            total_premium_requests=total_premium_requests,
             conversation_tokens=conversation_tokens,
             current_model=current_model,
             current_tokens=current_tokens,
@@ -3129,6 +3133,7 @@ class SessionShutdownData:
             token_details=token_details,
             tool_definitions_tokens=tool_definitions_tokens,
             total_nano_aiu=total_nano_aiu,
+            total_premium_requests=total_premium_requests,
         )
 
     def to_dict(self) -> dict:
@@ -3138,7 +3143,6 @@ class SessionShutdownData:
         result["sessionStartTime"] = to_int(self.session_start_time)
         result["shutdownType"] = to_enum(ShutdownType, self.shutdown_type)
         result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
-        result["totalPremiumRequests"] = to_float(self.total_premium_requests)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.current_model is not None:
@@ -3155,6 +3159,8 @@ class SessionShutdownData:
             result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         if self.total_nano_aiu is not None:
             result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
+        if self.total_premium_requests is not None:
+            result["totalPremiumRequests"] = from_union([from_none, to_float], self.total_premium_requests)
         return result
 
 
@@ -3541,14 +3547,14 @@ class ShutdownModelMetric:
 @dataclass
 class ShutdownModelMetricRequests:
     "Request count and cost metrics"
-    cost: float
-    count: int
+    cost: float | None = None
+    count: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetricRequests":
         assert isinstance(obj, dict)
-        cost = from_float(obj.get("cost"))
-        count = from_int(obj.get("count"))
+        cost = from_union([from_none, from_float], obj.get("cost"))
+        count = from_union([from_none, from_int], obj.get("count"))
         return ShutdownModelMetricRequests(
             cost=cost,
             count=count,
@@ -3556,8 +3562,10 @@ class ShutdownModelMetricRequests:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["cost"] = to_float(self.cost)
-        result["count"] = to_int(self.count)
+        if self.cost is not None:
+            result["cost"] = from_union([from_none, to_float], self.cost)
+        if self.count is not None:
+            result["count"] = from_union([from_none, to_int], self.count)
         return result
 
 
@@ -4190,6 +4198,7 @@ class ToolExecutionCompleteData:
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     result: ToolExecutionCompleteResult | None = None
+    sandboxed: bool | None = None
     tool_telemetry: dict[str, Any] | None = None
     turn_id: str | None = None
 
@@ -4204,6 +4213,7 @@ class ToolExecutionCompleteData:
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
+        sandboxed = from_union([from_none, from_bool], obj.get("sandboxed"))
         tool_telemetry = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("toolTelemetry"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionCompleteData(
@@ -4215,6 +4225,7 @@ class ToolExecutionCompleteData:
             model=model,
             parent_tool_call_id=parent_tool_call_id,
             result=result,
+            sandboxed=sandboxed,
             tool_telemetry=tool_telemetry,
             turn_id=turn_id,
         )
@@ -4235,6 +4246,8 @@ class ToolExecutionCompleteData:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.result is not None:
             result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteResult, x)], self.result)
+        if self.sandboxed is not None:
+            result["sandboxed"] = from_union([from_none, from_bool], self.sandboxed)
         if self.tool_telemetry is not None:
             result["toolTelemetry"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.tool_telemetry)
         if self.turn_id is not None:

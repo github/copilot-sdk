@@ -277,11 +277,11 @@ public sealed class AccountQuotaSnapshot
     [JsonPropertyName("isUnlimitedEntitlement")]
     public bool IsUnlimitedEntitlement { get; set; }
 
-    /// <summary>Number of overage requests made this period.</summary>
+    /// <summary>Number of additional usage requests made this period.</summary>
     [JsonPropertyName("overage")]
     public double Overage { get; set; }
 
-    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    /// <summary>Whether additional usage is allowed when quota is exhausted.</summary>
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     public bool OverageAllowedWithExhaustedQuota { get; set; }
 
@@ -316,6 +316,22 @@ internal sealed class AccountGetQuotaRequest
     /// <summary>GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</summary>
     [JsonPropertyName("gitHubToken")]
     public string? GitHubToken { get; set; }
+}
+
+/// <summary>Confirmation that the secret values were registered.</summary>
+public sealed class SecretsAddFilterValuesResult
+{
+    /// <summary>Whether the values were successfully registered.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+}
+
+/// <summary>Secret values to add to the redaction filter.</summary>
+internal sealed class SecretsAddFilterValuesRequest
+{
+    /// <summary>Raw secret values to register for redaction.</summary>
+    [JsonPropertyName("values")]
+    public IList<string> Values { get => field ??= []; set; }
 }
 
 /// <summary>Schema for the `DiscoveredMcpServer` type.</summary>
@@ -1256,8 +1272,6 @@ public partial class SendAttachmentGithubReference : SendAttachment
     public required string Title { get; set; }
 
     /// <summary>URL to the referenced item on GitHub.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -6296,10 +6310,27 @@ public sealed class HistoryCompactResult
     public long TokensRemoved { get; set; }
 }
 
-/// <summary>Identifies the target session.</summary>
+/// <summary>Optional compaction parameters.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class SessionHistoryCompactRequest
+public sealed class HistoryCompactRequest
 {
+    /// <summary>Optional user-provided instructions to focus the compaction summary.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(4000)]
+    [JsonPropertyName("customInstructions")]
+    public string? CustomInstructions { get; set; }
+}
+
+/// <summary>Optional compaction parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HistoryCompactRequestWithSession
+{
+    /// <summary>Optional user-provided instructions to focus the compaction summary.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(4000)]
+    [JsonPropertyName("customInstructions")]
+    public string? CustomInstructions { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -10152,6 +10183,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Secrets APIs.</summary>
+    public ServerSecretsApi Secrets =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Mcp APIs.</summary>
     public ServerMcpApi Mcp =>
         field ??
@@ -10237,6 +10274,29 @@ public sealed class ServerAccountApi
     {
         var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
         return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Secrets APIs.</summary>
+public sealed class ServerSecretsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSecretsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).</summary>
+    /// <param name="values">Raw secret values to register for redaction.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Confirmation that the secret values were registered.</returns>
+    public async Task<SecretsAddFilterValuesResult> AddFilterValuesAsync(IList<string> values, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        var request = new SecretsAddFilterValuesRequest { Values = values };
+        return await CopilotClient.InvokeRpcAsync<SecretsAddFilterValuesResult>(_rpc, "secrets.addFilterValues", [request], cancellationToken);
     }
 }
 
@@ -12651,14 +12711,15 @@ public sealed class HistoryApi
     }
 
     /// <summary>Compacts the session history to reduce context usage.</summary>
+    /// <param name="request">Optional compaction parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.</returns>
-    public async Task<HistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
+    public async Task<HistoryCompactResult> CompactAsync(HistoryCompactRequest? request = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionHistoryCompactRequest { SessionId = _session.SessionId };
-        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_session.Rpc, "session.history.compact", [request], cancellationToken);
+        var rpcRequest = new HistoryCompactRequestWithSession { SessionId = _session.SessionId, CustomInstructions = request?.CustomInstructions };
+        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_session.Rpc, "session.history.compact", [rpcRequest], cancellationToken);
     }
 
     /// <summary>Truncates persisted session history to a specific event.</summary>
@@ -13362,6 +13423,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
 [JsonSerializable(typeof(HistoryCancelBackgroundCompactionResult))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
+[JsonSerializable(typeof(HistoryCompactRequest))]
+[JsonSerializable(typeof(HistoryCompactRequestWithSession))]
 [JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistorySummarizeForHandoffResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
@@ -13498,6 +13561,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ScheduleList))]
 [JsonSerializable(typeof(ScheduleStopRequest))]
 [JsonSerializable(typeof(ScheduleStopResult))]
+[JsonSerializable(typeof(SecretsAddFilterValuesRequest))]
+[JsonSerializable(typeof(SecretsAddFilterValuesResult))]
 [JsonSerializable(typeof(SendAttachment))]
 [JsonSerializable(typeof(SendAttachmentFileLineRange))]
 [JsonSerializable(typeof(SendAttachmentSelectionDetails))]
@@ -13545,7 +13610,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsWriteFileRequest))]
 [JsonSerializable(typeof(SessionHistoryAbortManualCompactionRequest))]
 [JsonSerializable(typeof(SessionHistoryCancelBackgroundCompactionRequest))]
-[JsonSerializable(typeof(SessionHistoryCompactRequest))]
 [JsonSerializable(typeof(SessionHistorySummarizeForHandoffRequest))]
 [JsonSerializable(typeof(SessionInstalledPlugin))]
 [JsonSerializable(typeof(SessionInstructionsGetSourcesRequest))]
