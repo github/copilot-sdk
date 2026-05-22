@@ -741,10 +741,10 @@ export interface ToolCallResponsePayload {
 }
 
 /**
- * Known system prompt section identifiers for the "customize" mode.
+ * Known system message section identifiers for the "customize" mode.
  * Each section corresponds to a distinct part of the system prompt.
  */
-export type SystemPromptSection =
+export type SystemMessageSection =
     | "identity"
     | "tone"
     | "tool_efficiency"
@@ -754,10 +754,11 @@ export type SystemPromptSection =
     | "safety"
     | "tool_instructions"
     | "custom_instructions"
+    | "runtime_instructions"
     | "last_instructions";
 
 /** Section metadata for documentation and tooling. */
-export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: string }> = {
+export const SYSTEM_MESSAGE_SECTIONS: Record<SystemMessageSection, { description: string }> = {
     identity: { description: "Agent identity preamble and mode statement" },
     tone: { description: "Response style, conciseness rules, output formatting preferences" },
     tool_efficiency: { description: "Tool usage patterns, parallel calling, batching guidelines" },
@@ -767,6 +768,10 @@ export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: 
     safety: { description: "Environment limitations, prohibited actions, security policies" },
     tool_instructions: { description: "Per-tool usage instructions" },
     custom_instructions: { description: "Repository and organization custom instructions" },
+    runtime_instructions: {
+        description:
+            "Runtime-provided context and instructions (e.g. system notifications, memories, workspace context, mode-specific instructions, content-exclusion policy)",
+    },
     last_instructions: {
         description:
             "End-of-prompt instructions: parallel tool calling, persistence, task completion",
@@ -795,7 +800,7 @@ export type SectionOverrideAction =
     | SectionTransformFn;
 
 /**
- * Override operation for a single system prompt section.
+ * Override operation for a single system message section.
  */
 export interface SectionOverride {
     /**
@@ -851,7 +856,7 @@ export interface SystemMessageCustomizeConfig {
      * Unknown section IDs gracefully fall back: content-bearing overrides are appended
      * to additional instructions, and "remove" on unknown sections is a silent no-op.
      */
-    sections?: Partial<Record<SystemPromptSection, SectionOverride>>;
+    sections?: Partial<Record<SystemMessageSection, SectionOverride>>;
 
     /**
      * Additional content appended after all sections.

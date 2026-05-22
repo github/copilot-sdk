@@ -170,7 +170,7 @@ class SystemMessageReplaceConfig(TypedDict):
     content: str
 
 
-# Known system prompt section identifiers for the "customize" mode.
+# Known system message section identifiers for the "customize" mode.
 
 SectionTransformFn = Callable[[str], str | Awaitable[str]]
 """Transform callback: receives current section content, returns new content."""
@@ -178,7 +178,7 @@ SectionTransformFn = Callable[[str], str | Awaitable[str]]
 SectionOverrideAction = Literal["replace", "remove", "append", "prepend"] | SectionTransformFn
 """Override action: a string literal for static overrides, or a callback for transforms."""
 
-SystemPromptSection = Literal[
+SystemMessageSection = Literal[
     "identity",
     "tone",
     "tool_efficiency",
@@ -188,10 +188,11 @@ SystemPromptSection = Literal[
     "safety",
     "tool_instructions",
     "custom_instructions",
+    "runtime_instructions",
     "last_instructions",
 ]
 
-SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
+SYSTEM_MESSAGE_SECTIONS: dict[SystemMessageSection, str] = {
     "identity": "Agent identity preamble and mode statement",
     "tone": "Response style, conciseness rules, output formatting preferences",
     "tool_efficiency": "Tool usage patterns, parallel calling, batching guidelines",
@@ -201,6 +202,11 @@ SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
     "safety": "Environment limitations, prohibited actions, security policies",
     "tool_instructions": "Per-tool usage instructions",
     "custom_instructions": "Repository and organization custom instructions",
+    "runtime_instructions": (
+        "Runtime-provided context and instructions"
+        " (e.g. system notifications, memories, workspace context,"
+        " mode-specific instructions, content-exclusion policy)"
+    ),
     "last_instructions": (
         "End-of-prompt instructions: parallel tool calling, persistence, task completion"
     ),
@@ -208,7 +214,7 @@ SYSTEM_PROMPT_SECTIONS: dict[SystemPromptSection, str] = {
 
 
 class SectionOverride(TypedDict, total=False):
-    """Override operation for a single system prompt section."""
+    """Override operation for a single system message section."""
 
     action: Required[SectionOverrideAction]
     content: NotRequired[str]
@@ -221,7 +227,7 @@ class SystemMessageCustomizeConfig(TypedDict, total=False):
     """
 
     mode: Required[Literal["customize"]]
-    sections: NotRequired[dict[SystemPromptSection, SectionOverride]]
+    sections: NotRequired[dict[SystemMessageSection, SectionOverride]]
     content: NotRequired[str]
 
 
