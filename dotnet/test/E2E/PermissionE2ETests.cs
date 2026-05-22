@@ -49,14 +49,14 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
 
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "test.txt"), "original content");
 
-        await session.SendAsync(new MessageOptions
+        var sendTask = session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Edit test.txt and replace 'original' with 'modified'"
         });
 
         var readRequest = await readPermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
         var writeRequest = await writePermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        await TestHelper.GetFinalAssistantMessageAsync(session);
+        await sendTask;
 
         List<PermissionRequest> observedPermissionRequests;
         lock (permissionRequestsLock)
