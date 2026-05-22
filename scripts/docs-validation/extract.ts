@@ -301,11 +301,15 @@ function wrapCodeForValidation(block: CodeBlock): string {
         }
       }
 
-      // Always ensure SDK usings are present
-      if (!usings.some(u => u.includes("GitHub.Copilot;"))) {
+      // Always ensure SDK usings are present. If the snippet already
+      // declares any GitHub.Copilot using, assume the author curated
+      // them and don't add others (avoids name ambiguities like
+      // ModelCapabilities living in both namespaces).
+      const hasAnyCopilotUsing = usings.some(u =>
+        u.includes("GitHub.Copilot;") || u.includes("GitHub.Copilot."),
+      );
+      if (!hasAnyCopilotUsing) {
         usings.push("using GitHub.Copilot;");
-      }
-      if (!usings.some(u => u.includes("GitHub.Copilot.Rpc"))) {
         usings.push("using GitHub.Copilot.Rpc;");
       }
 
@@ -338,12 +342,12 @@ ${indentedCode}
 }`;
       }
     } else {
-      // Has structure, but may still need using directives
-      if (!code.includes("using GitHub.Copilot;")) {
-        code = "using GitHub.Copilot;\n" + code;
-      }
-      if (!code.includes("using GitHub.Copilot.Rpc;")) {
-        code = "using GitHub.Copilot.Rpc;\n" + code;
+      // Has structure. Only add SDK usings if neither namespace is present;
+      // if the snippet declares its own using GitHub.Copilot statement,
+      // assume the author curated imports (avoids ambiguities like
+      // ModelCapabilities living in both namespaces).
+      if (!code.includes("using GitHub.Copilot")) {
+        code = "using GitHub.Copilot;\nusing GitHub.Copilot.Rpc;\n" + code;
       }
     }
   }

@@ -147,6 +147,7 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class HooksExample
 {
@@ -350,6 +351,7 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class PermissionControlExample
 {

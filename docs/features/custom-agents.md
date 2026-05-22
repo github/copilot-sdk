@@ -174,6 +174,7 @@ session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig

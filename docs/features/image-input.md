@@ -162,6 +162,7 @@ session.Send(ctx, copilot.MessageOptions{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class ImageInputExample
 {
@@ -194,6 +195,7 @@ public static class ImageInputExample
 
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -377,6 +379,7 @@ session.Send(ctx, copilot.MessageOptions{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class BlobAttachmentExample
 {

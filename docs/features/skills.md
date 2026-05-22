@@ -75,6 +75,7 @@ import (
     "context"
     "log"
     copilot "github.com/github/copilot-sdk/go"
+    "github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -116,6 +117,7 @@ func main() {
 
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -245,6 +247,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class SkillsExample
 {

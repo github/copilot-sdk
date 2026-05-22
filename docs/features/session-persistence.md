@@ -174,7 +174,6 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -204,6 +203,7 @@ session.SendAndWait(ctx, copilot.MessageOptions{Prompt: "What did we discuss ear
 <!-- docs-validate: hidden -->
 ```csharp
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class ResumeSessionExample
 {
