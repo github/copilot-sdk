@@ -25,7 +25,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 # ---------------------------------------------------------------------------
-# Multi-client context (TCP mode) — same pattern as test_multi_client.py
+# Multi-client context (TCP mode) â€” same pattern as test_multi_client.py
 # ---------------------------------------------------------------------------
 
 
@@ -121,7 +121,7 @@ class CommandsMultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "base_directory": self.home_dir,
+                "COPILOT_HOME": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }

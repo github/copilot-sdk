@@ -1,6 +1,6 @@
 """E2E UI Elicitation Tests (multi-client)
 
-Mirrors nodejs/test/e2e/ui_elicitation.test.ts — multi-client scenarios.
+Mirrors nodejs/test/e2e/ui_elicitation.test.ts â€” multi-client scenarios.
 
 Tests:
   - capabilities.changed fires when second client joins with elicitation handler
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 # ---------------------------------------------------------------------------
-# Multi-client context (TCP mode) — same pattern as test_multi_client.py
+# Multi-client context (TCP mode) â€” same pattern as test_multi_client.py
 # ---------------------------------------------------------------------------
 
 
@@ -128,7 +128,7 @@ class ElicitationMultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "base_directory": self.home_dir,
+                "COPILOT_HOME": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }
@@ -264,7 +264,7 @@ class TestUiElicitationMultiClient:
 
         unsubscribe = session1.on(on_event)
 
-        # Client 2 joins WITH elicitation handler — triggers capabilities.changed
+        # Client 2 joins WITH elicitation handler â€” triggers capabilities.changed
         async def handler(
             context: ElicitationContext,
         ) -> ElicitationResult:
@@ -340,7 +340,7 @@ class TestUiElicitationMultiClient:
 
         unsub_disabled = session1.on(on_disabled)
 
-        # Force-stop client 3 — destroys the socket, triggering server-side cleanup
+        # Force-stop client 3 â€” destroys the socket, triggering server-side cleanup
         await client3.force_stop()
 
         await asyncio.wait_for(cap_disabled.wait(), timeout=15.0)

@@ -135,7 +135,7 @@ class MultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "base_directory": self.home_dir,
+                "COPILOT_HOME": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }
@@ -206,7 +206,7 @@ class TestMultiClientBroadcast:
             on_permission_request=PermissionHandler.approve_all, tools=[magic_number]
         )
 
-        # Client 2 resumes with NO tools — should not overwrite client 1's tools
+        # Client 2 resumes with NO tools â€” should not overwrite client 1's tools
         session2 = await mctx.client2.resume_session(
             session1.session_id, on_permission_request=PermissionHandler.approve_all
         )

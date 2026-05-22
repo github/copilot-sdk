@@ -149,7 +149,7 @@ class E2ETestContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "base_directory": self.home_dir,
+                "COPILOT_HOME": self.home_dir,
                 "COPILOT_SDK_AUTH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GH_CONFIG_DIR": self.home_dir,
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,

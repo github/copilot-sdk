@@ -93,7 +93,7 @@ class TestClientLifecycle:
 
                 await _wait_for_condition(
                     lambda: any(
-                        getattr(e, "sessionId", None) == session.session_id for e in events
+                        getattr(e, "session_id", None) == session.session_id for e in events
                     ),
                     timeout=10.0,
                 )

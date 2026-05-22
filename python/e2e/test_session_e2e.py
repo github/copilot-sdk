@@ -301,10 +301,10 @@ class TestSessions:
 
         # Verify session metadata structure
         for session_data in sessions:
-            assert hasattr(session_data, "sessionId")
-            assert hasattr(session_data, "startTime")
-            assert hasattr(session_data, "modifiedTime")
-            assert hasattr(session_data, "isRemote")
+            assert hasattr(session_data, "session_id")
+            assert hasattr(session_data, "start_time")
+            assert hasattr(session_data, "modified_time")
+            assert hasattr(session_data, "is_remote")
             # summary is optional
             assert isinstance(session_data.session_id, str)
             assert isinstance(session_data.start_time, datetime)

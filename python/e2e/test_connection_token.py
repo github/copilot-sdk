@@ -78,7 +78,7 @@ class ConnectionTokenContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "base_directory": self.home_dir,
+                "COPILOT_HOME": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }

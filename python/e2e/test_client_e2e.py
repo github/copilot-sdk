@@ -104,7 +104,7 @@ class TestClient:
             status = await client.get_status()
             assert hasattr(status, "version")
             assert isinstance(status.version, str)
-            assert hasattr(status, "protocolVersion")
+            assert hasattr(status, "protocol_version")
             assert isinstance(status.protocol_version, int)
             assert status.protocol_version >= 1
 

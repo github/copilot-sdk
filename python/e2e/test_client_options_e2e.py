@@ -88,7 +88,7 @@ function saveCapture() {
     cwd: process.cwd(),
     requests,
     env: {
-      COPILOT_HOME: process.env.base_directory,
+      COPILOT_HOME: process.env.COPILOT_HOME,
       COPILOT_SDK_AUTH_TOKEN: process.env.COPILOT_SDK_AUTH_TOKEN,
       COPILOT_OTEL_ENABLED: process.env.COPILOT_OTEL_ENABLED,
       OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
@@ -239,7 +239,7 @@ class TestClientOptions:
                 cli_path=cli_path,
                 base_directory=copilot_home_from_option,
                 cli_args=["--capture-file", capture_path],
-                env={**ctx.get_env(), "base_directory": copilot_home_from_env},
+                env={**ctx.get_env(), "COPILOT_HOME": copilot_home_from_env},
                 github_token="process-option-token",
                 log_level="debug",
                 session_idle_timeout_seconds=17,
