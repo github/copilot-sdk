@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -101,10 +101,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    [SystemPromptSections.Tone] = new() { Action = SectionOverrideAction.Replace, Content = customTone },
-                    [SystemPromptSections.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
+                    [SystemMessageSection.Tone] = new() { Action = SectionOverrideAction.Replace, Content = customTone },
+                    [SystemMessageSection.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
                 },
                 Content = appendedContent
             }

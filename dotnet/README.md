@@ -1,4 +1,4 @@
-﻿# Copilot SDK
+# Copilot SDK
 
 SDK for programmatic control of GitHub Copilot CLI.
 
@@ -627,18 +627,18 @@ var session = await client.CreateSessionAsync(new SessionConfig
     SystemMessage = new SystemMessageConfig
     {
         Mode = SystemMessageMode.Customize,
-        Sections = new Dictionary<string, SectionOverride>
+        Sections = new Dictionary<SystemMessageSection, SectionOverride>
         {
-            [SystemPromptSections.Tone] = new() { Action = SectionOverrideAction.Replace, Content = "Respond in a warm, professional tone. Be thorough in explanations." },
-            [SystemPromptSections.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
-            [SystemPromptSections.Guidelines] = new() { Action = SectionOverrideAction.Append, Content = "\n* Always cite data sources" },
+            [SystemMessageSection.Tone] = new() { Action = SectionOverrideAction.Replace, Content = "Respond in a warm, professional tone. Be thorough in explanations." },
+            [SystemMessageSection.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
+            [SystemMessageSection.Guidelines] = new() { Action = SectionOverrideAction.Append, Content = "\n* Always cite data sources" },
         },
         Content = "Focus on financial analysis and reporting."
     }
 });
 ```
 
-Available section IDs are defined as constants on `SystemPromptSections`: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `LastInstructions`.
+Available section IDs are defined as members of the `SystemMessageSection` enum: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`.
 
 Each section override supports four actions: `Replace`, `Remove`, `Append`, and `Prepend`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 
