@@ -4,12 +4,18 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex as ParkingLotMutex;
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
+use crate::canvas::{
+    CanvasCloseRequest, CanvasDiscoverResult, CanvasFocusRequest, CanvasInvokeActionRequest,
+    CanvasInvokeActionResult, CanvasInvokeParams, CanvasListOpenResult, CanvasOpenRequest,
+    CanvasProviderRequestParams, CanvasRegistry, CanvasReloadRequest, OpenCanvasInstance,
+};
 use crate::generated::api_types::{LogRequest, ModelSwitchToRequest};
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
@@ -26,9 +32,10 @@ use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
-    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultExpanded, TraceContext, UiInputOptions, ensure_attachment_display_names,
+    PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
+    SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
+    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
+    UiInputOptions, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -162,6 +169,8 @@ pub struct Session {
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     /// Capabilities negotiated with the CLI, updated on `capabilities.changed` events.
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    /// Canvas instances currently known to be open for this session.
+    open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
 }
@@ -193,6 +202,17 @@ impl Session {
     /// via `capabilities.changed` events.
     pub fn capabilities(&self) -> SessionCapabilities {
         self.capabilities.read().clone()
+    }
+
+    /// Canvas host API methods for this session.
+    pub fn canvas(&self) -> SessionCanvas<'_> {
+        SessionCanvas { session: self }
+    }
+
+    /// Open canvas instances reported by the most recent `session.resume`
+    /// response or calls made through [`SessionCanvas`].
+    pub fn open_canvases(&self) -> Vec<OpenCanvasInstance> {
+        self.open_canvases.read().clone()
     }
 
     /// Returns a [`CancellationToken`] that fires when this session shuts
@@ -616,6 +636,119 @@ impl Drop for Session {
     }
 }
 
+/// Canvas host sub-API for a [`Session`].
+///
+/// Acquired via [`Session::canvas`]. Methods route to `session.canvas.*`
+/// RPCs, except [`list_open`](Self::list_open), which returns the SDK's local
+/// snapshot from resume and calls made through this handle.
+pub struct SessionCanvas<'a> {
+    session: &'a Session,
+}
+
+impl<'a> SessionCanvas<'a> {
+    /// Lists canvases declared for the session.
+    pub async fn discover(&self) -> Result<CanvasDiscoverResult, Error> {
+        self.call_session_only("session.canvas.discover").await
+    }
+
+    /// Lists currently open canvas instances for the live session.
+    pub async fn list_open(&self) -> Result<CanvasListOpenResult, Error> {
+        let result: CanvasListOpenResult =
+            self.call_session_only("session.canvas.listOpen").await?;
+        *self.session.open_canvases.write() = result.open_canvases.clone();
+        Ok(result)
+    }
+
+    /// Opens a canvas instance for the given extension/canvas pair.
+    pub async fn open(&self, request: CanvasOpenRequest) -> Result<OpenCanvasInstance, Error> {
+        let result: OpenCanvasInstance = self.call("session.canvas.open", &request).await?;
+
+        let mut open_canvases = self.session.open_canvases.write();
+        open_canvases.retain(|canvas| canvas.instance_id != result.instance_id);
+        open_canvases.push(result.clone());
+
+        Ok(result)
+    }
+
+    /// Focuses a previously opened canvas instance.
+    pub async fn focus(&self, request: CanvasFocusRequest) -> Result<(), Error> {
+        self.call_unit("session.canvas.focus", &request).await
+    }
+
+    /// Reloads a previously opened canvas instance.
+    pub async fn reload(&self, request: CanvasReloadRequest) -> Result<(), Error> {
+        self.call_unit("session.canvas.reload", &request).await
+    }
+
+    /// Closes a previously opened canvas instance.
+    pub async fn close(&self, request: CanvasCloseRequest) -> Result<(), Error> {
+        let instance_id = request.instance_id.clone();
+        self.call_unit("session.canvas.close", &request).await?;
+        self.session
+            .open_canvases
+            .write()
+            .retain(|canvas| canvas.instance_id != instance_id);
+        Ok(())
+    }
+
+    /// Invokes a declared agent action against an open canvas instance.
+    pub async fn invoke_action(
+        &self,
+        request: CanvasInvokeActionRequest,
+    ) -> Result<CanvasInvokeActionResult, Error> {
+        self.call("session.canvas.invokeAction", &request).await
+    }
+
+    async fn call<T, R>(&self, method: &str, request: &T) -> Result<R, Error>
+    where
+        T: Serialize,
+        R: DeserializeOwned,
+    {
+        let params = self.params_with_session_id(request)?;
+        let result = self.session.client.call(method, Some(params)).await?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    async fn call_unit<T>(&self, method: &str, request: &T) -> Result<(), Error>
+    where
+        T: Serialize,
+    {
+        let params = self.params_with_session_id(request)?;
+        self.session.client.call(method, Some(params)).await?;
+        Ok(())
+    }
+
+    async fn call_session_only<R>(&self, method: &str) -> Result<R, Error>
+    where
+        R: DeserializeOwned,
+    {
+        let result = self
+            .session
+            .client
+            .call(
+                method,
+                Some(serde_json::json!({ "sessionId": self.session.id })),
+            )
+            .await?;
+        Ok(serde_json::from_value(result)?)
+    }
+
+    fn params_with_session_id<T>(&self, request: &T) -> Result<Value, Error>
+    where
+        T: Serialize,
+    {
+        let mut params = serde_json::to_value(request)?;
+        let object = params
+            .as_object_mut()
+            .expect("serializing canvas request should produce an object");
+        object.insert(
+            "sessionId".to_string(),
+            serde_json::to_value(&self.session.id)?,
+        );
+        Ok(params)
+    }
+}
+
 /// UI sub-API for a [`Session`] — elicitation, confirmation, selection,
 /// and free-form input.
 ///
@@ -808,6 +941,7 @@ impl Client {
         let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
         let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let canvas_registry = Arc::new(std::mem::take(&mut runtime.canvas_registry));
         let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
@@ -840,6 +974,7 @@ impl Client {
             hooks,
             transforms,
             command_handlers,
+            canvas_registry,
             session_fs_provider,
             channels,
             idle_waiter.clone(),
@@ -902,6 +1037,7 @@ impl Client {
             shutdown,
             idle_waiter,
             capabilities,
+            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
             event_tx,
         })
     }
@@ -945,6 +1081,7 @@ impl Client {
         let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
         let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let canvas_registry = Arc::new(std::mem::take(&mut runtime.canvas_registry));
         let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
@@ -977,6 +1114,7 @@ impl Client {
             hooks,
             transforms,
             command_handlers,
+            canvas_registry,
             session_fs_provider,
             channels,
             idle_waiter.clone(),
@@ -1009,12 +1147,17 @@ impl Client {
             "Client::resume_session session resume request completed successfully"
         );
 
-        // The CLI may reassign the session ID on resume.
-        let cli_session_id: SessionId = result
-            .get("sessionId")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&session_id)
-            .into();
+        let resume_result: ResumeSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error.into());
+            }
+        };
+        let cli_session_id = resume_result
+            .session_id
+            .clone()
+            .unwrap_or_else(|| session_id.clone());
         if cli_session_id != session_id {
             registration.cleanup(event_loop).await;
             return Err(Error::Session(SessionError::SessionIdMismatch {
@@ -1022,19 +1165,6 @@ impl Client {
                 returned: cli_session_id,
             }));
         }
-
-        let resume_capabilities: Option<SessionCapabilities> = result
-            .get("capabilities")
-            .and_then(|v| {
-                serde_json::from_value(v.clone())
-                    .map_err(|e| warn!(error = %e, "failed to deserialize capabilities from resume response"))
-                    .ok()
-            });
-        let remote_url = result
-            .get("remoteUrl")
-            .or_else(|| result.get("remote_url"))
-            .and_then(|value| value.as_str())
-            .map(ToString::to_string);
 
         // Reload skills after resume (best-effort).
         let skills_reload_start = Instant::now();
@@ -1059,7 +1189,10 @@ impl Client {
             );
         }
 
-        *capabilities.write() = resume_capabilities.unwrap_or_default();
+        *capabilities.write() = resume_result.capabilities.unwrap_or_default();
+        let open_canvases = Arc::new(parking_lot::RwLock::new(
+            resume_result.open_canvases.unwrap_or_default(),
+        ));
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1070,13 +1203,14 @@ impl Client {
         Ok(Session {
             id: session_id,
             cwd: self.cwd().clone(),
-            workspace_path: None,
-            remote_url,
+            workspace_path: resume_result.workspace_path,
+            remote_url: resume_result.remote_url,
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
             idle_waiter,
             capabilities,
+            open_canvases,
             event_tx,
         })
     }
@@ -1104,6 +1238,7 @@ fn spawn_event_loop(
     hooks: Option<Arc<dyn SessionHooks>>,
     transforms: Option<Arc<dyn SystemMessageTransform>>,
     command_handlers: Arc<CommandHandlerMap>,
+    canvas_registry: Arc<CanvasRegistry>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
@@ -1138,9 +1273,15 @@ fn spawn_event_loop(
                         ).await;
                     }
                     Some(request) = requests.recv() => {
-                        handle_request(
-                            &session_id, &client, &handlers, hooks.as_deref(), transforms.as_deref(), session_fs_provider.as_ref(), request,
-                        ).await;
+                        let ctx = RequestDispatchContext {
+                            client: &client,
+                            handlers: &handlers,
+                            hooks: hooks.as_deref(),
+                            transforms: transforms.as_deref(),
+                            canvas_registry: &canvas_registry,
+                            session_fs_provider: session_fs_provider.as_ref(),
+                        };
+                        handle_request(&session_id, ctx, request).await;
                     }
                     else => break,
                 }
@@ -1688,17 +1829,28 @@ async fn handle_notification(
     }
 }
 
+struct RequestDispatchContext<'a> {
+    client: &'a Client,
+    handlers: &'a SessionHandlers,
+    hooks: Option<&'a dyn SessionHooks>,
+    transforms: Option<&'a dyn SystemMessageTransform>,
+    canvas_registry: &'a CanvasRegistry,
+    session_fs_provider: Option<&'a Arc<dyn SessionFsProvider>>,
+}
+
 /// Process a JSON-RPC request from the CLI.
 async fn handle_request(
     session_id: &SessionId,
-    client: &Client,
-    handlers: &SessionHandlers,
-    hooks: Option<&dyn SessionHooks>,
-    transforms: Option<&dyn SystemMessageTransform>,
-    session_fs_provider: Option<&Arc<dyn SessionFsProvider>>,
+    ctx: RequestDispatchContext<'_>,
     request: crate::JsonRpcRequest,
 ) {
     let sid = session_id.clone();
+    let client = ctx.client;
+    let handlers = ctx.handlers;
+    let hooks = ctx.hooks;
+    let transforms = ctx.transforms;
+    let canvas_registry = ctx.canvas_registry;
+    let session_fs_provider = ctx.session_fs_provider;
 
     if request.method.starts_with("sessionFs.") {
         crate::session_fs_dispatch::dispatch(client, session_fs_provider, request).await;
@@ -1706,6 +1858,39 @@ async fn handle_request(
     }
 
     match request.method.as_str() {
+        "canvas.open" => {
+            let Some(params) =
+                parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
+                    .await
+            else {
+                return;
+            };
+            let result = crate::canvas::dispatch_canvas_open(canvas_registry, params).await;
+            send_canvas_dispatch_response(client, request.id, result).await;
+        }
+
+        method @ ("canvas.focus" | "canvas.reload" | "canvas.close") => {
+            let Some(params) =
+                parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
+                    .await
+            else {
+                return;
+            };
+            let result =
+                crate::canvas::dispatch_canvas_lifecycle(canvas_registry, method, params).await;
+            send_canvas_dispatch_response(client, request.id, result).await;
+        }
+
+        "canvas.action.invoke" => {
+            let Some(params) =
+                parse_request_params::<CanvasInvokeParams>(client, request.id, &request).await
+            else {
+                return;
+            };
+            let result = crate::canvas::dispatch_canvas_action(canvas_registry, params).await;
+            send_canvas_dispatch_response(client, request.id, result).await;
+        }
+
         "hooks.invoke" => {
             let params = request.params.as_ref();
             let hook_type = params
@@ -1936,6 +2121,63 @@ async fn handle_request(
             .await;
         }
     }
+}
+
+async fn parse_request_params<T>(
+    client: &Client,
+    id: u64,
+    request: &crate::JsonRpcRequest,
+) -> Option<T>
+where
+    T: DeserializeOwned,
+{
+    let params = request
+        .params
+        .as_ref()
+        .cloned()
+        .unwrap_or(Value::Object(serde_json::Map::new()));
+    match serde_json::from_value(params) {
+        Ok(params) => Some(params),
+        Err(error) => {
+            let _ = send_error_response(
+                client,
+                id,
+                error_codes::INVALID_PARAMS,
+                &format!("invalid params: {error}"),
+            )
+            .await;
+            None
+        }
+    }
+}
+
+async fn send_canvas_dispatch_response(
+    client: &Client,
+    id: u64,
+    result: crate::canvas::CanvasResult<Value>,
+) {
+    let response = match result {
+        Ok(value) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: Some(value),
+            error: None,
+        },
+        Err(error) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(crate::JsonRpcError {
+                code: error_codes::INTERNAL_ERROR,
+                message: error.message.clone(),
+                data: Some(serde_json::json!({
+                    "code": error.code,
+                    "message": error.message,
+                })),
+            }),
+        },
+    };
+    let _ = client.send_response(&response).await;
 }
 
 async fn send_error_response(

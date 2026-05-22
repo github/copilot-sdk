@@ -12,6 +12,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::canvas::{
+    Canvas, CanvasDeclaration, CanvasRegistry, OpenCanvasInstance, build_registry,
+};
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
     UserInputHandler,
@@ -1088,6 +1091,12 @@ pub struct SessionConfig {
     pub system_message: Option<SystemMessageConfig>,
     /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
+    /// Canvas declarations this connection provides to the runtime.
+    pub canvases: Option<Vec<Canvas>>,
+    /// Request canvas renderer tools for this connection.
+    pub request_canvas_renderer: Option<bool>,
+    /// Request extension tools and dispatch for this connection.
+    pub request_extensions: Option<bool>,
     /// Allowlist of built-in tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
@@ -1211,6 +1220,9 @@ impl std::fmt::Debug for SessionConfig {
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("canvases", &self.canvases)
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
@@ -1290,6 +1302,9 @@ impl Default for SessionConfig {
             streaming: None,
             system_message: None,
             tools: None,
+            canvases: None,
+            request_canvas_renderer: None,
+            request_extensions: None,
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
@@ -1340,6 +1355,7 @@ pub(crate) struct SessionConfigRuntime {
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
+    pub canvas_registry: CanvasRegistry,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
@@ -1390,6 +1406,15 @@ impl SessionConfig {
                 })
                 .collect()
         });
+        let wire_canvases: Option<Vec<CanvasDeclaration>> = self
+            .canvases
+            .as_deref()
+            .map(|canvases| canvases.iter().map(|c| c.declaration().clone()).collect());
+        let canvas_registry = self
+            .canvases
+            .as_deref()
+            .map(build_registry)
+            .unwrap_or_default();
 
         let wire = crate::wire::SessionCreateWire {
             session_id,
@@ -1399,6 +1424,9 @@ impl SessionConfig {
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
+            canvases: wire_canvases,
+            request_canvas_renderer: self.request_canvas_renderer,
+            request_extensions: self.request_extensions,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             mcp_servers: self.mcp_servers,
@@ -1439,6 +1467,7 @@ impl SessionConfig {
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
+            canvas_registry,
             session_fs_provider: self.session_fs_provider,
             commands: self.commands,
         };
@@ -1586,6 +1615,24 @@ impl SessionConfig {
     /// Set the client-defined tools to expose to the agent.
     pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
         self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set canvas declarations and provider handlers for this connection.
+    pub fn with_canvases<I: IntoIterator<Item = Canvas>>(mut self, canvases: I) -> Self {
+        self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Request host canvas renderer tools for this connection.
+    pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
+        self.request_canvas_renderer = Some(request);
+        self
+    }
+
+    /// Request extension tools and dispatch for this connection.
+    pub fn with_request_extensions(mut self, request: bool) -> Self {
+        self.request_extensions = Some(request);
         self
     }
 
@@ -1773,6 +1820,12 @@ pub struct ResumeSessionConfig {
     pub system_message: Option<SystemMessageConfig>,
     /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
+    /// Canvas declarations this connection provides to the runtime.
+    pub canvases: Option<Vec<Canvas>>,
+    /// Request canvas renderer tools for this connection.
+    pub request_canvas_renderer: Option<bool>,
+    /// Request extension tools and dispatch for this connection.
+    pub request_extensions: Option<bool>,
     /// Allowlist of tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
@@ -1874,6 +1927,9 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("canvases", &self.canvases)
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
@@ -1980,6 +2036,15 @@ impl ResumeSessionConfig {
                 })
                 .collect()
         });
+        let wire_canvases: Option<Vec<CanvasDeclaration>> = self
+            .canvases
+            .as_deref()
+            .map(|canvases| canvases.iter().map(|c| c.declaration().clone()).collect());
+        let canvas_registry = self
+            .canvases
+            .as_deref()
+            .map(build_registry)
+            .unwrap_or_default();
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -1988,6 +2053,9 @@ impl ResumeSessionConfig {
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
+            canvases: wire_canvases,
+            request_canvas_renderer: self.request_canvas_renderer,
+            request_extensions: self.request_extensions,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             mcp_servers: self.mcp_servers,
@@ -2029,6 +2097,7 @@ impl ResumeSessionConfig {
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
+            canvas_registry,
             session_fs_provider: self.session_fs_provider,
             commands: self.commands,
         };
@@ -2048,6 +2117,9 @@ impl ResumeSessionConfig {
             streaming: None,
             system_message: None,
             tools: None,
+            canvases: None,
+            request_canvas_renderer: None,
+            request_extensions: None,
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
@@ -2199,6 +2271,24 @@ impl ResumeSessionConfig {
     /// Re-supply client-defined tools on resume.
     pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
         self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Re-supply canvas declarations and provider handlers on resume.
+    pub fn with_canvases<I: IntoIterator<Item = Canvas>>(mut self, canvases: I) -> Self {
+        self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Request host canvas renderer tools for this connection on resume.
+    pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
+        self.request_canvas_renderer = Some(request);
+        self
+    }
+
+    /// Request extension tools and dispatch for this connection on resume.
+    pub fn with_request_extensions(mut self, request: bool) -> Self {
+        self.request_extensions = Some(request);
         self
     }
 
@@ -2448,6 +2538,31 @@ pub struct CreateSessionResult {
     /// Capabilities negotiated with the CLI for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<SessionCapabilities>,
+}
+
+/// Response from `session.resume`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ResumeSessionResult {
+    /// The CLI-assigned session ID. Older runtimes may omit this on resume.
+    #[serde(default)]
+    pub session_id: Option<SessionId>,
+    /// Workspace directory for the session (infinite sessions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<PathBuf>,
+    /// Remote session URL, if the session is running remotely.
+    #[serde(default, alias = "remote_url")]
+    pub remote_url: Option<String>,
+    /// Capabilities negotiated with the CLI for this session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<SessionCapabilities>,
+    /// Canvas instances already open when the session was resumed.
+    #[serde(
+        default,
+        alias = "openCanvasInstances",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
 }
 
 /// Severity level for [`Session::log`](crate::session::Session::log) messages.
@@ -3282,6 +3397,9 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// Host-specific canvas capabilities.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
 }
 
 /// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.

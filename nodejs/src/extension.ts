@@ -10,6 +10,23 @@ import {
     type ResumeSessionConfig,
 } from "./types.js";
 
+export {
+    Canvas,
+    CanvasError,
+    createCanvas,
+    type CanvasActionContext,
+    type CanvasAgentActionDeclaration,
+    type CanvasDeclaration,
+    type CanvasHostContext,
+    type CanvasJsonSchema,
+    type CanvasLifecycleContext,
+    type CanvasOpenContext,
+    type CanvasOpenResponse,
+    type CanvasOptions,
+    type CanvasToolDefinition,
+    type CanvasToolbarItemDeclaration,
+} from "./canvas.js";
+
 export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
     onPermissionRequest?: PermissionHandler;
 };

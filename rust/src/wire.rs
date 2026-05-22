@@ -18,6 +18,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
+use crate::canvas::CanvasDeclaration;
 use crate::generated::api_types::{ModelCapabilitiesOverride, RemoteSessionMode};
 use crate::types::{
     CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, InfiniteSessionConfig,
@@ -52,6 +53,12 @@ pub(crate) struct SessionCreateWire {
     pub system_message: Option<SystemMessageConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_canvas_renderer: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_extensions: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,6 +125,12 @@ pub(crate) struct SessionResumeWire {
     pub system_message: Option<SystemMessageConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_canvas_renderer: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_extensions: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

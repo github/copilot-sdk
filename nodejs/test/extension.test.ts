@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopilotClient } from "../src/client.js";
 import { approveAll } from "../src/index.js";
-import { joinSession } from "../src/extension.js";
+import { createCanvas, joinSession } from "../src/extension.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 describe("joinSession", () => {
@@ -45,5 +45,15 @@ describe("joinSession", () => {
         const [, config] = resumeSession.mock.calls[0]!;
         expect(config.onPermissionRequest).toBe(approveAll);
         expect(config.suppressResumeEvent).toBe(false);
+    });
+
+    it("exports the canvas helper from the extension surface", () => {
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            onOpen: () => ({ url: "https://example.test/counter" }),
+        });
+
+        expect(canvas.declaration.id).toBe("counter");
     });
 });

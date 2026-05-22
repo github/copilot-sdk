@@ -6,6 +6,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use github_copilot_sdk::canvas::{
+    Canvas, CanvasActionContext, CanvasCloseRequest, CanvasDeclaration, CanvasHandler,
+    CanvasInvokeActionRequest, CanvasOpenContext, CanvasOpenRequest, CanvasOpenResponse,
+    CanvasResult,
+};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
@@ -21,6 +26,36 @@ use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(2);
+
+struct TestCanvasHandler;
+
+#[async_trait]
+impl CanvasHandler for TestCanvasHandler {
+    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
+        Ok(CanvasOpenResponse {
+            url: Some(format!("https://example.test/{}", ctx.canvas_id)),
+            title: Some("Test Canvas".to_string()),
+            status: Some("ready".to_string()),
+            toolbar: None,
+            tools: None,
+        })
+    }
+
+    async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+        Ok(serde_json::json!({
+            "actionName": ctx.action_name,
+            "input": ctx.input,
+        }))
+    }
+}
+
+fn test_canvas(id: &str) -> Canvas {
+    Canvas::builder(
+        CanvasDeclaration::new(id, "Test Canvas").with_description("Test canvas description"),
+    )
+    .handler(Arc::new(TestCanvasHandler))
+    .build()
+}
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
     let header = format!("Content-Length: {}\r\n\r\n", body.len());
@@ -287,6 +322,186 @@ async fn create_session_sends_correct_rpc() {
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
     assert_eq!(session.id(), session_id.as_str());
     assert_eq!(session.workspace_path(), Some(Path::new("/ws")));
+}
+
+#[tokio::test]
+async fn create_session_sends_canvas_wire_fields() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_canvases([test_canvas("counter")])
+                        .with_request_canvas_renderer(true)
+                        .with_request_extensions(true),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["canvases"][0]["id"], "counter");
+    assert_eq!(
+        request["params"]["canvases"][0]["displayName"],
+        "Test Canvas"
+    );
+    assert_eq!(request["params"]["requestCanvasRenderer"], true);
+    assert_eq!(request["params"]["requestExtensions"], true);
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
+    let (session, mut server) =
+        create_session_pair_with_config(|cfg| cfg.with_canvases([test_canvas("counter")])).await;
+
+    server
+        .send_request(
+            42,
+            "canvas.action.invoke",
+            serde_json::json!({
+                "sessionId": session.id(),
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "actionName": "increment",
+                "input": { "amount": 1 }
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 42);
+    assert_eq!(response["result"]["actionName"], "increment");
+    assert_eq!(response["result"]["input"]["amount"], 1);
+}
+
+#[tokio::test]
+async fn session_canvas_host_api_sends_requests_and_tracks_open_instances() {
+    let (session, mut server) = create_session_pair().await;
+
+    let open_handle = tokio::spawn({
+        async move {
+            let opened = session
+                .canvas()
+                .open(CanvasOpenRequest {
+                    extension_id: "project:counter".to_string(),
+                    canvas_id: "counter".to_string(),
+                    instance_id: "counter-1".to_string(),
+                    input: Some(serde_json::json!({ "seed": 1 })),
+                })
+                .await
+                .unwrap();
+            let listed = session.canvas().list_open().await.unwrap();
+            let invoked = session
+                .canvas()
+                .invoke_action(CanvasInvokeActionRequest {
+                    instance_id: opened.instance_id.clone(),
+                    action_name: "increment".to_string(),
+                    input: Some(serde_json::json!({ "amount": 1 })),
+                })
+                .await
+                .unwrap();
+            session
+                .canvas()
+                .close(CanvasCloseRequest {
+                    instance_id: opened.instance_id.clone(),
+                })
+                .await
+                .unwrap();
+            let listed_after_close = session.canvas().list_open().await.unwrap();
+            (opened, listed, invoked, listed_after_close)
+        }
+    });
+
+    let open_request = server.read_request().await;
+    assert_eq!(open_request["method"], "session.canvas.open");
+    assert_eq!(open_request["params"]["sessionId"], server.session_id);
+    assert_eq!(open_request["params"]["extensionId"], "project:counter");
+    assert_eq!(open_request["params"]["canvasId"], "counter");
+    assert_eq!(open_request["params"]["instanceId"], "counter-1");
+    assert_eq!(open_request["params"]["input"]["seed"], 1);
+    server
+        .respond(
+            &open_request,
+            serde_json::json!({
+                "instanceId": "counter-1",
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "url": "https://example.test/counter",
+                "reopen": false
+            }),
+        )
+        .await;
+
+    let list_request = server.read_request().await;
+    assert_eq!(list_request["method"], "session.canvas.listOpen");
+    server
+        .respond(
+            &list_request,
+            serde_json::json!({
+                "openCanvases": [{
+                    "instanceId": "counter-1",
+                    "extensionId": "project:counter",
+                    "canvasId": "counter",
+                    "url": "https://example.test/counter",
+                    "reopen": false
+                }]
+            }),
+        )
+        .await;
+
+    let invoke_request = server.read_request().await;
+    assert_eq!(invoke_request["method"], "session.canvas.invokeAction");
+    assert_eq!(invoke_request["params"]["instanceId"], "counter-1");
+    assert_eq!(invoke_request["params"]["actionName"], "increment");
+    assert_eq!(invoke_request["params"]["input"]["amount"], 1);
+    server
+        .respond(
+            &invoke_request,
+            serde_json::json!({ "result": { "count": 2 } }),
+        )
+        .await;
+
+    let close_request = server.read_request().await;
+    assert_eq!(close_request["method"], "session.canvas.close");
+    assert_eq!(close_request["params"]["instanceId"], "counter-1");
+    server.respond(&close_request, serde_json::json!({})).await;
+
+    let list_after_close_request = server.read_request().await;
+    assert_eq!(
+        list_after_close_request["method"],
+        "session.canvas.listOpen"
+    );
+    server
+        .respond(
+            &list_after_close_request,
+            serde_json::json!({ "openCanvases": [] }),
+        )
+        .await;
+
+    let (opened, listed, invoked, listed_after_close) =
+        timeout(TIMEOUT, open_handle).await.unwrap().unwrap();
+    assert_eq!(opened.instance_id, "counter-1");
+    assert_eq!(listed.open_canvases.len(), 1);
+    assert_eq!(listed.open_canvases[0].instance_id, "counter-1");
+    assert_eq!(invoked.result.unwrap()["count"], 2);
+    assert!(listed_after_close.open_canvases.is_empty());
 }
 
 #[tokio::test]
@@ -2378,6 +2593,63 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let cfg = ResumeSessionConfig::new(SessionId::from("canvas-resume"))
+                .with_canvases([test_canvas("counter")])
+                .with_request_canvas_renderer(true)
+                .with_request_extensions(true);
+            client.resume_session(cfg).await.unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["canvases"][0]["id"], "counter");
+    assert_eq!(request["params"]["requestCanvasRenderer"], true);
+    assert_eq!(request["params"]["requestExtensions"], true);
+    assert!(request["params"].get("openCanvasInstances").is_none());
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": {
+            "sessionId": "canvas-resume",
+            "openCanvases": [{
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "url": "https://example.test/counter",
+                "reopen": false
+            }],
+            "capabilities": {
+                "ui": { "canvases": true }
+            }
+        },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+    let open = session.open_canvases();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].instance_id, "counter-1");
+    let caps = session.capabilities();
+    assert_eq!(caps.ui.unwrap().canvases, Some(true));
 }
 
 #[tokio::test]

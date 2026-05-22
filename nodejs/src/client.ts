@@ -31,6 +31,11 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
+import {
+    type CanvasActionInvokeParams,
+    type CanvasProviderRequestParams,
+    dispatchCanvasProviderRequest,
+} from "./canvas.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
@@ -51,6 +56,7 @@ import type {
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
+    SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
     SessionLifecycleEvent,
@@ -803,6 +809,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -849,6 +856,9 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((canvas) => canvas.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -887,7 +897,7 @@ export class CopilotClient {
             const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
-                capabilities?: { ui?: { elicitation?: boolean } };
+                capabilities?: SessionCapabilities;
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
@@ -937,6 +947,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -987,6 +998,9 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((canvas) => canvas.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -1023,7 +1037,7 @@ export class CopilotClient {
             const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
-                capabilities?: { ui?: { elicitation?: boolean } };
+                capabilities?: SessionCapabilities;
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
@@ -1880,6 +1894,24 @@ export class CopilotClient {
                 await this.handleSystemMessageTransform(params)
         );
 
+        this.connection.onRequest("canvas.open", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.open", params)
+        );
+        this.connection.onRequest("canvas.focus", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.focus", params)
+        );
+        this.connection.onRequest("canvas.reload", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.reload", params)
+        );
+        this.connection.onRequest("canvas.close", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.close", params)
+        );
+        this.connection.onRequest(
+            "canvas.action.invoke",
+            async (params: CanvasActionInvokeParams) =>
+                this.handleCanvasProviderRequest(params.actionName, params)
+        );
+
         // Register client session API handlers.
         const sessions = this.sessions;
         registerClientSessionApiHandlers(this.connection, (sessionId) => {
@@ -2082,5 +2114,31 @@ export class CopilotClient {
         }
 
         return await session._handleSystemMessageTransform(params.sections);
+    }
+
+    private async handleCanvasProviderRequest(
+        actionName: string,
+        params: CanvasActionInvokeParams | CanvasProviderRequestParams
+    ): Promise<unknown> {
+        if (
+            !params ||
+            typeof params.sessionId !== "string" ||
+            typeof params.canvasId !== "string" ||
+            typeof params.instanceId !== "string"
+        ) {
+            throw new Error("Invalid canvas provider request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        const canvas = session.getCanvas(params.canvasId);
+        if (!canvas) {
+            throw new Error(`No canvas registered with id "${params.canvasId}"`);
+        }
+
+        return dispatchCanvasProviderRequest(canvas, actionName, params);
     }
 }
