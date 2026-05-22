@@ -68,7 +68,7 @@
         <Error Condition="'$(CopilotCliVersion)' == ''" Text="CopilotCliVersion could not be read from nodejs/package-lock.json" />
     </Target>
 
-    <Target Name="_GenerateVersionProps" DependsOnTargets="_GetCopilotCliVersion" BeforeTargets="Pack">
+    <Target Name="_GenerateVersionProps" DependsOnTargets="_GetCopilotCliVersion" BeforeTargets="_GetPackageFiles">
         <PropertyGroup>
             <_VersionPropsContent>
                 <![CDATA[<Project>
