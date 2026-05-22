@@ -4,10 +4,18 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 import { approveAll, RuntimeConnection } from "../../src/index.js";
-import type { MCPServerConfig } from "../../src/index.js";
+import type { CopilotSession, MCPServerConfig, MCPStdioServerConfig } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const TEST_MCP_SERVER = path.resolve(
+    path.dirname(__filename),
+    "../../../test/harness/test-mcp-server.mjs"
+);
+const TEST_HARNESS_DIR = path.dirname(TEST_MCP_SERVER);
 
 describe("Session MCP and skills RPC", async () => {
     // --yolo auto-approves extension permission gates at the CLI level,
@@ -32,6 +40,44 @@ describe("Session MCP and skills RPC", async () => {
         fs.mkdirSync(skillsDir, { recursive: true });
         createSkill(skillsDir, skillName, description);
         return skillsDir;
+    }
+
+    function createTestMcpServers(...serverNames: string[]): Record<string, MCPServerConfig> {
+        return Object.fromEntries(
+            serverNames.map((name) => [
+                name,
+                {
+                    type: "stdio",
+                    command: "node",
+                    args: [TEST_MCP_SERVER],
+                    workingDirectory: TEST_HARNESS_DIR,
+                    tools: ["*"],
+                } as MCPStdioServerConfig,
+            ])
+        );
+    }
+
+    async function waitForMcpServerStatus(
+        session: CopilotSession,
+        serverName: string,
+        expectedStatus = "connected"
+    ): Promise<void> {
+        const deadline = Date.now() + 60_000;
+        let lastStatus = "<not listed>";
+
+        while (Date.now() < deadline) {
+            const result = await session.rpc.mcp.list();
+            const server = result.servers.find((s) => s.name === serverName);
+            if (server?.status === expectedStatus) {
+                return;
+            }
+            lastStatus = server?.status ?? "<not listed>";
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        throw new Error(
+            `${serverName} did not reach ${expectedStatus}; last status was ${lastStatus}`
+        );
     }
 
     async function expectFailure(
@@ -106,20 +152,14 @@ describe("Session MCP and skills RPC", async () => {
 
     it("should list mcp servers with configured server", async () => {
         const serverName = "rpc-list-mcp-server";
-        const mcpServers: Record<string, MCPServerConfig> = {
-            [serverName]: {
-                type: "stdio",
-                command: "echo",
-                args: ["rpc-list-mcp-server"],
-                tools: ["*"],
-            },
-        };
+        const mcpServers = createTestMcpServers(serverName);
 
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             mcpServers,
         });
 
+        await waitForMcpServerStatus(session, serverName);
         const result = await session.rpc.mcp.list();
         const server = result.servers.find((s) => s.name === serverName);
         expect(server).toBeDefined();

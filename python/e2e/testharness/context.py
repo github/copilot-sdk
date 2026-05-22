@@ -4,11 +4,13 @@ Test context for E2E tests.
 Provides isolated directories and a replaying proxy for testing the SDK.
 """
 
+import asyncio
 import contextlib
 import os
 import re
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -177,3 +179,18 @@ class E2ETestContext:
         if not self._proxy:
             raise RuntimeError("Proxy not started")
         return await self._proxy.get_exchanges()
+
+    async def wait_for_exchanges(
+        self, minimum_count: int = 1, timeout: float = 120.0
+    ) -> list[dict[str, Any]]:
+        """Wait until the proxy has captured at least the requested exchanges."""
+        deadline = time.monotonic() + timeout
+        exchanges: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            exchanges = await self.get_exchanges()
+            if len(exchanges) >= minimum_count:
+                return exchanges
+            await asyncio.sleep(0.1)
+        raise TimeoutError(
+            f"Timed out waiting for {minimum_count} chat completion request(s)"
+        )

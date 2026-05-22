@@ -130,16 +130,20 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             AvailableTools = ["view", "edit"]
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-
-        var toolNames = GetToolNames(traffic[0]);
-        Assert.Equal(2, toolNames.Count);
-        Assert.Contains("view", toolNames);
-        Assert.Contains("edit", toolNames);
+        try
+        {
+            var traffic = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions { Prompt = "What is 1+1?" });
+            var toolNames = GetToolNames(traffic[0]);
+            Assert.Equal(2, toolNames.Count);
+            Assert.Contains("view", toolNames);
+            Assert.Contains("edit", toolNames);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -150,16 +154,20 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ExcludedTools = ["view"]
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-
-        var toolNames = GetToolNames(traffic[0]);
-        Assert.DoesNotContain("view", toolNames);
-        Assert.Contains("edit", toolNames);
-        Assert.Contains("grep", toolNames);
+        try
+        {
+            var traffic = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions { Prompt = "What is 1+1?" });
+            var toolNames = GetToolNames(traffic[0]);
+            Assert.DoesNotContain("view", toolNames);
+            Assert.Contains("edit", toolNames);
+            Assert.Contains("grep", toolNames);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -180,14 +188,18 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             },
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-
-        var toolNames = GetToolNames(traffic[0]);
-        Assert.DoesNotContain("secret_tool", toolNames);
+        try
+        {
+            var traffic = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions { Prompt = "What is 1+1?" });
+            var toolNames = GetToolNames(traffic[0]);
+            Assert.DoesNotContain("secret_tool", toolNames);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
