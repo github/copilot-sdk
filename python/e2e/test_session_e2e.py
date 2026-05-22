@@ -295,7 +295,7 @@ class TestSessions:
         sessions = await ctx.client.list_sessions()
         assert isinstance(sessions, list)
 
-        session_ids = [s.sessionId for s in sessions]
+        session_ids = [s.session_id for s in sessions]
         assert session1.session_id in session_ids
         assert session2.session_id in session_ids
 
@@ -306,10 +306,10 @@ class TestSessions:
             assert hasattr(session_data, "modifiedTime")
             assert hasattr(session_data, "isRemote")
             # summary is optional
-            assert isinstance(session_data.sessionId, str)
-            assert isinstance(session_data.startTime, datetime)
-            assert isinstance(session_data.modifiedTime, datetime)
-            assert isinstance(session_data.isRemote, bool)
+            assert isinstance(session_data.session_id, str)
+            assert isinstance(session_data.start_time, datetime)
+            assert isinstance(session_data.modified_time, datetime)
+            assert isinstance(session_data.is_remote, bool)
 
         # Verify context field is present
         for session_data in sessions:
@@ -333,7 +333,7 @@ class TestSessions:
 
         # Verify session exists in the list
         sessions = await ctx.client.list_sessions()
-        session_ids = [s.sessionId for s in sessions]
+        session_ids = [s.session_id for s in sessions]
         assert session_id in session_ids
 
         # Delete the session
@@ -341,7 +341,7 @@ class TestSessions:
 
         # Verify session no longer exists in the list
         sessions_after = await ctx.client.list_sessions()
-        session_ids_after = [s.sessionId for s in sessions_after]
+        session_ids_after = [s.session_id for s in sessions_after]
         assert session_id not in session_ids_after
 
         # Verify we cannot resume the deleted session
@@ -365,10 +365,10 @@ class TestSessions:
         # Get metadata for the session we just created
         metadata = await ctx.client.get_session_metadata(session.session_id)
         assert metadata is not None
-        assert metadata.sessionId == session.session_id
-        assert isinstance(metadata.startTime, datetime)
-        assert isinstance(metadata.modifiedTime, datetime)
-        assert isinstance(metadata.isRemote, bool)
+        assert metadata.session_id == session.session_id
+        assert isinstance(metadata.start_time, datetime)
+        assert isinstance(metadata.modified_time, datetime)
+        assert isinstance(metadata.is_remote, bool)
 
         # Verify context field is present
         if metadata.context is not None:
@@ -822,7 +822,7 @@ class TestSessions:
         our_session = None
         for _ in range(50):
             sessions = await ctx.client.list_sessions()
-            our_session = next((s for s in sessions if s.sessionId == session.session_id), None)
+            our_session = next((s for s in sessions if s.session_id == session.session_id), None)
             if our_session is not None:
                 break
             await asyncio.sleep(0.1)
@@ -854,9 +854,9 @@ class TestSessions:
                 break
             await asyncio.sleep(0.1)
         assert metadata is not None
-        assert metadata.sessionId == session.session_id
-        assert isinstance(metadata.startTime, datetime)
-        assert isinstance(metadata.modifiedTime, datetime)
+        assert metadata.session_id == session.session_id
+        assert isinstance(metadata.start_time, datetime)
+        assert isinstance(metadata.modified_time, datetime)
 
         not_found = await ctx.client.get_session_metadata("non-existent-session-id")
         assert not_found is None

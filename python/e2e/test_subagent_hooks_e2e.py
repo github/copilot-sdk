@@ -85,7 +85,7 @@ class TestSubagentHooks:
         assert len(view_pre) > 0, "preToolUse should fire for the sub-agent's 'view' tool call"
         assert len(view_post) > 0, "postToolUse should fire for the sub-agent's 'view' tool call"
 
-        # input.sessionId distinguishes parent from sub-agent
+        # input.session_id distinguishes parent from sub-agent
         assert view_pre[0]["sessionId"] != task_pre[0]["sessionId"], (
             "Sub-agent tool hooks should have a different sessionId than parent tool hooks"
         )

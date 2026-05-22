@@ -199,12 +199,12 @@ await client.set_foreground_session_id("session-123")
 
 # Subscribe to all lifecycle events
 def on_lifecycle(event):
-    print(f"{event.type}: {event.sessionId}")
+    print(f"{event.type}: {event.session_id}")
 
 unsubscribe = client.on_lifecycle(on_lifecycle)
 
 # Subscribe to specific event type
-unsubscribe = client.on_lifecycle("session.foreground", lambda e: print(f"Foreground: {e.sessionId}"))
+unsubscribe = client.on_lifecycle("session.foreground", lambda e: print(f"Foreground: {e.session_id}"))
 
 # Later, to stop receiving events:
 unsubscribe()

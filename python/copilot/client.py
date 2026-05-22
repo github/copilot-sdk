@@ -351,32 +351,32 @@ class PingResponse:
     """Response from ping"""
 
     message: str  # Echo message with "pong: " prefix
-    timestamp: datetime  # ISO 8601 timestamp when the ping was processed
-    protocolVersion: int  # Protocol version for SDK compatibility
+    timestamp: datetime  # Timestamp when the ping was processed
+    protocol_version: int  # Protocol version for SDK compatibility
 
     @staticmethod
     def from_dict(obj: Any) -> PingResponse:
         assert isinstance(obj, dict)
         message = obj.get("message")
         timestamp = obj.get("timestamp")
-        protocolVersion = obj.get("protocolVersion")
-        if message is None or timestamp is None or protocolVersion is None:
+        protocol_version = obj.get("protocolVersion")
+        if message is None or timestamp is None or protocol_version is None:
             raise ValueError(
                 f"Missing required fields in PingResponse: message={message}, "
-                f"timestamp={timestamp}, protocolVersion={protocolVersion}"
+                f"timestamp={timestamp}, protocolVersion={protocol_version}"
             )
         timestamp_value = (
             datetime.fromtimestamp(timestamp / 1000, tz=UTC)
             if isinstance(timestamp, (int, float))
             else from_datetime(timestamp)
         )
-        return PingResponse(str(message), timestamp_value, int(protocolVersion))
+        return PingResponse(str(message), timestamp_value, int(protocol_version))
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["message"] = self.message
         result["timestamp"] = self.timestamp.isoformat()
-        result["protocolVersion"] = self.protocolVersion
+        result["protocolVersion"] = self.protocol_version
         return result
 
 
@@ -757,7 +757,7 @@ class SessionContext:
     """Working directory context for a session"""
 
     working_directory: str  # Working directory where the session was created
-    gitRoot: str | None = None  # Git repository root (if in a git repo)
+    git_root: str | None = None  # Git repository root (if in a git repo)
     repository: str | None = None  # GitHub repository in "owner/repo" format
     branch: str | None = None  # Current git branch
 
@@ -769,15 +769,15 @@ class SessionContext:
             raise ValueError("Missing required field 'cwd' in SessionContext")
         return SessionContext(
             working_directory=str(cwd),
-            gitRoot=obj.get("gitRoot"),
+            git_root=obj.get("gitRoot"),
             repository=obj.get("repository"),
             branch=obj.get("branch"),
         )
 
     def to_dict(self) -> dict:
         result: dict = {"cwd": self.working_directory}
-        if self.gitRoot is not None:
-            result["gitRoot"] = self.gitRoot
+        if self.git_root is not None:
+            result["gitRoot"] = self.git_root
         if self.repository is not None:
             result["repository"] = self.repository
         if self.branch is not None:
@@ -790,7 +790,7 @@ class SessionListFilter:
     """Filter options for listing sessions"""
 
     working_directory: str | None = None  # Filter by exact working directory match
-    gitRoot: str | None = None  # Filter by git root
+    git_root: str | None = None  # Filter by git root
     repository: str | None = None  # Filter by repository (owner/repo format)
     branch: str | None = None  # Filter by branch
 
@@ -798,8 +798,8 @@ class SessionListFilter:
         result: dict = {}
         if self.working_directory is not None:
             result["cwd"] = self.working_directory
-        if self.gitRoot is not None:
-            result["gitRoot"] = self.gitRoot
+        if self.git_root is not None:
+            result["gitRoot"] = self.git_root
         if self.repository is not None:
             result["repository"] = self.repository
         if self.branch is not None:
@@ -811,43 +811,43 @@ class SessionListFilter:
 class SessionMetadata:
     """Metadata about a session"""
 
-    sessionId: str  # Session identifier
-    startTime: datetime  # Timestamp when session was created
-    modifiedTime: datetime  # Timestamp when session was last modified
-    isRemote: bool  # Whether the session is remote
+    session_id: str  # Session identifier
+    start_time: datetime  # Timestamp when session was created
+    modified_time: datetime  # Timestamp when session was last modified
+    is_remote: bool  # Whether the session is remote
     summary: str | None = None  # Optional summary of the session
     context: SessionContext | None = None  # Working directory context
 
     @staticmethod
     def from_dict(obj: Any) -> SessionMetadata:
         assert isinstance(obj, dict)
-        sessionId = obj.get("sessionId")
-        startTime = obj.get("startTime")
-        modifiedTime = obj.get("modifiedTime")
-        isRemote = obj.get("isRemote")
-        if sessionId is None or startTime is None or modifiedTime is None or isRemote is None:
+        session_id = obj.get("sessionId")
+        start_time = obj.get("startTime")
+        modified_time = obj.get("modifiedTime")
+        is_remote = obj.get("isRemote")
+        if session_id is None or start_time is None or modified_time is None or is_remote is None:
             raise ValueError(
-                f"Missing required fields in SessionMetadata: sessionId={sessionId}, "
-                f"startTime={startTime}, modifiedTime={modifiedTime}, isRemote={isRemote}"
+                f"Missing required fields in SessionMetadata: sessionId={session_id}, "
+                f"startTime={start_time}, modifiedTime={modified_time}, isRemote={is_remote}"
             )
         summary = obj.get("summary")
         context_dict = obj.get("context")
         context = SessionContext.from_dict(context_dict) if context_dict else None
         return SessionMetadata(
-            sessionId=str(sessionId),
-            startTime=_parse_session_timestamp(startTime),
-            modifiedTime=_parse_session_timestamp(modifiedTime),
-            isRemote=bool(isRemote),
+            session_id=str(session_id),
+            start_time=_parse_session_timestamp(start_time),
+            modified_time=_parse_session_timestamp(modified_time),
+            is_remote=bool(is_remote),
             summary=summary,
             context=context,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["sessionId"] = self.sessionId
-        result["startTime"] = self.startTime.isoformat()
-        result["modifiedTime"] = self.modifiedTime.isoformat()
-        result["isRemote"] = self.isRemote
+        result["sessionId"] = self.session_id
+        result["startTime"] = self.start_time.isoformat()
+        result["modifiedTime"] = self.modified_time.isoformat()
+        result["isRemote"] = self.is_remote
         if self.summary is not None:
             result["summary"] = self.summary
         if self.context is not None:
@@ -884,15 +884,15 @@ SessionLifecycleEventType = Literal[
 class SessionLifecycleEventMetadata:
     """Metadata for session lifecycle events."""
 
-    startTime: datetime
-    modifiedTime: datetime
+    start_time: datetime
+    modified_time: datetime
     summary: str | None = None
 
     @staticmethod
     def from_dict(data: dict) -> SessionLifecycleEventMetadata:
         return SessionLifecycleEventMetadata(
-            startTime=_parse_session_timestamp(data.get("startTime", "")),
-            modifiedTime=_parse_session_timestamp(data.get("modifiedTime", "")),
+            start_time=_parse_session_timestamp(data.get("startTime", "")),
+            modified_time=_parse_session_timestamp(data.get("modifiedTime", "")),
             summary=data.get("summary"),
         )
 
@@ -906,7 +906,7 @@ class SessionLifecycleEventBase:
     branch on the event kind.
     """
 
-    sessionId: str
+    session_id: str
     metadata: SessionLifecycleEventMetadata | None = None
 
 
@@ -962,17 +962,17 @@ def _session_lifecycle_event_from_dict(data: dict) -> SessionLifecycleEvent:
     session_id = data.get("sessionId", "")
     match data.get("type"):
         case "session.created":
-            return SessionCreatedEvent(sessionId=session_id, metadata=metadata)
+            return SessionCreatedEvent(session_id=session_id, metadata=metadata)
         case "session.deleted":
-            return SessionDeletedEvent(sessionId=session_id, metadata=metadata)
+            return SessionDeletedEvent(session_id=session_id, metadata=metadata)
         case "session.foreground":
-            return SessionForegroundEvent(sessionId=session_id, metadata=metadata)
+            return SessionForegroundEvent(session_id=session_id, metadata=metadata)
         case "session.background":
-            return SessionBackgroundEvent(sessionId=session_id, metadata=metadata)
+            return SessionBackgroundEvent(session_id=session_id, metadata=metadata)
         case _:
             # Default to ``session.updated`` for unknown event types so consumers
             # keep working across server upgrades.
-            return SessionUpdatedEvent(sessionId=session_id, metadata=metadata)
+            return SessionUpdatedEvent(session_id=session_id, metadata=metadata)
 
 
 SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
@@ -2419,7 +2419,7 @@ class CopilotClient:
         Example:
             >>> metadata = await client.get_session_metadata("session-123")
             >>> if metadata:
-            ...     print(f"Session started at: {metadata.startTime}")
+            ...     print(f"Session started at: {metadata.start_time}")
         """
         if not self._client:
             raise RuntimeError("Client not connected")
@@ -2573,11 +2573,11 @@ class CopilotClient:
         Example:
             >>> # Subscribe to specific event type
             >>> unsubscribe = client.on_lifecycle(
-            ...     "session.foreground", lambda e: print(e.sessionId)
+            ...     "session.foreground", lambda e: print(e.session_id)
             ... )
             >>>
             >>> # Subscribe to all events
-            >>> unsubscribe = client.on_lifecycle(lambda e: print(f"{e.type}: {e.sessionId}"))
+            >>> unsubscribe = client.on_lifecycle(lambda e: print(f"{e.type}: {e.session_id}"))
             >>>
             >>> # Later, to stop receiving events:
             >>> unsubscribe()

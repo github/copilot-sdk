@@ -118,7 +118,7 @@ class TestClientLifecycle:
             try:
                 event = await asyncio.wait_for(created, 10.0)
                 assert event.type == "session.created"
-                assert event.sessionId == session.session_id
+                assert event.session_id == session.session_id
             finally:
                 await session.disconnect()
         finally:
@@ -140,7 +140,7 @@ class TestClientLifecycle:
             try:
                 event = await asyncio.wait_for(created, 10.0)
                 assert event.type == "session.created"
-                assert event.sessionId == session.session_id
+                assert event.session_id == session.session_id
             finally:
                 await session.disconnect()
         finally:
@@ -170,7 +170,7 @@ class TestClientLifecycle:
             )
             try:
                 event = await asyncio.wait_for(active_event, 10.0)
-                assert event.sessionId == session.session_id
+                assert event.session_id == session.session_id
                 assert unsubscribed_count == 0, "Disposed handler should not have fired"
             finally:
                 await session.disconnect()
@@ -206,7 +206,7 @@ class TestClientLifecycle:
         def handler(event):
             if (
                 event.type == "session.updated"
-                and event.sessionId == session.session_id
+                and event.session_id == session.session_id
                 and not updated.done()
             ):
                 updated.set_result(event)
@@ -216,7 +216,7 @@ class TestClientLifecycle:
             await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
             event = await asyncio.wait_for(updated, timeout=15.0)
             assert event.type == "session.updated"
-            assert event.sessionId == session.session_id
+            assert event.session_id == session.session_id
         finally:
             unsubscribe()
             await session.disconnect()
@@ -241,7 +241,7 @@ class TestClientLifecycle:
         def handler(event):
             if (
                 event.type == "session.deleted"
-                and event.sessionId == session_id
+                and event.session_id == session_id
                 and not deleted.done()
             ):
                 deleted.set_result(event)
@@ -253,6 +253,6 @@ class TestClientLifecycle:
 
             event = await asyncio.wait_for(deleted, timeout=15.0)
             assert event.type == "session.deleted"
-            assert event.sessionId == session_id
+            assert event.session_id == session_id
         finally:
             unsubscribe()

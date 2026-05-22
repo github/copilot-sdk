@@ -105,8 +105,8 @@ class TestClient:
             assert hasattr(status, "version")
             assert isinstance(status.version, str)
             assert hasattr(status, "protocolVersion")
-            assert isinstance(status.protocolVersion, int)
-            assert status.protocolVersion >= 1
+            assert isinstance(status.protocol_version, int)
+            assert status.protocol_version >= 1
 
             await client.stop()
         finally:
