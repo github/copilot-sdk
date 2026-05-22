@@ -55,4 +55,3 @@ pub(crate) fn copilot_binary_with_extract_dir(
                `CliProgram::Path(...)` on `ClientOptions::program`.",
     })
 }
-
