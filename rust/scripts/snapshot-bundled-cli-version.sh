@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 #
 # Snapshot the Copilot CLI version + per-platform SHA-256 hashes for the
 # rust crate's bundled-CLI build.rs. Runs at SDK publish time, mirroring

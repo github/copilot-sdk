@@ -27,7 +27,7 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:sha2", "dep:zstd"]
+bundled-cli = ["dep:dirs", "dep:tar", "dep:flate2", "dep:zip"]
 derive = ["dep:schemars"]
 test-support = []
 
@@ -48,22 +48,25 @@ tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", 
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
-dirs = "5"
+dirs = { version = "5", optional = true }
 parking_lot = "0.12"
 regex = "1"
-sha2 = { version = "0.10", optional = true }
 getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
-zstd = { version = "0.13", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+
+[target.'cfg(not(windows))'.dependencies]
+flate2 = { version = "1", optional = true }
+tar = { version = "0.4", optional = true }
 
 [dev-dependencies]
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
 tempfile = "3"
-sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread"] }
-zstd = "0.13"
 
 [build-dependencies]
 flate2 = "1"
@@ -71,4 +74,3 @@ sha2 = "0.10"
 tar = "0.4"
 ureq = { version = "2", default-features = false, features = ["tls"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
-zstd = "0.13"

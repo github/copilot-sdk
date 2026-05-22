@@ -78,7 +78,7 @@ client.stop().await?;
 | `extra_args`  | `Vec<String>`               | Extra CLI flags                                                 |
 | `transport`   | `Transport`                 | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
 
-With the default `CliProgram::Resolve`, `Client::start()` automatically resolves the binary via `github_copilot_sdk::resolve::copilot_binary()` — checking `COPILOT_CLI_PATH`, the [embedded CLI](#embedded-cli), and then the system PATH. Use `CliProgram::Path(path)` to skip resolution.
+With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
 
 ### Session
 
@@ -740,7 +740,7 @@ none of them are scheduled for removal.
 | `transforms.rs`   | `SystemMessageTransform` trait, section-level system message customization                                                 |
 | `tool.rs`         | `ToolHandler` trait, `define_tool`, `schema_for::<T>()` (with `derive` feature)                                            |
 | `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
-| `resolve.rs`      | Binary resolution (`copilot_binary`, `node_binary`, `extended_path`)                                                       |
+| `resolve.rs`      | Bundled-CLI resolution (`copilot_binary`)                                                                                  |
 | `embeddedcli.rs`  | Embedded CLI extraction (gated on the default `bundled-cli` feature)                                                       |
 | `router.rs`       | Internal per-session event demux                                                                                           |
 | `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
@@ -785,9 +785,11 @@ let client = Client::start(options).await?;
 
 `copilot_binary()` checks these sources in order:
 
-1. `COPILOT_CLI_PATH` environment variable
-2. Embedded CLI (when the `bundled-cli` feature is enabled, which it is by default)
-3. System PATH + common install locations
+1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`
+2. `COPILOT_CLI_PATH` environment variable
+3. Embedded CLI (when the `bundled-cli` feature is enabled, which it is by default)
+
+There is no PATH scanning. If both 1+2 are unset and the SDK was built with `default-features = false`, `Client::start` returns `Error::BinaryNotFound`.
 
 ### Platforms
 
@@ -797,7 +799,7 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 
 | Feature        | Default | Description                                                                                                                                               |
 | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `sha2`, `zstd`. Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary). |
+| `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `dirs`, `tar`+`flate2` (Linux/macOS), or `zip` (Windows). Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary or when always supplying the CLI via `CliProgram::Path` / `COPILOT_CLI_PATH`). |
 | `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
 
 ```toml
