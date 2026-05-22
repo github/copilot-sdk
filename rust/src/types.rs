@@ -3584,8 +3584,9 @@ mod tests {
     #[test]
     #[allow(clippy::field_reassign_with_default)]
     fn session_config_into_wire_serializes_bucket_b_fields() {
-        use super::{CloudSessionOptions, CloudSessionRepository};
         use std::path::PathBuf;
+
+        use super::{CloudSessionOptions, CloudSessionRepository};
 
         let mut cfg = SessionConfig::default();
         cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
