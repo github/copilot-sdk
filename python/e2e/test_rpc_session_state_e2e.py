@@ -171,7 +171,7 @@ class TestRpcSessionState:
             assert initial_answer is not None
             assert "FORK_SOURCE_ALPHA" in (initial_answer.data.content or "")
 
-            source_messages = await session.get_messages()
+            source_messages = await session.get_events()
             source_conversation = _conversation_messages(source_messages)
             assert any(
                 role == "user" and content == source_prompt for role, content in source_conversation
@@ -192,7 +192,7 @@ class TestRpcSessionState:
                 on_permission_request=PermissionHandler.approve_all,
             )
             try:
-                forked_messages = await forked_session.get_messages()
+                forked_messages = await forked_session.get_events()
                 forked_conversation = _conversation_messages(forked_messages)
                 assert forked_conversation[: len(source_conversation)] == source_conversation
 
@@ -200,10 +200,10 @@ class TestRpcSessionState:
                 assert fork_answer is not None
                 assert "FORK_CHILD_BETA" in (fork_answer.data.content or "")
 
-                source_after_fork = _conversation_messages(await session.get_messages())
+                source_after_fork = _conversation_messages(await session.get_events())
                 assert all(content != fork_prompt for _, content in source_after_fork)
 
-                fork_after_prompt = _conversation_messages(await forked_session.get_messages())
+                fork_after_prompt = _conversation_messages(await forked_session.get_events())
                 assert any(
                     role == "user" and content == fork_prompt for role, content in fork_after_prompt
                 )
@@ -241,7 +241,7 @@ class TestRpcSessionState:
                 on_permission_request=PermissionHandler.approve_all,
             )
             try:
-                assert _conversation_messages(await forked_session.get_messages()) == []
+                assert _conversation_messages(await forked_session.get_events()) == []
             finally:
                 await forked_session.disconnect()
         finally:
@@ -506,7 +506,7 @@ class TestRpcSessionState:
             await session.send_and_wait(first_prompt, timeout=60.0)
             await session.send_and_wait(second_prompt, timeout=60.0)
 
-            source_events = await session.get_messages()
+            source_events = await session.get_events()
             second_user_event = next(
                 (
                     e
@@ -531,7 +531,7 @@ class TestRpcSessionState:
                 on_permission_request=PermissionHandler.approve_all,
             )
             try:
-                forked_events = await forked_session.get_messages()
+                forked_events = await forked_session.get_events()
                 forked_ids = {str(e.id) for e in forked_events}
                 assert boundary_event_id not in forked_ids, (
                     "toEventId is exclusive — boundary event must not be in forked session"

@@ -44,6 +44,13 @@ class TestClientApi:
         self, ctx: E2ETestContext
     ):
         await ctx.client.start()
+
+        # Other tests in this class create sessions, and pytest doesn't
+        # guarantee test execution order. Clear any leftover sessions so this
+        # test sees a genuinely empty state regardless of order.
+        for existing in await ctx.client.list_sessions():
+            await ctx.client.delete_session(existing.session_id)
+
         result = await ctx.client.get_last_session_id()
         assert result is None
 

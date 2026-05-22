@@ -2,8 +2,9 @@
 AUTO-GENERATED FILE - DO NOT EDIT
 Generated from: api.schema.json
 """
+from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import ClassVar, TYPE_CHECKING
 
 from .session_events import AbortReason, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval
 
@@ -382,6 +383,31 @@ class CommandsListRequest:
             result["includeClientCommands"] = from_union([from_bool, from_none], self.include_client_commands)
         if self.include_skills is not None:
             result["includeSkills"] = from_union([from_bool, from_none], self.include_skills)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class CommandsRespondToQueuedCommandRequest:
+    """Queued-command request ID and the result indicating whether the host executed it (and
+    whether to stop processing further queued commands).
+    """
+    request_id: str
+    """Request ID from the `command.queued` event the host is responding to."""
+
+    result: QueuedCommandResult
+    """Result of the queued command execution."""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'CommandsRespondToQueuedCommandRequest':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        result = _load_QueuedCommandResult(obj.get("result"))
+        return CommandsRespondToQueuedCommandRequest(request_id, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["result"] = (self.result).to_dict()
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -2446,6 +2472,30 @@ class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind(Enum)
 class PermissionDecisionRejectKind(Enum):
     REJECT = "reject"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionDecisionRequest:
+    """Pending permission request ID and the decision to apply (approve/reject and scope)."""
+
+    request_id: str
+    """Request ID of the pending permission request"""
+
+    result: PermissionDecision
+    """The client's response to the pending permission prompt"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionRequest':
+        assert isinstance(obj, dict)
+        request_id = from_str(obj.get("requestId"))
+        result = _load_PermissionDecision(obj.get("result"))
+        return PermissionDecisionRequest(request_id, result)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["requestId"] = from_str(self.request_id)
+        result["result"] = (self.result).to_dict()
+        return result
+
 class PermissionDecisionUserNotAvailableKind(Enum):
     USER_NOT_AVAILABLE = "user-not-available"
 
@@ -3224,7 +3274,7 @@ class QueueRemoveMostRecentResult:
 class QueuedCommandHandled:
     """Schema for the `QueuedCommandHandled` type."""
 
-    handled: bool
+    handled: ClassVar[str] = "true"
     """The host actually executed the queued command."""
 
     stop_processing_queue: bool | None = None
@@ -3235,13 +3285,12 @@ class QueuedCommandHandled:
     @staticmethod
     def from_dict(obj: Any) -> 'QueuedCommandHandled':
         assert isinstance(obj, dict)
-        handled = from_bool(obj.get("handled"))
         stop_processing_queue = from_union([from_bool, from_none], obj.get("stopProcessingQueue"))
-        return QueuedCommandHandled(handled, stop_processing_queue)
+        return QueuedCommandHandled(stop_processing_queue)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["handled"] = from_bool(self.handled)
+        result["handled"] = self.handled
         if self.stop_processing_queue is not None:
             result["stopProcessingQueue"] = from_union([from_bool, from_none], self.stop_processing_queue)
         return result
@@ -3251,7 +3300,7 @@ class QueuedCommandHandled:
 class QueuedCommandNotHandled:
     """Schema for the `QueuedCommandNotHandled` type."""
 
-    handled: bool
+    handled: ClassVar[str] = "false"
     """The host did not execute the queued command. Unblocks the queue without claiming the
     command was processed (e.g. when the handler threw before completing).
     """
@@ -3259,12 +3308,11 @@ class QueuedCommandNotHandled:
     @staticmethod
     def from_dict(obj: Any) -> 'QueuedCommandNotHandled':
         assert isinstance(obj, dict)
-        handled = from_bool(obj.get("handled"))
-        return QueuedCommandNotHandled(handled)
+        return QueuedCommandNotHandled()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["handled"] = from_bool(self.handled)
+        result["handled"] = self.handled
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -4239,6 +4287,31 @@ class SessionPruneResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class SessionSetCredentialsParams:
+    """New auth credentials to install on the session. Omit to leave credentials unchanged."""
+
+    credentials: AuthInfo | None = None
+    """The new auth credentials to install on the session. When omitted or `undefined`, the call
+    is a no-op and the session's existing credentials are preserved. The runtime stores the
+    value verbatim and uses it for outbound model/API requests; it does NOT re-validate or
+    re-fetch the associated Copilot user response. Several variants carry secret material;
+    treat this method's params as containing secrets at rest and in transit.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SessionSetCredentialsParams':
+        assert isinstance(obj, dict)
+        credentials = from_union([_load_AuthInfo, from_none], obj.get("credentials"))
+        return SessionSetCredentialsParams(credentials)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.credentials is not None:
+            result["credentials"] = from_union([lambda x: (x).to_dict(), from_none], self.credentials)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class SessionSetCredentialsResult:
     """Indicates whether the credential update succeeded."""
 
@@ -5196,6 +5269,25 @@ class TaskInfoType(Enum):
     AGENT = "agent"
     SHELL = "shell"
 
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TaskList:
+    """Background tasks currently tracked by the session."""
+
+    tasks: list[TaskInfo]
+    """Currently tracked tasks"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TaskList':
+        assert isinstance(obj, dict)
+        tasks = from_list(_load_TaskInfo, obj.get("tasks"))
+        return TaskList(tasks)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["tasks"] = from_list(lambda x: (x).to_dict(), self.tasks)
+        return result
+
 class TaskShellInfoType(Enum):
     SHELL = "shell"
 
@@ -5239,6 +5331,29 @@ class TasksCancelResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class TasksGetCurrentPromotableResult:
+    """The first sync-waiting task that can currently be promoted to background mode."""
+
+    task: TaskInfo | None = None
+    """The first sync-waiting task (agent first, then shell) that can currently be promoted to
+    background mode. Omitted if no such task exists. The returned task is guaranteed to have
+    executionMode='sync' and canPromoteToBackground=true at the time of the call.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksGetCurrentPromotableResult':
+        assert isinstance(obj, dict)
+        task = from_union([_load_TaskInfo, from_none], obj.get("task"))
+        return TasksGetCurrentPromotableResult(task)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.task is not None:
+            result["task"] = from_union([lambda x: (x).to_dict(), from_none], self.task)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class TasksGetProgressRequest:
     """Identifier of the background task to fetch progress for."""
 
@@ -5254,6 +5369,30 @@ class TasksGetProgressRequest:
     def to_dict(self) -> dict:
         result: dict = {}
         result["id"] = from_str(self.id)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class TasksPromoteCurrentToBackgroundResult:
+    """The promoted task as it now exists in background mode, omitted if no promotable task was
+    waiting.
+    """
+    task: TaskInfo | None = None
+    """The promoted task as it now exists in background mode, omitted if no promotable task was
+    waiting. Atomic operation: avoids the race window of getCurrentPromotable +
+    promoteToBackground.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'TasksPromoteCurrentToBackgroundResult':
+        assert isinstance(obj, dict)
+        task = from_union([_load_TaskInfo, from_none], obj.get("task"))
+        return TasksPromoteCurrentToBackgroundResult(task)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.task is not None:
+            result["task"] = from_union([lambda x: (x).to_dict(), from_none], self.task)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6312,7 +6451,7 @@ class SendAttachmentDirectory:
     path: str
     """Absolute directory path"""
 
-    type: SlashCommandInputCompletion
+    type: ClassVar[str] = "directory"
     """Attachment type discriminator"""
 
     @staticmethod
@@ -6320,14 +6459,13 @@ class SendAttachmentDirectory:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
-        type = SlashCommandInputCompletion(obj.get("type"))
-        return SendAttachmentDirectory(display_name, path, type)
+        return SendAttachmentDirectory(display_name, path)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["displayName"] = from_str(self.display_name)
         result["path"] = from_str(self.path)
-        result["type"] = to_enum(SlashCommandInputCompletion, self.type)
+        result["type"] = self.type
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6790,7 +6928,7 @@ class ExternalToolTextResultForLlmContentAudio:
     mime_type: str
     """MIME type of the audio (e.g., audio/wav, audio/mpeg)"""
 
-    type: ExternalToolTextResultForLlmContentAudioType
+    type: ClassVar[str] = "audio"
     """Content block type discriminator"""
 
     @staticmethod
@@ -6798,14 +6936,13 @@ class ExternalToolTextResultForLlmContentAudio:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
-        type = ExternalToolTextResultForLlmContentAudioType(obj.get("type"))
-        return ExternalToolTextResultForLlmContentAudio(data, mime_type, type)
+        return ExternalToolTextResultForLlmContentAudio(data, mime_type)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["data"] = from_str(self.data)
         result["mimeType"] = from_str(self.mime_type)
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentAudioType, self.type)
+        result["type"] = self.type
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6819,7 +6956,7 @@ class ExternalToolTextResultForLlmContentImage:
     mime_type: str
     """MIME type of the image (e.g., image/png, image/jpeg)"""
 
-    type: ExternalToolTextResultForLlmContentImageType
+    type: ClassVar[str] = "image"
     """Content block type discriminator"""
 
     @staticmethod
@@ -6827,14 +6964,13 @@ class ExternalToolTextResultForLlmContentImage:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
-        type = ExternalToolTextResultForLlmContentImageType(obj.get("type"))
-        return ExternalToolTextResultForLlmContentImage(data, mime_type, type)
+        return ExternalToolTextResultForLlmContentImage(data, mime_type)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["data"] = from_str(self.data)
         result["mimeType"] = from_str(self.mime_type)
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentImageType, self.type)
+        result["type"] = self.type
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6845,20 +6981,19 @@ class ExternalToolTextResultForLlmContentResource:
     resource: ExternalToolTextResultForLlmContentResourceDetails
     """The embedded resource contents, either text or base64-encoded binary"""
 
-    type: ExternalToolTextResultForLlmContentResourceType
+    type: ClassVar[str] = "resource"
     """Content block type discriminator"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResource':
         assert isinstance(obj, dict)
         resource = (lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x))(obj.get("resource"))
-        type = ExternalToolTextResultForLlmContentResourceType(obj.get("type"))
-        return ExternalToolTextResultForLlmContentResource(resource, type)
+        return ExternalToolTextResultForLlmContentResource(resource)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["resource"] = from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], self.resource)
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentResourceType, self.type)
+        result["type"] = self.type
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6869,7 +7004,7 @@ class ExternalToolTextResultForLlmContentTerminal:
     text: str
     """Terminal/shell output text"""
 
-    type: ExternalToolTextResultForLlmContentTerminalType
+    type: ClassVar[str] = "terminal"
     """Content block type discriminator"""
 
     cwd: str | None = None
@@ -6882,15 +7017,14 @@ class ExternalToolTextResultForLlmContentTerminal:
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentTerminal':
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
-        type = ExternalToolTextResultForLlmContentTerminalType(obj.get("type"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         exit_code = from_union([from_int, from_none], obj.get("exitCode"))
-        return ExternalToolTextResultForLlmContentTerminal(text, type, cwd, exit_code)
+        return ExternalToolTextResultForLlmContentTerminal(text, cwd, exit_code)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["text"] = from_str(self.text)
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentTerminalType, self.type)
+        result["type"] = self.type
         if self.cwd is not None:
             result["cwd"] = from_union([from_str, from_none], self.cwd)
         if self.exit_code is not None:
@@ -6905,20 +7039,19 @@ class ExternalToolTextResultForLlmContentText:
     text: str
     """The text content"""
 
-    type: KindEnum
+    type: ClassVar[str] = "text"
     """Content block type discriminator"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentText':
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
-        type = KindEnum(obj.get("type"))
-        return ExternalToolTextResultForLlmContentText(text, type)
+        return ExternalToolTextResultForLlmContentText(text)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["text"] = from_str(self.text)
-        result["type"] = to_enum(KindEnum, self.type)
+        result["type"] = self.type
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -6926,7 +7059,7 @@ class ExternalToolTextResultForLlmContentText:
 class SlashCommandTextResult:
     """Schema for the `SlashCommandTextResult` type."""
 
-    kind: KindEnum
+    kind: ClassVar[str] = "text"
     """Text result discriminator"""
 
     text: str
@@ -6946,16 +7079,15 @@ class SlashCommandTextResult:
     @staticmethod
     def from_dict(obj: Any) -> 'SlashCommandTextResult':
         assert isinstance(obj, dict)
-        kind = KindEnum(obj.get("kind"))
         text = from_str(obj.get("text"))
         markdown = from_union([from_bool, from_none], obj.get("markdown"))
         preserve_ansi = from_union([from_bool, from_none], obj.get("preserveAnsi"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandTextResult(kind, text, markdown, preserve_ansi, runtime_settings_changed)
+        return SlashCommandTextResult(text, markdown, preserve_ansi, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(KindEnum, self.kind)
+        result["kind"] = self.kind
         result["text"] = from_str(self.text)
         if self.markdown is not None:
             result["markdown"] = from_union([from_bool, from_none], self.markdown)
@@ -7977,26 +8109,53 @@ class PendingPermissionRequestList:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
+class PermissionDecisionApproveForLocation:
+    """Schema for the `PermissionDecisionApproveForLocation` type."""
+
+    approval: PermissionDecisionApproveForLocationApproval
+    """Approval to persist for this location"""
+
+    kind: ClassVar[str] = "approve-for-location"
+    """Approve and persist for this project location"""
+
+    location_key: str
+    """Location key (git root or cwd) to persist the approval to"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocation':
+        assert isinstance(obj, dict)
+        approval = _load_PermissionDecisionApproveForLocationApproval(obj.get("approval"))
+        location_key = from_str(obj.get("locationKey"))
+        return PermissionDecisionApproveForLocation(approval, location_key)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["approval"] = (self.approval).to_dict()
+        result["kind"] = self.kind
+        result["locationKey"] = from_str(self.location_key)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
 class PermissionDecisionApproveForLocationApprovalCommands:
     """Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type."""
 
     command_identifiers: list[str]
     """Command identifiers covered by this approval."""
 
-    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
+    kind: ClassVar[str] = "commands"
     """Approval scoped to specific command identifiers."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCommands':
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
-        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
-        return PermissionDecisionApproveForLocationApprovalCommands(command_identifiers, kind)
+        return PermissionDecisionApproveForLocationApprovalCommands(command_identifiers)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8007,20 +8166,19 @@ class PermissionDecisionApproveForSessionApprovalCommands:
     command_identifiers: list[str]
     """Command identifiers covered by this approval."""
 
-    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
+    kind: ClassVar[str] = "commands"
     """Approval scoped to specific command identifiers."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCommands':
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
-        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
-        return PermissionDecisionApproveForSessionApprovalCommands(command_identifiers, kind)
+        return PermissionDecisionApproveForSessionApprovalCommands(command_identifiers)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8031,43 +8189,19 @@ class PermissionsLocationsAddToolApprovalDetailsCommands:
     command_identifiers: list[str]
     """Command identifiers covered by this approval."""
 
-    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
+    kind: ClassVar[str] = "commands"
     """Approval scoped to specific command identifiers."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsCommands':
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
-        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
-        return PermissionsLocationsAddToolApprovalDetailsCommands(command_identifiers, kind)
+        return PermissionsLocationsAddToolApprovalDetailsCommands(command_identifiers)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
-        return result
-
-@dataclass
-class UserToolSessionApprovalCommands:
-    """Schema for the `UserToolSessionApprovalCommands` type."""
-
-    command_identifiers: list[str]
-    """Command identifiers approved by the user"""
-
-    kind: PermissionDecisionApproveForLocationApprovalCommandsKind
-    """Command approval kind"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalCommands':
-        assert isinstance(obj, dict)
-        command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
-        kind = PermissionDecisionApproveForLocationApprovalCommandsKind(obj.get("kind"))
-        return UserToolSessionApprovalCommands(command_identifiers, kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["commandIdentifiers"] = from_list(from_str, self.command_identifiers)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCommandsKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8075,7 +8209,7 @@ class UserToolSessionApprovalCommands:
 class PermissionDecisionApproveForLocationApprovalCustomTool:
     """Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
+    kind: ClassVar[str] = "custom-tool"
     """Approval covering a custom tool."""
 
     tool_name: str
@@ -8084,13 +8218,12 @@ class PermissionDecisionApproveForLocationApprovalCustomTool:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCustomTool':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
         tool_name = from_str(obj.get("toolName"))
-        return PermissionDecisionApproveForLocationApprovalCustomTool(kind, tool_name)
+        return PermissionDecisionApproveForLocationApprovalCustomTool(tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
+        result["kind"] = self.kind
         result["toolName"] = from_str(self.tool_name)
         return result
 
@@ -8099,7 +8232,7 @@ class PermissionDecisionApproveForLocationApprovalCustomTool:
 class PermissionDecisionApproveForSessionApprovalCustomTool:
     """Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
+    kind: ClassVar[str] = "custom-tool"
     """Approval covering a custom tool."""
 
     tool_name: str
@@ -8108,13 +8241,12 @@ class PermissionDecisionApproveForSessionApprovalCustomTool:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCustomTool':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
         tool_name = from_str(obj.get("toolName"))
-        return PermissionDecisionApproveForSessionApprovalCustomTool(kind, tool_name)
+        return PermissionDecisionApproveForSessionApprovalCustomTool(tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
+        result["kind"] = self.kind
         result["toolName"] = from_str(self.tool_name)
         return result
 
@@ -8123,7 +8255,7 @@ class PermissionDecisionApproveForSessionApprovalCustomTool:
 class PermissionsLocationsAddToolApprovalDetailsCustomTool:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
+    kind: ClassVar[str] = "custom-tool"
     """Approval covering a custom tool."""
 
     tool_name: str
@@ -8132,36 +8264,12 @@ class PermissionsLocationsAddToolApprovalDetailsCustomTool:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsCustomTool':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
         tool_name = from_str(obj.get("toolName"))
-        return PermissionsLocationsAddToolApprovalDetailsCustomTool(kind, tool_name)
+        return PermissionsLocationsAddToolApprovalDetailsCustomTool(tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
-        result["toolName"] = from_str(self.tool_name)
-        return result
-
-@dataclass
-class UserToolSessionApprovalCustomTool:
-    """Schema for the `UserToolSessionApprovalCustomTool` type."""
-
-    kind: PermissionDecisionApproveForLocationApprovalCustomToolKind
-    """Custom tool approval kind"""
-
-    tool_name: str
-    """Custom tool name"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalCustomTool':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalCustomToolKind(obj.get("kind"))
-        tool_name = from_str(obj.get("toolName"))
-        return UserToolSessionApprovalCustomTool(kind, tool_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalCustomToolKind, self.kind)
+        result["kind"] = self.kind
         result["toolName"] = from_str(self.tool_name)
         return result
 
@@ -8170,7 +8278,7 @@ class UserToolSessionApprovalCustomTool:
 class PermissionDecisionApproveForLocationApprovalExtensionManagement:
     """Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    kind: ClassVar[str] = "extension-management"
     """Approval covering extension lifecycle operations such as enable, disable, or reload."""
 
     operation: str | None = None
@@ -8181,13 +8289,12 @@ class PermissionDecisionApproveForLocationApprovalExtensionManagement:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionManagement':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
         operation = from_union([from_str, from_none], obj.get("operation"))
-        return PermissionDecisionApproveForLocationApprovalExtensionManagement(kind, operation)
+        return PermissionDecisionApproveForLocationApprovalExtensionManagement(operation)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
+        result["kind"] = self.kind
         if self.operation is not None:
             result["operation"] = from_union([from_str, from_none], self.operation)
         return result
@@ -8197,7 +8304,7 @@ class PermissionDecisionApproveForLocationApprovalExtensionManagement:
 class PermissionDecisionApproveForSessionApprovalExtensionManagement:
     """Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    kind: ClassVar[str] = "extension-management"
     """Approval covering extension lifecycle operations such as enable, disable, or reload."""
 
     operation: str | None = None
@@ -8208,13 +8315,12 @@ class PermissionDecisionApproveForSessionApprovalExtensionManagement:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionManagement':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
         operation = from_union([from_str, from_none], obj.get("operation"))
-        return PermissionDecisionApproveForSessionApprovalExtensionManagement(kind, operation)
+        return PermissionDecisionApproveForSessionApprovalExtensionManagement(operation)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
+        result["kind"] = self.kind
         if self.operation is not None:
             result["operation"] = from_union([from_str, from_none], self.operation)
         return result
@@ -8224,7 +8330,7 @@ class PermissionDecisionApproveForSessionApprovalExtensionManagement:
 class PermissionsLocationsAddToolApprovalDetailsExtensionManagement:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
+    kind: ClassVar[str] = "extension-management"
     """Approval covering extension lifecycle operations such as enable, disable, or reload."""
 
     operation: str | None = None
@@ -8235,13 +8341,12 @@ class PermissionsLocationsAddToolApprovalDetailsExtensionManagement:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsExtensionManagement':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
         operation = from_union([from_str, from_none], obj.get("operation"))
-        return PermissionsLocationsAddToolApprovalDetailsExtensionManagement(kind, operation)
+        return PermissionsLocationsAddToolApprovalDetailsExtensionManagement(operation)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
+        result["kind"] = self.kind
         if self.operation is not None:
             result["operation"] = from_union([from_str, from_none], self.operation)
         return result
@@ -8251,7 +8356,7 @@ class PermissionsLocationsAddToolApprovalDetailsExtensionManagement:
 class PermissionDecisionApproveForLocationApprovalMCP:
     """Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMCPKind
+    kind: ClassVar[str] = "mcp"
     """Approval covering an MCP tool."""
 
     server_name: str
@@ -8263,14 +8368,13 @@ class PermissionDecisionApproveForLocationApprovalMCP:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCP':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApproveForLocationApprovalMCP(kind, server_name, tool_name)
+        return PermissionDecisionApproveForLocationApprovalMCP(server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
+        result["kind"] = self.kind
         result["serverName"] = from_str(self.server_name)
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
@@ -8280,7 +8384,7 @@ class PermissionDecisionApproveForLocationApprovalMCP:
 class PermissionDecisionApproveForSessionApprovalMCP:
     """Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMCPKind
+    kind: ClassVar[str] = "mcp"
     """Approval covering an MCP tool."""
 
     server_name: str
@@ -8292,14 +8396,13 @@ class PermissionDecisionApproveForSessionApprovalMCP:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCP':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionDecisionApproveForSessionApprovalMCP(kind, server_name, tool_name)
+        return PermissionDecisionApproveForSessionApprovalMCP(server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
+        result["kind"] = self.kind
         result["serverName"] = from_str(self.server_name)
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
@@ -8309,7 +8412,7 @@ class PermissionDecisionApproveForSessionApprovalMCP:
 class PermissionsLocationsAddToolApprovalDetailsMCP:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMCPKind
+    kind: ClassVar[str] = "mcp"
     """Approval covering an MCP tool."""
 
     server_name: str
@@ -8321,42 +8424,13 @@ class PermissionsLocationsAddToolApprovalDetailsMCP:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMCP':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return PermissionsLocationsAddToolApprovalDetailsMCP(kind, server_name, tool_name)
+        return PermissionsLocationsAddToolApprovalDetailsMCP(server_name, tool_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
-        result["serverName"] = from_str(self.server_name)
-        result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        return result
-
-@dataclass
-class UserToolSessionApprovalMCP:
-    """Schema for the `UserToolSessionApprovalMcp` type."""
-
-    kind: PermissionDecisionApproveForLocationApprovalMCPKind
-    """MCP tool approval kind"""
-
-    server_name: str
-    """MCP server name"""
-
-    tool_name: str | None = None
-    """Optional MCP tool name, or null for all tools on the server"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalMCP':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPKind(obj.get("kind"))
-        server_name = from_str(obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        return UserToolSessionApprovalMCP(kind, server_name, tool_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPKind, self.kind)
+        result["kind"] = self.kind
         result["serverName"] = from_str(self.server_name)
         result["toolName"] = from_union([from_none, from_str], self.tool_name)
         return result
@@ -8366,7 +8440,7 @@ class UserToolSessionApprovalMCP:
 class PermissionDecisionApproveForLocationApprovalMCPSampling:
     """Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
+    kind: ClassVar[str] = "mcp-sampling"
     """Approval covering MCP sampling requests for a server."""
 
     server_name: str
@@ -8375,13 +8449,12 @@ class PermissionDecisionApproveForLocationApprovalMCPSampling:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCPSampling':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPSamplingKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
-        return PermissionDecisionApproveForLocationApprovalMCPSampling(kind, server_name)
+        return PermissionDecisionApproveForLocationApprovalMCPSampling(server_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPSamplingKind, self.kind)
+        result["kind"] = self.kind
         result["serverName"] = from_str(self.server_name)
         return result
 
@@ -8390,7 +8463,7 @@ class PermissionDecisionApproveForLocationApprovalMCPSampling:
 class PermissionDecisionApproveForSessionApprovalMCPSampling:
     """Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
+    kind: ClassVar[str] = "mcp-sampling"
     """Approval covering MCP sampling requests for a server."""
 
     server_name: str
@@ -8399,13 +8472,12 @@ class PermissionDecisionApproveForSessionApprovalMCPSampling:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCPSampling':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPSamplingKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
-        return PermissionDecisionApproveForSessionApprovalMCPSampling(kind, server_name)
+        return PermissionDecisionApproveForSessionApprovalMCPSampling(server_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPSamplingKind, self.kind)
+        result["kind"] = self.kind
         result["serverName"] = from_str(self.server_name)
         return result
 
@@ -8414,7 +8486,7 @@ class PermissionDecisionApproveForSessionApprovalMCPSampling:
 class PermissionsLocationsAddToolApprovalDetailsMCPSampling:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMCPSamplingKind
+    kind: ClassVar[str] = "mcp-sampling"
     """Approval covering MCP sampling requests for a server."""
 
     server_name: str
@@ -8423,13 +8495,12 @@ class PermissionsLocationsAddToolApprovalDetailsMCPSampling:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMCPSampling':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMCPSamplingKind(obj.get("kind"))
         server_name = from_str(obj.get("serverName"))
-        return PermissionsLocationsAddToolApprovalDetailsMCPSampling(kind, server_name)
+        return PermissionsLocationsAddToolApprovalDetailsMCPSampling(server_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMCPSamplingKind, self.kind)
+        result["kind"] = self.kind
         result["serverName"] = from_str(self.server_name)
         return result
 
@@ -8438,18 +8509,17 @@ class PermissionsLocationsAddToolApprovalDetailsMCPSampling:
 class PermissionDecisionApproveForLocationApprovalMemory:
     """Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
+    kind: ClassVar[str] = "memory"
     """Approval covering writes to long-term memory."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMemory':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
-        return PermissionDecisionApproveForLocationApprovalMemory(kind)
+        return PermissionDecisionApproveForLocationApprovalMemory()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8457,18 +8527,17 @@ class PermissionDecisionApproveForLocationApprovalMemory:
 class PermissionDecisionApproveForSessionApprovalMemory:
     """Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
+    kind: ClassVar[str] = "memory"
     """Approval covering writes to long-term memory."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMemory':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
-        return PermissionDecisionApproveForSessionApprovalMemory(kind)
+        return PermissionDecisionApproveForSessionApprovalMemory()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8476,36 +8545,17 @@ class PermissionDecisionApproveForSessionApprovalMemory:
 class PermissionsLocationsAddToolApprovalDetailsMemory:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
+    kind: ClassVar[str] = "memory"
     """Approval covering writes to long-term memory."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMemory':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
-        return PermissionsLocationsAddToolApprovalDetailsMemory(kind)
+        return PermissionsLocationsAddToolApprovalDetailsMemory()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
-        return result
-
-@dataclass
-class UserToolSessionApprovalMemory:
-    """Schema for the `UserToolSessionApprovalMemory` type."""
-
-    kind: PermissionDecisionApproveForLocationApprovalMemoryKind
-    """Memory approval kind"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalMemory':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalMemoryKind(obj.get("kind"))
-        return UserToolSessionApprovalMemory(kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalMemoryKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8513,18 +8563,17 @@ class UserToolSessionApprovalMemory:
 class PermissionDecisionApproveForLocationApprovalRead:
     """Schema for the `PermissionDecisionApproveForLocationApprovalRead` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalReadKind
+    kind: ClassVar[str] = "read"
     """Approval covering read-only filesystem operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalRead':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
-        return PermissionDecisionApproveForLocationApprovalRead(kind)
+        return PermissionDecisionApproveForLocationApprovalRead()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8532,18 +8581,17 @@ class PermissionDecisionApproveForLocationApprovalRead:
 class PermissionDecisionApproveForSessionApprovalRead:
     """Schema for the `PermissionDecisionApproveForSessionApprovalRead` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalReadKind
+    kind: ClassVar[str] = "read"
     """Approval covering read-only filesystem operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalRead':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
-        return PermissionDecisionApproveForSessionApprovalRead(kind)
+        return PermissionDecisionApproveForSessionApprovalRead()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8551,36 +8599,17 @@ class PermissionDecisionApproveForSessionApprovalRead:
 class PermissionsLocationsAddToolApprovalDetailsRead:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalReadKind
+    kind: ClassVar[str] = "read"
     """Approval covering read-only filesystem operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsRead':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
-        return PermissionsLocationsAddToolApprovalDetailsRead(kind)
+        return PermissionsLocationsAddToolApprovalDetailsRead()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
-        return result
-
-@dataclass
-class UserToolSessionApprovalRead:
-    """Schema for the `UserToolSessionApprovalRead` type."""
-
-    kind: PermissionDecisionApproveForLocationApprovalReadKind
-    """Read approval kind"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalRead':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalReadKind(obj.get("kind"))
-        return UserToolSessionApprovalRead(kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalReadKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8588,18 +8617,17 @@ class UserToolSessionApprovalRead:
 class PermissionDecisionApproveForLocationApprovalWrite:
     """Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalWriteKind
+    kind: ClassVar[str] = "write"
     """Approval covering filesystem write operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalWrite':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
-        return PermissionDecisionApproveForLocationApprovalWrite(kind)
+        return PermissionDecisionApproveForLocationApprovalWrite()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8607,18 +8635,17 @@ class PermissionDecisionApproveForLocationApprovalWrite:
 class PermissionDecisionApproveForSessionApprovalWrite:
     """Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalWriteKind
+    kind: ClassVar[str] = "write"
     """Approval covering filesystem write operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalWrite':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
-        return PermissionDecisionApproveForSessionApprovalWrite(kind)
+        return PermissionDecisionApproveForSessionApprovalWrite()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8626,36 +8653,47 @@ class PermissionDecisionApproveForSessionApprovalWrite:
 class PermissionsLocationsAddToolApprovalDetailsWrite:
     """Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalWriteKind
+    kind: ClassVar[str] = "write"
     """Approval covering filesystem write operations."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsWrite':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
-        return PermissionsLocationsAddToolApprovalDetailsWrite(kind)
+        return PermissionsLocationsAddToolApprovalDetailsWrite()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
+        result["kind"] = self.kind
         return result
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class UserToolSessionApprovalWrite:
-    """Schema for the `UserToolSessionApprovalWrite` type."""
+class PermissionDecisionApproveForSession:
+    """Schema for the `PermissionDecisionApproveForSession` type."""
 
-    kind: PermissionDecisionApproveForLocationApprovalWriteKind
-    """Write approval kind"""
+    kind: ClassVar[str] = "approve-for-session"
+    """Approve and remember for the rest of the session"""
+
+    approval: PermissionDecisionApproveForSessionApproval | None = None
+    """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)"""
+
+    domain: str | None = None
+    """URL domain to approve for the rest of the session (URL prompts only)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalWrite':
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalWriteKind(obj.get("kind"))
-        return UserToolSessionApprovalWrite(kind)
+        approval = from_union([_load_PermissionDecisionApproveForSessionApproval, from_none], obj.get("approval"))
+        domain = from_union([from_str, from_none], obj.get("domain"))
+        return PermissionDecisionApproveForSession(approval, domain)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalWriteKind, self.kind)
+        result["kind"] = self.kind
+        if self.approval is not None:
+            result["approval"] = from_union([lambda x: (x).to_dict(), from_none], self.approval)
+        if self.domain is not None:
+            result["domain"] = from_union([from_str, from_none], self.domain)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8663,18 +8701,17 @@ class UserToolSessionApprovalWrite:
 class PermissionDecisionApproveOnce:
     """Schema for the `PermissionDecisionApproveOnce` type."""
 
-    kind: PermissionDecisionApproveOnceKind
+    kind: ClassVar[str] = "approve-once"
     """Approve this single request only"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveOnce':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveOnceKind(obj.get("kind"))
-        return PermissionDecisionApproveOnce(kind)
+        return PermissionDecisionApproveOnce()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveOnceKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8685,20 +8722,19 @@ class PermissionDecisionApprovePermanently:
     domain: str
     """URL domain to approve permanently"""
 
-    kind: PermissionDecisionApprovePermanentlyKind
+    kind: ClassVar[str] = "approve-permanently"
     """Approve and persist across sessions (URL prompts only)"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApprovePermanently':
         assert isinstance(obj, dict)
         domain = from_str(obj.get("domain"))
-        kind = PermissionDecisionApprovePermanentlyKind(obj.get("kind"))
-        return PermissionDecisionApprovePermanently(domain, kind)
+        return PermissionDecisionApprovePermanently(domain)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["domain"] = from_str(self.domain)
-        result["kind"] = to_enum(PermissionDecisionApprovePermanentlyKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8706,18 +8742,17 @@ class PermissionDecisionApprovePermanently:
 class PermissionDecisionApproved:
     """Schema for the `PermissionDecisionApproved` type."""
 
-    kind: PermissionDecisionApprovedKind
+    kind: ClassVar[str] = "approved"
     """The permission request was approved"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproved':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionApprovedKind(obj.get("kind"))
-        return PermissionDecisionApproved(kind)
+        return PermissionDecisionApproved()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApprovedKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8728,7 +8763,7 @@ class PermissionDecisionApprovedForLocation:
     approval: UserToolSessionApproval
     """The approval to persist for this location"""
 
-    kind: PermissionDecisionApprovedForLocationKind
+    kind: ClassVar[str] = "approved-for-location"
     """Approved and persisted for this project location"""
 
     location_key: str
@@ -8738,14 +8773,13 @@ class PermissionDecisionApprovedForLocation:
     def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocation':
         assert isinstance(obj, dict)
         approval = UserToolSessionApproval.from_dict(obj.get("approval"))
-        kind = PermissionDecisionApprovedForLocationKind(obj.get("kind"))
         location_key = from_str(obj.get("locationKey"))
-        return PermissionDecisionApprovedForLocation(approval, kind, location_key)
+        return PermissionDecisionApprovedForLocation(approval, location_key)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["approval"] = to_class(UserToolSessionApproval, self.approval)
-        result["kind"] = to_enum(PermissionDecisionApprovedForLocationKind, self.kind)
+        result["kind"] = self.kind
         result["locationKey"] = from_str(self.location_key)
         return result
 
@@ -8757,20 +8791,19 @@ class PermissionDecisionApprovedForSession:
     approval: UserToolSessionApproval
     """The approval to add as a session-scoped rule"""
 
-    kind: PermissionDecisionApprovedForSessionKind
+    kind: ClassVar[str] = "approved-for-session"
     """Approved and remembered for the rest of the session"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSession':
         assert isinstance(obj, dict)
         approval = UserToolSessionApproval.from_dict(obj.get("approval"))
-        kind = PermissionDecisionApprovedForSessionKind(obj.get("kind"))
-        return PermissionDecisionApprovedForSession(approval, kind)
+        return PermissionDecisionApprovedForSession(approval)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["approval"] = to_class(UserToolSessionApproval, self.approval)
-        result["kind"] = to_enum(PermissionDecisionApprovedForSessionKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8778,7 +8811,7 @@ class PermissionDecisionApprovedForSession:
 class PermissionDecisionCancelled:
     """Schema for the `PermissionDecisionCancelled` type."""
 
-    kind: PermissionDecisionCancelledKind
+    kind: ClassVar[str] = "cancelled"
     """The permission request was cancelled before a response was used"""
 
     reason: str | None = None
@@ -8787,13 +8820,12 @@ class PermissionDecisionCancelled:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionCancelled':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionCancelledKind(obj.get("kind"))
         reason = from_union([from_str, from_none], obj.get("reason"))
-        return PermissionDecisionCancelled(kind, reason)
+        return PermissionDecisionCancelled(reason)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionCancelledKind, self.kind)
+        result["kind"] = self.kind
         if self.reason is not None:
             result["reason"] = from_union([from_str, from_none], self.reason)
         return result
@@ -8803,7 +8835,7 @@ class PermissionDecisionCancelled:
 class PermissionDecisionDeniedByContentExclusionPolicy:
     """Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type."""
 
-    kind: PermissionDecisionDeniedByContentExclusionPolicyKind
+    kind: ClassVar[str] = "denied-by-content-exclusion-policy"
     """Denied by the organization's content exclusion policy"""
 
     message: str
@@ -8815,14 +8847,13 @@ class PermissionDecisionDeniedByContentExclusionPolicy:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionDeniedByContentExclusionPolicy':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedByContentExclusionPolicyKind(obj.get("kind"))
         message = from_str(obj.get("message"))
         path = from_str(obj.get("path"))
-        return PermissionDecisionDeniedByContentExclusionPolicy(kind, message, path)
+        return PermissionDecisionDeniedByContentExclusionPolicy(message, path)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedByContentExclusionPolicyKind, self.kind)
+        result["kind"] = self.kind
         result["message"] = from_str(self.message)
         result["path"] = from_str(self.path)
         return result
@@ -8832,7 +8863,7 @@ class PermissionDecisionDeniedByContentExclusionPolicy:
 class PermissionDecisionDeniedByPermissionRequestHook:
     """Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type."""
 
-    kind: PermissionDecisionDeniedByPermissionRequestHookKind
+    kind: ClassVar[str] = "denied-by-permission-request-hook"
     """Denied by a permission request hook registered by an extension or plugin"""
 
     interrupt: bool | None = None
@@ -8844,14 +8875,13 @@ class PermissionDecisionDeniedByPermissionRequestHook:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionDeniedByPermissionRequestHook':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedByPermissionRequestHookKind(obj.get("kind"))
         interrupt = from_union([from_bool, from_none], obj.get("interrupt"))
         message = from_union([from_str, from_none], obj.get("message"))
-        return PermissionDecisionDeniedByPermissionRequestHook(kind, interrupt, message)
+        return PermissionDecisionDeniedByPermissionRequestHook(interrupt, message)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedByPermissionRequestHookKind, self.kind)
+        result["kind"] = self.kind
         if self.interrupt is not None:
             result["interrupt"] = from_union([from_bool, from_none], self.interrupt)
         if self.message is not None:
@@ -8863,7 +8893,7 @@ class PermissionDecisionDeniedByPermissionRequestHook:
 class PermissionDecisionDeniedByRules:
     """Schema for the `PermissionDecisionDeniedByRules` type."""
 
-    kind: PermissionDecisionDeniedByRulesKind
+    kind: ClassVar[str] = "denied-by-rules"
     """Denied because approval rules explicitly blocked it"""
 
     rules: list[PermissionRule]
@@ -8872,13 +8902,12 @@ class PermissionDecisionDeniedByRules:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionDeniedByRules':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedByRulesKind(obj.get("kind"))
         rules = from_list(PermissionRule.from_dict, obj.get("rules"))
-        return PermissionDecisionDeniedByRules(kind, rules)
+        return PermissionDecisionDeniedByRules(rules)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedByRulesKind, self.kind)
+        result["kind"] = self.kind
         result["rules"] = from_list(lambda x: to_class(PermissionRule, x), self.rules)
         return result
 
@@ -8887,7 +8916,7 @@ class PermissionDecisionDeniedByRules:
 class PermissionDecisionDeniedInteractivelyByUser:
     """Schema for the `PermissionDecisionDeniedInteractivelyByUser` type."""
 
-    kind: PermissionDecisionDeniedInteractivelyByUserKind
+    kind: ClassVar[str] = "denied-interactively-by-user"
     """Denied by the user during an interactive prompt"""
 
     feedback: str | None = None
@@ -8899,14 +8928,13 @@ class PermissionDecisionDeniedInteractivelyByUser:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionDeniedInteractivelyByUser':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedInteractivelyByUserKind(obj.get("kind"))
         feedback = from_union([from_str, from_none], obj.get("feedback"))
         force_reject = from_union([from_bool, from_none], obj.get("forceReject"))
-        return PermissionDecisionDeniedInteractivelyByUser(kind, feedback, force_reject)
+        return PermissionDecisionDeniedInteractivelyByUser(feedback, force_reject)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedInteractivelyByUserKind, self.kind)
+        result["kind"] = self.kind
         if self.feedback is not None:
             result["feedback"] = from_union([from_str, from_none], self.feedback)
         if self.force_reject is not None:
@@ -8918,18 +8946,17 @@ class PermissionDecisionDeniedInteractivelyByUser:
 class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
     """Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type."""
 
-    kind: PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind
+    kind: ClassVar[str] = "denied-no-approval-rule-and-could-not-request-from-user"
     """Denied because no approval rule matched and user confirmation was unavailable"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind(obj.get("kind"))
-        return PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser(kind)
+        return PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUserKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -8937,7 +8964,7 @@ class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
 class PermissionDecisionReject:
     """Schema for the `PermissionDecisionReject` type."""
 
-    kind: PermissionDecisionRejectKind
+    kind: ClassVar[str] = "reject"
     """Reject the request"""
 
     feedback: str | None = None
@@ -8946,13 +8973,12 @@ class PermissionDecisionReject:
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionReject':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionRejectKind(obj.get("kind"))
         feedback = from_union([from_str, from_none], obj.get("feedback"))
-        return PermissionDecisionReject(kind, feedback)
+        return PermissionDecisionReject(feedback)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionRejectKind, self.kind)
+        result["kind"] = self.kind
         if self.feedback is not None:
             result["feedback"] = from_union([from_str, from_none], self.feedback)
         return result
@@ -8962,18 +8988,17 @@ class PermissionDecisionReject:
 class PermissionDecisionUserNotAvailable:
     """Schema for the `PermissionDecisionUserNotAvailable` type."""
 
-    kind: PermissionDecisionUserNotAvailableKind
+    kind: ClassVar[str] = "user-not-available"
     """No user is available to confirm the request"""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionUserNotAvailable':
         assert isinstance(obj, dict)
-        kind = PermissionDecisionUserNotAvailableKind(obj.get("kind"))
-        return PermissionDecisionUserNotAvailable(kind)
+        return PermissionDecisionUserNotAvailable()
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionUserNotAvailableKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -9161,40 +9186,6 @@ class QueuePendingItems:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class QueuedCommandResult:
-    """Result of the queued command execution.
-
-    Schema for the `QueuedCommandHandled` type.
-
-    Schema for the `QueuedCommandNotHandled` type.
-    """
-    handled: bool
-    """The host actually executed the queued command.
-
-    The host did not execute the queued command. Unblocks the queue without claiming the
-    command was processed (e.g. when the handler threw before completing).
-    """
-    stop_processing_queue: bool | None = None
-    """When true, the runtime will not process subsequent queued commands until a new request
-    comes in.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'QueuedCommandResult':
-        assert isinstance(obj, dict)
-        handled = from_bool(obj.get("handled"))
-        stop_processing_queue = from_union([from_bool, from_none], obj.get("stopProcessingQueue"))
-        return QueuedCommandResult(handled, stop_processing_queue)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["handled"] = from_bool(self.handled)
-        if self.stop_processing_queue is not None:
-            result["stopProcessingQueue"] = from_union([from_bool, from_none], self.stop_processing_queue)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class RemoteEnableRequest:
     """Optional remote session mode ("off", "export", or "on"); defaults to enabling both export
     and remote steering.
@@ -9290,7 +9281,7 @@ class SendAttachmentBlob:
     mime_type: str
     """MIME type of the inline data"""
 
-    type: SendAttachmentBlobType
+    type: ClassVar[str] = "blob"
     """Attachment type discriminator"""
 
     display_name: str | None = None
@@ -9301,15 +9292,14 @@ class SendAttachmentBlob:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
-        type = SendAttachmentBlobType(obj.get("type"))
         display_name = from_union([from_str, from_none], obj.get("displayName"))
-        return SendAttachmentBlob(data, mime_type, type, display_name)
+        return SendAttachmentBlob(data, mime_type, display_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["data"] = from_str(self.data)
         result["mimeType"] = from_str(self.mime_type)
-        result["type"] = to_enum(SendAttachmentBlobType, self.type)
+        result["type"] = self.type
         if self.display_name is not None:
             result["displayName"] = from_union([from_str, from_none], self.display_name)
         return result
@@ -9325,7 +9315,7 @@ class SendAttachmentFile:
     path: str
     """Absolute file path"""
 
-    type: SendAttachmentFileType
+    type: ClassVar[str] = "file"
     """Attachment type discriminator"""
 
     line_range: SendAttachmentFileLineRange | None = None
@@ -9336,15 +9326,14 @@ class SendAttachmentFile:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
-        type = SendAttachmentFileType(obj.get("type"))
         line_range = from_union([SendAttachmentFileLineRange.from_dict, from_none], obj.get("lineRange"))
-        return SendAttachmentFile(display_name, path, type, line_range)
+        return SendAttachmentFile(display_name, path, line_range)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["displayName"] = from_str(self.display_name)
         result["path"] = from_str(self.path)
-        result["type"] = to_enum(SendAttachmentFileType, self.type)
+        result["type"] = self.type
         if self.line_range is not None:
             result["lineRange"] = from_union([lambda x: to_class(SendAttachmentFileLineRange, x), from_none], self.line_range)
         return result
@@ -9366,7 +9355,7 @@ class SendAttachmentGithubReference:
     title: str
     """Title of the referenced item"""
 
-    type: SendAttachmentGithubReferenceType
+    type: ClassVar[str] = "github_reference"
     """Attachment type discriminator"""
 
     url: str
@@ -9379,9 +9368,8 @@ class SendAttachmentGithubReference:
         reference_type = SendAttachmentGithubReferenceTypeEnum(obj.get("referenceType"))
         state = from_str(obj.get("state"))
         title = from_str(obj.get("title"))
-        type = SendAttachmentGithubReferenceType(obj.get("type"))
         url = from_str(obj.get("url"))
-        return SendAttachmentGithubReference(number, reference_type, state, title, type, url)
+        return SendAttachmentGithubReference(number, reference_type, state, title, url)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -9389,8 +9377,110 @@ class SendAttachmentGithubReference:
         result["referenceType"] = to_enum(SendAttachmentGithubReferenceTypeEnum, self.reference_type)
         result["state"] = from_str(self.state)
         result["title"] = from_str(self.title)
-        result["type"] = to_enum(SendAttachmentGithubReferenceType, self.type)
+        result["type"] = self.type
         result["url"] = from_str(self.url)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class SendRequest:
+    """Parameters for sending a user message to the session"""
+
+    prompt: str
+    """The user message text"""
+
+    agent_mode: SendAgentMode | None = None
+    """The UI mode the agent was in when this message was sent. Defaults to the session's
+    current mode.
+    """
+    attachments: list[SendAttachment] | None = None
+    """Optional attachments (files, directories, selections, blobs, GitHub references) to
+    include with the message
+    """
+    billable: bool | None = None
+    """If false, this message will not trigger a Premium Request Unit charge. User messages
+    default to billable.
+    """
+    display_prompt: str | None = None
+    """If provided, this is shown in the timeline instead of `prompt`"""
+
+    mode: SendMode | None = None
+    """How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
+    interjects during an in-progress turn.
+    """
+    prepend: bool | None = None
+    """If true, adds the message to the front of the queue instead of the end"""
+
+    request_headers: dict[str, str] | None = None
+    """Custom HTTP headers to include in outbound model requests for this turn. Merged with
+    session-level provider headers; per-turn headers augment and overwrite session-level
+    headers with the same key.
+    """
+    required_tool: str | None = None
+    """If set, the request will fail if the named tool is not available when this message is
+    among the user messages at the start of the current exchange
+    """
+    source: Any = None
+    """Optional provenance tag copied to the resulting user.message event. Supported values are
+    `system`, `command-*`, and `schedule-*`.
+    """
+    traceparent: str | None = None
+    """W3C Trace Context traceparent header for distributed tracing of this agent turn"""
+
+    tracestate: str | None = None
+    """W3C Trace Context tracestate header for distributed tracing"""
+
+    wait: bool | None = None
+    """If true, await completion of the agentic loop for this message before returning. Defaults
+    to false (fire-and-forget). When true, the result still contains the same `messageId`;
+    the caller can rely on the agent having processed the message before the call resolves.
+    """
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'SendRequest':
+        assert isinstance(obj, dict)
+        prompt = from_str(obj.get("prompt"))
+        agent_mode = from_union([SendAgentMode, from_none], obj.get("agentMode"))
+        attachments = from_union([lambda x: from_list(_load_SendAttachment, x), from_none], obj.get("attachments"))
+        billable = from_union([from_bool, from_none], obj.get("billable"))
+        display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
+        mode = from_union([SendMode, from_none], obj.get("mode"))
+        prepend = from_union([from_bool, from_none], obj.get("prepend"))
+        request_headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("requestHeaders"))
+        required_tool = from_union([from_str, from_none], obj.get("requiredTool"))
+        source = obj.get("source")
+        traceparent = from_union([from_str, from_none], obj.get("traceparent"))
+        tracestate = from_union([from_str, from_none], obj.get("tracestate"))
+        wait = from_union([from_bool, from_none], obj.get("wait"))
+        return SendRequest(prompt, agent_mode, attachments, billable, display_prompt, mode, prepend, request_headers, required_tool, source, traceparent, tracestate, wait)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["prompt"] = from_str(self.prompt)
+        if self.agent_mode is not None:
+            result["agentMode"] = from_union([lambda x: to_enum(SendAgentMode, x), from_none], self.agent_mode)
+        if self.attachments is not None:
+            result["attachments"] = from_union([lambda x: from_list(lambda x: (x).to_dict(), x), from_none], self.attachments)
+        if self.billable is not None:
+            result["billable"] = from_union([from_bool, from_none], self.billable)
+        if self.display_prompt is not None:
+            result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
+        if self.mode is not None:
+            result["mode"] = from_union([lambda x: to_enum(SendMode, x), from_none], self.mode)
+        if self.prepend is not None:
+            result["prepend"] = from_union([from_bool, from_none], self.prepend)
+        if self.request_headers is not None:
+            result["requestHeaders"] = from_union([lambda x: from_dict(from_str, x), from_none], self.request_headers)
+        if self.required_tool is not None:
+            result["requiredTool"] = from_union([from_str, from_none], self.required_tool)
+        if self.source is not None:
+            result["source"] = self.source
+        if self.traceparent is not None:
+            result["traceparent"] = from_union([from_str, from_none], self.traceparent)
+        if self.tracestate is not None:
+            result["tracestate"] = from_union([from_str, from_none], self.tracestate)
+        if self.wait is not None:
+            result["wait"] = from_union([from_bool, from_none], self.wait)
         return result
 
 @dataclass
@@ -9731,7 +9821,7 @@ class SlashCommandAgentPromptResult:
     display_prompt: str
     """Prompt text to display to the user"""
 
-    kind: SlashCommandAgentPromptResultKind
+    kind: ClassVar[str] = "agent-prompt"
     """Agent prompt result discriminator"""
 
     prompt: str
@@ -9749,16 +9839,15 @@ class SlashCommandAgentPromptResult:
     def from_dict(obj: Any) -> 'SlashCommandAgentPromptResult':
         assert isinstance(obj, dict)
         display_prompt = from_str(obj.get("displayPrompt"))
-        kind = SlashCommandAgentPromptResultKind(obj.get("kind"))
         prompt = from_str(obj.get("prompt"))
         mode = from_union([SessionMode, from_none], obj.get("mode"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandAgentPromptResult(display_prompt, kind, prompt, mode, runtime_settings_changed)
+        return SlashCommandAgentPromptResult(display_prompt, prompt, mode, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["displayPrompt"] = from_str(self.display_prompt)
-        result["kind"] = to_enum(SlashCommandAgentPromptResultKind, self.kind)
+        result["kind"] = self.kind
         result["prompt"] = from_str(self.prompt)
         if self.mode is not None:
             result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
@@ -9771,7 +9860,7 @@ class SlashCommandAgentPromptResult:
 class SlashCommandCompletedResult:
     """Schema for the `SlashCommandCompletedResult` type."""
 
-    kind: SlashCommandCompletedResultKind
+    kind: ClassVar[str] = "completed"
     """Completed result discriminator"""
 
     message: str | None = None
@@ -9785,14 +9874,13 @@ class SlashCommandCompletedResult:
     @staticmethod
     def from_dict(obj: Any) -> 'SlashCommandCompletedResult':
         assert isinstance(obj, dict)
-        kind = SlashCommandCompletedResultKind(obj.get("kind"))
         message = from_union([from_str, from_none], obj.get("message"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandCompletedResult(kind, message, runtime_settings_changed)
+        return SlashCommandCompletedResult(message, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["kind"] = to_enum(SlashCommandCompletedResultKind, self.kind)
+        result["kind"] = self.kind
         if self.message is not None:
             result["message"] = from_union([from_str, from_none], self.message)
         if self.runtime_settings_changed is not None:
@@ -9807,7 +9895,7 @@ class SlashCommandSelectSubcommandResult:
     command: str
     """Parent command name that requires subcommand selection"""
 
-    kind: SlashCommandSelectSubcommandResultKind
+    kind: ClassVar[str] = "select-subcommand"
     """Select subcommand result discriminator"""
 
     options: list[SlashCommandSelectSubcommandOption]
@@ -9825,16 +9913,15 @@ class SlashCommandSelectSubcommandResult:
     def from_dict(obj: Any) -> 'SlashCommandSelectSubcommandResult':
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
-        kind = SlashCommandSelectSubcommandResultKind(obj.get("kind"))
         options = from_list(SlashCommandSelectSubcommandOption.from_dict, obj.get("options"))
         title = from_str(obj.get("title"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        return SlashCommandSelectSubcommandResult(command, kind, options, title, runtime_settings_changed)
+        return SlashCommandSelectSubcommandResult(command, options, title, runtime_settings_changed)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["command"] = from_str(self.command)
-        result["kind"] = to_enum(SlashCommandSelectSubcommandResultKind, self.kind)
+        result["kind"] = self.kind
         result["options"] = from_list(lambda x: to_class(SlashCommandSelectSubcommandOption, x), self.options)
         result["title"] = from_str(self.title)
         if self.runtime_settings_changed is not None:
@@ -9895,7 +9982,7 @@ class TaskShellInfo:
     status: TaskStatus
     """Current lifecycle status of the task"""
 
-    type: TaskShellInfoType
+    type: ClassVar[str] = "shell"
     """Task kind"""
 
     can_promote_to_background: bool | None = None
@@ -9922,13 +10009,12 @@ class TaskShellInfo:
         id = from_str(obj.get("id"))
         started_at = from_datetime(obj.get("startedAt"))
         status = TaskStatus(obj.get("status"))
-        type = TaskShellInfoType(obj.get("type"))
         can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
         completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
         execution_mode = from_union([TaskExecutionMode, from_none], obj.get("executionMode"))
         log_path = from_union([from_str, from_none], obj.get("logPath"))
         pid = from_union([from_int, from_none], obj.get("pid"))
-        return TaskShellInfo(attachment_mode, command, description, id, started_at, status, type, can_promote_to_background, completed_at, execution_mode, log_path, pid)
+        return TaskShellInfo(attachment_mode, command, description, id, started_at, status, can_promote_to_background, completed_at, execution_mode, log_path, pid)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -9938,7 +10024,7 @@ class TaskShellInfo:
         result["id"] = from_str(self.id)
         result["startedAt"] = self.started_at.isoformat()
         result["status"] = to_enum(TaskStatus, self.status)
-        result["type"] = to_enum(TaskShellInfoType, self.type)
+        result["type"] = self.type
         if self.can_promote_to_background is not None:
             result["canPromoteToBackground"] = from_union([from_bool, from_none], self.can_promote_to_background)
         if self.completed_at is not None:
@@ -9979,6 +10065,30 @@ class TaskShellProgress:
         result["type"] = to_enum(TaskShellInfoType, self.type)
         if self.pid is not None:
             result["pid"] = from_union([from_int, from_none], self.pid)
+        return result
+
+# Experimental: this type is part of an experimental API and may change or be removed.
+@dataclass
+class PermissionLocationAddToolApprovalParams:
+    """Location-scoped tool approval to persist."""
+
+    approval: PermissionsLocationsAddToolApprovalDetails
+    """Tool approval to persist and apply"""
+
+    location_key: str
+    """Location key (git root or cwd) to persist the approval to"""
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionLocationAddToolApprovalParams':
+        assert isinstance(obj, dict)
+        approval = _load_PermissionsLocationsAddToolApprovalDetails(obj.get("approval"))
+        location_key = from_str(obj.get("locationKey"))
+        return PermissionLocationAddToolApprovalParams(approval, location_key)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["approval"] = (self.approval).to_dict()
+        result["locationKey"] = from_str(self.location_key)
         return result
 
 @dataclass
@@ -10711,20 +10821,19 @@ class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
     extension_name: str
     """Extension name."""
 
-    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+    kind: ClassVar[str] = "extension-permission-access"
     """Approval covering an extension's request to access a permission-gated capability."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess':
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
-        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
-        return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess(extension_name, kind)
+        return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess(extension_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensionName"] = from_str(self.extension_name)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -10736,20 +10845,19 @@ class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
     extension_name: str
     """Extension name."""
 
-    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+    kind: ClassVar[str] = "extension-permission-access"
     """Approval covering an extension's request to access a permission-gated capability."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess':
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
-        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
-        return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name, kind)
+        return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensionName"] = from_str(self.extension_name)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -10760,179 +10868,75 @@ class PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess:
     extension_name: str
     """Extension name."""
 
-    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
+    kind: ClassVar[str] = "extension-permission-access"
     """Approval covering an extension's request to access a permission-gated capability."""
 
     @staticmethod
     def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess':
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
-        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
-        return PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess(extension_name, kind)
+        return PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess(extension_name)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["extensionName"] = from_str(self.extension_name)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
-        return result
-
-@dataclass
-class UserToolSessionApprovalExtensionManagement:
-    """Schema for the `UserToolSessionApprovalExtensionManagement` type."""
-
-    kind: PermissionDecisionApproveForLocationApprovalExtensionManagementKind
-    """Extension management approval kind"""
-
-    operation: str | None = None
-    """Optional operation identifier"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalExtensionManagement':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForLocationApprovalExtensionManagementKind(obj.get("kind"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        return UserToolSessionApprovalExtensionManagement(kind, operation)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionManagementKind, self.kind)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        return result
-
-@dataclass
-class UserToolSessionApprovalExtensionPermissionAccess:
-    """Schema for the `UserToolSessionApprovalExtensionPermissionAccess` type."""
-
-    extension_name: str
-    """Extension name"""
-
-    kind: PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind
-    """Extension permission access approval kind"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'UserToolSessionApprovalExtensionPermissionAccess':
-        assert isinstance(obj, dict)
-        extension_name = from_str(obj.get("extensionName"))
-        kind = PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind(obj.get("kind"))
-        return UserToolSessionApprovalExtensionPermissionAccess(extension_name, kind)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["extensionName"] = from_str(self.extension_name)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationApprovalExtensionPermissionAccessKind, self.kind)
+        result["kind"] = self.kind
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class ExternalToolTextResultForLlmContent:
-    """A content block within a tool result, which may be text, terminal output, image, audio,
-    or a resource
+class ExternalToolTextResultForLlm:
+    """Expanded external tool result payload"""
 
-    Plain text content block
+    text_result_for_llm: str
+    """Text result returned to the model"""
 
-    Terminal/shell output content block with optional exit code and working directory
+    binary_results_for_llm: list[ExternalToolTextResultForLlmBinaryResultsForLlm] | None = None
+    """Base64-encoded binary results returned to the model"""
 
-    Image content block with base64-encoded data
+    contents: list[ExternalToolTextResultForLlmContent] | None = None
+    """Structured content blocks from the tool"""
 
-    Audio content block with base64-encoded data
+    error: str | None = None
+    """Optional error message for failed executions"""
 
-    Resource link content block referencing an external resource
-
-    Embedded resource content block with inline text or binary data
+    result_type: str | None = None
+    """Execution outcome classification. Optional for back-compat; normalized to 'success' (or
+    'failure' when error is present) when missing or unrecognized.
     """
-    type: ExternalToolTextResultForLlmContentType
-    """Content block type discriminator"""
+    session_log: str | None = None
+    """Detailed log content for timeline display"""
 
-    text: str | None = None
-    """The text content
-
-    Terminal/shell output text
-    """
-    cwd: str | None = None
-    """Working directory where the command was executed"""
-
-    exit_code: int | None = None
-    """Process exit code, if the command has completed"""
-
-    data: str | None = None
-    """Base64-encoded image data
-
-    Base64-encoded audio data
-    """
-    mime_type: str | None = None
-    """MIME type of the image (e.g., image/png, image/jpeg)
-
-    MIME type of the audio (e.g., audio/wav, audio/mpeg)
-
-    MIME type of the resource content
-    """
-    description: str | None = None
-    """Human-readable description of the resource"""
-
-    icons: list[ExternalToolTextResultForLlmContentResourceLinkIcon] | None = None
-    """Icons associated with this resource"""
-
-    name: str | None = None
-    """Resource name identifier"""
-
-    size: int | None = None
-    """Size of the resource in bytes"""
-
-    title: str | None = None
-    """Human-readable display title for the resource"""
-
-    uri: str | None = None
-    """URI identifying the resource"""
-
-    resource: ExternalToolTextResultForLlmContentResourceDetails | None = None
-    """The embedded resource contents, either text or base64-encoded binary"""
+    tool_telemetry: dict[str, Any] | None = None
+    """Optional tool-specific telemetry"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContent':
+    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlm':
         assert isinstance(obj, dict)
-        type = ExternalToolTextResultForLlmContentType(obj.get("type"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        cwd = from_union([from_str, from_none], obj.get("cwd"))
-        exit_code = from_union([from_int, from_none], obj.get("exitCode"))
-        data = from_union([from_str, from_none], obj.get("data"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        description = from_union([from_str, from_none], obj.get("description"))
-        icons = from_union([lambda x: from_list(ExternalToolTextResultForLlmContentResourceLinkIcon.from_dict, x), from_none], obj.get("icons"))
-        name = from_union([from_str, from_none], obj.get("name"))
-        size = from_union([from_int, from_none], obj.get("size"))
-        title = from_union([from_str, from_none], obj.get("title"))
-        uri = from_union([from_str, from_none], obj.get("uri"))
-        resource = from_union([(lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x)), from_none], obj.get("resource"))
-        return ExternalToolTextResultForLlmContent(type, text, cwd, exit_code, data, mime_type, description, icons, name, size, title, uri, resource)
+        text_result_for_llm = from_str(obj.get("textResultForLlm"))
+        binary_results_for_llm = from_union([lambda x: from_list(ExternalToolTextResultForLlmBinaryResultsForLlm.from_dict, x), from_none], obj.get("binaryResultsForLlm"))
+        contents = from_union([lambda x: from_list(_load_ExternalToolTextResultForLlmContent, x), from_none], obj.get("contents"))
+        error = from_union([from_str, from_none], obj.get("error"))
+        result_type = from_union([from_str, from_none], obj.get("resultType"))
+        session_log = from_union([from_str, from_none], obj.get("sessionLog"))
+        tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
+        return ExternalToolTextResultForLlm(text_result_for_llm, binary_results_for_llm, contents, error, result_type, session_log, tool_telemetry)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentType, self.type)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
-        if self.cwd is not None:
-            result["cwd"] = from_union([from_str, from_none], self.cwd)
-        if self.exit_code is not None:
-            result["exitCode"] = from_union([from_int, from_none], self.exit_code)
-        if self.data is not None:
-            result["data"] = from_union([from_str, from_none], self.data)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        if self.description is not None:
-            result["description"] = from_union([from_str, from_none], self.description)
-        if self.icons is not None:
-            result["icons"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmContentResourceLinkIcon, x), x), from_none], self.icons)
-        if self.name is not None:
-            result["name"] = from_union([from_str, from_none], self.name)
-        if self.size is not None:
-            result["size"] = from_union([from_int, from_none], self.size)
-        if self.title is not None:
-            result["title"] = from_union([from_str, from_none], self.title)
-        if self.uri is not None:
-            result["uri"] = from_union([from_str, from_none], self.uri)
-        if self.resource is not None:
-            result["resource"] = from_union([lambda x: from_union([lambda x: to_class(EmbeddedTextResourceContents, x), lambda x: to_class(EmbeddedBlobResourceContents, x)], x), from_none], self.resource)
+        result["textResultForLlm"] = from_str(self.text_result_for_llm)
+        if self.binary_results_for_llm is not None:
+            result["binaryResultsForLlm"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmBinaryResultsForLlm, x), x), from_none], self.binary_results_for_llm)
+        if self.contents is not None:
+            result["contents"] = from_union([lambda x: from_list(lambda x: (x).to_dict(), x), from_none], self.contents)
+        if self.error is not None:
+            result["error"] = from_union([from_str, from_none], self.error)
+        if self.result_type is not None:
+            result["resultType"] = from_union([from_str, from_none], self.result_type)
+        if self.session_log is not None:
+            result["sessionLog"] = from_union([from_str, from_none], self.session_log)
+        if self.tool_telemetry is not None:
+            result["toolTelemetry"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.tool_telemetry)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -10943,7 +10947,7 @@ class ExternalToolTextResultForLlmContentResourceLink:
     name: str
     """Resource name identifier"""
 
-    type: ExternalToolTextResultForLlmContentResourceLinkType
+    type: ClassVar[str] = "resource_link"
     """Content block type discriminator"""
 
     uri: str
@@ -10968,19 +10972,18 @@ class ExternalToolTextResultForLlmContentResourceLink:
     def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceLink':
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
-        type = ExternalToolTextResultForLlmContentResourceLinkType(obj.get("type"))
         uri = from_str(obj.get("uri"))
         description = from_union([from_str, from_none], obj.get("description"))
         icons = from_union([lambda x: from_list(ExternalToolTextResultForLlmContentResourceLinkIcon.from_dict, x), from_none], obj.get("icons"))
         mime_type = from_union([from_str, from_none], obj.get("mimeType"))
         size = from_union([from_int, from_none], obj.get("size"))
         title = from_union([from_str, from_none], obj.get("title"))
-        return ExternalToolTextResultForLlmContentResourceLink(name, type, uri, description, icons, mime_type, size, title)
+        return ExternalToolTextResultForLlmContentResourceLink(name, uri, description, icons, mime_type, size, title)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["name"] = from_str(self.name)
-        result["type"] = to_enum(ExternalToolTextResultForLlmContentResourceLinkType, self.type)
+        result["type"] = self.type
         result["uri"] = from_str(self.uri)
         if self.description is not None:
             result["description"] = from_union([from_str, from_none], self.description)
@@ -11509,142 +11512,6 @@ class QueuePendingItemsResult:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class CommandsRespondToQueuedCommandRequest:
-    """Queued-command request ID and the result indicating whether the host executed it (and
-    whether to stop processing further queued commands).
-    """
-    request_id: str
-    """Request ID from the `command.queued` event the host is responding to."""
-
-    result: QueuedCommandResult
-    """Result of the queued command execution."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'CommandsRespondToQueuedCommandRequest':
-        assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        result = QueuedCommandResult.from_dict(obj.get("result"))
-        return CommandsRespondToQueuedCommandRequest(request_id, result)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        result["result"] = to_class(QueuedCommandResult, self.result)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SendAttachment:
-    """A user message attachment — a file, directory, code selection, blob, or GitHub reference
-
-    File attachment
-
-    Directory attachment
-
-    Code selection attachment from an editor
-
-    GitHub issue, pull request, or discussion reference
-
-    Blob attachment with inline base64-encoded data
-    """
-    type: SendAttachmentType
-    """Attachment type discriminator"""
-
-    display_name: str | None = None
-    """User-facing display name for the attachment
-
-    User-facing display name for the selection
-    """
-    line_range: SendAttachmentFileLineRange | None = None
-    """Optional line range to scope the attachment to a specific section of the file"""
-
-    path: str | None = None
-    """Absolute file path
-
-    Absolute directory path
-    """
-    file_path: str | None = None
-    """Absolute path to the file containing the selection"""
-
-    selection: SendAttachmentSelectionDetails | None = None
-    """Position range of the selection within the file"""
-
-    text: str | None = None
-    """The selected text content"""
-
-    number: int | None = None
-    """Issue, pull request, or discussion number"""
-
-    reference_type: SendAttachmentGithubReferenceTypeEnum | None = None
-    """Type of GitHub reference"""
-
-    state: str | None = None
-    """Current state of the referenced item (e.g., open, closed, merged)"""
-
-    title: str | None = None
-    """Title of the referenced item"""
-
-    url: str | None = None
-    """URL to the referenced item on GitHub"""
-
-    data: str | None = None
-    """Base64-encoded content"""
-
-    mime_type: str | None = None
-    """MIME type of the inline data"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachment':
-        assert isinstance(obj, dict)
-        type = SendAttachmentType(obj.get("type"))
-        display_name = from_union([from_str, from_none], obj.get("displayName"))
-        line_range = from_union([SendAttachmentFileLineRange.from_dict, from_none], obj.get("lineRange"))
-        path = from_union([from_str, from_none], obj.get("path"))
-        file_path = from_union([from_str, from_none], obj.get("filePath"))
-        selection = from_union([SendAttachmentSelectionDetails.from_dict, from_none], obj.get("selection"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        number = from_union([from_int, from_none], obj.get("number"))
-        reference_type = from_union([SendAttachmentGithubReferenceTypeEnum, from_none], obj.get("referenceType"))
-        state = from_union([from_str, from_none], obj.get("state"))
-        title = from_union([from_str, from_none], obj.get("title"))
-        url = from_union([from_str, from_none], obj.get("url"))
-        data = from_union([from_str, from_none], obj.get("data"))
-        mime_type = from_union([from_str, from_none], obj.get("mimeType"))
-        return SendAttachment(type, display_name, line_range, path, file_path, selection, text, number, reference_type, state, title, url, data, mime_type)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["type"] = to_enum(SendAttachmentType, self.type)
-        if self.display_name is not None:
-            result["displayName"] = from_union([from_str, from_none], self.display_name)
-        if self.line_range is not None:
-            result["lineRange"] = from_union([lambda x: to_class(SendAttachmentFileLineRange, x), from_none], self.line_range)
-        if self.path is not None:
-            result["path"] = from_union([from_str, from_none], self.path)
-        if self.file_path is not None:
-            result["filePath"] = from_union([from_str, from_none], self.file_path)
-        if self.selection is not None:
-            result["selection"] = from_union([lambda x: to_class(SendAttachmentSelectionDetails, x), from_none], self.selection)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
-        if self.number is not None:
-            result["number"] = from_union([from_int, from_none], self.number)
-        if self.reference_type is not None:
-            result["referenceType"] = from_union([lambda x: to_enum(SendAttachmentGithubReferenceTypeEnum, x), from_none], self.reference_type)
-        if self.state is not None:
-            result["state"] = from_union([from_str, from_none], self.state)
-        if self.title is not None:
-            result["title"] = from_union([from_str, from_none], self.title)
-        if self.url is not None:
-            result["url"] = from_union([from_str, from_none], self.url)
-        if self.data is not None:
-            result["data"] = from_union([from_str, from_none], self.data)
-        if self.mime_type is not None:
-            result["mimeType"] = from_union([from_str, from_none], self.mime_type)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class SendAttachmentSelection:
     """Code selection attachment from an editor"""
 
@@ -11660,7 +11527,7 @@ class SendAttachmentSelection:
     text: str
     """The selected text content"""
 
-    type: SendAttachmentSelectionType
+    type: ClassVar[str] = "selection"
     """Attachment type discriminator"""
 
     @staticmethod
@@ -11670,8 +11537,7 @@ class SendAttachmentSelection:
         file_path = from_str(obj.get("filePath"))
         selection = SendAttachmentSelectionDetails.from_dict(obj.get("selection"))
         text = from_str(obj.get("text"))
-        type = SendAttachmentSelectionType(obj.get("type"))
-        return SendAttachmentSelection(display_name, file_path, selection, text, type)
+        return SendAttachmentSelection(display_name, file_path, selection, text)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -11679,7 +11545,7 @@ class SendAttachmentSelection:
         result["filePath"] = from_str(self.file_path)
         result["selection"] = to_class(SendAttachmentSelectionDetails, self.selection)
         result["text"] = from_str(self.text)
-        result["type"] = to_enum(SendAttachmentSelectionType, self.type)
+        result["type"] = self.type
         return result
 
 @dataclass
@@ -11915,107 +11781,6 @@ class AgentSelectResult:
     def to_dict(self) -> dict:
         result: dict = {}
         result["agent"] = to_class(AgentInfo, self.agent)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SlashCommandInvocationResult:
-    """Result of invoking the slash command (text output, prompt to send to the agent, or
-    completion).
-
-    Schema for the `SlashCommandTextResult` type.
-
-    Schema for the `SlashCommandAgentPromptResult` type.
-
-    Schema for the `SlashCommandCompletedResult` type.
-
-    Schema for the `SlashCommandSelectSubcommandResult` type.
-    """
-    kind: SlashCommandInvocationResultKind
-    """Text result discriminator
-
-    Agent prompt result discriminator
-
-    Completed result discriminator
-
-    Select subcommand result discriminator
-    """
-    markdown: bool | None = None
-    """Whether text contains Markdown"""
-
-    preserve_ansi: bool | None = None
-    """Whether ANSI sequences should be preserved"""
-
-    runtime_settings_changed: bool | None = None
-    """True when the invocation mutated user runtime settings; consumers caching settings should
-    refresh
-    """
-    text: str | None = None
-    """Text output for the client to render"""
-
-    display_prompt: str | None = None
-    """Prompt text to display to the user"""
-
-    mode: SessionMode | None = None
-    """Optional target session mode for the agent prompt"""
-
-    prompt: str | None = None
-    """Prompt to submit to the agent"""
-
-    message: str | None = None
-    """Optional user-facing message describing the completed command"""
-
-    command: str | None = None
-    """Parent command name that requires subcommand selection"""
-
-    options: list[SlashCommandSelectSubcommandOption] | None = None
-    """Available subcommand options for the client to present"""
-
-    title: str | None = None
-    """Human-readable title for the selection UI"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandInvocationResult':
-        assert isinstance(obj, dict)
-        kind = SlashCommandInvocationResultKind(obj.get("kind"))
-        markdown = from_union([from_bool, from_none], obj.get("markdown"))
-        preserve_ansi = from_union([from_bool, from_none], obj.get("preserveAnsi"))
-        runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
-        text = from_union([from_str, from_none], obj.get("text"))
-        display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
-        mode = from_union([SessionMode, from_none], obj.get("mode"))
-        prompt = from_union([from_str, from_none], obj.get("prompt"))
-        message = from_union([from_str, from_none], obj.get("message"))
-        command = from_union([from_str, from_none], obj.get("command"))
-        options = from_union([lambda x: from_list(SlashCommandSelectSubcommandOption.from_dict, x), from_none], obj.get("options"))
-        title = from_union([from_str, from_none], obj.get("title"))
-        return SlashCommandInvocationResult(kind, markdown, preserve_ansi, runtime_settings_changed, text, display_prompt, mode, prompt, message, command, options, title)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(SlashCommandInvocationResultKind, self.kind)
-        if self.markdown is not None:
-            result["markdown"] = from_union([from_bool, from_none], self.markdown)
-        if self.preserve_ansi is not None:
-            result["preserveAnsi"] = from_union([from_bool, from_none], self.preserve_ansi)
-        if self.runtime_settings_changed is not None:
-            result["runtimeSettingsChanged"] = from_union([from_bool, from_none], self.runtime_settings_changed)
-        if self.text is not None:
-            result["text"] = from_union([from_str, from_none], self.text)
-        if self.display_prompt is not None:
-            result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
-        if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_enum(SessionMode, x), from_none], self.mode)
-        if self.prompt is not None:
-            result["prompt"] = from_union([from_str, from_none], self.prompt)
-        if self.message is not None:
-            result["message"] = from_union([from_str, from_none], self.message)
-        if self.command is not None:
-            result["command"] = from_union([from_str, from_none], self.command)
-        if self.options is not None:
-            result["options"] = from_union([lambda x: from_list(lambda x: to_class(SlashCommandSelectSubcommandOption, x), x), from_none], self.options)
-        if self.title is not None:
-            result["title"] = from_union([from_str, from_none], self.title)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -12451,7 +12216,7 @@ class APIKeyAuthInfo:
     host: str
     """Authentication host."""
 
-    type: APIKeyAuthInfoType
+    type: ClassVar[str] = "api-key"
     """API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style)."""
 
     copilot_user: CopilotUserResponse | None = None
@@ -12465,15 +12230,14 @@ class APIKeyAuthInfo:
         assert isinstance(obj, dict)
         api_key = from_str(obj.get("apiKey"))
         host = from_str(obj.get("host"))
-        type = APIKeyAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        return APIKeyAuthInfo(api_key, host, type, copilot_user)
+        return APIKeyAuthInfo(api_key, host, copilot_user)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["apiKey"] = from_str(self.api_key)
         result["host"] = from_str(self.host)
-        result["type"] = to_enum(APIKeyAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
@@ -12486,7 +12250,7 @@ class CopilotAPITokenAuthInfo:
     host: Host
     """Authentication host (always the public GitHub host)."""
 
-    type: CopilotAPITokenAuthInfoType
+    type: ClassVar[str] = "copilot-api-token"
     """Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL`
     environment-variable pair. The token itself is read from the environment by the runtime,
     not carried in this struct.
@@ -12501,14 +12265,13 @@ class CopilotAPITokenAuthInfo:
     def from_dict(obj: Any) -> 'CopilotAPITokenAuthInfo':
         assert isinstance(obj, dict)
         host = Host(obj.get("host"))
-        type = CopilotAPITokenAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        return CopilotAPITokenAuthInfo(host, type, copilot_user)
+        return CopilotAPITokenAuthInfo(host, copilot_user)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["host"] = to_enum(Host, self.host)
-        result["type"] = to_enum(CopilotAPITokenAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
@@ -12527,7 +12290,7 @@ class EnvAuthInfo:
     token: str
     """The token value itself. Treat as a secret."""
 
-    type: EnvAuthInfoType
+    type: ClassVar[str] = "env"
     """Personal access token (PAT) or server-to-server token sourced from an environment
     variable.
     """
@@ -12547,17 +12310,16 @@ class EnvAuthInfo:
         env_var = from_str(obj.get("envVar"))
         host = from_str(obj.get("host"))
         token = from_str(obj.get("token"))
-        type = EnvAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
         login = from_union([from_str, from_none], obj.get("login"))
-        return EnvAuthInfo(env_var, host, token, type, copilot_user, login)
+        return EnvAuthInfo(env_var, host, token, copilot_user, login)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["envVar"] = from_str(self.env_var)
         result["host"] = from_str(self.host)
         result["token"] = from_str(self.token)
-        result["type"] = to_enum(EnvAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         if self.login is not None:
@@ -12578,7 +12340,7 @@ class GhCLIAuthInfo:
     token: str
     """The token returned by `gh auth token`. Treat as a secret."""
 
-    type: GhCLIAuthInfoType
+    type: ClassVar[str] = "gh-cli"
     """Authentication via the `gh` CLI's saved credentials."""
 
     copilot_user: CopilotUserResponse | None = None
@@ -12593,16 +12355,15 @@ class GhCLIAuthInfo:
         host = from_str(obj.get("host"))
         login = from_str(obj.get("login"))
         token = from_str(obj.get("token"))
-        type = GhCLIAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        return GhCLIAuthInfo(host, login, token, type, copilot_user)
+        return GhCLIAuthInfo(host, login, token, copilot_user)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["host"] = from_str(self.host)
         result["login"] = from_str(self.login)
         result["token"] = from_str(self.token)
-        result["type"] = to_enum(GhCLIAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
@@ -12618,7 +12379,7 @@ class HMACAuthInfo:
     host: Host
     """Authentication host. HMAC auth always targets the public GitHub host."""
 
-    type: HMACAuthInfoType
+    type: ClassVar[str] = "hmac"
     """HMAC-based authentication used by GitHub-internal services."""
 
     copilot_user: CopilotUserResponse | None = None
@@ -12632,15 +12393,14 @@ class HMACAuthInfo:
         assert isinstance(obj, dict)
         hmac = from_str(obj.get("hmac"))
         host = Host(obj.get("host"))
-        type = HMACAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        return HMACAuthInfo(hmac, host, type, copilot_user)
+        return HMACAuthInfo(hmac, host, copilot_user)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["hmac"] = from_str(self.hmac)
         result["host"] = to_enum(Host, self.host)
-        result["type"] = to_enum(HMACAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
@@ -12656,7 +12416,7 @@ class TokenAuthInfo:
     token: str
     """The token value itself. Treat as a secret."""
 
-    type: TokenAuthInfoType
+    type: ClassVar[str] = "token"
     """SDK-side token authentication; the host configured the token directly via the SDK."""
 
     copilot_user: CopilotUserResponse | None = None
@@ -12670,15 +12430,14 @@ class TokenAuthInfo:
         assert isinstance(obj, dict)
         host = from_str(obj.get("host"))
         token = from_str(obj.get("token"))
-        type = TokenAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        return TokenAuthInfo(host, token, type, copilot_user)
+        return TokenAuthInfo(host, token, copilot_user)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["host"] = from_str(self.host)
         result["token"] = from_str(self.token)
-        result["type"] = to_enum(TokenAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
@@ -12694,7 +12453,7 @@ class UserAuthInfo:
     login: str
     """OAuth user login."""
 
-    type: UserAuthInfoType
+    type: ClassVar[str] = "user"
     """OAuth user authentication. The token itself is held in the runtime's secret token store
     (keyed by host+login) and is NOT carried in this struct.
     """
@@ -12709,104 +12468,16 @@ class UserAuthInfo:
         assert isinstance(obj, dict)
         host = from_str(obj.get("host"))
         login = from_str(obj.get("login"))
-        type = UserAuthInfoType(obj.get("type"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        return UserAuthInfo(host, login, type, copilot_user)
+        return UserAuthInfo(host, login, copilot_user)
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["host"] = from_str(self.host)
         result["login"] = from_str(self.login)
-        result["type"] = to_enum(UserAuthInfoType, self.type)
+        result["type"] = self.type
         if self.copilot_user is not None:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionDecisionApproveForLocationApproval:
-    """Approval to persist for this location
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
-
-    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
-    type.
-    """
-    kind: ApprovalKind
-    """Approval scoped to specific command identifiers.
-
-    Approval covering read-only filesystem operations.
-
-    Approval covering filesystem write operations.
-
-    Approval covering an MCP tool.
-
-    Approval covering MCP sampling requests for a server.
-
-    Approval covering writes to long-term memory.
-
-    Approval covering a custom tool.
-
-    Approval covering extension lifecycle operations such as enable, disable, or reload.
-
-    Approval covering an extension's request to access a permission-gated capability.
-    """
-    command_identifiers: list[str] | None = None
-    """Command identifiers covered by this approval."""
-
-    server_name: str | None = None
-    """MCP server name."""
-
-    tool_name: str | None = None
-    """MCP tool name, or null to cover every tool on the server.
-
-    Custom tool name.
-    """
-    operation: str | None = None
-    """Optional operation identifier; when omitted, the approval covers all extension management
-    operations.
-    """
-    extension_name: str | None = None
-    """Extension name."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApproval':
-        assert isinstance(obj, dict)
-        kind = ApprovalKind(obj.get("kind"))
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        return PermissionDecisionApproveForLocationApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(ApprovalKind, self.kind)
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
         return result
 
 @dataclass
@@ -12928,231 +12599,34 @@ class PermissionDecisionApproveForIonApproval:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class PermissionDecisionApproveForSessionApproval:
-    """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
-
-    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
-    type.
+class HandlePendingToolCallRequest:
+    """Pending external tool call request ID, with the tool result or an error describing why it
+    failed.
     """
-    kind: ApprovalKind
-    """Approval scoped to specific command identifiers.
-
-    Approval covering read-only filesystem operations.
-
-    Approval covering filesystem write operations.
-
-    Approval covering an MCP tool.
-
-    Approval covering MCP sampling requests for a server.
-
-    Approval covering writes to long-term memory.
-
-    Approval covering a custom tool.
-
-    Approval covering extension lifecycle operations such as enable, disable, or reload.
-
-    Approval covering an extension's request to access a permission-gated capability.
-    """
-    command_identifiers: list[str] | None = None
-    """Command identifiers covered by this approval."""
-
-    server_name: str | None = None
-    """MCP server name."""
-
-    tool_name: str | None = None
-    """MCP tool name, or null to cover every tool on the server.
-
-    Custom tool name.
-    """
-    operation: str | None = None
-    """Optional operation identifier; when omitted, the approval covers all extension management
-    operations.
-    """
-    extension_name: str | None = None
-    """Extension name."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApproval':
-        assert isinstance(obj, dict)
-        kind = ApprovalKind(obj.get("kind"))
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        return PermissionDecisionApproveForSessionApproval(kind, command_identifiers, server_name, tool_name, operation, extension_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(ApprovalKind, self.kind)
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionsLocationsAddToolApprovalDetails:
-    """Tool approval to persist and apply
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.
-
-    Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.
-    """
-    kind: ApprovalKind
-    """Approval scoped to specific command identifiers.
-
-    Approval covering read-only filesystem operations.
-
-    Approval covering filesystem write operations.
-
-    Approval covering an MCP tool.
-
-    Approval covering MCP sampling requests for a server.
-
-    Approval covering writes to long-term memory.
-
-    Approval covering a custom tool.
-
-    Approval covering extension lifecycle operations such as enable, disable, or reload.
-
-    Approval covering an extension's request to access a permission-gated capability.
-    """
-    command_identifiers: list[str] | None = None
-    """Command identifiers covered by this approval."""
-
-    server_name: str | None = None
-    """MCP server name."""
-
-    tool_name: str | None = None
-    """MCP tool name, or null to cover every tool on the server.
-
-    Custom tool name.
-    """
-    operation: str | None = None
-    """Optional operation identifier; when omitted, the approval covers all extension management
-    operations.
-    """
-    extension_name: str | None = None
-    """Extension name."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetails':
-        assert isinstance(obj, dict)
-        kind = ApprovalKind(obj.get("kind"))
-        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
-        server_name = from_union([from_str, from_none], obj.get("serverName"))
-        tool_name = from_union([from_none, from_str], obj.get("toolName"))
-        operation = from_union([from_str, from_none], obj.get("operation"))
-        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
-        return PermissionsLocationsAddToolApprovalDetails(kind, command_identifiers, server_name, tool_name, operation, extension_name)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(ApprovalKind, self.kind)
-        if self.command_identifiers is not None:
-            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
-        if self.server_name is not None:
-            result["serverName"] = from_union([from_str, from_none], self.server_name)
-        if self.tool_name is not None:
-            result["toolName"] = from_union([from_none, from_str], self.tool_name)
-        if self.operation is not None:
-            result["operation"] = from_union([from_str, from_none], self.operation)
-        if self.extension_name is not None:
-            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class ExternalToolTextResultForLlm:
-    """Expanded external tool result payload"""
-
-    text_result_for_llm: str
-    """Text result returned to the model"""
-
-    binary_results_for_llm: list[ExternalToolTextResultForLlmBinaryResultsForLlm] | None = None
-    """Base64-encoded binary results returned to the model"""
-
-    contents: list[ExternalToolTextResultForLlmContent] | None = None
-    """Structured content blocks from the tool"""
+    request_id: str
+    """Request ID of the pending tool call"""
 
     error: str | None = None
-    """Optional error message for failed executions"""
+    """Error message if the tool call failed"""
 
-    result_type: str | None = None
-    """Execution outcome classification. Optional for back-compat; normalized to 'success' (or
-    'failure' when error is present) when missing or unrecognized.
-    """
-    session_log: str | None = None
-    """Detailed log content for timeline display"""
-
-    tool_telemetry: dict[str, Any] | None = None
-    """Optional tool-specific telemetry"""
+    result: ExternalToolTextResultForLlm | str | None = None
+    """Tool call result (string or expanded result object)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlm':
+    def from_dict(obj: Any) -> 'HandlePendingToolCallRequest':
         assert isinstance(obj, dict)
-        text_result_for_llm = from_str(obj.get("textResultForLlm"))
-        binary_results_for_llm = from_union([lambda x: from_list(ExternalToolTextResultForLlmBinaryResultsForLlm.from_dict, x), from_none], obj.get("binaryResultsForLlm"))
-        contents = from_union([lambda x: from_list(ExternalToolTextResultForLlmContent.from_dict, x), from_none], obj.get("contents"))
+        request_id = from_str(obj.get("requestId"))
         error = from_union([from_str, from_none], obj.get("error"))
-        result_type = from_union([from_str, from_none], obj.get("resultType"))
-        session_log = from_union([from_str, from_none], obj.get("sessionLog"))
-        tool_telemetry = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("toolTelemetry"))
-        return ExternalToolTextResultForLlm(text_result_for_llm, binary_results_for_llm, contents, error, result_type, session_log, tool_telemetry)
+        result = from_union([ExternalToolTextResultForLlm.from_dict, from_str, from_none], obj.get("result"))
+        return HandlePendingToolCallRequest(request_id, error, result)
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["textResultForLlm"] = from_str(self.text_result_for_llm)
-        if self.binary_results_for_llm is not None:
-            result["binaryResultsForLlm"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmBinaryResultsForLlm, x), x), from_none], self.binary_results_for_llm)
-        if self.contents is not None:
-            result["contents"] = from_union([lambda x: from_list(lambda x: to_class(ExternalToolTextResultForLlmContent, x), x), from_none], self.contents)
+        result["requestId"] = from_str(self.request_id)
         if self.error is not None:
             result["error"] = from_union([from_str, from_none], self.error)
-        if self.result_type is not None:
-            result["resultType"] = from_union([from_str, from_none], self.result_type)
-        if self.session_log is not None:
-            result["sessionLog"] = from_union([from_str, from_none], self.session_log)
-        if self.tool_telemetry is not None:
-            result["toolTelemetry"] = from_union([lambda x: from_dict(lambda x: x, x), from_none], self.tool_telemetry)
+        if self.result is not None:
+            result["result"] = from_union([lambda x: to_class(ExternalToolTextResultForLlm, x), from_str, from_none], self.result)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -13476,108 +12950,6 @@ class PermissionsConfigureParams:
 
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
-class SendRequest:
-    """Parameters for sending a user message to the session"""
-
-    prompt: str
-    """The user message text"""
-
-    agent_mode: SendAgentMode | None = None
-    """The UI mode the agent was in when this message was sent. Defaults to the session's
-    current mode.
-    """
-    attachments: list[SendAttachment] | None = None
-    """Optional attachments (files, directories, selections, blobs, GitHub references) to
-    include with the message
-    """
-    billable: bool | None = None
-    """If false, this message will not trigger a Premium Request Unit charge. User messages
-    default to billable.
-    """
-    display_prompt: str | None = None
-    """If provided, this is shown in the timeline instead of `prompt`"""
-
-    mode: SendMode | None = None
-    """How to deliver the message. `enqueue` (default) appends to the message queue. `immediate`
-    interjects during an in-progress turn.
-    """
-    prepend: bool | None = None
-    """If true, adds the message to the front of the queue instead of the end"""
-
-    request_headers: dict[str, str] | None = None
-    """Custom HTTP headers to include in outbound model requests for this turn. Merged with
-    session-level provider headers; per-turn headers augment and overwrite session-level
-    headers with the same key.
-    """
-    required_tool: str | None = None
-    """If set, the request will fail if the named tool is not available when this message is
-    among the user messages at the start of the current exchange
-    """
-    source: Any = None
-    """Optional provenance tag copied to the resulting user.message event. Supported values are
-    `system`, `command-*`, and `schedule-*`.
-    """
-    traceparent: str | None = None
-    """W3C Trace Context traceparent header for distributed tracing of this agent turn"""
-
-    tracestate: str | None = None
-    """W3C Trace Context tracestate header for distributed tracing"""
-
-    wait: bool | None = None
-    """If true, await completion of the agentic loop for this message before returning. Defaults
-    to false (fire-and-forget). When true, the result still contains the same `messageId`;
-    the caller can rely on the agent having processed the message before the call resolves.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SendRequest':
-        assert isinstance(obj, dict)
-        prompt = from_str(obj.get("prompt"))
-        agent_mode = from_union([SendAgentMode, from_none], obj.get("agentMode"))
-        attachments = from_union([lambda x: from_list(SendAttachment.from_dict, x), from_none], obj.get("attachments"))
-        billable = from_union([from_bool, from_none], obj.get("billable"))
-        display_prompt = from_union([from_str, from_none], obj.get("displayPrompt"))
-        mode = from_union([SendMode, from_none], obj.get("mode"))
-        prepend = from_union([from_bool, from_none], obj.get("prepend"))
-        request_headers = from_union([lambda x: from_dict(from_str, x), from_none], obj.get("requestHeaders"))
-        required_tool = from_union([from_str, from_none], obj.get("requiredTool"))
-        source = obj.get("source")
-        traceparent = from_union([from_str, from_none], obj.get("traceparent"))
-        tracestate = from_union([from_str, from_none], obj.get("tracestate"))
-        wait = from_union([from_bool, from_none], obj.get("wait"))
-        return SendRequest(prompt, agent_mode, attachments, billable, display_prompt, mode, prepend, request_headers, required_tool, source, traceparent, tracestate, wait)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["prompt"] = from_str(self.prompt)
-        if self.agent_mode is not None:
-            result["agentMode"] = from_union([lambda x: to_enum(SendAgentMode, x), from_none], self.agent_mode)
-        if self.attachments is not None:
-            result["attachments"] = from_union([lambda x: from_list(lambda x: to_class(SendAttachment, x), x), from_none], self.attachments)
-        if self.billable is not None:
-            result["billable"] = from_union([from_bool, from_none], self.billable)
-        if self.display_prompt is not None:
-            result["displayPrompt"] = from_union([from_str, from_none], self.display_prompt)
-        if self.mode is not None:
-            result["mode"] = from_union([lambda x: to_enum(SendMode, x), from_none], self.mode)
-        if self.prepend is not None:
-            result["prepend"] = from_union([from_bool, from_none], self.prepend)
-        if self.request_headers is not None:
-            result["requestHeaders"] = from_union([lambda x: from_dict(from_str, x), from_none], self.request_headers)
-        if self.required_tool is not None:
-            result["requiredTool"] = from_union([from_str, from_none], self.required_tool)
-        if self.source is not None:
-            result["source"] = self.source
-        if self.traceparent is not None:
-            result["traceparent"] = from_union([from_str, from_none], self.traceparent)
-        if self.tracestate is not None:
-            result["tracestate"] = from_union([from_str, from_none], self.tracestate)
-        if self.wait is not None:
-            result["wait"] = from_union([from_bool, from_none], self.wait)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
 class TasksGetProgressResult:
     """Progress information for the task, or null when no task with that ID is tracked."""
 
@@ -13626,231 +12998,6 @@ class UIElicitationSchema:
         result["type"] = to_enum(UIElicitationSchemaType, self.type)
         if self.required is not None:
             result["required"] = from_union([lambda x: from_list(from_str, x), from_none], self.required)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class AuthInfo:
-    """The new auth credentials to install on the session. When omitted or `undefined`, the call
-    is a no-op and the session's existing credentials are preserved. The runtime stores the
-    value verbatim and uses it for outbound model/API requests; it does NOT re-validate or
-    re-fetch the associated Copilot user response. Several variants carry secret material;
-    treat this method's params as containing secrets at rest and in transit.
-
-    Schema for the `HMACAuthInfo` type.
-
-    Schema for the `EnvAuthInfo` type.
-
-    Schema for the `TokenAuthInfo` type.
-
-    Schema for the `CopilotApiTokenAuthInfo` type.
-
-    Schema for the `UserAuthInfo` type.
-
-    Schema for the `GhCliAuthInfo` type.
-
-    Schema for the `ApiKeyAuthInfo` type.
-    """
-    host: str
-    """Authentication host. HMAC auth always targets the public GitHub host.
-
-    Authentication host (e.g. https://github.com or a GHES host).
-
-    Authentication host.
-
-    Authentication host (always the public GitHub host).
-    """
-    type: AuthInfoType
-    """HMAC-based authentication used by GitHub-internal services.
-
-    Personal access token (PAT) or server-to-server token sourced from an environment
-    variable.
-
-    SDK-side token authentication; the host configured the token directly via the SDK.
-
-    Direct Copilot API authentication via the `GITHUB_COPILOT_API_TOKEN` + `COPILOT_API_URL`
-    environment-variable pair. The token itself is read from the environment by the runtime,
-    not carried in this struct.
-
-    OAuth user authentication. The token itself is held in the runtime's secret token store
-    (keyed by host+login) and is NOT carried in this struct.
-
-    Authentication via the `gh` CLI's saved credentials.
-
-    API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
-    """
-    copilot_user: CopilotUserResponse | None = None
-    """Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the
-    GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this
-    verbatim and does not re-fetch when set.
-    """
-    hmac: str | None = None
-    """HMAC secret used to sign requests."""
-
-    env_var: str | None = None
-    """Name of the environment variable the token was sourced from."""
-
-    login: str | None = None
-    """User login associated with the token. Undefined for server-to-server tokens (those
-    starting with `ghs_`).
-
-    OAuth user login.
-
-    User login as reported by `gh auth status`.
-    """
-    token: str | None = None
-    """The token value itself. Treat as a secret.
-
-    The token returned by `gh auth token`. Treat as a secret.
-    """
-    api_key: str | None = None
-    """The API key. Treat as a secret."""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'AuthInfo':
-        assert isinstance(obj, dict)
-        host = from_str(obj.get("host"))
-        type = AuthInfoType(obj.get("type"))
-        copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
-        hmac = from_union([from_str, from_none], obj.get("hmac"))
-        env_var = from_union([from_str, from_none], obj.get("envVar"))
-        login = from_union([from_str, from_none], obj.get("login"))
-        token = from_union([from_str, from_none], obj.get("token"))
-        api_key = from_union([from_str, from_none], obj.get("apiKey"))
-        return AuthInfo(host, type, copilot_user, hmac, env_var, login, token, api_key)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["host"] = from_str(self.host)
-        result["type"] = to_enum(AuthInfoType, self.type)
-        if self.copilot_user is not None:
-            result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
-        if self.hmac is not None:
-            result["hmac"] = from_union([from_str, from_none], self.hmac)
-        if self.env_var is not None:
-            result["envVar"] = from_union([from_str, from_none], self.env_var)
-        if self.login is not None:
-            result["login"] = from_union([from_str, from_none], self.login)
-        if self.token is not None:
-            result["token"] = from_union([from_str, from_none], self.token)
-        if self.api_key is not None:
-            result["apiKey"] = from_union([from_str, from_none], self.api_key)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionDecisionApproveForLocation:
-    """Schema for the `PermissionDecisionApproveForLocation` type."""
-
-    approval: PermissionDecisionApproveForLocationApproval
-    """Approval to persist for this location"""
-
-    kind: PermissionDecisionApproveForLocationKind
-    """Approve and persist for this project location"""
-
-    location_key: str
-    """Location key (git root or cwd) to persist the approval to"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocation':
-        assert isinstance(obj, dict)
-        approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("approval"))
-        kind = PermissionDecisionApproveForLocationKind(obj.get("kind"))
-        location_key = from_str(obj.get("locationKey"))
-        return PermissionDecisionApproveForLocation(approval, kind, location_key)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["approval"] = to_class(PermissionDecisionApproveForLocationApproval, self.approval)
-        result["kind"] = to_enum(PermissionDecisionApproveForLocationKind, self.kind)
-        result["locationKey"] = from_str(self.location_key)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionDecisionApproveForSession:
-    """Schema for the `PermissionDecisionApproveForSession` type."""
-
-    kind: PermissionDecisionApproveForSessionKind
-    """Approve and remember for the rest of the session"""
-
-    approval: PermissionDecisionApproveForSessionApproval | None = None
-    """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)"""
-
-    domain: str | None = None
-    """URL domain to approve for the rest of the session (URL prompts only)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionApproveForSessionKind(obj.get("kind"))
-        approval = from_union([PermissionDecisionApproveForSessionApproval.from_dict, from_none], obj.get("approval"))
-        domain = from_union([from_str, from_none], obj.get("domain"))
-        return PermissionDecisionApproveForSession(kind, approval, domain)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionApproveForSessionKind, self.kind)
-        if self.approval is not None:
-            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForSessionApproval, x), from_none], self.approval)
-        if self.domain is not None:
-            result["domain"] = from_union([from_str, from_none], self.domain)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionLocationAddToolApprovalParams:
-    """Location-scoped tool approval to persist."""
-
-    approval: PermissionsLocationsAddToolApprovalDetails
-    """Tool approval to persist and apply"""
-
-    location_key: str
-    """Location key (git root or cwd) to persist the approval to"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionLocationAddToolApprovalParams':
-        assert isinstance(obj, dict)
-        approval = PermissionsLocationsAddToolApprovalDetails.from_dict(obj.get("approval"))
-        location_key = from_str(obj.get("locationKey"))
-        return PermissionLocationAddToolApprovalParams(approval, location_key)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["approval"] = to_class(PermissionsLocationsAddToolApprovalDetails, self.approval)
-        result["locationKey"] = from_str(self.location_key)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class HandlePendingToolCallRequest:
-    """Pending external tool call request ID, with the tool result or an error describing why it
-    failed.
-    """
-    request_id: str
-    """Request ID of the pending tool call"""
-
-    error: str | None = None
-    """Error message if the tool call failed"""
-
-    result: ExternalToolTextResultForLlm | str | None = None
-    """Tool call result (string or expanded result object)"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'HandlePendingToolCallRequest':
-        assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        result = from_union([ExternalToolTextResultForLlm.from_dict, from_str, from_none], obj.get("result"))
-        return HandlePendingToolCallRequest(request_id, error, result)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.result is not None:
-            result["result"] = from_union([lambda x: to_class(ExternalToolTextResultForLlm, x), from_str, from_none], self.result)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -14135,206 +13282,6 @@ class UIElicitationRequest:
         result: dict = {}
         result["message"] = from_str(self.message)
         result["requestedSchema"] = to_class(UIElicitationSchema, self.requested_schema)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class SessionSetCredentialsParams:
-    """New auth credentials to install on the session. Omit to leave credentials unchanged."""
-
-    credentials: AuthInfo | None = None
-    """The new auth credentials to install on the session. When omitted or `undefined`, the call
-    is a no-op and the session's existing credentials are preserved. The runtime stores the
-    value verbatim and uses it for outbound model/API requests; it does NOT re-validate or
-    re-fetch the associated Copilot user response. Several variants carry secret material;
-    treat this method's params as containing secrets at rest and in transit.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'SessionSetCredentialsParams':
-        assert isinstance(obj, dict)
-        credentials = from_union([AuthInfo.from_dict, from_none], obj.get("credentials"))
-        return SessionSetCredentialsParams(credentials)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.credentials is not None:
-            result["credentials"] = from_union([lambda x: to_class(AuthInfo, x), from_none], self.credentials)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionDecision:
-    """The client's response to the pending permission prompt
-
-    Schema for the `PermissionDecisionApproveOnce` type.
-
-    Schema for the `PermissionDecisionApproveForSession` type.
-
-    Schema for the `PermissionDecisionApproveForLocation` type.
-
-    Schema for the `PermissionDecisionApprovePermanently` type.
-
-    Schema for the `PermissionDecisionReject` type.
-
-    Schema for the `PermissionDecisionUserNotAvailable` type.
-
-    Schema for the `PermissionDecisionApproved` type.
-
-    Schema for the `PermissionDecisionApprovedForSession` type.
-
-    Schema for the `PermissionDecisionApprovedForLocation` type.
-
-    Schema for the `PermissionDecisionCancelled` type.
-
-    Schema for the `PermissionDecisionDeniedByRules` type.
-
-    Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.
-
-    Schema for the `PermissionDecisionDeniedInteractivelyByUser` type.
-
-    Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type.
-
-    Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type.
-    """
-    kind: PermissionDecisionKind
-    """Approve this single request only
-
-    Approve and remember for the rest of the session
-
-    Approve and persist for this project location
-
-    Approve and persist across sessions (URL prompts only)
-
-    Reject the request
-
-    No user is available to confirm the request
-
-    The permission request was approved
-
-    Approved and remembered for the rest of the session
-
-    Approved and persisted for this project location
-
-    The permission request was cancelled before a response was used
-
-    Denied because approval rules explicitly blocked it
-
-    Denied because no approval rule matched and user confirmation was unavailable
-
-    Denied by the user during an interactive prompt
-
-    Denied by the organization's content exclusion policy
-
-    Denied by a permission request hook registered by an extension or plugin
-    """
-    approval: PermissionDecisionApproveForIonApproval | None = None
-    """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
-
-    Approval to persist for this location
-
-    The approval to add as a session-scoped rule
-
-    The approval to persist for this location
-    """
-    domain: str | None = None
-    """URL domain to approve for the rest of the session (URL prompts only)
-
-    URL domain to approve permanently
-    """
-    location_key: str | None = None
-    """Location key (git root or cwd) to persist the approval to
-
-    The location key (git root or cwd) to persist the approval to
-    """
-    feedback: str | None = None
-    """Optional feedback explaining the rejection
-
-    Optional feedback from the user explaining the denial
-    """
-    reason: str | None = None
-    """Optional explanation of why the request was cancelled"""
-
-    rules: list[PermissionRule] | None = None
-    """Rules that denied the request"""
-
-    force_reject: bool | None = None
-    """Whether to force-reject the current agent turn"""
-
-    message: str | None = None
-    """Human-readable explanation of why the path was excluded
-
-    Optional message from the hook explaining the denial
-    """
-    path: str | None = None
-    """File path that triggered the exclusion"""
-
-    interrupt: bool | None = None
-    """Whether to interrupt the current agent turn"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecision':
-        assert isinstance(obj, dict)
-        kind = PermissionDecisionKind(obj.get("kind"))
-        approval = from_union([PermissionDecisionApproveForIonApproval.from_dict, from_none], obj.get("approval"))
-        domain = from_union([from_str, from_none], obj.get("domain"))
-        location_key = from_union([from_str, from_none], obj.get("locationKey"))
-        feedback = from_union([from_str, from_none], obj.get("feedback"))
-        reason = from_union([from_str, from_none], obj.get("reason"))
-        rules = from_union([lambda x: from_list(PermissionRule.from_dict, x), from_none], obj.get("rules"))
-        force_reject = from_union([from_bool, from_none], obj.get("forceReject"))
-        message = from_union([from_str, from_none], obj.get("message"))
-        path = from_union([from_str, from_none], obj.get("path"))
-        interrupt = from_union([from_bool, from_none], obj.get("interrupt"))
-        return PermissionDecision(kind, approval, domain, location_key, feedback, reason, rules, force_reject, message, path, interrupt)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["kind"] = to_enum(PermissionDecisionKind, self.kind)
-        if self.approval is not None:
-            result["approval"] = from_union([lambda x: to_class(PermissionDecisionApproveForIonApproval, x), from_none], self.approval)
-        if self.domain is not None:
-            result["domain"] = from_union([from_str, from_none], self.domain)
-        if self.location_key is not None:
-            result["locationKey"] = from_union([from_str, from_none], self.location_key)
-        if self.feedback is not None:
-            result["feedback"] = from_union([from_str, from_none], self.feedback)
-        if self.reason is not None:
-            result["reason"] = from_union([from_str, from_none], self.reason)
-        if self.rules is not None:
-            result["rules"] = from_union([lambda x: from_list(lambda x: to_class(PermissionRule, x), x), from_none], self.rules)
-        if self.force_reject is not None:
-            result["forceReject"] = from_union([from_bool, from_none], self.force_reject)
-        if self.message is not None:
-            result["message"] = from_union([from_str, from_none], self.message)
-        if self.path is not None:
-            result["path"] = from_union([from_str, from_none], self.path)
-        if self.interrupt is not None:
-            result["interrupt"] = from_union([from_bool, from_none], self.interrupt)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class PermissionDecisionRequest:
-    """Pending permission request ID and the decision to apply (approve/reject and scope)."""
-
-    request_id: str
-    """Request ID of the pending permission request"""
-
-    result: PermissionDecision
-    """The client's response to the pending permission prompt"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionRequest':
-        assert isinstance(obj, dict)
-        request_id = from_str(obj.get("requestId"))
-        result = PermissionDecision.from_dict(obj.get("result"))
-        return PermissionDecisionRequest(request_id, result)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["requestId"] = from_str(self.request_id)
-        result["result"] = to_class(PermissionDecision, self.result)
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
@@ -14642,7 +13589,7 @@ class TaskAgentInfo:
     tool_call_id: str
     """Tool call ID associated with this agent task"""
 
-    type: TaskAgentInfoType
+    type: ClassVar[str] = "agent"
     """Task kind"""
 
     active_started_at: datetime | None = None
@@ -14687,7 +13634,6 @@ class TaskAgentInfo:
         started_at = from_datetime(obj.get("startedAt"))
         status = TaskStatus(obj.get("status"))
         tool_call_id = from_str(obj.get("toolCallId"))
-        type = TaskAgentInfoType(obj.get("type"))
         active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
         active_time_ms = from_union([from_int, from_none], obj.get("activeTimeMs"))
         can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
@@ -14698,7 +13644,7 @@ class TaskAgentInfo:
         latest_response = from_union([from_str, from_none], obj.get("latestResponse"))
         model = from_union([from_str, from_none], obj.get("model"))
         result = from_union([from_str, from_none], obj.get("result"))
-        return TaskAgentInfo(agent_type, description, id, prompt, started_at, status, tool_call_id, type, active_started_at, active_time_ms, can_promote_to_background, completed_at, error, execution_mode, idle_since, latest_response, model, result)
+        return TaskAgentInfo(agent_type, description, id, prompt, started_at, status, tool_call_id, active_started_at, active_time_ms, can_promote_to_background, completed_at, error, execution_mode, idle_since, latest_response, model, result)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -14709,7 +13655,7 @@ class TaskAgentInfo:
         result["startedAt"] = self.started_at.isoformat()
         result["status"] = to_enum(TaskStatus, self.status)
         result["toolCallId"] = from_str(self.tool_call_id)
-        result["type"] = to_enum(TaskAgentInfoType, self.type)
+        result["type"] = self.type
         if self.active_started_at is not None:
             result["activeStartedAt"] = from_union([lambda x: x.isoformat(), from_none], self.active_started_at)
         if self.active_time_ms is not None:
@@ -14730,230 +13676,6 @@ class TaskAgentInfo:
             result["model"] = from_union([from_str, from_none], self.model)
         if self.result is not None:
             result["result"] = from_union([from_str, from_none], self.result)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class TaskInfo:
-    """Schema for the `TaskInfo` type.
-
-    The first sync-waiting task (agent first, then shell) that can currently be promoted to
-    background mode. Omitted if no such task exists. The returned task is guaranteed to have
-    executionMode='sync' and canPromoteToBackground=true at the time of the call.
-
-    The promoted task as it now exists in background mode, omitted if no promotable task was
-    waiting. Atomic operation: avoids the race window of getCurrentPromotable +
-    promoteToBackground.
-
-    Schema for the `TaskAgentInfo` type.
-
-    Schema for the `TaskShellInfo` type.
-    """
-    description: str
-    """Short description of the task"""
-
-    id: str
-    """Unique task identifier"""
-
-    started_at: datetime
-    """ISO 8601 timestamp when the task was started"""
-
-    status: TaskStatus
-    """Current lifecycle status of the task"""
-
-    type: TaskInfoType
-    """Task kind"""
-
-    active_started_at: datetime | None = None
-    """ISO 8601 timestamp when the current active period began"""
-
-    active_time_ms: int | None = None
-    """Accumulated active execution time in milliseconds"""
-
-    agent_type: str | None = None
-    """Type of agent running this task"""
-
-    can_promote_to_background: bool | None = None
-    """Whether the task is currently in the original sync wait and can be moved to background
-    mode. False once it is already backgrounded, idle, finished, or no longer has a
-    promotable sync waiter.
-
-    Whether this shell task can be promoted to background mode
-    """
-    completed_at: datetime | None = None
-    """ISO 8601 timestamp when the task finished"""
-
-    error: str | None = None
-    """Error message when the task failed"""
-
-    execution_mode: TaskExecutionMode | None = None
-    """Whether task execution is synchronously awaited or managed in the background"""
-
-    idle_since: datetime | None = None
-    """ISO 8601 timestamp when the agent entered idle state"""
-
-    latest_response: str | None = None
-    """Most recent response text from the agent"""
-
-    model: str | None = None
-    """Model used for the task when specified"""
-
-    prompt: str | None = None
-    """Prompt passed to the agent"""
-
-    result: str | None = None
-    """Result text from the task when available"""
-
-    tool_call_id: str | None = None
-    """Tool call ID associated with this agent task"""
-
-    attachment_mode: TaskShellInfoAttachmentMode | None = None
-    """Whether the shell runs inside a managed PTY session or as an independent background
-    process
-    """
-    command: str | None = None
-    """Command being executed"""
-
-    log_path: str | None = None
-    """Path to the detached shell log, when available"""
-
-    pid: int | None = None
-    """Process ID when available"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'TaskInfo':
-        assert isinstance(obj, dict)
-        description = from_str(obj.get("description"))
-        id = from_str(obj.get("id"))
-        started_at = from_datetime(obj.get("startedAt"))
-        status = TaskStatus(obj.get("status"))
-        type = TaskInfoType(obj.get("type"))
-        active_started_at = from_union([from_datetime, from_none], obj.get("activeStartedAt"))
-        active_time_ms = from_union([from_int, from_none], obj.get("activeTimeMs"))
-        agent_type = from_union([from_str, from_none], obj.get("agentType"))
-        can_promote_to_background = from_union([from_bool, from_none], obj.get("canPromoteToBackground"))
-        completed_at = from_union([from_datetime, from_none], obj.get("completedAt"))
-        error = from_union([from_str, from_none], obj.get("error"))
-        execution_mode = from_union([TaskExecutionMode, from_none], obj.get("executionMode"))
-        idle_since = from_union([from_datetime, from_none], obj.get("idleSince"))
-        latest_response = from_union([from_str, from_none], obj.get("latestResponse"))
-        model = from_union([from_str, from_none], obj.get("model"))
-        prompt = from_union([from_str, from_none], obj.get("prompt"))
-        result = from_union([from_str, from_none], obj.get("result"))
-        tool_call_id = from_union([from_str, from_none], obj.get("toolCallId"))
-        attachment_mode = from_union([TaskShellInfoAttachmentMode, from_none], obj.get("attachmentMode"))
-        command = from_union([from_str, from_none], obj.get("command"))
-        log_path = from_union([from_str, from_none], obj.get("logPath"))
-        pid = from_union([from_int, from_none], obj.get("pid"))
-        return TaskInfo(description, id, started_at, status, type, active_started_at, active_time_ms, agent_type, can_promote_to_background, completed_at, error, execution_mode, idle_since, latest_response, model, prompt, result, tool_call_id, attachment_mode, command, log_path, pid)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["description"] = from_str(self.description)
-        result["id"] = from_str(self.id)
-        result["startedAt"] = self.started_at.isoformat()
-        result["status"] = to_enum(TaskStatus, self.status)
-        result["type"] = to_enum(TaskInfoType, self.type)
-        if self.active_started_at is not None:
-            result["activeStartedAt"] = from_union([lambda x: x.isoformat(), from_none], self.active_started_at)
-        if self.active_time_ms is not None:
-            result["activeTimeMs"] = from_union([from_int, from_none], self.active_time_ms)
-        if self.agent_type is not None:
-            result["agentType"] = from_union([from_str, from_none], self.agent_type)
-        if self.can_promote_to_background is not None:
-            result["canPromoteToBackground"] = from_union([from_bool, from_none], self.can_promote_to_background)
-        if self.completed_at is not None:
-            result["completedAt"] = from_union([lambda x: x.isoformat(), from_none], self.completed_at)
-        if self.error is not None:
-            result["error"] = from_union([from_str, from_none], self.error)
-        if self.execution_mode is not None:
-            result["executionMode"] = from_union([lambda x: to_enum(TaskExecutionMode, x), from_none], self.execution_mode)
-        if self.idle_since is not None:
-            result["idleSince"] = from_union([lambda x: x.isoformat(), from_none], self.idle_since)
-        if self.latest_response is not None:
-            result["latestResponse"] = from_union([from_str, from_none], self.latest_response)
-        if self.model is not None:
-            result["model"] = from_union([from_str, from_none], self.model)
-        if self.prompt is not None:
-            result["prompt"] = from_union([from_str, from_none], self.prompt)
-        if self.result is not None:
-            result["result"] = from_union([from_str, from_none], self.result)
-        if self.tool_call_id is not None:
-            result["toolCallId"] = from_union([from_str, from_none], self.tool_call_id)
-        if self.attachment_mode is not None:
-            result["attachmentMode"] = from_union([lambda x: to_enum(TaskShellInfoAttachmentMode, x), from_none], self.attachment_mode)
-        if self.command is not None:
-            result["command"] = from_union([from_str, from_none], self.command)
-        if self.log_path is not None:
-            result["logPath"] = from_union([from_str, from_none], self.log_path)
-        if self.pid is not None:
-            result["pid"] = from_union([from_int, from_none], self.pid)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class TaskList:
-    """Background tasks currently tracked by the session."""
-
-    tasks: list[TaskInfo]
-    """Currently tracked tasks"""
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'TaskList':
-        assert isinstance(obj, dict)
-        tasks = from_list(TaskInfo.from_dict, obj.get("tasks"))
-        return TaskList(tasks)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        result["tasks"] = from_list(lambda x: to_class(TaskInfo, x), self.tasks)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class TasksGetCurrentPromotableResult:
-    """The first sync-waiting task that can currently be promoted to background mode."""
-
-    task: TaskInfo | None = None
-    """The first sync-waiting task (agent first, then shell) that can currently be promoted to
-    background mode. Omitted if no such task exists. The returned task is guaranteed to have
-    executionMode='sync' and canPromoteToBackground=true at the time of the call.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'TasksGetCurrentPromotableResult':
-        assert isinstance(obj, dict)
-        task = from_union([TaskInfo.from_dict, from_none], obj.get("task"))
-        return TasksGetCurrentPromotableResult(task)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.task is not None:
-            result["task"] = from_union([lambda x: to_class(TaskInfo, x), from_none], self.task)
-        return result
-
-# Experimental: this type is part of an experimental API and may change or be removed.
-@dataclass
-class TasksPromoteCurrentToBackgroundResult:
-    """The promoted task as it now exists in background mode, omitted if no promotable task was
-    waiting.
-    """
-    task: TaskInfo | None = None
-    """The promoted task as it now exists in background mode, omitted if no promotable task was
-    waiting. Atomic operation: avoids the race window of getCurrentPromotable +
-    promoteToBackground.
-    """
-
-    @staticmethod
-    def from_dict(obj: Any) -> 'TasksPromoteCurrentToBackgroundResult':
-        assert isinstance(obj, dict)
-        task = from_union([TaskInfo.from_dict, from_none], obj.get("task"))
-        return TasksPromoteCurrentToBackgroundResult(task)
-
-    def to_dict(self) -> dict:
-        result: dict = {}
-        if self.task is not None:
-            result["task"] = from_union([lambda x: to_class(TaskInfo, x), from_none], self.task)
         return result
 
 @dataclass
@@ -15449,14 +14171,6 @@ class RPC:
     usage_metrics_model_metric_usage: UsageMetricsModelMetricUsage
     usage_metrics_token_detail: UsageMetricsTokenDetail
     user_auth_info: UserAuthInfo
-    user_tool_session_approval_commands: UserToolSessionApprovalCommands
-    user_tool_session_approval_custom_tool: UserToolSessionApprovalCustomTool
-    user_tool_session_approval_extension_management: UserToolSessionApprovalExtensionManagement
-    user_tool_session_approval_extension_permission_access: UserToolSessionApprovalExtensionPermissionAccess
-    user_tool_session_approval_mcp: UserToolSessionApprovalMCP
-    user_tool_session_approval_memory: UserToolSessionApprovalMemory
-    user_tool_session_approval_read: UserToolSessionApprovalRead
-    user_tool_session_approval_write: UserToolSessionApprovalWrite
     workspaces_checkpoints: WorkspacesCheckpoints
     workspaces_create_file_request: WorkspacesCreateFileRequest
     workspaces_get_workspace_result: WorkspacesGetWorkspaceResult
@@ -15490,7 +14204,7 @@ class RPC:
         agent_select_request = AgentSelectRequest.from_dict(obj.get("AgentSelectRequest"))
         agent_select_result = AgentSelectResult.from_dict(obj.get("AgentSelectResult"))
         api_key_auth_info = APIKeyAuthInfo.from_dict(obj.get("ApiKeyAuthInfo"))
-        auth_info = AuthInfo.from_dict(obj.get("AuthInfo"))
+        auth_info = _load_AuthInfo(obj.get("AuthInfo"))
         auth_info_type = AuthInfoType(obj.get("AuthInfoType"))
         command_list = CommandList.from_dict(obj.get("CommandList"))
         commands_handle_pending_command_request = CommandsHandlePendingCommandRequest.from_dict(obj.get("CommandsHandlePendingCommandRequest"))
@@ -15538,7 +14252,7 @@ class RPC:
         external_tool_text_result_for_llm = ExternalToolTextResultForLlm.from_dict(obj.get("ExternalToolTextResultForLlm"))
         external_tool_text_result_for_llm_binary_results_for_llm = ExternalToolTextResultForLlmBinaryResultsForLlm.from_dict(obj.get("ExternalToolTextResultForLlmBinaryResultsForLlm"))
         external_tool_text_result_for_llm_binary_results_for_llm_type = ExternalToolTextResultForLlmBinaryResultsForLlmType(obj.get("ExternalToolTextResultForLlmBinaryResultsForLlmType"))
-        external_tool_text_result_for_llm_content = ExternalToolTextResultForLlmContent.from_dict(obj.get("ExternalToolTextResultForLlmContent"))
+        external_tool_text_result_for_llm_content = _load_ExternalToolTextResultForLlmContent(obj.get("ExternalToolTextResultForLlmContent"))
         external_tool_text_result_for_llm_content_audio = ExternalToolTextResultForLlmContentAudio.from_dict(obj.get("ExternalToolTextResultForLlmContentAudio"))
         external_tool_text_result_for_llm_content_image = ExternalToolTextResultForLlmContentImage.from_dict(obj.get("ExternalToolTextResultForLlmContentImage"))
         external_tool_text_result_for_llm_content_resource = ExternalToolTextResultForLlmContentResource.from_dict(obj.get("ExternalToolTextResultForLlmContentResource"))
@@ -15651,12 +14365,12 @@ class RPC:
         options_update_env_value_mode = MCPSetEnvValueModeDetails(obj.get("OptionsUpdateEnvValueMode"))
         pending_permission_request = PendingPermissionRequest.from_dict(obj.get("PendingPermissionRequest"))
         pending_permission_request_list = PendingPermissionRequestList.from_dict(obj.get("PendingPermissionRequestList"))
-        permission_decision = PermissionDecision.from_dict(obj.get("PermissionDecision"))
+        permission_decision = _load_PermissionDecision(obj.get("PermissionDecision"))
         permission_decision_approved = PermissionDecisionApproved.from_dict(obj.get("PermissionDecisionApproved"))
         permission_decision_approved_for_location = PermissionDecisionApprovedForLocation.from_dict(obj.get("PermissionDecisionApprovedForLocation"))
         permission_decision_approved_for_session = PermissionDecisionApprovedForSession.from_dict(obj.get("PermissionDecisionApprovedForSession"))
         permission_decision_approve_for_location = PermissionDecisionApproveForLocation.from_dict(obj.get("PermissionDecisionApproveForLocation"))
-        permission_decision_approve_for_location_approval = PermissionDecisionApproveForLocationApproval.from_dict(obj.get("PermissionDecisionApproveForLocationApproval"))
+        permission_decision_approve_for_location_approval = _load_PermissionDecisionApproveForLocationApproval(obj.get("PermissionDecisionApproveForLocationApproval"))
         permission_decision_approve_for_location_approval_commands = PermissionDecisionApproveForLocationApprovalCommands.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalCommands"))
         permission_decision_approve_for_location_approval_custom_tool = PermissionDecisionApproveForLocationApprovalCustomTool.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalCustomTool"))
         permission_decision_approve_for_location_approval_extension_management = PermissionDecisionApproveForLocationApprovalExtensionManagement.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalExtensionManagement"))
@@ -15667,7 +14381,7 @@ class RPC:
         permission_decision_approve_for_location_approval_read = PermissionDecisionApproveForLocationApprovalRead.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalRead"))
         permission_decision_approve_for_location_approval_write = PermissionDecisionApproveForLocationApprovalWrite.from_dict(obj.get("PermissionDecisionApproveForLocationApprovalWrite"))
         permission_decision_approve_for_session = PermissionDecisionApproveForSession.from_dict(obj.get("PermissionDecisionApproveForSession"))
-        permission_decision_approve_for_session_approval = PermissionDecisionApproveForSessionApproval.from_dict(obj.get("PermissionDecisionApproveForSessionApproval"))
+        permission_decision_approve_for_session_approval = _load_PermissionDecisionApproveForSessionApproval(obj.get("PermissionDecisionApproveForSessionApproval"))
         permission_decision_approve_for_session_approval_commands = PermissionDecisionApproveForSessionApprovalCommands.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalCommands"))
         permission_decision_approve_for_session_approval_custom_tool = PermissionDecisionApproveForSessionApprovalCustomTool.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalCustomTool"))
         permission_decision_approve_for_session_approval_extension_management = PermissionDecisionApproveForSessionApprovalExtensionManagement.from_dict(obj.get("PermissionDecisionApproveForSessionApprovalExtensionManagement"))
@@ -15712,7 +14426,7 @@ class RPC:
         permissions_configure_params = PermissionsConfigureParams.from_dict(obj.get("PermissionsConfigureParams"))
         permissions_configure_result = PermissionsConfigureResult.from_dict(obj.get("PermissionsConfigureResult"))
         permissions_folder_trust_add_trusted_result = PermissionsFolderTrustAddTrustedResult.from_dict(obj.get("PermissionsFolderTrustAddTrustedResult"))
-        permissions_locations_add_tool_approval_details = PermissionsLocationsAddToolApprovalDetails.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetails"))
+        permissions_locations_add_tool_approval_details = _load_PermissionsLocationsAddToolApprovalDetails(obj.get("PermissionsLocationsAddToolApprovalDetails"))
         permissions_locations_add_tool_approval_details_commands = PermissionsLocationsAddToolApprovalDetailsCommands.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsCommands"))
         permissions_locations_add_tool_approval_details_custom_tool = PermissionsLocationsAddToolApprovalDetailsCustomTool.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsCustomTool"))
         permissions_locations_add_tool_approval_details_extension_management = PermissionsLocationsAddToolApprovalDetailsExtensionManagement.from_dict(obj.get("PermissionsLocationsAddToolApprovalDetailsExtensionManagement"))
@@ -15749,7 +14463,7 @@ class RPC:
         plugin_list = PluginList.from_dict(obj.get("PluginList"))
         queued_command_handled = QueuedCommandHandled.from_dict(obj.get("QueuedCommandHandled"))
         queued_command_not_handled = QueuedCommandNotHandled.from_dict(obj.get("QueuedCommandNotHandled"))
-        queued_command_result = QueuedCommandResult.from_dict(obj.get("QueuedCommandResult"))
+        queued_command_result = _load_QueuedCommandResult(obj.get("QueuedCommandResult"))
         queue_pending_items = QueuePendingItems.from_dict(obj.get("QueuePendingItems"))
         queue_pending_items_kind = QueuePendingItemsKind(obj.get("QueuePendingItemsKind"))
         queue_pending_items_result = QueuePendingItemsResult.from_dict(obj.get("QueuePendingItemsResult"))
@@ -15770,7 +14484,7 @@ class RPC:
         secrets_add_filter_values_request = SecretsAddFilterValuesRequest.from_dict(obj.get("SecretsAddFilterValuesRequest"))
         secrets_add_filter_values_result = SecretsAddFilterValuesResult.from_dict(obj.get("SecretsAddFilterValuesResult"))
         send_agent_mode = SendAgentMode(obj.get("SendAgentMode"))
-        send_attachment = SendAttachment.from_dict(obj.get("SendAttachment"))
+        send_attachment = _load_SendAttachment(obj.get("SendAttachment"))
         send_attachment_blob = SendAttachmentBlob.from_dict(obj.get("SendAttachmentBlob"))
         send_attachment_directory = SendAttachmentDirectory.from_dict(obj.get("SendAttachmentDirectory"))
         send_attachment_file = SendAttachmentFile.from_dict(obj.get("SendAttachmentFile"))
@@ -15888,7 +14602,7 @@ class RPC:
         slash_command_info = SlashCommandInfo.from_dict(obj.get("SlashCommandInfo"))
         slash_command_input = SlashCommandInput.from_dict(obj.get("SlashCommandInput"))
         slash_command_input_completion = SlashCommandInputCompletion(obj.get("SlashCommandInputCompletion"))
-        slash_command_invocation_result = SlashCommandInvocationResult.from_dict(obj.get("SlashCommandInvocationResult"))
+        slash_command_invocation_result = _load_SlashCommandInvocationResult(obj.get("SlashCommandInvocationResult"))
         slash_command_kind = SlashCommandKind(obj.get("SlashCommandKind"))
         slash_command_select_subcommand_option = SlashCommandSelectSubcommandOption.from_dict(obj.get("SlashCommandSelectSubcommandOption"))
         slash_command_select_subcommand_result = SlashCommandSelectSubcommandResult.from_dict(obj.get("SlashCommandSelectSubcommandResult"))
@@ -15896,7 +14610,7 @@ class RPC:
         task_agent_info = TaskAgentInfo.from_dict(obj.get("TaskAgentInfo"))
         task_agent_progress = TaskAgentProgress.from_dict(obj.get("TaskAgentProgress"))
         task_execution_mode = TaskExecutionMode(obj.get("TaskExecutionMode"))
-        task_info = TaskInfo.from_dict(obj.get("TaskInfo"))
+        task_info = _load_TaskInfo(obj.get("TaskInfo"))
         task_list = TaskList.from_dict(obj.get("TaskList"))
         task_progress_line = TaskProgressLine.from_dict(obj.get("TaskProgressLine"))
         tasks_cancel_request = TasksCancelRequest.from_dict(obj.get("TasksCancelRequest"))
@@ -15968,14 +14682,6 @@ class RPC:
         usage_metrics_model_metric_usage = UsageMetricsModelMetricUsage.from_dict(obj.get("UsageMetricsModelMetricUsage"))
         usage_metrics_token_detail = UsageMetricsTokenDetail.from_dict(obj.get("UsageMetricsTokenDetail"))
         user_auth_info = UserAuthInfo.from_dict(obj.get("UserAuthInfo"))
-        user_tool_session_approval_commands = UserToolSessionApprovalCommands.from_dict(obj.get("UserToolSessionApprovalCommands"))
-        user_tool_session_approval_custom_tool = UserToolSessionApprovalCustomTool.from_dict(obj.get("UserToolSessionApprovalCustomTool"))
-        user_tool_session_approval_extension_management = UserToolSessionApprovalExtensionManagement.from_dict(obj.get("UserToolSessionApprovalExtensionManagement"))
-        user_tool_session_approval_extension_permission_access = UserToolSessionApprovalExtensionPermissionAccess.from_dict(obj.get("UserToolSessionApprovalExtensionPermissionAccess"))
-        user_tool_session_approval_mcp = UserToolSessionApprovalMCP.from_dict(obj.get("UserToolSessionApprovalMcp"))
-        user_tool_session_approval_memory = UserToolSessionApprovalMemory.from_dict(obj.get("UserToolSessionApprovalMemory"))
-        user_tool_session_approval_read = UserToolSessionApprovalRead.from_dict(obj.get("UserToolSessionApprovalRead"))
-        user_tool_session_approval_write = UserToolSessionApprovalWrite.from_dict(obj.get("UserToolSessionApprovalWrite"))
         workspaces_checkpoints = WorkspacesCheckpoints.from_dict(obj.get("WorkspacesCheckpoints"))
         workspaces_create_file_request = WorkspacesCreateFileRequest.from_dict(obj.get("WorkspacesCreateFileRequest"))
         workspaces_get_workspace_result = WorkspacesGetWorkspaceResult.from_dict(obj.get("WorkspacesGetWorkspaceResult"))
@@ -15992,7 +14698,7 @@ class RPC:
         session_context_info = from_union([SessionContextInfo.from_dict, from_none], obj.get("SessionContextInfo"))
         task_progress = from_union([TaskProgress.from_dict, from_none], obj.get("TaskProgress"))
         workspace_summary = from_union([WorkspaceSummary.from_dict, from_none], obj.get("WorkspaceSummary"))
-        return RPC(abort_request, abort_result, account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_reload_result, agent_select_request, agent_select_result, api_key_auth_info, auth_info, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_source, installed_plugin_source_github, installed_plugin_source_local, installed_plugin_source_url, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, lsp_initialize_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_oauth_login_request, mcp_oauth_login_result, mcp_remove_git_hub_result, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_auth, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, options_update_env_value_mode, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_mode, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachment, send_attachment_blob, send_attachment_directory, send_attachment_file, send_attachment_file_line_range, send_attachment_github_reference, send_attachment_github_reference_type, send_attachment_selection, send_attachment_selection_details, send_attachment_selection_details_end, send_attachment_selection_details_start, send_mode, send_request, send_result, server_skill, server_skill_list, session_auth_status, session_bulk_delete_result, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_github, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_metadata, session_metadata_snapshot, session_mode, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_prune_old_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, session_update_options_params, session_update_options_result, session_working_directory_context, session_working_directory_context_host_type, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_initialize_and_validate_result, tools_list_request, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, user_tool_session_approval_commands, user_tool_session_approval_custom_tool, user_tool_session_approval_extension_management, user_tool_session_approval_extension_permission_access, user_tool_session_approval_mcp, user_tool_session_approval_memory, user_tool_session_approval_read, user_tool_session_approval_write, workspaces_checkpoints, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_info, task_progress, workspace_summary)
+        return RPC(abort_request, abort_result, account_get_quota_request, account_get_quota_result, account_quota_snapshot, agent_get_current_result, agent_info, agent_info_source, agent_list, agent_reload_result, agent_select_request, agent_select_result, api_key_auth_info, auth_info, auth_info_type, command_list, commands_handle_pending_command_request, commands_handle_pending_command_result, commands_invoke_request, commands_list_request, commands_respond_to_queued_command_request, commands_respond_to_queued_command_result, connected_remote_session_metadata, connected_remote_session_metadata_kind, connected_remote_session_metadata_repository, connect_remote_session_params, connect_request, connect_result, content_filter_mode, copilot_api_token_auth_info, copilot_user_response, copilot_user_response_endpoints, copilot_user_response_quota_snapshots, copilot_user_response_quota_snapshots_chat, copilot_user_response_quota_snapshots_completions, copilot_user_response_quota_snapshots_premium_interactions, current_model, discovered_mcp_server, discovered_mcp_server_type, enqueue_command_params, enqueue_command_result, env_auth_info, event_log_read_request, event_log_release_interest_result, event_log_tail_result, event_log_types, events_agent_scope, events_cursor_status, events_read_result, execute_command_params, execute_command_result, extension, extension_list, extensions_disable_request, extensions_enable_request, extension_source, extension_status, external_tool_result, external_tool_text_result_for_llm, external_tool_text_result_for_llm_binary_results_for_llm, external_tool_text_result_for_llm_binary_results_for_llm_type, external_tool_text_result_for_llm_content, external_tool_text_result_for_llm_content_audio, external_tool_text_result_for_llm_content_image, external_tool_text_result_for_llm_content_resource, external_tool_text_result_for_llm_content_resource_details, external_tool_text_result_for_llm_content_resource_link, external_tool_text_result_for_llm_content_resource_link_icon, external_tool_text_result_for_llm_content_resource_link_icon_theme, external_tool_text_result_for_llm_content_terminal, external_tool_text_result_for_llm_content_text, filter_mapping, fleet_start_request, fleet_start_result, folder_trust_add_params, folder_trust_check_params, folder_trust_check_result, gh_cli_auth_info, handle_pending_tool_call_request, handle_pending_tool_call_result, history_abort_manual_compaction_result, history_cancel_background_compaction_result, history_compact_context_window, history_compact_request, history_compact_result, history_summarize_for_handoff_result, history_truncate_request, history_truncate_result, hmac_auth_info, installed_plugin, installed_plugin_source, installed_plugin_source_github, installed_plugin_source_local, installed_plugin_source_url, instructions_get_sources_result, instructions_sources, instructions_sources_location, instructions_sources_type, log_request, log_result, lsp_initialize_request, mcp_cancel_sampling_execution_params, mcp_cancel_sampling_execution_result, mcp_config_add_request, mcp_config_disable_request, mcp_config_enable_request, mcp_config_list, mcp_config_remove_request, mcp_config_update_request, mcp_disable_request, mcp_discover_request, mcp_discover_result, mcp_enable_request, mcp_execute_sampling_params, mcp_execute_sampling_request, mcp_execute_sampling_result, mcp_oauth_login_request, mcp_oauth_login_result, mcp_remove_git_hub_result, mcp_sampling_execution_action, mcp_sampling_execution_result, mcp_server, mcp_server_config, mcp_server_config_http, mcp_server_config_http_auth, mcp_server_config_http_oauth_grant_type, mcp_server_config_http_type, mcp_server_config_stdio, mcp_server_list, mcp_set_env_value_mode_details, mcp_set_env_value_mode_params, mcp_set_env_value_mode_result, metadata_context_info_request, metadata_context_info_result, metadata_is_processing_result, metadata_recompute_context_tokens_request, metadata_recompute_context_tokens_result, metadata_record_context_change_request, metadata_record_context_change_result, metadata_set_working_directory_request, metadata_set_working_directory_result, metadata_snapshot_current_mode, metadata_snapshot_remote_metadata, metadata_snapshot_remote_metadata_repository, metadata_snapshot_remote_metadata_task_type, model, model_billing, model_billing_token_prices, model_capabilities, model_capabilities_limits, model_capabilities_limits_vision, model_capabilities_override, model_capabilities_override_limits, model_capabilities_override_limits_vision, model_capabilities_override_supports, model_capabilities_supports, model_list, model_picker_category, model_picker_price_category, model_policy, model_policy_state, model_set_reasoning_effort_request, model_set_reasoning_effort_result, models_list_request, model_switch_to_request, model_switch_to_result, mode_set_request, name_get_result, name_set_auto_request, name_set_auto_result, name_set_request, options_update_env_value_mode, pending_permission_request, pending_permission_request_list, permission_decision, permission_decision_approved, permission_decision_approved_for_location, permission_decision_approved_for_session, permission_decision_approve_for_location, permission_decision_approve_for_location_approval, permission_decision_approve_for_location_approval_commands, permission_decision_approve_for_location_approval_custom_tool, permission_decision_approve_for_location_approval_extension_management, permission_decision_approve_for_location_approval_extension_permission_access, permission_decision_approve_for_location_approval_mcp, permission_decision_approve_for_location_approval_mcp_sampling, permission_decision_approve_for_location_approval_memory, permission_decision_approve_for_location_approval_read, permission_decision_approve_for_location_approval_write, permission_decision_approve_for_session, permission_decision_approve_for_session_approval, permission_decision_approve_for_session_approval_commands, permission_decision_approve_for_session_approval_custom_tool, permission_decision_approve_for_session_approval_extension_management, permission_decision_approve_for_session_approval_extension_permission_access, permission_decision_approve_for_session_approval_mcp, permission_decision_approve_for_session_approval_mcp_sampling, permission_decision_approve_for_session_approval_memory, permission_decision_approve_for_session_approval_read, permission_decision_approve_for_session_approval_write, permission_decision_approve_once, permission_decision_approve_permanently, permission_decision_cancelled, permission_decision_denied_by_content_exclusion_policy, permission_decision_denied_by_permission_request_hook, permission_decision_denied_by_rules, permission_decision_denied_interactively_by_user, permission_decision_denied_no_approval_rule_and_could_not_request_from_user, permission_decision_reject, permission_decision_request, permission_decision_user_not_available, permission_location_add_tool_approval_params, permission_location_apply_params, permission_location_apply_result, permission_location_resolve_params, permission_location_resolve_result, permission_location_type, permission_paths_add_params, permission_paths_allowed_check_params, permission_paths_allowed_check_result, permission_paths_config, permission_paths_list, permission_paths_update_primary_params, permission_paths_workspace_check_params, permission_paths_workspace_check_result, permission_prompt_shown_notification, permission_request_result, permission_rules_set, permissions_configure_additional_content_exclusion_policy, permissions_configure_additional_content_exclusion_policy_rule, permissions_configure_additional_content_exclusion_policy_rule_source, permissions_configure_additional_content_exclusion_policy_scope, permissions_configure_params, permissions_configure_result, permissions_folder_trust_add_trusted_result, permissions_locations_add_tool_approval_details, permissions_locations_add_tool_approval_details_commands, permissions_locations_add_tool_approval_details_custom_tool, permissions_locations_add_tool_approval_details_extension_management, permissions_locations_add_tool_approval_details_extension_permission_access, permissions_locations_add_tool_approval_details_mcp, permissions_locations_add_tool_approval_details_mcp_sampling, permissions_locations_add_tool_approval_details_memory, permissions_locations_add_tool_approval_details_read, permissions_locations_add_tool_approval_details_write, permissions_locations_add_tool_approval_result, permissions_modify_rules_params, permissions_modify_rules_result, permissions_modify_rules_scope, permissions_notify_prompt_shown_result, permissions_paths_add_result, permissions_paths_list_request, permissions_paths_update_primary_result, permissions_pending_requests_request, permissions_reset_session_approvals_request, permissions_reset_session_approvals_result, permissions_set_approve_all_request, permissions_set_approve_all_result, permissions_set_approve_all_source, permissions_set_required_request, permissions_set_required_result, permissions_urls_set_unrestricted_mode_result, permission_urls_config, permission_urls_set_unrestricted_mode_params, ping_request, ping_result, plan_read_result, plan_update_request, plugin, plugin_list, queued_command_handled, queued_command_not_handled, queued_command_result, queue_pending_items, queue_pending_items_kind, queue_pending_items_result, queue_remove_most_recent_result, register_event_interest_params, register_event_interest_result, release_event_interest_params, remote_enable_request, remote_enable_result, remote_notify_steerable_changed_request, remote_notify_steerable_changed_result, remote_session_connection_result, remote_session_mode, schedule_entry, schedule_list, schedule_stop_request, schedule_stop_result, secrets_add_filter_values_request, secrets_add_filter_values_result, send_agent_mode, send_attachment, send_attachment_blob, send_attachment_directory, send_attachment_file, send_attachment_file_line_range, send_attachment_github_reference, send_attachment_github_reference_type, send_attachment_selection, send_attachment_selection_details, send_attachment_selection_details_end, send_attachment_selection_details_start, send_mode, send_request, send_result, server_skill, server_skill_list, session_auth_status, session_bulk_delete_result, session_context, session_context_host_type, session_enrich_metadata_result, session_fs_append_file_request, session_fs_error, session_fs_error_code, session_fs_exists_request, session_fs_exists_result, session_fs_mkdir_request, session_fs_readdir_request, session_fs_readdir_result, session_fs_readdir_with_types_entry, session_fs_readdir_with_types_entry_type, session_fs_readdir_with_types_request, session_fs_readdir_with_types_result, session_fs_read_file_request, session_fs_read_file_result, session_fs_rename_request, session_fs_rm_request, session_fs_set_provider_capabilities, session_fs_set_provider_conventions, session_fs_set_provider_request, session_fs_set_provider_result, session_fs_sqlite_exists_request, session_fs_sqlite_exists_result, session_fs_sqlite_query_request, session_fs_sqlite_query_result, session_fs_sqlite_query_type, session_fs_stat_request, session_fs_stat_result, session_fs_write_file_request, session_installed_plugin, session_installed_plugin_source, session_installed_plugin_source_github, session_installed_plugin_source_local, session_installed_plugin_source_url, session_list, session_list_filter, session_load_deferred_repo_hooks_result, session_log_level, session_metadata, session_metadata_snapshot, session_mode, session_prune_result, sessions_bulk_delete_request, sessions_check_in_use_request, sessions_check_in_use_result, sessions_close_request, sessions_close_result, sessions_enrich_metadata_request, session_set_credentials_params, session_set_credentials_result, sessions_find_by_prefix_request, sessions_find_by_prefix_result, sessions_find_by_task_id_request, sessions_find_by_task_id_result, sessions_fork_request, sessions_fork_result, sessions_get_event_file_path_request, sessions_get_event_file_path_result, sessions_get_last_for_context_request, sessions_get_last_for_context_result, sessions_get_persisted_remote_steerable_request, sessions_get_persisted_remote_steerable_result, session_sizes, sessions_list_request, sessions_load_deferred_repo_hooks_request, sessions_prune_old_request, sessions_release_lock_request, sessions_release_lock_result, sessions_reload_plugin_hooks_request, sessions_reload_plugin_hooks_result, sessions_save_request, sessions_save_result, sessions_set_additional_plugins_request, sessions_set_additional_plugins_result, session_update_options_params, session_update_options_result, session_working_directory_context, session_working_directory_context_host_type, shell_exec_request, shell_exec_result, shell_kill_request, shell_kill_result, shell_kill_signal, shutdown_request, skill, skill_list, skills_config_set_disabled_skills_request, skills_disable_request, skills_discover_request, skills_enable_request, skills_get_invoked_result, skills_invoked_skill, skills_load_diagnostics, slash_command_agent_prompt_result, slash_command_completed_result, slash_command_info, slash_command_input, slash_command_input_completion, slash_command_invocation_result, slash_command_kind, slash_command_select_subcommand_option, slash_command_select_subcommand_result, slash_command_text_result, task_agent_info, task_agent_progress, task_execution_mode, task_info, task_list, task_progress_line, tasks_cancel_request, tasks_cancel_result, tasks_get_current_promotable_result, tasks_get_progress_request, tasks_get_progress_result, task_shell_info, task_shell_info_attachment_mode, task_shell_progress, tasks_promote_current_to_background_result, tasks_promote_to_background_request, tasks_promote_to_background_result, tasks_refresh_result, tasks_remove_request, tasks_remove_result, tasks_send_message_request, tasks_send_message_result, tasks_start_agent_request, tasks_start_agent_result, task_status, tasks_wait_for_pending_result, telemetry_set_feature_overrides_request, token_auth_info, tool, tool_list, tools_initialize_and_validate_result, tools_list_request, ui_auto_mode_switch_response, ui_elicitation_array_any_of_field, ui_elicitation_array_any_of_field_items, ui_elicitation_array_any_of_field_items_any_of, ui_elicitation_array_enum_field, ui_elicitation_array_enum_field_items, ui_elicitation_field_value, ui_elicitation_request, ui_elicitation_response, ui_elicitation_response_action, ui_elicitation_response_content, ui_elicitation_result, ui_elicitation_schema, ui_elicitation_schema_property, ui_elicitation_schema_property_boolean, ui_elicitation_schema_property_number, ui_elicitation_schema_property_number_type, ui_elicitation_schema_property_string, ui_elicitation_schema_property_string_format, ui_elicitation_string_enum_field, ui_elicitation_string_one_of_field, ui_elicitation_string_one_of_field_one_of, ui_exit_plan_mode_action, ui_exit_plan_mode_response, ui_handle_pending_auto_mode_switch_request, ui_handle_pending_elicitation_request, ui_handle_pending_exit_plan_mode_request, ui_handle_pending_result, ui_handle_pending_sampling_request, ui_handle_pending_sampling_response, ui_handle_pending_user_input_request, ui_register_direct_auto_mode_switch_handler_result, ui_unregister_direct_auto_mode_switch_handler_request, ui_unregister_direct_auto_mode_switch_handler_result, ui_user_input_response, usage_get_metrics_result, usage_metrics_code_changes, usage_metrics_model_metric, usage_metrics_model_metric_requests, usage_metrics_model_metric_token_detail, usage_metrics_model_metric_usage, usage_metrics_token_detail, user_auth_info, workspaces_checkpoints, workspaces_create_file_request, workspaces_get_workspace_result, workspaces_list_checkpoints_result, workspaces_list_files_result, workspaces_read_checkpoint_request, workspaces_read_checkpoint_result, workspaces_read_file_request, workspaces_read_file_result, workspaces_save_large_paste_request, workspaces_save_large_paste_result, workspace_summary_host_type, workspaces_workspace_details_host_type, session_context_info, task_progress, workspace_summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -16009,7 +14715,7 @@ class RPC:
         result["AgentSelectRequest"] = to_class(AgentSelectRequest, self.agent_select_request)
         result["AgentSelectResult"] = to_class(AgentSelectResult, self.agent_select_result)
         result["ApiKeyAuthInfo"] = to_class(APIKeyAuthInfo, self.api_key_auth_info)
-        result["AuthInfo"] = to_class(AuthInfo, self.auth_info)
+        result["AuthInfo"] = (self.auth_info).to_dict()
         result["AuthInfoType"] = to_enum(AuthInfoType, self.auth_info_type)
         result["CommandList"] = to_class(CommandList, self.command_list)
         result["CommandsHandlePendingCommandRequest"] = to_class(CommandsHandlePendingCommandRequest, self.commands_handle_pending_command_request)
@@ -16057,7 +14763,7 @@ class RPC:
         result["ExternalToolTextResultForLlm"] = to_class(ExternalToolTextResultForLlm, self.external_tool_text_result_for_llm)
         result["ExternalToolTextResultForLlmBinaryResultsForLlm"] = to_class(ExternalToolTextResultForLlmBinaryResultsForLlm, self.external_tool_text_result_for_llm_binary_results_for_llm)
         result["ExternalToolTextResultForLlmBinaryResultsForLlmType"] = to_enum(ExternalToolTextResultForLlmBinaryResultsForLlmType, self.external_tool_text_result_for_llm_binary_results_for_llm_type)
-        result["ExternalToolTextResultForLlmContent"] = to_class(ExternalToolTextResultForLlmContent, self.external_tool_text_result_for_llm_content)
+        result["ExternalToolTextResultForLlmContent"] = (self.external_tool_text_result_for_llm_content).to_dict()
         result["ExternalToolTextResultForLlmContentAudio"] = to_class(ExternalToolTextResultForLlmContentAudio, self.external_tool_text_result_for_llm_content_audio)
         result["ExternalToolTextResultForLlmContentImage"] = to_class(ExternalToolTextResultForLlmContentImage, self.external_tool_text_result_for_llm_content_image)
         result["ExternalToolTextResultForLlmContentResource"] = to_class(ExternalToolTextResultForLlmContentResource, self.external_tool_text_result_for_llm_content_resource)
@@ -16170,12 +14876,12 @@ class RPC:
         result["OptionsUpdateEnvValueMode"] = to_enum(MCPSetEnvValueModeDetails, self.options_update_env_value_mode)
         result["PendingPermissionRequest"] = to_class(PendingPermissionRequest, self.pending_permission_request)
         result["PendingPermissionRequestList"] = to_class(PendingPermissionRequestList, self.pending_permission_request_list)
-        result["PermissionDecision"] = to_class(PermissionDecision, self.permission_decision)
+        result["PermissionDecision"] = (self.permission_decision).to_dict()
         result["PermissionDecisionApproved"] = to_class(PermissionDecisionApproved, self.permission_decision_approved)
         result["PermissionDecisionApprovedForLocation"] = to_class(PermissionDecisionApprovedForLocation, self.permission_decision_approved_for_location)
         result["PermissionDecisionApprovedForSession"] = to_class(PermissionDecisionApprovedForSession, self.permission_decision_approved_for_session)
         result["PermissionDecisionApproveForLocation"] = to_class(PermissionDecisionApproveForLocation, self.permission_decision_approve_for_location)
-        result["PermissionDecisionApproveForLocationApproval"] = to_class(PermissionDecisionApproveForLocationApproval, self.permission_decision_approve_for_location_approval)
+        result["PermissionDecisionApproveForLocationApproval"] = (self.permission_decision_approve_for_location_approval).to_dict()
         result["PermissionDecisionApproveForLocationApprovalCommands"] = to_class(PermissionDecisionApproveForLocationApprovalCommands, self.permission_decision_approve_for_location_approval_commands)
         result["PermissionDecisionApproveForLocationApprovalCustomTool"] = to_class(PermissionDecisionApproveForLocationApprovalCustomTool, self.permission_decision_approve_for_location_approval_custom_tool)
         result["PermissionDecisionApproveForLocationApprovalExtensionManagement"] = to_class(PermissionDecisionApproveForLocationApprovalExtensionManagement, self.permission_decision_approve_for_location_approval_extension_management)
@@ -16186,7 +14892,7 @@ class RPC:
         result["PermissionDecisionApproveForLocationApprovalRead"] = to_class(PermissionDecisionApproveForLocationApprovalRead, self.permission_decision_approve_for_location_approval_read)
         result["PermissionDecisionApproveForLocationApprovalWrite"] = to_class(PermissionDecisionApproveForLocationApprovalWrite, self.permission_decision_approve_for_location_approval_write)
         result["PermissionDecisionApproveForSession"] = to_class(PermissionDecisionApproveForSession, self.permission_decision_approve_for_session)
-        result["PermissionDecisionApproveForSessionApproval"] = to_class(PermissionDecisionApproveForSessionApproval, self.permission_decision_approve_for_session_approval)
+        result["PermissionDecisionApproveForSessionApproval"] = (self.permission_decision_approve_for_session_approval).to_dict()
         result["PermissionDecisionApproveForSessionApprovalCommands"] = to_class(PermissionDecisionApproveForSessionApprovalCommands, self.permission_decision_approve_for_session_approval_commands)
         result["PermissionDecisionApproveForSessionApprovalCustomTool"] = to_class(PermissionDecisionApproveForSessionApprovalCustomTool, self.permission_decision_approve_for_session_approval_custom_tool)
         result["PermissionDecisionApproveForSessionApprovalExtensionManagement"] = to_class(PermissionDecisionApproveForSessionApprovalExtensionManagement, self.permission_decision_approve_for_session_approval_extension_management)
@@ -16231,7 +14937,7 @@ class RPC:
         result["PermissionsConfigureParams"] = to_class(PermissionsConfigureParams, self.permissions_configure_params)
         result["PermissionsConfigureResult"] = to_class(PermissionsConfigureResult, self.permissions_configure_result)
         result["PermissionsFolderTrustAddTrustedResult"] = to_class(PermissionsFolderTrustAddTrustedResult, self.permissions_folder_trust_add_trusted_result)
-        result["PermissionsLocationsAddToolApprovalDetails"] = to_class(PermissionsLocationsAddToolApprovalDetails, self.permissions_locations_add_tool_approval_details)
+        result["PermissionsLocationsAddToolApprovalDetails"] = (self.permissions_locations_add_tool_approval_details).to_dict()
         result["PermissionsLocationsAddToolApprovalDetailsCommands"] = to_class(PermissionsLocationsAddToolApprovalDetailsCommands, self.permissions_locations_add_tool_approval_details_commands)
         result["PermissionsLocationsAddToolApprovalDetailsCustomTool"] = to_class(PermissionsLocationsAddToolApprovalDetailsCustomTool, self.permissions_locations_add_tool_approval_details_custom_tool)
         result["PermissionsLocationsAddToolApprovalDetailsExtensionManagement"] = to_class(PermissionsLocationsAddToolApprovalDetailsExtensionManagement, self.permissions_locations_add_tool_approval_details_extension_management)
@@ -16268,7 +14974,7 @@ class RPC:
         result["PluginList"] = to_class(PluginList, self.plugin_list)
         result["QueuedCommandHandled"] = to_class(QueuedCommandHandled, self.queued_command_handled)
         result["QueuedCommandNotHandled"] = to_class(QueuedCommandNotHandled, self.queued_command_not_handled)
-        result["QueuedCommandResult"] = to_class(QueuedCommandResult, self.queued_command_result)
+        result["QueuedCommandResult"] = (self.queued_command_result).to_dict()
         result["QueuePendingItems"] = to_class(QueuePendingItems, self.queue_pending_items)
         result["QueuePendingItemsKind"] = to_enum(QueuePendingItemsKind, self.queue_pending_items_kind)
         result["QueuePendingItemsResult"] = to_class(QueuePendingItemsResult, self.queue_pending_items_result)
@@ -16289,7 +14995,7 @@ class RPC:
         result["SecretsAddFilterValuesRequest"] = to_class(SecretsAddFilterValuesRequest, self.secrets_add_filter_values_request)
         result["SecretsAddFilterValuesResult"] = to_class(SecretsAddFilterValuesResult, self.secrets_add_filter_values_result)
         result["SendAgentMode"] = to_enum(SendAgentMode, self.send_agent_mode)
-        result["SendAttachment"] = to_class(SendAttachment, self.send_attachment)
+        result["SendAttachment"] = (self.send_attachment).to_dict()
         result["SendAttachmentBlob"] = to_class(SendAttachmentBlob, self.send_attachment_blob)
         result["SendAttachmentDirectory"] = to_class(SendAttachmentDirectory, self.send_attachment_directory)
         result["SendAttachmentFile"] = to_class(SendAttachmentFile, self.send_attachment_file)
@@ -16407,7 +15113,7 @@ class RPC:
         result["SlashCommandInfo"] = to_class(SlashCommandInfo, self.slash_command_info)
         result["SlashCommandInput"] = to_class(SlashCommandInput, self.slash_command_input)
         result["SlashCommandInputCompletion"] = to_enum(SlashCommandInputCompletion, self.slash_command_input_completion)
-        result["SlashCommandInvocationResult"] = to_class(SlashCommandInvocationResult, self.slash_command_invocation_result)
+        result["SlashCommandInvocationResult"] = (self.slash_command_invocation_result).to_dict()
         result["SlashCommandKind"] = to_enum(SlashCommandKind, self.slash_command_kind)
         result["SlashCommandSelectSubcommandOption"] = to_class(SlashCommandSelectSubcommandOption, self.slash_command_select_subcommand_option)
         result["SlashCommandSelectSubcommandResult"] = to_class(SlashCommandSelectSubcommandResult, self.slash_command_select_subcommand_result)
@@ -16415,7 +15121,7 @@ class RPC:
         result["TaskAgentInfo"] = to_class(TaskAgentInfo, self.task_agent_info)
         result["TaskAgentProgress"] = to_class(TaskAgentProgress, self.task_agent_progress)
         result["TaskExecutionMode"] = to_enum(TaskExecutionMode, self.task_execution_mode)
-        result["TaskInfo"] = to_class(TaskInfo, self.task_info)
+        result["TaskInfo"] = (self.task_info).to_dict()
         result["TaskList"] = to_class(TaskList, self.task_list)
         result["TaskProgressLine"] = to_class(TaskProgressLine, self.task_progress_line)
         result["TasksCancelRequest"] = to_class(TasksCancelRequest, self.tasks_cancel_request)
@@ -16487,14 +15193,6 @@ class RPC:
         result["UsageMetricsModelMetricUsage"] = to_class(UsageMetricsModelMetricUsage, self.usage_metrics_model_metric_usage)
         result["UsageMetricsTokenDetail"] = to_class(UsageMetricsTokenDetail, self.usage_metrics_token_detail)
         result["UserAuthInfo"] = to_class(UserAuthInfo, self.user_auth_info)
-        result["UserToolSessionApprovalCommands"] = to_class(UserToolSessionApprovalCommands, self.user_tool_session_approval_commands)
-        result["UserToolSessionApprovalCustomTool"] = to_class(UserToolSessionApprovalCustomTool, self.user_tool_session_approval_custom_tool)
-        result["UserToolSessionApprovalExtensionManagement"] = to_class(UserToolSessionApprovalExtensionManagement, self.user_tool_session_approval_extension_management)
-        result["UserToolSessionApprovalExtensionPermissionAccess"] = to_class(UserToolSessionApprovalExtensionPermissionAccess, self.user_tool_session_approval_extension_permission_access)
-        result["UserToolSessionApprovalMcp"] = to_class(UserToolSessionApprovalMCP, self.user_tool_session_approval_mcp)
-        result["UserToolSessionApprovalMemory"] = to_class(UserToolSessionApprovalMemory, self.user_tool_session_approval_memory)
-        result["UserToolSessionApprovalRead"] = to_class(UserToolSessionApprovalRead, self.user_tool_session_approval_read)
-        result["UserToolSessionApprovalWrite"] = to_class(UserToolSessionApprovalWrite, self.user_tool_session_approval_write)
         result["WorkspacesCheckpoints"] = to_class(WorkspacesCheckpoints, self.workspaces_checkpoints)
         result["WorkspacesCreateFileRequest"] = to_class(WorkspacesCreateFileRequest, self.workspaces_create_file_request)
         result["WorkspacesGetWorkspaceResult"] = to_class(WorkspacesGetWorkspaceResult, self.workspaces_get_workspace_result)
@@ -16518,6 +15216,164 @@ def rpc_from_dict(s: Any) -> RPC:
 
 def rpc_to_dict(x: RPC) -> Any:
     return to_class(RPC, x)
+
+# The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
+AuthInfo = HMACAuthInfo | EnvAuthInfo | TokenAuthInfo | CopilotAPITokenAuthInfo | UserAuthInfo | GhCLIAuthInfo | APIKeyAuthInfo
+
+def _load_AuthInfo(obj: Any) -> "AuthInfo":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "hmac": return HMACAuthInfo.from_dict(obj)
+        case "env": return EnvAuthInfo.from_dict(obj)
+        case "token": return TokenAuthInfo.from_dict(obj)
+        case "copilot-api-token": return CopilotAPITokenAuthInfo.from_dict(obj)
+        case "user": return UserAuthInfo.from_dict(obj)
+        case "gh-cli": return GhCLIAuthInfo.from_dict(obj)
+        case "api-key": return APIKeyAuthInfo.from_dict(obj)
+        case _: raise ValueError(f"Unknown AuthInfo type: {kind!r}")
+
+# A content block within a tool result, which may be text, terminal output, image, audio, or a resource
+ExternalToolTextResultForLlmContent = ExternalToolTextResultForLlmContentText | ExternalToolTextResultForLlmContentTerminal | ExternalToolTextResultForLlmContentImage | ExternalToolTextResultForLlmContentAudio | ExternalToolTextResultForLlmContentResourceLink | ExternalToolTextResultForLlmContentResource
+
+def _load_ExternalToolTextResultForLlmContent(obj: Any) -> "ExternalToolTextResultForLlmContent":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "text": return ExternalToolTextResultForLlmContentText.from_dict(obj)
+        case "terminal": return ExternalToolTextResultForLlmContentTerminal.from_dict(obj)
+        case "image": return ExternalToolTextResultForLlmContentImage.from_dict(obj)
+        case "audio": return ExternalToolTextResultForLlmContentAudio.from_dict(obj)
+        case "resource_link": return ExternalToolTextResultForLlmContentResourceLink.from_dict(obj)
+        case "resource": return ExternalToolTextResultForLlmContentResource.from_dict(obj)
+        case _: raise ValueError(f"Unknown ExternalToolTextResultForLlmContent type: {kind!r}")
+
+# The client's response to the pending permission prompt
+PermissionDecision = PermissionDecisionApproveOnce | PermissionDecisionApproveForSession | PermissionDecisionApproveForLocation | PermissionDecisionApprovePermanently | PermissionDecisionReject | PermissionDecisionUserNotAvailable | PermissionDecisionApproved | PermissionDecisionApprovedForSession | PermissionDecisionApprovedForLocation | PermissionDecisionCancelled | PermissionDecisionDeniedByRules | PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser | PermissionDecisionDeniedInteractivelyByUser | PermissionDecisionDeniedByContentExclusionPolicy | PermissionDecisionDeniedByPermissionRequestHook
+
+def _load_PermissionDecision(obj: Any) -> "PermissionDecision":
+    assert isinstance(obj, dict)
+    kind = obj.get("kind")
+    match kind:
+        case "approve-once": return PermissionDecisionApproveOnce.from_dict(obj)
+        case "approve-for-session": return PermissionDecisionApproveForSession.from_dict(obj)
+        case "approve-for-location": return PermissionDecisionApproveForLocation.from_dict(obj)
+        case "approve-permanently": return PermissionDecisionApprovePermanently.from_dict(obj)
+        case "reject": return PermissionDecisionReject.from_dict(obj)
+        case "user-not-available": return PermissionDecisionUserNotAvailable.from_dict(obj)
+        case "approved": return PermissionDecisionApproved.from_dict(obj)
+        case "approved-for-session": return PermissionDecisionApprovedForSession.from_dict(obj)
+        case "approved-for-location": return PermissionDecisionApprovedForLocation.from_dict(obj)
+        case "cancelled": return PermissionDecisionCancelled.from_dict(obj)
+        case "denied-by-rules": return PermissionDecisionDeniedByRules.from_dict(obj)
+        case "denied-no-approval-rule-and-could-not-request-from-user": return PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser.from_dict(obj)
+        case "denied-interactively-by-user": return PermissionDecisionDeniedInteractivelyByUser.from_dict(obj)
+        case "denied-by-content-exclusion-policy": return PermissionDecisionDeniedByContentExclusionPolicy.from_dict(obj)
+        case "denied-by-permission-request-hook": return PermissionDecisionDeniedByPermissionRequestHook.from_dict(obj)
+        case _: raise ValueError(f"Unknown PermissionDecision kind: {kind!r}")
+
+# Approval to persist for this location
+PermissionDecisionApproveForLocationApproval = PermissionDecisionApproveForLocationApprovalCommands | PermissionDecisionApproveForLocationApprovalRead | PermissionDecisionApproveForLocationApprovalWrite | PermissionDecisionApproveForLocationApprovalMCP | PermissionDecisionApproveForLocationApprovalMCPSampling | PermissionDecisionApproveForLocationApprovalMemory | PermissionDecisionApproveForLocationApprovalCustomTool | PermissionDecisionApproveForLocationApprovalExtensionManagement | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
+
+def _load_PermissionDecisionApproveForLocationApproval(obj: Any) -> "PermissionDecisionApproveForLocationApproval":
+    assert isinstance(obj, dict)
+    kind = obj.get("kind")
+    match kind:
+        case "commands": return PermissionDecisionApproveForLocationApprovalCommands.from_dict(obj)
+        case "read": return PermissionDecisionApproveForLocationApprovalRead.from_dict(obj)
+        case "write": return PermissionDecisionApproveForLocationApprovalWrite.from_dict(obj)
+        case "mcp": return PermissionDecisionApproveForLocationApprovalMCP.from_dict(obj)
+        case "mcp-sampling": return PermissionDecisionApproveForLocationApprovalMCPSampling.from_dict(obj)
+        case "memory": return PermissionDecisionApproveForLocationApprovalMemory.from_dict(obj)
+        case "custom-tool": return PermissionDecisionApproveForLocationApprovalCustomTool.from_dict(obj)
+        case "extension-management": return PermissionDecisionApproveForLocationApprovalExtensionManagement.from_dict(obj)
+        case "extension-permission-access": return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess.from_dict(obj)
+        case _: raise ValueError(f"Unknown PermissionDecisionApproveForLocationApproval kind: {kind!r}")
+
+# Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
+PermissionDecisionApproveForSessionApproval = PermissionDecisionApproveForSessionApprovalCommands | PermissionDecisionApproveForSessionApprovalRead | PermissionDecisionApproveForSessionApprovalWrite | PermissionDecisionApproveForSessionApprovalMCP | PermissionDecisionApproveForSessionApprovalMCPSampling | PermissionDecisionApproveForSessionApprovalMemory | PermissionDecisionApproveForSessionApprovalCustomTool | PermissionDecisionApproveForSessionApprovalExtensionManagement | PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
+
+def _load_PermissionDecisionApproveForSessionApproval(obj: Any) -> "PermissionDecisionApproveForSessionApproval":
+    assert isinstance(obj, dict)
+    kind = obj.get("kind")
+    match kind:
+        case "commands": return PermissionDecisionApproveForSessionApprovalCommands.from_dict(obj)
+        case "read": return PermissionDecisionApproveForSessionApprovalRead.from_dict(obj)
+        case "write": return PermissionDecisionApproveForSessionApprovalWrite.from_dict(obj)
+        case "mcp": return PermissionDecisionApproveForSessionApprovalMCP.from_dict(obj)
+        case "mcp-sampling": return PermissionDecisionApproveForSessionApprovalMCPSampling.from_dict(obj)
+        case "memory": return PermissionDecisionApproveForSessionApprovalMemory.from_dict(obj)
+        case "custom-tool": return PermissionDecisionApproveForSessionApprovalCustomTool.from_dict(obj)
+        case "extension-management": return PermissionDecisionApproveForSessionApprovalExtensionManagement.from_dict(obj)
+        case "extension-permission-access": return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess.from_dict(obj)
+        case _: raise ValueError(f"Unknown PermissionDecisionApproveForSessionApproval kind: {kind!r}")
+
+# Tool approval to persist and apply
+PermissionsLocationsAddToolApprovalDetails = PermissionsLocationsAddToolApprovalDetailsCommands | PermissionsLocationsAddToolApprovalDetailsRead | PermissionsLocationsAddToolApprovalDetailsWrite | PermissionsLocationsAddToolApprovalDetailsMCP | PermissionsLocationsAddToolApprovalDetailsMCPSampling | PermissionsLocationsAddToolApprovalDetailsMemory | PermissionsLocationsAddToolApprovalDetailsCustomTool | PermissionsLocationsAddToolApprovalDetailsExtensionManagement | PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
+
+def _load_PermissionsLocationsAddToolApprovalDetails(obj: Any) -> "PermissionsLocationsAddToolApprovalDetails":
+    assert isinstance(obj, dict)
+    kind = obj.get("kind")
+    match kind:
+        case "commands": return PermissionsLocationsAddToolApprovalDetailsCommands.from_dict(obj)
+        case "read": return PermissionsLocationsAddToolApprovalDetailsRead.from_dict(obj)
+        case "write": return PermissionsLocationsAddToolApprovalDetailsWrite.from_dict(obj)
+        case "mcp": return PermissionsLocationsAddToolApprovalDetailsMCP.from_dict(obj)
+        case "mcp-sampling": return PermissionsLocationsAddToolApprovalDetailsMCPSampling.from_dict(obj)
+        case "memory": return PermissionsLocationsAddToolApprovalDetailsMemory.from_dict(obj)
+        case "custom-tool": return PermissionsLocationsAddToolApprovalDetailsCustomTool.from_dict(obj)
+        case "extension-management": return PermissionsLocationsAddToolApprovalDetailsExtensionManagement.from_dict(obj)
+        case "extension-permission-access": return PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess.from_dict(obj)
+        case _: raise ValueError(f"Unknown PermissionsLocationsAddToolApprovalDetails kind: {kind!r}")
+
+# Result of the queued command execution.
+QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled
+
+def _load_QueuedCommandResult(obj: Any) -> "QueuedCommandResult":
+    assert isinstance(obj, dict)
+    kind = obj.get("handled")
+    match kind:
+        case "true": return QueuedCommandHandled.from_dict(obj)
+        case "false": return QueuedCommandNotHandled.from_dict(obj)
+        case _: raise ValueError(f"Unknown QueuedCommandResult handled: {kind!r}")
+
+# A user message attachment — a file, directory, code selection, blob, or GitHub reference
+SendAttachment = SendAttachmentFile | SendAttachmentDirectory | SendAttachmentSelection | SendAttachmentGithubReference | SendAttachmentBlob
+
+def _load_SendAttachment(obj: Any) -> "SendAttachment":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "file": return SendAttachmentFile.from_dict(obj)
+        case "directory": return SendAttachmentDirectory.from_dict(obj)
+        case "selection": return SendAttachmentSelection.from_dict(obj)
+        case "github_reference": return SendAttachmentGithubReference.from_dict(obj)
+        case "blob": return SendAttachmentBlob.from_dict(obj)
+        case _: raise ValueError(f"Unknown SendAttachment type: {kind!r}")
+
+# Result of invoking the slash command (text output, prompt to send to the agent, or completion).
+SlashCommandInvocationResult = SlashCommandTextResult | SlashCommandAgentPromptResult | SlashCommandCompletedResult | SlashCommandSelectSubcommandResult
+
+def _load_SlashCommandInvocationResult(obj: Any) -> "SlashCommandInvocationResult":
+    assert isinstance(obj, dict)
+    kind = obj.get("kind")
+    match kind:
+        case "text": return SlashCommandTextResult.from_dict(obj)
+        case "agent-prompt": return SlashCommandAgentPromptResult.from_dict(obj)
+        case "completed": return SlashCommandCompletedResult.from_dict(obj)
+        case "select-subcommand": return SlashCommandSelectSubcommandResult.from_dict(obj)
+        case _: raise ValueError(f"Unknown SlashCommandInvocationResult kind: {kind!r}")
+
+# Schema for the `TaskInfo` type.
+TaskInfo = TaskAgentInfo | TaskShellInfo
+
+def _load_TaskInfo(obj: Any) -> "TaskInfo":
+    assert isinstance(obj, dict)
+    kind = obj.get("type")
+    match kind:
+        case "agent": return TaskAgentInfo.from_dict(obj)
+        case "shell": return TaskShellInfo.from_dict(obj)
+        case _: raise ValueError(f"Unknown TaskInfo type: {kind!r}")
 
 
 ExternalToolResult = ExternalToolTextResultForLlm
@@ -17261,7 +16117,7 @@ class CommandsApi:
         "Invokes a slash command in the session.\n\nArgs:\n    params: Slash command name and optional raw input string to invoke.\n\nReturns:\n    Result of invoking the slash command (text output, prompt to send to the agent, or completion)."
         params_dict: dict[str, Any] = {k: v for k, v in params.to_dict().items() if v is not None}
         params_dict["sessionId"] = self._session_id
-        return SlashCommandInvocationResult.from_dict(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
+        return _load_SlashCommandInvocationResult(await self._client.request("session.commands.invoke", params_dict, **_timeout_kwargs(timeout)))
 
     async def handle_pending_command(self, params: CommandsHandlePendingCommandRequest, *, timeout: float | None = None) -> CommandsHandlePendingCommandResult:
         "Reports completion of a pending client-handled slash command.\n\nArgs:\n    params: Pending command request ID and an optional error if the client handler failed.\n\nReturns:\n    Indicates whether the pending client-handled command was completed successfully."

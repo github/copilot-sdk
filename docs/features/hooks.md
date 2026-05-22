@@ -60,14 +60,13 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionRequestResult
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 client = CopilotClient()
 await client.start()
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_start": on_session_start,
         "on_pre_tool_use":  on_pre_tool_use,
@@ -262,7 +261,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 READ_ONLY_TOOLS = ["read_file", "glob", "grep", "view"]
 
@@ -276,7 +275,7 @@ async def on_pre_tool_use(input_data, invocation):
     return {"permissionDecision": "allow"}
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={"on_pre_tool_use": on_pre_tool_use},
 )
 ```
@@ -578,7 +577,7 @@ const session = await client.createSession({
 <!-- docs-validate: skip -->
 ```python
 import json, aiofiles
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 audit_log = []
 
@@ -630,7 +629,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,
@@ -709,7 +708,7 @@ const session = await client.createSession({
 
 ```python
 import subprocess
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 async def on_session_end(input_data, invocation):
     sid = invocation["session_id"][:8]
@@ -728,7 +727,7 @@ async def on_error_occurred(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_end": on_session_end,
         "on_error_occurred": on_error_occurred,
@@ -932,7 +931,7 @@ const session = await client.createSession({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot.session import PermissionRequestResult
+from copilot import PermissionDecisionApproveOnce
 
 session_metrics = {}
 
@@ -963,7 +962,7 @@ async def on_session_end(input_data, invocation):
     return None
 
 session = await client.create_session(
-    on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+    on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
     hooks={
         "on_session_start": on_session_start,
         "on_user_prompt_submitted": on_user_prompt_submitted,

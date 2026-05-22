@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.client import SubprocessConfig, TelemetryConfig
+from copilot.client import TelemetryConfig
 
 
 class TestGetTraceContext:
@@ -72,17 +72,6 @@ class TestTelemetryConfig:
         }
         assert config["otlp_endpoint"] == "http://localhost:4318"
         assert config["capture_content"] is True
-
-    def test_telemetry_config_in_subprocess_config(self):
-        """TelemetryConfig can be used in SubprocessConfig."""
-        config = SubprocessConfig(
-            telemetry={
-                "otlp_endpoint": "http://localhost:4318",
-                "exporter_type": "otlp-http",
-            }
-        )
-        assert config.telemetry is not None
-        assert config.telemetry["otlp_endpoint"] == "http://localhost:4318"
 
     def test_telemetry_env_var_mapping(self):
         """TelemetryConfig fields map to expected environment variable names."""

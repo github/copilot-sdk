@@ -1,14 +1,13 @@
 import asyncio
 import os
+
 from copilot import CopilotClient
-from copilot.client import SubprocessConfig
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
+    client = CopilotClient(
         github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    )
 
     try:
         # MCP server config — demonstrates the configuration pattern.
@@ -16,7 +15,11 @@ async def main():
         # Otherwise, runs without MCP tools as a build/integration test.
         mcp_servers = {}
         if os.environ.get("MCP_SERVER_CMD"):
-            args = os.environ.get("MCP_SERVER_ARGS", "").split() if os.environ.get("MCP_SERVER_ARGS") else []
+            args = (
+                os.environ.get("MCP_SERVER_ARGS", "").split()
+                if os.environ.get("MCP_SERVER_ARGS")
+                else []
+            )
             mcp_servers["example"] = {
                 "type": "stdio",
                 "command": os.environ["MCP_SERVER_CMD"],
@@ -36,9 +39,7 @@ async def main():
 
         session = await client.create_session(session_config)
 
-        response = await session.send_and_wait(
-            "What is the capital of France?"
-        )
+        response = await session.send_and_wait("What is the capital of France?")
 
         if response:
             print(response.data.content)

@@ -65,7 +65,7 @@ async def get_final_assistant_message(
 
 async def _get_existing_final_response(session: CopilotSession, already_idle: bool = False):
     """Check existing messages for a final response."""
-    messages = await session.get_messages()
+    messages = await session.get_events()
 
     # Find last user message
     final_user_message_index = -1

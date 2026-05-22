@@ -207,7 +207,7 @@ class TestEventFidelity:
         try:
             await session.send_and_wait("Read the file 'order.txt' and tell me what the number is.")
 
-            messages = await session.get_messages()
+            messages = await session.get_events()
             types = [m.type.value for m in messages]
 
             # Verify complete event ordering contract:

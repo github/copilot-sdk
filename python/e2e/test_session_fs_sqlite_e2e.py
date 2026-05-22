@@ -12,8 +12,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient, SessionFsConfig
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection, SessionFsConfig
 from copilot.generated.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
@@ -200,13 +199,11 @@ def _create_sqlite_handler(sqlite_calls: list[dict]):
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def sqlite_client(ctx: E2ETestContext):
     client = CopilotClient(
-        SubprocessConfig(
-            cli_path=ctx.cli_path,
-            working_directory=ctx.work_dir,
-            env=ctx.get_env(),
-            github_token=DEFAULT_GITHUB_TOKEN,
-            session_fs=SESSION_FS_CONFIG,
-        )
+        connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+        working_directory=ctx.work_dir,
+        env=ctx.get_env(),
+        github_token=DEFAULT_GITHUB_TOKEN,
+        session_fs=SESSION_FS_CONFIG,
     )
     yield client
     try:

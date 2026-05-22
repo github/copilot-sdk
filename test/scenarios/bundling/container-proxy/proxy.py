@@ -12,7 +12,7 @@ prove the network path:
 import json
 import sys
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 class ProxyHandler(BaseHTTPRequestHandler):

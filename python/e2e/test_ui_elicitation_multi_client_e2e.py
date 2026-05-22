@@ -1,6 +1,6 @@
 """E2E UI Elicitation Tests (multi-client)
 
-Mirrors nodejs/test/e2e/ui_elicitation.test.ts — multi-client scenarios.
+Mirrors nodejs/test/e2e/ui_elicitation.test.ts â€” multi-client scenarios.
 
 Tests:
   - capabilities.changed fires when second client joins with elicitation handler
@@ -16,8 +16,7 @@ import tempfile
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.session_events import CapabilitiesChangedData
 from copilot.session import (
     ElicitationContext,
@@ -32,7 +31,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 # ---------------------------------------------------------------------------
-# Multi-client context (TCP mode) — same pattern as test_multi_client.py
+# Multi-client context (TCP mode) â€” same pattern as test_multi_client.py
 # ---------------------------------------------------------------------------
 
 
@@ -63,14 +62,12 @@ class ElicitationMultiClientContext:
 
         # Client 1 uses TCP mode so additional clients can connect
         self._client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
-                working_directory=self.work_dir,
-                env=self._get_env(),
-                use_stdio=False,
-                github_token=github_token,
-                tcp_connection_token="py-tcp-shared-test-token",
-            )
+            connection=RuntimeConnection.for_tcp(
+                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+            ),
+            working_directory=self.work_dir,
+            env=self._get_env(),
+            github_token=github_token,
         )
 
         # Trigger connection to obtain the TCP port
@@ -79,13 +76,12 @@ class ElicitationMultiClientContext:
         )
         await init_session.disconnect()
 
-        self._actual_port = self._client1.actual_port
+        self._actual_port = self._client1.runtime_port
         assert self._actual_port is not None
 
         self._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{self._actual_port}",
-                tcp_connection_token="py-tcp-shared-test-token",
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 
@@ -139,9 +135,8 @@ class ElicitationMultiClientContext:
         """Create a new external client connected to the same CLI server."""
         assert self._actual_port is not None
         return CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{self._actual_port}",
-                tcp_connection_token="py-tcp-shared-test-token",
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 
@@ -263,7 +258,7 @@ class TestUiElicitationMultiClient:
 
         unsubscribe = session1.on(on_event)
 
-        # Client 2 joins WITH elicitation handler — triggers capabilities.changed
+        # Client 2 joins WITH elicitation handler â€” triggers capabilities.changed
         async def handler(
             context: ElicitationContext,
         ) -> ElicitationResult:
@@ -339,7 +334,7 @@ class TestUiElicitationMultiClient:
 
         unsub_disabled = session1.on(on_disabled)
 
-        # Force-stop client 3 — destroys the socket, triggering server-side cleanup
+        # Force-stop client 3 â€” destroys the socket, triggering server-side cleanup
         await client3.force_stop()
 
         await asyncio.wait_for(cap_disabled.wait(), timeout=15.0)

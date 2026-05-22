@@ -30,7 +30,7 @@ class TestErrorResilience:
         await session.disconnect()
 
         with pytest.raises(Exception):
-            await session.get_messages()
+            await session.get_events()
 
     async def test_should_handle_double_abort_without_error(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(

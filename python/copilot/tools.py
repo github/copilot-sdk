@@ -24,7 +24,7 @@ class ToolBinaryResult:
 
     data: str = ""
     mime_type: str = ""
-    type: str = ""
+    type: Literal["image", "resource"] = "image"
     description: str = ""
 
 

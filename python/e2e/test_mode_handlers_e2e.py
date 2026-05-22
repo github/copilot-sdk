@@ -35,7 +35,7 @@ AUTO_MODE_PROMPT = "Explain that auto mode recovered from a rate limit in one sh
 async def mode_ctx(ctx: E2ETestContext):
     """Configure per-token user responses for mode-handler tests."""
     proxy_url = ctx.proxy_url
-    ctx.client._config.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
+    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
 
     await ctx.set_copilot_user_by_token(
         MODE_HANDLER_TOKEN,
@@ -75,7 +75,7 @@ class TestModeHandlers:
     ):
         exit_plan_mode_requests = []
 
-        async def on_exit_plan_mode(request, invocation):
+        async def on_exit_plan_mode_request(request, invocation):
             exit_plan_mode_requests.append(request)
             assert invocation["session_id"] == session.session_id
             return {
@@ -87,7 +87,7 @@ class TestModeHandlers:
         session = await mode_ctx.client.create_session(
             github_token=MODE_HANDLER_TOKEN,
             on_permission_request=PermissionHandler.approve_all,
-            on_exit_plan_mode=on_exit_plan_mode,
+            on_exit_plan_mode_request=on_exit_plan_mode_request,
         )
 
         try:
@@ -139,7 +139,7 @@ class TestModeHandlers:
     ):
         auto_mode_switch_requests = []
 
-        async def on_auto_mode_switch(request, invocation):
+        async def on_auto_mode_switch_request(request, invocation):
             auto_mode_switch_requests.append(request)
             assert invocation["session_id"] == session.session_id
             return "yes"
@@ -147,7 +147,7 @@ class TestModeHandlers:
         session = await mode_ctx.client.create_session(
             github_token=MODE_HANDLER_TOKEN,
             on_permission_request=PermissionHandler.approve_all,
-            on_auto_mode_switch=on_auto_mode_switch,
+            on_auto_mode_switch_request=on_auto_mode_switch_request,
         )
 
         try:
