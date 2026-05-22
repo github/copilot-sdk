@@ -1108,8 +1108,6 @@ type InstalledPlugin struct {
 // Source for direct repo installs (when marketplace is empty)
 // Experimental: InstalledPluginSource is part of an experimental API and may change or be
 // removed.
-// Experimental: InstalledPluginSource is part of an experimental API and may change or be
-// removed.
 type InstalledPluginSource struct {
 	InstalledPluginSourceGithub *InstalledPluginSourceGithub
 	InstalledPluginSourceLocal  *InstalledPluginSourceLocal
@@ -1359,8 +1357,6 @@ type McpExecuteSamplingRequest struct {
 // MCP CreateMessageResult payload (with optional 'tools' extension), present when
 // action='success'. Treated as opaque at the schema layer; consumers should
 // construct/consume it per the MCP CreateMessageResult shape.
-// Experimental: McpExecuteSamplingResult is part of an experimental API and may change or
-// be removed.
 // Experimental: McpExecuteSamplingResult is part of an experimental API and may change or
 // be removed.
 type McpExecuteSamplingResult struct {
@@ -3799,8 +3795,6 @@ type SessionInstalledPlugin struct {
 }
 
 // Source descriptor for direct repo installs (when marketplace is empty)
-// Experimental: SessionInstalledPluginSource is part of an experimental API and may change
-// or be removed.
 // Experimental: SessionInstalledPluginSource is part of an experimental API and may change
 // or be removed.
 type SessionInstalledPluginSource struct {
