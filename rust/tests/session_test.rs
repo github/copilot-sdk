@@ -12,8 +12,8 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, MessageOptions, PermissionRequestData, RequestId,
-    SessionConfig, SessionId, Tool, ToolInvocation, ToolResult,
+    ElicitationResult, ExitPlanModeData, MessageOptions, RequestId, SessionConfig, SessionId, Tool,
+    ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
