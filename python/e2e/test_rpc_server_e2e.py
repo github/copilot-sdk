@@ -58,7 +58,7 @@ def _make_authed_client(ctx: E2ETestContext, token: str) -> CopilotClient:
     return CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
-            cwd=ctx.work_dir,
+            working_directory=ctx.work_dir,
             env=env,
             github_token=token,
         )

@@ -36,7 +36,7 @@ async fn should_invoke_onsessionstart_hook_on_new_session() {
                 let input = recv_with_timeout(&mut rx, "sessionStart hook").await;
                 assert_eq!(input.source, "new");
                 assert!(input.timestamp > 0);
-                assert!(!input.cwd.as_os_str().is_empty());
+                assert!(!input.working_directory.as_os_str().is_empty());
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -68,7 +68,7 @@ async fn should_invoke_onuserpromptsubmitted_hook_when_sending_a_message() {
                 let input = recv_with_timeout(&mut rx, "userPromptSubmitted hook").await;
                 assert!(input.prompt.contains("Say hello"));
                 assert!(input.timestamp > 0);
-                assert!(!input.cwd.as_os_str().is_empty());
+                assert!(!input.working_directory.as_os_str().is_empty());
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -100,7 +100,7 @@ async fn should_invoke_onsessionend_hook_when_session_is_disconnected() {
                 session.disconnect().await.expect("disconnect session");
                 let input = recv_with_timeout(&mut rx, "sessionEnd hook").await;
                 assert!(input.timestamp > 0);
-                assert!(!input.cwd.as_os_str().is_empty());
+                assert!(!input.working_directory.as_os_str().is_empty());
 
                 client.stop().await.expect("stop client");
             })

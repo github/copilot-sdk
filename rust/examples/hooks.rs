@@ -32,7 +32,7 @@ impl SessionHooks for AuditHooks {
                     "[audit] session {} started (source={}, cwd={})",
                     ctx.session_id,
                     input.source,
-                    input.cwd.display(),
+                    input.working_directory.display(),
                 );
                 HookOutput::SessionStart(SessionStartOutput {
                     additional_context: Some("You are being audited. Be concise.".to_string()),

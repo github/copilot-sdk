@@ -1245,6 +1245,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreToolUseHookInput)!,
                         invocation)
                     : null,
+                "preMcpToolCall" => hooks.OnPreMcpToolCall != null
+                    ? SerializeHookOutput(await hooks.OnPreMcpToolCall(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PreMcpToolCallHookInput)!,
+                        invocation))
+                    : null,
                 "postToolUse" => hooks.OnPostToolUse != null
                     ? await hooks.OnPostToolUse(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
@@ -1282,6 +1287,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 hookType);
         }
     }
+
+    /// <summary>
+    /// Pre-serializes a hook output to JsonElement so that the <c>object?</c> typed
+    /// <see cref="CopilotClient.HooksInvokeResponse.Output"/> property writes the
+    /// correct JSON without relying on polymorphic type resolution.
+    /// </summary>
+    private static JsonElement? SerializeHookOutput(PreMcpToolCallHookOutput? output) =>
+        output is null ? null : JsonSerializer.SerializeToElement(output, SessionJsonContext.Default.PreMcpToolCallHookOutput);
 
     /// <summary>
     /// Registers transform callbacks for system message sections.
@@ -1607,6 +1620,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(GetMessagesResponse))]
     [JsonSerializable(typeof(PostToolUseHookInput))]
     [JsonSerializable(typeof(PostToolUseHookOutput))]
+    [JsonSerializable(typeof(PreMcpToolCallHookInput))]
+    [JsonSerializable(typeof(PreMcpToolCallHookOutput))]
     [JsonSerializable(typeof(PreToolUseHookInput))]
     [JsonSerializable(typeof(PreToolUseHookOutput))]
     [JsonSerializable(typeof(SendMessageRequest))]

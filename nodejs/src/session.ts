@@ -67,8 +67,9 @@ function deserializeHookInput(raw: unknown): unknown {
     ) {
         return raw;
     }
-    const obj = raw as Record<string, unknown> & { timestamp: number };
-    return { ...obj, timestamp: new Date(obj.timestamp) };
+    const obj = raw as Record<string, unknown> & { timestamp: number; cwd?: string };
+    const { cwd, ...rest } = obj;
+    return { ...rest, timestamp: new Date(obj.timestamp), workingDirectory: cwd };
 }
 
 /** Assistant message event - the final response from the assistant. */
@@ -987,6 +988,7 @@ export class CopilotSession {
 
         const handlerMap: Record<string, GenericHandler | undefined> = {
             preToolUse: this.hooks.onPreToolUse as GenericHandler | undefined,
+            preMcpToolCall: this.hooks.onPreMcpToolCall as GenericHandler | undefined,
             postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
             userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,

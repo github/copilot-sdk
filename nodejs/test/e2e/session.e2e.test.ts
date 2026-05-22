@@ -21,7 +21,7 @@ describe("Sessions", async () => {
         "createSession works without onPermissionRequest (%s)",
         async (_name, makeConnection) => {
             const standaloneClient = new CopilotClient({
-                cwd: workDir,
+                workingDirectory: workDir,
                 env,
                 connection: makeConnection(),
             });
@@ -43,7 +43,7 @@ describe("Sessions", async () => {
         const connectionToken = "client-e2e-resume-token";
 
         const tcpClient = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
@@ -66,7 +66,7 @@ describe("Sessions", async () => {
         }
 
         const resumeClient = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
         });
@@ -120,7 +120,7 @@ describe("Sessions", async () => {
         expect(ourSession).toBeDefined();
         // Context may not be populated if workspace.yaml hasn't been written yet
         if (ourSession?.context) {
-            expect(ourSession.context.cwd).toMatch(/^(\/|[A-Za-z]:)/);
+            expect(ourSession.context.workingDirectory).toMatch(/^(\/|[A-Za-z]:)/);
         }
     });
 

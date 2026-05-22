@@ -99,7 +99,7 @@ class TestPerSessionAuth:
         no_token_client = CopilotClient(
             SubprocessConfig(
                 cli_path=auth_ctx.cli_path,
-                cwd=auth_ctx.work_dir,
+                working_directory=auth_ctx.work_dir,
                 env=env,
                 use_logged_in_user=False,
             )

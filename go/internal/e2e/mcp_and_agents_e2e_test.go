@@ -157,11 +157,11 @@ func TestMCPServersE2E(t *testing.T) {
 
 		mcpServers := map[string]copilot.MCPServerConfig{
 			"env-echo": copilot.MCPStdioServerConfig{
-				Command: "node",
-				Args:    []string{mcpServerPath},
-				Tools:   &[]string{"*"},
-				Env:     map[string]string{"TEST_SECRET": "hunter2"},
-				Cwd:     mcpServerDir,
+				Command:          "node",
+				Args:             []string{mcpServerPath},
+				Tools:            &[]string{"*"},
+				Env:              map[string]string{"TEST_SECRET": "hunter2"},
+				WorkingDirectory: mcpServerDir,
 			},
 		}
 

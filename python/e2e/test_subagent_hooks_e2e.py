@@ -52,7 +52,7 @@ class TestSubagentHooks:
         client = CopilotClient(
             SubprocessConfig(
                 cli_path=ctx.cli_path,
-                cwd=ctx.work_dir,
+                working_directory=ctx.work_dir,
                 env=env,
                 github_token=github_token,
             )

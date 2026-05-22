@@ -33,7 +33,7 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
     return CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
-            cwd=ctx.work_dir,
+            working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=github_token,
             use_stdio=use_stdio,

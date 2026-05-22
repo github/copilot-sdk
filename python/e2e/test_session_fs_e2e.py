@@ -36,7 +36,7 @@ SESSION_STATE_PATH = (
 )
 
 SESSION_FS_CONFIG: SessionFsConfig = {
-    "initial_cwd": "/",
+    "initial_working_directory": "/",
     "session_state_path": SESSION_STATE_PATH,
     "conventions": "posix",
 }
@@ -47,7 +47,7 @@ async def session_fs_client(ctx: E2ETestContext):
     client = CopilotClient(
         SubprocessConfig(
             cli_path=ctx.cli_path,
-            cwd=ctx.work_dir,
+            working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=DEFAULT_GITHUB_TOKEN,
             session_fs=SESSION_FS_CONFIG,
@@ -119,7 +119,7 @@ class TestSessionFs:
         client1 = CopilotClient(
             SubprocessConfig(
                 cli_path=ctx.cli_path,
-                cwd=ctx.work_dir,
+                working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 use_stdio=False,
                 github_token=DEFAULT_GITHUB_TOKEN,

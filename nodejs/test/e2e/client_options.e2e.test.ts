@@ -142,7 +142,7 @@ describe("Client options", async () => {
 
     it("createSession starts the client lazily", async () => {
         const client = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
         });
@@ -166,7 +166,7 @@ describe("Client options", async () => {
     it("should listen on configured tcp port", async () => {
         const port = await getAvailableTcpPort();
         const client = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
             connection: RuntimeConnection.forTcp({
                 path: process.env.COPILOT_CLI_PATH,
@@ -200,7 +200,7 @@ describe("Client options", async () => {
         // a custom cwd to assert that the custom cwd is honored.
         void defaultClient;
         const client = new CopilotClient({
-            cwd: clientCwd,
+            workingDirectory: clientCwd,
             env,
             connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
             gitHubToken: process.env.CI ? "fake-token-for-e2e-tests" : undefined,
@@ -239,7 +239,7 @@ describe("Client options", async () => {
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env: { ...env, COPILOT_HOME: copilotHomeFromEnv },
             connection: RuntimeConnection.forStdio({
                 path: cliPath,

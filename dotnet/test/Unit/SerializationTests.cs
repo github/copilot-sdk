@@ -306,6 +306,75 @@ public class SerializationTests
         Assert.Equal("approve-once", document.RootElement.GetProperty("kind").GetString());
     }
 
+    [Fact]
+    public void HooksInvokeResponse_SerializesPreMcpToolCallHookOutput_WithMetaToUse()
+    {
+        var options = GetSerializerOptions();
+
+        // Create the PreMcpToolCallHookOutput with meta
+        using var doc = JsonDocument.Parse("""{"injected":"by-hook","source":"test"}""");
+        var meta = doc.RootElement.Clone();
+        var hookOutput = new PreMcpToolCallHookOutput { MetaToUse = meta };
+
+        // Create the HooksInvokeResponse using reflection (it's internal)
+        var responseType = GetNestedType(typeof(CopilotClient), "HooksInvokeResponse");
+        var response = CreateInternalRequest(responseType, ("Output", hookOutput));
+
+        // Serialize using the exact same path as SendResultResponseAsync
+        var typeInfo = options.GetTypeInfo(response.GetType());
+        var json = JsonSerializer.SerializeToElement(response, typeInfo);
+
+        // The JSON should be {"output":{"metaToUse":{"injected":"by-hook","source":"test"}}}
+        Assert.True(json.TryGetProperty("output", out var outputProp), $"Expected 'output' property. Got: {json}");
+        Assert.True(outputProp.TryGetProperty("metaToUse", out var metaToUseProp), $"Expected 'metaToUse' property. Got: {outputProp}");
+        Assert.Equal("by-hook", metaToUseProp.GetProperty("injected").GetString());
+        Assert.Equal("test", metaToUseProp.GetProperty("source").GetString());
+    }
+
+    [Fact]
+    public void HooksInvokeResponse_SerializesPreMcpToolCallHookOutput_WithNullMetaToUse()
+    {
+        var options = GetSerializerOptions();
+
+        // Create the PreMcpToolCallHookOutput with null meta (remove meta)
+        var hookOutput = new PreMcpToolCallHookOutput { MetaToUse = null };
+
+        // Create the HooksInvokeResponse using reflection (it's internal)
+        var responseType = GetNestedType(typeof(CopilotClient), "HooksInvokeResponse");
+        var response = CreateInternalRequest(responseType, ("Output", hookOutput));
+
+        // Serialize
+        var typeInfo = options.GetTypeInfo(response.GetType());
+        var json = JsonSerializer.SerializeToElement(response, typeInfo);
+
+        // Should be {"output":{"metaToUse":null}}
+        Assert.True(json.TryGetProperty("output", out var outputProp), $"Expected 'output' property. Got: {json}");
+        Assert.True(outputProp.TryGetProperty("metaToUse", out var metaToUseProp), $"Expected 'metaToUse' property. Got: {outputProp}");
+        Assert.Equal(JsonValueKind.Null, metaToUseProp.ValueKind);
+    }
+
+    [Fact]
+    public void HooksInvokeResponse_SerializesNullOutput_AsEmptyOrNoOutputProperty()
+    {
+        var options = GetSerializerOptions();
+
+        // Create the HooksInvokeResponse with null Output (preserve meta)
+        var responseType = GetNestedType(typeof(CopilotClient), "HooksInvokeResponse");
+        var response = CreateInternalRequest(responseType, ("Output", (object?)null));
+
+        // Serialize
+        var typeInfo = options.GetTypeInfo(response.GetType());
+        var json = JsonSerializer.SerializeToElement(response, typeInfo);
+
+        // With WhenWritingNull, output property should be omitted when null
+        // OR if present, should be null
+        if (json.TryGetProperty("output", out var outputProp))
+        {
+            Assert.Equal(JsonValueKind.Null, outputProp.ValueKind);
+        }
+        // else: property omitted, which is fine (runtime treats undefined output as no-op)
+    }
+
     private static JsonSerializerOptions GetSerializerOptions()
     {
         var prop = typeof(CopilotClient)
@@ -322,6 +391,37 @@ public class SerializationTests
         var type = containingType.GetNestedType(name, System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(type);
         return type!;
+    }
+
+    [Fact]
+    public void HooksInvokeResponse_SerializesBoxedJsonElement_AsOutput()
+    {
+        // This tests the EXACT path used by SerializeHookOutput:
+        // PreMcpToolCallHookOutput -> serialize to JsonElement -> box as object? in HooksInvokeResponse.Output
+        var options = GetSerializerOptions();
+
+        using var metaDoc = JsonDocument.Parse("""{"injected":"by-hook","source":"test"}""");
+        var hookOutput = new PreMcpToolCallHookOutput
+        {
+            MetaToUse = metaDoc.RootElement.Clone()
+        };
+        // SerializeHookOutput returns a JsonElement (value type)
+        var hookTypeInfo = options.GetTypeInfo(typeof(PreMcpToolCallHookOutput));
+        JsonElement serializedOutput = JsonSerializer.SerializeToElement(hookOutput, hookTypeInfo);
+
+        // HooksInvokeResponse stores this as object? (boxed JsonElement)
+        var responseType = GetNestedType(typeof(CopilotClient), "HooksInvokeResponse");
+        var response = CreateInternalRequest(responseType, ("Output", (object)serializedOutput));
+
+        // Serialize via GetTypeInfo(response.GetType()) — same as SendResultResponseAsync
+        var typeInfo = options.GetTypeInfo(response.GetType());
+        var json = JsonSerializer.SerializeToElement(response, typeInfo);
+
+        // Expected: {"output":{"metaToUse":{"injected":"by-hook","source":"test"}}}
+        Assert.True(json.TryGetProperty("output", out var outputProp), $"Expected 'output'. Got: {json}");
+        Assert.True(outputProp.TryGetProperty("metaToUse", out var metaToUseProp), $"Expected 'metaToUse' in output. Got: {outputProp}");
+        Assert.Equal("by-hook", metaToUseProp.GetProperty("injected").GetString());
+        Assert.Equal("test", metaToUseProp.GetProperty("source").GetString());
     }
 
     private static object CreateInternalRequest(Type type, params (string Name, object? Value)[] properties)

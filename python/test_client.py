@@ -163,13 +163,13 @@ class TestURLParsing:
 
 class TestSessionFsConfig:
     def test_missing_initial_cwd(self):
-        with pytest.raises(ValueError, match="session_fs.initial_cwd is required"):
+        with pytest.raises(ValueError, match="session_fs.initial_working_directory is required"):
             CopilotClient(
                 SubprocessConfig(
                     cli_path=CLI_PATH,
                     log_level="error",
                     session_fs={
-                        "initial_cwd": "",
+                        "initial_working_directory": "",
                         "session_state_path": "/session-state",
                         "conventions": "posix",
                     },
@@ -183,7 +183,7 @@ class TestSessionFsConfig:
                     cli_path=CLI_PATH,
                     log_level="error",
                     session_fs={
-                        "initial_cwd": "/",
+                        "initial_working_directory": "/",
                         "session_state_path": "",
                         "conventions": "posix",
                     },

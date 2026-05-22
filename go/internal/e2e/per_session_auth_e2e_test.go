@@ -101,10 +101,10 @@ func TestPerSessionAuthE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		noTokenClient := copilot.NewClient(&copilot.ClientOptions{
-			Connection:      copilot.StdioConnection{Path: ctx.CLIPath},
-			Cwd:             ctx.WorkDir,
-			Env:             withoutAuthEnv(append(ctx.Env(), "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)),
-			UseLoggedInUser: copilot.Bool(false),
+			Connection:       copilot.StdioConnection{Path: ctx.CLIPath},
+			WorkingDirectory: ctx.WorkDir,
+			Env:              withoutAuthEnv(append(ctx.Env(), "COPILOT_DEBUG_GITHUB_API_URL="+ctx.ProxyURL)),
+			UseLoggedInUser:  copilot.Bool(false),
 		})
 		t.Cleanup(func() { noTokenClient.ForceStop() })
 

@@ -450,7 +450,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Context may be present on sessions that have been persisted with workspace.yaml
         if (ourSession.Context != null)
         {
-            Assert.False(string.IsNullOrEmpty(ourSession.Context.Cwd), "Expected context.Cwd to be non-empty when context is present");
+            Assert.False(string.IsNullOrEmpty(ourSession.Context.WorkingDirectory), "Expected context.WorkingDirectory to be non-empty when context is present");
         }
     }
 

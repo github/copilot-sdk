@@ -77,9 +77,9 @@ type ClientOptions struct {
 	// defaults to an empty [StdioConnection] (spawn the bundled runtime over
 	// stdio).
 	Connection RuntimeConnection
-	// Cwd is the working directory for the runtime process.
+	// WorkingDirectory is the working directory for the runtime process.
 	// If empty, inherits the current process's working directory.
-	Cwd string
+	WorkingDirectory string
 	// BaseDirectory is the base directory for Copilot data (session state,
 	// config, etc.). Sets the COPILOT_HOME environment variable on the
 	// spawned runtime. When empty, the runtime defaults to ~/.copilot.
@@ -371,11 +371,11 @@ type AutoModeSwitchRequestHandler func(request AutoModeSwitchRequest, invocation
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
-	SessionID string    `json:"sessionId"`
-	Timestamp time.Time `json:"-"`
-	Cwd       string    `json:"cwd"`
-	ToolName  string    `json:"toolName"`
-	ToolArgs  any       `json:"toolArgs"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ToolName         string    `json:"toolName"`
+	ToolArgs         any       `json:"toolArgs"`
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
@@ -415,12 +415,12 @@ type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation
 
 // PostToolUseHookInput is the input for a post-tool-use hook
 type PostToolUseHookInput struct {
-	SessionID  string    `json:"sessionId"`
-	Timestamp  time.Time `json:"-"`
-	Cwd        string    `json:"cwd"`
-	ToolName   string    `json:"toolName"`
-	ToolArgs   any       `json:"toolArgs"`
-	ToolResult any       `json:"toolResult"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ToolName         string    `json:"toolName"`
+	ToolArgs         any       `json:"toolArgs"`
+	ToolResult       any       `json:"toolResult"`
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
@@ -458,10 +458,10 @@ type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocati
 
 // UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
 type UserPromptSubmittedHookInput struct {
-	SessionID string    `json:"sessionId"`
-	Timestamp time.Time `json:"-"`
-	Cwd       string    `json:"cwd"`
-	Prompt    string    `json:"prompt"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Prompt           string    `json:"prompt"`
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
@@ -499,11 +499,11 @@ type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocat
 
 // SessionStartHookInput is the input for a session-start hook
 type SessionStartHookInput struct {
-	SessionID     string    `json:"sessionId"`
-	Timestamp     time.Time `json:"-"`
-	Cwd           string    `json:"cwd"`
-	Source        string    `json:"source"` // "startup", "resume", "new"
-	InitialPrompt string    `json:"initialPrompt,omitempty"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Source           string    `json:"source"` // "startup", "resume", "new"
+	InitialPrompt    string    `json:"initialPrompt,omitempty"`
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
@@ -540,12 +540,12 @@ type SessionStartHandler func(input SessionStartHookInput, invocation HookInvoca
 
 // SessionEndHookInput is the input for a session-end hook
 type SessionEndHookInput struct {
-	SessionID    string    `json:"sessionId"`
-	Timestamp    time.Time `json:"-"`
-	Cwd          string    `json:"cwd"`
-	Reason       string    `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
-	FinalMessage string    `json:"finalMessage,omitempty"`
-	Error        string    `json:"error,omitempty"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Reason           string    `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
+	FinalMessage     string    `json:"finalMessage,omitempty"`
+	Error            string    `json:"error,omitempty"`
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
@@ -583,12 +583,12 @@ type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation
 
 // ErrorOccurredHookInput is the input for an error-occurred hook
 type ErrorOccurredHookInput struct {
-	SessionID    string    `json:"sessionId"`
-	Timestamp    time.Time `json:"-"`
-	Cwd          string    `json:"cwd"`
-	Error        string    `json:"error"`
-	ErrorContext string    `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
-	Recoverable  bool      `json:"recoverable"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Error            string    `json:"error"`
+	ErrorContext     string    `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
+	Recoverable      bool      `json:"recoverable"`
 }
 
 // MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
@@ -625,6 +625,49 @@ type ErrorOccurredHookOutput struct {
 // ErrorOccurredHandler handles error-occurred hook invocations
 type ErrorOccurredHandler func(input ErrorOccurredHookInput, invocation HookInvocation) (*ErrorOccurredHookOutput, error)
 
+// PreMcpToolCallHookInput is the input for a pre-mcp-tool-call hook
+type PreMcpToolCallHookInput struct {
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ServerName       string    `json:"serverName"`
+	ToolName         string    `json:"toolName"`
+	Arguments        any       `json:"arguments,omitempty"`
+	ToolCallID       string    `json:"toolCallId,omitempty"`
+	Meta             any       `json:"_meta,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PreMcpToolCallHookInput) MarshalJSON() ([]byte, error) {
+	type alias PreMcpToolCallHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PreMcpToolCallHookInput) UnmarshalJSON(data []byte) error {
+	type alias PreMcpToolCallHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
+}
+
+// PreMcpToolCallHookOutput is the output for a pre-mcp-tool-call hook
+type PreMcpToolCallHookOutput struct {
+	MetaToUse any `json:"metaToUse"`
+}
+
+// PreMcpToolCallHandler handles pre-mcp-tool-call hook invocations
+type PreMcpToolCallHandler func(input PreMcpToolCallHookInput, invocation HookInvocation) (*PreMcpToolCallHookOutput, error)
+
 // HookInvocation provides context about a hook invocation
 type HookInvocation struct {
 	SessionID string
@@ -638,6 +681,7 @@ type SessionHooks struct {
 	OnSessionStart        SessionStartHandler
 	OnSessionEnd          SessionEndHandler
 	OnErrorOccurred       ErrorOccurredHandler
+	OnPreMcpToolCall      PreMcpToolCallHandler
 }
 
 // MCPServerConfig is implemented by MCP server configuration types.
@@ -658,12 +702,12 @@ type MCPServerConfig interface {
 // the wire) is distinguishable from a non-nil pointer to an empty slice
 // (sent as `"tools": []`).
 type MCPStdioServerConfig struct {
-	Tools   *[]string         `json:"tools,omitempty"`
-	Timeout int               `json:"timeout,omitempty"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
-	Cwd     string            `json:"cwd,omitempty"`
+	Tools            *[]string         `json:"tools,omitempty"`
+	Timeout          int               `json:"timeout,omitempty"`
+	Command          string            `json:"command"`
+	Args             []string          `json:"args,omitempty"`
+	Env              map[string]string `json:"env,omitempty"`
+	WorkingDirectory string            `json:"cwd,omitempty"`
 }
 
 func (MCPStdioServerConfig) mcpServerConfig() {}
@@ -759,8 +803,8 @@ type SessionFsCapabilities struct {
 
 // SessionFsConfig configures a custom session filesystem provider.
 type SessionFsConfig struct {
-	// InitialCwd is the initial working directory for sessions.
-	InitialCwd string
+	// InitialWorkingDirectory is the initial working directory for sessions.
+	InitialWorkingDirectory string
 	// SessionStatePath is the path within each session's filesystem where the runtime stores
 	// session-scoped files such as events, checkpoints, and temp files.
 	SessionStatePath string
@@ -1268,8 +1312,8 @@ type ModelInfo struct {
 
 // SessionContext contains working directory context for a session
 type SessionContext struct {
-	// Cwd is the working directory where the session was created
-	Cwd string `json:"cwd"`
+	// WorkingDirectory is the working directory where the session was created
+	WorkingDirectory string `json:"cwd"`
 	// GitRoot is the git repository root (if in a git repo)
 	GitRoot string `json:"gitRoot,omitempty"`
 	// Repository is the GitHub repository in "owner/repo" format
@@ -1280,8 +1324,8 @@ type SessionContext struct {
 
 // SessionListFilter contains filter options for listing sessions
 type SessionListFilter struct {
-	// Cwd filters by exact working directory match
-	Cwd string `json:"cwd,omitempty"`
+	// WorkingDirectory filters by exact working directory match
+	WorkingDirectory string `json:"cwd,omitempty"`
 	// GitRoot filters by git root
 	GitRoot string `json:"gitRoot,omitempty"`
 	// Repository filters by repository (owner/repo format)

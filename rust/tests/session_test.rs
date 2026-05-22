@@ -543,7 +543,7 @@ fn mcp_server_config_roundtrips_through_tagged_enum() {
         command: "node".to_string(),
         args: vec!["server.js".to_string()],
         env: HashMap::new(),
-        cwd: None,
+        working_directory: None,
         tools: vec!["*".to_string()],
         timeout: None,
     });
