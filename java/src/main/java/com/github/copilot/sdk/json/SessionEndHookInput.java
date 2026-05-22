@@ -17,7 +17,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  *            the runtime session ID of the session that triggered the hook
  * @param timestamp
  *            the timestamp in milliseconds since epoch when the session ended
- * @param workingDirectory
+ * @param cwd
  *            the current working directory
  * @param reason
  *            the reason: "complete", "error", "abort", "timeout", or
@@ -30,7 +30,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionEndHookInput(@JsonProperty("sessionId") String sessionId,
-        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String workingDirectory,
+        @JsonProperty("timestamp") long timestamp, @JsonProperty("cwd") String cwd,
         @JsonProperty("reason") String reason, @JsonProperty("finalMessage") String finalMessage,
         @JsonProperty("error") String error) {
 }

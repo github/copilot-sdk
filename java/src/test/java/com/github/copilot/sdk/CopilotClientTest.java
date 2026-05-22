@@ -92,8 +92,7 @@ public class CopilotClientTest {
 
             PingResponse pong = client.ping("test message").get();
             assertEquals("pong: test message", pong.message());
-            assertNotNull(pong.timestamp());
-            assertFalse(pong.timestamp().isEmpty());
+            assertTrue(pong.timestamp() >= 0);
 
             client.stop().get();
             assertEquals(ConnectionState.DISCONNECTED, client.getState());
