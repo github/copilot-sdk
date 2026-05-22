@@ -53,13 +53,10 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
-    internal const string NoResultPermissionDirectRpcErrorMessage =
-        "Permission handlers cannot return PermissionDecision.NoResult() for this permission request.";
-
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
     /// </summary>
-    private const int MinProtocolVersion = 2;
+    private const int MinProtocolVersion = 3;
 
     /// <summary>
     /// Provides a thread-safe collection of active Copilot sessions, indexed by session identifier.
@@ -1610,12 +1607,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         var handler = new RpcHandler(this);
         rpc.SetLocalRpcMethod("session.event", handler.OnSessionEvent);
         rpc.SetLocalRpcMethod("session.lifecycle", handler.OnSessionLifecycle);
-        // Protocol v3 servers send tool calls / permission requests as broadcast events.
-        // Protocol v2 servers use the older tool.call / permission.request RPC model.
-        // We always register v2 adapters because handlers are set up before version
-        // negotiation; a v3 server will simply never send these requests.
-        rpc.SetLocalRpcMethod("tool.call", handler.OnToolCallV2);
-        rpc.SetLocalRpcMethod("permission.request", handler.OnPermissionRequestV2);
         rpc.SetLocalRpcMethod("userInput.request", handler.OnUserInputRequest);
         rpc.SetLocalRpcMethod("exitPlanMode.request", handler.OnExitPlanModeRequest);
         rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
@@ -1799,108 +1790,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             return await session.HandleSystemMessageTransformAsync(sections);
         }
-
-        // Protocol v2 backward-compatibility adapters
-
-        public async ValueTask<ToolCallResponseV2> OnToolCallV2(string sessionId,
-            string toolCallId,
-            string toolName,
-            object? arguments,
-            string? traceparent = null,
-            string? tracestate = null)
-        {
-            using var _ = TelemetryHelpers.RestoreTraceContext(traceparent, tracestate);
-
-            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            if (session.GetTool(toolName) is not { } tool)
-            {
-                // Support for not providing the tool handler is only available in the v3+ model.
-                // For v2, it must have been provided.
-                return new ToolCallResponseV2(new ToolResultObject
-                {
-                    TextResultForLlm = $"Tool '{toolName}' is not supported.",
-                    ResultType = "failure",
-                    Error = $"tool '{toolName}' not supported"
-                });
-            }
-
-            try
-            {
-                var invocation = new ToolInvocation
-                {
-                    SessionId = sessionId,
-                    ToolCallId = toolCallId,
-                    ToolName = toolName,
-                    Arguments = arguments
-                };
-
-                var aiFunctionArgs = new AIFunctionArguments
-                {
-                    Context = new Dictionary<object, object?>
-                    {
-                        [typeof(ToolInvocation)] = invocation
-                    }
-                };
-
-                if (arguments is not null)
-                {
-                    if (arguments is not JsonElement incomingJsonArgs)
-                    {
-                        throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
-                    }
-
-                    foreach (var prop in incomingJsonArgs.EnumerateObject())
-                    {
-                        aiFunctionArgs[prop.Name] = prop.Value;
-                    }
-                }
-
-                var toolTimestamp = Stopwatch.GetTimestamp();
-                var result = await tool.InvokeAsync(aiFunctionArgs);
-                LoggingHelpers.LogTiming(client._logger, LogLevel.Debug, null,
-                    "RpcHandler.OnToolCallV2 tool dispatch. Elapsed={Elapsed}, SessionId={SessionId}, ToolCallId={ToolCallId}, Tool={ToolName}",
-                    toolTimestamp,
-                    sessionId,
-                    toolCallId,
-                    toolName);
-
-                var toolResultObject = ToolResultObject.ConvertFromInvocationResult(result, tool.JsonSerializerOptions);
-                return new ToolCallResponseV2(toolResultObject);
-            }
-            catch (Exception ex)
-            {
-                return new ToolCallResponseV2(new ToolResultObject
-                {
-                    TextResultForLlm = "Invoking this tool produced an error. Detailed information is not available.",
-                    ResultType = "failure",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        public async ValueTask<PermissionRequestResponseV2> OnPermissionRequestV2(string sessionId, JsonElement permissionRequest)
-        {
-            var session = client.GetSession(sessionId)
-                ?? throw new ArgumentException($"Unknown session {sessionId}");
-
-            try
-            {
-                var decision = await session.HandlePermissionRequestAsync(permissionRequest);
-                if (decision is PermissionDecisionNoResult)
-                {
-                    throw new InvalidOperationException(NoResultPermissionDirectRpcErrorMessage);
-                }
-                return new PermissionRequestResponseV2(decision);
-            }
-            catch (InvalidOperationException ex) when (ex.Message == NoResultPermissionDirectRpcErrorMessage)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                return new PermissionRequestResponseV2(PermissionDecision.UserNotAvailable());
-            }
-        }
     }
 
     private class Connection(
@@ -2071,13 +1960,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record HooksInvokeResponse(
         object? Output);
 
-    // Protocol v2 backward-compatibility response types
-    internal record ToolCallResponseV2(
-        ToolResultObject Result);
-
-    internal record PermissionRequestResponseV2(
-        PermissionDecision Result);
-
     [JsonSourceGenerationOptions(
         JsonSerializerDefaults.Web,
         AllowOutOfOrderMetadataProperties = true,
@@ -2100,7 +1982,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
-    [JsonSerializable(typeof(PermissionRequestResponseV2))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]
     [JsonSerializable(typeof(ResumeSessionResponse))]
@@ -2111,7 +1992,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(SystemMessageConfig))]
     [JsonSerializable(typeof(SystemMessageTransformRpcResponse))]
     [JsonSerializable(typeof(CommandWireDefinition))]
-    [JsonSerializable(typeof(ToolCallResponseV2))]
     [JsonSerializable(typeof(ToolDefinition))]
     [JsonSerializable(typeof(ToolResultAIContent))]
     [JsonSerializable(typeof(ToolResultObject))]

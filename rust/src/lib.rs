@@ -69,7 +69,7 @@ pub use sdk_protocol_version::{SDK_PROTOCOL_VERSION, get_sdk_protocol_version};
 pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvError};
 
 /// Minimum protocol version this SDK can communicate with.
-const MIN_PROTOCOL_VERSION: u32 = 2;
+const MIN_PROTOCOL_VERSION: u32 = 3;
 
 /// Errors returned by the SDK.
 #[derive(Debug, thiserror::Error)]

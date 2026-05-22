@@ -50,10 +50,6 @@ import type {
     UserInputResponse,
 } from "./types.js";
 
-/** @internal */
-export const NO_RESULT_PERMISSION_V2_ERROR =
-    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
-
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
  * Currently this only deserializes the numeric Unix-ms `timestamp` field on
@@ -905,35 +901,6 @@ export class CopilotSession {
         }
 
         return { sections: result };
-    }
-
-    /**
-     * Handles a permission request in the v2 protocol format (synchronous RPC).
-     * Used as a back-compat adapter when connected to a v2 server.
-     *
-     * @param request - The permission request data from the CLI
-     * @returns A promise that resolves with the permission decision
-     * @internal This method is for internal use by the SDK.
-     */
-    async _handlePermissionRequestV2(request: unknown): Promise<PermissionRequestResult> {
-        if (!this.permissionHandler) {
-            return { kind: "user-not-available" };
-        }
-
-        try {
-            const result = await this.permissionHandler(request as PermissionRequest, {
-                sessionId: this.sessionId,
-            });
-            if (result.kind === "no-result") {
-                throw new Error(NO_RESULT_PERMISSION_V2_ERROR);
-            }
-            return result;
-        } catch (error) {
-            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
-                throw error;
-            }
-            return { kind: "user-not-available" };
-        }
     }
 
     /**

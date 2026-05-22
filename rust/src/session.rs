@@ -1200,8 +1200,8 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
-/// Map a [`PermissionResult`] to the `result` payload for the
-/// broadcast-event response path (`session.permissions.handlePendingPermissionRequest`).
+/// Map a [`PermissionResult`] to the `result` payload sent back to the
+/// server via `session.permissions.handlePendingPermissionRequest`.
 ///
 /// Returns `None` when the SDK must not send a response.
 fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
@@ -1210,20 +1210,6 @@ fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
         PermissionResult::Decision(decision) => Some(
             serde_json::to_value(decision).expect("serializing permission decision should succeed"),
         ),
-    }
-}
-
-/// Map a [`PermissionResult`] to the JSON-RPC `result` payload for the
-/// direct-RPC path (`permission.request`).
-///
-/// Always returns a value. `NoResult` is mapped to `user-not-available`
-/// because the JSON-RPC contract requires a reply.
-fn direct_permission_payload(result: &PermissionResult) -> Value {
-    match result {
-        PermissionResult::Decision(decision) => {
-            serde_json::to_value(decision).expect("serializing permission decision should succeed")
-        }
-        PermissionResult::NoResult => serde_json::json!({ "kind": "user-not-available" }),
     }
 }
 
@@ -1912,68 +1898,6 @@ async fn handle_request(
             let _ = client.send_response(&rpc_response).await;
         }
 
-        "permission.request" => {
-            let Some(request_id) = request
-                .params
-                .as_ref()
-                .and_then(|p| p.get("requestId"))
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-            else {
-                warn!("permission.request missing 'requestId' field");
-                let rpc_response = JsonRpcResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: request.id,
-                    result: None,
-                    error: Some(crate::JsonRpcError {
-                        code: error_codes::INVALID_PARAMS,
-                        message: "missing required field: requestId".to_string(),
-                        data: None,
-                    }),
-                };
-                let _ = client.send_response(&rpc_response).await;
-                return;
-            };
-            let request_id = RequestId::new(request_id);
-            let raw_params = request
-                .params
-                .as_ref()
-                .cloned()
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            let data: PermissionRequestData =
-                serde_json::from_value(raw_params.clone()).unwrap_or(PermissionRequestData {
-                    kind: None,
-                    tool_call_id: None,
-                    extra: raw_params,
-                });
-
-            let handler_start = Instant::now();
-            let rpc_result = if let Some(permission_handler) = handlers.permission.as_ref() {
-                let result = permission_handler
-                    .handle(sid.clone(), request_id.clone(), data)
-                    .await;
-                tracing::debug!(
-                    elapsed_ms = handler_start.elapsed().as_millis(),
-                    session_id = %sid,
-                    request_id = %request_id,
-                    "PermissionHandler::handle dispatch"
-                );
-                direct_permission_payload(&result)
-            } else {
-                // Back-compat with v2 servers that still send
-                // permission.request as a direct RPC: default to
-                // user-not-available rather than erroring.
-                serde_json::json!({ "kind": "user-not-available" })
-            };
-            let rpc_response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(rpc_result),
-                error: None,
-            };
-            let _ = client.send_response(&rpc_response).await;
-        }
-
         "systemMessage.transform" => {
             let params = request.params.as_ref();
             let sections: HashMap<String, crate::transforms::TransformSection> =
@@ -2103,7 +2027,7 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{direct_permission_payload, notification_permission_payload};
+    use super::notification_permission_payload;
     use crate::handler::PermissionResult;
 
     #[test]
@@ -2128,26 +2052,6 @@ mod tests {
         assert_eq!(
             notification_permission_payload(&PermissionResult::user_not_available()),
             Some(json!({ "kind": "user-not-available" }))
-        );
-    }
-
-    #[test]
-    fn direct_payload_maps_no_result_to_user_not_available() {
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::NoResult),
-            json!({ "kind": "user-not-available" })
-        );
-    }
-
-    #[test]
-    fn direct_payload_serializes_decisions() {
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::approve_once()),
-            json!({ "kind": "approve-once" })
-        );
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::reject(None)),
-            json!({ "kind": "reject" })
         );
     }
 }
