@@ -17,6 +17,7 @@ export {
     type CanvasActionContext,
     type CanvasAgentActionDeclaration,
     type CanvasDeclaration,
+    type CanvasInstanceRehydrate,
     type CanvasLifecycleContext,
     type CanvasOpenContext,
     type CanvasOpenResponse,

@@ -430,13 +430,18 @@ pub async fn dispatch_canvas_invoke(
             }
             Ok(Value::Null)
         }
-        _ => {
-            let instance_id = params.instance_id.unwrap_or_default();
+        other => {
+            let instance_id = params.instance_id.ok_or_else(|| {
+                CanvasError::new(
+                    "canvas_missing_instance_id",
+                    format!("Action '{other}' requires an instanceId"),
+                )
+            })?;
             let ctx = CanvasActionContext {
                 session_id,
                 canvas_id: params.canvas_id,
                 instance_id,
-                action_name: params.action_name,
+                action_name: other.to_string(),
                 input: params.input,
             };
             handler.on_action(ctx).await
@@ -729,7 +734,7 @@ mod tests {
             SessionId::from("s1"),
             CanvasInvokeParams {
                 canvas_id: "dup".into(),
-                instance_id: None,
+                instance_id: Some("inst-1".into()),
                 action_name: "canvas.open".into(),
                 input: Value::Null,
                 toolbar: None,

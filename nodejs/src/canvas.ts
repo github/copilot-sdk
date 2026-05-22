@@ -350,6 +350,12 @@ export async function dispatchCanvasAction(
         case RESERVED_CANVAS_ACTIONS.focus:
         case RESERVED_CANVAS_ACTIONS.close:
         case RESERVED_CANVAS_ACTIONS.reload: {
+            if (!params.instanceId) {
+                throw new CanvasError(
+                    "canvas_missing_instance_id",
+                    `Lifecycle verb '${params.actionName}' requires an instanceId`
+                );
+            }
             const hook =
                 params.actionName === RESERVED_CANVAS_ACTIONS.focus
                     ? canvas.onFocus
@@ -360,7 +366,7 @@ export async function dispatchCanvasAction(
             const ctx: CanvasLifecycleContext = {
                 sessionId,
                 canvasId: params.canvasId,
-                instanceId: params.instanceId ?? "",
+                instanceId: params.instanceId,
             };
             await hook(ctx);
             return undefined;
@@ -369,10 +375,16 @@ export async function dispatchCanvasAction(
             if (!canvas.onAction) {
                 throw CanvasError.noHandler();
             }
+            if (!params.instanceId) {
+                throw new CanvasError(
+                    "canvas_missing_instance_id",
+                    `Action '${params.actionName}' requires an instanceId`
+                );
+            }
             return canvas.onAction({
                 sessionId,
                 canvasId: params.canvasId,
-                instanceId: params.instanceId ?? "",
+                instanceId: params.instanceId,
                 actionName: params.actionName,
                 input: params.input,
             });

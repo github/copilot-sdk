@@ -2150,22 +2150,46 @@ export class CopilotClient {
         sessionId: string;
         request: { id?: string; method: string; params?: unknown };
     }): Promise<{ ok: true; result: unknown } | { ok: false; error: CanvasError }> {
+        const invalidEnvelope = (message: string) =>
+            ({
+                ok: false as const,
+                error: {
+                    code: "invalid_payload",
+                    message,
+                    name: "CanvasError",
+                } as CanvasError,
+            }) satisfies { ok: false; error: CanvasError };
+
         if (!params || typeof params.sessionId !== "string" || !params.request) {
-            throw new Error("Invalid hostExtension.invoke payload");
+            return invalidEnvelope("Invalid hostExtension.invoke payload");
         }
         const session = this.sessions.get(params.sessionId);
         if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
+            return {
+                ok: false,
+                error: {
+                    code: "session_not_found",
+                    message: `Session not found: ${params.sessionId}`,
+                    name: "CanvasError",
+                } as CanvasError,
+            };
         }
         const { method, params: inner } = params.request;
         // Only `canvas.action.invoke` is accepted as an inner method; reject
         // anything else explicitly so misrouted calls don't silently no-op.
         if (method !== "canvas.action.invoke") {
-            throw new Error(`Unsupported hostExtension.invoke method: ${method}`);
+            return {
+                ok: false,
+                error: {
+                    code: "unsupported_method",
+                    message: `hostExtension.invoke only supports canvas.action.invoke, got '${method}'`,
+                    name: "CanvasError",
+                } as CanvasError,
+            };
         }
         const actionParams = inner as CanvasActionInvokeParams;
         if (!actionParams || typeof actionParams.canvasId !== "string") {
-            throw new Error("Invalid canvas.action.invoke params: missing canvasId");
+            return invalidEnvelope("Invalid canvas.action.invoke params: missing canvasId");
         }
         const canvas = session.getCanvas(actionParams.canvasId);
         if (!canvas) {

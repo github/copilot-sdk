@@ -1848,6 +1848,27 @@ async fn handle_request(
                 }
             };
 
+            if envelope.session_id != sid {
+                let result = serde_json::json!({
+                    "ok": false,
+                    "error": {
+                        "code": "session_mismatch",
+                        "message": format!(
+                            "hostExtension.invoke session id '{}' does not match this session '{}'",
+                            envelope.session_id, sid
+                        ),
+                    },
+                });
+                let rpc_response = JsonRpcResponse {
+                    jsonrpc: "2.0".to_string(),
+                    id: request.id,
+                    result: Some(result),
+                    error: None,
+                };
+                let _ = client.send_response(&rpc_response).await;
+                return;
+            }
+
             if envelope.request.method != "canvas.action.invoke" {
                 let result = serde_json::json!({
                     "ok": false,
