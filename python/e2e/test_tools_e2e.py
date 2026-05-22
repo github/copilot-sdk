@@ -203,7 +203,7 @@ class TestTools:
         assert "HELLO" in assistant_message.data.content
 
         # Should have received a custom-tool permission request
-        custom_tool_requests = [r for r in permission_requests if r.kind.value == "custom-tool"]
+        custom_tool_requests = [r for r in permission_requests if r.kind == "custom-tool"]
         assert len(custom_tool_requests) > 0
         assert custom_tool_requests[0].tool_name == "encrypt_string"
 

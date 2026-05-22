@@ -46,7 +46,7 @@ class TestPermissions:
         assert len(permission_requests) > 0
 
         # Should include write permission request
-        write_requests = [req for req in permission_requests if req.kind.value == "write"]
+        write_requests = [req for req in permission_requests if req.kind == "write"]
         assert len(write_requests) > 0
 
         await session.disconnect()

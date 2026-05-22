@@ -359,6 +359,14 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
             [/Id\b/g, "ID"],
             [/Llm/g, "LLM"],
             [/Cli/g, "CLI"],
+            // quicktype merges structurally-identical unions and synthesizes a
+            // single class name using a common substring. For our schema this
+            // surfaces as e.g. `PermissionDecisionApproveForIonApproval` (merge
+            // of `PermissionDecisionApproveFor{Session,Location}Approval` —
+            // common substring is `Ion`). Try that substitution so we find
+            // and delete the merged blob during union post-processing.
+            [/Session/g, "Ion"],
+            [/Location/g, "Ion"],
         ];
         const results = new Set<string>([name]);
         for (const [pattern, replacement] of substitutions) {
@@ -451,6 +459,47 @@ function postProcessRefBasedDiscriminatedUnionsForPython(
     }
 
     code = applyUnionRewritesToPython(code, resolved);
+
+    // Clean up quicktype-merged blobs that get left behind when quicktype merges
+    // multiple structurally-identical types into one with a synthesized fuzzy
+    // name (e.g. ``PermissionDecisionApproveForIonApproval`` for the merge of
+    // ``PermissionDecisionApproveFor{Session,Location}Approval``). These
+    // blobs are unused after we emit the proper per-variant + union shape.
+    const orphanFuzzyMergedNames = ["PermissionDecisionApproveForIonApproval"];
+    for (const orphanName of orphanFuzzyMergedNames) {
+        const lines = code.split("\n");
+        let classStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i] === `class ${orphanName}:` || lines[i].startsWith(`class ${orphanName}(`)) {
+                classStart = i;
+                break;
+            }
+        }
+        if (classStart < 0) continue;
+        let blockStart = classStart;
+        while (
+            blockStart > 0 &&
+            (lines[blockStart - 1] === "@dataclass" || /^# /.test(lines[blockStart - 1]))
+        ) {
+            blockStart--;
+        }
+        let blockEnd = classStart + 1;
+        while (blockEnd < lines.length) {
+            const ln = lines[blockEnd];
+            if (
+                /^class \w/.test(ln) ||
+                /^def \w/.test(ln) ||
+                ln === "@dataclass" ||
+                /^# (?:Experimental|Deprecated|Internal):/.test(ln)
+            ) {
+                break;
+            }
+            blockEnd++;
+        }
+        lines.splice(blockStart, blockEnd - blockStart);
+        code = lines.join("\n");
+    }
+
     return { code, unions: resolved };
 }
 

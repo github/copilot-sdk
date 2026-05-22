@@ -30,9 +30,15 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
     github_token = (
         "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
     )
+    if use_stdio:
+        connection = RuntimeConnection.stdio(path=ctx.cli_path)
+    else:
+        connection = RuntimeConnection.tcp(
+            path=ctx.cli_path, connection_token="py-tcp-shared-test-token"
+        )
     return CopilotClient(
         CopilotClientOptions(
-            connection=RuntimeConnection.stdio(path=ctx.cli_path),
+            connection=connection,
             working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=github_token,

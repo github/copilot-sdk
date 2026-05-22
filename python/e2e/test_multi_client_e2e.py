@@ -279,7 +279,7 @@ class TestMultiClientBroadcast:
         assert len(c1_perm_completed) > 0
         assert len(c2_perm_completed) > 0
         for event in c1_perm_completed + c2_perm_completed:
-            assert event.data.result.kind.value == "approved"
+            assert event.data.result.kind == "approved"
 
         await session2.disconnect()
 
@@ -328,7 +328,7 @@ class TestMultiClientBroadcast:
         assert len(c1_perm_completed) > 0
         assert len(c2_perm_completed) > 0
         for event in c1_perm_completed + c2_perm_completed:
-            assert event.data.result.kind.value == "denied-interactively-by-user"
+            assert event.data.result.kind == "denied-interactively-by-user"
 
         await session2.disconnect()
 

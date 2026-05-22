@@ -701,7 +701,7 @@ class TestSessions:
         attachments = user_messages[-1].data.attachments
         assert attachments is not None and len(attachments) == 1
         attachment = attachments[0]
-        assert attachment.type.value == "file"
+        assert attachment.type == "file"
         assert attachment.display_name == "attached-file.txt"
         assert attachment.path == file_path
         assert attachment.line_range is not None
@@ -739,7 +739,7 @@ class TestSessions:
         attachments = user_messages[-1].data.attachments
         assert attachments is not None and len(attachments) == 1
         attachment = attachments[0]
-        assert attachment.type.value == "directory"
+        assert attachment.type == "directory"
         assert attachment.display_name == "attached-directory"
         assert attachment.path == directory_path
 
@@ -778,7 +778,7 @@ class TestSessions:
         attachments = user_messages[-1].data.attachments
         assert attachments is not None and len(attachments) == 1
         attachment = attachments[0]
-        assert attachment.type.value == "selection"
+        assert attachment.type == "selection"
         assert attachment.display_name == "selected-file.cs"
         assert attachment.file_path == file_path
         assert attachment.text == 'string Value = "SELECTION_SENTINEL";'
