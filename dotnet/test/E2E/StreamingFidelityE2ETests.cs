@@ -1,11 +1,11 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "streaming_fidelity", output)
 {
@@ -15,7 +15,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Count from 1 to 5, separated by commas." });
 
@@ -51,7 +51,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = false });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Say 'hello world'." });
 
@@ -83,7 +83,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
             new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll, Streaming = true });
 
         var events = new List<SessionEvent>();
-        session2.On(evt => { lock (events) { events.Add(evt); } });
+        session2.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         var answer = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(answer);
@@ -118,7 +118,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
             new ResumeSessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll, Streaming = false });
 
         var events = new List<SessionEvent>();
-        session2.On(evt => { lock (events) { events.Add(evt); } });
+        session2.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         var answer = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
         Assert.NotNull(answer);
@@ -150,7 +150,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 15 * 17?" });
 
@@ -167,7 +167,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         Assert.Contains("255", assistantEvents.Last().Data.Content ?? string.Empty);
 
         // Verify the session was created with reasoning effort via GetMessages
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var startEvent = Assert.Single(messages.OfType<SessionStartEvent>());
         Assert.Equal("high", startEvent.Data.ReasoningEffort);
 
@@ -180,7 +180,7 @@ public class StreamingFidelityE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var session = await CreateSessionAsync(new SessionConfig { Streaming = true });
 
         var events = new List<SessionEvent>();
-        session.On(evt => { lock (events) { events.Add(evt); } });
+        session.On<SessionEvent>(evt => { lock (events) { events.Add(evt); } });
 
         await session.SendAndWaitAsync(new MessageOptions { Prompt = "Count from 1 to 5, separated by commas." });
 

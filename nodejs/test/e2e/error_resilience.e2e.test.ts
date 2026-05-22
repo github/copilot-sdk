@@ -20,7 +20,7 @@ describe("Error Resilience", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
         await session.disconnect();
 
-        await expect(session.getMessages()).rejects.toThrow();
+        await expect(session.getEvents()).rejects.toThrow();
     });
 
     it("should handle double abort without error", async () => {

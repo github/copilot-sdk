@@ -49,10 +49,10 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
         );
     }
 
-    const client = new CopilotClient({ isChildProcess: true });
+    const client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
     return client.resumeSession(sessionId, {
         ...config,
         onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
-        disableResume: config.disableResume ?? true,
+        suppressResumeEvent: config.suppressResumeEvent ?? true,
     });
 }

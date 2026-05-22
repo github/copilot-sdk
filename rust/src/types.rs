@@ -806,8 +806,8 @@ pub struct McpStdioServerConfig {
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub env: HashMap<String, String>,
     /// Working directory for the subprocess.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "cwd")]
+    pub working_directory: Option<String>,
 }
 
 /// Configuration for a remote MCP server (HTTP or SSE).
@@ -3107,8 +3107,8 @@ pub struct ListSessionsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct SessionListFilter {
     /// Filter by exact `cwd` match.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "cwd")]
+    pub working_directory: Option<String>,
     /// Filter by git root path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_root: Option<String>,

@@ -45,6 +45,8 @@ mod pending_work_resume;
 mod per_session_auth;
 #[path = "e2e/permissions.rs"]
 mod permissions;
+#[path = "e2e/pre_mcp_tool_call_hook.rs"]
+mod pre_mcp_tool_call_hook;
 #[path = "e2e/rpc_additional_edge_cases.rs"]
 mod rpc_additional_edge_cases;
 #[path = "e2e/rpc_agent.rs"]

@@ -693,7 +693,7 @@ class AssistantUsageData:
     quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
     reasoning_tokens: int | None = None
-    ttft: timedelta | None = None
+    time_to_first_token: timedelta | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "AssistantUsageData":
@@ -715,7 +715,7 @@ class AssistantUsageData:
         quota_snapshots = from_union([from_none, lambda x: from_dict(AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
-        ttft = from_union([from_none, from_timedelta], obj.get("ttftMs"))
+        time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
         return AssistantUsageData(
             model=model,
             api_call_id=api_call_id,
@@ -734,7 +734,7 @@ class AssistantUsageData:
             quota_snapshots=quota_snapshots,
             reasoning_effort=reasoning_effort,
             reasoning_tokens=reasoning_tokens,
-            ttft=ttft,
+            time_to_first_token=time_to_first_token,
         )
 
     def to_dict(self) -> dict:
@@ -772,8 +772,8 @@ class AssistantUsageData:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_tokens is not None:
             result["reasoningTokens"] = from_union([from_none, to_int], self.reasoning_tokens)
-        if self.ttft is not None:
-            result["ttftMs"] = from_union([from_none, to_timedelta_int], self.ttft)
+        if self.time_to_first_token is not None:
+            result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta_int], self.time_to_first_token)
         return result
 
 
@@ -2406,6 +2406,7 @@ class SessionCompactionCompleteData:
     checkpoint_path: str | None = None
     compaction_tokens_used: CompactionCompleteCompactionTokensUsed | None = None
     conversation_tokens: int | None = None
+    custom_instructions: str | None = None
     error: str | None = None
     messages_removed: int | None = None
     post_compaction_tokens: int | None = None
@@ -2425,6 +2426,7 @@ class SessionCompactionCompleteData:
         checkpoint_path = from_union([from_none, from_str], obj.get("checkpointPath"))
         compaction_tokens_used = from_union([from_none, CompactionCompleteCompactionTokensUsed.from_dict], obj.get("compactionTokensUsed"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
+        custom_instructions = from_union([from_none, from_str], obj.get("customInstructions"))
         error = from_union([from_none, from_str], obj.get("error"))
         messages_removed = from_union([from_none, from_int], obj.get("messagesRemoved"))
         post_compaction_tokens = from_union([from_none, from_int], obj.get("postCompactionTokens"))
@@ -2441,6 +2443,7 @@ class SessionCompactionCompleteData:
             checkpoint_path=checkpoint_path,
             compaction_tokens_used=compaction_tokens_used,
             conversation_tokens=conversation_tokens,
+            custom_instructions=custom_instructions,
             error=error,
             messages_removed=messages_removed,
             post_compaction_tokens=post_compaction_tokens,
@@ -2464,6 +2467,8 @@ class SessionCompactionCompleteData:
             result["compactionTokensUsed"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsed, x)], self.compaction_tokens_used)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
+        if self.custom_instructions is not None:
+            result["customInstructions"] = from_union([from_none, from_str], self.custom_instructions)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
         if self.messages_removed is not None:
@@ -3087,7 +3092,6 @@ class SessionShutdownData:
     session_start_time: int
     shutdown_type: ShutdownType
     total_api_duration: timedelta
-    total_premium_requests: float
     conversation_tokens: int | None = None
     current_model: str | None = None
     current_tokens: int | None = None
@@ -3096,6 +3100,7 @@ class SessionShutdownData:
     token_details: dict[str, ShutdownTokenDetail] | None = None
     tool_definitions_tokens: int | None = None
     total_nano_aiu: float | None = None
+    total_premium_requests: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionShutdownData":
@@ -3105,7 +3110,6 @@ class SessionShutdownData:
         session_start_time = from_int(obj.get("sessionStartTime"))
         shutdown_type = parse_enum(ShutdownType, obj.get("shutdownType"))
         total_api_duration = from_timedelta(obj.get("totalApiDurationMs"))
-        total_premium_requests = from_float(obj.get("totalPremiumRequests"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         current_model = from_union([from_none, from_str], obj.get("currentModel"))
         current_tokens = from_union([from_none, from_int], obj.get("currentTokens"))
@@ -3114,13 +3118,13 @@ class SessionShutdownData:
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
+        total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
         return SessionShutdownData(
             code_changes=code_changes,
             model_metrics=model_metrics,
             session_start_time=session_start_time,
             shutdown_type=shutdown_type,
             total_api_duration=total_api_duration,
-            total_premium_requests=total_premium_requests,
             conversation_tokens=conversation_tokens,
             current_model=current_model,
             current_tokens=current_tokens,
@@ -3129,6 +3133,7 @@ class SessionShutdownData:
             token_details=token_details,
             tool_definitions_tokens=tool_definitions_tokens,
             total_nano_aiu=total_nano_aiu,
+            total_premium_requests=total_premium_requests,
         )
 
     def to_dict(self) -> dict:
@@ -3138,7 +3143,6 @@ class SessionShutdownData:
         result["sessionStartTime"] = to_int(self.session_start_time)
         result["shutdownType"] = to_enum(ShutdownType, self.shutdown_type)
         result["totalApiDurationMs"] = to_timedelta_int(self.total_api_duration)
-        result["totalPremiumRequests"] = to_float(self.total_premium_requests)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
         if self.current_model is not None:
@@ -3155,6 +3159,8 @@ class SessionShutdownData:
             result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         if self.total_nano_aiu is not None:
             result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
+        if self.total_premium_requests is not None:
+            result["totalPremiumRequests"] = from_union([from_none, to_float], self.total_premium_requests)
         return result
 
 
@@ -3541,14 +3547,14 @@ class ShutdownModelMetric:
 @dataclass
 class ShutdownModelMetricRequests:
     "Request count and cost metrics"
-    cost: float
-    count: int
+    cost: float | None = None
+    count: int | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ShutdownModelMetricRequests":
         assert isinstance(obj, dict)
-        cost = from_float(obj.get("cost"))
-        count = from_int(obj.get("count"))
+        cost = from_union([from_none, from_float], obj.get("cost"))
+        count = from_union([from_none, from_int], obj.get("count"))
         return ShutdownModelMetricRequests(
             cost=cost,
             count=count,
@@ -3556,8 +3562,10 @@ class ShutdownModelMetricRequests:
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["cost"] = to_float(self.cost)
-        result["count"] = to_int(self.count)
+        if self.cost is not None:
+            result["cost"] = from_union([from_none, to_float], self.cost)
+        if self.count is not None:
+            result["count"] = from_union([from_none, to_int], self.count)
         return result
 
 
@@ -4190,6 +4198,7 @@ class ToolExecutionCompleteData:
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     result: ToolExecutionCompleteResult | None = None
+    sandboxed: bool | None = None
     tool_telemetry: dict[str, Any] | None = None
     turn_id: str | None = None
 
@@ -4204,6 +4213,7 @@ class ToolExecutionCompleteData:
         model = from_union([from_none, from_str], obj.get("model"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
+        sandboxed = from_union([from_none, from_bool], obj.get("sandboxed"))
         tool_telemetry = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("toolTelemetry"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionCompleteData(
@@ -4215,6 +4225,7 @@ class ToolExecutionCompleteData:
             model=model,
             parent_tool_call_id=parent_tool_call_id,
             result=result,
+            sandboxed=sandboxed,
             tool_telemetry=tool_telemetry,
             turn_id=turn_id,
         )
@@ -4235,6 +4246,8 @@ class ToolExecutionCompleteData:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.result is not None:
             result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteResult, x)], self.result)
+        if self.sandboxed is not None:
+            result["sandboxed"] = from_union([from_none, from_bool], self.sandboxed)
         if self.tool_telemetry is not None:
             result["toolTelemetry"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.tool_telemetry)
         if self.turn_id is not None:
@@ -4829,95 +4842,137 @@ ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | Emb
 
 class AbortReason(Enum):
     "Finite reason code describing why the current turn was aborted"
+    # The local user requested the abort, for example by pressing Ctrl+C in the CLI.
     USER_INITIATED = "user_initiated"
+    # A remote command requested the abort.
     REMOTE_COMMAND = "remote_command"
+    # An MCP server delivered a user.abort notification.
     USER_ABORT = "user_abort"
 
 
 class AssistantMessageToolRequestType(Enum):
     "Tool call type: \"function\" for standard tool calls, \"custom\" for grammar-based tool calls. Defaults to \"function\" when absent."
+    # Standard function-style tool call.
     FUNCTION = "function"
+    # Custom grammar-based tool call.
     CUSTOM = "custom"
 
 
 class AssistantUsageApiEndpoint(Enum):
     "API endpoint used for this model call, matching CAPI supported_endpoints vocabulary"
+    # Chat Completions API endpoint.
     CHAT_COMPLETIONS = "/chat/completions"
+    # Anthropic Messages API endpoint.
     V1_MESSAGES = "/v1/messages"
+    # Responses API endpoint.
     RESPONSES = "/responses"
+    # WebSocket Responses API endpoint.
     WS_RESPONSES = "ws:/responses"
 
 
 class AutoModeSwitchResponse(Enum):
     "The user's auto-mode-switch choice"
+    # Switch models for this request.
     YES = "yes"
+    # Switch models now and keep using the replacement automatically.
     YES_ALWAYS = "yes_always"
+    # Do not switch models.
     NO = "no"
 
 
 class ElicitationCompletedAction(Enum):
     "The user action: \"accept\" (submitted form), \"decline\" (explicitly refused), or \"cancel\" (dismissed)"
+    # The user submitted the requested form.
     ACCEPT = "accept"
+    # The user explicitly declined the request.
     DECLINE = "decline"
+    # The user dismissed the request.
     CANCEL = "cancel"
 
 
 class ElicitationRequestedMode(Enum):
     "Elicitation mode; \"form\" for structured input, \"url\" for browser-based. Defaults to \"form\" when absent."
+    # Structured form-based elicitation.
     FORM = "form"
+    # Browser URL-based elicitation.
     URL = "url"
 
 
 class ExitPlanModeAction(Enum):
     "Exit plan mode action"
+    # Exit plan mode without starting implementation.
     EXIT_ONLY = "exit_only"
+    # Exit plan mode and continue in interactive mode.
     INTERACTIVE = "interactive"
+    # Exit plan mode and continue autonomously.
     AUTOPILOT = "autopilot"
+    # Exit plan mode and continue with parallel autonomous workers.
     AUTOPILOT_FLEET = "autopilot_fleet"
 
 
 class ExtensionsLoadedExtensionSource(Enum):
     "Discovery source"
+    # Extension discovered from the current project.
     PROJECT = "project"
+    # Extension discovered from the user's extension directory.
     USER = "user"
 
 
 class ExtensionsLoadedExtensionStatus(Enum):
     "Current status: running, disabled, failed, or starting"
+    # The extension process is running.
     RUNNING = "running"
+    # The extension is installed but disabled.
     DISABLED = "disabled"
+    # The extension failed to start or crashed.
     FAILED = "failed"
+    # The extension process is starting.
     STARTING = "starting"
 
 
 class HandoffSourceType(Enum):
     "Origin type of the session being handed off"
+    # The handoff originated from a remote session.
     REMOTE = "remote"
+    # The handoff originated from a local session.
     LOCAL = "local"
 
 
 class McpServerSource(Enum):
     "Configuration source: user, workspace, plugin, or builtin"
+    # Server configured in the user's global MCP configuration.
     USER = "user"
+    # Server configured by the current workspace.
     WORKSPACE = "workspace"
+    # Server contributed by an installed plugin.
     PLUGIN = "plugin"
+    # Server bundled with the runtime.
     BUILTIN = "builtin"
 
 
 class McpServerStatus(Enum):
     "Connection status: connected, failed, needs-auth, pending, disabled, or not_configured"
+    # The server is connected and available.
     CONNECTED = "connected"
+    # The server failed to connect or initialize.
     FAILED = "failed"
+    # The server requires authentication before it can connect.
     NEEDS_AUTH = "needs-auth"
+    # The server connection is still being established.
     PENDING = "pending"
+    # The server is configured but disabled.
     DISABLED = "disabled"
+    # The server is not configured for this session.
     NOT_CONFIGURED = "not_configured"
 
 
 class ModelCallFailureSource(Enum):
     "Where the failed model call originated"
+    # Model call from the top-level agent.
     TOP_LEVEL = "top_level"
+    # Model call from a sub-agent.
     SUBAGENT = "subagent"
+    # Model call from MCP sampling.
     MCP_SAMPLING = "mcp_sampling"
 
 
@@ -4938,8 +4993,11 @@ class PermissionPromptRequestKind(Enum):
 
 class PermissionPromptRequestPathAccessKind(Enum):
     "Underlying permission kind that needs path approval"
+    # Read access to a filesystem path.
     READ = "read"
+    # Shell command access involving a filesystem path.
     SHELL = "shell"
+    # Write access to a filesystem path.
     WRITE = "write"
 
 
@@ -4959,13 +5017,17 @@ class PermissionRequestKind(Enum):
 
 class PermissionRequestMemoryAction(Enum):
     "Whether this is a store or vote memory operation"
+    # Store a new memory.
     STORE = "store"
+    # Vote on an existing memory.
     VOTE = "vote"
 
 
 class PermissionRequestMemoryDirection(Enum):
     "Vote direction (vote only)"
+    # Vote that the memory is useful or accurate.
     UPVOTE = "upvote"
+    # Vote that the memory is incorrect or outdated.
     DOWNVOTE = "downvote"
 
 
@@ -4984,51 +5046,73 @@ class PermissionResultKind(Enum):
 
 class PlanChangedOperation(Enum):
     "The type of operation performed on the plan file"
+    # The plan file was created.
     CREATE = "create"
+    # The plan file was updated.
     UPDATE = "update"
+    # The plan file was deleted.
     DELETE = "delete"
 
 
 class ReasoningSummary(Enum):
     "Reasoning summary mode used for model calls, if applicable (e.g. \"none\", \"concise\", \"detailed\")"
+    # Do not request reasoning summaries from the model.
     NONE = "none"
+    # Request a concise summary of the model's reasoning.
     CONCISE = "concise"
+    # Request a detailed summary of the model's reasoning.
     DETAILED = "detailed"
 
 
 class SessionMode(Enum):
     "The session mode the agent is operating in"
+    # The agent is responding interactively to the user.
     INTERACTIVE = "interactive"
+    # The agent is preparing a plan before making changes.
     PLAN = "plan"
+    # The agent is working autonomously toward task completion.
     AUTOPILOT = "autopilot"
 
 
 class ShutdownType(Enum):
     "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
+    # The session ended normally.
     ROUTINE = "routine"
+    # The session ended because of a crash or fatal error.
     ERROR = "error"
 
 
 class SkillSource(Enum):
     "Source location type (e.g., project, personal-copilot, plugin, builtin)"
+    # Skill defined in the current project's skill directories.
     PROJECT = "project"
+    # Skill discovered from a parent directory in the current workspace tree.
     INHERITED = "inherited"
+    # Skill defined in the user's Copilot skill directory.
     PERSONAL_COPILOT = "personal-copilot"
+    # Skill defined in the user's personal agents skill directory.
     PERSONAL_AGENTS = "personal-agents"
+    # Skill provided by an installed plugin.
     PLUGIN = "plugin"
+    # Skill loaded from a configured custom skill directory.
     CUSTOM = "custom"
+    # Skill bundled with the runtime.
     BUILTIN = "builtin"
 
 
 class SystemMessageRole(Enum):
     "Message role: \"system\" for system prompts, \"developer\" for developer-injected instructions"
+    # System prompt message.
     SYSTEM = "system"
+    # Developer instruction message.
     DEVELOPER = "developer"
 
 
 class SystemNotificationAgentCompletedStatus(Enum):
     "Whether the agent completed successfully or failed"
+    # The agent completed successfully.
     COMPLETED = "completed"
+    # The agent failed.
     FAILED = "failed"
 
 
@@ -5044,7 +5128,9 @@ class SystemNotificationType(Enum):
 
 class ToolExecutionCompleteContentResourceLinkIconTheme(Enum):
     "Theme variant this icon is intended for"
+    # Icon intended for light themes.
     LIGHT = "light"
+    # Icon intended for dark themes.
     DARK = "dark"
 
 
@@ -5060,16 +5146,23 @@ class ToolExecutionCompleteContentType(Enum):
 
 class UserMessageAgentMode(Enum):
     "The agent mode that was active when this message was sent"
+    # The agent is responding interactively to the user.
     INTERACTIVE = "interactive"
+    # The agent is preparing a plan before making changes.
     PLAN = "plan"
+    # The agent is working autonomously toward task completion.
     AUTOPILOT = "autopilot"
+    # The agent is in shell-focused UI mode.
     SHELL = "shell"
 
 
 class UserMessageAttachmentGithubReferenceType(Enum):
     "Type of GitHub reference"
+    # GitHub issue reference.
     ISSUE = "issue"
+    # GitHub pull request reference.
     PR = "pr"
+    # GitHub discussion reference.
     DISCUSSION = "discussion"
 
 
@@ -5096,13 +5189,17 @@ class UserToolSessionApprovalKind(Enum):
 
 class WorkingDirectoryContextHostType(Enum):
     "Hosting platform type of the repository (github or ado)"
+    # Repository is hosted on GitHub.
     GITHUB = "github"
+    # Repository is hosted on Azure DevOps.
     ADO = "ado"
 
 
 class WorkspaceFileChangedOperation(Enum):
     "Whether the file was newly created or updated"
+    # The workspace file was created.
     CREATE = "create"
+    # The workspace file was updated.
     UPDATE = "update"
 
 

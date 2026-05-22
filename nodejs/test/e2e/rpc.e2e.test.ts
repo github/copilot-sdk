@@ -14,7 +14,7 @@ function onTestFinishedForceStop(client: CopilotClient) {
 
 describe("RPC", () => {
     it("should call rpc.ping with typed params and result", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -27,7 +27,7 @@ describe("RPC", () => {
     });
 
     it("should call rpc.models.list with typed result", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -47,7 +47,7 @@ describe("RPC", () => {
 
     // account.getQuota is defined in schema but not yet implemented in CLI
     it.skip("should call rpc.account.getQuota when authenticated", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();

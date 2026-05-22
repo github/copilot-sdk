@@ -1,14 +1,14 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "session_config", output)
@@ -112,7 +112,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         Assert.Equal(requestedSessionId, session.SessionId);
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         var startEvent = Assert.IsType<SessionStartEvent>(messages[0]);
         Assert.Equal(requestedSessionId, startEvent.Data.SessionId);
 
@@ -131,7 +131,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             ReasoningEffort = "high",
         });
 
-        var startEvent = Assert.Single((await session.GetMessagesAsync()).OfType<SessionStartEvent>());
+        var startEvent = Assert.Single((await session.GetEventsAsync()).OfType<SessionStartEvent>());
         Assert.Equal(reasoningModelId, startEvent.Data.SelectedModel);
         Assert.Equal("high", startEvent.Data.ReasoningEffort);
 
@@ -153,7 +153,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             ReasoningEffort = effort,
         });
 
-        var startEvent = Assert.Single((await session.GetMessagesAsync()).OfType<SessionStartEvent>());
+        var startEvent = Assert.Single((await session.GetEventsAsync()).OfType<SessionStartEvent>());
         Assert.Equal(reasoningModelId, startEvent.Data.SelectedModel);
         Assert.Equal(effort, startEvent.Data.ReasoningEffort);
 
@@ -172,7 +172,7 @@ public class SessionConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             ReasoningEffort = "high",
         });
 
-        var resumeEvent = Assert.Single((await resumedSession.GetMessagesAsync()).OfType<SessionResumeEvent>());
+        var resumeEvent = Assert.Single((await resumedSession.GetEventsAsync()).OfType<SessionResumeEvent>());
         Assert.Equal(reasoningModelId, resumeEvent.Data.SelectedModel);
         Assert.Equal("high", resumeEvent.Data.ReasoningEffort);
 

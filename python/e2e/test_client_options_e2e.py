@@ -32,7 +32,7 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 def _make_subprocess_config(ctx: E2ETestContext, **overrides) -> SubprocessConfig:
     base = {
         "cli_path": ctx.cli_path,
-        "cwd": ctx.work_dir,
+        "working_directory": ctx.work_dir,
         "env": ctx.get_env(),
         "github_token": (
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
@@ -187,7 +187,7 @@ class TestClientOptions:
         with open(os.path.join(client_cwd, "marker.txt"), "w") as f:
             f.write("I am in the client cwd")
 
-        client = CopilotClient(_make_subprocess_config(ctx, cwd=client_cwd))
+        client = CopilotClient(_make_subprocess_config(ctx, working_directory=client_cwd))
         try:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,

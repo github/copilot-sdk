@@ -33,7 +33,7 @@ func main() {
 		mcpServers["example"] = copilot.MCPStdioServerConfig{
 			Command: cmd,
 			Args:    args,
-			Tools:   []string{"*"},
+			Tools:   &[]string{"*"},
 		}
 	}
 

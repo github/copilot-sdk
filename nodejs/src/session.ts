@@ -25,7 +25,7 @@ import type {
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
-    InputOptions,
+    UiInputOptions,
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
@@ -51,8 +51,27 @@ import type {
     UserInputResponse,
 } from "./types.js";
 
+/** @internal */
 export const NO_RESULT_PERMISSION_V2_ERROR =
     "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
+
+/**
+ * Convert a raw hook input received over the wire into its public-facing shape.
+ * Currently this only deserializes the numeric Unix-ms `timestamp` field on
+ * BaseHookInput into a Date. Anything else passes through unchanged.
+ */
+function deserializeHookInput(raw: unknown): unknown {
+    if (
+        !raw ||
+        typeof raw !== "object" ||
+        typeof (raw as { timestamp?: unknown }).timestamp !== "number"
+    ) {
+        return raw;
+    }
+    const obj = raw as Record<string, unknown> & { timestamp: number; cwd?: string };
+    const { cwd, ...rest } = obj;
+    return { ...rest, timestamp: new Date(obj.timestamp), workingDirectory: cwd };
+}
 
 /** Assistant message event - the final response from the assistant. */
 export type AssistantMessageEvent = Extract<SessionEvent, { type: "assistant.message" }>;
@@ -165,7 +184,7 @@ export class CopilotSession {
             elicitation: (params: ElicitationParams) => this._elicitation(params),
             confirm: (message: string) => this._confirm(message),
             select: (message: string, options: string[]) => this._select(message, options),
-            input: (message: string, options?: InputOptions) => this._input(message, options),
+            input: (message: string, options?: UiInputOptions) => this._input(message, options),
         };
     }
 
@@ -187,7 +206,11 @@ export class CopilotSession {
      * });
      * ```
      */
-    async send(options: MessageOptions): Promise<string> {
+    async send(prompt: string): Promise<string>;
+    async send(options: MessageOptions): Promise<string>;
+    async send(optionsOrPrompt: MessageOptions | string): Promise<string> {
+        const options: MessageOptions =
+            typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const response = await this.connection.sendRequest("session.send", {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
@@ -223,10 +246,17 @@ export class CopilotSession {
      * console.log(response?.data.content); // "4"
      * ```
      */
+    async sendAndWait(prompt: string, timeout?: number): Promise<AssistantMessageEvent | undefined>;
     async sendAndWait(
         options: MessageOptions,
         timeout?: number
+    ): Promise<AssistantMessageEvent | undefined>;
+    async sendAndWait(
+        optionsOrPrompt: MessageOptions | string,
+        timeout?: number
     ): Promise<AssistantMessageEvent | undefined> {
+        const options: MessageOptions =
+            typeof optionsOrPrompt === "string" ? { prompt: optionsOrPrompt } : optionsOrPrompt;
         const effectiveTimeout = timeout ?? 60_000;
 
         let resolveIdle: () => void;
@@ -797,7 +827,7 @@ export class CopilotSession {
         return null;
     }
 
-    private async _input(message: string, options?: InputOptions): Promise<string | null> {
+    private async _input(message: string, options?: UiInputOptions): Promise<string | null> {
         this.assertElicitation();
         const field: Record<string, unknown> = { type: "string" as const };
         if (options?.title) field.title = options.title;
@@ -970,7 +1000,14 @@ export class CopilotSession {
             return undefined;
         }
 
-        // Type-safe handler lookup with explicit casting
+        // All hook inputs share BaseHookInput, which exposes `timestamp` as a Date.
+        // The wire format sends it as Unix epoch ms (number), so we deserialize
+        // here, at the one place that knows the input is a hook payload. Bad data
+        // is left alone — the user-facing handler types still cast unknown to the
+        // specific HookInput, so a runtime type mismatch surfaces as a normal
+        // TypeError in user code rather than being silently masked.
+        const normalized = deserializeHookInput(input);
+
         type GenericHandler = (
             input: unknown,
             invocation: { sessionId: string }
@@ -978,6 +1015,7 @@ export class CopilotSession {
 
         const handlerMap: Record<string, GenericHandler | undefined> = {
             preToolUse: this.hooks.onPreToolUse as GenericHandler | undefined,
+            preMcpToolCall: this.hooks.onPreMcpToolCall as GenericHandler | undefined,
             postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
             userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
@@ -991,7 +1029,7 @@ export class CopilotSession {
         }
 
         try {
-            const result = await handler(input, { sessionId: this.sessionId });
+            const result = await handler(normalized, { sessionId: this.sessionId });
             return result;
         } catch (_error) {
             // Hook failed, return undefined
@@ -1010,7 +1048,7 @@ export class CopilotSession {
      *
      * @example
      * ```typescript
-     * const events = await session.getMessages();
+     * const events = await session.getEvents();
      * for (const event of events) {
      *   if (event.type === "assistant.message") {
      *     console.log("Assistant:", event.data.content);
@@ -1018,7 +1056,7 @@ export class CopilotSession {
      * }
      * ```
      */
-    async getMessages(): Promise<SessionEvent[]> {
+    async getEvents(): Promise<SessionEvent[]> {
         const response = await this.connection.sendRequest("session.getMessages", {
             sessionId: this.sessionId,
         });
@@ -1059,19 +1097,6 @@ export class CopilotSession {
         this.elicitationHandler = undefined;
         this.exitPlanModeHandler = undefined;
         this.autoModeSwitchHandler = undefined;
-    }
-
-    /**
-     * @deprecated Use {@link disconnect} instead. This method will be removed in a future release.
-     *
-     * Disconnects this session and releases all in-memory resources.
-     * Session data on disk is preserved for later resumption.
-     *
-     * @returns A promise that resolves when the session is disconnected
-     * @throws Error if the connection fails
-     */
-    async destroy(): Promise<void> {
-        return this.disconnect();
     }
 
     /** Enables `await using session = ...` syntax for automatic cleanup. */

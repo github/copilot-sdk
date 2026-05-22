@@ -73,7 +73,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <!-- docs-validate: skip -->
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.Logging;
 
 // Using ILogger
@@ -142,18 +142,25 @@ const client = new CopilotClient({
 ```go
 package main
 
+import copilot "github.com/github/copilot-sdk/go"
+
 func main() {
-	// The Go SDK does not currently support passing extra CLI arguments.
-	// For custom log directories, run the CLI manually with --log-dir
-	// and connect via CLIUrl option.
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Connection: copilot.StdioConnection{
+			Args: []string{"--log-dir", "/path/to/logs"},
+		},
+	})
+	_ = client
 }
 ```
 <!-- /docs-validate: hidden -->
 
 ```go
-// The Go SDK does not currently support passing extra CLI arguments.
-// For custom log directories, run the CLI manually with --log-dir
-// and connect via CLIUrl option.
+client := copilot.NewClient(&copilot.ClientOptions{
+    Connection: copilot.StdioConnection{
+        Args: []string{"--log-dir", "/path/to/logs"},
+    },
+})
 ```
 
 </details>
@@ -164,7 +171,7 @@ func main() {
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliArgs = new[] { "--log-dir", "/path/to/logs" }
+    Connection = RuntimeConnection.ForStdio(args: new[] { "--log-dir", "/path/to/logs" })
 });
 ```
 
@@ -221,7 +228,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
-       CLIPath: "/usr/local/bin/copilot",
+       Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
    })
    ```
    </details>

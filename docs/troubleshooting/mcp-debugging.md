@@ -236,7 +236,7 @@ cd /expected/working/dir
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class McpDotnetConfigExample
 {
@@ -248,14 +248,14 @@ public static class McpDotnetConfigExample
             {
                 Command = @"C:\Tools\MyServer\MyServer.exe",
                 Args = new List<string>(),
-                Cwd = @"C:\Tools\MyServer",
+                WorkingDirectory = @"C:\Tools\MyServer",
                 Tools = new List<string> { "*" },
             },
             ["my-dotnet-tool"] = new McpStdioServerConfig
             {
                 Command = "dotnet",
                 Args = new List<string> { @"C:\Tools\MyTool\MyTool.dll" },
-                Cwd = @"C:\Tools\MyTool",
+                WorkingDirectory = @"C:\Tools\MyTool",
                 Tools = new List<string> { "*" },
             }
         };
@@ -269,7 +269,7 @@ public static class McpDotnetConfigExample
 {
     Command = @"C:\Tools\MyServer\MyServer.exe",  // Full path with .exe
     Args = new List<string>(),
-    Cwd = @"C:\Tools\MyServer",  // Set working directory
+    WorkingDirectory = @"C:\Tools\MyServer",  // Set working directory
     Tools = new List<string> { "*" },
 }
 
@@ -278,7 +278,7 @@ public static class McpDotnetConfigExample
 {
     Command = "dotnet",
     Args = new List<string> { @"C:\Tools\MyTool\MyTool.dll" },
-    Cwd = @"C:\Tools\MyTool",
+    WorkingDirectory = @"C:\Tools\MyTool",
     Tools = new List<string> { "*" },
 }
 ```
@@ -287,7 +287,7 @@ public static class McpDotnetConfigExample
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class McpNpxConfigExample
 {

@@ -14,8 +14,7 @@ import (
 func TestCommandsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.UseStdio = copilot.Bool(false)
-		opts.TCPConnectionToken = sharedTcpToken
+		opts.Connection = copilot.TcpConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTcpToken}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -28,14 +27,13 @@ func TestCommandsE2E(t *testing.T) {
 	}
 	initSession.Disconnect()
 
-	actualPort := client1.ActualPort()
-	if actualPort == 0 {
+	runtimePort := client1.RuntimePort()
+	if runtimePort == 0 {
 		t.Fatalf("Expected non-zero port from TCP mode client")
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
-		TCPConnectionToken: sharedTcpToken,
+		Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -65,7 +63,7 @@ func TestCommandsE2E(t *testing.T) {
 		// Client2 joins with commands
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			DisableResume:       true,
+			SuppressResumeEvent: true,
 			Commands: []copilot.CommandDefinition{
 				{
 					Name:        "deploy",
@@ -367,7 +365,7 @@ func TestUIElicitationCallbackE2E(t *testing.T) {
 
 		minLen := 1
 		maxLen := 20
-		value, ok, err := session.UI().Input(t.Context(), "Enter value", &copilot.InputOptions{
+		value, ok, err := session.UI().Input(t.Context(), "Enter value", &copilot.UiInputOptions{
 			Title:       "Value",
 			Description: "A value to test",
 			MinLength:   &minLen,
@@ -510,8 +508,7 @@ func schemaHasProperty(schema map[string]any, name string) bool {
 func TestUIElicitationMultiClientE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.UseStdio = copilot.Bool(false)
-		opts.TCPConnectionToken = sharedTcpToken
+		opts.Connection = copilot.TcpConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTcpToken}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -524,8 +521,8 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 	}
 	initSession.Disconnect()
 
-	actualPort := client1.ActualPort()
-	if actualPort == 0 {
+	runtimePort := client1.RuntimePort()
+	if runtimePort == 0 {
 		t.Fatalf("Expected non-zero port from TCP mode client")
 	}
 
@@ -559,12 +556,11 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 
 		// Client2 joins with elicitation handler — should trigger capabilities.changed
 		client2 := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
-			TCPConnectionToken: sharedTcpToken,
+			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 		})
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			DisableResume:       true,
+			SuppressResumeEvent: true,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},
@@ -620,12 +616,11 @@ func TestUIElicitationMultiClientE2E(t *testing.T) {
 
 		// Client3 (dedicated for this test) joins with elicitation handler
 		client3 := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
-			TCPConnectionToken: sharedTcpToken,
+			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 		})
 		_, err = client3.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			DisableResume:       true,
+			SuppressResumeEvent: true,
 			OnElicitationRequest: func(ctx copilot.ElicitationContext) (copilot.ElicitationResult, error) {
 				return copilot.ElicitationResult{Action: "accept", Content: map[string]any{}}, nil
 			},

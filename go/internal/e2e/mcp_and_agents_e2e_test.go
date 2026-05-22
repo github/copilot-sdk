@@ -21,7 +21,7 @@ func TestMCPServersE2E(t *testing.T) {
 			"test-server": copilot.MCPStdioServerConfig{
 				Command: "echo",
 				Args:    []string{"hello"},
-				Tools:   []string{"*"},
+				Tools:   &[]string{"*"},
 			},
 		}
 
@@ -63,7 +63,7 @@ func TestMCPServersE2E(t *testing.T) {
 		mcpServers := map[string]copilot.MCPServerConfig{
 			"test-server": copilot.MCPStdioServerConfig{
 				Command: "echo",
-				Tools:   []string{"*"},
+				Tools:   &[]string{"*"},
 			},
 		}
 
@@ -118,7 +118,7 @@ func TestMCPServersE2E(t *testing.T) {
 			"test-server": copilot.MCPStdioServerConfig{
 				Command: "echo",
 				Args:    []string{"hello"},
-				Tools:   []string{"*"},
+				Tools:   &[]string{"*"},
 			},
 		}
 
@@ -157,11 +157,11 @@ func TestMCPServersE2E(t *testing.T) {
 
 		mcpServers := map[string]copilot.MCPServerConfig{
 			"env-echo": copilot.MCPStdioServerConfig{
-				Command: "node",
-				Args:    []string{mcpServerPath},
-				Tools:   []string{"*"},
-				Env:     map[string]string{"TEST_SECRET": "hunter2"},
-				Cwd:     mcpServerDir,
+				Command:          "node",
+				Args:             []string{mcpServerPath},
+				Tools:            &[]string{"*"},
+				Env:              map[string]string{"TEST_SECRET": "hunter2"},
+				WorkingDirectory: mcpServerDir,
 			},
 		}
 
@@ -198,12 +198,12 @@ func TestMCPServersE2E(t *testing.T) {
 			"server1": copilot.MCPStdioServerConfig{
 				Command: "echo",
 				Args:    []string{"server1"},
-				Tools:   []string{"*"},
+				Tools:   &[]string{"*"},
 			},
 			"server2": copilot.MCPStdioServerConfig{
 				Command: "echo",
 				Args:    []string{"server2"},
-				Tools:   []string{"*"},
+				Tools:   &[]string{"*"},
 			},
 		}
 
@@ -366,7 +366,7 @@ func TestCustomAgentsE2E(t *testing.T) {
 					"agent-server": copilot.MCPStdioServerConfig{
 						Command: "echo",
 						Args:    []string{"agent-mcp"},
-						Tools:   []string{"*"},
+						Tools:   &[]string{"*"},
 					},
 				},
 			},
@@ -437,7 +437,7 @@ func TestCombinedConfigurationE2E(t *testing.T) {
 			"shared-server": copilot.MCPStdioServerConfig{
 				Command: "echo",
 				Args:    []string{"shared"},
-				Tools:   []string{"*"},
+				Tools:   &[]string{"*"},
 			},
 		}
 

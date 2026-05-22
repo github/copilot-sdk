@@ -197,16 +197,17 @@ func (c *TestContext) Env() []string {
 // Optional overrides can be applied to the default ClientOptions via the opts function.
 func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.Client {
 	options := &copilot.ClientOptions{
-		CLIPath: c.CLIPath,
-		Cwd:     c.WorkDir,
-		Env:     c.Env(),
+		Connection:       copilot.StdioConnection{Path: c.CLIPath},
+		WorkingDirectory: c.WorkDir,
+		Env:              c.Env(),
 	}
 
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	if options.GitHubToken == "" && options.CLIUrl == "" {
+	_, externalRuntime := options.Connection.(copilot.UriConnection)
+	if options.GitHubToken == "" && !externalRuntime {
 		options.GitHubToken = defaultGitHubToken
 	}
 

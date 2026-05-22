@@ -4,10 +4,10 @@
 
 using Xunit;
 using Xunit.Abstractions;
-using RpcSkill = GitHub.Copilot.SDK.Rpc.Skill;
-using RpcSkillList = GitHub.Copilot.SDK.Rpc.SkillList;
+using RpcSkill = GitHub.Copilot.Rpc.Skill;
+using RpcSkillList = GitHub.Copilot.Rpc.SkillList;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_mcp_and_skills", output)
@@ -102,7 +102,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         // preventing breakage from new gates (e.g., extension-permission-access).
         await using var yoloClient = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliArgs = ["--yolo"],
+            Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
         });
         await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
         {
@@ -188,7 +188,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         // preventing breakage from new gates (e.g., extension-permission-access).
         await using var yoloClient = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliArgs = ["--yolo"],
+            Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
         });
         await using var session = await yoloClient.CreateSessionAsync(new SessionConfig
         {

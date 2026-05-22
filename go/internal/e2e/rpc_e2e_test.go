@@ -17,8 +17,7 @@ func TestRpcE2E(t *testing.T) {
 
 	t.Run("should call RPC.Ping with typed params and result", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -46,8 +45,7 @@ func TestRpcE2E(t *testing.T) {
 
 	t.Run("should call RPC.Models.List with typed result", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -83,8 +81,7 @@ func TestRpcE2E(t *testing.T) {
 		t.Skip("account.getQuota not yet implemented in CLI")
 
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

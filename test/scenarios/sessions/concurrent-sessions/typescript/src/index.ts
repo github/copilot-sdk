@@ -1,12 +1,12 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 
 const PIRATE_PROMPT = `You are a pirate. Always say Arrr!`;
 const ROBOT_PROMPT = `You are a robot. Always say BEEP BOOP!`;
 
 async function main() {
   const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
+    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
+    gitHubToken: process.env.GITHUB_TOKEN,
   });
 
   try {

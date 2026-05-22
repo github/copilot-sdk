@@ -158,6 +158,33 @@ function pushGoExperimentalTypeComment(lines: string[], typeName: string, ctx: G
     pushGoCommentForContext(lines, goExperimentalTypeComment(typeName), ctx);
 }
 
+function hasGoCommentLinesInLeadingDocBlock(source: string, typeDeclOffset: number, commentLines: string[]): boolean {
+    const precedingLines = source.slice(0, typeDeclOffset).split(/\r?\n/);
+    if (precedingLines[precedingLines.length - 1] === "") {
+        precedingLines.pop();
+    }
+
+    const docBlockLines: string[] = [];
+    for (let i = precedingLines.length - 1; i >= 0; i--) {
+        const line = precedingLines[i];
+        if (line.trim() === "") {
+            break;
+        }
+        if (!line.startsWith("//")) {
+            break;
+        }
+        docBlockLines.unshift(line);
+    }
+
+    for (let i = 0; i <= docBlockLines.length - commentLines.length; i++) {
+        if (commentLines.every((commentLine, offset) => docBlockLines[i + offset] === commentLine)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function pushGoExperimentalEventComment(lines: string[], constName: string, indent = ""): void {
     pushGoComment(lines, `Experimental: ${constName} identifies an experimental event that may change or be removed.`, indent);
 }
@@ -3559,9 +3586,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     }
     for (const typeName of experimentalTypeNames) {
         const emittedTypeName = resolveType(typeName);
+        const experimentalCommentLines = goCommentLines(goExperimentalTypeComment(emittedTypeName));
+        const experimentalComment = experimentalCommentLines.join("\n");
         generatedTypeCode = generatedTypeCode.replace(
-            new RegExp(`^(type ${escapeRegExp(emittedTypeName)}\\b)`, "m"),
-            `// ${goExperimentalTypeComment(emittedTypeName)}\n$1`
+            new RegExp(`^type ${escapeRegExp(emittedTypeName)}\\b`, "m"),
+            (typeDeclaration: string, offset: number, source: string) => {
+                if (hasGoCommentLinesInLeadingDocBlock(source, offset, experimentalCommentLines)) {
+                    return typeDeclaration;
+                }
+                return `${experimentalComment}\n${typeDeclaration}`;
+            }
         );
     }
 

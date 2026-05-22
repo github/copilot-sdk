@@ -258,6 +258,8 @@ type SessionCompactionCompleteData struct {
 	CompactionTokensUsed *CompactionCompleteCompactionTokensUsed `json:"compactionTokensUsed,omitempty"`
 	// Token count from non-system messages (user, assistant, tool) after compaction
 	ConversationTokens *int64 `json:"conversationTokens,omitempty"`
+	// User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.
+	CustomInstructions *string `json:"customInstructions,omitempty"`
 	// Error message if compaction failed
 	Error *string `json:"error,omitempty"`
 	// Number of messages removed during compaction
@@ -557,7 +559,7 @@ type AssistantUsageData struct {
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
-	TtftMs *int64 `json:"ttftMs,omitempty"`
+	TimeToFirstTokenMs *int64 `json:"timeToFirstTokenMs,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}
@@ -1052,7 +1054,7 @@ type SessionShutdownData struct {
 	// Session-wide accumulated nano-AI units cost
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
-	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
+	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
 }
 
 func (*SessionShutdownData) sessionEventData()      {}
@@ -1267,6 +1269,8 @@ type ToolExecutionCompleteData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
+	// Whether this tool execution ran inside a sandbox container
+	Sandboxed *bool `json:"sandboxed,omitempty"`
 	// Whether the tool execution completed successfully
 	Success bool `json:"success"`
 	// Unique identifier for the completed tool call
@@ -1486,9 +1490,9 @@ type AssistantUsageQuotaSnapshot struct {
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
-	// Number of requests over the entitlement limit
+	// Number of additional usage requests made this period
 	Overage float64 `json:"overage"`
-	// Whether overage is allowed when quota is exhausted
+	// Whether additional usage is allowed when quota is exhausted
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
 	// Percentage of quota remaining (0 to 100)
 	RemainingPercentage float64 `json:"remainingPercentage"`
@@ -2233,9 +2237,9 @@ type ShutdownModelMetric struct {
 // Request count and cost metrics
 type ShutdownModelMetricRequests struct {
 	// Cumulative cost multiplier for requests to this model
-	Cost float64 `json:"cost"`
+	Cost *float64 `json:"cost,omitempty"`
 	// Total number of API requests made to this model
-	Count int64 `json:"count"`
+	Count *int64 `json:"count,omitempty"`
 }
 
 // Schema for the `ShutdownModelMetricTokenDetail` type.
@@ -2689,7 +2693,9 @@ type WorkingDirectoryContext struct {
 type AssistantMessageToolRequestType string
 
 const (
-	AssistantMessageToolRequestTypeCustom   AssistantMessageToolRequestType = "custom"
+	// Custom grammar-based tool call.
+	AssistantMessageToolRequestTypeCustom AssistantMessageToolRequestType = "custom"
+	// Standard function-style tool call.
 	AssistantMessageToolRequestTypeFunction AssistantMessageToolRequestType = "function"
 )
 
@@ -2697,18 +2703,25 @@ const (
 type AssistantUsageAPIEndpoint string
 
 const (
+	// Chat Completions API endpoint.
 	AssistantUsageAPIEndpointChatCompletions AssistantUsageAPIEndpoint = "/chat/completions"
-	AssistantUsageAPIEndpointResponses       AssistantUsageAPIEndpoint = "/responses"
-	AssistantUsageAPIEndpointV1Messages      AssistantUsageAPIEndpoint = "/v1/messages"
-	AssistantUsageAPIEndpointWsResponses     AssistantUsageAPIEndpoint = "ws:/responses"
+	// Responses API endpoint.
+	AssistantUsageAPIEndpointResponses AssistantUsageAPIEndpoint = "/responses"
+	// Anthropic Messages API endpoint.
+	AssistantUsageAPIEndpointV1Messages AssistantUsageAPIEndpoint = "/v1/messages"
+	// WebSocket Responses API endpoint.
+	AssistantUsageAPIEndpointWsResponses AssistantUsageAPIEndpoint = "ws:/responses"
 )
 
 // The user's auto-mode-switch choice
 type AutoModeSwitchResponse string
 
 const (
-	AutoModeSwitchResponseNo        AutoModeSwitchResponse = "no"
-	AutoModeSwitchResponseYes       AutoModeSwitchResponse = "yes"
+	// Do not switch models.
+	AutoModeSwitchResponseNo AutoModeSwitchResponse = "no"
+	// Switch models for this request.
+	AutoModeSwitchResponseYes AutoModeSwitchResponse = "yes"
+	// Switch models now and keep using the replacement automatically.
 	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
 )
 
@@ -2716,8 +2729,11 @@ const (
 type ElicitationCompletedAction string
 
 const (
-	ElicitationCompletedActionAccept  ElicitationCompletedAction = "accept"
-	ElicitationCompletedActionCancel  ElicitationCompletedAction = "cancel"
+	// The user submitted the requested form.
+	ElicitationCompletedActionAccept ElicitationCompletedAction = "accept"
+	// The user dismissed the request.
+	ElicitationCompletedActionCancel ElicitationCompletedAction = "cancel"
+	// The user explicitly declined the request.
 	ElicitationCompletedActionDecline ElicitationCompletedAction = "decline"
 )
 
@@ -2725,8 +2741,10 @@ const (
 type ElicitationRequestedMode string
 
 const (
+	// Structured form-based elicitation.
 	ElicitationRequestedModeForm ElicitationRequestedMode = "form"
-	ElicitationRequestedModeURL  ElicitationRequestedMode = "url"
+	// Browser URL-based elicitation.
+	ElicitationRequestedModeURL ElicitationRequestedMode = "url"
 )
 
 // Schema type indicator (always 'object')
@@ -2740,27 +2758,37 @@ const (
 type ExitPlanModeAction string
 
 const (
-	ExitPlanModeActionAutopilot      ExitPlanModeAction = "autopilot"
+	// Exit plan mode and continue autonomously.
+	ExitPlanModeActionAutopilot ExitPlanModeAction = "autopilot"
+	// Exit plan mode and continue with parallel autonomous workers.
 	ExitPlanModeActionAutopilotFleet ExitPlanModeAction = "autopilot_fleet"
-	ExitPlanModeActionExitOnly       ExitPlanModeAction = "exit_only"
-	ExitPlanModeActionInteractive    ExitPlanModeAction = "interactive"
+	// Exit plan mode without starting implementation.
+	ExitPlanModeActionExitOnly ExitPlanModeAction = "exit_only"
+	// Exit plan mode and continue in interactive mode.
+	ExitPlanModeActionInteractive ExitPlanModeAction = "interactive"
 )
 
 // Discovery source
 type ExtensionsLoadedExtensionSource string
 
 const (
+	// Extension discovered from the current project.
 	ExtensionsLoadedExtensionSourceProject ExtensionsLoadedExtensionSource = "project"
-	ExtensionsLoadedExtensionSourceUser    ExtensionsLoadedExtensionSource = "user"
+	// Extension discovered from the user's extension directory.
+	ExtensionsLoadedExtensionSourceUser ExtensionsLoadedExtensionSource = "user"
 )
 
 // Current status: running, disabled, failed, or starting
 type ExtensionsLoadedExtensionStatus string
 
 const (
+	// The extension is installed but disabled.
 	ExtensionsLoadedExtensionStatusDisabled ExtensionsLoadedExtensionStatus = "disabled"
-	ExtensionsLoadedExtensionStatusFailed   ExtensionsLoadedExtensionStatus = "failed"
-	ExtensionsLoadedExtensionStatusRunning  ExtensionsLoadedExtensionStatus = "running"
+	// The extension failed to start or crashed.
+	ExtensionsLoadedExtensionStatusFailed ExtensionsLoadedExtensionStatus = "failed"
+	// The extension process is running.
+	ExtensionsLoadedExtensionStatusRunning ExtensionsLoadedExtensionStatus = "running"
+	// The extension process is starting.
 	ExtensionsLoadedExtensionStatusStarting ExtensionsLoadedExtensionStatus = "starting"
 )
 
@@ -2768,7 +2796,9 @@ const (
 type HandoffSourceType string
 
 const (
-	HandoffSourceTypeLocal  HandoffSourceType = "local"
+	// The handoff originated from a local session.
+	HandoffSourceTypeLocal HandoffSourceType = "local"
+	// The handoff originated from a remote session.
 	HandoffSourceTypeRemote HandoffSourceType = "remote"
 )
 
@@ -2783,9 +2813,12 @@ const (
 type ModelCallFailureSource string
 
 const (
+	// Model call from MCP sampling.
 	ModelCallFailureSourceMcpSampling ModelCallFailureSource = "mcp_sampling"
-	ModelCallFailureSourceSubagent    ModelCallFailureSource = "subagent"
-	ModelCallFailureSourceTopLevel    ModelCallFailureSource = "top_level"
+	// Model call from a sub-agent.
+	ModelCallFailureSourceSubagent ModelCallFailureSource = "subagent"
+	// Model call from the top-level agent.
+	ModelCallFailureSourceTopLevel ModelCallFailureSource = "top_level"
 )
 
 // Kind discriminator for PermissionPromptRequest.
@@ -2809,8 +2842,11 @@ const (
 type PermissionPromptRequestPathAccessKind string
 
 const (
-	PermissionPromptRequestPathAccessKindRead  PermissionPromptRequestPathAccessKind = "read"
+	// Read access to a filesystem path.
+	PermissionPromptRequestPathAccessKindRead PermissionPromptRequestPathAccessKind = "read"
+	// Shell command access involving a filesystem path.
 	PermissionPromptRequestPathAccessKindShell PermissionPromptRequestPathAccessKind = "shell"
+	// Write access to a filesystem path.
 	PermissionPromptRequestPathAccessKindWrite PermissionPromptRequestPathAccessKind = "write"
 )
 
@@ -2834,16 +2870,20 @@ const (
 type PermissionRequestMemoryAction string
 
 const (
+	// Store a new memory.
 	PermissionRequestMemoryActionStore PermissionRequestMemoryAction = "store"
-	PermissionRequestMemoryActionVote  PermissionRequestMemoryAction = "vote"
+	// Vote on an existing memory.
+	PermissionRequestMemoryActionVote PermissionRequestMemoryAction = "vote"
 )
 
 // Vote direction (vote only)
 type PermissionRequestMemoryDirection string
 
 const (
+	// Vote that the memory is incorrect or outdated.
 	PermissionRequestMemoryDirectionDownvote PermissionRequestMemoryDirection = "downvote"
-	PermissionRequestMemoryDirectionUpvote   PermissionRequestMemoryDirection = "upvote"
+	// Vote that the memory is useful or accurate.
+	PermissionRequestMemoryDirectionUpvote PermissionRequestMemoryDirection = "upvote"
 )
 
 // Kind discriminator for PermissionResult.
@@ -2865,8 +2905,11 @@ const (
 type PlanChangedOperation string
 
 const (
+	// The plan file was created.
 	PlanChangedOperationCreate PlanChangedOperation = "create"
+	// The plan file was deleted.
 	PlanChangedOperationDelete PlanChangedOperation = "delete"
+	// The plan file was updated.
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
@@ -2874,16 +2917,20 @@ const (
 type SystemMessageRole string
 
 const (
+	// Developer instruction message.
 	SystemMessageRoleDeveloper SystemMessageRole = "developer"
-	SystemMessageRoleSystem    SystemMessageRole = "system"
+	// System prompt message.
+	SystemMessageRoleSystem SystemMessageRole = "system"
 )
 
 // Whether the agent completed successfully or failed
 type SystemNotificationAgentCompletedStatus string
 
 const (
+	// The agent completed successfully.
 	SystemNotificationAgentCompletedStatusCompleted SystemNotificationAgentCompletedStatus = "completed"
-	SystemNotificationAgentCompletedStatusFailed    SystemNotificationAgentCompletedStatus = "failed"
+	// The agent failed.
+	SystemNotificationAgentCompletedStatusFailed SystemNotificationAgentCompletedStatus = "failed"
 )
 
 // Type discriminator for SystemNotification.
@@ -2902,7 +2949,9 @@ const (
 type ToolExecutionCompleteContentResourceLinkIconTheme string
 
 const (
-	ToolExecutionCompleteContentResourceLinkIconThemeDark  ToolExecutionCompleteContentResourceLinkIconTheme = "dark"
+	// Icon intended for dark themes.
+	ToolExecutionCompleteContentResourceLinkIconThemeDark ToolExecutionCompleteContentResourceLinkIconTheme = "dark"
+	// Icon intended for light themes.
 	ToolExecutionCompleteContentResourceLinkIconThemeLight ToolExecutionCompleteContentResourceLinkIconTheme = "light"
 )
 
@@ -2922,19 +2971,26 @@ const (
 type UserMessageAgentMode string
 
 const (
-	UserMessageAgentModeAutopilot   UserMessageAgentMode = "autopilot"
+	// The agent is working autonomously toward task completion.
+	UserMessageAgentModeAutopilot UserMessageAgentMode = "autopilot"
+	// The agent is responding interactively to the user.
 	UserMessageAgentModeInteractive UserMessageAgentMode = "interactive"
-	UserMessageAgentModePlan        UserMessageAgentMode = "plan"
-	UserMessageAgentModeShell       UserMessageAgentMode = "shell"
+	// The agent is preparing a plan before making changes.
+	UserMessageAgentModePlan UserMessageAgentMode = "plan"
+	// The agent is in shell-focused UI mode.
+	UserMessageAgentModeShell UserMessageAgentMode = "shell"
 )
 
 // Type of GitHub reference
 type UserMessageAttachmentGithubReferenceType string
 
 const (
+	// GitHub discussion reference.
 	UserMessageAttachmentGithubReferenceTypeDiscussion UserMessageAttachmentGithubReferenceType = "discussion"
-	UserMessageAttachmentGithubReferenceTypeIssue      UserMessageAttachmentGithubReferenceType = "issue"
-	UserMessageAttachmentGithubReferenceTypePr         UserMessageAttachmentGithubReferenceType = "pr"
+	// GitHub issue reference.
+	UserMessageAttachmentGithubReferenceTypeIssue UserMessageAttachmentGithubReferenceType = "issue"
+	// GitHub pull request reference.
+	UserMessageAttachmentGithubReferenceTypePr UserMessageAttachmentGithubReferenceType = "pr"
 )
 
 // Type discriminator for UserMessageAttachment.
@@ -2952,7 +3008,9 @@ const (
 type WorkingDirectoryContextHostType string
 
 const (
-	WorkingDirectoryContextHostTypeAdo    WorkingDirectoryContextHostType = "ado"
+	// Repository is hosted on Azure DevOps.
+	WorkingDirectoryContextHostTypeAdo WorkingDirectoryContextHostType = "ado"
+	// Repository is hosted on GitHub.
 	WorkingDirectoryContextHostTypeGithub WorkingDirectoryContextHostType = "github"
 )
 
@@ -2960,7 +3018,9 @@ const (
 type WorkspaceFileChangedOperation string
 
 const (
+	// The workspace file was created.
 	WorkspaceFileChangedOperationCreate WorkspaceFileChangedOperation = "create"
+	// The workspace file was updated.
 	WorkspaceFileChangedOperationUpdate WorkspaceFileChangedOperation = "update"
 )
 

@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -10,52 +10,20 @@ using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "client_options", output)
 {
     [Fact]
-    public async Task AutoStart_False_Requires_Explicit_Start()
-    {
-        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
-        {
-            AutoStart = false,
-        });
-
-        Assert.Equal(ConnectionState.Disconnected, client.State);
-
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            client.CreateSessionAsync(new SessionConfig { OnPermissionRequest = PermissionHandler.ApproveAll }));
-        Assert.Contains("StartAsync", ex.Message, StringComparison.Ordinal);
-
-        await client.StartAsync();
-        Assert.Equal(ConnectionState.Connected, client.State);
-
-        var session = await client.CreateSessionAsync(new SessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-        });
-        Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
-
-        await session.DisposeAsync();
-    }
-
-    [Fact]
     public async Task Should_Listen_On_Configured_Tcp_Port()
     {
         var port = GetAvailableTcpPort();
         await using var client = Ctx.CreateClient(
-            useStdio: false,
-            options: new CopilotClientOptions
-            {
-                Port = port,
-            });
+            options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(port: port) });
 
         await client.StartAsync();
-
-        Assert.Equal(ConnectionState.Connected, client.State);
-        Assert.Equal(port, client.ActualPort);
+        Assert.Equal(port, client.RuntimePort);
 
         var response = await client.PingAsync("fixed-port");
         Assert.Equal("pong: fixed-port", response.Message);
@@ -70,7 +38,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            Cwd = clientCwd,
+            WorkingDirectory = clientCwd,
         });
 
         var session = await client.CreateSessionAsync(new SessionConfig
@@ -101,13 +69,11 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
-            CopilotHome = copilotHomeFromOption,
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            BaseDirectory = copilotHomeFromOption,
             Environment = clientEnv,
             GitHubToken = "process-option-token",
-            LogLevel = "debug",
+            LogLevel = CopilotLogLevel.Debug,
             SessionIdleTimeoutSeconds = 17,
             Telemetry = new TelemetryConfig
             {
@@ -165,9 +131,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -194,9 +158,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -222,9 +184,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -266,11 +226,9 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await File.WriteAllTextAsync(cliPath, FakeTcpDropDuringStartupCliScript);
 
         await using var client = Ctx.CreateClient(
-            useStdio: false,
             options: new CopilotClientOptions
             {
-                AutoStart = false,
-                CliPath = cliPath,
+                Connection = RuntimeConnection.ForTcp(path: cliPath),
                 UseLoggedInUser = false,
             });
 
@@ -278,7 +236,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.Contains("Communication error", ex.Message, StringComparison.Ordinal);
 
         await client.ForceStopAsync();
-        Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
     [Fact]
@@ -290,12 +247,9 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await File.WriteAllTextAsync(cliPath, FakeTcpUnavailablePortCliScript);
 
         await using var client = Ctx.CreateClient(
-            useStdio: false,
             options: new CopilotClientOptions
             {
-                AutoStart = false,
-                CliPath = cliPath,
-                CliArgs = ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)],
+                Connection = RuntimeConnection.ForTcp(path: cliPath, args: ["--pid-file", pidPath, "--announce-port", unavailablePort.ToString(CultureInfo.InvariantCulture)]),
                 UseLoggedInUser = false,
             });
 
@@ -305,7 +259,6 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         await AssertProcessExitedAsync(pid);
 
         await client.ForceStopAsync();
-        Assert.Equal(ConnectionState.Disconnected, client.State);
     }
 
     [Fact]
@@ -315,9 +268,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         await using var client = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            AutoStart = false,
-            CliPath = cliPath,
-            CliArgs = ["--capture-file", capturePath],
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             UseLoggedInUser = false,
         });
 
@@ -385,28 +336,20 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    public void Should_Throw_When_GitHubToken_Used_With_CliUrl()
+    public void Should_Throw_When_GitHubToken_Used_With_UriConnection()
     {
         Assert.Throws<ArgumentException>(() =>
         {
-            _ = new CopilotClient(new CopilotClientOptions
-            {
-                CliUrl = "localhost:8080",
-                GitHubToken = "gho_test_token"
-            });
+            _ = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri("localhost:8080"), GitHubToken = "gho_test_token" });
         });
     }
 
     [Fact]
-    public void Should_Throw_When_UseLoggedInUser_Used_With_CliUrl()
+    public void Should_Throw_When_UseLoggedInUser_Used_With_UriConnection()
     {
         Assert.Throws<ArgumentException>(() =>
         {
-            _ = new CopilotClient(new CopilotClientOptions
-            {
-                CliUrl = "localhost:8080",
-                UseLoggedInUser = false
-            });
+            _ = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri("localhost:8080"), UseLoggedInUser = false });
         });
     }
 
@@ -431,7 +374,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
     private static int GetAvailableTcpPort()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         try
         {

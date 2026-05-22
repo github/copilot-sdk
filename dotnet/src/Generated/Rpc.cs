@@ -16,7 +16,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 
-namespace GitHub.Copilot.SDK.Rpc;
+namespace GitHub.Copilot.Rpc;
 
 /// <summary>Server liveness response, including the echoed message, current server timestamp, and protocol version.</summary>
 public sealed class PingResult
@@ -277,11 +277,11 @@ public sealed class AccountQuotaSnapshot
     [JsonPropertyName("isUnlimitedEntitlement")]
     public bool IsUnlimitedEntitlement { get; set; }
 
-    /// <summary>Number of overage requests made this period.</summary>
+    /// <summary>Number of additional usage requests made this period.</summary>
     [JsonPropertyName("overage")]
     public double Overage { get; set; }
 
-    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    /// <summary>Whether additional usage is allowed when quota is exhausted.</summary>
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     public bool OverageAllowedWithExhaustedQuota { get; set; }
 
@@ -316,6 +316,22 @@ internal sealed class AccountGetQuotaRequest
     /// <summary>GitHub token for per-user quota lookup. When provided, resolves this token to determine the user's quota instead of using the global auth.</summary>
     [JsonPropertyName("gitHubToken")]
     public string? GitHubToken { get; set; }
+}
+
+/// <summary>Confirmation that the secret values were registered.</summary>
+public sealed class SecretsAddFilterValuesResult
+{
+    /// <summary>Whether the values were successfully registered.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+}
+
+/// <summary>Secret values to add to the redaction filter.</summary>
+internal sealed class SecretsAddFilterValuesRequest
+{
+    /// <summary>Raw secret values to register for redaction.</summary>
+    [JsonPropertyName("values")]
+    public IList<string> Values { get => field ??= []; set; }
 }
 
 /// <summary>Schema for the `DiscoveredMcpServer` type.</summary>
@@ -708,7 +724,8 @@ public sealed class SessionList
 }
 
 /// <summary>Optional filter applied to the returned sessions.</summary>
-public sealed class SessionsListRequestFilter
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionListFilter
 {
     /// <summary>Match sessions whose context.branch equals this value.</summary>
     [JsonPropertyName("branch")]
@@ -733,7 +750,7 @@ internal sealed class SessionsListRequest
 {
     /// <summary>Optional filter applied to the returned sessions.</summary>
     [JsonPropertyName("filter")]
-    public SessionsListRequestFilter? Filter { get; set; }
+    public SessionListFilter? Filter { get; set; }
 
     /// <summary>When provided, only the first N sessions (sorted by modification time, newest first) load full metadata; remaining sessions return basic info only. Use 0 to return only basic info for every session.</summary>
     [JsonPropertyName("metadataLimit")]
@@ -1074,6 +1091,7 @@ internal sealed class SessionsSetAdditionalPluginsRequest
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSuspendRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1082,6 +1100,7 @@ internal sealed class SessionSuspendRequest
 }
 
 /// <summary>Result of sending a user message.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SendResult
 {
     /// <summary>Unique identifier assigned to the message.</summary>
@@ -1091,6 +1110,7 @@ public sealed class SendResult
 
 /// <summary>A user message attachment — a file, directory, code selection, blob, or GitHub reference.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1108,6 +1128,7 @@ public partial class SendAttachment
 
 
 /// <summary>Optional line range to scope the attachment to a specific section of the file.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentFileLineRange
 {
     /// <summary>End line number (1-based, inclusive).</summary>
@@ -1121,6 +1142,7 @@ public sealed class SendAttachmentFileLineRange
 
 /// <summary>File attachment.</summary>
 /// <remarks>The <c>file</c> variant of <see cref="SendAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentFile : SendAttachment
 {
     /// <inheritdoc />
@@ -1143,6 +1165,7 @@ public partial class SendAttachmentFile : SendAttachment
 
 /// <summary>Directory attachment.</summary>
 /// <remarks>The <c>directory</c> variant of <see cref="SendAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentDirectory : SendAttachment
 {
     /// <inheritdoc />
@@ -1159,6 +1182,7 @@ public partial class SendAttachmentDirectory : SendAttachment
 }
 
 /// <summary>End position of the selection.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentSelectionDetailsEnd
 {
     /// <summary>End character offset within the line (0-based).</summary>
@@ -1171,6 +1195,7 @@ public sealed class SendAttachmentSelectionDetailsEnd
 }
 
 /// <summary>Start position of the selection.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentSelectionDetailsStart
 {
     /// <summary>Start character offset within the line (0-based).</summary>
@@ -1183,6 +1208,7 @@ public sealed class SendAttachmentSelectionDetailsStart
 }
 
 /// <summary>Position range of the selection within the file.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SendAttachmentSelectionDetails
 {
     /// <summary>End position of the selection.</summary>
@@ -1196,6 +1222,7 @@ public sealed class SendAttachmentSelectionDetails
 
 /// <summary>Code selection attachment from an editor.</summary>
 /// <remarks>The <c>selection</c> variant of <see cref="SendAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentSelection : SendAttachment
 {
     /// <inheritdoc />
@@ -1221,6 +1248,7 @@ public partial class SendAttachmentSelection : SendAttachment
 
 /// <summary>GitHub issue, pull request, or discussion reference.</summary>
 /// <remarks>The <c>github_reference</c> variant of <see cref="SendAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentGithubReference : SendAttachment
 {
     /// <inheritdoc />
@@ -1244,14 +1272,13 @@ public partial class SendAttachmentGithubReference : SendAttachment
     public required string Title { get; set; }
 
     /// <summary>URL to the referenced item on GitHub.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
 
 /// <summary>Blob attachment with inline base64-encoded data.</summary>
 /// <remarks>The <c>blob</c> variant of <see cref="SendAttachment"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SendAttachmentBlob : SendAttachment
 {
     /// <inheritdoc />
@@ -1274,6 +1301,7 @@ public partial class SendAttachmentBlob : SendAttachment
 }
 
 /// <summary>Parameters for sending a user message to the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SendRequest
 {
     /// <summary>The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</summary>
@@ -1334,6 +1362,7 @@ internal sealed class SendRequest
 }
 
 /// <summary>Result of aborting the current turn.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AbortResult
 {
     /// <summary>Error message if the abort failed.</summary>
@@ -1346,6 +1375,7 @@ public sealed class AbortResult
 }
 
 /// <summary>Parameters for aborting the current turn.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class AbortRequest
 {
     /// <summary>Finite reason code describing why the current turn was aborted.</summary>
@@ -1358,6 +1388,7 @@ internal sealed class AbortRequest
 }
 
 /// <summary>Parameters for shutting down the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ShutdownRequest
 {
     /// <summary>Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</summary>
@@ -1374,6 +1405,7 @@ internal sealed class ShutdownRequest
 }
 
 /// <summary>Identifier of the session event that was emitted for the log message.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class LogResult
 {
     /// <summary>The unique identifier of the emitted session event.</summary>
@@ -1382,6 +1414,7 @@ public sealed class LogResult
 }
 
 /// <summary>Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class LogRequest
 {
     /// <summary>When true, the message is transient and not persisted to the session event log on disk.</summary>
@@ -1416,6 +1449,7 @@ internal sealed class LogRequest
 }
 
 /// <summary>Authentication status and account metadata for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionAuthStatus
 {
     /// <summary>Authentication type.</summary>
@@ -1446,6 +1480,7 @@ public sealed class SessionAuthStatus
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionAuthGetStatusRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1454,6 +1489,7 @@ internal sealed class SessionAuthGetStatusRequest
 }
 
 /// <summary>Indicates whether the credential update succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionSetCredentialsResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -1463,6 +1499,7 @@ public sealed class SessionSetCredentialsResult
 
 /// <summary>The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>type</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "type",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -1482,6 +1519,7 @@ public partial class AuthInfo
 
 
 /// <summary>Schema for the `CopilotUserResponseEndpoints` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseEndpoints
 {
     /// <summary>Gets or sets the <c>api</c> value.</summary>
@@ -1514,6 +1552,7 @@ public sealed class CopilotUserResponseOrganizationListItem
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsChat
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -1566,6 +1605,7 @@ public sealed class CopilotUserResponseQuotaSnapshotsChat
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsCompletions` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsCompletions
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -1618,6 +1658,7 @@ public sealed class CopilotUserResponseQuotaSnapshotsCompletions
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsPremiumInteractions` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
 {
     /// <summary>Gets or sets the <c>entitlement</c> value.</summary>
@@ -1670,6 +1711,7 @@ public sealed class CopilotUserResponseQuotaSnapshotsPremiumInteractions
 }
 
 /// <summary>Schema for the `CopilotUserResponseQuotaSnapshots` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponseQuotaSnapshots
 {
     /// <summary>Schema for the `CopilotUserResponseQuotaSnapshotsChat` type.</summary>
@@ -1686,6 +1728,7 @@ public sealed class CopilotUserResponseQuotaSnapshots
 }
 
 /// <summary>Snapshot of the authenticated user's Copilot subscription info, if known. Mirrors the GitHub API `/copilot_internal/v2/token` user response shape — the runtime trusts this verbatim and does not re-fetch when set.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CopilotUserResponse
 {
     /// <summary>Gets or sets the <c>access_type_sku</c> value.</summary>
@@ -1783,6 +1826,7 @@ public sealed class CopilotUserResponse
 
 /// <summary>Schema for the `HMACAuthInfo` type.</summary>
 /// <remarks>The <c>hmac</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoHmac : AuthInfo
 {
     /// <inheritdoc />
@@ -1805,6 +1849,7 @@ public partial class AuthInfoHmac : AuthInfo
 
 /// <summary>Schema for the `EnvAuthInfo` type.</summary>
 /// <remarks>The <c>env</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoEnv : AuthInfo
 {
     /// <inheritdoc />
@@ -1836,6 +1881,7 @@ public partial class AuthInfoEnv : AuthInfo
 
 /// <summary>Schema for the `TokenAuthInfo` type.</summary>
 /// <remarks>The <c>token</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoToken : AuthInfo
 {
     /// <inheritdoc />
@@ -1858,6 +1904,7 @@ public partial class AuthInfoToken : AuthInfo
 
 /// <summary>Schema for the `CopilotApiTokenAuthInfo` type.</summary>
 /// <remarks>The <c>copilot-api-token</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoCopilotApiToken : AuthInfo
 {
     /// <inheritdoc />
@@ -1876,6 +1923,7 @@ public partial class AuthInfoCopilotApiToken : AuthInfo
 
 /// <summary>Schema for the `UserAuthInfo` type.</summary>
 /// <remarks>The <c>user</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoUser : AuthInfo
 {
     /// <inheritdoc />
@@ -1898,6 +1946,7 @@ public partial class AuthInfoUser : AuthInfo
 
 /// <summary>Schema for the `GhCliAuthInfo` type.</summary>
 /// <remarks>The <c>gh-cli</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoGhCli : AuthInfo
 {
     /// <inheritdoc />
@@ -1924,6 +1973,7 @@ public partial class AuthInfoGhCli : AuthInfo
 
 /// <summary>Schema for the `ApiKeyAuthInfo` type.</summary>
 /// <remarks>The <c>api-key</c> variant of <see cref="AuthInfo"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class AuthInfoApiKey : AuthInfo
 {
     /// <inheritdoc />
@@ -1945,6 +1995,7 @@ public partial class AuthInfoApiKey : AuthInfo
 }
 
 /// <summary>New auth credentials to install on the session. Omit to leave credentials unchanged.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionSetCredentialsParams
 {
     /// <summary>The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.</summary>
@@ -1957,6 +2008,7 @@ internal sealed class SessionSetCredentialsParams
 }
 
 /// <summary>The currently selected model and reasoning effort for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CurrentModel
 {
     /// <summary>Currently active model identifier.</summary>
@@ -1969,6 +2021,7 @@ public sealed class CurrentModel
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionModelGetCurrentRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -1977,6 +2030,7 @@ internal sealed class SessionModelGetCurrentRequest
 }
 
 /// <summary>The model identifier active on the session after the switch.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelSwitchToResult
 {
     /// <summary>Currently active model identifier after the switch.</summary>
@@ -1985,6 +2039,7 @@ public sealed class ModelSwitchToResult
 }
 
 /// <summary>Vision-specific limits.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideLimitsVision
 {
     /// <summary>Maximum image size in bytes.</summary>
@@ -2001,6 +2056,7 @@ public sealed class ModelCapabilitiesOverrideLimitsVision
 }
 
 /// <summary>Token limits for prompts, outputs, and context window.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideLimits
 {
     /// <summary>Maximum total context window size in tokens.</summary>
@@ -2021,6 +2077,7 @@ public sealed class ModelCapabilitiesOverrideLimits
 }
 
 /// <summary>Feature flags indicating what the model supports.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverrideSupports
 {
     /// <summary>Whether this model supports reasoning effort configuration.</summary>
@@ -2033,6 +2090,7 @@ public sealed class ModelCapabilitiesOverrideSupports
 }
 
 /// <summary>Override individual model capabilities resolved by the runtime.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelCapabilitiesOverride
 {
     /// <summary>Token limits for prompts, outputs, and context window.</summary>
@@ -2045,6 +2103,7 @@ public sealed class ModelCapabilitiesOverride
 }
 
 /// <summary>Target model identifier and optional reasoning effort, summary, and capability overrides.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSwitchToRequest
 {
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
@@ -2069,6 +2128,7 @@ internal sealed class ModelSwitchToRequest
 }
 
 /// <summary>Update the session's reasoning effort without changing the selected model. Use `switchTo` instead when you also need to change the model. The runtime stores the effort on the session and applies it to subsequent turns.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelSetReasoningEffortResult
 {
     /// <summary>Reasoning effort level recorded on the session after the update.</summary>
@@ -2077,6 +2137,7 @@ public sealed class ModelSetReasoningEffortResult
 }
 
 /// <summary>Reasoning effort level to apply to the currently selected model.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSetReasoningEffortRequest
 {
     /// <summary>Reasoning effort level to apply to the currently selected model. The host is responsible for validating the value against the model's supported levels before calling.</summary>
@@ -2089,6 +2150,7 @@ internal sealed class ModelSetReasoningEffortRequest
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionModeGetRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2097,6 +2159,7 @@ internal sealed class SessionModeGetRequest
 }
 
 /// <summary>Agent interaction mode to apply to the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ModeSetRequest
 {
     /// <summary>The session mode the agent is operating in.</summary>
@@ -2109,6 +2172,7 @@ internal sealed class ModeSetRequest
 }
 
 /// <summary>The session's friendly name, or null when not yet set.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class NameGetResult
 {
     /// <summary>The session name (user-set or auto-generated), or null if not yet set.</summary>
@@ -2117,6 +2181,7 @@ public sealed class NameGetResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionNameGetRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2125,6 +2190,7 @@ internal sealed class SessionNameGetRequest
 }
 
 /// <summary>New friendly name to apply to the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class NameSetRequest
 {
     /// <summary>New session name (1–100 characters, trimmed of leading/trailing whitespace).</summary>
@@ -2140,6 +2206,7 @@ internal sealed class NameSetRequest
 }
 
 /// <summary>Indicates whether the auto-generated summary was applied as the session's name.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class NameSetAutoResult
 {
     /// <summary>Whether the auto-generated summary was persisted. False if the session already has a user-set name, the summary normalized to empty, or the session does not have a workspace.</summary>
@@ -2148,6 +2215,7 @@ public sealed class NameSetAutoResult
 }
 
 /// <summary>Auto-generated session summary to apply as the session's name when no user-set name exists.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class NameSetAutoRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2160,6 +2228,7 @@ internal sealed class NameSetAutoRequest
 }
 
 /// <summary>Existence, contents, and resolved path of the session plan file.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PlanReadResult
 {
     /// <summary>The content of the plan file, or null if it does not exist.</summary>
@@ -2176,6 +2245,7 @@ public sealed class PlanReadResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionPlanReadRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2184,6 +2254,7 @@ internal sealed class SessionPlanReadRequest
 }
 
 /// <summary>Replacement contents to write to the session plan file.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PlanUpdateRequest
 {
     /// <summary>The new content for the plan file.</summary>
@@ -2196,6 +2267,7 @@ internal sealed class PlanUpdateRequest
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionPlanDeleteRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2226,13 +2298,15 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("git_root")]
     public string? GitRoot { get; set; }
 
-    /// <summary>Gets or sets the <c>host_type</c> value.</summary>
+    /// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
     [JsonPropertyName("host_type")]
-    public WorkspacesGetWorkspaceResultWorkspaceHostType? HostType { get; set; }
+    public WorkspacesWorkspaceDetailsHostType? HostType { get; set; }
 
     /// <summary>Gets or sets the <c>id</c> value.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("id")]
-    public Guid Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the <c>mc_last_event_id</c> value.</summary>
     [JsonPropertyName("mc_last_event_id")]
@@ -2272,6 +2346,7 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
 }
 
 /// <summary>Current workspace metadata for the session, including its absolute filesystem path when available.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesGetWorkspaceResult
 {
     /// <summary>Absolute filesystem path to the workspace directory. Omitted when the session has no workspace (e.g. remote sessions).</summary>
@@ -2284,6 +2359,7 @@ public sealed class WorkspacesGetWorkspaceResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionWorkspacesGetWorkspaceRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2292,6 +2368,7 @@ internal sealed class SessionWorkspacesGetWorkspaceRequest
 }
 
 /// <summary>Relative paths of files stored in the session workspace files directory.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesListFilesResult
 {
     /// <summary>Relative file paths in the workspace files directory.</summary>
@@ -2300,6 +2377,7 @@ public sealed class WorkspacesListFilesResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionWorkspacesListFilesRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2308,6 +2386,7 @@ internal sealed class SessionWorkspacesListFilesRequest
 }
 
 /// <summary>Contents of the requested workspace file as a UTF-8 string.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesReadFileResult
 {
     /// <summary>File content as a UTF-8 string.</summary>
@@ -2316,6 +2395,7 @@ public sealed class WorkspacesReadFileResult
 }
 
 /// <summary>Relative path of the workspace file to read.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesReadFileRequest
 {
     /// <summary>Relative path within the workspace files directory.</summary>
@@ -2328,6 +2408,7 @@ internal sealed class WorkspacesReadFileRequest
 }
 
 /// <summary>Relative path and UTF-8 content for the workspace file to create or overwrite.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesCreateFileRequest
 {
     /// <summary>File content to write as a UTF-8 string.</summary>
@@ -2344,6 +2425,7 @@ internal sealed class WorkspacesCreateFileRequest
 }
 
 /// <summary>Schema for the `WorkspacesCheckpoints` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesCheckpoints
 {
     /// <summary>Filename of the checkpoint within the workspace checkpoints directory.</summary>
@@ -2360,6 +2442,7 @@ public sealed class WorkspacesCheckpoints
 }
 
 /// <summary>Workspace checkpoints in chronological order; empty when the workspace is not enabled.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesListCheckpointsResult
 {
     /// <summary>Workspace checkpoints in chronological order. Empty when workspace is not enabled.</summary>
@@ -2368,6 +2451,7 @@ public sealed class WorkspacesListCheckpointsResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionWorkspacesListCheckpointsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2376,6 +2460,7 @@ internal sealed class SessionWorkspacesListCheckpointsRequest
 }
 
 /// <summary>Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesReadCheckpointResult
 {
     /// <summary>Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing.</summary>
@@ -2384,6 +2469,7 @@ public sealed class WorkspacesReadCheckpointResult
 }
 
 /// <summary>Checkpoint number to read.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesReadCheckpointRequest
 {
     /// <summary>Checkpoint number to read.</summary>
@@ -2412,6 +2498,7 @@ public sealed class WorkspacesSaveLargePasteResultSaved
 }
 
 /// <summary>Descriptor for the saved paste file, or null when the workspace is unavailable.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesSaveLargePasteResult
 {
     /// <summary>Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions).</summary>
@@ -2420,6 +2507,7 @@ public sealed class WorkspacesSaveLargePasteResult
 }
 
 /// <summary>Pasted content to save as a UTF-8 file in the session workspace.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class WorkspacesSaveLargePasteRequest
 {
     /// <summary>Pasted content to save as a UTF-8 file.</summary>
@@ -2432,6 +2520,7 @@ internal sealed class WorkspacesSaveLargePasteRequest
 }
 
 /// <summary>Schema for the `InstructionsSources` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsSources
 {
     /// <summary>Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files.</summary>
@@ -2472,6 +2561,7 @@ public sealed class InstructionsSources
 }
 
 /// <summary>Instruction sources loaded for the session, in merge order.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsGetSourcesResult
 {
     /// <summary>Instruction sources for the session.</summary>
@@ -2480,6 +2570,7 @@ public sealed class InstructionsGetSourcesResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionInstructionsGetSourcesRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -2893,13 +2984,76 @@ internal sealed class SessionTasksWaitForPendingRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Polymorphic base type discriminated by <c>type</c>.</summary>
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "type",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(TasksGetProgressResultProgressAgent), "agent")]
+[JsonDerivedType(typeof(TasksGetProgressResultProgressShell), "shell")]
+public partial class TasksGetProgressResultProgress
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = string.Empty;
+}
+
+
+/// <summary>Schema for the `TaskProgressLine` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class TaskProgressLine
+{
+    /// <summary>Display message, e.g., "▸ bash", "✓ edit src/foo.ts".</summary>
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>ISO 8601 timestamp when this event occurred.</summary>
+    [JsonPropertyName("timestamp")]
+    public DateTimeOffset Timestamp { get; set; }
+}
+
+/// <summary>Schema for the `TaskAgentProgress` type.</summary>
+/// <remarks>The <c>agent</c> variant of <see cref="TasksGetProgressResultProgress"/>.</remarks>
+public partial class TasksGetProgressResultProgressAgent : TasksGetProgressResultProgress
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "agent";
+
+    /// <summary>The most recent intent reported by the agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("latestIntent")]
+    public string? LatestIntent { get; set; }
+
+    /// <summary>Recent tool execution events converted to display lines.</summary>
+    [JsonPropertyName("recentActivity")]
+    public required IList<TaskProgressLine> RecentActivity { get; set; }
+}
+
+/// <summary>Schema for the `TaskShellProgress` type.</summary>
+/// <remarks>The <c>shell</c> variant of <see cref="TasksGetProgressResultProgress"/>.</remarks>
+public partial class TasksGetProgressResultProgressShell : TasksGetProgressResultProgress
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "shell";
+
+    /// <summary>Process ID when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pid")]
+    public long? Pid { get; set; }
+
+    /// <summary>Recent stdout/stderr lines from the running shell command.</summary>
+    [JsonPropertyName("recentOutput")]
+    public required string RecentOutput { get; set; }
+}
+
 /// <summary>Progress information for the task, or null when no task with that ID is tracked.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class TasksGetProgressResult
 {
     /// <summary>Progress information for the task, discriminated by type. Returns null when no task with this ID is currently tracked.</summary>
     [JsonPropertyName("progress")]
-    public object? Progress { get; set; }
+    public TasksGetProgressResultProgress? Progress { get; set; }
 }
 
 /// <summary>Identifier of the background task to fetch progress for.</summary>
@@ -3774,6 +3928,7 @@ internal sealed class SessionExtensionsReloadRequest
 }
 
 /// <summary>Indicates whether the external tool call result was handled successfully.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class HandlePendingToolCallResult
 {
     /// <summary>Whether the tool call result was handled successfully.</summary>
@@ -3782,6 +3937,7 @@ public sealed class HandlePendingToolCallResult
 }
 
 /// <summary>Pending external tool call request ID, with the tool result or an error describing why it failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class HandlePendingToolCallRequest
 {
     /// <summary>Error message if the tool call failed.</summary>
@@ -3802,11 +3958,13 @@ internal sealed class HandlePendingToolCallRequest
 }
 
 /// <summary>Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ToolsInitializeAndValidateResult
 {
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionToolsInitializeAndValidateRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -3815,6 +3973,7 @@ internal sealed class SessionToolsInitializeAndValidateRequest
 }
 
 /// <summary>Optional unstructured input hint.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandInput
 {
     /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
@@ -3835,6 +3994,7 @@ public sealed class SlashCommandInput
 }
 
 /// <summary>Schema for the `SlashCommandInfo` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SlashCommandInfo
 {
     /// <summary>Canonical aliases without leading slashes.</summary>
@@ -3867,6 +4027,7 @@ public sealed class SlashCommandInfo
 }
 
 /// <summary>Slash commands available in the session, after applying any include/exclude filters.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CommandList
 {
     /// <summary>Commands available in this session.</summary>
@@ -3875,6 +4036,7 @@ public sealed class CommandList
 }
 
 /// <summary>Optional filters controlling which command sources to include in the listing.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsListRequest
 {
     /// <summary>Include runtime built-in commands.</summary>
@@ -3891,6 +4053,7 @@ public sealed class CommandsListRequest
 }
 
 /// <summary>Optional filters controlling which command sources to include in the listing.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsListRequestWithSession
 {
     /// <summary>Include runtime built-in commands.</summary>
@@ -3912,12 +4075,14 @@ internal sealed class CommandsListRequestWithSession
 
 /// <summary>Result of invoking the slash command (text output, prompt to send to the agent, or completion).</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
 [JsonDerivedType(typeof(SlashCommandInvocationResultText), "text")]
 [JsonDerivedType(typeof(SlashCommandInvocationResultAgentPrompt), "agent-prompt")]
 [JsonDerivedType(typeof(SlashCommandInvocationResultCompleted), "completed")]
+[JsonDerivedType(typeof(SlashCommandInvocationResultSelectSubcommand), "select-subcommand")]
 public partial class SlashCommandInvocationResult
 {
     /// <summary>The type discriminator.</summary>
@@ -3928,6 +4093,7 @@ public partial class SlashCommandInvocationResult
 
 /// <summary>Schema for the `SlashCommandTextResult` type.</summary>
 /// <remarks>The <c>text</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SlashCommandInvocationResultText : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -3956,6 +4122,7 @@ public partial class SlashCommandInvocationResultText : SlashCommandInvocationRe
 
 /// <summary>Schema for the `SlashCommandAgentPromptResult` type.</summary>
 /// <remarks>The <c>agent-prompt</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -3983,6 +4150,7 @@ public partial class SlashCommandInvocationResultAgentPrompt : SlashCommandInvoc
 
 /// <summary>Schema for the `SlashCommandCompletedResult` type.</summary>
 /// <remarks>The <c>completed</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocationResult
 {
     /// <inheritdoc />
@@ -4000,7 +4168,52 @@ public partial class SlashCommandInvocationResultCompleted : SlashCommandInvocat
     public bool? RuntimeSettingsChanged { get; set; }
 }
 
+/// <summary>Schema for the `SlashCommandSelectSubcommandOption` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SlashCommandSelectSubcommandOption
+{
+    /// <summary>Human-readable description of the subcommand.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Optional group label for organizing options.</summary>
+    [JsonPropertyName("group")]
+    public string? Group { get; set; }
+
+    /// <summary>Subcommand name to invoke.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>Schema for the `SlashCommandSelectSubcommandResult` type.</summary>
+/// <remarks>The <c>select-subcommand</c> variant of <see cref="SlashCommandInvocationResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class SlashCommandInvocationResultSelectSubcommand : SlashCommandInvocationResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "select-subcommand";
+
+    /// <summary>Parent command name that requires subcommand selection.</summary>
+    [JsonPropertyName("command")]
+    public required string Command { get; set; }
+
+    /// <summary>Available subcommand options for the client to present.</summary>
+    [JsonPropertyName("options")]
+    public required IList<SlashCommandSelectSubcommandOption> Options { get; set; }
+
+    /// <summary>True when the invocation mutated user runtime settings; consumers caching settings should refresh.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("runtimeSettingsChanged")]
+    public bool? RuntimeSettingsChanged { get; set; }
+
+    /// <summary>Human-readable title for the selection UI.</summary>
+    [JsonPropertyName("title")]
+    public required string Title { get; set; }
+}
+
 /// <summary>Slash command name and optional raw input string to invoke.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsInvokeRequest
 {
     /// <summary>Raw input after the command name.</summary>
@@ -4017,6 +4230,7 @@ internal sealed class CommandsInvokeRequest
 }
 
 /// <summary>Indicates whether the pending client-handled command was completed successfully.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsHandlePendingCommandResult
 {
     /// <summary>Whether the command was handled successfully.</summary>
@@ -4025,6 +4239,7 @@ public sealed class CommandsHandlePendingCommandResult
 }
 
 /// <summary>Pending command request ID and an optional error if the client handler failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsHandlePendingCommandRequest
 {
     /// <summary>Error message if the command handler failed.</summary>
@@ -4041,6 +4256,7 @@ internal sealed class CommandsHandlePendingCommandRequest
 }
 
 /// <summary>Error message produced while executing the command, if any.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ExecuteCommandResult
 {
     /// <summary>Error message produced while executing the command, if any. Omitted when the handler succeeded.</summary>
@@ -4049,6 +4265,7 @@ public sealed class ExecuteCommandResult
 }
 
 /// <summary>Slash command name and argument string to execute synchronously.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ExecuteCommandParams
 {
     /// <summary>Argument string to pass to the command (empty string if none).</summary>
@@ -4065,6 +4282,7 @@ internal sealed class ExecuteCommandParams
 }
 
 /// <summary>Indicates whether the command was accepted into the local execution queue.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class EnqueueCommandResult
 {
     /// <summary>True when the command was accepted into the local execution queue. False when the call targets a session that does not support local command queueing (e.g. remote sessions).</summary>
@@ -4073,6 +4291,7 @@ public sealed class EnqueueCommandResult
 }
 
 /// <summary>Slash-prefixed command string to enqueue for FIFO processing.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class EnqueueCommandParams
 {
     /// <summary>Slash-prefixed command string to enqueue, e.g. '/compact' or '/model gpt-4'. Queued FIFO with any in-flight items; if the session is idle, processing kicks off immediately.</summary>
@@ -4085,6 +4304,7 @@ internal sealed class EnqueueCommandParams
 }
 
 /// <summary>Indicates whether the queued-command response was matched to a pending request.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsRespondToQueuedCommandResult
 {
     /// <summary>Whether a pending queued command with the given request ID was found and resolved. False when the request was already resolved, cancelled, or unknown.</summary>
@@ -4094,6 +4314,7 @@ public sealed class CommandsRespondToQueuedCommandResult
 
 /// <summary>Result of the queued command execution.</summary>
 /// <remarks>Data type discriminated by <c>handled</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class QueuedCommandResult
 {
     /// <summary>The boolean discriminator.</summary>
@@ -4107,6 +4328,7 @@ public partial class QueuedCommandResult
 }
 
 /// <summary>Queued-command request ID and the result indicating whether the host executed it (and whether to stop processing further queued commands).</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class CommandsRespondToQueuedCommandRequest
 {
     /// <summary>Request ID from the `command.queued` event the host is responding to.</summary>
@@ -4136,6 +4358,7 @@ internal sealed class TelemetrySetFeatureOverridesRequest
 }
 
 /// <summary>The elicitation response (accept with form values, decline, or cancel).</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationResponse
 {
     /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
@@ -4148,6 +4371,7 @@ public sealed class UIElicitationResponse
 }
 
 /// <summary>JSON Schema describing the form fields to present to the user.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationSchema
 {
     /// <summary>Form field definitions, keyed by field name.</summary>
@@ -4164,6 +4388,7 @@ public sealed class UIElicitationSchema
 }
 
 /// <summary>Prompt message and JSON schema describing the form fields to elicit from the user.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIElicitationRequest
 {
     /// <summary>Message describing what information is needed from the user.</summary>
@@ -4180,6 +4405,7 @@ internal sealed class UIElicitationRequest
 }
 
 /// <summary>Indicates whether the elicitation response was accepted; false if it was already resolved by another client.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIElicitationResult
 {
     /// <summary>Whether the response was accepted. False if the request was already resolved by another client.</summary>
@@ -4188,6 +4414,7 @@ public sealed class UIElicitationResult
 }
 
 /// <summary>Pending elicitation request ID and the user's response (accept/decline/cancel + form values).</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingElicitationRequest
 {
     /// <summary>The unique request ID from the elicitation.requested event.</summary>
@@ -4204,6 +4431,7 @@ internal sealed class UIHandlePendingElicitationRequest
 }
 
 /// <summary>Indicates whether the pending UI request was resolved by this call.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIHandlePendingResult
 {
     /// <summary>True if the request was still pending and was resolved by this call. False if the request ID was unknown, already resolved by another client (e.g. GitHub), expired, or otherwise no longer pending.</summary>
@@ -4212,6 +4440,7 @@ public sealed class UIHandlePendingResult
 }
 
 /// <summary>Schema for the `UIUserInputResponse` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIUserInputResponse
 {
     /// <summary>The user's answer text.</summary>
@@ -4224,6 +4453,7 @@ public sealed class UIUserInputResponse
 }
 
 /// <summary>Request ID of a pending `user_input.requested` event and the user's response.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingUserInputRequest
 {
     /// <summary>The unique request ID from the user_input.requested event.</summary>
@@ -4240,11 +4470,13 @@ internal sealed class UIHandlePendingUserInputRequest
 }
 
 /// <summary>Optional sampling result payload. Omit to reject/cancel the sampling request without providing a result.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIHandlePendingSamplingResponse
 {
 }
 
 /// <summary>Request ID of a pending `sampling.requested` event and an optional sampling result payload (omit to reject).</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingSamplingRequest
 {
     /// <summary>The unique request ID from the sampling.requested event.</summary>
@@ -4261,6 +4493,7 @@ internal sealed class UIHandlePendingSamplingRequest
 }
 
 /// <summary>Request ID of a pending `auto_mode_switch.requested` event and the user's response.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingAutoModeSwitchRequest
 {
     /// <summary>The unique request ID from the auto_mode_switch.requested event.</summary>
@@ -4277,6 +4510,7 @@ internal sealed class UIHandlePendingAutoModeSwitchRequest
 }
 
 /// <summary>Schema for the `UIExitPlanModeResponse` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIExitPlanModeResponse
 {
     /// <summary>Whether the plan was approved.</summary>
@@ -4297,6 +4531,7 @@ public sealed class UIExitPlanModeResponse
 }
 
 /// <summary>Request ID of a pending `exit_plan_mode.requested` event and the user's response.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIHandlePendingExitPlanModeRequest
 {
     /// <summary>The unique request ID from the exit_plan_mode.requested event.</summary>
@@ -4313,6 +4548,7 @@ internal sealed class UIHandlePendingExitPlanModeRequest
 }
 
 /// <summary>Register an in-process handler for `auto_mode_switch.requested` events. The caller still attaches the actual listener via the standard event-subscription mechanism; this registration solely tells the server bridge to skip its own dispatch (so a remote client doesn't race the in-process handler for the same requestId).</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIRegisterDirectAutoModeSwitchHandlerResult
 {
     /// <summary>Opaque handle representing the registration. Pass this same handle to `unregisterDirectAutoModeSwitchHandler` when the in-process handler is no longer active. Multiple registrations are reference-counted; the server bridge will only dispatch auto-mode-switch requests when no handles are active.</summary>
@@ -4321,6 +4557,7 @@ public sealed class UIRegisterDirectAutoModeSwitchHandlerResult
 }
 
 /// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class SessionUiRegisterDirectAutoModeSwitchHandlerRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -4329,6 +4566,7 @@ internal sealed class SessionUiRegisterDirectAutoModeSwitchHandlerRequest
 }
 
 /// <summary>Indicates whether the handle was active and the registration count was decremented.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UIUnregisterDirectAutoModeSwitchHandlerResult
 {
     /// <summary>True if the handle was active and decremented the counter; false if the handle was unknown.</summary>
@@ -4337,6 +4575,7 @@ public sealed class UIUnregisterDirectAutoModeSwitchHandlerResult
 }
 
 /// <summary>Opaque handle previously returned by `registerDirectAutoModeSwitchHandler` to release.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class UIUnregisterDirectAutoModeSwitchHandlerRequest
 {
     /// <summary>Handle previously returned by `registerDirectAutoModeSwitchHandler`.</summary>
@@ -4349,6 +4588,7 @@ internal sealed class UIUnregisterDirectAutoModeSwitchHandlerRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -4357,6 +4597,7 @@ public sealed class PermissionsConfigureResult
 }
 
 /// <summary>Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRuleSource
 {
     /// <summary>Gets or sets the <c>name</c> value.</summary>
@@ -4369,6 +4610,7 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRuleSour
 }
 
 /// <summary>Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRule` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRule
 {
     /// <summary>Gets or sets the <c>ifAnyMatch</c> value.</summary>
@@ -4389,6 +4631,7 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicyRule
 }
 
 /// <summary>Schema for the `PermissionsConfigureAdditionalContentExclusionPolicy` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 {
     /// <summary>Gets or sets the <c>last_updated_at</c> value.</summary>
@@ -4405,6 +4648,7 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 }
 
 /// <summary>If specified, replaces the session's path-permission policy. The runtime constructs the appropriate PathManager based on these inputs (rooted at the session's working directory). Omit to leave the current path policy unchanged.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsConfig
 {
     /// <summary>Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).</summary>
@@ -4425,6 +4669,7 @@ public sealed class PermissionPathsConfig
 }
 
 /// <summary>If specified, replaces the session's approved/denied permission rules. Omit to leave the current rules unchanged.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionRulesSet
 {
     /// <summary>Rules that auto-approve matching requests.</summary>
@@ -4437,6 +4682,7 @@ public sealed class PermissionRulesSet
 }
 
 /// <summary>If specified, replaces the session's URL-permission policy. The runtime constructs a fresh DefaultUrlManager based on these inputs. Omit to leave the current URL policy unchanged.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionUrlsConfig
 {
     /// <summary>Initial list of allowed URL/domain patterns. Patterns may include path components. Ignored when `unrestricted` is true.</summary>
@@ -4449,6 +4695,7 @@ public sealed class PermissionUrlsConfig
 }
 
 /// <summary>Patch of permission policy fields to apply (omit a field to leave it unchanged).</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsConfigureParams
 {
     /// <summary>If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.</summary>
@@ -4481,6 +4728,7 @@ internal sealed class PermissionsConfigureParams
 }
 
 /// <summary>Indicates whether the permission decision was applied; false when the request was already resolved.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionRequestResult
 {
     /// <summary>Whether the permission request was handled successfully.</summary>
@@ -4490,6 +4738,7 @@ public sealed class PermissionRequestResult
 
 /// <summary>The client's response to the pending permission prompt.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -4518,6 +4767,7 @@ public partial class PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApproveOnce` type.</summary>
 /// <remarks>The <c>approve-once</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveOnce : PermissionDecision
 {
     /// <inheritdoc />
@@ -4527,6 +4777,7 @@ public partial class PermissionDecisionApproveOnce : PermissionDecision
 
 /// <summary>Session-scoped approval to remember (tool prompts only; omitted for path/url prompts).</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -4549,6 +4800,7 @@ public partial class PermissionDecisionApproveForSessionApproval
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalCommands : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4562,6 +4814,7 @@ public partial class PermissionDecisionApproveForSessionApprovalCommands : Permi
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalRead : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4571,6 +4824,7 @@ public partial class PermissionDecisionApproveForSessionApprovalRead : Permissio
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalWrite : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4580,6 +4834,7 @@ public partial class PermissionDecisionApproveForSessionApprovalWrite : Permissi
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalMcp : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4597,6 +4852,7 @@ public partial class PermissionDecisionApproveForSessionApprovalMcp : Permission
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.</summary>
 /// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4610,6 +4866,7 @@ public partial class PermissionDecisionApproveForSessionApprovalMcpSampling : Pe
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalMemory : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4619,6 +4876,7 @@ public partial class PermissionDecisionApproveForSessionApprovalMemory : Permiss
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalCustomTool : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4632,6 +4890,7 @@ public partial class PermissionDecisionApproveForSessionApprovalCustomTool : Per
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalExtensionManagement : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4646,6 +4905,7 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionManagem
 
 /// <summary>Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess` type.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForSessionApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess : PermissionDecisionApproveForSessionApproval
 {
     /// <inheritdoc />
@@ -4659,6 +4919,7 @@ public partial class PermissionDecisionApproveForSessionApprovalExtensionPermiss
 
 /// <summary>Schema for the `PermissionDecisionApproveForSession` type.</summary>
 /// <remarks>The <c>approve-for-session</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForSession : PermissionDecision
 {
     /// <inheritdoc />
@@ -4678,6 +4939,7 @@ public partial class PermissionDecisionApproveForSession : PermissionDecision
 
 /// <summary>Approval to persist for this location.</summary>
 /// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 [JsonPolymorphic(
     TypeDiscriminatorPropertyName = "kind",
     UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
@@ -4700,6 +4962,7 @@ public partial class PermissionDecisionApproveForLocationApproval
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.</summary>
 /// <remarks>The <c>commands</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalCommands : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4713,6 +4976,7 @@ public partial class PermissionDecisionApproveForLocationApprovalCommands : Perm
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.</summary>
 /// <remarks>The <c>read</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalRead : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4722,6 +4986,7 @@ public partial class PermissionDecisionApproveForLocationApprovalRead : Permissi
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.</summary>
 /// <remarks>The <c>write</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalWrite : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4731,6 +4996,7 @@ public partial class PermissionDecisionApproveForLocationApprovalWrite : Permiss
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.</summary>
 /// <remarks>The <c>mcp</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalMcp : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4748,6 +5014,7 @@ public partial class PermissionDecisionApproveForLocationApprovalMcp : Permissio
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.</summary>
 /// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4761,6 +5028,7 @@ public partial class PermissionDecisionApproveForLocationApprovalMcpSampling : P
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.</summary>
 /// <remarks>The <c>memory</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalMemory : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4770,6 +5038,7 @@ public partial class PermissionDecisionApproveForLocationApprovalMemory : Permis
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.</summary>
 /// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalCustomTool : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4783,6 +5052,7 @@ public partial class PermissionDecisionApproveForLocationApprovalCustomTool : Pe
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.</summary>
 /// <remarks>The <c>extension-management</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalExtensionManagement : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4797,6 +5067,7 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionManage
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess` type.</summary>
 /// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionDecisionApproveForLocationApproval"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess : PermissionDecisionApproveForLocationApproval
 {
     /// <inheritdoc />
@@ -4810,6 +5081,7 @@ public partial class PermissionDecisionApproveForLocationApprovalExtensionPermis
 
 /// <summary>Schema for the `PermissionDecisionApproveForLocation` type.</summary>
 /// <remarks>The <c>approve-for-location</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproveForLocation : PermissionDecision
 {
     /// <inheritdoc />
@@ -4827,6 +5099,7 @@ public partial class PermissionDecisionApproveForLocation : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApprovePermanently` type.</summary>
 /// <remarks>The <c>approve-permanently</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApprovePermanently : PermissionDecision
 {
     /// <inheritdoc />
@@ -4840,6 +5113,7 @@ public partial class PermissionDecisionApprovePermanently : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionReject` type.</summary>
 /// <remarks>The <c>reject</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionReject : PermissionDecision
 {
     /// <inheritdoc />
@@ -4854,6 +5128,7 @@ public partial class PermissionDecisionReject : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionUserNotAvailable` type.</summary>
 /// <remarks>The <c>user-not-available</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 {
     /// <inheritdoc />
@@ -4863,6 +5138,7 @@ public partial class PermissionDecisionUserNotAvailable : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApproved` type.</summary>
 /// <remarks>The <c>approved</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApproved : PermissionDecision
 {
     /// <inheritdoc />
@@ -4872,6 +5148,7 @@ public partial class PermissionDecisionApproved : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApprovedForSession` type.</summary>
 /// <remarks>The <c>approved-for-session</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApprovedForSession : PermissionDecision
 {
     /// <inheritdoc />
@@ -4885,6 +5162,7 @@ public partial class PermissionDecisionApprovedForSession : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionApprovedForLocation` type.</summary>
 /// <remarks>The <c>approved-for-location</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionApprovedForLocation : PermissionDecision
 {
     /// <inheritdoc />
@@ -4902,6 +5180,7 @@ public partial class PermissionDecisionApprovedForLocation : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionCancelled` type.</summary>
 /// <remarks>The <c>cancelled</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionCancelled : PermissionDecision
 {
     /// <inheritdoc />
@@ -4916,6 +5195,7 @@ public partial class PermissionDecisionCancelled : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionDeniedByRules` type.</summary>
 /// <remarks>The <c>denied-by-rules</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedByRules : PermissionDecision
 {
     /// <inheritdoc />
@@ -4929,6 +5209,7 @@ public partial class PermissionDecisionDeniedByRules : PermissionDecision
 
 /// <summary>Schema for the `PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser` type.</summary>
 /// <remarks>The <c>denied-no-approval-rule-and-could-not-request-from-user</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser : PermissionDecision
 {
     /// <inheritdoc />
@@ -4938,6 +5219,7 @@ public partial class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFro
 
 /// <summary>Schema for the `PermissionDecisionDeniedInteractivelyByUser` type.</summary>
 /// <remarks>The <c>denied-interactively-by-user</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDecision
 {
     /// <inheritdoc />
@@ -4957,6 +5239,7 @@ public partial class PermissionDecisionDeniedInteractivelyByUser : PermissionDec
 
 /// <summary>Schema for the `PermissionDecisionDeniedByContentExclusionPolicy` type.</summary>
 /// <remarks>The <c>denied-by-content-exclusion-policy</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedByContentExclusionPolicy : PermissionDecision
 {
     /// <inheritdoc />
@@ -4974,6 +5257,7 @@ public partial class PermissionDecisionDeniedByContentExclusionPolicy : Permissi
 
 /// <summary>Schema for the `PermissionDecisionDeniedByPermissionRequestHook` type.</summary>
 /// <remarks>The <c>denied-by-permission-request-hook</c> variant of <see cref="PermissionDecision"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
 public partial class PermissionDecisionDeniedByPermissionRequestHook : PermissionDecision
 {
     /// <inheritdoc />
@@ -4992,6 +5276,7 @@ public partial class PermissionDecisionDeniedByPermissionRequestHook : Permissio
 }
 
 /// <summary>Pending permission request ID and the decision to apply (approve/reject and scope).</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionDecisionRequest
 {
     /// <summary>Request ID of the pending permission request.</summary>
@@ -5008,6 +5293,7 @@ internal sealed class PermissionDecisionRequest
 }
 
 /// <summary>Schema for the `PendingPermissionRequest` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PendingPermissionRequest
 {
     /// <summary>The user-facing permission prompt details (commands, write, read, mcp, url, memory, custom-tool, path, hook).</summary>
@@ -5020,6 +5306,7 @@ public sealed class PendingPermissionRequest
 }
 
 /// <summary>List of pending permission requests reconstructed from event history.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PendingPermissionRequestList
 {
     /// <summary>Pending permission prompts reconstructed from the session's event history. Equivalent to the set of `permission.requested` events that have not yet been followed by a matching `permission.completed` event. Used by clients (e.g. the CLI) to hydrate UI for prompts that were emitted before the client attached to the session.</summary>
@@ -5028,6 +5315,7 @@ public sealed class PendingPermissionRequestList
 }
 
 /// <summary>No parameters; returns currently-pending permission requests for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsPendingRequestsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -5036,6 +5324,7 @@ internal sealed class PermissionsPendingRequestsRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsSetApproveAllResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5044,6 +5333,7 @@ public sealed class PermissionsSetApproveAllResult
 }
 
 /// <summary>Allow-all toggle for tool permission requests, with an optional telemetry source.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsSetApproveAllRequest
 {
     /// <summary>Whether to auto-approve all tool permission requests.</summary>
@@ -5060,6 +5350,7 @@ internal sealed class PermissionsSetApproveAllRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsModifyRulesResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5068,6 +5359,7 @@ public sealed class PermissionsModifyRulesResult
 }
 
 /// <summary>Scope and add/remove instructions for modifying session- or location-scoped permission rules.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsModifyRulesParams
 {
     /// <summary>Rules to add to the scope. Applied before `remove`/`removeAll`.</summary>
@@ -5092,6 +5384,7 @@ internal sealed class PermissionsModifyRulesParams
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsSetRequiredResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5100,6 +5393,7 @@ public sealed class PermissionsSetRequiredResult
 }
 
 /// <summary>Toggles whether permission prompts should be bridged into session events for this client.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsSetRequiredRequest
 {
     /// <summary>Whether the client wants `permission.requested` events bridged from the session-owned permission service. CLI clients that render prompt UI set this to `true` for as long as their listener is mounted; headless callers leave it unset (the default is `false`).</summary>
@@ -5112,6 +5406,7 @@ internal sealed class PermissionsSetRequiredRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsResetSessionApprovalsResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5120,6 +5415,7 @@ public sealed class PermissionsResetSessionApprovalsResult
 }
 
 /// <summary>No parameters; clears all session-scoped tool permission approvals.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsResetSessionApprovalsRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -5128,6 +5424,7 @@ internal sealed class PermissionsResetSessionApprovalsRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsNotifyPromptShownResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5136,6 +5433,7 @@ public sealed class PermissionsNotifyPromptShownResult
 }
 
 /// <summary>Notification payload describing the permission prompt that the client just rendered.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPromptShownNotification
 {
     /// <summary>Human-readable description of the prompt the user is being asked to approve. Used by the runtime to fire the registered `permission_prompt` notification hook (e.g. terminal bell, desktop notification).</summary>
@@ -5148,6 +5446,7 @@ internal sealed class PermissionPromptShownNotification
 }
 
 /// <summary>Snapshot of the session's allow-listed directories and primary working directory.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsList
 {
     /// <summary>All directories currently allowed for tool access on this session.</summary>
@@ -5160,6 +5459,7 @@ public sealed class PermissionPathsList
 }
 
 /// <summary>No parameters; returns the session's allow-listed directories.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionsPathsListRequest
 {
     /// <summary>Target session identifier.</summary>
@@ -5168,6 +5468,7 @@ internal sealed class PermissionsPathsListRequest
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsPathsAddResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5176,6 +5477,7 @@ public sealed class PermissionsPathsAddResult
 }
 
 /// <summary>Directory path to add to the session's allowed directories.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsAddParams
 {
     /// <summary>Directory to add to the allow-list. The runtime resolves and validates the path before adding.</summary>
@@ -5188,6 +5490,7 @@ internal sealed class PermissionPathsAddParams
 }
 
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsPathsUpdatePrimaryResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5196,6 +5499,7 @@ public sealed class PermissionsPathsUpdatePrimaryResult
 }
 
 /// <summary>Directory path to set as the session's new primary working directory.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsUpdatePrimaryParams
 {
     /// <summary>Directory to set as the new primary working directory for the session's permission policy.</summary>
@@ -5208,6 +5512,7 @@ internal sealed class PermissionPathsUpdatePrimaryParams
 }
 
 /// <summary>Indicates whether the supplied path is within the session's allowed directories.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsAllowedCheckResult
 {
     /// <summary>Whether the path is within the session's allowed directories.</summary>
@@ -5216,6 +5521,7 @@ public sealed class PermissionPathsAllowedCheckResult
 }
 
 /// <summary>Path to evaluate against the session's allowed directories.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsAllowedCheckParams
 {
     /// <summary>Path to check against the session's allowed directories.</summary>
@@ -5228,6 +5534,7 @@ internal sealed class PermissionPathsAllowedCheckParams
 }
 
 /// <summary>Indicates whether the supplied path is within the session's workspace directory.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionPathsWorkspaceCheckResult
 {
     /// <summary>Whether the path is within the session workspace directory.</summary>
@@ -5236,6 +5543,7 @@ public sealed class PermissionPathsWorkspaceCheckResult
 }
 
 /// <summary>Path to evaluate against the session's workspace (primary) directory.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionPathsWorkspaceCheckParams
 {
     /// <summary>Path to check against the session workspace directory.</summary>
@@ -5247,7 +5555,288 @@ internal sealed class PermissionPathsWorkspaceCheckParams
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Resolved location-permissions key and type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionLocationResolveResult
+{
+    /// <summary>Location key used in the location-permissions store.</summary>
+    [JsonPropertyName("locationKey")]
+    public string LocationKey { get; set; } = string.Empty;
+
+    /// <summary>Whether the location is a git repo or directory.</summary>
+    [JsonPropertyName("locationType")]
+    public PermissionLocationType LocationType { get; set; }
+}
+
+/// <summary>Working directory to resolve into a location-permissions key.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class PermissionLocationResolveParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Working directory whose permission location should be resolved.</summary>
+    [JsonPropertyName("workingDirectory")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+}
+
+/// <summary>Summary of persisted location permissions applied to the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionLocationApplyResult
+{
+    /// <summary>Number of persisted allowed directories added to the live path manager.</summary>
+    [JsonPropertyName("appliedDirectoryCount")]
+    public long AppliedDirectoryCount { get; set; }
+
+    /// <summary>Number of location-scoped rules added to the live permission service.</summary>
+    [JsonPropertyName("appliedRuleCount")]
+    public long AppliedRuleCount { get; set; }
+
+    /// <summary>Location-scoped rules applied to the live permission service.</summary>
+    [JsonPropertyName("appliedRules")]
+    public IList<PermissionRule> AppliedRules { get => field ??= []; set; }
+
+    /// <summary>Whether a different location was applied since the previous apply call.</summary>
+    [JsonPropertyName("changed")]
+    public bool Changed { get; set; }
+
+    /// <summary>Location key used in the location-permissions store.</summary>
+    [JsonPropertyName("locationKey")]
+    public string LocationKey { get; set; } = string.Empty;
+
+    /// <summary>Whether the location is a git repo or directory.</summary>
+    [JsonPropertyName("locationType")]
+    public PermissionLocationType LocationType { get; set; }
+}
+
+/// <summary>Working directory to load persisted location permissions for.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class PermissionLocationApplyParams
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Working directory whose persisted location permissions should be applied.</summary>
+    [JsonPropertyName("workingDirectory")]
+    public string WorkingDirectory { get; set; } = string.Empty;
+}
+
 /// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionsLocationsAddToolApprovalResult
+{
+    /// <summary>Whether the operation succeeded.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Tool approval to persist and apply.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCommands), "commands")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsRead), "read")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsWrite), "write")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMcp), "mcp")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMcpSampling), "mcp-sampling")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsMemory), "memory")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsCustomTool), "custom-tool")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionManagement), "extension-management")]
+[JsonDerivedType(typeof(PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess), "extension-permission-access")]
+public partial class PermissionsLocationsAddToolApprovalDetails
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsCommands` type.</summary>
+/// <remarks>The <c>commands</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsCommands : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "commands";
+
+    /// <summary>Command identifiers covered by this approval.</summary>
+    [JsonPropertyName("commandIdentifiers")]
+    public required IList<string> CommandIdentifiers { get; set; }
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsRead` type.</summary>
+/// <remarks>The <c>read</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsRead : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "read";
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsWrite` type.</summary>
+/// <remarks>The <c>write</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsWrite : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "write";
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsMcp` type.</summary>
+/// <remarks>The <c>mcp</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsMcp : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp";
+
+    /// <summary>MCP server name.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>MCP tool name, or null to cover every tool on the server.</summary>
+    [JsonPropertyName("toolName")]
+    public string? ToolName { get; set; }
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsMcpSampling` type.</summary>
+/// <remarks>The <c>mcp-sampling</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsMcpSampling : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "mcp-sampling";
+
+    /// <summary>MCP server name.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsMemory` type.</summary>
+/// <remarks>The <c>memory</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsMemory : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "memory";
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsCustomTool` type.</summary>
+/// <remarks>The <c>custom-tool</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsCustomTool : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "custom-tool";
+
+    /// <summary>Custom tool name.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionManagement` type.</summary>
+/// <remarks>The <c>extension-management</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsExtensionManagement : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-management";
+
+    /// <summary>Optional operation identifier; when omitted, the approval covers all extension management operations.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("operation")]
+    public string? Operation { get; set; }
+}
+
+/// <summary>Schema for the `PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess` type.</summary>
+/// <remarks>The <c>extension-permission-access</c> variant of <see cref="PermissionsLocationsAddToolApprovalDetails"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess : PermissionsLocationsAddToolApprovalDetails
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "extension-permission-access";
+
+    /// <summary>Extension name.</summary>
+    [JsonPropertyName("extensionName")]
+    public required string ExtensionName { get; set; }
+}
+
+/// <summary>Location-scoped tool approval to persist.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class PermissionLocationAddToolApprovalParams
+{
+    /// <summary>Tool approval to persist and apply.</summary>
+    [JsonPropertyName("approval")]
+    public PermissionsLocationsAddToolApprovalDetails Approval { get => field ??= new(); set; }
+
+    /// <summary>Location key (git root or cwd) to persist the approval to.</summary>
+    [JsonPropertyName("locationKey")]
+    public string LocationKey { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Folder trust check result.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class FolderTrustCheckResult
+{
+    /// <summary>Whether the folder is trusted.</summary>
+    [JsonPropertyName("trusted")]
+    public bool Trusted { get; set; }
+}
+
+/// <summary>Folder path to check for trust.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FolderTrustCheckParams
+{
+    /// <summary>Folder path to check.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionsFolderTrustAddTrustedResult
+{
+    /// <summary>Whether the operation succeeded.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Folder path to add to trusted folders.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class FolderTrustAddParams
+{
+    /// <summary>Folder path to mark as trusted.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Indicates whether the operation succeeded.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsUrlsSetUnrestrictedModeResult
 {
     /// <summary>Whether the operation succeeded.</summary>
@@ -5256,6 +5845,7 @@ public sealed class PermissionsUrlsSetUnrestrictedModeResult
 }
 
 /// <summary>Whether the URL-permission policy should run in unrestricted mode.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class PermissionUrlsSetUnrestrictedModeParams
 {
     /// <summary>Whether to allow access to all URLs without prompting. Toggles the runtime's URL-permission policy in place.</summary>
@@ -5326,11 +5916,13 @@ public sealed class SessionMetadataSnapshotWorkspace
 
     /// <summary>Repository host type, if known.</summary>
     [JsonPropertyName("host_type")]
-    public SessionMetadataSnapshotWorkspaceHostType? HostType { get; set; }
+    public WorkspaceSummaryHostType? HostType { get; set; }
 
     /// <summary>Workspace identifier (1:1 with sessionId).</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
     [JsonPropertyName("id")]
-    public Guid Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>Display name for the session, if set.</summary>
     [JsonPropertyName("name")]
@@ -5608,6 +6200,7 @@ internal sealed class MetadataRecomputeContextTokensRequest
 }
 
 /// <summary>Identifier of the spawned process, used to correlate streamed output and exit notifications.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ShellExecResult
 {
     /// <summary>Unique identifier for tracking streamed output.</summary>
@@ -5616,6 +6209,7 @@ public sealed class ShellExecResult
 }
 
 /// <summary>Shell command to run, with optional working directory and timeout in milliseconds.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ShellExecRequest
 {
     /// <summary>Shell command to execute.</summary>
@@ -5637,6 +6231,7 @@ internal sealed class ShellExecRequest
 }
 
 /// <summary>Indicates whether the signal was delivered; false if the process was unknown or already exited.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ShellKillResult
 {
     /// <summary>Whether the signal was sent successfully.</summary>
@@ -5645,6 +6240,7 @@ public sealed class ShellKillResult
 }
 
 /// <summary>Identifier of a process previously returned by "shell.exec" and the signal to send.</summary>
+[Experimental(Diagnostics.Experimental)]
 internal sealed class ShellKillRequest
 {
     /// <summary>Process identifier returned by shell.exec.</summary>
@@ -5714,10 +6310,27 @@ public sealed class HistoryCompactResult
     public long TokensRemoved { get; set; }
 }
 
-/// <summary>Identifies the target session.</summary>
+/// <summary>Optional compaction parameters.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class SessionHistoryCompactRequest
+public sealed class HistoryCompactRequest
 {
+    /// <summary>Optional user-provided instructions to focus the compaction summary.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(4000)]
+    [JsonPropertyName("customInstructions")]
+    public string? CustomInstructions { get; set; }
+}
+
+/// <summary>Optional compaction parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class HistoryCompactRequestWithSession
+{
+    /// <summary>Optional user-provided instructions to focus the compaction summary.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MaxLength(4000)]
+    [JsonPropertyName("customInstructions")]
+    public string? CustomInstructions { get; set; }
+
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
@@ -6588,13 +7201,13 @@ public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
     /// <summary>Gets the value associated with this <see cref="ModelPickerCategory"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>lightweight</c> value.</summary>
+    /// <summary>Lightweight model category optimized for faster, lower-cost interactions.</summary>
     public static ModelPickerCategory Lightweight { get; } = new("lightweight");
 
-    /// <summary>Gets the <c>versatile</c> value.</summary>
+    /// <summary>Versatile model category suitable for a broad range of tasks.</summary>
     public static ModelPickerCategory Versatile { get; } = new("versatile");
 
-    /// <summary>Gets the <c>powerful</c> value.</summary>
+    /// <summary>Powerful model category optimized for complex tasks.</summary>
     public static ModelPickerCategory Powerful { get; } = new("powerful");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelPickerCategory"/> instances are equivalent.</summary>
@@ -6622,13 +7235,13 @@ public readonly struct ModelPickerCategory : IEquatable<ModelPickerCategory>
         /// <inheritdoc />
         public override ModelPickerCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelPickerCategory value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerCategory));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerCategory));
         }
     }
 }
@@ -6653,16 +7266,16 @@ public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCat
     /// <summary>Gets the value associated with this <see cref="ModelPickerPriceCategory"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>low</c> value.</summary>
+    /// <summary>Lowest relative token cost tier.</summary>
     public static ModelPickerPriceCategory Low { get; } = new("low");
 
-    /// <summary>Gets the <c>medium</c> value.</summary>
+    /// <summary>Medium relative token cost tier.</summary>
     public static ModelPickerPriceCategory Medium { get; } = new("medium");
 
-    /// <summary>Gets the <c>high</c> value.</summary>
+    /// <summary>High relative token cost tier.</summary>
     public static ModelPickerPriceCategory High { get; } = new("high");
 
-    /// <summary>Gets the <c>very_high</c> value.</summary>
+    /// <summary>Highest relative token cost tier.</summary>
     public static ModelPickerPriceCategory VeryHigh { get; } = new("very_high");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelPickerPriceCategory"/> instances are equivalent.</summary>
@@ -6690,13 +7303,13 @@ public readonly struct ModelPickerPriceCategory : IEquatable<ModelPickerPriceCat
         /// <inheritdoc />
         public override ModelPickerPriceCategory Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelPickerPriceCategory value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerPriceCategory));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPickerPriceCategory));
         }
     }
 }
@@ -6721,13 +7334,13 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
     /// <summary>Gets the value associated with this <see cref="ModelPolicyState"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>enabled</c> value.</summary>
+    /// <summary>The model is enabled by policy.</summary>
     public static ModelPolicyState Enabled { get; } = new("enabled");
 
-    /// <summary>Gets the <c>disabled</c> value.</summary>
+    /// <summary>The model is disabled by policy.</summary>
     public static ModelPolicyState Disabled { get; } = new("disabled");
 
-    /// <summary>Gets the <c>unconfigured</c> value.</summary>
+    /// <summary>No explicit policy is configured for the model.</summary>
     public static ModelPolicyState Unconfigured { get; } = new("unconfigured");
 
     /// <summary>Returns a value indicating whether two <see cref="ModelPolicyState"/> instances are equivalent.</summary>
@@ -6755,13 +7368,13 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
         /// <inheritdoc />
         public override ModelPolicyState Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ModelPolicyState value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPolicyState));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelPolicyState));
         }
     }
 }
@@ -6786,16 +7399,16 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
     /// <summary>Gets the value associated with this <see cref="DiscoveredMcpServerType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>stdio</c> value.</summary>
+    /// <summary>Server communicates over stdio with a local child process.</summary>
     public static DiscoveredMcpServerType Stdio { get; } = new("stdio");
 
-    /// <summary>Gets the <c>http</c> value.</summary>
+    /// <summary>Server communicates over streamable HTTP.</summary>
     public static DiscoveredMcpServerType Http { get; } = new("http");
 
-    /// <summary>Gets the <c>sse</c> value.</summary>
+    /// <summary>Server communicates over Server-Sent Events.</summary>
     public static DiscoveredMcpServerType Sse { get; } = new("sse");
 
-    /// <summary>Gets the <c>memory</c> value.</summary>
+    /// <summary>Server is backed by an in-memory runtime implementation.</summary>
     public static DiscoveredMcpServerType Memory { get; } = new("memory");
 
     /// <summary>Returns a value indicating whether two <see cref="DiscoveredMcpServerType"/> instances are equivalent.</summary>
@@ -6823,13 +7436,13 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
         /// <inheritdoc />
         public override DiscoveredMcpServerType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, DiscoveredMcpServerType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(DiscoveredMcpServerType));
         }
     }
 }
@@ -6854,10 +7467,10 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
     /// <summary>Gets the value associated with this <see cref="SessionFsSetProviderConventions"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>windows</c> value.</summary>
+    /// <summary>Paths use Windows path conventions.</summary>
     public static SessionFsSetProviderConventions Windows { get; } = new("windows");
 
-    /// <summary>Gets the <c>posix</c> value.</summary>
+    /// <summary>Paths use POSIX path conventions.</summary>
     public static SessionFsSetProviderConventions Posix { get; } = new("posix");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsSetProviderConventions"/> instances are equivalent.</summary>
@@ -6885,13 +7498,13 @@ public readonly struct SessionFsSetProviderConventions : IEquatable<SessionFsSet
         /// <inheritdoc />
         public override SessionFsSetProviderConventions Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsSetProviderConventions value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSetProviderConventions));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSetProviderConventions));
         }
     }
 }
@@ -6917,10 +7530,10 @@ public readonly struct ConnectedRemoteSessionMetadataKind : IEquatable<Connected
     /// <summary>Gets the value associated with this <see cref="ConnectedRemoteSessionMetadataKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>remote-session</c> value.</summary>
+    /// <summary>Remote CLI session.</summary>
     public static ConnectedRemoteSessionMetadataKind RemoteSession { get; } = new("remote-session");
 
-    /// <summary>Gets the <c>coding-agent</c> value.</summary>
+    /// <summary>GitHub Copilot coding agent session.</summary>
     public static ConnectedRemoteSessionMetadataKind CodingAgent { get; } = new("coding-agent");
 
     /// <summary>Returns a value indicating whether two <see cref="ConnectedRemoteSessionMetadataKind"/> instances are equivalent.</summary>
@@ -6948,13 +7561,13 @@ public readonly struct ConnectedRemoteSessionMetadataKind : IEquatable<Connected
         /// <inheritdoc />
         public override ConnectedRemoteSessionMetadataKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ConnectedRemoteSessionMetadataKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectedRemoteSessionMetadataKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ConnectedRemoteSessionMetadataKind));
         }
     }
 }
@@ -6980,10 +7593,10 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
     /// <summary>Gets the value associated with this <see cref="SessionContextHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>github</c> value.</summary>
+    /// <summary>Session repository is hosted on GitHub.</summary>
     public static SessionContextHostType Github { get; } = new("github");
 
-    /// <summary>Gets the <c>ado</c> value.</summary>
+    /// <summary>Session repository is hosted on Azure DevOps.</summary>
     public static SessionContextHostType Ado { get; } = new("ado");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionContextHostType"/> instances are equivalent.</summary>
@@ -7011,19 +7624,20 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
         /// <inheritdoc />
         public override SessionContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionContextHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionContextHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionContextHostType));
         }
     }
 }
 
 
 /// <summary>The UI mode the agent was in when this message was sent. Defaults to the session's current mode.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SendAgentMode : IEquatable<SendAgentMode>
@@ -7042,16 +7656,16 @@ public readonly struct SendAgentMode : IEquatable<SendAgentMode>
     /// <summary>Gets the value associated with this <see cref="SendAgentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>interactive</c> value.</summary>
+    /// <summary>The agent is responding interactively to the user.</summary>
     public static SendAgentMode Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>plan</c> value.</summary>
+    /// <summary>The agent is preparing a plan before making changes.</summary>
     public static SendAgentMode Plan { get; } = new("plan");
 
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    /// <summary>The agent is working autonomously toward task completion.</summary>
     public static SendAgentMode Autopilot { get; } = new("autopilot");
 
-    /// <summary>Gets the <c>shell</c> value.</summary>
+    /// <summary>The agent is in shell-focused UI mode.</summary>
     public static SendAgentMode Shell { get; } = new("shell");
 
     /// <summary>Returns a value indicating whether two <see cref="SendAgentMode"/> instances are equivalent.</summary>
@@ -7079,19 +7693,20 @@ public readonly struct SendAgentMode : IEquatable<SendAgentMode>
         /// <inheritdoc />
         public override SendAgentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SendAgentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAgentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAgentMode));
         }
     }
 }
 
 
 /// <summary>Type of GitHub reference.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttachmentGithubReferenceType>
@@ -7110,13 +7725,13 @@ public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttach
     /// <summary>Gets the value associated with this <see cref="SendAttachmentGithubReferenceType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>issue</c> value.</summary>
+    /// <summary>GitHub issue reference.</summary>
     public static SendAttachmentGithubReferenceType Issue { get; } = new("issue");
 
-    /// <summary>Gets the <c>pr</c> value.</summary>
+    /// <summary>GitHub pull request reference.</summary>
     public static SendAttachmentGithubReferenceType Pr { get; } = new("pr");
 
-    /// <summary>Gets the <c>discussion</c> value.</summary>
+    /// <summary>GitHub discussion reference.</summary>
     public static SendAttachmentGithubReferenceType Discussion { get; } = new("discussion");
 
     /// <summary>Returns a value indicating whether two <see cref="SendAttachmentGithubReferenceType"/> instances are equivalent.</summary>
@@ -7144,19 +7759,20 @@ public readonly struct SendAttachmentGithubReferenceType : IEquatable<SendAttach
         /// <inheritdoc />
         public override SendAttachmentGithubReferenceType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SendAttachmentGithubReferenceType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAttachmentGithubReferenceType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendAttachmentGithubReferenceType));
         }
     }
 }
 
 
 /// <summary>How to deliver the message. `enqueue` (default) appends to the message queue. `immediate` interjects during an in-progress turn.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SendMode : IEquatable<SendMode>
@@ -7175,10 +7791,10 @@ public readonly struct SendMode : IEquatable<SendMode>
     /// <summary>Gets the value associated with this <see cref="SendMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>enqueue</c> value.</summary>
+    /// <summary>Append the message to the normal session queue.</summary>
     public static SendMode Enqueue { get; } = new("enqueue");
 
-    /// <summary>Gets the <c>immediate</c> value.</summary>
+    /// <summary>Interject the message during the in-progress turn.</summary>
     public static SendMode Immediate { get; } = new("immediate");
 
     /// <summary>Returns a value indicating whether two <see cref="SendMode"/> instances are equivalent.</summary>
@@ -7206,19 +7822,20 @@ public readonly struct SendMode : IEquatable<SendMode>
         /// <inheritdoc />
         public override SendMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SendMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SendMode));
         }
     }
 }
 
 
 /// <summary>Log severity level. Determines how the message is displayed in the timeline. Defaults to "info".</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
@@ -7237,13 +7854,13 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
     /// <summary>Gets the value associated with this <see cref="SessionLogLevel"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>info</c> value.</summary>
+    /// <summary>Informational message.</summary>
     public static SessionLogLevel Info { get; } = new("info");
 
-    /// <summary>Gets the <c>warning</c> value.</summary>
+    /// <summary>Warning message that may require attention.</summary>
     public static SessionLogLevel Warning { get; } = new("warning");
 
-    /// <summary>Gets the <c>error</c> value.</summary>
+    /// <summary>Error message describing a failure.</summary>
     public static SessionLogLevel Error { get; } = new("error");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionLogLevel"/> instances are equivalent.</summary>
@@ -7271,19 +7888,20 @@ public readonly struct SessionLogLevel : IEquatable<SessionLogLevel>
         /// <inheritdoc />
         public override SessionLogLevel Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionLogLevel value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLogLevel));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionLogLevel));
         }
     }
 }
 
 
 /// <summary>Authentication type.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct AuthInfoType : IEquatable<AuthInfoType>
@@ -7302,25 +7920,25 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
     /// <summary>Gets the value associated with this <see cref="AuthInfoType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>hmac</c> value.</summary>
+    /// <summary>Authentication provided by a GitHub App HMAC credential.</summary>
     public static AuthInfoType Hmac { get; } = new("hmac");
 
-    /// <summary>Gets the <c>env</c> value.</summary>
+    /// <summary>Authentication resolved from environment-provided credentials.</summary>
     public static AuthInfoType Env { get; } = new("env");
 
-    /// <summary>Gets the <c>user</c> value.</summary>
+    /// <summary>Authentication from an interactive user sign-in.</summary>
     public static AuthInfoType User { get; } = new("user");
 
-    /// <summary>Gets the <c>gh-cli</c> value.</summary>
+    /// <summary>Authentication delegated to the GitHub CLI.</summary>
     public static AuthInfoType GhCli { get; } = new("gh-cli");
 
-    /// <summary>Gets the <c>api-key</c> value.</summary>
+    /// <summary>Authentication from an API key credential.</summary>
     public static AuthInfoType ApiKey { get; } = new("api-key");
 
-    /// <summary>Gets the <c>token</c> value.</summary>
+    /// <summary>Authentication from a GitHub token.</summary>
     public static AuthInfoType Token { get; } = new("token");
 
-    /// <summary>Gets the <c>copilot-api-token</c> value.</summary>
+    /// <summary>Authentication from a Copilot API token.</summary>
     public static AuthInfoType CopilotApiToken { get; } = new("copilot-api-token");
 
     /// <summary>Returns a value indicating whether two <see cref="AuthInfoType"/> instances are equivalent.</summary>
@@ -7348,54 +7966,55 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
         /// <inheritdoc />
         public override AuthInfoType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AuthInfoType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AuthInfoType));
         }
     }
 }
 
 
-/// <summary>Defines the allowed values.</summary>
+/// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatable<WorkspacesGetWorkspaceResultWorkspaceHostType>
+public readonly struct WorkspacesWorkspaceDetailsHostType : IEquatable<WorkspacesWorkspaceDetailsHostType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="WorkspacesWorkspaceDetailsHostType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspacesWorkspaceDetailsHostType"/>.</param>
     [JsonConstructor]
-    public WorkspacesGetWorkspaceResultWorkspaceHostType(string value)
+    public WorkspacesWorkspaceDetailsHostType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="WorkspacesWorkspaceDetailsHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>github</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceHostType Github { get; } = new("github");
+    /// <summary>Workspace repository is hosted on GitHub.</summary>
+    public static WorkspacesWorkspaceDetailsHostType Github { get; } = new("github");
 
-    /// <summary>Gets the <c>ado</c> value.</summary>
-    public static WorkspacesGetWorkspaceResultWorkspaceHostType Ado { get; } = new("ado");
+    /// <summary>Workspace repository is hosted on Azure DevOps.</summary>
+    public static WorkspacesWorkspaceDetailsHostType Ado { get; } = new("ado");
 
-    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are equivalent.</summary>
-    public static bool operator ==(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesWorkspaceDetailsHostType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspacesWorkspaceDetailsHostType left, WorkspacesWorkspaceDetailsHostType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances are not equivalent.</summary>
-    public static bool operator !=(WorkspacesGetWorkspaceResultWorkspaceHostType left, WorkspacesGetWorkspaceResultWorkspaceHostType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is WorkspacesGetWorkspaceResultWorkspaceHostType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="WorkspacesWorkspaceDetailsHostType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspacesWorkspaceDetailsHostType left, WorkspacesWorkspaceDetailsHostType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(WorkspacesGetWorkspaceResultWorkspaceHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is WorkspacesWorkspaceDetailsHostType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspacesWorkspaceDetailsHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -7403,26 +8022,27 @@ public readonly struct WorkspacesGetWorkspaceResultWorkspaceHostType : IEquatabl
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{WorkspacesGetWorkspaceResultWorkspaceHostType}"/> for serializing <see cref="WorkspacesGetWorkspaceResultWorkspaceHostType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{WorkspacesWorkspaceDetailsHostType}"/> for serializing <see cref="WorkspacesWorkspaceDetailsHostType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<WorkspacesGetWorkspaceResultWorkspaceHostType>
+    public sealed class Converter : JsonConverter<WorkspacesWorkspaceDetailsHostType>
     {
         /// <inheritdoc />
-        public override WorkspacesGetWorkspaceResultWorkspaceHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override WorkspacesWorkspaceDetailsHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, WorkspacesGetWorkspaceResultWorkspaceHostType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, WorkspacesWorkspaceDetailsHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesGetWorkspaceResultWorkspaceHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspacesWorkspaceDetailsHostType));
         }
     }
 }
 
 
 /// <summary>Where this source lives — used for UI grouping.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSourcesLocation>
@@ -7441,16 +8061,16 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
     /// <summary>Gets the value associated with this <see cref="InstructionsSourcesLocation"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>user</c> value.</summary>
+    /// <summary>Instructions live in user-level configuration.</summary>
     public static InstructionsSourcesLocation User { get; } = new("user");
 
-    /// <summary>Gets the <c>repository</c> value.</summary>
+    /// <summary>Instructions live in repository-level configuration.</summary>
     public static InstructionsSourcesLocation Repository { get; } = new("repository");
 
-    /// <summary>Gets the <c>working-directory</c> value.</summary>
+    /// <summary>Instructions live under the current working directory.</summary>
     public static InstructionsSourcesLocation WorkingDirectory { get; } = new("working-directory");
 
-    /// <summary>Gets the <c>plugin</c> value.</summary>
+    /// <summary>Instructions live in plugin-provided configuration.</summary>
     public static InstructionsSourcesLocation Plugin { get; } = new("plugin");
 
     /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesLocation"/> instances are equivalent.</summary>
@@ -7478,19 +8098,20 @@ public readonly struct InstructionsSourcesLocation : IEquatable<InstructionsSour
         /// <inheritdoc />
         public override InstructionsSourcesLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, InstructionsSourcesLocation value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesLocation));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesLocation));
         }
     }
 }
 
 
 /// <summary>Category of instruction source — used for merge logic.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesType>
@@ -7509,25 +8130,25 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
     /// <summary>Gets the value associated with this <see cref="InstructionsSourcesType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>home</c> value.</summary>
+    /// <summary>Instructions loaded from the user's home configuration.</summary>
     public static InstructionsSourcesType Home { get; } = new("home");
 
-    /// <summary>Gets the <c>repo</c> value.</summary>
+    /// <summary>Instructions loaded from repository-scoped files.</summary>
     public static InstructionsSourcesType Repo { get; } = new("repo");
 
-    /// <summary>Gets the <c>model</c> value.</summary>
+    /// <summary>Instructions loaded from model-specific files.</summary>
     public static InstructionsSourcesType Model { get; } = new("model");
 
-    /// <summary>Gets the <c>vscode</c> value.</summary>
+    /// <summary>Instructions loaded from VS Code instruction files.</summary>
     public static InstructionsSourcesType Vscode { get; } = new("vscode");
 
-    /// <summary>Gets the <c>nested-agents</c> value.</summary>
+    /// <summary>Instructions discovered from nested agent files.</summary>
     public static InstructionsSourcesType NestedAgents { get; } = new("nested-agents");
 
-    /// <summary>Gets the <c>child-instructions</c> value.</summary>
+    /// <summary>Instructions inherited from child instruction files.</summary>
     public static InstructionsSourcesType ChildInstructions { get; } = new("child-instructions");
 
-    /// <summary>Gets the <c>plugin</c> value.</summary>
+    /// <summary>Instructions supplied by an installed plugin.</summary>
     public static InstructionsSourcesType Plugin { get; } = new("plugin");
 
     /// <summary>Returns a value indicating whether two <see cref="InstructionsSourcesType"/> instances are equivalent.</summary>
@@ -7555,13 +8176,13 @@ public readonly struct InstructionsSourcesType : IEquatable<InstructionsSourcesT
         /// <inheritdoc />
         public override InstructionsSourcesType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, InstructionsSourcesType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(InstructionsSourcesType));
         }
     }
 }
@@ -7587,22 +8208,22 @@ public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
     /// <summary>Gets the value associated with this <see cref="AgentInfoSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>user</c> value.</summary>
+    /// <summary>Agent loaded from the user's personal agent configuration.</summary>
     public static AgentInfoSource User { get; } = new("user");
 
-    /// <summary>Gets the <c>project</c> value.</summary>
+    /// <summary>Agent loaded from the current project's repository configuration.</summary>
     public static AgentInfoSource Project { get; } = new("project");
 
-    /// <summary>Gets the <c>inherited</c> value.</summary>
+    /// <summary>Agent inherited from a parent project or workspace.</summary>
     public static AgentInfoSource Inherited { get; } = new("inherited");
 
-    /// <summary>Gets the <c>remote</c> value.</summary>
+    /// <summary>Agent provided by a remote runtime or service.</summary>
     public static AgentInfoSource Remote { get; } = new("remote");
 
-    /// <summary>Gets the <c>plugin</c> value.</summary>
+    /// <summary>Agent contributed by an installed plugin.</summary>
     public static AgentInfoSource Plugin { get; } = new("plugin");
 
-    /// <summary>Gets the <c>builtin</c> value.</summary>
+    /// <summary>Agent built into the Copilot runtime.</summary>
     public static AgentInfoSource Builtin { get; } = new("builtin");
 
     /// <summary>Returns a value indicating whether two <see cref="AgentInfoSource"/> instances are equivalent.</summary>
@@ -7630,13 +8251,13 @@ public readonly struct AgentInfoSource : IEquatable<AgentInfoSource>
         /// <inheritdoc />
         public override AgentInfoSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, AgentInfoSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentInfoSource));
         }
     }
 }
@@ -7662,10 +8283,10 @@ public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
     /// <summary>Gets the value associated with this <see cref="TaskExecutionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>sync</c> value.</summary>
+    /// <summary>The task was started with synchronous waiting.</summary>
     public static TaskExecutionMode Sync { get; } = new("sync");
 
-    /// <summary>Gets the <c>background</c> value.</summary>
+    /// <summary>The task is managed in the background.</summary>
     public static TaskExecutionMode Background { get; } = new("background");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskExecutionMode"/> instances are equivalent.</summary>
@@ -7693,13 +8314,13 @@ public readonly struct TaskExecutionMode : IEquatable<TaskExecutionMode>
         /// <inheritdoc />
         public override TaskExecutionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, TaskExecutionMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskExecutionMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskExecutionMode));
         }
     }
 }
@@ -7725,19 +8346,19 @@ public readonly struct TaskStatus : IEquatable<TaskStatus>
     /// <summary>Gets the value associated with this <see cref="TaskStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>running</c> value.</summary>
+    /// <summary>The task is actively executing.</summary>
     public static TaskStatus Running { get; } = new("running");
 
-    /// <summary>Gets the <c>idle</c> value.</summary>
+    /// <summary>The task is waiting for additional input.</summary>
     public static TaskStatus Idle { get; } = new("idle");
 
-    /// <summary>Gets the <c>completed</c> value.</summary>
+    /// <summary>The task finished successfully.</summary>
     public static TaskStatus Completed { get; } = new("completed");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
+    /// <summary>The task finished with an error.</summary>
     public static TaskStatus Failed { get; } = new("failed");
 
-    /// <summary>Gets the <c>cancelled</c> value.</summary>
+    /// <summary>The task was cancelled before completion.</summary>
     public static TaskStatus Cancelled { get; } = new("cancelled");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskStatus"/> instances are equivalent.</summary>
@@ -7765,13 +8386,13 @@ public readonly struct TaskStatus : IEquatable<TaskStatus>
         /// <inheritdoc />
         public override TaskStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, TaskStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskStatus));
         }
     }
 }
@@ -7797,10 +8418,10 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
     /// <summary>Gets the value associated with this <see cref="TaskShellInfoAttachmentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>attached</c> value.</summary>
+    /// <summary>The shell runs in a managed PTY session.</summary>
     public static TaskShellInfoAttachmentMode Attached { get; } = new("attached");
 
-    /// <summary>Gets the <c>detached</c> value.</summary>
+    /// <summary>The shell runs as an independent background process.</summary>
     public static TaskShellInfoAttachmentMode Detached { get; } = new("detached");
 
     /// <summary>Returns a value indicating whether two <see cref="TaskShellInfoAttachmentMode"/> instances are equivalent.</summary>
@@ -7828,13 +8449,13 @@ public readonly struct TaskShellInfoAttachmentMode : IEquatable<TaskShellInfoAtt
         /// <inheritdoc />
         public override TaskShellInfoAttachmentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, TaskShellInfoAttachmentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(TaskShellInfoAttachmentMode));
         }
     }
 }
@@ -7860,13 +8481,13 @@ public readonly struct McpSamplingExecutionAction : IEquatable<McpSamplingExecut
     /// <summary>Gets the value associated with this <see cref="McpSamplingExecutionAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>success</c> value.</summary>
+    /// <summary>The sampling inference completed and produced a result.</summary>
     public static McpSamplingExecutionAction Success { get; } = new("success");
 
-    /// <summary>Gets the <c>failure</c> value.</summary>
+    /// <summary>The sampling inference failed or was rejected.</summary>
     public static McpSamplingExecutionAction Failure { get; } = new("failure");
 
-    /// <summary>Gets the <c>cancelled</c> value.</summary>
+    /// <summary>The sampling inference was cancelled before completion.</summary>
     public static McpSamplingExecutionAction Cancelled { get; } = new("cancelled");
 
     /// <summary>Returns a value indicating whether two <see cref="McpSamplingExecutionAction"/> instances are equivalent.</summary>
@@ -7894,13 +8515,13 @@ public readonly struct McpSamplingExecutionAction : IEquatable<McpSamplingExecut
         /// <inheritdoc />
         public override McpSamplingExecutionAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpSamplingExecutionAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSamplingExecutionAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSamplingExecutionAction));
         }
     }
 }
@@ -7926,10 +8547,10 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
     /// <summary>Gets the value associated with this <see cref="McpSetEnvValueModeDetails"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>direct</c> value.</summary>
+    /// <summary>Treat MCP server environment values as literal strings.</summary>
     public static McpSetEnvValueModeDetails Direct { get; } = new("direct");
 
-    /// <summary>Gets the <c>indirect</c> value.</summary>
+    /// <summary>Treat MCP server environment values as host-side references to resolve before launch.</summary>
     public static McpSetEnvValueModeDetails Indirect { get; } = new("indirect");
 
     /// <summary>Returns a value indicating whether two <see cref="McpSetEnvValueModeDetails"/> instances are equivalent.</summary>
@@ -7957,13 +8578,13 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
         /// <inheritdoc />
         public override McpSetEnvValueModeDetails Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, McpSetEnvValueModeDetails value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
         }
     }
 }
@@ -7989,10 +8610,10 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
     /// <summary>Gets the value associated with this <see cref="OptionsUpdateEnvValueMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>direct</c> value.</summary>
+    /// <summary>Pass MCP server environment values as literal strings.</summary>
     public static OptionsUpdateEnvValueMode Direct { get; } = new("direct");
 
-    /// <summary>Gets the <c>indirect</c> value.</summary>
+    /// <summary>Resolve MCP server environment values from host-side references.</summary>
     public static OptionsUpdateEnvValueMode Indirect { get; } = new("indirect");
 
     /// <summary>Returns a value indicating whether two <see cref="OptionsUpdateEnvValueMode"/> instances are equivalent.</summary>
@@ -8020,13 +8641,13 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
         /// <inheritdoc />
         public override OptionsUpdateEnvValueMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, OptionsUpdateEnvValueMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateEnvValueMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateEnvValueMode));
         }
     }
 }
@@ -8052,10 +8673,10 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
     /// <summary>Gets the value associated with this <see cref="ExtensionSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>project</c> value.</summary>
+    /// <summary>Extension discovered from the current project's .github/extensions directory.</summary>
     public static ExtensionSource Project { get; } = new("project");
 
-    /// <summary>Gets the <c>user</c> value.</summary>
+    /// <summary>Extension discovered from the user's ~/.copilot/extensions directory.</summary>
     public static ExtensionSource User { get; } = new("user");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionSource"/> instances are equivalent.</summary>
@@ -8083,13 +8704,13 @@ public readonly struct ExtensionSource : IEquatable<ExtensionSource>
         /// <inheritdoc />
         public override ExtensionSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionSource));
         }
     }
 }
@@ -8115,16 +8736,16 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
     /// <summary>Gets the value associated with this <see cref="ExtensionStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>running</c> value.</summary>
+    /// <summary>The extension process is running.</summary>
     public static ExtensionStatus Running { get; } = new("running");
 
-    /// <summary>Gets the <c>disabled</c> value.</summary>
+    /// <summary>The extension is installed but disabled.</summary>
     public static ExtensionStatus Disabled { get; } = new("disabled");
 
-    /// <summary>Gets the <c>failed</c> value.</summary>
+    /// <summary>The extension failed to start or crashed.</summary>
     public static ExtensionStatus Failed { get; } = new("failed");
 
-    /// <summary>Gets the <c>starting</c> value.</summary>
+    /// <summary>The extension process is starting.</summary>
     public static ExtensionStatus Starting { get; } = new("starting");
 
     /// <summary>Returns a value indicating whether two <see cref="ExtensionStatus"/> instances are equivalent.</summary>
@@ -8152,19 +8773,20 @@ public readonly struct ExtensionStatus : IEquatable<ExtensionStatus>
         /// <inheritdoc />
         public override ExtensionStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ExtensionStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ExtensionStatus));
         }
     }
 }
 
 
 /// <summary>Optional completion hint for the input (e.g. 'directory' for filesystem path completion).</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInputCompletion>
@@ -8183,7 +8805,7 @@ public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInpu
     /// <summary>Gets the value associated with this <see cref="SlashCommandInputCompletion"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>directory</c> value.</summary>
+    /// <summary>Input should complete filesystem directories.</summary>
     public static SlashCommandInputCompletion Directory { get; } = new("directory");
 
     /// <summary>Returns a value indicating whether two <see cref="SlashCommandInputCompletion"/> instances are equivalent.</summary>
@@ -8211,19 +8833,20 @@ public readonly struct SlashCommandInputCompletion : IEquatable<SlashCommandInpu
         /// <inheritdoc />
         public override SlashCommandInputCompletion Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SlashCommandInputCompletion value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandInputCompletion));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandInputCompletion));
         }
     }
 }
 
 
 /// <summary>Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
@@ -8242,13 +8865,13 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
     /// <summary>Gets the value associated with this <see cref="SlashCommandKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>builtin</c> value.</summary>
+    /// <summary>Command implemented by the runtime.</summary>
     public static SlashCommandKind Builtin { get; } = new("builtin");
 
-    /// <summary>Gets the <c>skill</c> value.</summary>
+    /// <summary>Command backed by a skill.</summary>
     public static SlashCommandKind Skill { get; } = new("skill");
 
-    /// <summary>Gets the <c>client</c> value.</summary>
+    /// <summary>Command registered by an SDK client or extension.</summary>
     public static SlashCommandKind Client { get; } = new("client");
 
     /// <summary>Returns a value indicating whether two <see cref="SlashCommandKind"/> instances are equivalent.</summary>
@@ -8276,19 +8899,20 @@ public readonly struct SlashCommandKind : IEquatable<SlashCommandKind>
         /// <inheritdoc />
         public override SlashCommandKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SlashCommandKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SlashCommandKind));
         }
     }
 }
 
 
 /// <summary>The user's response: accept (submitted), decline (rejected), or cancel (dismissed).</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationResponseAction>
@@ -8307,13 +8931,13 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
     /// <summary>Gets the value associated with this <see cref="UIElicitationResponseAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>accept</c> value.</summary>
+    /// <summary>The user submitted the requested form values.</summary>
     public static UIElicitationResponseAction Accept { get; } = new("accept");
 
-    /// <summary>Gets the <c>decline</c> value.</summary>
+    /// <summary>The user explicitly declined to provide the requested input.</summary>
     public static UIElicitationResponseAction Decline { get; } = new("decline");
 
-    /// <summary>Gets the <c>cancel</c> value.</summary>
+    /// <summary>The user dismissed the elicitation request.</summary>
     public static UIElicitationResponseAction Cancel { get; } = new("cancel");
 
     /// <summary>Returns a value indicating whether two <see cref="UIElicitationResponseAction"/> instances are equivalent.</summary>
@@ -8341,19 +8965,20 @@ public readonly struct UIElicitationResponseAction : IEquatable<UIElicitationRes
         /// <inheritdoc />
         public override UIElicitationResponseAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UIElicitationResponseAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIElicitationResponseAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIElicitationResponseAction));
         }
     }
 }
 
 
 /// <summary>User's choice for auto-mode switching: yes (allow this turn), yes_always (allow + persist as setting), or no (decline).</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchResponse>
@@ -8372,13 +8997,13 @@ public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchRes
     /// <summary>Gets the value associated with this <see cref="UIAutoModeSwitchResponse"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>yes</c> value.</summary>
+    /// <summary>Allow the automatic mode switch for this turn.</summary>
     public static UIAutoModeSwitchResponse Yes { get; } = new("yes");
 
-    /// <summary>Gets the <c>yes_always</c> value.</summary>
+    /// <summary>Allow this mode switch and persist the preference.</summary>
     public static UIAutoModeSwitchResponse YesAlways { get; } = new("yes_always");
 
-    /// <summary>Gets the <c>no</c> value.</summary>
+    /// <summary>Decline the automatic mode switch.</summary>
     public static UIAutoModeSwitchResponse No { get; } = new("no");
 
     /// <summary>Returns a value indicating whether two <see cref="UIAutoModeSwitchResponse"/> instances are equivalent.</summary>
@@ -8406,19 +9031,20 @@ public readonly struct UIAutoModeSwitchResponse : IEquatable<UIAutoModeSwitchRes
         /// <inheritdoc />
         public override UIAutoModeSwitchResponse Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UIAutoModeSwitchResponse value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIAutoModeSwitchResponse));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIAutoModeSwitchResponse));
         }
     }
 }
 
 
 /// <summary>The action the user selected. Defaults to 'autopilot' when autoApproveEdits is true, otherwise 'interactive'.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
@@ -8437,16 +9063,16 @@ public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
     /// <summary>Gets the value associated with this <see cref="UIExitPlanModeAction"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>exit_only</c> value.</summary>
+    /// <summary>Exit plan mode without starting implementation.</summary>
     public static UIExitPlanModeAction ExitOnly { get; } = new("exit_only");
 
-    /// <summary>Gets the <c>interactive</c> value.</summary>
+    /// <summary>Exit plan mode and continue interactively.</summary>
     public static UIExitPlanModeAction Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    /// <summary>Exit plan mode and continue in autopilot mode.</summary>
     public static UIExitPlanModeAction Autopilot { get; } = new("autopilot");
 
-    /// <summary>Gets the <c>autopilot_fleet</c> value.</summary>
+    /// <summary>Exit plan mode and continue in autopilot mode with parallel subagent execution.</summary>
     public static UIExitPlanModeAction AutopilotFleet { get; } = new("autopilot_fleet");
 
     /// <summary>Returns a value indicating whether two <see cref="UIExitPlanModeAction"/> instances are equivalent.</summary>
@@ -8474,19 +9100,20 @@ public readonly struct UIExitPlanModeAction : IEquatable<UIExitPlanModeAction>
         /// <inheritdoc />
         public override UIExitPlanModeAction Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, UIExitPlanModeAction value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIExitPlanModeAction));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(UIExitPlanModeAction));
         }
     }
 }
 
 
 /// <summary>Allowed values for the `PermissionsConfigureAdditionalContentExclusionPolicyScope` enumeration.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope : IEquatable<PermissionsConfigureAdditionalContentExclusionPolicyScope>
@@ -8505,10 +9132,10 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
     /// <summary>Gets the value associated with this <see cref="PermissionsConfigureAdditionalContentExclusionPolicyScope"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>repo</c> value.</summary>
+    /// <summary>The content exclusion policy applies to the current repository.</summary>
     public static PermissionsConfigureAdditionalContentExclusionPolicyScope Repo { get; } = new("repo");
 
-    /// <summary>Gets the <c>all</c> value.</summary>
+    /// <summary>The content exclusion policy applies across all repositories.</summary>
     public static PermissionsConfigureAdditionalContentExclusionPolicyScope All { get; } = new("all");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionsConfigureAdditionalContentExclusionPolicyScope"/> instances are equivalent.</summary>
@@ -8536,19 +9163,20 @@ public readonly struct PermissionsConfigureAdditionalContentExclusionPolicyScope
         /// <inheritdoc />
         public override PermissionsConfigureAdditionalContentExclusionPolicyScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionsConfigureAdditionalContentExclusionPolicyScope value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsConfigureAdditionalContentExclusionPolicyScope));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsConfigureAdditionalContentExclusionPolicyScope));
         }
     }
 }
 
 
 /// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSetApproveAllSource>
@@ -8567,16 +9195,16 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
     /// <summary>Gets the value associated with this <see cref="PermissionsSetApproveAllSource"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>cli_flag</c> value.</summary>
+    /// <summary>Allow-all was enabled from a CLI command-line flag.</summary>
     public static PermissionsSetApproveAllSource CliFlag { get; } = new("cli_flag");
 
-    /// <summary>Gets the <c>slash_command</c> value.</summary>
+    /// <summary>Allow-all was enabled by a slash command.</summary>
     public static PermissionsSetApproveAllSource SlashCommand { get; } = new("slash_command");
 
-    /// <summary>Gets the <c>autopilot_confirmation</c> value.</summary>
+    /// <summary>Allow-all was enabled by confirming autopilot behavior.</summary>
     public static PermissionsSetApproveAllSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
 
-    /// <summary>Gets the <c>rpc</c> value.</summary>
+    /// <summary>Allow-all was enabled through an RPC caller.</summary>
     public static PermissionsSetApproveAllSource Rpc { get; } = new("rpc");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionsSetApproveAllSource"/> instances are equivalent.</summary>
@@ -8604,19 +9232,20 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
         /// <inheritdoc />
         public override PermissionsSetApproveAllSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionsSetApproveAllSource value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsSetApproveAllSource));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsSetApproveAllSource));
         }
     }
 }
 
 
 /// <summary>Whether the change applies to ephemeral session-scoped rules (cleared at session end) or to location-scoped rules persisted via the location-permissions config file.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModifyRulesScope>
@@ -8635,10 +9264,10 @@ public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModif
     /// <summary>Gets the value associated with this <see cref="PermissionsModifyRulesScope"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>session</c> value.</summary>
+    /// <summary>Apply the rule change only to this session.</summary>
     public static PermissionsModifyRulesScope Session { get; } = new("session");
 
-    /// <summary>Gets the <c>location</c> value.</summary>
+    /// <summary>Persist the rule change for this project location.</summary>
     public static PermissionsModifyRulesScope Location { get; } = new("location");
 
     /// <summary>Returns a value indicating whether two <see cref="PermissionsModifyRulesScope"/> instances are equivalent.</summary>
@@ -8666,13 +9295,76 @@ public readonly struct PermissionsModifyRulesScope : IEquatable<PermissionsModif
         /// <inheritdoc />
         public override PermissionsModifyRulesScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, PermissionsModifyRulesScope value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsModifyRulesScope));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsModifyRulesScope));
+        }
+    }
+}
+
+
+/// <summary>Whether the location is a git repo or directory.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionLocationType : IEquatable<PermissionLocationType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionLocationType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionLocationType"/>.</param>
+    [JsonConstructor]
+    public PermissionLocationType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionLocationType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The permission location is persisted at the git repository root.</summary>
+    public static PermissionLocationType Repo { get; } = new("repo");
+
+    /// <summary>The permission location is persisted at the working directory.</summary>
+    public static PermissionLocationType Dir { get; } = new("dir");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionLocationType"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionLocationType left, PermissionLocationType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionLocationType"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionLocationType left, PermissionLocationType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionLocationType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionLocationType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionLocationType}"/> for serializing <see cref="PermissionLocationType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionLocationType>
+    {
+        /// <inheritdoc />
+        public override PermissionLocationType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionLocationType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionLocationType));
         }
     }
 }
@@ -8698,13 +9390,13 @@ public readonly struct MetadataSnapshotCurrentMode : IEquatable<MetadataSnapshot
     /// <summary>Gets the value associated with this <see cref="MetadataSnapshotCurrentMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>interactive</c> value.</summary>
+    /// <summary>The agent is responding interactively to the user.</summary>
     public static MetadataSnapshotCurrentMode Interactive { get; } = new("interactive");
 
-    /// <summary>Gets the <c>plan</c> value.</summary>
+    /// <summary>The agent is preparing a plan before making changes.</summary>
     public static MetadataSnapshotCurrentMode Plan { get; } = new("plan");
 
-    /// <summary>Gets the <c>autopilot</c> value.</summary>
+    /// <summary>The agent is working autonomously toward task completion.</summary>
     public static MetadataSnapshotCurrentMode Autopilot { get; } = new("autopilot");
 
     /// <summary>Returns a value indicating whether two <see cref="MetadataSnapshotCurrentMode"/> instances are equivalent.</summary>
@@ -8732,13 +9424,13 @@ public readonly struct MetadataSnapshotCurrentMode : IEquatable<MetadataSnapshot
         /// <inheritdoc />
         public override MetadataSnapshotCurrentMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, MetadataSnapshotCurrentMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotCurrentMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotCurrentMode));
         }
     }
 }
@@ -8764,10 +9456,10 @@ public readonly struct MetadataSnapshotRemoteMetadataTaskType : IEquatable<Metad
     /// <summary>Gets the value associated with this <see cref="MetadataSnapshotRemoteMetadataTaskType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>cca</c> value.</summary>
+    /// <summary>Remote task originated from Copilot Coding Agent.</summary>
     public static MetadataSnapshotRemoteMetadataTaskType Cca { get; } = new("cca");
 
-    /// <summary>Gets the <c>cli</c> value.</summary>
+    /// <summary>Remote task originated from a CLI remote-session invocation.</summary>
     public static MetadataSnapshotRemoteMetadataTaskType Cli { get; } = new("cli");
 
     /// <summary>Returns a value indicating whether two <see cref="MetadataSnapshotRemoteMetadataTaskType"/> instances are equivalent.</summary>
@@ -8795,54 +9487,55 @@ public readonly struct MetadataSnapshotRemoteMetadataTaskType : IEquatable<Metad
         /// <inheritdoc />
         public override MetadataSnapshotRemoteMetadataTaskType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, MetadataSnapshotRemoteMetadataTaskType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotRemoteMetadataTaskType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(MetadataSnapshotRemoteMetadataTaskType));
         }
     }
 }
 
 
 /// <summary>Repository host type, if known.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
-public readonly struct SessionMetadataSnapshotWorkspaceHostType : IEquatable<SessionMetadataSnapshotWorkspaceHostType>
+public readonly struct WorkspaceSummaryHostType : IEquatable<WorkspaceSummaryHostType>
 {
     private readonly string? _value;
 
-    /// <summary>Initializes a new instance of the <see cref="SessionMetadataSnapshotWorkspaceHostType"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="SessionMetadataSnapshotWorkspaceHostType"/>.</param>
+    /// <summary>Initializes a new instance of the <see cref="WorkspaceSummaryHostType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspaceSummaryHostType"/>.</param>
     [JsonConstructor]
-    public SessionMetadataSnapshotWorkspaceHostType(string value)
+    public WorkspaceSummaryHostType(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         _value = value;
     }
 
-    /// <summary>Gets the value associated with this <see cref="SessionMetadataSnapshotWorkspaceHostType"/>.</summary>
+    /// <summary>Gets the value associated with this <see cref="WorkspaceSummaryHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>github</c> value.</summary>
-    public static SessionMetadataSnapshotWorkspaceHostType Github { get; } = new("github");
+    /// <summary>Workspace summary repository is hosted on GitHub.</summary>
+    public static WorkspaceSummaryHostType Github { get; } = new("github");
 
-    /// <summary>Gets the <c>ado</c> value.</summary>
-    public static SessionMetadataSnapshotWorkspaceHostType Ado { get; } = new("ado");
+    /// <summary>Workspace summary repository is hosted on Azure DevOps.</summary>
+    public static WorkspaceSummaryHostType Ado { get; } = new("ado");
 
-    /// <summary>Returns a value indicating whether two <see cref="SessionMetadataSnapshotWorkspaceHostType"/> instances are equivalent.</summary>
-    public static bool operator ==(SessionMetadataSnapshotWorkspaceHostType left, SessionMetadataSnapshotWorkspaceHostType right) => left.Equals(right);
+    /// <summary>Returns a value indicating whether two <see cref="WorkspaceSummaryHostType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspaceSummaryHostType left, WorkspaceSummaryHostType right) => left.Equals(right);
 
-    /// <summary>Returns a value indicating whether two <see cref="SessionMetadataSnapshotWorkspaceHostType"/> instances are not equivalent.</summary>
-    public static bool operator !=(SessionMetadataSnapshotWorkspaceHostType left, SessionMetadataSnapshotWorkspaceHostType right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is SessionMetadataSnapshotWorkspaceHostType other && Equals(other);
+    /// <summary>Returns a value indicating whether two <see cref="WorkspaceSummaryHostType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspaceSummaryHostType left, WorkspaceSummaryHostType right) => !(left == right);
 
     /// <inheritdoc />
-    public bool Equals(SessionMetadataSnapshotWorkspaceHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+    public override bool Equals(object? obj) => obj is WorkspaceSummaryHostType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspaceSummaryHostType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
@@ -8850,20 +9543,20 @@ public readonly struct SessionMetadataSnapshotWorkspaceHostType : IEquatable<Ses
     /// <inheritdoc />
     public override string ToString() => Value;
 
-    /// <summary>Provides a <see cref="JsonConverter{SessionMetadataSnapshotWorkspaceHostType}"/> for serializing <see cref="SessionMetadataSnapshotWorkspaceHostType"/> instances.</summary>
+    /// <summary>Provides a <see cref="JsonConverter{WorkspaceSummaryHostType}"/> for serializing <see cref="WorkspaceSummaryHostType"/> instances.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<SessionMetadataSnapshotWorkspaceHostType>
+    public sealed class Converter : JsonConverter<WorkspaceSummaryHostType>
     {
         /// <inheritdoc />
-        public override SessionMetadataSnapshotWorkspaceHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override WorkspaceSummaryHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, SessionMetadataSnapshotWorkspaceHostType value, JsonSerializerOptions options)
+        public override void Write(Utf8JsonWriter writer, WorkspaceSummaryHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionMetadataSnapshotWorkspaceHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceSummaryHostType));
         }
     }
 }
@@ -8889,10 +9582,10 @@ public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<Sessi
     /// <summary>Gets the value associated with this <see cref="SessionWorkingDirectoryContextHostType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>github</c> value.</summary>
+    /// <summary>The working directory repository is hosted on GitHub.</summary>
     public static SessionWorkingDirectoryContextHostType Github { get; } = new("github");
 
-    /// <summary>Gets the <c>ado</c> value.</summary>
+    /// <summary>The working directory repository is hosted on Azure DevOps.</summary>
     public static SessionWorkingDirectoryContextHostType Ado { get; } = new("ado");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionWorkingDirectoryContextHostType"/> instances are equivalent.</summary>
@@ -8920,19 +9613,20 @@ public readonly struct SessionWorkingDirectoryContextHostType : IEquatable<Sessi
         /// <inheritdoc />
         public override SessionWorkingDirectoryContextHostType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionWorkingDirectoryContextHostType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionWorkingDirectoryContextHostType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionWorkingDirectoryContextHostType));
         }
     }
 }
 
 
 /// <summary>Signal to send (default: SIGTERM).</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
@@ -8951,13 +9645,13 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
     /// <summary>Gets the value associated with this <see cref="ShellKillSignal"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>SIGTERM</c> value.</summary>
+    /// <summary>Request graceful process termination.</summary>
     public static ShellKillSignal SIGTERM { get; } = new("SIGTERM");
 
-    /// <summary>Gets the <c>SIGKILL</c> value.</summary>
+    /// <summary>Forcefully terminate the process.</summary>
     public static ShellKillSignal SIGKILL { get; } = new("SIGKILL");
 
-    /// <summary>Gets the <c>SIGINT</c> value.</summary>
+    /// <summary>Send an interrupt signal to the process.</summary>
     public static ShellKillSignal SIGINT { get; } = new("SIGINT");
 
     /// <summary>Returns a value indicating whether two <see cref="ShellKillSignal"/> instances are equivalent.</summary>
@@ -8985,13 +9679,13 @@ public readonly struct ShellKillSignal : IEquatable<ShellKillSignal>
         /// <inheritdoc />
         public override ShellKillSignal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, ShellKillSignal value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellKillSignal));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ShellKillSignal));
         }
     }
 }
@@ -9017,10 +9711,10 @@ public readonly struct QueuePendingItemsKind : IEquatable<QueuePendingItemsKind>
     /// <summary>Gets the value associated with this <see cref="QueuePendingItemsKind"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>message</c> value.</summary>
+    /// <summary>A queued user message.</summary>
     public static QueuePendingItemsKind Message { get; } = new("message");
 
-    /// <summary>Gets the <c>command</c> value.</summary>
+    /// <summary>A queued slash command or model-change command.</summary>
     public static QueuePendingItemsKind Command { get; } = new("command");
 
     /// <summary>Returns a value indicating whether two <see cref="QueuePendingItemsKind"/> instances are equivalent.</summary>
@@ -9048,13 +9742,13 @@ public readonly struct QueuePendingItemsKind : IEquatable<QueuePendingItemsKind>
         /// <inheritdoc />
         public override QueuePendingItemsKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, QueuePendingItemsKind value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(QueuePendingItemsKind));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(QueuePendingItemsKind));
         }
     }
 }
@@ -9080,10 +9774,10 @@ public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
     /// <summary>Gets the value associated with this <see cref="EventsCursorStatus"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>ok</c> value.</summary>
+    /// <summary>The cursor was applied successfully.</summary>
     public static EventsCursorStatus Ok { get; } = new("ok");
 
-    /// <summary>Gets the <c>expired</c> value.</summary>
+    /// <summary>The cursor referred to history that is no longer available.</summary>
     public static EventsCursorStatus Expired { get; } = new("expired");
 
     /// <summary>Returns a value indicating whether two <see cref="EventsCursorStatus"/> instances are equivalent.</summary>
@@ -9111,13 +9805,13 @@ public readonly struct EventsCursorStatus : IEquatable<EventsCursorStatus>
         /// <inheritdoc />
         public override EventsCursorStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, EventsCursorStatus value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsCursorStatus));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsCursorStatus));
         }
     }
 }
@@ -9143,10 +9837,10 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
     /// <summary>Gets the value associated with this <see cref="EventsAgentScope"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>primary</c> value.</summary>
+    /// <summary>Return main-agent events and typed subagent lifecycle events.</summary>
     public static EventsAgentScope Primary { get; } = new("primary");
 
-    /// <summary>Gets the <c>all</c> value.</summary>
+    /// <summary>Return events from all agents.</summary>
     public static EventsAgentScope All { get; } = new("all");
 
     /// <summary>Returns a value indicating whether two <see cref="EventsAgentScope"/> instances are equivalent.</summary>
@@ -9174,13 +9868,13 @@ public readonly struct EventsAgentScope : IEquatable<EventsAgentScope>
         /// <inheritdoc />
         public override EventsAgentScope Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, EventsAgentScope value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsAgentScope));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(EventsAgentScope));
         }
     }
 }
@@ -9206,13 +9900,13 @@ public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
     /// <summary>Gets the value associated with this <see cref="RemoteSessionMode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>off</c> value.</summary>
+    /// <summary>Disable remote session export and steering.</summary>
     public static RemoteSessionMode Off { get; } = new("off");
 
-    /// <summary>Gets the <c>export</c> value.</summary>
+    /// <summary>Export session events to GitHub without enabling remote steering.</summary>
     public static RemoteSessionMode Export { get; } = new("export");
 
-    /// <summary>Gets the <c>on</c> value.</summary>
+    /// <summary>Enable both remote session export and remote steering.</summary>
     public static RemoteSessionMode On { get; } = new("on");
 
     /// <summary>Returns a value indicating whether two <see cref="RemoteSessionMode"/> instances are equivalent.</summary>
@@ -9240,13 +9934,13 @@ public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
         /// <inheritdoc />
         public override RemoteSessionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, RemoteSessionMode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemoteSessionMode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(RemoteSessionMode));
         }
     }
 }
@@ -9271,10 +9965,10 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
     /// <summary>Gets the value associated with this <see cref="SessionFsErrorCode"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>ENOENT</c> value.</summary>
+    /// <summary>The requested path does not exist.</summary>
     public static SessionFsErrorCode ENOENT { get; } = new("ENOENT");
 
-    /// <summary>Gets the <c>UNKNOWN</c> value.</summary>
+    /// <summary>The filesystem operation failed for an unspecified reason.</summary>
     public static SessionFsErrorCode UNKNOWN { get; } = new("UNKNOWN");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsErrorCode"/> instances are equivalent.</summary>
@@ -9302,13 +9996,13 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
         /// <inheritdoc />
         public override SessionFsErrorCode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsErrorCode value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsErrorCode));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsErrorCode));
         }
     }
 }
@@ -9333,10 +10027,10 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
     /// <summary>Gets the value associated with this <see cref="SessionFsReaddirWithTypesEntryType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>file</c> value.</summary>
+    /// <summary>The entry is a file.</summary>
     public static SessionFsReaddirWithTypesEntryType File { get; } = new("file");
 
-    /// <summary>Gets the <c>directory</c> value.</summary>
+    /// <summary>The entry is a directory.</summary>
     public static SessionFsReaddirWithTypesEntryType Directory { get; } = new("directory");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsReaddirWithTypesEntryType"/> instances are equivalent.</summary>
@@ -9364,13 +10058,13 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
         /// <inheritdoc />
         public override SessionFsReaddirWithTypesEntryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsReaddirWithTypesEntryType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsReaddirWithTypesEntryType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsReaddirWithTypesEntryType));
         }
     }
 }
@@ -9395,13 +10089,13 @@ public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQuer
     /// <summary>Gets the value associated with this <see cref="SessionFsSqliteQueryType"/>.</summary>
     public string Value => _value ?? string.Empty;
 
-    /// <summary>Gets the <c>exec</c> value.</summary>
+    /// <summary>Execute DDL or multi-statement SQL without returning rows.</summary>
     public static SessionFsSqliteQueryType Exec { get; } = new("exec");
 
-    /// <summary>Gets the <c>query</c> value.</summary>
+    /// <summary>Execute a SELECT-style query and return rows.</summary>
     public static SessionFsSqliteQueryType Query { get; } = new("query");
 
-    /// <summary>Gets the <c>run</c> value.</summary>
+    /// <summary>Execute INSERT, UPDATE, or DELETE SQL and return affected-row metadata.</summary>
     public static SessionFsSqliteQueryType Run { get; } = new("run");
 
     /// <summary>Returns a value indicating whether two <see cref="SessionFsSqliteQueryType"/> instances are equivalent.</summary>
@@ -9429,13 +10123,13 @@ public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQuer
         /// <inheritdoc />
         public override SessionFsSqliteQueryType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
         }
 
         /// <inheritdoc />
         public override void Write(Utf8JsonWriter writer, SessionFsSqliteQueryType value, JsonSerializerOptions options)
         {
-            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSqliteQueryType));
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionFsSqliteQueryType));
         }
     }
 }
@@ -9485,6 +10179,12 @@ public sealed class ServerRpc
 
     /// <summary>Account APIs.</summary>
     public ServerAccountApi Account =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
+    /// <summary>Secrets APIs.</summary>
+    public ServerSecretsApi Secrets =>
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
@@ -9574,6 +10274,29 @@ public sealed class ServerAccountApi
     {
         var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
         return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Secrets APIs.</summary>
+public sealed class ServerSecretsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSecretsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).</summary>
+    /// <param name="values">Raw secret values to register for redaction.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Confirmation that the secret values were registered.</returns>
+    public async Task<SecretsAddFilterValuesResult> AddFilterValuesAsync(IList<string> values, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        var request = new SecretsAddFilterValuesRequest { Values = values };
+        return await CopilotClient.InvokeRpcAsync<SecretsAddFilterValuesResult>(_rpc, "secrets.addFilterValues", [request], cancellationToken);
     }
 }
 
@@ -9801,7 +10524,7 @@ public sealed class ServerSessionsApi
     /// <param name="filter">Optional filter applied to the returned sessions.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Persisted sessions matching the filter, ordered most-recently-modified first.</returns>
-    public async Task<SessionList> ListAsync(long? metadataLimit = null, SessionsListRequestFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<SessionList> ListAsync(long? metadataLimit = null, SessionListFilter? filter = null, CancellationToken cancellationToken = default)
     {
         var request = new SessionsListRequest { MetadataLimit = metadataLimit, Filter = filter };
         return await CopilotClient.InvokeRpcAsync<SessionList>(_rpc, "sessions.list", [request], cancellationToken);
@@ -10184,6 +10907,7 @@ public sealed class SessionRpc
 
     /// <summary>Suspends the session while preserving persisted state for later resume.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    [Experimental(Diagnostics.Experimental)]
     public async Task SuspendAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -10208,6 +10932,7 @@ public sealed class SessionRpc
     /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending a user message.</returns>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<SendAttachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, object? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(prompt);
@@ -10221,6 +10946,7 @@ public sealed class SessionRpc
     /// <param name="reason">Finite reason code describing why the current turn was aborted.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of aborting the current turn.</returns>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<AbortResult> AbortAsync(AbortReason? reason = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -10233,6 +10959,7 @@ public sealed class SessionRpc
     /// <param name="type">Why the session is being shut down. Defaults to "routine" when omitted.</param>
     /// <param name="reason">Optional human-readable reason. Typically the message of the error that triggered shutdown when type is 'error'.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    [Experimental(Diagnostics.Experimental)]
     public async Task ShutdownAsync(ShutdownType? type = null, string? reason = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
@@ -10250,6 +10977,7 @@ public sealed class SessionRpc
     /// <param name="tip">Optional actionable tip displayed alongside the message. Only honored on `level: "info"`.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Identifier of the session event that was emitted for the log message.</returns>
+    [Experimental(Diagnostics.Experimental)]
     public async Task<LogResult> LogAsync(string message, SessionLogLevel? level = null, string? type = null, bool? ephemeral = null, string? url = null, string? tip = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);
@@ -10261,6 +10989,7 @@ public sealed class SessionRpc
 }
 
 /// <summary>Provides session-scoped Auth APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class AuthApi
 {
     private readonly CopilotSession _session;
@@ -10295,6 +11024,7 @@ public sealed class AuthApi
 }
 
 /// <summary>Provides session-scoped Model APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModelApi
 {
     private readonly CopilotSession _session;
@@ -10346,6 +11076,7 @@ public sealed class ModelApi
 }
 
 /// <summary>Provides session-scoped Mode APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ModeApi
 {
     private readonly CopilotSession _session;
@@ -10379,6 +11110,7 @@ public sealed class ModeApi
 }
 
 /// <summary>Provides session-scoped Name APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class NameApi
 {
     private readonly CopilotSession _session;
@@ -10426,6 +11158,7 @@ public sealed class NameApi
 }
 
 /// <summary>Provides session-scoped Plan APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PlanApi
 {
     private readonly CopilotSession _session;
@@ -10470,6 +11203,7 @@ public sealed class PlanApi
 }
 
 /// <summary>Provides session-scoped Workspaces APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class WorkspacesApi
 {
     private readonly CopilotSession _session;
@@ -10566,6 +11300,7 @@ public sealed class WorkspacesApi
 }
 
 /// <summary>Provides session-scoped Instructions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsApi
 {
     private readonly CopilotSession _session;
@@ -11223,6 +11958,7 @@ public sealed class ExtensionsApi
 }
 
 /// <summary>Provides session-scoped Tools APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ToolsApi
 {
     private readonly CopilotSession _session;
@@ -11260,6 +11996,7 @@ public sealed class ToolsApi
 }
 
 /// <summary>Provides session-scoped Commands APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CommandsApi
 {
     private readonly CopilotSession _session;
@@ -11378,6 +12115,7 @@ public sealed class TelemetryApi
 }
 
 /// <summary>Provides session-scoped Ui APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class UiApi
 {
     private readonly CopilotSession _session;
@@ -11501,6 +12239,7 @@ public sealed class UiApi
 }
 
 /// <summary>Provides session-scoped Permissions APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsApi
 {
     private readonly CopilotSession _session;
@@ -11623,6 +12362,18 @@ public sealed class PermissionsApi
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Locations APIs.</summary>
+    public PermissionsLocationsApi Locations =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
+    /// <summary>FolderTrust APIs.</summary>
+    public PermissionsFolderTrustApi FolderTrust =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Urls APIs.</summary>
     public PermissionsUrlsApi Urls =>
         field ??
@@ -11631,6 +12382,7 @@ public sealed class PermissionsApi
 }
 
 /// <summary>Provides session-scoped PermissionsPaths APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsPathsApi
 {
     private readonly CopilotSession _session;
@@ -11704,7 +12456,99 @@ public sealed class PermissionsPathsApi
     }
 }
 
+/// <summary>Provides session-scoped PermissionsLocations APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionsLocationsApi
+{
+    private readonly CopilotSession _session;
+
+    internal PermissionsLocationsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Resolves the permission location key and type for a working directory.</summary>
+    /// <param name="workingDirectory">Working directory whose permission location should be resolved.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Resolved location-permissions key and type.</returns>
+    public async Task<PermissionLocationResolveResult> ResolveAsync(string workingDirectory, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workingDirectory);
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionLocationResolveParams { SessionId = _session.SessionId, WorkingDirectory = workingDirectory };
+        return await CopilotClient.InvokeRpcAsync<PermissionLocationResolveResult>(_session.Rpc, "session.permissions.locations.resolve", [request], cancellationToken);
+    }
+
+    /// <summary>Applies persisted location-scoped tool approvals and allowed directories for a working directory to this session's permission service.</summary>
+    /// <param name="workingDirectory">Working directory whose persisted location permissions should be applied.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Summary of persisted location permissions applied to the session.</returns>
+    public async Task<PermissionLocationApplyResult> ApplyAsync(string workingDirectory, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(workingDirectory);
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionLocationApplyParams { SessionId = _session.SessionId, WorkingDirectory = workingDirectory };
+        return await CopilotClient.InvokeRpcAsync<PermissionLocationApplyResult>(_session.Rpc, "session.permissions.locations.apply", [request], cancellationToken);
+    }
+
+    /// <summary>Persists a tool approval for a permission location and applies its rules to this session's live permission service.</summary>
+    /// <param name="locationKey">Location key (git root or cwd) to persist the approval to.</param>
+    /// <param name="approval">Tool approval to persist and apply.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the operation succeeded.</returns>
+    public async Task<PermissionsLocationsAddToolApprovalResult> AddToolApprovalAsync(string locationKey, PermissionsLocationsAddToolApprovalDetails approval, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(locationKey);
+        ArgumentNullException.ThrowIfNull(approval);
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionLocationAddToolApprovalParams { SessionId = _session.SessionId, LocationKey = locationKey, Approval = approval };
+        return await CopilotClient.InvokeRpcAsync<PermissionsLocationsAddToolApprovalResult>(_session.Rpc, "session.permissions.locations.addToolApproval", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped PermissionsFolderTrust APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class PermissionsFolderTrustApi
+{
+    private readonly CopilotSession _session;
+
+    internal PermissionsFolderTrustApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Reports whether a folder is trusted according to the user's folder trust state.</summary>
+    /// <param name="path">Folder path to check.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Folder trust check result.</returns>
+    public async Task<FolderTrustCheckResult> IsTrustedAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new FolderTrustCheckParams { SessionId = _session.SessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<FolderTrustCheckResult>(_session.Rpc, "session.permissions.folderTrust.isTrusted", [request], cancellationToken);
+    }
+
+    /// <summary>Adds a folder to the user's trusted folders list.</summary>
+    /// <param name="path">Folder path to mark as trusted.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the operation succeeded.</returns>
+    public async Task<PermissionsFolderTrustAddTrustedResult> AddTrustedAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        _session.ThrowIfDisposed();
+
+        var request = new FolderTrustAddParams { SessionId = _session.SessionId, Path = path };
+        return await CopilotClient.InvokeRpcAsync<PermissionsFolderTrustAddTrustedResult>(_session.Rpc, "session.permissions.folderTrust.addTrusted", [request], cancellationToken);
+    }
+}
+
 /// <summary>Provides session-scoped PermissionsUrls APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsUrlsApi
 {
     private readonly CopilotSession _session;
@@ -11815,6 +12659,7 @@ public sealed class MetadataApi
 }
 
 /// <summary>Provides session-scoped Shell APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class ShellApi
 {
     private readonly CopilotSession _session;
@@ -11866,14 +12711,15 @@ public sealed class HistoryApi
     }
 
     /// <summary>Compacts the session history to reduce context usage.</summary>
+    /// <param name="request">Optional compaction parameters.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.</returns>
-    public async Task<HistoryCompactResult> CompactAsync(CancellationToken cancellationToken = default)
+    public async Task<HistoryCompactResult> CompactAsync(HistoryCompactRequest? request = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionHistoryCompactRequest { SessionId = _session.SessionId };
-        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_session.Rpc, "session.history.compact", [request], cancellationToken);
+        var rpcRequest = new HistoryCompactRequestWithSession { SessionId = _session.SessionId, CustomInstructions = request?.CustomInstructions };
+        return await CopilotClient.InvokeRpcAsync<HistoryCompactResult>(_session.Rpc, "session.history.compact", [rpcRequest], cancellationToken);
     }
 
     /// <summary>Truncates persisted session history to a specific event.</summary>
@@ -12302,225 +13148,225 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(long))]
 [JsonSerializable(typeof(string))]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AbortData), TypeInfoPropertyName = "SessionEventsAbortData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AbortEvent), TypeInfoPropertyName = "SessionEventsAbortEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AbortReason), TypeInfoPropertyName = "SessionEventsAbortReason")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantIntentEvent), TypeInfoPropertyName = "SessionEventsAssistantIntentEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageData), TypeInfoPropertyName = "SessionEventsAssistantMessageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageDeltaData), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageToolRequest), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequest")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantMessageToolRequestType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningData), TypeInfoPropertyName = "SessionEventsAssistantReasoningData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnEndData), TypeInfoPropertyName = "SessionEventsAssistantTurnEndData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnEndEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnEndEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnStartData), TypeInfoPropertyName = "SessionEventsAssistantTurnStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantTurnStartEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageApiEndpoint), TypeInfoPropertyName = "SessionEventsAssistantUsageApiEndpoint")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageCopilotUsage), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AssistantUsageQuotaSnapshot), TypeInfoPropertyName = "SessionEventsAssistantUsageQuotaSnapshot")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CapabilitiesChangedEvent), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CapabilitiesChangedUI), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedUI")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandCompletedData), TypeInfoPropertyName = "SessionEventsCommandCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandCompletedEvent), TypeInfoPropertyName = "SessionEventsCommandCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandExecuteData), TypeInfoPropertyName = "SessionEventsCommandExecuteData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandExecuteEvent), TypeInfoPropertyName = "SessionEventsCommandExecuteEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandQueuedData), TypeInfoPropertyName = "SessionEventsCommandQueuedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandQueuedEvent), TypeInfoPropertyName = "SessionEventsCommandQueuedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandsChangedCommand), TypeInfoPropertyName = "SessionEventsCommandsChangedCommand")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandsChangedData), TypeInfoPropertyName = "SessionEventsCommandsChangedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CommandsChangedEvent), TypeInfoPropertyName = "SessionEventsCommandsChangedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CompactionCompleteCompactionTokensUsed), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsed")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CompactionCompleteCompactionTokensUsedCopilotUsage), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.CustomAgentsUpdatedAgent), TypeInfoPropertyName = "SessionEventsCustomAgentsUpdatedAgent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationCompletedAction), TypeInfoPropertyName = "SessionEventsElicitationCompletedAction")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationCompletedData), TypeInfoPropertyName = "SessionEventsElicitationCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationCompletedEvent), TypeInfoPropertyName = "SessionEventsElicitationCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedData), TypeInfoPropertyName = "SessionEventsElicitationRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedEvent), TypeInfoPropertyName = "SessionEventsElicitationRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedMode), TypeInfoPropertyName = "SessionEventsElicitationRequestedMode")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ElicitationRequestedSchema), TypeInfoPropertyName = "SessionEventsElicitationRequestedSchema")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedBlobResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedBlobResourceContents")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.EmbeddedTextResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedTextResourceContents")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeAction), TypeInfoPropertyName = "SessionEventsExitPlanModeAction")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeCompletedData), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeCompletedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeRequestedData), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExitPlanModeRequestedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExtensionsLoadedExtension), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtension")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExtensionsLoadedExtensionSource), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExtensionsLoadedExtensionStatus), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolCompletedData), TypeInfoPropertyName = "SessionEventsExternalToolCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionCompletedEvent), TypeInfoPropertyName = "SessionEventsPermissionCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestPath), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPath")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestPathAccessKind), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPathAccessKind")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestRead), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestRead")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestUrl")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionPromptRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWrite")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequest), TypeInfoPropertyName = "SessionEventsPermissionRequest")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionRequestCustomTool")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMemoryAction), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryAction")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestMemoryDirection), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryDirection")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestRead), TypeInfoPropertyName = "SessionEventsPermissionRequestRead")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestShell), TypeInfoPropertyName = "SessionEventsPermissionRequestShell")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestShellCommand), TypeInfoPropertyName = "SessionEventsPermissionRequestShellCommand")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestShellPossibleUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestShellPossibleUrl")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestUrl")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionRequestWrite")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestedData), TypeInfoPropertyName = "SessionEventsPermissionRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRequestedEvent), TypeInfoPropertyName = "SessionEventsPermissionRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionResult), TypeInfoPropertyName = "SessionEventsPermissionResult")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PermissionRule), TypeInfoPropertyName = "SessionEventsPermissionRule")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SamplingRequestedEvent), TypeInfoPropertyName = "SessionEventsSamplingRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SessionEvent), TypeInfoPropertyName = "SessionEventsSessionEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SessionMode), TypeInfoPropertyName = "SessionEventsSessionMode")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownCodeChanges), TypeInfoPropertyName = "SessionEventsShutdownCodeChanges")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetric), TypeInfoPropertyName = "SessionEventsShutdownModelMetric")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetricRequests), TypeInfoPropertyName = "SessionEventsShutdownModelMetricRequests")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetricTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownModelMetricTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownModelMetricUsage), TypeInfoPropertyName = "SessionEventsShutdownModelMetricUsage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownTokenDetail")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ShutdownType), TypeInfoPropertyName = "SessionEventsShutdownType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillInvokedData), TypeInfoPropertyName = "SessionEventsSkillInvokedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillInvokedEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentCompletedData), TypeInfoPropertyName = "SessionEventsSubagentCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentCompletedEvent), TypeInfoPropertyName = "SessionEventsSubagentCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentDeselectedData), TypeInfoPropertyName = "SessionEventsSubagentDeselectedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentFailedEvent), TypeInfoPropertyName = "SessionEventsSubagentFailedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentSelectedData), TypeInfoPropertyName = "SessionEventsSubagentSelectedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentSelectedEvent), TypeInfoPropertyName = "SessionEventsSubagentSelectedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SubagentStartedEvent), TypeInfoPropertyName = "SessionEventsSubagentStartedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageData), TypeInfoPropertyName = "SessionEventsSystemMessageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageEvent), TypeInfoPropertyName = "SessionEventsSystemMessageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageMetadata), TypeInfoPropertyName = "SessionEventsSystemMessageMetadata")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemMessageRole), TypeInfoPropertyName = "SessionEventsSystemMessageRole")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotification), TypeInfoPropertyName = "SessionEventsSystemNotification")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationAgentCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationAgentCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompletedStatus")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.SystemNotificationShellDetachedCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellDetachedCompleted")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentAudio), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentAudio")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentImage), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentImage")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResource), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResource")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceDetails), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceDetails")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceLink), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLink")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceLinkIcon), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIcon")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentResourceLinkIconTheme), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIconTheme")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentTerminal), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentTerminal")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteContentText), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentText")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteData), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionPartialResultEvent), TypeInfoPropertyName = "SessionEventsToolExecutionPartialResultEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionProgressData), TypeInfoPropertyName = "SessionEventsToolExecutionProgressData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionProgressEvent), TypeInfoPropertyName = "SessionEventsToolExecutionProgressEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionStartData), TypeInfoPropertyName = "SessionEventsToolExecutionStartData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolExecutionStartEvent), TypeInfoPropertyName = "SessionEventsToolExecutionStartEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolUserRequestedData), TypeInfoPropertyName = "SessionEventsToolUserRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.ToolUserRequestedEvent), TypeInfoPropertyName = "SessionEventsToolUserRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputCompletedData), TypeInfoPropertyName = "SessionEventsUserInputCompletedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputCompletedEvent), TypeInfoPropertyName = "SessionEventsUserInputCompletedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputRequestedData), TypeInfoPropertyName = "SessionEventsUserInputRequestedData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserInputRequestedEvent), TypeInfoPropertyName = "SessionEventsUserInputRequestedEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAgentMode), TypeInfoPropertyName = "SessionEventsUserMessageAgentMode")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachment), TypeInfoPropertyName = "SessionEventsUserMessageAttachment")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentBlob), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentBlob")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentDirectory), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentDirectory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentFile), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFile")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFileLineRange")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentGithubReference), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReference")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReferenceType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelection), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelection")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetails")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsEnd")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageAttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsStart")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageData), TypeInfoPropertyName = "SessionEventsUserMessageData")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserMessageEvent), TypeInfoPropertyName = "SessionEventsUserMessageEvent")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalCommands), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCommands")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalCustomTool), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCustomTool")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
-[JsonSerializable(typeof(GitHub.Copilot.SDK.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.AbortData), TypeInfoPropertyName = "SessionEventsAbortData")]
+[JsonSerializable(typeof(GitHub.Copilot.AbortEvent), TypeInfoPropertyName = "SessionEventsAbortEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AbortReason), TypeInfoPropertyName = "SessionEventsAbortReason")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantIntentData), TypeInfoPropertyName = "SessionEventsAssistantIntentData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantIntentEvent), TypeInfoPropertyName = "SessionEventsAssistantIntentEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageData), TypeInfoPropertyName = "SessionEventsAssistantMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageDeltaData), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartData), TypeInfoPropertyName = "SessionEventsAssistantMessageStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageStartEvent), TypeInfoPropertyName = "SessionEventsAssistantMessageStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequest), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantMessageToolRequestType), TypeInfoPropertyName = "SessionEventsAssistantMessageToolRequestType")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningData), TypeInfoPropertyName = "SessionEventsAssistantReasoningData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaData), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantReasoningEvent), TypeInfoPropertyName = "SessionEventsAssistantReasoningEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaData), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantStreamingDeltaEvent), TypeInfoPropertyName = "SessionEventsAssistantStreamingDeltaEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnEndData), TypeInfoPropertyName = "SessionEventsAssistantTurnEndData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnEndEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnEndEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartData), TypeInfoPropertyName = "SessionEventsAssistantTurnStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantTurnStartEvent), TypeInfoPropertyName = "SessionEventsAssistantTurnStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageApiEndpoint), TypeInfoPropertyName = "SessionEventsAssistantUsageApiEndpoint")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsage), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsAssistantUsageCopilotUsageTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageData), TypeInfoPropertyName = "SessionEventsAssistantUsageData")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageEvent), TypeInfoPropertyName = "SessionEventsAssistantUsageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AssistantUsageQuotaSnapshot), TypeInfoPropertyName = "SessionEventsAssistantUsageQuotaSnapshot")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchCompletedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
+[JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedEvent), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedUI), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedUI")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandCompletedData), TypeInfoPropertyName = "SessionEventsCommandCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandCompletedEvent), TypeInfoPropertyName = "SessionEventsCommandCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandExecuteData), TypeInfoPropertyName = "SessionEventsCommandExecuteData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandExecuteEvent), TypeInfoPropertyName = "SessionEventsCommandExecuteEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandQueuedData), TypeInfoPropertyName = "SessionEventsCommandQueuedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandQueuedEvent), TypeInfoPropertyName = "SessionEventsCommandQueuedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandsChangedCommand), TypeInfoPropertyName = "SessionEventsCommandsChangedCommand")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandsChangedData), TypeInfoPropertyName = "SessionEventsCommandsChangedData")]
+[JsonSerializable(typeof(GitHub.Copilot.CommandsChangedEvent), TypeInfoPropertyName = "SessionEventsCommandsChangedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsed), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsed")]
+[JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsedCopilotUsage), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail), TypeInfoPropertyName = "SessionEventsCompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.CustomAgentsUpdatedAgent), TypeInfoPropertyName = "SessionEventsCustomAgentsUpdatedAgent")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedAction), TypeInfoPropertyName = "SessionEventsElicitationCompletedAction")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedData), TypeInfoPropertyName = "SessionEventsElicitationCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationCompletedEvent), TypeInfoPropertyName = "SessionEventsElicitationCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedData), TypeInfoPropertyName = "SessionEventsElicitationRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedEvent), TypeInfoPropertyName = "SessionEventsElicitationRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedMode), TypeInfoPropertyName = "SessionEventsElicitationRequestedMode")]
+[JsonSerializable(typeof(GitHub.Copilot.ElicitationRequestedSchema), TypeInfoPropertyName = "SessionEventsElicitationRequestedSchema")]
+[JsonSerializable(typeof(GitHub.Copilot.EmbeddedBlobResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedBlobResourceContents")]
+[JsonSerializable(typeof(GitHub.Copilot.EmbeddedTextResourceContents), TypeInfoPropertyName = "SessionEventsEmbeddedTextResourceContents")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeAction), TypeInfoPropertyName = "SessionEventsExitPlanModeAction")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeCompletedData), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeCompletedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeRequestedData), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExitPlanModeRequestedEvent), TypeInfoPropertyName = "SessionEventsExitPlanModeRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ExtensionsLoadedExtension), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtension")]
+[JsonSerializable(typeof(GitHub.Copilot.ExtensionsLoadedExtensionSource), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionSource")]
+[JsonSerializable(typeof(GitHub.Copilot.ExtensionsLoadedExtensionStatus), TypeInfoPropertyName = "SessionEventsExtensionsLoadedExtensionStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedData), TypeInfoPropertyName = "SessionEventsExternalToolCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolCompletedEvent), TypeInfoPropertyName = "SessionEventsExternalToolCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedData), TypeInfoPropertyName = "SessionEventsExternalToolRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ExternalToolRequestedEvent), TypeInfoPropertyName = "SessionEventsExternalToolRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.HandoffRepository), TypeInfoPropertyName = "SessionEventsHandoffRepository")]
+[JsonSerializable(typeof(GitHub.Copilot.HandoffSourceType), TypeInfoPropertyName = "SessionEventsHandoffSourceType")]
+[JsonSerializable(typeof(GitHub.Copilot.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
+[JsonSerializable(typeof(GitHub.Copilot.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
+[JsonSerializable(typeof(GitHub.Copilot.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredEvent), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureSource), TypeInfoPropertyName = "SessionEventsModelCallFailureSource")]
+[JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedData), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PendingMessagesModifiedEvent), TypeInfoPropertyName = "SessionEventsPendingMessagesModifiedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedData), TypeInfoPropertyName = "SessionEventsPermissionCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionCompletedEvent), TypeInfoPropertyName = "SessionEventsPermissionCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequest), TypeInfoPropertyName = "SessionEventsPermissionPromptRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCommands), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCommands")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionManagement")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestHook), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestHook")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMcp")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestMemory")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestPath), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPath")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestPathAccessKind), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestPathAccessKind")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestRead), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestRead")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionPromptRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionPromptRequestWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequest), TypeInfoPropertyName = "SessionEventsPermissionRequest")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestCustomTool), TypeInfoPropertyName = "SessionEventsPermissionRequestCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionManagement), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionManagement")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsPermissionRequestExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestHook), TypeInfoPropertyName = "SessionEventsPermissionRequestHook")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMcp), TypeInfoPropertyName = "SessionEventsPermissionRequestMcp")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemory), TypeInfoPropertyName = "SessionEventsPermissionRequestMemory")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemoryAction), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryAction")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestMemoryDirection), TypeInfoPropertyName = "SessionEventsPermissionRequestMemoryDirection")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestRead), TypeInfoPropertyName = "SessionEventsPermissionRequestRead")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShell), TypeInfoPropertyName = "SessionEventsPermissionRequestShell")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShellCommand), TypeInfoPropertyName = "SessionEventsPermissionRequestShellCommand")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestShellPossibleUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestShellPossibleUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestUrl), TypeInfoPropertyName = "SessionEventsPermissionRequestUrl")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestWrite), TypeInfoPropertyName = "SessionEventsPermissionRequestWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedData), TypeInfoPropertyName = "SessionEventsPermissionRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRequestedEvent), TypeInfoPropertyName = "SessionEventsPermissionRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionResult), TypeInfoPropertyName = "SessionEventsPermissionResult")]
+[JsonSerializable(typeof(GitHub.Copilot.PermissionRule), TypeInfoPropertyName = "SessionEventsPermissionRule")]
+[JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedData), TypeInfoPropertyName = "SessionEventsSamplingRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SamplingRequestedEvent), TypeInfoPropertyName = "SessionEventsSamplingRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionEvent), TypeInfoPropertyName = "SessionEventsSessionEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SessionMode), TypeInfoPropertyName = "SessionEventsSessionMode")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownCodeChanges), TypeInfoPropertyName = "SessionEventsShutdownCodeChanges")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetric), TypeInfoPropertyName = "SessionEventsShutdownModelMetric")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricRequests), TypeInfoPropertyName = "SessionEventsShutdownModelMetricRequests")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownModelMetricTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownModelMetricUsage), TypeInfoPropertyName = "SessionEventsShutdownModelMetricUsage")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownTokenDetail), TypeInfoPropertyName = "SessionEventsShutdownTokenDetail")]
+[JsonSerializable(typeof(GitHub.Copilot.ShutdownType), TypeInfoPropertyName = "SessionEventsShutdownType")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedData), TypeInfoPropertyName = "SessionEventsSkillInvokedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedData), TypeInfoPropertyName = "SessionEventsSubagentCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedEvent), TypeInfoPropertyName = "SessionEventsSubagentCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedData), TypeInfoPropertyName = "SessionEventsSubagentDeselectedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentDeselectedEvent), TypeInfoPropertyName = "SessionEventsSubagentDeselectedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentFailedData), TypeInfoPropertyName = "SessionEventsSubagentFailedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentFailedEvent), TypeInfoPropertyName = "SessionEventsSubagentFailedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedData), TypeInfoPropertyName = "SessionEventsSubagentSelectedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentSelectedEvent), TypeInfoPropertyName = "SessionEventsSubagentSelectedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentStartedData), TypeInfoPropertyName = "SessionEventsSubagentStartedData")]
+[JsonSerializable(typeof(GitHub.Copilot.SubagentStartedEvent), TypeInfoPropertyName = "SessionEventsSubagentStartedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageData), TypeInfoPropertyName = "SessionEventsSystemMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageEvent), TypeInfoPropertyName = "SessionEventsSystemMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageMetadata), TypeInfoPropertyName = "SessionEventsSystemMessageMetadata")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemMessageRole), TypeInfoPropertyName = "SessionEventsSystemMessageRole")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotification), TypeInfoPropertyName = "SessionEventsSystemNotification")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentCompletedStatus), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentCompletedStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationAgentIdle), TypeInfoPropertyName = "SessionEventsSystemNotificationAgentIdle")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationData), TypeInfoPropertyName = "SessionEventsSystemNotificationData")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationEvent), TypeInfoPropertyName = "SessionEventsSystemNotificationEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationInstructionDiscovered), TypeInfoPropertyName = "SessionEventsSystemNotificationInstructionDiscovered")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationNewInboxMessage), TypeInfoPropertyName = "SessionEventsSystemNotificationNewInboxMessage")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.SystemNotificationShellDetachedCompleted), TypeInfoPropertyName = "SessionEventsSystemNotificationShellDetachedCompleted")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentAudio), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentAudio")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentImage), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentImage")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResource), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResource")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceDetails), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceDetails")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLink), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLink")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLinkIcon), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIcon")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentResourceLinkIconTheme), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentResourceLinkIconTheme")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentTerminal), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentTerminal")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteContentText), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteContentText")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteData), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionPartialResultEvent), TypeInfoPropertyName = "SessionEventsToolExecutionPartialResultEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressData), TypeInfoPropertyName = "SessionEventsToolExecutionProgressData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressEvent), TypeInfoPropertyName = "SessionEventsToolExecutionProgressEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartData), TypeInfoPropertyName = "SessionEventsToolExecutionStartData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionStartEvent), TypeInfoPropertyName = "SessionEventsToolExecutionStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolUserRequestedData), TypeInfoPropertyName = "SessionEventsToolUserRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolUserRequestedEvent), TypeInfoPropertyName = "SessionEventsToolUserRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputCompletedData), TypeInfoPropertyName = "SessionEventsUserInputCompletedData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputCompletedEvent), TypeInfoPropertyName = "SessionEventsUserInputCompletedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedData), TypeInfoPropertyName = "SessionEventsUserInputRequestedData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserInputRequestedEvent), TypeInfoPropertyName = "SessionEventsUserInputRequestedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAgentMode), TypeInfoPropertyName = "SessionEventsUserMessageAgentMode")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachment), TypeInfoPropertyName = "SessionEventsUserMessageAttachment")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentBlob), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentBlob")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentDirectory), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentDirectory")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentFile), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFile")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentFileLineRange), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentFileLineRange")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentGithubReference), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReference")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentGithubReferenceType), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentGithubReferenceType")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelection), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelection")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetails), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetails")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetailsEnd), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsEnd")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageAttachmentSelectionDetailsStart), TypeInfoPropertyName = "SessionEventsUserMessageAttachmentSelectionDetailsStart")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageData), TypeInfoPropertyName = "SessionEventsUserMessageData")]
+[JsonSerializable(typeof(GitHub.Copilot.UserMessageEvent), TypeInfoPropertyName = "SessionEventsUserMessageEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApproval), TypeInfoPropertyName = "SessionEventsUserToolSessionApproval")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCommands), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCommands")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalCustomTool), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalCustomTool")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionManagement), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionManagement")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalExtensionPermissionAccess), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalExtensionPermissionAccess")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMcp), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMcp")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalMemory), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalMemory")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalRead), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalRead")]
+[JsonSerializable(typeof(GitHub.Copilot.UserToolSessionApprovalWrite), TypeInfoPropertyName = "SessionEventsUserToolSessionApprovalWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContext), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContext")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkingDirectoryContextHostType), TypeInfoPropertyName = "SessionEventsWorkingDirectoryContextHostType")]
+[JsonSerializable(typeof(GitHub.Copilot.WorkspaceFileChangedOperation), TypeInfoPropertyName = "SessionEventsWorkspaceFileChangedOperation")]
 [JsonSerializable(typeof(AbortRequest))]
 [JsonSerializable(typeof(AbortResult))]
 [JsonSerializable(typeof(AccountGetQuotaRequest))]
@@ -12569,11 +13415,16 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ExtensionsEnableRequest))]
 [JsonSerializable(typeof(FleetStartRequest))]
 [JsonSerializable(typeof(FleetStartResult))]
+[JsonSerializable(typeof(FolderTrustAddParams))]
+[JsonSerializable(typeof(FolderTrustCheckParams))]
+[JsonSerializable(typeof(FolderTrustCheckResult))]
 [JsonSerializable(typeof(HandlePendingToolCallRequest))]
 [JsonSerializable(typeof(HandlePendingToolCallResult))]
 [JsonSerializable(typeof(HistoryAbortManualCompactionResult))]
 [JsonSerializable(typeof(HistoryCancelBackgroundCompactionResult))]
 [JsonSerializable(typeof(HistoryCompactContextWindow))]
+[JsonSerializable(typeof(HistoryCompactRequest))]
+[JsonSerializable(typeof(HistoryCompactRequestWithSession))]
 [JsonSerializable(typeof(HistoryCompactResult))]
 [JsonSerializable(typeof(HistorySummarizeForHandoffResult))]
 [JsonSerializable(typeof(HistoryTruncateRequest))]
@@ -12648,6 +13499,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionDecisionApproveForLocationApproval))]
 [JsonSerializable(typeof(PermissionDecisionApproveForSessionApproval))]
 [JsonSerializable(typeof(PermissionDecisionRequest))]
+[JsonSerializable(typeof(PermissionLocationAddToolApprovalParams))]
+[JsonSerializable(typeof(PermissionLocationApplyParams))]
+[JsonSerializable(typeof(PermissionLocationApplyResult))]
+[JsonSerializable(typeof(PermissionLocationResolveParams))]
+[JsonSerializable(typeof(PermissionLocationResolveResult))]
 [JsonSerializable(typeof(PermissionPathsAddParams))]
 [JsonSerializable(typeof(PermissionPathsAllowedCheckParams))]
 [JsonSerializable(typeof(PermissionPathsAllowedCheckResult))]
@@ -12666,6 +13522,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionsConfigureAdditionalContentExclusionPolicyRuleSource))]
 [JsonSerializable(typeof(PermissionsConfigureParams))]
 [JsonSerializable(typeof(PermissionsConfigureResult))]
+[JsonSerializable(typeof(PermissionsFolderTrustAddTrustedResult))]
+[JsonSerializable(typeof(PermissionsLocationsAddToolApprovalDetails))]
+[JsonSerializable(typeof(PermissionsLocationsAddToolApprovalResult))]
 [JsonSerializable(typeof(PermissionsModifyRulesParams))]
 [JsonSerializable(typeof(PermissionsModifyRulesResult))]
 [JsonSerializable(typeof(PermissionsNotifyPromptShownResult))]
@@ -12702,6 +13561,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ScheduleList))]
 [JsonSerializable(typeof(ScheduleStopRequest))]
 [JsonSerializable(typeof(ScheduleStopResult))]
+[JsonSerializable(typeof(SecretsAddFilterValuesRequest))]
+[JsonSerializable(typeof(SecretsAddFilterValuesResult))]
 [JsonSerializable(typeof(SendAttachment))]
 [JsonSerializable(typeof(SendAttachmentFileLineRange))]
 [JsonSerializable(typeof(SendAttachmentSelectionDetails))]
@@ -12749,11 +13610,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionFsWriteFileRequest))]
 [JsonSerializable(typeof(SessionHistoryAbortManualCompactionRequest))]
 [JsonSerializable(typeof(SessionHistoryCancelBackgroundCompactionRequest))]
-[JsonSerializable(typeof(SessionHistoryCompactRequest))]
 [JsonSerializable(typeof(SessionHistorySummarizeForHandoffRequest))]
 [JsonSerializable(typeof(SessionInstalledPlugin))]
 [JsonSerializable(typeof(SessionInstructionsGetSourcesRequest))]
 [JsonSerializable(typeof(SessionList))]
+[JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SessionLoadDeferredRepoHooksResult))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
@@ -12816,7 +13677,6 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionsGetPersistedRemoteSteerableRequest))]
 [JsonSerializable(typeof(SessionsGetPersistedRemoteSteerableResult))]
 [JsonSerializable(typeof(SessionsListRequest))]
-[JsonSerializable(typeof(SessionsListRequestFilter))]
 [JsonSerializable(typeof(SessionsLoadDeferredRepoHooksRequest))]
 [JsonSerializable(typeof(SessionsPruneOldRequest))]
 [JsonSerializable(typeof(SessionsReleaseLockRequest))]
@@ -12844,13 +13704,16 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SlashCommandInfo))]
 [JsonSerializable(typeof(SlashCommandInput))]
 [JsonSerializable(typeof(SlashCommandInvocationResult))]
+[JsonSerializable(typeof(SlashCommandSelectSubcommandOption))]
 [JsonSerializable(typeof(TaskInfo))]
 [JsonSerializable(typeof(TaskList))]
+[JsonSerializable(typeof(TaskProgressLine))]
 [JsonSerializable(typeof(TasksCancelRequest))]
 [JsonSerializable(typeof(TasksCancelResult))]
 [JsonSerializable(typeof(TasksGetCurrentPromotableResult))]
 [JsonSerializable(typeof(TasksGetProgressRequest))]
 [JsonSerializable(typeof(TasksGetProgressResult))]
+[JsonSerializable(typeof(TasksGetProgressResultProgress))]
 [JsonSerializable(typeof(TasksPromoteCurrentToBackgroundResult))]
 [JsonSerializable(typeof(TasksPromoteToBackgroundRequest))]
 [JsonSerializable(typeof(TasksPromoteToBackgroundResult))]

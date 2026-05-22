@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
 
 async function main() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -10,7 +10,7 @@ async function main() {
   }
 
   const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
+    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
   });
 
   try {

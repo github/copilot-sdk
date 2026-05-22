@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "mcp_and_agents", output)
 {
@@ -48,7 +48,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
         {
             ["test-server"] = new McpStdioServerConfig
             {
-                Command = "echo",
+                Command = "true",
                 Tools = ["*"]
             }
         };
@@ -297,7 +297,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                 Command = "node",
                 Args = [Path.Combine(testHarnessDir, "test-mcp-server.mjs")],
                 Env = new Dictionary<string, string> { ["TEST_SECRET"] = "hunter2" },
-                Cwd = testHarnessDir,
+                WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             }
         };
@@ -358,7 +358,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                     "--config",
                     configPath
                 ],
-                Cwd = testHarnessDir,
+                WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             }
         };

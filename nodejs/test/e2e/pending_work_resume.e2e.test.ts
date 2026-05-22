@@ -4,7 +4,7 @@
 
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
-import { approveAll, CopilotClient, defineTool } from "../../src/index.js";
+import { approveAll, CopilotClient, defineTool, RuntimeConnection } from "../../src/index.js";
 import type {
     CopilotSession,
     ExternalToolRequestedEvent,
@@ -127,11 +127,12 @@ describe("Pending work resume", async () => {
 
     function createTcpServer(): CopilotClient {
         const server = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
-            useStdio: false,
-            tcpConnectionToken: SHARED_TOKEN,
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                connectionToken: SHARED_TOKEN,
+            }),
         });
         onTestFinished(async () => {
             try {
@@ -144,7 +145,9 @@ describe("Pending work resume", async () => {
     }
 
     function createConnectingClient(cliUrl: string): CopilotClient {
-        const client = new CopilotClient({ cliUrl, tcpConnectionToken: SHARED_TOKEN });
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forUri(cliUrl, { connectionToken: SHARED_TOKEN }),
+        });
         onTestFinished(async () => {
             try {
                 await client.forceStop();
@@ -156,7 +159,7 @@ describe("Pending work resume", async () => {
     }
 
     function getCliUrl(server: CopilotClient): string {
-        const port = (server as unknown as { actualPort: number | null }).actualPort;
+        const port = (server as unknown as { runtimePort: number | null }).runtimePort;
         if (!port) {
             throw new Error("Expected the test server to be listening on a TCP port.");
         }
@@ -512,7 +515,7 @@ describe("Pending work resume", async () => {
                 });
 
                 // Verify resume event has continuePendingWork: false and sessionWasActive: true
-                const messages = await session2.getMessages();
+                const messages = await session2.getEvents();
                 const resumeEvent = messages.find((m) => m.type === "session.resume");
                 expect(resumeEvent).toBeDefined();
                 expect(resumeEvent!.data.continuePendingWork).toBe(false);
@@ -577,7 +580,7 @@ describe("Pending work resume", async () => {
             });
 
             // Verify resume event has continuePendingWork: true and sessionWasActive: false
-            const messages = await resumedSession.getMessages();
+            const messages = await resumedSession.getEvents();
             const resumeEvent = messages.find((m) => m.type === "session.resume");
             expect(resumeEvent).toBeDefined();
             expect(resumeEvent!.data.continuePendingWork).toBe(true);

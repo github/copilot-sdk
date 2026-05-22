@@ -337,7 +337,7 @@ pub struct ClientOptions {
     /// Arguments prepended before `--server` (e.g. the script path for node).
     pub prefix_args: Vec<OsString>,
     /// Working directory for the CLI process.
-    pub cwd: PathBuf,
+    pub working_directory: PathBuf,
     /// Environment variables set on the child process.
     pub env: Vec<(OsString, OsString)>,
     /// Environment variable names to remove from the child process.
@@ -422,7 +422,7 @@ impl std::fmt::Debug for ClientOptions {
         f.debug_struct("ClientOptions")
             .field("program", &self.program)
             .field("prefix_args", &self.prefix_args)
-            .field("cwd", &self.cwd)
+            .field("working_directory", &self.working_directory)
             .field("env", &self.env)
             .field("env_remove", &self.env_remove)
             .field("extra_args", &self.extra_args)
@@ -644,7 +644,7 @@ impl Default for ClientOptions {
         Self {
             program: CliProgram::Resolve,
             prefix_args: Vec::new(),
-            cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            working_directory: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             env: Vec::new(),
             env_remove: Vec::new(),
             extra_args: Vec::new(),
@@ -702,7 +702,7 @@ impl ClientOptions {
 
     /// Working directory for the CLI process.
     pub fn with_cwd(mut self, cwd: impl Into<PathBuf>) -> Self {
-        self.cwd = cwd.into();
+        self.working_directory = cwd.into();
         self
     }
 
@@ -871,7 +871,7 @@ pub struct Client {
 impl std::fmt::Debug for Client {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Client")
-            .field("cwd", &self.inner.cwd)
+            .field("working_directory", &self.inner.cwd)
             .field("pid", &self.pid())
             .finish()
     }
@@ -1014,7 +1014,7 @@ impl Client {
                     reader,
                     writer,
                     None,
-                    options.cwd,
+                    options.working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
@@ -1037,7 +1037,7 @@ impl Client {
                     reader,
                     writer,
                     Some(child),
-                    options.cwd,
+                    options.working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
@@ -1054,7 +1054,7 @@ impl Client {
                     stdout,
                     stdin,
                     Some(child),
-                    options.cwd,
+                    options.working_directory,
                     options.on_list_models,
                     session_fs_config.is_some(),
                     session_fs_sqlite_declared,
@@ -1299,7 +1299,7 @@ impl Client {
             command.env_remove(key);
         }
         command
-            .current_dir(&options.cwd)
+            .current_dir(&options.working_directory)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
@@ -1356,7 +1356,7 @@ impl Client {
     }
 
     fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child, Error> {
-        info!(cwd = ?options.cwd, program = %program.display(), "spawning copilot CLI (stdio)");
+        info!(cwd = ?options.working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options);
         let log_level = options.log_level.unwrap_or(LogLevel::Info);
         command
@@ -1386,7 +1386,7 @@ impl Client {
         options: &ClientOptions,
         port: u16,
     ) -> Result<(Child, u16), Error> {
-        info!(cwd = ?options.cwd, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
+        info!(cwd = ?options.working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options);
         let log_level = options.log_level.unwrap_or(LogLevel::Info);
         command
@@ -2066,7 +2066,7 @@ mod tests {
             .with_remote(true);
         assert!(matches!(opts.program, CliProgram::Path(_)));
         assert_eq!(opts.prefix_args, vec![std::ffi::OsString::from("node")]);
-        assert_eq!(opts.cwd, PathBuf::from("/tmp"));
+        assert_eq!(opts.working_directory, PathBuf::from("/tmp"));
         assert_eq!(
             opts.env,
             vec![(
