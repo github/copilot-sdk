@@ -239,7 +239,7 @@ async fn should_emit_snapshot_rewind_event_and_remove_events_on_truncate() {
                     .expect("assistant message");
                 assert!(assistant_message_content(&answer).contains("SNAPSHOT_REWIND_TARGET"));
                 let user_event = session
-                    .get_messages()
+                    .get_events()
                     .await
                     .expect("messages")
                     .into_iter()
@@ -268,10 +268,7 @@ async fn should_emit_snapshot_rewind_event_and_remove_events_on_truncate() {
                 assert!(result.events_removed >= 1);
                 rewind.await;
 
-                let remaining = session
-                    .get_messages()
-                    .await
-                    .expect("messages after truncate");
+                let remaining = session.get_events().await.expect("messages after truncate");
                 assert!(!remaining.iter().any(|event| event.id == target_event_id));
 
                 session.disconnect().await.expect("disconnect session");
@@ -301,7 +298,7 @@ async fn should_allow_session_use_after_truncate() {
                     .await
                     .expect("send");
                 let user_event = session
-                    .get_messages()
+                    .get_events()
                     .await
                     .expect("messages")
                     .into_iter()

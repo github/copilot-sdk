@@ -4,10 +4,10 @@
 //! [`Client::subscribe_lifecycle`](crate::Client::subscribe_lifecycle).
 //!
 //! Each subscription is an opt-in **observer** of events that are also
-//! delivered to the [`SessionHandler`](crate::handler::SessionHandler).
-//! Subscribers receive a clone of every event but cannot influence
-//! permission decisions, tool results, or anything else that requires
-//! returning a [`HandlerResponse`](crate::handler::HandlerResponse).
+//! delivered to the per-event handlers installed on the session config
+//! (see [`crate::handler`]). Subscribers receive a clone of every event but
+//! cannot influence permission decisions, tool results, or any other event
+//! whose handler return value affects the runtime.
 //!
 //! # Async iteration
 //!

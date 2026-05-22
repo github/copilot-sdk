@@ -7,7 +7,7 @@ use github_copilot_sdk::generated::session_events::{
     AssistantMessageData, ExternalToolRequestedData, SessionEventType, SessionResumeData,
 };
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Client, Error, RequestId, ResumeSessionConfig, SessionConfig, SessionId, Tool, ToolInvocation,
     ToolResult, Transport,
@@ -43,19 +43,18 @@ async fn should_continue_pending_external_tool_request_after_resume() {
                 let suspended_client = start_external_client(ctx, port).await;
                 let (started_tx, mut started_rx) = mpsc::unbounded_channel();
                 let (_release_tx, release_rx) = oneshot::channel();
-                let router = ToolHandlerRouter::new(
-                    vec![Box::new(BlockingExternalTool {
-                        started_tx,
-                        release_rx: Mutex::new(Some(release_rx)),
-                    })],
-                    Arc::new(ApproveAllHandler),
-                );
+                let router = Arc::new(BlockingExternalTool {
+                    started_tx,
+                    release_rx: Mutex::new(Some(release_rx)),
+                });
                 let session1 = suspended_client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
-                            .with_tools([BlockingExternalTool::definition()]),
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![
+                                BlockingExternalTool::definition().with_handler(router),
+                            ]),
                     )
                     .await
                     .expect("create session");
@@ -228,7 +227,7 @@ async fn should_report_continuependingwork_true_in_resume_event() {
                     .await
                     .expect("resume session");
                 let resume_event = session2
-                    .get_messages()
+                    .get_events()
                     .await
                     .expect("messages")
                     .into_iter()
@@ -263,26 +262,24 @@ async fn should_report_continuependingwork_true_in_resume_event() {
 fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
-        .with_handler(Arc::new(ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
 }
 
 async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {
-    Client::start(
-        ctx.client_options_with_transport(Transport::Tcp { port })
-            .with_tcp_connection_token(SHARED_TOKEN),
-    )
+    Client::start(ctx.client_options_with_transport(Transport::Tcp {
+        port,
+        connection_token: Some(SHARED_TOKEN.to_string()),
+    }))
     .await
     .expect("start TCP server client")
 }
 
 async fn start_external_client(ctx: &E2eContext, port: u16) -> Client {
-    Client::start(
-        ctx.client_options_with_transport(Transport::External {
-            host: "127.0.0.1".to_string(),
-            port,
-        })
-        .with_tcp_connection_token(SHARED_TOKEN),
-    )
+    Client::start(ctx.client_options_with_transport(Transport::External {
+        host: "127.0.0.1".to_string(),
+        port,
+        connection_token: Some(SHARED_TOKEN.to_string()),
+    }))
     .await
     .expect("start external client")
 }
@@ -316,10 +313,6 @@ impl BlockingExternalTool {
 
 #[async_trait]
 impl ToolHandler for BlockingExternalTool {
-    fn tool(&self) -> Tool {
-        Self::definition()
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let value = invocation
             .arguments

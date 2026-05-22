@@ -4,7 +4,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler, UserInputResponse};
+use github_copilot_sdk::handler::{
+    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
+};
 use github_copilot_sdk::hooks::{HookContext, PreToolUseInput, PreToolUseOutput, SessionHooks};
 use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionConfig, SessionId};
 use github_copilot_sdk::{Client, ClientOptions};
@@ -15,8 +17,8 @@ struct InputResponder {
 }
 
 #[async_trait]
-impl SessionHandler for InputResponder {
-    async fn on_permission_request(
+impl PermissionHandler for InputResponder {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -24,8 +26,11 @@ impl SessionHandler for InputResponder {
     ) -> PermissionResult {
         PermissionResult::Approved
     }
+}
 
-    async fn on_user_input(
+#[async_trait]
+impl UserInputHandler for InputResponder {
+    async fn handle(
         &self,
         _session_id: SessionId,
         question: String,
@@ -71,9 +76,9 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
-    config.request_user_input = Some(true);
     let config = config
-        .with_handler(handler)
+        .with_permission_handler(handler.clone())
+        .with_user_input_handler(handler)
         .with_hooks(Arc::new(AllowAllHooks));
 
     let session = client.create_session(config).await?;
@@ -98,6 +103,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     }
     println!("\nTotal user input requests: {}", log.len());
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

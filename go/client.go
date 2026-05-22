@@ -666,7 +666,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		config.Hooks.OnErrorOccurred != nil) {
 		req.Hooks = Bool(true)
 	}
-	req.RequestPermission = Bool(true)
+	if config.OnPermissionRequest != nil {
+		req.RequestPermission = Bool(true)
+	}
 
 	traceparent, tracestate := getTraceContext(ctx)
 	req.Traceparent = traceparent
@@ -841,7 +843,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.InfiniteSessions = config.InfiniteSessions
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
-	req.RequestPermission = Bool(true)
+	if config.OnPermissionRequest != nil {
+		req.RequestPermission = Bool(true)
+	}
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))

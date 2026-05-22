@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Client, Error, OtelExporterType, SessionConfig, TelemetryConfig, Tool, ToolInvocation,
     ToolResult,
@@ -36,19 +36,22 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
                 ))
                 .await
                 .expect("start client");
-                let router = ToolHandlerRouter::new(
-                    vec![Box::new(EchoTelemetryTool {
-                        name: tool_name.to_string(),
-                    })],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                let echo_tool = Tool::new(tool_name)
+                    .with_description("Echoes a marker string for telemetry validation.")
+                    .with_parameters(json!({
+                        "type": "object",
+                        "properties": {
+                            "value": { "type": "string" }
+                        },
+                        "required": ["value"]
+                    }))
+                    .with_handler(Arc::new(EchoTelemetryTool));
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
-                            .with_tools(tools),
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![echo_tool]),
                     )
                     .await
                     .expect("create session");
@@ -136,24 +139,10 @@ async fn should_export_file_telemetry_for_sdk_interactions() {
     .await;
 }
 
-struct EchoTelemetryTool {
-    name: String,
-}
+struct EchoTelemetryTool;
 
 #[async_trait]
 impl ToolHandler for EchoTelemetryTool {
-    fn tool(&self) -> Tool {
-        Tool::new(&self.name)
-            .with_description("Echoes a marker string for telemetry validation.")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "value": { "type": "string" }
-                },
-                "required": ["value"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         Ok(ToolResult::Text(
             invocation

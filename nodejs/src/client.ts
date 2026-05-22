@@ -863,7 +863,7 @@ export class CopilotClient {
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
-                requestPermission: true,
+                requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
                 requestExitPlanMode: !!config.onExitPlanModeRequest,

@@ -19,7 +19,7 @@ fn make_config(system: &str) -> SessionConfig {
     config.model = Some("claude-haiku-4.5".to_string());
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
-    config.with_handler(Arc::new(ApproveAllHandler))
+    config.with_permission_handler(Arc::new(ApproveAllHandler))
 }
 
 #[tokio::main]
@@ -47,7 +47,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    session1.destroy().await?;
-    session2.destroy().await?;
+    session1.disconnect().await?;
+    session2.disconnect().await?;
     Ok(())
 }

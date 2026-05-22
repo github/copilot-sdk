@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::generated::session_events::{AssistantMessageDeltaData, SessionEventType};
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
 use serde_json::json;
 use tokio::sync::{Mutex, mpsc, oneshot};
@@ -76,20 +76,32 @@ async fn should_abort_during_active_tool_execution() {
                 let client = ctx.start_client().await;
                 let (started_tx, mut started_rx) = mpsc::unbounded_channel();
                 let (release_tx, release_rx) = oneshot::channel();
-                let router = ToolHandlerRouter::new(
-                    vec![Box::new(SlowAnalysisTool {
-                        started_tx,
-                        release_rx: Mutex::new(Some(release_rx)),
-                    })],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                let slow_tool = Arc::new(SlowAnalysisTool {
+                    started_tx,
+                    release_rx: Mutex::new(Some(release_rx)),
+                });
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
-                            .with_tools(tools),
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![
+                                Tool::new("slow_analysis")
+                                    .with_description(
+                                        "A slow analysis tool that blocks until released",
+                                    )
+                                    .with_parameters(json!({
+                                        "type": "object",
+                                        "properties": {
+                                            "value": {
+                                                "type": "string",
+                                                "description": "Value to analyze"
+                                            }
+                                        },
+                                        "required": ["value"]
+                                    }))
+                                    .with_handler(slow_tool),
+                            ]),
                     )
                     .await
                     .expect("create session");
@@ -138,21 +150,6 @@ struct SlowAnalysisTool {
 
 #[async_trait]
 impl ToolHandler for SlowAnalysisTool {
-    fn tool(&self) -> Tool {
-        Tool::new("slow_analysis")
-            .with_description("A slow analysis tool that blocks until released")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "value": {
-                        "type": "string",
-                        "description": "Value to analyze"
-                    }
-                },
-                "required": ["value"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let value = invocation
             .arguments
