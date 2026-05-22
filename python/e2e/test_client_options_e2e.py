@@ -207,7 +207,7 @@ class TestClientOptions:
             f.write(FAKE_STDIO_CLI_SCRIPT)
 
         client = CopilotClient(
-            _make_options(
+            **_make_options(
                 ctx,
                 cli_path=cli_path,
                 base_directory=copilot_home_from_option,
