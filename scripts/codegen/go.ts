@@ -37,9 +37,11 @@ import {
     isRpcMethod,
     isSchemaDeprecated,
     isSchemaExperimental,
+    isSchemaInternal,
     isVoidSchema,
     parseExternalSchemaRef,
     postProcessSchema,
+    propagateInternalVisibility,
     refTypeName,
     resolveObjectSchema,
     resolveRef,
@@ -199,6 +201,31 @@ function pushGoExperimentalSubApiComment(lines: string[], name: string, indent =
 
 function pushGoExperimentalMethodComment(lines: string[], methodName: string, indent = ""): void {
     pushGoComment(lines, `Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`, indent);
+}
+
+function pushGoInternalPropertyComment(lines: string[], goName: string, ctx: GoCodegenCtx, indent = "\t"): void {
+    pushGoCommentForContext(lines, `Internal: ${goName} is part of the SDK's internal API surface and is not intended for external use.`, ctx, indent);
+}
+
+function pushGoExperimentalPropertyComment(lines: string[], goName: string, ctx: GoCodegenCtx, indent = "\t"): void {
+    pushGoCommentForContext(lines, `Experimental: ${goName} is part of an experimental API and may change or be removed.`, ctx, indent);
+}
+
+/**
+ * Emit `Deprecated:` / `Experimental:` / `Internal:` doc comments above a Go
+ * struct field. Centralises the per-field marker logic shared between the
+ * regular struct emitter and the discriminated-union variant emitters.
+ */
+function pushGoFieldMarkers(lines: string[], prop: JSONSchema7, goName: string, ctx: GoCodegenCtx, indent = "\t"): void {
+    if (isSchemaDeprecated(prop)) {
+        pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, indent);
+    }
+    if (isSchemaExperimental(prop)) {
+        pushGoExperimentalPropertyComment(lines, goName, ctx, indent);
+    }
+    if (isSchemaInternal(prop)) {
+        pushGoInternalPropertyComment(lines, goName, ctx, indent);
+    }
 }
 
 function lowerFirst(value: string): string {
@@ -1111,9 +1138,7 @@ function emitGoStruct(
         if (prop.description) {
             pushGoCommentForContext(lines, prop.description, ctx, "\t");
         }
-        if (isSchemaDeprecated(prop)) {
-            pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-        }
+        pushGoFieldMarkers(lines, prop, goName, ctx);
         const jsonTag = `json:"${propName}${omit}"`;
         lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
         fields.push({ propName, goName, goType, jsonTag });
@@ -1802,9 +1827,7 @@ function emitGoFlatDiscriminatedUnion(
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
-                if (isSchemaDeprecated(prop)) {
-                    pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-                }
+                pushGoFieldMarkers(lines, prop, goName, ctx);
                 const jsonTag = `json:"${propName}${omit}"`;
                 lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
                 fields.push({ propName, goName, goType, jsonTag });
@@ -1931,9 +1954,7 @@ function emitGoRequiredFieldDiscriminatedUnion(
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
-                if (isSchemaDeprecated(prop)) {
-                    pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-                }
+                pushGoFieldMarkers(lines, prop, goName, ctx);
                 const jsonTag = `json:"${propName}${omit}"`;
                 lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
                 fields.push({ propName, goName, goType, jsonTag });
@@ -3043,9 +3064,7 @@ export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: st
             if (prop.description) {
                 pushGoCommentForContext(lines, prop.description, ctx, "\t");
             }
-            if (isSchemaDeprecated(prop)) {
-                pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-            }
+            pushGoFieldMarkers(lines, prop, goName, ctx);
             const jsonTag = `json:"${propName}${omit}"`;
             lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
             fields.push({ propName, goName, goType, jsonTag });
@@ -3337,11 +3356,15 @@ function collectGoTopLevelNames(code: string, keyword: "type" | "const"): string
 function generateGoSessionEventAliasFile(
     generatedSessionTypeCode: string,
     additionalTypeNames: Iterable<string> = [],
-    additionalConstNames: Iterable<string> = []
+    additionalConstNames: Iterable<string> = [],
+    excludeTypeNames: Iterable<string> = []
 ): string {
+    const excluded = new Set(excludeTypeNames);
     const typeNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "type"), ...additionalTypeNames])]
+        .filter((name) => !excluded.has(name))
         .sort(compareGoTypeNames);
     const constNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "const"), ...additionalConstNames])]
+        .filter((name) => !excluded.has(name))
         .sort(compareGoTypeNames);
     const lines: string[] = [];
 
@@ -3428,7 +3451,7 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
-    const processed = postProcessSchema(schema);
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
     const sharedDefinitions = apiSchema
         ? findSharedSchemaDefinitions(
             processed as unknown as Record<string, unknown>,
@@ -3440,7 +3463,26 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     const sessionSchema = rewriteSharedDefinitionReferences(processed, sharedDefinitions, "api.schema.json", true);
 
     const generatedSessionCode = generateGoSessionEventsCode(sessionSchema, "rpc");
-    const generatedTypeCode = stripTrailingGoWhitespace(generatedSessionCode.typeCode);
+    let generatedTypeCode = stripTrailingGoWhitespace(generatedSessionCode.typeCode);
+    // Annotate internal session-event types (driven by the JSON Schema definition's
+    // `visibility: "internal"` flag). Matches what the RPC generator does below;
+    // the session-events emit path doesn't pass through that code so we apply it here.
+    {
+        const sessionDefs = collectDefinitionCollections(sessionSchema as Record<string, unknown>);
+        const allSessionDefs = { ...sessionDefs.$defs, ...sessionDefs.definitions };
+        const internalSessionTypeNames = new Set<string>();
+        for (const [name, def] of Object.entries(allSessionDefs)) {
+            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+                internalSessionTypeNames.add(name);
+            }
+        }
+        for (const typeName of internalSessionTypeNames) {
+            generatedTypeCode = generatedTypeCode.replace(
+                new RegExp(`^(type ${typeName} struct)`, "m"),
+                `// Internal: ${typeName} is an internal SDK API and is not part of the public surface.\n$1`
+            );
+        }
+    }
     const generatedEncodingCode = stripTrailingGoWhitespace(generatedSessionCode.encodingCode);
     rpcSessionEventTopLevelNames = {
         types: new Set(collectGoTopLevelNames(generatedTypeCode, "type")),
@@ -3460,9 +3502,24 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     const sharedAliasNames = apiSchema
         ? collectGoSharedSessionEventAliasNames(sharedSessionEventDefinitions, apiSchema)
         : { typeNames: [], constNames: [] };
+    // Exclude internal types from the public `copilot` package re-exports. They
+    // remain accessible in the lower-level `rpc` package (where they're tagged
+    // with `// Internal:` doc comments), but consumers using only the canonical
+    // `copilot.*` namespace never see them. This is the strongest practical
+    // signal Go offers without requiring runtime refactoring to enable full
+    // lowercase/unexported types.
+    const internalTypesInSession = new Set<string>();
+    {
+        const { definitions, $defs } = collectDefinitionCollections(sessionSchema as Record<string, unknown>);
+        for (const [name, def] of Object.entries({ ...definitions, ...$defs })) {
+            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+                internalTypesInSession.add(name);
+            }
+        }
+    }
     const aliasOutPath = await writeGeneratedFile(
         "go/zsession_events.go",
-        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames)
+        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames, internalTypesInSession)
     );
     console.log(`  ✓ ${aliasOutPath}`);
 
@@ -3476,7 +3533,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Go: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
+    const schema = propagateInternalVisibility(fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema)) as JSONSchema7) as unknown as ApiSchema;
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),

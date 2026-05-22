@@ -672,7 +672,7 @@ public sealed class ToolInvocation
     /// <summary>
     /// Arguments passed to the tool by the language model.
     /// </summary>
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 }
 
 /// <summary>
@@ -1123,7 +1123,7 @@ public sealed class PreToolUseHookInput
     /// Arguments that will be passed to the tool.
     /// </summary>
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 }
 
 /// <summary>
@@ -1278,13 +1278,13 @@ public sealed class PostToolUseHookInput
     /// Arguments that were passed to the tool.
     /// </summary>
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 
     /// <summary>
     /// Result returned by the tool execution.
     /// </summary>
     [JsonPropertyName("toolResult")]
-    public object? ToolResult { get; set; }
+    public JsonElement? ToolResult { get; set; }
 }
 
 /// <summary>

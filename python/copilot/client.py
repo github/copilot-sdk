@@ -38,9 +38,9 @@ from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context
 from .generated.rpc import (
     ClientSessionApiHandlers,
-    ConnectRequest,
     RemoteSessionMode,
     ServerRpc,
+    _ConnectRequest,
     _InternalServerRpc,
     from_datetime,
     register_client_session_api_handlers,
@@ -2628,8 +2628,8 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_result = await _InternalServerRpc(self._client).connect(
-                ConnectRequest(token=self._effective_connection_token)
+            connect_result = await _InternalServerRpc(self._client)._connect(
+                _ConnectRequest(token=self._effective_connection_token)
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:

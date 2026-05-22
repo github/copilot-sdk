@@ -1629,6 +1629,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
     private static JsonSerializerOptions SerializerOptionsForMessageFormatter { get; } = CreateSerializerOptions();
 
+    /// <summary>
+    /// Converts an arbitrary value into the <see cref="JsonElement"/> representation that wire
+    /// DTOs use for opaque-JSON fields. Pass-through for <see cref="JsonElement"/>, otherwise
+    /// serializes the runtime type using the shared JSON-RPC serializer options so that any
+    /// type registered in the SDK's source-generated contexts (e.g. primitives,
+    /// <c>Dictionary&lt;string, object&gt;</c>, generated DTOs) is supported.
+    /// </summary>
+    public static JsonElement? ToJsonElementForWire(object? value) => value switch
+    {
+        null => null,
+        JsonElement je => je,
+        _ => JsonSerializer.SerializeToElement(value, SerializerOptionsForMessageFormatter.GetTypeInfo(value.GetType()))
+    };
+
     private static JsonSerializerOptions CreateSerializerOptions()
     {
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)

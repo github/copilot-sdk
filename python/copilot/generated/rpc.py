@@ -452,17 +452,17 @@ class ConnectRemoteSessionParams:
 
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class ConnectRequest:
+class _ConnectRequest:
     """Optional connection token presented by the SDK client during the handshake."""
 
     token: str | None = None
     """Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectRequest':
+    def from_dict(obj: Any) -> '_ConnectRequest':
         assert isinstance(obj, dict)
         token = from_union([from_str, from_none], obj.get("token"))
-        return ConnectRequest(token)
+        return _ConnectRequest(token)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -472,7 +472,7 @@ class ConnectRequest:
 
 # Internal: this type is an internal SDK API and is not part of the public surface.
 @dataclass
-class ConnectResult:
+class _ConnectResult:
     """Handshake result reporting the server's protocol version and package version on success."""
 
     ok: bool
@@ -485,12 +485,12 @@ class ConnectResult:
     """Server package version"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectResult':
+    def from_dict(obj: Any) -> '_ConnectResult':
         assert isinstance(obj, dict)
         ok = from_bool(obj.get("ok"))
         protocol_version = from_int(obj.get("protocolVersion"))
         version = from_str(obj.get("version"))
-        return ConnectResult(ok, protocol_version, version)
+        return _ConnectResult(ok, protocol_version, version)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -9420,6 +9420,7 @@ class SendRequest:
     """If set, the request will fail if the named tool is not available when this message is
     among the user messages at the start of the current exchange
     """
+    # Internal: this field is an internal SDK API and is not part of the public surface.
     source: Any = None
     """Optional provenance tag copied to the resulting user.message event. Supported values are
     `system`, `command-*`, and `schedule-*`.
@@ -13706,8 +13707,8 @@ class RPC:
     connected_remote_session_metadata_kind: ConnectedRemoteSessionMetadataKind
     connected_remote_session_metadata_repository: ConnectedRemoteSessionMetadataRepository
     connect_remote_session_params: ConnectRemoteSessionParams
-    connect_request: ConnectRequest
-    connect_result: ConnectResult
+    connect_request: _ConnectRequest
+    connect_result: _ConnectResult
     content_filter_mode: ContentFilterMode
     copilot_api_token_auth_info: CopilotAPITokenAuthInfo
     copilot_user_response: CopilotUserResponse
@@ -14217,8 +14218,8 @@ class RPC:
         connected_remote_session_metadata_kind = ConnectedRemoteSessionMetadataKind(obj.get("ConnectedRemoteSessionMetadataKind"))
         connected_remote_session_metadata_repository = ConnectedRemoteSessionMetadataRepository.from_dict(obj.get("ConnectedRemoteSessionMetadataRepository"))
         connect_remote_session_params = ConnectRemoteSessionParams.from_dict(obj.get("ConnectRemoteSessionParams"))
-        connect_request = ConnectRequest.from_dict(obj.get("ConnectRequest"))
-        connect_result = ConnectResult.from_dict(obj.get("ConnectResult"))
+        connect_request = _ConnectRequest.from_dict(obj.get("ConnectRequest"))
+        connect_result = _ConnectResult.from_dict(obj.get("ConnectResult"))
         content_filter_mode = ContentFilterMode(obj.get("ContentFilterMode"))
         copilot_api_token_auth_info = CopilotAPITokenAuthInfo.from_dict(obj.get("CopilotApiTokenAuthInfo"))
         copilot_user_response = CopilotUserResponse.from_dict(obj.get("CopilotUserResponse"))
@@ -14728,8 +14729,8 @@ class RPC:
         result["ConnectedRemoteSessionMetadataKind"] = to_enum(ConnectedRemoteSessionMetadataKind, self.connected_remote_session_metadata_kind)
         result["ConnectedRemoteSessionMetadataRepository"] = to_class(ConnectedRemoteSessionMetadataRepository, self.connected_remote_session_metadata_repository)
         result["ConnectRemoteSessionParams"] = to_class(ConnectRemoteSessionParams, self.connect_remote_session_params)
-        result["ConnectRequest"] = to_class(ConnectRequest, self.connect_request)
-        result["ConnectResult"] = to_class(ConnectResult, self.connect_result)
+        result["ConnectRequest"] = to_class(_ConnectRequest, self.connect_request)
+        result["ConnectResult"] = to_class(_ConnectResult, self.connect_result)
         result["ContentFilterMode"] = to_enum(ContentFilterMode, self.content_filter_mode)
         result["CopilotApiTokenAuthInfo"] = to_class(CopilotAPITokenAuthInfo, self.copilot_api_token_auth_info)
         result["CopilotUserResponse"] = to_class(CopilotUserResponse, self.copilot_user_response)
@@ -15656,10 +15657,10 @@ class _InternalServerRpc:
     def __init__(self, client: "JsonRpcClient"):
         self._client = client
 
-    async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
+    async def _connect(self, params: _ConnectRequest, *, timeout: float | None = None) -> _ConnectResult:
         "Performs the SDK server connection handshake and validates the optional connection token.\n\nArgs:\n    params: Optional connection token presented by the SDK client during the handshake.\n\nReturns:\n    Handshake result reporting the server's protocol version and package version on success.\n\n:meta private:\n\nInternal SDK API; not part of the public surface."
         params_dict = {k: v for k, v in params.to_dict().items() if v is not None}
-        return ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
+        return _ConnectResult.from_dict(await self._client.request("connect", params_dict, **_timeout_kwargs(timeout)))
 
 
 # Experimental: this API group is experimental and may change or be removed.

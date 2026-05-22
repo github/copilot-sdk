@@ -1667,14 +1667,16 @@ public sealed partial class SessionShutdownData
     public required TimeSpan TotalApiDuration { get; set; }
 
     /// <summary>Session-wide accumulated nano-AI units cost.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalNanoAiu")]
     public double? TotalNanoAiu { get; set; }
 
     /// <summary>Total number of premium API requests used during the session.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("totalPremiumRequests")]
-    public double? TotalPremiumRequests { get; set; }
+    internal double? TotalPremiumRequests { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -1987,11 +1989,13 @@ public sealed partial class AssistantStreamingDeltaData
 public sealed partial class AssistantMessageData
 {
     /// <summary>Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("anthropicAdvisorBlocks")]
-    public object[]? AnthropicAdvisorBlocks { get; set; }
+    public JsonElement[]? AnthropicAdvisorBlocks { get; set; }
 
     /// <summary>Anthropic advisor model ID used for this response, for timeline display on replay.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("anthropicAdvisorModel")]
     public string? AnthropicAdvisorModel { get; set; }
@@ -2127,10 +2131,12 @@ public sealed partial class AssistantUsageData
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("copilotUsage")]
-    public AssistantUsageCopilotUsage? CopilotUsage { get; set; }
+    internal AssistantUsageCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Model multiplier cost for billing purposes.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cost")]
     public double? Cost { get; set; }
@@ -2180,8 +2186,9 @@ public sealed partial class AssistantUsageData
 
     /// <summary>Per-quota resource usage snapshots, keyed by quota identifier.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("quotaSnapshots")]
-    public IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
+    internal IDictionary<string, AssistantUsageQuotaSnapshot>? QuotaSnapshots { get; set; }
 
     /// <summary>Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max").</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2258,7 +2265,7 @@ public sealed partial class ToolUserRequestedData
     /// <summary>Arguments for the tool invocation.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Unique identifier for this tool call.</summary>
     [JsonPropertyName("toolCallId")]
@@ -2275,7 +2282,7 @@ public sealed partial class ToolExecutionStartData
     /// <summary>Arguments passed to the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2383,7 +2390,7 @@ public sealed partial class ToolExecutionCompleteData
     /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTelemetry")]
-    public IDictionary<string, object>? ToolTelemetry { get; set; }
+    public IDictionary<string, JsonElement>? ToolTelemetry { get; set; }
 
     /// <summary>Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2565,7 +2572,7 @@ public sealed partial class HookStartData
     /// <summary>Input data passed to the hook.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("input")]
-    public object? Input { get; set; }
+    public JsonElement? Input { get; set; }
 }
 
 /// <summary>Hook invocation completion details including output, success status, and error information.</summary>
@@ -2587,7 +2594,7 @@ public sealed partial class HookEndData
     /// <summary>Output data produced by the hook.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("output")]
-    public object? Output { get; set; }
+    public JsonElement? Output { get; set; }
 
     /// <summary>Whether the hook completed successfully.</summary>
     [JsonPropertyName("success")]
@@ -2760,7 +2767,7 @@ public sealed partial class ElicitationCompletedData
     /// <summary>The submitted form data when action is 'accept'; keys match the requested schema fields.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("content")]
-    public IDictionary<string, object>? Content { get; set; }
+    public IDictionary<string, JsonElement>? Content { get; set; }
 
     /// <summary>Request ID of the resolved elicitation request; clients should dismiss any UI for this request.</summary>
     [JsonPropertyName("requestId")]
@@ -2772,7 +2779,7 @@ public sealed partial class SamplingRequestedData
 {
     /// <summary>The JSON-RPC request ID from the MCP protocol.</summary>
     [JsonPropertyName("mcpRequestId")]
-    public required object McpRequestId { get; set; }
+    public required JsonElement McpRequestId { get; set; }
 
     /// <summary>Unique identifier for this sampling request; used to respond via session.respondToSampling().</summary>
     [JsonPropertyName("requestId")]
@@ -2831,7 +2838,7 @@ public sealed partial class SessionCustomNotificationData
 
     /// <summary>Source-defined JSON payload for the custom notification.</summary>
     [JsonPropertyName("payload")]
-    public required object Payload { get; set; }
+    public required JsonElement Payload { get; set; }
 
     /// <summary>Namespace for the custom notification producer.</summary>
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
@@ -2856,7 +2863,7 @@ public sealed partial class ExternalToolRequestedData
     /// <summary>Arguments to pass to the external tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Unique identifier for this request; used to respond via session.respondToExternalTool().</summary>
     [JsonPropertyName("requestId")]
@@ -3181,11 +3188,13 @@ public sealed partial class ShutdownCodeChanges
 public sealed partial class ShutdownModelMetricRequests
 {
     /// <summary>Cumulative cost multiplier for requests to this model.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cost")]
     public double? Cost { get; set; }
 
     /// <summary>Total number of API requests made to this model.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("count")]
     public long? Count { get; set; }
@@ -3240,6 +3249,7 @@ public sealed partial class ShutdownModelMetric
     public IDictionary<string, ShutdownModelMetricTokenDetail>? TokenDetails { get; set; }
 
     /// <summary>Accumulated nano-AI units cost for this model.</summary>
+    [Experimental(Diagnostics.Experimental)]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("totalNanoAiu")]
     public double? TotalNanoAiu { get; set; }
@@ -3281,7 +3291,7 @@ public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsageTo
 
 /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
 /// <remarks>Nested data type for <c>CompactionCompleteCompactionTokensUsedCopilotUsage</c>.</remarks>
-public sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
+internal sealed partial class CompactionCompleteCompactionTokensUsedCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
     [JsonPropertyName("tokenDetails")]
@@ -3308,8 +3318,9 @@ public sealed partial class CompactionCompleteCompactionTokensUsed
 
     /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("copilotUsage")]
-    public CompactionCompleteCompactionTokensUsedCopilotUsage? CopilotUsage { get; set; }
+    internal CompactionCompleteCompactionTokensUsedCopilotUsage? CopilotUsage { get; set; }
 
     /// <summary>Duration of the compaction LLM call in milliseconds.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
@@ -3526,7 +3537,7 @@ public sealed partial class AssistantMessageToolRequest
     /// <summary>Arguments to pass to the tool, format depends on the tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("arguments")]
-    public object? Arguments { get; set; }
+    public JsonElement? Arguments { get; set; }
 
     /// <summary>Resolved intention summary describing what this specific call does.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -3585,7 +3596,7 @@ public sealed partial class AssistantUsageCopilotUsageTokenDetail
 
 /// <summary>Per-request cost and usage data from the CAPI copilot_usage response field.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageCopilotUsage</c>.</remarks>
-public sealed partial class AssistantUsageCopilotUsage
+internal sealed partial class AssistantUsageCopilotUsage
 {
     /// <summary>Itemized token usage breakdown.</summary>
     [JsonPropertyName("tokenDetails")]
@@ -3598,40 +3609,48 @@ public sealed partial class AssistantUsageCopilotUsage
 
 /// <summary>Schema for the `AssistantUsageQuotaSnapshot` type.</summary>
 /// <remarks>Nested data type for <c>AssistantUsageQuotaSnapshot</c>.</remarks>
-public sealed partial class AssistantUsageQuotaSnapshot
+internal sealed partial class AssistantUsageQuotaSnapshot
 {
     /// <summary>Total requests allowed by the entitlement.</summary>
+    [JsonInclude]
     [JsonPropertyName("entitlementRequests")]
-    public required long EntitlementRequests { get; set; }
+    internal required long EntitlementRequests { get; set; }
 
     /// <summary>Whether the user has an unlimited usage entitlement.</summary>
+    [JsonInclude]
     [JsonPropertyName("isUnlimitedEntitlement")]
-    public required bool IsUnlimitedEntitlement { get; set; }
+    internal required bool IsUnlimitedEntitlement { get; set; }
 
     /// <summary>Number of additional usage requests made this period.</summary>
+    [JsonInclude]
     [JsonPropertyName("overage")]
-    public required double Overage { get; set; }
+    internal required double Overage { get; set; }
 
     /// <summary>Whether additional usage is allowed when quota is exhausted.</summary>
+    [JsonInclude]
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
-    public required bool OverageAllowedWithExhaustedQuota { get; set; }
+    internal required bool OverageAllowedWithExhaustedQuota { get; set; }
 
     /// <summary>Percentage of quota remaining (0 to 100).</summary>
+    [JsonInclude]
     [JsonPropertyName("remainingPercentage")]
-    public required double RemainingPercentage { get; set; }
+    internal required double RemainingPercentage { get; set; }
 
     /// <summary>Date when the quota resets.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonInclude]
     [JsonPropertyName("resetDate")]
-    public DateTimeOffset? ResetDate { get; set; }
+    internal DateTimeOffset? ResetDate { get; set; }
 
     /// <summary>Whether usage is still permitted after quota exhaustion.</summary>
+    [JsonInclude]
     [JsonPropertyName("usageAllowedWithExhaustedQuota")]
-    public required bool UsageAllowedWithExhaustedQuota { get; set; }
+    internal required bool UsageAllowedWithExhaustedQuota { get; set; }
 
     /// <summary>Number of requests already consumed.</summary>
+    [JsonInclude]
     [JsonPropertyName("usedRequests")]
-    public required long UsedRequests { get; set; }
+    internal required long UsedRequests { get; set; }
 }
 
 /// <summary>Error details when the tool execution failed.</summary>
@@ -3978,7 +3997,7 @@ public sealed partial class SystemMessageMetadata
     /// <summary>Template variables used when constructing the prompt.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("variables")]
-    public IDictionary<string, object>? Variables { get; set; }
+    public IDictionary<string, JsonElement>? Variables { get; set; }
 }
 
 /// <summary>Schema for the `SystemNotificationAgentCompleted` type.</summary>
@@ -4282,7 +4301,7 @@ public sealed partial class PermissionRequestMcp : PermissionRequest
     /// <summary>Arguments to pass to the MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Whether this MCP tool is read-only (no side effects).</summary>
     [JsonPropertyName("readOnly")]
@@ -4382,7 +4401,7 @@ public sealed partial class PermissionRequestCustomTool : PermissionRequest
     /// <summary>Arguments to pass to the custom tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4414,7 +4433,7 @@ public sealed partial class PermissionRequestHook : PermissionRequest
     /// <summary>Arguments of the tool call being gated.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4597,7 +4616,7 @@ public sealed partial class PermissionPromptRequestMcp : PermissionPromptRequest
     /// <summary>Arguments to pass to the MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Name of the MCP server providing the tool.</summary>
     [JsonPropertyName("serverName")]
@@ -4693,7 +4712,7 @@ public sealed partial class PermissionPromptRequestCustomTool : PermissionPrompt
     /// <summary>Arguments to pass to the custom tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("args")]
-    public object? Args { get; set; }
+    public JsonElement? Args { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -4747,7 +4766,7 @@ public sealed partial class PermissionPromptRequestHook : PermissionPromptReques
     /// <summary>Arguments of the tool call being gated.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolArgs")]
-    public object? ToolArgs { get; set; }
+    public JsonElement? ToolArgs { get; set; }
 
     /// <summary>Tool call ID that triggered this permission request.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5117,7 +5136,7 @@ public sealed partial class ElicitationRequestedSchema
 {
     /// <summary>Form field definitions, keyed by field name.</summary>
     [JsonPropertyName("properties")]
-    public required IDictionary<string, object> Properties { get; set; }
+    public required IDictionary<string, JsonElement> Properties { get; set; }
 
     /// <summary>List of required field names.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

@@ -38,9 +38,11 @@ import {
 	isRpcMethod,
 	isSchemaDeprecated,
 	isSchemaExperimental,
+	isSchemaInternal,
 	isVoidSchema,
 	parseExternalSchemaRef,
 	postProcessSchema,
+	propagateInternalVisibility,
 	refTypeName,
 	resolveObjectSchema,
 	resolveRef,
@@ -776,6 +778,7 @@ function emitRustStruct(
 	if (isSchemaDeprecated(schema)) {
 		lines.push(...rustDeprecatedAttributes());
 	}
+	const structVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
 
 	// Resolve field types up-front so we can decide whether `Default` can be
 	// derived. A required field whose bare type is non-default-able (e.g. an
@@ -810,13 +813,18 @@ function emitRustStruct(
 		lines.push("#[derive(Debug, Clone, Default, Serialize, Deserialize)]");
 	}
 	lines.push(`#[serde(rename_all = "camelCase")]`);
-	lines.push(`pub struct ${typeName} {`);
+	lines.push(`${structVis} struct ${typeName} {`);
 
 	for (const { propName, prop, isReq, rustField, rustType } of fields) {
 		if (prop.description) {
 			for (const line of prop.description.split(/\r?\n/)) {
 				lines.push(`    /// ${line}`);
 			}
+		}
+		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
+		const propIsInternal = isSchemaInternal(prop);
+		if (propIsInternal) {
+			lines.push(`    #[doc(hidden)]`);
 		}
 		if (isSchemaDeprecated(prop)) {
 			lines.push(...rustDeprecatedAttributes("    "));
@@ -846,7 +854,7 @@ function emitRustStruct(
 			lines.push(`    #[serde(rename = "${propName}")]`);
 		}
 
-		lines.push(`    pub ${rustField}: ${rustType},`);
+		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
 	}
 
 	lines.push("}");
@@ -1781,17 +1789,18 @@ function emitNamespaceMethod(
 	};
 
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
+	const fnVis = method.visibility === "internal" ? "pub(crate)" : "pub";
 
 	if (hasParams && paramsInfo.optional) {
 		out.push(...buildDocs(false));
 		out.push(
-			`    pub async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
+			`    ${fnVis} async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, false, resultIsVoid);
 		out.push("");
 		out.push(...buildDocs(true));
 		out.push(
-			`    pub async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
+			`    ${fnVis} async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, true, resultIsVoid);
 		out.push("");
@@ -1800,7 +1809,7 @@ function emitNamespaceMethod(
 
 	out.push(...buildDocs(hasParams));
 	out.push(
-		`    pub async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
+		`    ${fnVis} async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
 	);
 	pushNamespaceMethodBody(out, constName, isSession, hasParams, resultIsVoid);
 	out.push("");
@@ -1988,11 +1997,15 @@ async function generate(): Promise<void> {
 		await fs.readFile(apiSchemaPath, "utf-8"),
 	) as ApiSchema;
 
-	const sessionEventsSchema = postProcessSchema(
-		stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+	const sessionEventsSchema = propagateInternalVisibility(
+		postProcessSchema(
+			stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+		),
 	);
-	const apiSchema = postProcessSchema(
-		stripBooleanLiterals(apiRaw) as JSONSchema7,
+	const apiSchema = propagateInternalVisibility(
+		postProcessSchema(
+			stripBooleanLiterals(apiRaw) as JSONSchema7,
+		),
 	) as unknown as ApiSchema;
 
 	// Ensure output directory exists

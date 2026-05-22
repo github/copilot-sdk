@@ -21,10 +21,8 @@ type (
 	AssistantTurnEndData                                          = rpc.AssistantTurnEndData
 	AssistantTurnStartData                                        = rpc.AssistantTurnStartData
 	AssistantUsageAPIEndpoint                                     = rpc.AssistantUsageAPIEndpoint
-	AssistantUsageCopilotUsage                                    = rpc.AssistantUsageCopilotUsage
 	AssistantUsageCopilotUsageTokenDetail                         = rpc.AssistantUsageCopilotUsageTokenDetail
 	AssistantUsageData                                            = rpc.AssistantUsageData
-	AssistantUsageQuotaSnapshot                                   = rpc.AssistantUsageQuotaSnapshot
 	Attachment                                                    = rpc.Attachment
 	AttachmentType                                                = rpc.AttachmentType
 	AutoModeSwitchCompletedData                                   = rpc.AutoModeSwitchCompletedData
@@ -38,7 +36,6 @@ type (
 	CommandsChangedCommand                                        = rpc.CommandsChangedCommand
 	CommandsChangedData                                           = rpc.CommandsChangedData
 	CompactionCompleteCompactionTokensUsed                        = rpc.CompactionCompleteCompactionTokensUsed
-	CompactionCompleteCompactionTokensUsedCopilotUsage            = rpc.CompactionCompleteCompactionTokensUsedCopilotUsage
 	CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail = rpc.CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail
 	CustomAgentsUpdatedAgent                                      = rpc.CustomAgentsUpdatedAgent
 	CustomNotificationPayload                                     = rpc.CustomNotificationPayload

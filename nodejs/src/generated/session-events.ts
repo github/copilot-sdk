@@ -1464,10 +1464,14 @@ export interface ShutdownData {
   totalApiDurationMs: number;
   /**
    * Session-wide accumulated nano-AI units cost
+   *
+   * @experimental
    */
   totalNanoAiu?: number;
   /**
    * Total number of premium API requests used during the session
+   *
+   * @internal
    */
   totalPremiumRequests?: number;
 }
@@ -1501,6 +1505,8 @@ export interface ShutdownModelMetric {
   };
   /**
    * Accumulated nano-AI units cost for this model
+   *
+   * @experimental
    */
   totalNanoAiu?: number;
   usage: ShutdownModelMetricUsage;
@@ -1511,10 +1517,14 @@ export interface ShutdownModelMetric {
 export interface ShutdownModelMetricRequests {
   /**
    * Cumulative cost multiplier for requests to this model
+   *
+   * @experimental
    */
   cost?: number;
   /**
    * Total number of API requests made to this model
+   *
+   * @experimental
    */
   count?: number;
 }
@@ -1809,6 +1819,11 @@ export interface CompactionCompleteCompactionTokensUsed {
    * Tokens written to prompt cache in the compaction LLM call
    */
   cacheWriteTokens?: number;
+  /**
+   * Per-request cost and usage data from the CAPI copilot_usage response field
+   *
+   * @internal
+   */
   copilotUsage?: CompactionCompleteCompactionTokensUsedCopilotUsage;
   /**
    * Duration of the compaction LLM call in milliseconds
@@ -1830,6 +1845,7 @@ export interface CompactionCompleteCompactionTokensUsed {
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
  */
+/** @internal */
 export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
   /**
    * Itemized token usage breakdown
@@ -2403,12 +2419,14 @@ export interface AssistantMessageEvent {
 export interface AssistantMessageData {
   /**
    * Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+   *
+   * @experimental
    */
-  anthropicAdvisorBlocks?: {
-    [k: string]: unknown | undefined;
-  }[];
+  anthropicAdvisorBlocks?: unknown[];
   /**
    * Anthropic advisor model ID used for this response, for timeline display on replay
+   *
+   * @experimental
    */
   anthropicAdvisorModel?: string;
   /**
@@ -2678,9 +2696,16 @@ export interface AssistantUsageData {
    * Number of tokens written to prompt cache
    */
   cacheWriteTokens?: number;
+  /**
+   * Per-request cost and usage data from the CAPI copilot_usage response field
+   *
+   * @internal
+   */
   copilotUsage?: AssistantUsageCopilotUsage;
   /**
    * Model multiplier cost for billing purposes
+   *
+   * @experimental
    */
   cost?: number;
   /**
@@ -2718,6 +2743,8 @@ export interface AssistantUsageData {
   providerCallId?: string;
   /**
    * Per-quota resource usage snapshots, keyed by quota identifier
+   *
+   * @internal
    */
   quotaSnapshots?: {
     [k: string]: AssistantUsageQuotaSnapshot | undefined;
@@ -2738,6 +2765,7 @@ export interface AssistantUsageData {
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
  */
+/** @internal */
 export interface AssistantUsageCopilotUsage {
   /**
    * Itemized token usage breakdown
@@ -2772,37 +2800,54 @@ export interface AssistantUsageCopilotUsageTokenDetail {
 /**
  * Schema for the `AssistantUsageQuotaSnapshot` type.
  */
+/** @internal */
 export interface AssistantUsageQuotaSnapshot {
   /**
    * Total requests allowed by the entitlement
+   *
+   * @internal
    */
   entitlementRequests: number;
   /**
    * Whether the user has an unlimited usage entitlement
+   *
+   * @internal
    */
   isUnlimitedEntitlement: boolean;
   /**
    * Number of additional usage requests made this period
+   *
+   * @internal
    */
   overage: number;
   /**
    * Whether additional usage is allowed when quota is exhausted
+   *
+   * @internal
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
    * Percentage of quota remaining (0 to 100)
+   *
+   * @internal
    */
   remainingPercentage: number;
   /**
    * Date when the quota resets
+   *
+   * @internal
    */
   resetDate?: string;
   /**
    * Whether usage is still permitted after quota exhaustion
+   *
+   * @internal
    */
   usageAllowedWithExhaustedQuota: boolean;
   /**
    * Number of requests already consumed
+   *
+   * @internal
    */
   usedRequests: number;
 }
@@ -3176,11 +3221,7 @@ export interface ToolExecutionCompleteData {
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
   toolTelemetry?: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   };
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -3886,11 +3927,7 @@ export interface SystemMessageMetadata {
    * Template variables used when constructing the prompt
    */
   variables?: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   };
 }
 /**
@@ -5136,11 +5173,7 @@ export interface ElicitationRequestedSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]:
-      | {
-          [k: string]: unknown | undefined;
-        }
-      | undefined;
+    [k: string]: unknown | undefined;
   };
   /**
    * List of required field names
