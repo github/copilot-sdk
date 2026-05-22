@@ -410,24 +410,24 @@ class GetStatusResponse:
     """Response from status.get"""
 
     version: str  # Package version (e.g., "1.0.0")
-    protocolVersion: int  # Protocol version for SDK compatibility
+    protocol_version: int  # Protocol version for SDK compatibility
 
     @staticmethod
     def from_dict(obj: Any) -> GetStatusResponse:
         assert isinstance(obj, dict)
         version = obj.get("version")
-        protocolVersion = obj.get("protocolVersion")
-        if version is None or protocolVersion is None:
+        protocol_version = obj.get("protocolVersion")
+        if version is None or protocol_version is None:
             raise ValueError(
                 f"Missing required fields in GetStatusResponse: version={version}, "
-                f"protocolVersion={protocolVersion}"
+                f"protocolVersion={protocol_version}"
             )
-        return GetStatusResponse(str(version), int(protocolVersion))
+        return GetStatusResponse(str(version), int(protocol_version))
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["version"] = self.version
-        result["protocolVersion"] = self.protocolVersion
+        result["protocolVersion"] = self.protocol_version
         return result
 
 
