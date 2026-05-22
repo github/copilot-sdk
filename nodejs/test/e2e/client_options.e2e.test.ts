@@ -154,7 +154,6 @@ describe("Client options", async () => {
             }
         });
 
-
         const session = await client.createSession({ onPermissionRequest: approveAll });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
-	"github.com/github/copilot-sdk/go/rpc"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func TestMultiClientE2E(t *testing.T) {
