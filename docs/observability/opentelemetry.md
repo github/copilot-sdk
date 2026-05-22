@@ -27,9 +27,9 @@ const client = new CopilotClient({
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(
+client = CopilotClient(CopilotClientOptions(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },

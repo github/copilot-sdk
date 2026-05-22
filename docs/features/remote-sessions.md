@@ -38,9 +38,9 @@ session.on("session.info", (event) => {
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(remote=True))
+client = CopilotClient(CopilotClientOptions(enable_remote_sessions=True))
 session = await client.create_session(
     working_directory="/path/to/github-repo",
     on_permission_request=lambda req: {"allowed": True},

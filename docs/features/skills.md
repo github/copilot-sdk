@@ -42,15 +42,14 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionRequestResult
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"),
+        on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
         model="gpt-4.1",
         skill_directories=[
             "./skills/code-review",

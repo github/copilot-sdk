@@ -32,9 +32,9 @@ const client = new CopilotClient({
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient({"log_level": "debug"})
+client = CopilotClient(CopilotClientOptions(log_level="debug"))
 ```
 
 </details>
@@ -131,7 +131,7 @@ const client = new CopilotClient({
 ```
 
 > [!NOTE]
-> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `cli_url`.
+> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `RuntimeConnection.uri(...)`.
 
 </details>
 

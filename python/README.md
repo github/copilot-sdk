@@ -579,31 +579,27 @@ session = await client.create_session(
 Provide your own function to inspect each request and apply custom logic (sync or async):
 
 ```python
-from copilot.session import PermissionRequestResult
-from copilot.generated.session_events import PermissionRequest
+from copilot import (
+    PermissionDecisionApproveOnce,
+    PermissionDecisionReject,
+    PermissionRequest,
+    PermissionRequestResult,
+    PermissionRequestShell,
+)
+
 
 def on_permission_request(
     request: PermissionRequest, invocation: dict
 ) -> PermissionRequestResult:
-    # request.kind — what type of operation is being requested:
-    #   "shell"       — executing a shell command
-    #   "write"       — writing or editing a file
-    #   "read"        — reading a file
-    #   "mcp"         — calling an MCP tool
-    #   "custom-tool" — calling one of your registered tools
-    #   "url"         — fetching a URL
-    #   "memory"      — accessing or updating session/workspace memory
-    #   "hook"        — invoking a registered hook
-    # request.tool_call_id  — the tool call that triggered this request
-    # request.tool_name     — name of the tool (for custom-tool / mcp)
-    # request.file_name     — file being written (for write)
-    # request.full_command_text — full shell command (for shell)
+    # ``PermissionRequest`` is a discriminated union — pattern-match on
+    # the variant class to access the per-kind fields.
+    match request:
+        case PermissionRequestShell(full_command_text=cmd):
+            # Deny shell commands
+            return PermissionDecisionReject(feedback=f"Shell denied: {cmd}")
+        case _:
+            return PermissionDecisionApproveOnce()
 
-    if request.kind.value == "shell":
-        # Deny shell commands
-        return PermissionRequestResult(kind="reject")
-
-    return PermissionRequestResult(kind="approve-once")
 
 session = await client.create_session(
     on_permission_request=on_permission_request,
@@ -619,19 +615,29 @@ async def on_permission_request(
 ) -> PermissionRequestResult:
     # Simulate an async approval check (e.g., prompting a user over a network)
     await asyncio.sleep(0)
-    return PermissionRequestResult(kind="approve-once")
+    return PermissionDecisionApproveOnce()
 ```
 
 ### Permission Result Kinds
 
-The handler must return a `PermissionRequestResult` with one of the kinds declared by the `PermissionRequestResultKind` type. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+The handler returns a ``PermissionRequestResult``, which is an alias for
+``PermissionDecision | PermissionNoResult`` (the generated wire-level
+union of every decision variant, plus a small sentinel for v1 servers).
+Approval decisions are present-tense — they describe the decision to
+apply, not the past-tense outcome reported back on `permission.completed`
+session events.
 
-| `kind` value           | Meaning                                                                                     |
-| ---------------------- | ------------------------------------------------------------------------------------------- |
-| `"approve-once"`       | Allow this single request                                                                   |
-| `"reject"`             | Deny the request                                                                            |
-| `"user-not-available"` | Deny the request because no user is available to confirm it (the default)                   |
-| `"no-result"`          | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+| Variant                                       | Meaning                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `PermissionDecisionApproveOnce()`             | Allow this single request                                                                   |
+| `PermissionDecisionReject(feedback="…")`      | Deny the request (optional feedback string forwarded to the LLM)                            |
+| `PermissionDecisionUserNotAvailable()`        | Deny the request because no user is available to confirm it (the default)                   |
+| `PermissionNoResult()`                        | Leave the request unanswered (only valid with protocol v1; rejected by protocol v2 servers) |
+
+Several richer variants (``PermissionDecisionApproveForSession``,
+``PermissionDecisionApproveForLocation``, ``PermissionDecisionApprovePermanently``,
+…) are available for granting longer-lived approvals; see the generated
+``copilot.generated.rpc`` module for the full list.
 
 ### Resuming Sessions
 
