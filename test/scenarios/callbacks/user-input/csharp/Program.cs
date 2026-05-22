@@ -1,4 +1,5 @@
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 var inputLog = new List<string>();
 
@@ -12,7 +13,7 @@ try
     {
         Model = "claude-haiku-4.5",
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+            Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce()),
         OnUserInputRequest = (request, invocation) =>
         {
             inputLog.Add($"question: {request.Question}");

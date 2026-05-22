@@ -1,4 +1,5 @@
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 var permissionLog = new List<string>();
 
@@ -23,7 +24,7 @@ try
                 _ => request.Kind,
             };
             permissionLog.Add($"approved:{toolName}");
-            return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+            return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
         },
         Hooks = new SessionHooks
         {

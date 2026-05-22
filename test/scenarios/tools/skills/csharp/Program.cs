@@ -1,4 +1,5 @@
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 using var client = new CopilotClient();
 
@@ -13,7 +14,7 @@ try
         Model = "claude-haiku-4.5",
         SkillDirectories = [skillsDir],
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+            Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce()),
         Hooks = new SessionHooks
         {
             OnPreToolUse = (input, invocation) =>

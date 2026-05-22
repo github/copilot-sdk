@@ -295,12 +295,9 @@ public class SerializationTests
     public void PermissionDecision_SerializesBaseDiscriminator_WithSdkOptions()
     {
         var options = GetSerializerOptions();
-        var original = new PermissionDecision
-        {
-            Kind = PermissionRequestResultKind.Approved.Value
-        };
+        var original = PermissionDecision.ApproveOnce();
 
-        var json = JsonSerializer.Serialize(original, options);
+        var json = JsonSerializer.Serialize<PermissionDecision>(original, options);
         using var document = JsonDocument.Parse(json);
 
         Assert.Equal("approve-once", document.RootElement.GetProperty("kind").GetString());

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
@@ -43,7 +44,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     writePermissionRequestReceived.TrySetResult(writeRequest);
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -86,10 +87,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                return Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.Rejected
-                });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.Reject());
             }
         });
 
@@ -135,7 +133,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
         });
         var permissionDenied = false;
 
@@ -181,7 +179,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             {
                 permissionRequestReceived = true;
                 await Task.Yield();
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -212,7 +210,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequestReceived = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -262,7 +260,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
         });
         var permissionDenied = false;
 
@@ -297,7 +295,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     receivedToolCallId = true;
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -340,7 +338,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 handlerEntered.TrySetResult();
                 await releaseHandler.Task.WaitAsync(TimeSpan.FromSeconds(30));
                 AddLifecycleEvent("permission-complete", shellRequest.ToolCallId);
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -438,7 +436,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 }
 
                 await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -515,7 +513,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (_, _) =>
             {
                 permissionCalled.TrySetResult(true);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.NoResult());
             }
         });
 
@@ -541,7 +539,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (_, _) =>
             {
                 Interlocked.Increment(ref handlerCallCount);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 

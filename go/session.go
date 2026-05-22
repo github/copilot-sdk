@@ -1143,7 +1143,7 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		SessionID: s.SessionID,
 	}
 
-	result, err := handler(permissionRequest, invocation)
+	decision, err := handler(permissionRequest, invocation)
 	if err != nil {
 		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 			RequestID: requestID,
@@ -1151,27 +1151,17 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		})
 		return
 	}
-	if result.Kind == "no-result" {
+	if _, ok := decision.(*rpc.PermissionDecisionNoResult); ok {
+		return
+	}
+	if _, ok := decision.(rpc.PermissionDecisionNoResult); ok {
 		return
 	}
 
 	s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
 		RequestID: requestID,
-		Result:    rpcPermissionDecisionFromKind(rpc.PermissionDecisionKind(result.Kind)),
+		Result:    decision,
 	})
-}
-
-func rpcPermissionDecisionFromKind(kind rpc.PermissionDecisionKind) rpc.PermissionDecision {
-	switch kind {
-	case rpc.PermissionDecisionKindApproveOnce:
-		return &rpc.PermissionDecisionApproveOnce{}
-	case rpc.PermissionDecisionKindReject:
-		return &rpc.PermissionDecisionReject{}
-	case rpc.PermissionDecisionKindUserNotAvailable:
-		return &rpc.PermissionDecisionUserNotAvailable{}
-	default:
-		return &rpc.RawPermissionDecisionData{Discriminator: kind}
-	}
 }
 
 // GetEvents retrieves all events from this session's history.

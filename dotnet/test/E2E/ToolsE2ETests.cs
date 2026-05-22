@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.ObjectModel;
@@ -201,7 +202,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = (_, _) =>
             {
                 didRunPermissionRequest = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.NoResult());
             }
         });
 
@@ -258,7 +259,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 
@@ -289,7 +290,7 @@ public partial class ToolsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var session = await Client.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(EncryptStringDenied, "encrypt_string")],
-            OnPermissionRequest = async (request, invocation) => new() { Kind = PermissionRequestResultKind.Rejected },
+            OnPermissionRequest = async (request, invocation) => PermissionDecision.Reject(),
         });
 
         await session.SendAsync(new MessageOptions

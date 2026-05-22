@@ -675,111 +675,6 @@ public sealed class ToolInvocation
     public object? Arguments { get; set; }
 }
 
-/// <summary>Describes the kind of a permission request result.</summary>
-[JsonConverter(typeof(PermissionRequestResultKind.Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct PermissionRequestResultKind : IEquatable<PermissionRequestResultKind>
-{
-    /// <summary>Gets the kind indicating the permission was approved for this one instance.</summary>
-    public static PermissionRequestResultKind Approved { get; } = new("approve-once");
-
-    /// <summary>Gets the kind indicating the permission was denied interactively by the user.</summary>
-    public static PermissionRequestResultKind Rejected { get; } = new("reject");
-
-    /// <summary>Gets the kind indicating the permission was denied because user confirmation was unavailable.</summary>
-    public static PermissionRequestResultKind UserNotAvailable { get; } = new("user-not-available");
-
-    /// <summary>Gets the kind indicating no permission decision was made.</summary>
-    public static PermissionRequestResultKind NoResult { get; } = new("no-result");
-
-    /// <summary>Gets the underlying string value of this <see cref="PermissionRequestResultKind"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="PermissionRequestResultKind"/> struct.</summary>
-    /// <param name="value">The string value for this kind.</param>
-    [JsonConstructor]
-    public PermissionRequestResultKind(string value) => _value = value;
-
-    /// <inheritdoc/>
-    public static bool operator ==(PermissionRequestResultKind left, PermissionRequestResultKind right) => left.Equals(right);
-
-    /// <inheritdoc/>
-    public static bool operator !=(PermissionRequestResultKind left, PermissionRequestResultKind right) => !left.Equals(right);
-
-    /// <inheritdoc/>
-    public override bool Equals([NotNullWhen(true)] object? obj) => obj is PermissionRequestResultKind other && Equals(other);
-
-    /// <inheritdoc/>
-    public bool Equals(PermissionRequestResultKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc/>
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc/>
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{PermissionRequestResultKind}"/> for serializing <see cref="PermissionRequestResultKind"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<PermissionRequestResultKind>
-    {
-        /// <inheritdoc/>
-        public override PermissionRequestResultKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            if (reader.TokenType != JsonTokenType.String)
-            {
-                throw new JsonException("Expected string for PermissionRequestResultKind.");
-            }
-
-            var value = reader.GetString();
-            if (value is null)
-            {
-                throw new JsonException("PermissionRequestResultKind value cannot be null.");
-            }
-
-            return new PermissionRequestResultKind(value);
-        }
-
-        /// <inheritdoc/>
-        public override void Write(Utf8JsonWriter writer, PermissionRequestResultKind value, JsonSerializerOptions options) =>
-            writer.WriteStringValue(value.Value);
-    }
-}
-
-/// <summary>
-/// Result of a permission request evaluation.
-/// </summary>
-public sealed class PermissionRequestResult
-{
-    /// <summary>
-    /// Permission decision kind. Construct values with the static members on
-    /// <see cref="PermissionRequestResultKind"/>:
-    /// <list type="bullet">
-    /// <item><description><see cref="PermissionRequestResultKind.Approved"/> — allow this single request.</description></item>
-    /// <item><description><see cref="PermissionRequestResultKind.Rejected"/> — deny the request.</description></item>
-    /// <item><description><see cref="PermissionRequestResultKind.UserNotAvailable"/> — deny because no user is available to confirm.</description></item>
-    /// <item><description><see cref="PermissionRequestResultKind.NoResult"/> — leave the pending request unanswered (protocol v1 only; rejected by protocol v2 servers).</description></item>
-    /// </list>
-    /// </summary>
-    [JsonPropertyName("kind")]
-    public PermissionRequestResultKind Kind { get; set; }
-
-    /// <summary>
-    /// Permission rules to apply for the decision.
-    /// </summary>
-    [JsonPropertyName("rules")]
-    public IList<object>? Rules { get; set; }
-
-    /// <summary>
-    /// Optional human-readable feedback to forward to the LLM along with the
-    /// decision. Mirrors the <c>feedback</c> field on the RPC-level
-    /// <see cref="Rpc.PermissionDecision"/> type.
-    /// </summary>
-    [JsonPropertyName("feedback")]
-    public string? Feedback { get; set; }
-}
-
 /// <summary>
 /// Contains context for a permission request callback.
 /// </summary>
@@ -2333,7 +2228,7 @@ public abstract class SessionConfigBase
     public bool? EnableSessionTelemetry { get; set; }
 
     /// <summary>Handler for permission requests from the server.</summary>
-    public Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? OnPermissionRequest { get; set; }
+    public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }
 
     /// <summary>Handler for user input requests from the agent.</summary>
     public Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? OnUserInputRequest { get; set; }
@@ -3049,8 +2944,6 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelSupports))]
 [JsonSerializable(typeof(ModelVisionLimits))]
-[JsonSerializable(typeof(PermissionRequestResult))]
-[JsonSerializable(typeof(PermissionRequestResultKind))]
 [JsonSerializable(typeof(PingRequest))]
 [JsonSerializable(typeof(PingResponse))]
 [JsonSerializable(typeof(ProviderConfig))]

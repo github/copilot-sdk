@@ -268,42 +268,17 @@ type SystemMessageConfig struct {
 	Sections map[string]SectionOverride `json:"sections,omitempty"`
 }
 
-// PermissionRequestResultKind represents the kind of a permission request result.
-type PermissionRequestResultKind string
-
-const (
-	// PermissionRequestResultKindApproved indicates the permission was approved for this one instance.
-	PermissionRequestResultKindApproved PermissionRequestResultKind = "approve-once"
-
-	// PermissionRequestResultKindRejected indicates the permission was denied interactively by the user.
-	PermissionRequestResultKindRejected PermissionRequestResultKind = "reject"
-
-	// PermissionRequestResultKindUserNotAvailable indicates the permission was denied because
-	// user confirmation was unavailable.
-	PermissionRequestResultKindUserNotAvailable PermissionRequestResultKind = "user-not-available"
-
-	// PermissionRequestResultKindNoResult indicates no permission decision was made.
-	PermissionRequestResultKindNoResult PermissionRequestResultKind = "no-result"
-
-	// Deprecated: Use PermissionRequestResultKindRejected instead.
-	PermissionRequestResultKindDeniedInteractivelyByUser = PermissionRequestResultKindRejected
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedCouldNotRequestFromUser = PermissionRequestResultKindUserNotAvailable
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedByRules = PermissionRequestResultKindUserNotAvailable
-)
-
-// PermissionRequestResult represents the result of a permission request
-type PermissionRequestResult struct {
-	Kind  PermissionRequestResultKind `json:"kind"`
-	Rules []any                       `json:"rules,omitempty"`
-}
-
-// PermissionHandlerFunc executes a permission request
-// The handler should return a PermissionRequestResult. Returning an error denies the permission.
-type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
+// PermissionHandlerFunc executes a permission request.
+// The handler should return a [rpc.PermissionDecision]. Returning an error
+// causes the SDK to respond with [rpc.PermissionDecisionUserNotAvailable].
+//
+// Use the variant types directly:
+//
+//	&rpc.PermissionDecisionApproveOnce{}
+//	&rpc.PermissionDecisionReject{Feedback: &feedback}
+//	&rpc.PermissionDecisionUserNotAvailable{}
+//	&rpc.PermissionDecisionNoResult{}  // decline to respond; another client may answer
+type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error)
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {

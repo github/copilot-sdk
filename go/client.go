@@ -52,7 +52,7 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
+const noResultPermissionDirectRpcError = "permission handlers cannot return PermissionDecisionNoResult for this permission request"
 
 func validateSessionFsConfig(config *SessionFsConfig) error {
 	if config == nil {
@@ -1930,7 +1930,7 @@ type permissionRequestV2 struct {
 
 // permissionResponseV2 is the v2 RPC response payload for permission.request.
 type permissionResponseV2 struct {
-	Result PermissionRequestResult `json:"result"`
+	Result rpc.PermissionDecision `json:"result"`
 }
 
 // handleToolCallRequestV2 handles a v2-style tool.call RPC request from the server.
@@ -1994,28 +1994,23 @@ func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permission
 
 	handler := session.getPermissionHandler()
 	if handler == nil {
-		return &permissionResponseV2{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
+		return &permissionResponseV2{Result: &rpc.PermissionDecisionUserNotAvailable{}}, nil
 	}
 
 	invocation := PermissionInvocation{
 		SessionID: session.SessionID,
 	}
 
-	result, err := handler(req.Request, invocation)
+	decision, err := handler(req.Request, invocation)
 	if err != nil {
-		return &permissionResponseV2{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
+		return &permissionResponseV2{Result: &rpc.PermissionDecisionUserNotAvailable{}}, nil
 	}
-	if result.Kind == "no-result" {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionV2Error}
+	if _, isNoResult := decision.(*rpc.PermissionDecisionNoResult); isNoResult {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionDirectRpcError}
+	}
+	if _, isNoResult := decision.(rpc.PermissionDecisionNoResult); isNoResult {
+		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionDirectRpcError}
 	}
 
-	return &permissionResponseV2{Result: result}, nil
+	return &permissionResponseV2{Result: decision}, nil
 }

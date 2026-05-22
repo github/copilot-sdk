@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 
 // In-memory virtual filesystem
@@ -45,7 +46,7 @@ try
                 "List all files in the virtual filesystem"),
         ],
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+            Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce()),
         Hooks = new SessionHooks
         {
             OnPreToolUse = (input, invocation) =>

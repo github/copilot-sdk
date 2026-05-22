@@ -53,8 +53,8 @@ namespace GitHub.Copilot;
 /// </example>
 public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 {
-    internal const string NoResultPermissionV2ErrorMessage =
-        "Permission handlers cannot return 'no-result' when connected to a protocol v2 server.";
+    internal const string NoResultPermissionDirectRpcErrorMessage =
+        "Permission handlers cannot return PermissionDecision.NoResult() for this permission request.";
 
     /// <summary>
     /// Minimum protocol version this SDK can communicate with.
@@ -1885,23 +1885,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             try
             {
-                var result = await session.HandlePermissionRequestAsync(permissionRequest);
-                if (result.Kind == new PermissionRequestResultKind("no-result"))
+                var decision = await session.HandlePermissionRequestAsync(permissionRequest);
+                if (decision is PermissionDecisionNoResult)
                 {
-                    throw new InvalidOperationException(NoResultPermissionV2ErrorMessage);
+                    throw new InvalidOperationException(NoResultPermissionDirectRpcErrorMessage);
                 }
-                return new PermissionRequestResponseV2(result);
+                return new PermissionRequestResponseV2(decision);
             }
-            catch (InvalidOperationException ex) when (ex.Message == NoResultPermissionV2ErrorMessage)
+            catch (InvalidOperationException ex) when (ex.Message == NoResultPermissionDirectRpcErrorMessage)
             {
                 throw;
             }
             catch (Exception)
             {
-                return new PermissionRequestResponseV2(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.UserNotAvailable
-                });
+                return new PermissionRequestResponseV2(PermissionDecision.UserNotAvailable());
             }
         }
     }
@@ -2079,7 +2076,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         ToolResultObject Result);
 
     internal record PermissionRequestResponseV2(
-        PermissionRequestResult Result);
+        PermissionDecision Result);
 
     [JsonSourceGenerationOptions(
         JsonSerializerDefaults.Web,
@@ -2103,8 +2100,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
-    [JsonSerializable(typeof(PermissionRequestResult))]
-    [JsonSerializable(typeof(PermissionRequestResultKind))]
     [JsonSerializable(typeof(PermissionRequestResponseV2))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.Concurrent;
@@ -152,17 +153,14 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
             OnPermissionRequest = (request, _) =>
             {
                 client1PermissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.Approved,
-                });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 
         // Client 2 resumes — its handler never completes, so only client 1's approval takes effect
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
-            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionRequestResult>().Task,
+            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionDecision>().Task,
         });
 
         var client1Events = new ConcurrentBag<SessionEvent>();
@@ -204,16 +202,13 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
     {
         var session1 = await Client1.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = (_, _) => Task.FromResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.Rejected,
-            }),
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(PermissionDecision.Reject()),
         });
 
         // Client 2 resumes — its handler never completes
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
-            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionRequestResult>().Task,
+            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionDecision>().Task,
         });
 
         var client1Events = new ConcurrentBag<SessionEvent>();
