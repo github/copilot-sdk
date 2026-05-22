@@ -101,7 +101,10 @@ jobs:
           RUST_E2E_CONCURRENCY: 4
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        run: cargo test --features test-support -- --test-threads=4 --nocapture
+        # `--no-default-features` disables the bundled-cli download; the
+        # tests use the CLI provided by setup-copilot via COPILOT_CLI_PATH.
+        # The dedicated `bundle` job below exercises the bundling pipeline.
+        run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
 
   # Validates the bundled-CLI build path on all three supported
   # platforms. While the regular `cargo test` job above also exercises
@@ -139,16 +142,23 @@ jobs:
           prefix-key: v1-rust-no-bin
           cache-bin: false
 
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
       # Cache the downloaded archive across runs so we don't refetch
-      # ~130 MB on every CI invocation. Keyed by OS only; build.rs
-      # auto-resolves the version from the sibling package-lock.json,
-      # and a stale cached archive simply triggers a re-download via
-      # the SHA-256 verification path.
+      # ~130 MB on every CI invocation. Keyed by OS + CLI version so old
+      # archives drop out when the pinned version bumps, keeping the
+      # cache bounded.
       - name: Cache bundled CLI tarball
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
-          key: bundled-cli-${{ matrix.os }}
+          key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
       - name: cargo build (bundled-cli is the default feature)
         env:

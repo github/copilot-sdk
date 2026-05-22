@@ -766,11 +766,11 @@ github-copilot-sdk = { version = "0.1", default-features = false }
 
    It then downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the SHA-256, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`.
 
-3. **Runtime:** On the first call to `github_copilot_sdk::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/github-copilot-sdk-{version}/copilot` (or `copilot.exe` on Windows), SHA-256 verified, and cached. Subsequent calls return the cached path.
+3. **Runtime:** On the first call to `github_copilot_sdk::Client::start()`, the embedded archive is lazily extracted to the platform cache dir (`%LOCALAPPDATA%\github-copilot-sdk-{version}\` on Windows, `~/Library/Caches/github-copilot-sdk-{version}/` on macOS, `$XDG_CACHE_HOME/github-copilot-sdk-{version}/` (or `~/.cache/...`) on Linux). Subsequent runs reuse the extracted binary.
 
 ### Overriding the extraction location
 
-Use [`ClientOptions::with_bundled_cli_extract_dir`] when you need to place the extracted binary somewhere other than `~/.cache/...` (CI runners with ephemeral homes, sandboxes that disallow XDG paths, etc.):
+Use [`ClientOptions::with_bundled_cli_extract_dir`] when you need to place the extracted binary somewhere other than the platform cache dir (CI runners with ephemeral homes, sandboxes that disallow cache paths, etc.):
 
 ```rust,ignore
 use std::path::PathBuf;

@@ -37,8 +37,11 @@ static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 /// embedded archive on first call.
 ///
 /// On first call this extracts the embedded archive to
-/// `~/.cache/github-copilot-sdk-{version}/copilot[.exe]` and returns the
-/// resulting path. Subsequent calls return the cached result. The extraction
+/// `<platform cache dir>/github-copilot-sdk-{version}/copilot[.exe]` and
+/// returns the resulting path. The cache dir comes from
+/// [`dirs::cache_dir()`] — `%LOCALAPPDATA%` on Windows,
+/// `~/Library/Caches/` on macOS, `$XDG_CACHE_HOME` (or `~/.cache/`) on
+/// Linux. Subsequent calls return the cached result. The extraction
 /// is skipped when the target file already exists — the per-version
 /// install directory and the assumption that the consumer's binary is
 /// trusted mean no further hashing is needed.
@@ -66,7 +69,8 @@ pub(crate) fn path() -> Option<PathBuf> {
 }
 
 /// Install the embedded CLI binary into the given directory instead of the
-/// default `~/.cache/github-copilot-sdk-{version}/` location.
+/// default `<platform cache dir>/github-copilot-sdk-{version}/` location
+/// (see [`path`] for the per-platform mapping).
 ///
 /// Idempotent: skips extraction if the target binary already exists.
 /// Returns `None` when the SDK was built without a bundled CLI.

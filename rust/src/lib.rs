@@ -413,10 +413,12 @@ pub struct ClientOptions {
     /// first use.
     ///
     /// When `None` (the default), the SDK extracts the embedded CLI to
-    /// `~/.cache/github-copilot-sdk-{version}/copilot[.exe]` via
-    /// [`dirs::cache_dir()`]. Use this knob to redirect the extraction (e.g.
-    /// to a session-scoped temp directory in CI runners) without changing
-    /// the global cache layout.
+    /// `<platform cache dir>/github-copilot-sdk-{version}/copilot[.exe]`,
+    /// where the cache dir is [`dirs::cache_dir()`] —
+    /// `%LOCALAPPDATA%` on Windows, `~/Library/Caches/` on macOS,
+    /// `$XDG_CACHE_HOME` (or `~/.cache/`) on Linux. Use this knob to
+    /// redirect the extraction (e.g. to a session-scoped temp directory in
+    /// CI runners) without changing the global cache layout.
     ///
     /// Ignored when the SDK was built without a bundled CLI (i.e. with
     /// `default-features = false` to disable the `bundled-cli` feature).
