@@ -820,8 +820,8 @@ public class ResumeSessionConfig {
 
     /**
      * Enables MCP Apps (SEP-1865) UI passthrough on the resumed session. See
-     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics
-     * (runtime gate, capability inspection, renderer requirement).
+     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics (runtime
+     * gate, capability inspection, renderer requirement).
      *
      * @param enableMcpApps
      *            {@code true} to opt into MCP Apps support on resume

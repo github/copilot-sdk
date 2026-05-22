@@ -892,8 +892,8 @@ public class SessionConfig {
      * this.
      * <p>
      * SDK consumers MUST set this to {@code true} only when they have an iframe
-     * renderer that can display {@code ui://} MCP App bundles. Setting it without
-     * a renderer will cause MCP servers to register UI-enabled tool variants the
+     * renderer that can display {@code ui://} MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants the
      * consumer cannot display.
      *
      * @param enableMcpApps

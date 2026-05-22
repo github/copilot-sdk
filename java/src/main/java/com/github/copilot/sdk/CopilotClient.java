@@ -294,26 +294,24 @@ public final class CopilotClient implements AutoCloseable {
     /**
      * Logs a warning when the consumer set {@code enableMcpApps=true} on
      * create/resume but the runtime did not advertise
-     * {@code capabilities.ui.mcpApps} in the response. The runtime silently
-     * drops the opt-in when its {@code MCP_APPS} feature flag (or
-     * {@code COPILOT_MCP_APPS=true} env override) is unset, so without this
-     * warning a consumer trying to use MCP Apps would see no error -- just
-     * tools that never expose {@code _meta.ui.resourceUri}.
+     * {@code capabilities.ui.mcpApps} in the response. The runtime silently drops
+     * the opt-in when its {@code MCP_APPS} feature flag (or
+     * {@code COPILOT_MCP_APPS=true} env override) is unset, so without this warning
+     * a consumer trying to use MCP Apps would see no error -- just tools that never
+     * expose {@code _meta.ui.resourceUri}.
      */
     private static void warnIfMcpAppsDropped(boolean requested, SessionCapabilities capabilities) {
         if (!requested) {
             return;
         }
-        boolean advertised = capabilities != null
-                && capabilities.getUi() != null
+        boolean advertised = capabilities != null && capabilities.getUi() != null
                 && capabilities.getUi().getMcpApps().orElse(false);
         if (advertised) {
             return;
         }
-        LOG.warning(
-                "enableMcpApps was requested but the runtime did not advertise capabilities.ui.mcpApps. "
-                        + "The runtime's MCP_APPS feature flag or COPILOT_MCP_APPS=true environment override is "
-                        + "likely unset; the MCP Apps surface is unavailable for this session.");
+        LOG.warning("enableMcpApps was requested but the runtime did not advertise capabilities.ui.mcpApps. "
+                + "The runtime's MCP_APPS feature flag or COPILOT_MCP_APPS=true environment override is "
+                + "likely unset; the MCP Apps surface is unavailable for this session.");
     }
 
     /**

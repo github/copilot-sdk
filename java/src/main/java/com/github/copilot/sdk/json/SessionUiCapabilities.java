@@ -60,9 +60,9 @@ public class SessionUiCapabilities {
      * Returns whether the runtime has accepted the session's MCP Apps (SEP-1865)
      * opt-in. Present and {@code true} when the consumer set
      * {@code enableMcpApps=true} on create/resume <b>and</b> the runtime's
-     * {@code MCP_APPS} feature flag (or {@code COPILOT_MCP_APPS=true} env
-     * override) is on. Otherwise empty or {@code false}, indicating the runtime
-     * silently dropped the opt-in.
+     * {@code MCP_APPS} feature flag (or {@code COPILOT_MCP_APPS=true} env override)
+     * is on. Otherwise empty or {@code false}, indicating the runtime silently
+     * dropped the opt-in.
      *
      * @return an {@link Optional} containing the boolean value, or empty if not set
      */
