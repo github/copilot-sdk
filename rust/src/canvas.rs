@@ -451,8 +451,9 @@ pub async fn dispatch_canvas_invoke(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn declaration_serializes_camel_case_and_skips_none() {

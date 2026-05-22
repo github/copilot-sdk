@@ -3383,11 +3383,11 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode,
-        GitHubReferenceType, InfiniteSessionConfig, PermissionRequestData,
-        ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolInvocation, ToolResult,
-        ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
+        ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
+        InfiniteSessionConfig, PermissionRequestData, ProviderConfig, ResumeSessionConfig,
+        SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool, ToolBinaryResult,
+        ToolInvocation, ToolResult, ToolResultExpanded, ToolResultResponse,
+        ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
