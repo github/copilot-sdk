@@ -575,11 +575,11 @@ Provide your own function to inspect each request and apply custom logic (sync o
 
 ```python
 from copilot import PermissionRequest, PermissionRequestResult
-from copilot.generated.session_events import (
+from copilot.generated.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
-    PermissionRequestShell,
 )
+from copilot.generated.session_events import PermissionRequestShell
 
 
 def on_permission_request(

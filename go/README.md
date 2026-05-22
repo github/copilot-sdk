@@ -595,6 +595,8 @@ Provide your own `PermissionHandlerFunc` to inspect each request and apply custo
 
 ```go
 import (
+    "fmt"
+
     copilot "github.com/github/copilot-sdk/go"
     "github.com/github/copilot-sdk/go/rpc"
 )
@@ -605,9 +607,8 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
         // Type-switch on the discriminated PermissionRequest variants to
         // access per-kind fields:
         if shell, ok := request.(*copilot.PermissionRequestShell); ok {
-            return &rpc.PermissionDecisionReject{
-                Feedback: pointer(fmt.Sprintf("Refusing shell: %s", shell.FullCommandText)),
-            }, nil
+            feedback := fmt.Sprintf("Refusing shell: %s", shell.FullCommandText)
+            return &rpc.PermissionDecisionReject{Feedback: &feedback}, nil
         }
         return &rpc.PermissionDecisionApproveOnce{}, nil
     },

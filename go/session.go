@@ -1151,6 +1151,15 @@ func (s *Session) executePermissionAndRespond(requestID string, permissionReques
 		})
 		return
 	}
+	if decision == nil {
+		// Handler returned (nil, nil); treat as user-not-available rather
+		// than sending null on the wire.
+		s.RPC.Permissions.HandlePendingPermissionRequest(context.Background(), &rpc.PermissionDecisionRequest{
+			RequestID: requestID,
+			Result:    &rpc.PermissionDecisionUserNotAvailable{},
+		})
+		return
+	}
 	if _, ok := decision.(*rpc.PermissionDecisionNoResult); ok {
 		return
 	}
