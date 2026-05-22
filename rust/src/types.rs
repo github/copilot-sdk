@@ -338,8 +338,13 @@ pub struct Tool {
     ///
     /// Skipped during serialization — the handler is runtime behavior,
     /// not part of the wire representation.
+    ///
+    /// Crate-private to enforce builder semantics: external callers must
+    /// install a handler through [`Tool::with_handler`] and inspect via
+    /// [`Tool::handler`], so an already-attached handler cannot be
+    /// silently overwritten by direct field assignment.
     #[serde(skip)]
-    pub handler: Option<Arc<dyn crate::tool::ToolHandler>>,
+    pub(crate) handler: Option<Arc<dyn crate::tool::ToolHandler>>,
 }
 
 #[inline]
@@ -395,16 +400,19 @@ impl Tool {
 
     /// Set the JSON Schema for the tool's input parameters.
     ///
-    /// Accepts anything that converts into a JSON object, including a
-    /// `serde_json::Value` produced by `json!({...})`. Non-object values
-    /// are stored as an empty parameter map; callers that need direct
-    /// control over the field can construct a `HashMap<String, Value>`
-    /// and assign it to [`Tool::parameters`] via [`Default::default`].
+    /// Accepts a JSON Schema as a `serde_json::Value`, typically built with
+    /// `serde_json::json!({...})` or returned by `schema_for` (available
+    /// with the `derive` feature). Tool parameter schemas are always
+    /// top-level JSON objects (`{"type": "object", ...}`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `parameters` is not a JSON object. Use
+    /// [`crate::tool::try_tool_parameters`] and assign to
+    /// [`Tool::parameters`] directly when the schema comes from dynamic
+    /// input and should produce a recoverable error instead.
     pub fn with_parameters(mut self, parameters: Value) -> Self {
-        self.parameters = parameters
-            .as_object()
-            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-            .unwrap_or_default();
+        self.parameters = crate::tool::tool_parameters(parameters);
         self
     }
 
@@ -430,6 +438,14 @@ impl Tool {
     pub fn with_handler(mut self, handler: Arc<dyn crate::tool::ToolHandler>) -> Self {
         self.handler = Some(handler);
         self
+    }
+
+    /// Returns the attached runtime handler, if any.
+    ///
+    /// Read-only inspection — to install or replace a handler, use
+    /// [`Tool::with_handler`].
+    pub fn handler(&self) -> Option<&Arc<dyn crate::tool::ToolHandler>> {
+        self.handler.as_ref()
     }
 }
 
@@ -1004,14 +1020,6 @@ pub struct AzureProviderOptions {
     pub api_version: Option<String>,
 }
 
-/// Wire default for [`SessionConfig::env_value_mode`] /
-/// [`ResumeSessionConfig::env_value_mode`]. The runtime understands
-/// `"direct"` (literal values) or `"indirect"` (env-var lookup); the SDK
-/// only ever sends `"direct"`.
-fn default_env_value_mode() -> String {
-    "direct".into()
-}
-
 /// Configuration for creating a new session via the `session.create` RPC.
 ///
 /// All fields are optional — the CLI applies sensible defaults.
@@ -1054,88 +1062,67 @@ fn default_env_value_mode() -> String {
 /// # Field naming across SDKs
 ///
 /// Rust field names are snake_case (`available_tools`, `system_message`);
-/// they round-trip to the camelCase wire protocol via `#[serde(rename_all =
-/// "camelCase")]`. When porting code from the TypeScript, Go, Python, or
-/// .NET SDKs — or reading the raw JSON-RPC traces — fields appear as
-/// `availableTools`, `systemMessage`, etc.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// the wire protocol uses camelCase (`availableTools`, `systemMessage`).
+/// The mapping happens inside `SessionConfig::into_wire` (crate-private),
+/// which builds a separate `SessionCreateWire` payload. This config
+/// struct is no longer itself serializable — the trait-object handler
+/// fields (e.g. [`permission_handler`](Self::permission_handler)) could
+/// never round-trip through serde, so the only legitimate serialization
+/// path is now `into_wire`. When porting code from the TypeScript, Go,
+/// Python, or .NET SDKs — or reading the raw JSON-RPC traces — fields
+/// appear as `availableTools`, `systemMessage`, etc.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct SessionConfig {
     /// Custom session ID. When unset, the CLI generates one.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<SessionId>,
     /// Model to use (e.g. `"gpt-4"`, `"claude-sonnet-4"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Application name sent as `User-Agent` context.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Enable streaming token deltas via `assistant.message_delta` events.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     /// Custom system message configuration.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
     /// Client-defined tool declarations to expose to the agent.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     /// Allowlist of built-in tool names the agent may use.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
-    /// Wire-format hint for MCP `env` map values. The runtime understands
-    /// `"direct"` (literal values) and `"indirect"` (env-var lookup); the
-    /// SDK only ever sends `"direct"` and consumers don't have a knob.
-    #[serde(default = "default_env_value_mode", skip_deserializing)]
-    pub(crate) env_value_mode: String,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
     /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks. When `true`, the CLI sends `hooks.invoke`
     /// RPC requests at key lifecycle points (pre/post tool use, prompt
     /// submission, session start/end, errors).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<bool>,
     /// Custom agents (sub-agents) configured for this session.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     /// Configures the built-in default agent. Use `excluded_tools` to
     /// hide tools from the default agent while keeping them available
     /// to custom sub-agents that reference them in their `tools` list.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     /// Name of the custom agent to activate when the session starts.
     /// Must match the `name` of one of the agents in [`Self::custom_agents`].
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     /// Configures infinite sessions: persistent workspace + automatic
     /// context-window compaction. Enabled by default on the CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Custom model provider (BYOK). When set, the session routes
     /// requests through this provider instead of the default Copilot
     /// routing.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
     /// Enables or disables internal session telemetry for this session.
     ///
@@ -1144,91 +1131,73 @@ pub struct SessionConfig {
     /// When a custom [`provider`](Self::provider) is configured, session
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     /// Per-property overrides for model capabilities, deep-merged over
     /// runtime defaults.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub config_dir: Option<PathBuf>,
     /// Working directory for the session. Tool operations resolve
     /// relative paths against this directory.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
     /// Per-session GitHub token. Distinct from
     /// [`ClientOptions::github_token`](crate::ClientOptions::github_token),
     /// which authenticates the CLI process itself; this token determines
     /// the GitHub identity used for content exclusion, model routing, and
     /// quota checks for *this session*.
-    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
     /// Per-session remote behavior control:
     /// - `Off` — local only, no remote export (default)
     /// - `Export` — export session events to GitHub without
     ///   enabling remote steering
     /// - `On` — export to GitHub AND enable remote steering
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Creates a remote session in the cloud instead of a local session.
     /// The optional repository is associated with the cloud session.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud: Option<CloudSessionOptions>,
     /// Forward sub-agent streaming events to this connection. When false,
     /// only non-streaming sub-agent events and `subagent.*` lifecycle events
     /// are delivered. Defaults to true on the CLI.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
     /// Slash commands registered for this session. When the CLI has a TUI,
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
-    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
     /// Custom session filesystem provider for this session. Required when
     /// the [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs) set.
     /// See [`SessionFsProvider`].
-    #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Optional permission-request handler. When `None`, the SDK sends
     /// `requestPermission: false` on the wire so the runtime does not
     /// emit `permission.requested` broadcasts to this client.
-    #[serde(skip)]
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
     /// Optional elicitation-request handler. When `None`,
     /// `requestElicitation: false` goes on the wire.
-    #[serde(skip)]
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
     /// Optional user-input handler. When `None`,
     /// `requestUserInput: false` goes on the wire and the `ask_user`
     /// tool is disabled.
-    #[serde(skip)]
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     /// Optional exit-plan-mode handler. When `None`,
     /// `requestExitPlanMode: false` goes on the wire.
-    #[serde(skip)]
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     /// Optional auto-mode-switch handler. When `None`,
     /// `requestAutoModeSwitch: false` goes on the wire.
-    #[serde(skip)]
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
-    #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     /// Permission policy applied to the handler. Stored separately from
     /// `permission_handler` so the order of `with_permission_handler` and
     /// `approve_all_permissions` (and friends) is irrelevant.
-    #[serde(skip)]
     pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. When set, the SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
     /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
-    #[serde(skip)]
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
 }
 
@@ -1324,7 +1293,6 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
             skill_directories: None,
             instruction_directories: None,
@@ -1357,57 +1325,125 @@ impl Default for SessionConfig {
     }
 }
 
+/// Runtime-only bundle drained out of a [`SessionConfig`] or
+/// [`ResumeSessionConfig`] by [`SessionConfig::into_wire`] /
+/// [`ResumeSessionConfig::into_wire`]. Holds the trait-object handlers,
+/// session-fs provider, and slash commands so the wire payload struct
+/// stays a pure data shape.
+pub(crate) struct SessionConfigRuntime {
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    pub permission_policy: Option<crate::permission::Policy>,
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
+    pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
+    pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+    pub commands: Option<Vec<CommandDefinition>>,
+}
+
 impl SessionConfig {
-    /// Build the [`SessionCreateWire`] payload for `session.create` from
-    /// this config. Derives the request_* wire flags from handler
-    /// presence and the policy field; clones plain fields.
-    pub(crate) fn to_wire(&self, session_id: SessionId) -> crate::wire::SessionCreateWire {
+    /// Consume this config to produce the [`SessionCreateWire`] payload
+    /// for `session.create` and a [`SessionConfigRuntime`] bundle holding
+    /// the runtime-only fields (handlers, transforms, providers).
+    ///
+    /// Wire-format flags are derived from handler presence and the policy
+    /// field; runtime fields are moved out into the returned runtime so
+    /// the deep `Vec<Tool>` / `HashMap<String, Value>` clones the previous
+    /// `&self`-based shape required are eliminated, and the order of
+    /// reading-vs-moving is enforced at compile time.
+    ///
+    /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
+    pub(crate) fn into_wire(
+        mut self,
+        session_id: SessionId,
+    ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
-        crate::wire::SessionCreateWire {
+        let request_user_input = self.user_input_handler.is_some();
+        let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
+        let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
+        let request_elicitation = self.elicitation_handler.is_some();
+        let hooks_flag = self.hooks_handler.is_some();
+
+        let mut tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
+        if let Some(tools) = self.tools.as_mut() {
+            for tool in tools.iter_mut() {
+                if let Some(handler) = tool.handler.take()
+                    && tool_handlers.insert(tool.name.clone(), handler).is_some()
+                {
+                    return Err(crate::Error::InvalidConfig(format!(
+                        "duplicate tool handler registered for name {:?}",
+                        tool.name
+                    )));
+                }
+            }
+        }
+
+        let wire_commands = self.commands.as_ref().map(|cmds| {
+            cmds.iter()
+                .map(|c| crate::wire::CommandWireDefinition {
+                    name: c.name.clone(),
+                    description: c.description.clone(),
+                })
+                .collect()
+        });
+
+        let wire = crate::wire::SessionCreateWire {
             session_id,
-            model: self.model.clone(),
-            client_name: self.client_name.clone(),
-            reasoning_effort: self.reasoning_effort.clone(),
+            model: self.model,
+            client_name: self.client_name,
+            reasoning_effort: self.reasoning_effort,
             streaming: self.streaming,
-            system_message: self.system_message.clone(),
-            tools: self.tools.clone(),
-            available_tools: self.available_tools.clone(),
-            excluded_tools: self.excluded_tools.clone(),
-            mcp_servers: self.mcp_servers.clone(),
+            system_message: self.system_message,
+            tools: self.tools,
+            available_tools: self.available_tools,
+            excluded_tools: self.excluded_tools,
+            mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
-            request_user_input: self.user_input_handler.is_some(),
+            request_user_input,
             request_permission: permission_active,
-            request_exit_plan_mode: self.exit_plan_mode_handler.is_some(),
-            request_auto_mode_switch: self.auto_mode_switch_handler.is_some(),
-            request_elicitation: self.elicitation_handler.is_some(),
-            hooks: self.hooks_handler.is_some(),
-            skill_directories: self.skill_directories.clone(),
-            instruction_directories: self.instruction_directories.clone(),
-            disabled_skills: self.disabled_skills.clone(),
-            custom_agents: self.custom_agents.clone(),
-            default_agent: self.default_agent.clone(),
-            agent: self.agent.clone(),
-            infinite_sessions: self.infinite_sessions.clone(),
-            provider: self.provider.clone(),
+            request_exit_plan_mode,
+            request_auto_mode_switch,
+            request_elicitation,
+            hooks: hooks_flag,
+            skill_directories: self.skill_directories,
+            instruction_directories: self.instruction_directories,
+            disabled_skills: self.disabled_skills,
+            custom_agents: self.custom_agents,
+            default_agent: self.default_agent,
+            agent: self.agent,
+            infinite_sessions: self.infinite_sessions,
+            provider: self.provider,
             enable_session_telemetry: self.enable_session_telemetry,
-            model_capabilities: self.model_capabilities.clone(),
-            config_dir: self.config_dir.clone(),
-            working_directory: self.working_directory.clone(),
-            github_token: self.github_token.clone(),
-            remote_session: self.remote_session.clone(),
-            cloud: self.cloud.clone(),
+            model_capabilities: self.model_capabilities,
+            config_dir: self.config_dir,
+            working_directory: self.working_directory,
+            github_token: self.github_token,
+            remote_session: self.remote_session,
+            cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
-            commands: self.commands.as_ref().map(|cmds| {
-                cmds.iter()
-                    .map(|c| crate::wire::CommandWireDefinition {
-                        name: c.name.clone(),
-                        description: c.description.clone(),
-                    })
-                    .collect()
-            }),
-        }
+            commands: wire_commands,
+        };
+
+        let runtime = SessionConfigRuntime {
+            permission_handler: self.permission_handler,
+            permission_policy: self.permission_policy,
+            elicitation_handler: self.elicitation_handler,
+            user_input_handler: self.user_input_handler,
+            exit_plan_mode_handler: self.exit_plan_mode_handler,
+            auto_mode_switch_handler: self.auto_mode_switch_handler,
+            hooks_handler: self.hooks_handler,
+            system_message_transform: self.system_message_transform,
+            tool_handlers,
+            session_fs_provider: self.session_fs_provider,
+            commands: self.commands,
+        };
+
+        Ok((wire, runtime))
     }
 
     /// Install a [`PermissionHandler`] for this session. When omitted, the
@@ -1718,71 +1754,51 @@ impl SessionConfig {
 ///
 /// See [`SessionConfig`] for the construction patterns (chained `with_*`
 /// builder vs. direct field assignment for `Option<T>` pass-through) and
-/// the note on snake_case vs. camelCase field naming.
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// the note on snake_case vs. camelCase field naming. This config is not
+/// itself serializable — call `ResumeSessionConfig::into_wire`
+/// (crate-private) to produce the wire payload.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct ResumeSessionConfig {
     /// ID of the session to resume.
     pub session_id: SessionId,
     /// Application name sent as User-Agent context.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Enable streaming token deltas.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     /// Re-supply the system message so the agent retains workspace context
     /// across CLI process restarts.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
     /// Client-defined tool declarations to re-supply on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Tool>>,
     /// Allowlist of tool names the agent may use.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
-    /// See [`SessionConfig::env_value_mode`]. Always `"direct"` on the wire.
-    #[serde(default = "default_env_value_mode", skip_deserializing)]
-    pub(crate) env_value_mode: String,
     /// Enable config discovery on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
     /// resume. Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
     /// Skill names to disable on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub hooks: Option<bool>,
     /// Custom agents to re-supply on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents: Option<Vec<CustomAgentConfig>>,
     /// Configures the built-in default agent on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_agent: Option<DefaultAgentConfig>,
     /// Name of the custom agent to activate.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
     /// Re-supply infinite session configuration on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub infinite_sessions: Option<InfiniteSessionConfig>,
     /// Re-supply BYOK provider configuration on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderConfig>,
     /// Enables or disables internal session telemetry for this session.
     ///
@@ -1791,42 +1807,32 @@ pub struct ResumeSessionConfig {
     /// When a custom [`provider`](Self::provider) is configured, session
     /// telemetry is always disabled regardless of this setting. This is
     /// independent of [`ClientOptions::telemetry`](crate::ClientOptions::telemetry).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_session_telemetry: Option<bool>,
     /// Per-property model capability overrides on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub config_dir: Option<PathBuf>,
     /// Per-session working directory on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<PathBuf>,
     /// Per-session GitHub token on resume. See
     /// [`SessionConfig::github_token`].
-    #[serde(rename = "gitHubToken", skip_serializing_if = "Option::is_none")]
     pub github_token: Option<String>,
     /// Per-session remote behavior control on resume. See
     /// [`SessionConfig::remote_session`].
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Forward sub-agent streaming events to this connection on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub include_sub_agent_streaming_events: Option<bool>,
     /// Slash commands registered for this session on resume. See
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
-    #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
     /// See [`SessionConfig::session_fs_provider`].
-    #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Force-fail resume if the session does not exist on disk, instead of
     /// silently starting a new session. Wire field name stays `disableResume`.
-    #[serde(rename = "disableResume", skip_serializing_if = "Option::is_none")]
     pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
@@ -1835,36 +1841,27 @@ pub struct ResumeSessionConfig {
     /// work.
     ///
     /// [`Client::force_stop`]: crate::Client::force_stop
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
     /// Optional permission-request handler. See
     /// [`SessionConfig::permission_handler`].
-    #[serde(skip)]
     pub permission_handler: Option<Arc<dyn PermissionHandler>>,
     /// Optional elicitation handler. See
     /// [`SessionConfig::elicitation_handler`].
-    #[serde(skip)]
     pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
     /// Optional user-input handler. See
     /// [`SessionConfig::user_input_handler`].
-    #[serde(skip)]
     pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
     /// Optional exit-plan-mode handler. See
     /// [`SessionConfig::exit_plan_mode_handler`].
-    #[serde(skip)]
     pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
     /// Optional auto-mode-switch handler. See
     /// [`SessionConfig::auto_mode_switch_handler`].
-    #[serde(skip)]
     pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
-    #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     /// Permission policy. See `SessionConfig::permission_policy`.
-    #[serde(skip)]
     pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. See [`SessionConfig::system_message_transform`].
-    #[serde(skip)]
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
 }
 
@@ -1943,56 +1940,100 @@ impl std::fmt::Debug for ResumeSessionConfig {
 }
 
 impl ResumeSessionConfig {
-    /// Build the [`SessionResumeWire`] payload for `session.resume` from
-    /// this config. Derives the request_* wire flags from handler
-    /// presence and the policy field; clones plain fields.
-    pub(crate) fn to_wire(&self) -> crate::wire::SessionResumeWire {
+    /// Consume this config to produce the [`SessionResumeWire`] payload
+    /// for `session.resume` and a [`SessionConfigRuntime`] bundle holding
+    /// the runtime-only fields (handlers, transforms, providers).
+    ///
+    /// See [`SessionConfig::into_wire`] for the design rationale.
+    ///
+    /// [`SessionResumeWire`]: crate::wire::SessionResumeWire
+    pub(crate) fn into_wire(
+        mut self,
+    ) -> Result<(crate::wire::SessionResumeWire, SessionConfigRuntime), crate::Error> {
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
-        crate::wire::SessionResumeWire {
-            session_id: self.session_id.clone(),
-            client_name: self.client_name.clone(),
-            reasoning_effort: self.reasoning_effort.clone(),
+        let request_user_input = self.user_input_handler.is_some();
+        let request_exit_plan_mode = self.exit_plan_mode_handler.is_some();
+        let request_auto_mode_switch = self.auto_mode_switch_handler.is_some();
+        let request_elicitation = self.elicitation_handler.is_some();
+        let hooks_flag = self.hooks_handler.is_some();
+
+        let mut tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
+        if let Some(tools) = self.tools.as_mut() {
+            for tool in tools.iter_mut() {
+                if let Some(handler) = tool.handler.take()
+                    && tool_handlers.insert(tool.name.clone(), handler).is_some()
+                {
+                    return Err(crate::Error::InvalidConfig(format!(
+                        "duplicate tool handler registered for name {:?}",
+                        tool.name
+                    )));
+                }
+            }
+        }
+
+        let wire_commands = self.commands.as_ref().map(|cmds| {
+            cmds.iter()
+                .map(|c| crate::wire::CommandWireDefinition {
+                    name: c.name.clone(),
+                    description: c.description.clone(),
+                })
+                .collect()
+        });
+
+        let wire = crate::wire::SessionResumeWire {
+            session_id: self.session_id,
+            client_name: self.client_name,
+            reasoning_effort: self.reasoning_effort,
             streaming: self.streaming,
-            system_message: self.system_message.clone(),
-            tools: self.tools.clone(),
-            available_tools: self.available_tools.clone(),
-            excluded_tools: self.excluded_tools.clone(),
-            mcp_servers: self.mcp_servers.clone(),
+            system_message: self.system_message,
+            tools: self.tools,
+            available_tools: self.available_tools,
+            excluded_tools: self.excluded_tools,
+            mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
-            request_user_input: self.user_input_handler.is_some(),
+            request_user_input,
             request_permission: permission_active,
-            request_exit_plan_mode: self.exit_plan_mode_handler.is_some(),
-            request_auto_mode_switch: self.auto_mode_switch_handler.is_some(),
-            request_elicitation: self.elicitation_handler.is_some(),
-            hooks: self.hooks_handler.is_some(),
-            skill_directories: self.skill_directories.clone(),
-            instruction_directories: self.instruction_directories.clone(),
-            disabled_skills: self.disabled_skills.clone(),
-            custom_agents: self.custom_agents.clone(),
-            default_agent: self.default_agent.clone(),
-            agent: self.agent.clone(),
-            infinite_sessions: self.infinite_sessions.clone(),
-            provider: self.provider.clone(),
+            request_exit_plan_mode,
+            request_auto_mode_switch,
+            request_elicitation,
+            hooks: hooks_flag,
+            skill_directories: self.skill_directories,
+            instruction_directories: self.instruction_directories,
+            disabled_skills: self.disabled_skills,
+            custom_agents: self.custom_agents,
+            default_agent: self.default_agent,
+            agent: self.agent,
+            infinite_sessions: self.infinite_sessions,
+            provider: self.provider,
             enable_session_telemetry: self.enable_session_telemetry,
-            model_capabilities: self.model_capabilities.clone(),
-            config_dir: self.config_dir.clone(),
-            working_directory: self.working_directory.clone(),
-            github_token: self.github_token.clone(),
-            remote_session: self.remote_session.clone(),
+            model_capabilities: self.model_capabilities,
+            config_dir: self.config_dir,
+            working_directory: self.working_directory,
+            github_token: self.github_token,
+            remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
-            commands: self.commands.as_ref().map(|cmds| {
-                cmds.iter()
-                    .map(|c| crate::wire::CommandWireDefinition {
-                        name: c.name.clone(),
-                        description: c.description.clone(),
-                    })
-                    .collect()
-            }),
+            commands: wire_commands,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
-        }
+        };
+
+        let runtime = SessionConfigRuntime {
+            permission_handler: self.permission_handler,
+            permission_policy: self.permission_policy,
+            elicitation_handler: self.elicitation_handler,
+            user_input_handler: self.user_input_handler,
+            exit_plan_mode_handler: self.exit_plan_mode_handler,
+            auto_mode_switch_handler: self.auto_mode_switch_handler,
+            hooks_handler: self.hooks_handler,
+            system_message_transform: self.system_message_transform,
+            tool_handlers,
+            session_fs_provider: self.session_fs_provider,
+            commands: self.commands,
+        };
+
+        Ok((wire, runtime))
     }
 
     /// Construct a `ResumeSessionConfig` with the given session ID and all
@@ -2010,7 +2051,6 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
             skill_directories: None,
             instruction_directories: None,
@@ -3447,9 +3487,9 @@ mod tests {
     }
 
     #[test]
-    fn tool_with_parameters_handles_non_object_value() {
-        let tool = Tool::new("noop").with_parameters(json!(null));
-        assert!(tool.parameters.is_empty());
+    #[should_panic(expected = "tool parameter schema must be a JSON object")]
+    fn tool_with_parameters_panics_on_non_object_value() {
+        let _ = Tool::new("noop").with_parameters(json!(null));
     }
 
     #[test]
@@ -3516,7 +3556,9 @@ mod tests {
         // Wire flags are derived from handler presence at create_session
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
-        let wire = cfg.to_wire(SessionId::from("default-flags"));
+        let (wire, _runtime) = cfg
+            .into_wire(SessionId::from("default-flags"))
+            .expect("default config has no duplicate handlers");
         assert!(!wire.request_user_input);
         assert!(!wire.request_permission);
         assert!(!wire.request_elicitation);
@@ -3528,13 +3570,88 @@ mod tests {
     #[test]
     fn resume_session_config_new_wire_flags_off_without_handlers() {
         let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
-        let wire = cfg.to_wire();
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("default resume config has no duplicate handlers");
         assert!(!wire.request_user_input);
         assert!(!wire.request_permission);
         assert!(!wire.request_elicitation);
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+    }
+
+    #[test]
+    #[allow(clippy::field_reassign_with_default)]
+    fn session_config_into_wire_serializes_bucket_b_fields() {
+        use super::{CloudSessionOptions, CloudSessionRepository};
+        use std::path::PathBuf;
+
+        let mut cfg = SessionConfig::default();
+        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+        cfg.github_token = Some("ghs_secret".to_string());
+        cfg.include_sub_agent_streaming_events = Some(false);
+        cfg.enable_session_telemetry = Some(false);
+        cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::Export);
+        cfg.cloud = Some(CloudSessionOptions::with_repository(
+            CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
+        ));
+
+        let (wire, _runtime) = cfg
+            .into_wire(SessionId::from("custom-id"))
+            .expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["sessionId"], "custom-id");
+        assert_eq!(wire_json["configDir"], "/tmp/cfg");
+        assert_eq!(wire_json["workingDirectory"], "/tmp/work");
+        assert_eq!(wire_json["gitHubToken"], "ghs_secret");
+        assert_eq!(wire_json["includeSubAgentStreamingEvents"], false);
+        assert_eq!(wire_json["enableSessionTelemetry"], false);
+        assert_eq!(wire_json["remoteSession"], "export");
+        assert_eq!(wire_json["cloud"]["repository"]["owner"], "github");
+        assert_eq!(wire_json["cloud"]["repository"]["name"], "copilot-sdk");
+        assert_eq!(wire_json["cloud"]["repository"]["branch"], "main");
+
+        // Unset fields are omitted on the wire.
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(SessionId::from("empty"))
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("gitHubToken").is_none());
+        assert!(empty_json.get("enableSessionTelemetry").is_none());
+        assert!(empty_json.get("remoteSession").is_none());
+        assert!(empty_json.get("cloud").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_into_wire_serializes_bucket_b_fields() {
+        use std::path::PathBuf;
+
+        let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
+        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+        cfg.github_token = Some("ghs_secret".to_string());
+        cfg.include_sub_agent_streaming_events = Some(true);
+        cfg.enable_session_telemetry = Some(false);
+        cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::On);
+
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["sessionId"], "sess-1");
+        assert_eq!(wire_json["workingDirectory"], "/tmp/work");
+        assert_eq!(wire_json["configDir"], "/tmp/cfg");
+        assert_eq!(wire_json["gitHubToken"], "ghs_secret");
+        assert_eq!(wire_json["includeSubAgentStreamingEvents"], true);
+        assert_eq!(wire_json["enableSessionTelemetry"], false);
+        assert_eq!(wire_json["remoteSession"], "on");
+
+        // Unset remote_session is omitted on the wire.
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("remoteSession").is_none());
     }
 
     #[test]
@@ -3655,13 +3772,16 @@ mod tests {
     fn resume_session_config_serializes_continue_pending_work_to_camel_case() {
         let cfg =
             ResumeSessionConfig::new(SessionId::from("sess-1")).with_continue_pending_work(true);
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert_eq!(wire["continuePendingWork"], true);
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["continuePendingWork"], true);
 
         // Unset case — skip_serializing_if must omit the field.
-        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert!(wire.get("continuePendingWork").is_none());
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("continuePendingWork").is_none());
     }
 
     /// The Rust field is `suppress_resume_event`, but the wire field stays
@@ -3671,17 +3791,10 @@ mod tests {
     fn resume_session_config_serializes_suppress_resume_event_to_disable_resume_on_wire() {
         let cfg =
             ResumeSessionConfig::new(SessionId::from("sess-1")).with_suppress_resume_event(true);
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert_eq!(wire["disableResume"], true);
-        assert!(wire.get("suppressResumeEvent").is_none());
-
-        // Round-trip: deserialize from the wire shape.
-        let json = serde_json::json!({
-            "sessionId": "sess-2",
-            "disableResume": true,
-        });
-        let parsed: ResumeSessionConfig = serde_json::from_value(json).unwrap();
-        assert_eq!(parsed.suppress_resume_event, Some(true));
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["disableResume"], true);
+        assert!(json.get("suppressResumeEvent").is_none());
     }
 
     /// `instruction_directories` must serialize to wire as
@@ -3690,16 +3803,21 @@ mod tests {
     fn session_config_serializes_instruction_directories_to_camel_case() {
         let cfg =
             SessionConfig::default().with_instruction_directories([PathBuf::from("/tmp/instr")]);
-        let wire = serde_json::to_value(&cfg).unwrap();
+        let (wire, _) = cfg
+            .into_wire(SessionId::from("instr-on"))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
-            wire["instructionDirectories"],
+            json["instructionDirectories"],
             serde_json::json!(["/tmp/instr"])
         );
 
         // Unset case — skip_serializing_if must omit the field.
-        let cfg = SessionConfig::default();
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert!(wire.get("instructionDirectories").is_none());
+        let (wire, _) = SessionConfig::default()
+            .into_wire(SessionId::from("instr-off"))
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("instructionDirectories").is_none());
     }
 
     /// Same check on the resume path. Forwarded to the CLI on
@@ -3708,15 +3826,18 @@ mod tests {
     fn resume_session_config_serializes_instruction_directories_to_camel_case() {
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-1"))
             .with_instruction_directories([PathBuf::from("/tmp/instr")]);
-        let wire = serde_json::to_value(&cfg).unwrap();
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
-            wire["instructionDirectories"],
+            json["instructionDirectories"],
             serde_json::json!(["/tmp/instr"])
         );
 
-        let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
-        let wire = serde_json::to_value(&cfg).unwrap();
-        assert!(wire.get("instructionDirectories").is_none());
+        let (wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("no duplicate handlers");
+        let json = serde_json::to_value(&wire).unwrap();
+        assert!(json.get("instructionDirectories").is_none());
     }
 
     #[test]
