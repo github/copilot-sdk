@@ -1805,6 +1805,11 @@ public sealed partial class SessionCompactionCompleteData
     [JsonPropertyName("conversationTokens")]
     public long? ConversationTokens { get; set; }
 
+    /// <summary>User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("customInstructions")]
+    public string? CustomInstructions { get; set; }
+
     /// <summary>Error message if compaction failed.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("error")]
@@ -3607,11 +3612,11 @@ public sealed partial class AssistantUsageQuotaSnapshot
     [JsonPropertyName("isUnlimitedEntitlement")]
     public required bool IsUnlimitedEntitlement { get; set; }
 
-    /// <summary>Number of requests over the entitlement limit.</summary>
+    /// <summary>Number of additional usage requests made this period.</summary>
     [JsonPropertyName("overage")]
     public required double Overage { get; set; }
 
-    /// <summary>Whether overage is allowed when quota is exhausted.</summary>
+    /// <summary>Whether additional usage is allowed when quota is exhausted.</summary>
     [JsonPropertyName("overageAllowedWithExhaustedQuota")]
     public required bool OverageAllowedWithExhaustedQuota { get; set; }
 

@@ -46,9 +46,9 @@ type AccountQuotaSnapshot struct {
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
-	// Number of overage requests made this period
+	// Number of additional usage requests made this period
 	Overage float64 `json:"overage"`
-	// Whether overage is allowed when quota is exhausted
+	// Whether additional usage is allowed when quota is exhausted
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
 	// Percentage of entitlement remaining
 	RemainingPercentage float64 `json:"remainingPercentage"`
@@ -1033,6 +1033,14 @@ type HistoryCompactContextWindow struct {
 	TokenLimit int64 `json:"tokenLimit"`
 	// Token count from tool definitions
 	ToolDefinitionsTokens *int64 `json:"toolDefinitionsTokens,omitempty"`
+}
+
+// Optional compaction parameters.
+// Experimental: HistoryCompactRequest is part of an experimental API and may change or be
+// removed.
+type HistoryCompactRequest struct {
+	// Optional user-provided instructions to focus the compaction summary
+	CustomInstructions *string `json:"customInstructions,omitempty"`
 }
 
 // Compaction outcome with the number of tokens and messages removed, summary text, and the
@@ -8178,10 +8186,21 @@ func (a *HistoryApi) CancelBackgroundCompaction(ctx context.Context) (*HistoryCa
 //
 // RPC method: session.history.compact.
 //
+// Parameters: Optional compaction parameters.
+//
 // Returns: Compaction outcome with the number of tokens and messages removed, summary text,
 // and the resulting context window breakdown.
-func (a *HistoryApi) Compact(ctx context.Context) (*HistoryCompactResult, error) {
+func (a *HistoryApi) Compact(ctx context.Context, params ...*HistoryCompactRequest) (*HistoryCompactResult, error) {
+	var requestParams *HistoryCompactRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
 	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.CustomInstructions != nil {
+			req["customInstructions"] = *requestParams.CustomInstructions
+		}
+	}
 	raw, err := a.client.Request("session.history.compact", req)
 	if err != nil {
 		return nil, err

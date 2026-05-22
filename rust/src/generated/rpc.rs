@@ -2174,6 +2174,39 @@ impl<'a> SessionRpcHistory<'a> {
         Ok(serde_json::from_value(_value)?)
     }
 
+    /// Compacts the session history to reduce context usage.
+    ///
+    /// Wire method: `session.history.compact`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional compaction parameters.
+    ///
+    /// # Returns
+    ///
+    /// Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn compact_with_params(
+        &self,
+        params: HistoryCompactRequest,
+    ) -> Result<HistoryCompactResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_HISTORY_COMPACT, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
     /// Truncates persisted session history to a specific event.
     ///
     /// Wire method: `session.history.truncate`.

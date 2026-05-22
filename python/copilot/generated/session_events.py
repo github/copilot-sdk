@@ -2406,6 +2406,7 @@ class SessionCompactionCompleteData:
     checkpoint_path: str | None = None
     compaction_tokens_used: CompactionCompleteCompactionTokensUsed | None = None
     conversation_tokens: int | None = None
+    custom_instructions: str | None = None
     error: str | None = None
     messages_removed: int | None = None
     post_compaction_tokens: int | None = None
@@ -2425,6 +2426,7 @@ class SessionCompactionCompleteData:
         checkpoint_path = from_union([from_none, from_str], obj.get("checkpointPath"))
         compaction_tokens_used = from_union([from_none, CompactionCompleteCompactionTokensUsed.from_dict], obj.get("compactionTokensUsed"))
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
+        custom_instructions = from_union([from_none, from_str], obj.get("customInstructions"))
         error = from_union([from_none, from_str], obj.get("error"))
         messages_removed = from_union([from_none, from_int], obj.get("messagesRemoved"))
         post_compaction_tokens = from_union([from_none, from_int], obj.get("postCompactionTokens"))
@@ -2441,6 +2443,7 @@ class SessionCompactionCompleteData:
             checkpoint_path=checkpoint_path,
             compaction_tokens_used=compaction_tokens_used,
             conversation_tokens=conversation_tokens,
+            custom_instructions=custom_instructions,
             error=error,
             messages_removed=messages_removed,
             post_compaction_tokens=post_compaction_tokens,
@@ -2464,6 +2467,8 @@ class SessionCompactionCompleteData:
             result["compactionTokensUsed"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsed, x)], self.compaction_tokens_used)
         if self.conversation_tokens is not None:
             result["conversationTokens"] = from_union([from_none, to_int], self.conversation_tokens)
+        if self.custom_instructions is not None:
+            result["customInstructions"] = from_union([from_none, from_str], self.custom_instructions)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
         if self.messages_removed is not None:

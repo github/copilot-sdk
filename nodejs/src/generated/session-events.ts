@@ -1749,6 +1749,10 @@ export interface CompactionCompleteData {
    */
   conversationTokens?: number;
   /**
+   * User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.
+   */
+  customInstructions?: string;
+  /**
    * Error message if compaction failed
    */
   error?: string;
@@ -2776,11 +2780,11 @@ export interface AssistantUsageQuotaSnapshot {
    */
   isUnlimitedEntitlement: boolean;
   /**
-   * Number of requests over the entitlement limit
+   * Number of additional usage requests made this period
    */
   overage: number;
   /**
-   * Whether overage is allowed when quota is exhausted
+   * Whether additional usage is allowed when quota is exhausted
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**

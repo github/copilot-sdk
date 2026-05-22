@@ -1118,11 +1118,11 @@ export interface AccountQuotaSnapshot {
    */
   remainingPercentage: number;
   /**
-   * Number of overage requests made this period
+   * Number of additional usage requests made this period
    */
   overage: number;
   /**
-   * Whether overage is allowed when quota is exhausted
+   * Whether additional usage is allowed when quota is exhausted
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
@@ -2491,6 +2491,19 @@ export interface HistoryCompactContextWindow {
    * Token count from tool definitions
    */
   toolDefinitionsTokens?: number;
+}
+/**
+ * Optional compaction parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "HistoryCompactRequest".
+ */
+/** @experimental */
+export interface HistoryCompactRequest {
+  /**
+   * Optional user-provided instructions to focus the compaction summary
+   */
+  customInstructions?: string;
 }
 /**
  * Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
@@ -9997,10 +10010,12 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Compacts the session history to reduce context usage.
              *
+             * @param params Optional compaction parameters.
+             *
              * @returns Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
              */
-            compact: async (): Promise<HistoryCompactResult> =>
-                connection.sendRequest("session.history.compact", { sessionId }),
+            compact: async (params?: HistoryCompactRequest): Promise<HistoryCompactResult> =>
+                connection.sendRequest("session.history.compact", { sessionId, ...params }),
             /**
              * Truncates persisted session history to a specific event.
              *
