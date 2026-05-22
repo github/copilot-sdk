@@ -159,9 +159,10 @@ class TelemetryConfig(TypedDict, total=False):
 class RuntimeConnection:
     """Discriminated config describing how to reach the Copilot runtime.
 
-    Construct via the static factories :meth:`stdio`, :meth:`tcp`, or
-    :meth:`uri`. Each factory returns the matching subclass; pattern-match
-    on the subclass (or :func:`isinstance`) to branch on the transport.
+    Construct via the static factories :meth:`for_stdio`, :meth:`for_tcp`,
+    or :meth:`for_uri`. Each factory returns the matching subclass;
+    pattern-match on the subclass (or :func:`isinstance`) to branch on the
+    transport.
 
     Example:
         >>> CopilotClient()  # default: stdio with the bundled runtime

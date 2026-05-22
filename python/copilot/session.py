@@ -250,8 +250,9 @@ class PermissionNoResult:
 # The decision returned by a permission handler. Identical shape to the wire
 # ``PermissionDecision`` discriminated union, plus a :class:`PermissionNoResult`
 # sentinel for v1 servers. Construct via the generated variant classes:
-# ``PermissionDecisionApproveOnce(kind=...)``, ``PermissionDecisionReject(kind=...,
-# feedback=...)``, etc.
+# ``PermissionDecisionApproveOnce()``, ``PermissionDecisionReject(feedback=...)``,
+# etc. The ``kind`` discriminator is baked in as a ``ClassVar`` default by
+# codegen, so callers must not pass it.
 PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
