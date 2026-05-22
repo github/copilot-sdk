@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -464,13 +464,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
 
         var callbacks = new Dictionary<string, Func<string, Task<string>>>();
-        var wireSections = new Dictionary<string, SectionOverride>();
+        var wireSections = new Dictionary<SystemMessageSection, SectionOverride>();
 
         foreach (var (sectionId, sectionOverride) in systemMessage.Sections)
         {
             if (sectionOverride.Transform != null)
             {
-                callbacks[sectionId] = sectionOverride.Transform;
+                callbacks[sectionId.Value] = sectionOverride.Transform;
                 wireSections[sectionId] = new SectionOverride { Action = SectionOverrideAction.Transform };
             }
             else

@@ -2377,7 +2377,7 @@ impl SystemMessageConfig {
     }
 }
 
-/// An override operation for a single system prompt section.
+/// An override operation for a single system message section.
 ///
 /// Used within [`SystemMessageConfig::sections`] when `mode` is `"customize"`.
 /// The `action` field determines the operation: `"replace"`, `"remove"`,
