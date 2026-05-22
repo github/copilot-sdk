@@ -191,6 +191,4 @@ class E2ETestContext:
             if len(exchanges) >= minimum_count:
                 return exchanges
             await asyncio.sleep(0.1)
-        raise TimeoutError(
-            f"Timed out waiting for {minimum_count} chat completion request(s)"
-        )
+        raise TimeoutError(f"Timed out waiting for {minimum_count} chat completion request(s)")
