@@ -1823,6 +1823,18 @@ pub struct ResumeSessionConfig {
     /// the prior entry on the runtime side.
     #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
     pub canvases: Vec<crate::canvas::Canvas>,
+    /// Host-supplied list of canvas instances that should still be considered
+    /// open from a prior CLI process run, scoped to this session. The runtime
+    /// rebuilds its in-memory canvas-instance registry from these entries so
+    /// subsequent `invoke_canvas_action` dispatches succeed without the host
+    /// re-issuing `canvas.open`. Handler `on_open` is **not** re-invoked.
+    ///
+    /// Entries that fail to bind to a currently-declared canvas (extension
+    /// not loaded this session, or contribution removed) trigger a
+    /// `session.canvas.closed` event with `reason: "rehydrate_failed"` so the
+    /// host can clean up the stale panel.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub open_canvas_instances: Vec<crate::canvas::CanvasInstanceRehydrate>,
     /// Custom session filesystem provider. Required on resume when the
     /// [`Client`](crate::Client) was started with
     /// [`ClientOptions::session_fs`](crate::ClientOptions::session_fs).
@@ -1897,6 +1909,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("commands", &self.commands)
             .field("canvases", &self.canvases)
+            .field("open_canvas_instances", &self.open_canvas_instances)
             .field(
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
@@ -1956,6 +1969,7 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             canvases: Vec::new(),
+            open_canvas_instances: Vec::new(),
             session_fs_provider: None,
             disable_resume: None,
             continue_pending_work: None,
@@ -1989,6 +2003,20 @@ impl ResumeSessionConfig {
     /// server-side, so the resume payload re-supplies the registration.
     pub fn with_commands(mut self, commands: Vec<CommandDefinition>) -> Self {
         self.commands = Some(commands);
+        self
+    }
+
+    /// Supply the list of canvas instances the host still considers open
+    /// from a prior CLI process run. The runtime resolves each entry's
+    /// `(extension_id, canvas_id)` against the canvases declared on this
+    /// resume and rebuilds its in-memory instance registry, so subsequent
+    /// `invoke_canvas_action` dispatches succeed without re-issuing
+    /// `canvas.open`. Handler `on_open` is **not** re-invoked.
+    pub fn with_open_canvas_instances(
+        mut self,
+        instances: Vec<crate::canvas::CanvasInstanceRehydrate>,
+    ) -> Self {
+        self.open_canvas_instances = instances;
         self
     }
 

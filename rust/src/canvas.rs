@@ -111,6 +111,31 @@ pub struct CanvasOpenResponse {
     pub instance_id: Option<String>,
 }
 
+/// Per-instance resume hint sent on `session.resume` to rebuild the runtime's
+/// canvas-instance registry. The host persists open canvases across CLI
+/// process restarts and hands them back here so subsequent
+/// `invoke_canvas_action` dispatches find the existing instance instead of
+/// erroring with `canvas_instance_not_found`.
+///
+/// The handler's `on_open` is **not** re-invoked on rehydrate — the extension
+/// keeps whatever state it had in its own process. Entries the runtime cannot
+/// bind to a currently-declared canvas trigger a `session.canvas.closed`
+/// event with `reason: "rehydrate_failed"`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasInstanceRehydrate {
+    /// Canonical extension id that owns the canvas.
+    pub extension_id: String,
+    /// Canvas declaration id within that extension.
+    pub canvas_id: String,
+    /// Stable instance id the host originally opened the canvas under.
+    pub instance_id: String,
+    /// Optional URL recorded at the original open. Populated as-is into the
+    /// rebuilt instance record; not re-validated by the runtime.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
 /// Context handed to [`CanvasHandler::on_open`].
 #[derive(Debug, Clone)]
 pub struct CanvasOpenContext {

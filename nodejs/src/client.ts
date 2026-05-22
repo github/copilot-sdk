@@ -990,6 +990,7 @@ export class CopilotClient {
                 infiniteSessions: config.infiniteSessions,
                 disableResume: config.disableResume,
                 continuePendingWork: config.continuePendingWork,
+                openCanvasInstances: config.openCanvasInstances,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
             });

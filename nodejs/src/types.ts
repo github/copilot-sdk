@@ -7,7 +7,7 @@
  */
 
 // Import and re-export generated session event types
-import type { Canvas } from "./canvas.js";
+import type { Canvas, CanvasInstanceRehydrate } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
@@ -1639,6 +1639,17 @@ export type ResumeSessionConfig = Pick<
      * @default false
      */
     continuePendingWork?: boolean;
+    /**
+     * Extension canvas instances the host believes are still open from a prior
+     * runtime process. Supplied on resume so the runtime can re-populate its
+     * in-memory canvas instance map without re-invoking each extension's
+     * `onOpen`. Instances whose `(extensionId, canvasId)` don't resolve in the
+     * active extension set produce a `session.canvas.closed` event with
+     * `reason: "rehydrate_failed"` so the host can drop the stale UI. Native
+     * host-implemented canvases (e.g. `host.*` ids) should be omitted — the
+     * host owns their lifecycle end-to-end without the runtime instance record.
+     */
+    openCanvasInstances?: CanvasInstanceRehydrate[];
 };
 
 /**

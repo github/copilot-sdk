@@ -97,6 +97,25 @@ export interface CanvasOpenResponse {
     instanceId?: string;
 }
 
+/**
+ * Identifies an extension canvas instance that the host believes is still open
+ * across a runtime restart. Supplied via `ResumeSessionConfig.openCanvasInstances`
+ * so the runtime can re-populate its in-memory instance map without re-invoking
+ * the extension's `onOpen`. Orphans (no matching extension/canvas in the active
+ * extension set) trigger a `session.canvas.closed` event with
+ * `reason: "rehydrate_failed"` so the host can drop the stale UI.
+ */
+export interface CanvasInstanceRehydrate {
+    /** Extension id that originally opened the canvas. */
+    extensionId: string;
+    /** Canvas id (matches the declaring `CanvasDeclaration.id`). */
+    canvasId: string;
+    /** Agent-supplied stable instance id from the original open. */
+    instanceId: string;
+    /** Extension-owned URL the host last rendered, if any. */
+    url?: string;
+}
+
 /** Context handed to a canvas's `onOpen` handler. */
 export interface CanvasOpenContext {
     /** Session that requested the canvas. */
