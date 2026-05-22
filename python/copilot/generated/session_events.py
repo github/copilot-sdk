@@ -320,7 +320,9 @@ class AssistantMessageData:
     "Assistant response containing text content, optional tool requests, and interaction metadata"
     content: str
     message_id: str
+    # Experimental: this field is part of an experimental API and may change or be removed.
     anthropic_advisor_blocks: list[Any] | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
     anthropic_advisor_model: str | None = None
     encrypted_content: str | None = None
     interaction_id: str | None = None
@@ -619,17 +621,17 @@ class AssistantTurnStartData:
 
 
 @dataclass
-class AssistantUsageCopilotUsage:
+class _AssistantUsageCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[AssistantUsageCopilotUsageTokenDetail]
     total_nano_aiu: float
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
+    def from_dict(obj: Any) -> "_AssistantUsageCopilotUsage":
         assert isinstance(obj, dict)
         token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
-        return AssistantUsageCopilotUsage(
+        return _AssistantUsageCopilotUsage(
             token_details=token_details,
             total_nano_aiu=total_nano_aiu,
         )
@@ -680,7 +682,9 @@ class AssistantUsageData:
     api_endpoint: AssistantUsageApiEndpoint | None = None
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
-    copilot_usage: AssistantUsageCopilotUsage | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _copilot_usage: _AssistantUsageCopilotUsage | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
     cost: float | None = None
     duration: timedelta | None = None
     initiator: str | None = None
@@ -690,7 +694,8 @@ class AssistantUsageData:
     # Deprecated: this field is deprecated.
     parent_tool_call_id: str | None = None
     provider_call_id: str | None = None
-    quota_snapshots: dict[str, AssistantUsageQuotaSnapshot] | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
     reasoning_tokens: int | None = None
     time_to_first_token: timedelta | None = None
@@ -703,7 +708,7 @@ class AssistantUsageData:
         api_endpoint = from_union([from_none, lambda x: parse_enum(AssistantUsageApiEndpoint, x)], obj.get("apiEndpoint"))
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
-        copilot_usage = from_union([from_none, AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
+        _copilot_usage = from_union([from_none, _AssistantUsageCopilotUsage.from_dict], obj.get("copilotUsage"))
         cost = from_union([from_none, from_float], obj.get("cost"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         initiator = from_union([from_none, from_str], obj.get("initiator"))
@@ -712,7 +717,7 @@ class AssistantUsageData:
         output_tokens = from_union([from_none, from_int], obj.get("outputTokens"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
-        quota_snapshots = from_union([from_none, lambda x: from_dict(AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
+        _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
         time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
@@ -722,7 +727,7 @@ class AssistantUsageData:
             api_endpoint=api_endpoint,
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
-            copilot_usage=copilot_usage,
+            _copilot_usage=_copilot_usage,
             cost=cost,
             duration=duration,
             initiator=initiator,
@@ -731,7 +736,7 @@ class AssistantUsageData:
             output_tokens=output_tokens,
             parent_tool_call_id=parent_tool_call_id,
             provider_call_id=provider_call_id,
-            quota_snapshots=quota_snapshots,
+            _quota_snapshots=_quota_snapshots,
             reasoning_effort=reasoning_effort,
             reasoning_tokens=reasoning_tokens,
             time_to_first_token=time_to_first_token,
@@ -748,8 +753,8 @@ class AssistantUsageData:
             result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
             result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
-        if self.copilot_usage is not None:
-            result["copilotUsage"] = from_union([from_none, lambda x: to_class(AssistantUsageCopilotUsage, x)], self.copilot_usage)
+        if self._copilot_usage is not None:
+            result["copilotUsage"] = from_union([from_none, lambda x: to_class(_AssistantUsageCopilotUsage, x)], self._copilot_usage)
         if self.cost is not None:
             result["cost"] = from_union([from_none, to_float], self.cost)
         if self.duration is not None:
@@ -766,8 +771,8 @@ class AssistantUsageData:
             result["parentToolCallId"] = from_union([from_none, from_str], self.parent_tool_call_id)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
-        if self.quota_snapshots is not None:
-            result["quotaSnapshots"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(AssistantUsageQuotaSnapshot, x), x)], self.quota_snapshots)
+        if self._quota_snapshots is not None:
+            result["quotaSnapshots"] = from_union([from_none, lambda x: from_dict(lambda x: to_class(_AssistantUsageQuotaSnapshot, x), x)], self._quota_snapshots)
         if self.reasoning_effort is not None:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_tokens is not None:
@@ -778,50 +783,58 @@ class AssistantUsageData:
 
 
 @dataclass
-class AssistantUsageQuotaSnapshot:
-    "Schema for the `AssistantUsageQuotaSnapshot` type."
-    entitlement_requests: int
-    is_unlimited_entitlement: bool
-    overage: float
-    overage_allowed_with_exhausted_quota: bool
-    remaining_percentage: float
-    usage_allowed_with_exhausted_quota: bool
-    used_requests: int
-    reset_date: datetime | None = None
+class _AssistantUsageQuotaSnapshot:
+    "Schema for the `_AssistantUsageQuotaSnapshot` type."
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _entitlement_requests: int
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _is_unlimited_entitlement: bool
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _overage: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _overage_allowed_with_exhausted_quota: bool
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _remaining_percentage: float
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _usage_allowed_with_exhausted_quota: bool
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _used_requests: int
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _reset_date: datetime | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantUsageQuotaSnapshot":
+    def from_dict(obj: Any) -> "_AssistantUsageQuotaSnapshot":
         assert isinstance(obj, dict)
-        entitlement_requests = from_int(obj.get("entitlementRequests"))
-        is_unlimited_entitlement = from_bool(obj.get("isUnlimitedEntitlement"))
-        overage = from_float(obj.get("overage"))
-        overage_allowed_with_exhausted_quota = from_bool(obj.get("overageAllowedWithExhaustedQuota"))
-        remaining_percentage = from_float(obj.get("remainingPercentage"))
-        usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
-        used_requests = from_int(obj.get("usedRequests"))
-        reset_date = from_union([from_none, from_datetime], obj.get("resetDate"))
-        return AssistantUsageQuotaSnapshot(
-            entitlement_requests=entitlement_requests,
-            is_unlimited_entitlement=is_unlimited_entitlement,
-            overage=overage,
-            overage_allowed_with_exhausted_quota=overage_allowed_with_exhausted_quota,
-            remaining_percentage=remaining_percentage,
-            usage_allowed_with_exhausted_quota=usage_allowed_with_exhausted_quota,
-            used_requests=used_requests,
-            reset_date=reset_date,
+        _entitlement_requests = from_int(obj.get("entitlementRequests"))
+        _is_unlimited_entitlement = from_bool(obj.get("isUnlimitedEntitlement"))
+        _overage = from_float(obj.get("overage"))
+        _overage_allowed_with_exhausted_quota = from_bool(obj.get("overageAllowedWithExhaustedQuota"))
+        _remaining_percentage = from_float(obj.get("remainingPercentage"))
+        _usage_allowed_with_exhausted_quota = from_bool(obj.get("usageAllowedWithExhaustedQuota"))
+        _used_requests = from_int(obj.get("usedRequests"))
+        _reset_date = from_union([from_none, from_datetime], obj.get("resetDate"))
+        return _AssistantUsageQuotaSnapshot(
+            _entitlement_requests=_entitlement_requests,
+            _is_unlimited_entitlement=_is_unlimited_entitlement,
+            _overage=_overage,
+            _overage_allowed_with_exhausted_quota=_overage_allowed_with_exhausted_quota,
+            _remaining_percentage=_remaining_percentage,
+            _usage_allowed_with_exhausted_quota=_usage_allowed_with_exhausted_quota,
+            _used_requests=_used_requests,
+            _reset_date=_reset_date,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
-        result["entitlementRequests"] = to_int(self.entitlement_requests)
-        result["isUnlimitedEntitlement"] = from_bool(self.is_unlimited_entitlement)
-        result["overage"] = to_float(self.overage)
-        result["overageAllowedWithExhaustedQuota"] = from_bool(self.overage_allowed_with_exhausted_quota)
-        result["remainingPercentage"] = to_float(self.remaining_percentage)
-        result["usageAllowedWithExhaustedQuota"] = from_bool(self.usage_allowed_with_exhausted_quota)
-        result["usedRequests"] = to_int(self.used_requests)
-        if self.reset_date is not None:
-            result["resetDate"] = from_union([from_none, to_datetime], self.reset_date)
+        result["entitlementRequests"] = to_int(self._entitlement_requests)
+        result["isUnlimitedEntitlement"] = from_bool(self._is_unlimited_entitlement)
+        result["overage"] = to_float(self._overage)
+        result["overageAllowedWithExhaustedQuota"] = from_bool(self._overage_allowed_with_exhausted_quota)
+        result["remainingPercentage"] = to_float(self._remaining_percentage)
+        result["usageAllowedWithExhaustedQuota"] = from_bool(self._usage_allowed_with_exhausted_quota)
+        result["usedRequests"] = to_int(self._used_requests)
+        if self._reset_date is not None:
+            result["resetDate"] = from_union([from_none, to_datetime], self._reset_date)
         return result
 
 
@@ -1038,7 +1051,8 @@ class CompactionCompleteCompactionTokensUsed:
     "Token usage breakdown for the compaction LLM call (aligned with assistant.usage format)"
     cache_read_tokens: int | None = None
     cache_write_tokens: int | None = None
-    copilot_usage: CompactionCompleteCompactionTokensUsedCopilotUsage | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _copilot_usage: _CompactionCompleteCompactionTokensUsedCopilotUsage | None = None
     duration: timedelta | None = None
     input_tokens: int | None = None
     model: str | None = None
@@ -1049,7 +1063,7 @@ class CompactionCompleteCompactionTokensUsed:
         assert isinstance(obj, dict)
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
-        copilot_usage = from_union([from_none, CompactionCompleteCompactionTokensUsedCopilotUsage.from_dict], obj.get("copilotUsage"))
+        _copilot_usage = from_union([from_none, _CompactionCompleteCompactionTokensUsedCopilotUsage.from_dict], obj.get("copilotUsage"))
         duration = from_union([from_none, from_timedelta], obj.get("duration"))
         input_tokens = from_union([from_none, from_int], obj.get("inputTokens"))
         model = from_union([from_none, from_str], obj.get("model"))
@@ -1057,7 +1071,7 @@ class CompactionCompleteCompactionTokensUsed:
         return CompactionCompleteCompactionTokensUsed(
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
-            copilot_usage=copilot_usage,
+            _copilot_usage=_copilot_usage,
             duration=duration,
             input_tokens=input_tokens,
             model=model,
@@ -1070,8 +1084,8 @@ class CompactionCompleteCompactionTokensUsed:
             result["cacheReadTokens"] = from_union([from_none, to_int], self.cache_read_tokens)
         if self.cache_write_tokens is not None:
             result["cacheWriteTokens"] = from_union([from_none, to_int], self.cache_write_tokens)
-        if self.copilot_usage is not None:
-            result["copilotUsage"] = from_union([from_none, lambda x: to_class(CompactionCompleteCompactionTokensUsedCopilotUsage, x)], self.copilot_usage)
+        if self._copilot_usage is not None:
+            result["copilotUsage"] = from_union([from_none, lambda x: to_class(_CompactionCompleteCompactionTokensUsedCopilotUsage, x)], self._copilot_usage)
         if self.duration is not None:
             result["duration"] = from_union([from_none, to_timedelta_int], self.duration)
         if self.input_tokens is not None:
@@ -1084,17 +1098,17 @@ class CompactionCompleteCompactionTokensUsed:
 
 
 @dataclass
-class CompactionCompleteCompactionTokensUsedCopilotUsage:
+class _CompactionCompleteCompactionTokensUsedCopilotUsage:
     "Per-request cost and usage data from the CAPI copilot_usage response field"
     token_details: list[CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail]
     total_nano_aiu: float
 
     @staticmethod
-    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsage":
+    def from_dict(obj: Any) -> "_CompactionCompleteCompactionTokensUsedCopilotUsage":
         assert isinstance(obj, dict)
         token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
-        return CompactionCompleteCompactionTokensUsedCopilotUsage(
+        return _CompactionCompleteCompactionTokensUsedCopilotUsage(
             token_details=token_details,
             total_nano_aiu=total_nano_aiu,
         )
@@ -3681,8 +3695,10 @@ class SessionShutdownData:
     system_tokens: int | None = None
     token_details: dict[str, ShutdownTokenDetail] | None = None
     tool_definitions_tokens: int | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
     total_nano_aiu: float | None = None
-    total_premium_requests: float | None = None
+    # Internal: this field is an internal SDK API and is not part of the public surface.
+    _total_premium_requests: float | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionShutdownData":
@@ -3700,7 +3716,7 @@ class SessionShutdownData:
         token_details = from_union([from_none, lambda x: from_dict(ShutdownTokenDetail.from_dict, x)], obj.get("tokenDetails"))
         tool_definitions_tokens = from_union([from_none, from_int], obj.get("toolDefinitionsTokens"))
         total_nano_aiu = from_union([from_none, from_float], obj.get("totalNanoAiu"))
-        total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
+        _total_premium_requests = from_union([from_none, from_float], obj.get("totalPremiumRequests"))
         return SessionShutdownData(
             code_changes=code_changes,
             model_metrics=model_metrics,
@@ -3715,7 +3731,7 @@ class SessionShutdownData:
             token_details=token_details,
             tool_definitions_tokens=tool_definitions_tokens,
             total_nano_aiu=total_nano_aiu,
-            total_premium_requests=total_premium_requests,
+            _total_premium_requests=_total_premium_requests,
         )
 
     def to_dict(self) -> dict:
@@ -3741,8 +3757,8 @@ class SessionShutdownData:
             result["toolDefinitionsTokens"] = from_union([from_none, to_int], self.tool_definitions_tokens)
         if self.total_nano_aiu is not None:
             result["totalNanoAiu"] = from_union([from_none, to_float], self.total_nano_aiu)
-        if self.total_premium_requests is not None:
-            result["totalPremiumRequests"] = from_union([from_none, to_float], self.total_premium_requests)
+        if self._total_premium_requests is not None:
+            result["totalPremiumRequests"] = from_union([from_none, to_float], self._total_premium_requests)
         return result
 
 
@@ -4099,6 +4115,7 @@ class ShutdownModelMetric:
     requests: ShutdownModelMetricRequests
     usage: ShutdownModelMetricUsage
     token_details: dict[str, ShutdownModelMetricTokenDetail] | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
     total_nano_aiu: float | None = None
 
     @staticmethod
@@ -4129,7 +4146,9 @@ class ShutdownModelMetric:
 @dataclass
 class ShutdownModelMetricRequests:
     "Request count and cost metrics"
+    # Experimental: this field is part of an experimental API and may change or be removed.
     cost: float | None = None
+    # Experimental: this field is part of an experimental API and may change or be removed.
     count: int | None = None
 
     @staticmethod

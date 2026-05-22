@@ -170,8 +170,10 @@ func (*AssistantReasoningData) Type() SessionEventType { return SessionEventType
 // Assistant response containing text content, optional tool requests, and interaction metadata
 type AssistantMessageData struct {
 	// Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+	// Experimental: AnthropicAdvisorBlocks is part of an experimental API and may change or be removed.
 	AnthropicAdvisorBlocks []any `json:"anthropicAdvisorBlocks,omitempty"`
 	// Anthropic advisor model ID used for this response, for timeline display on replay
+	// Experimental: AnthropicAdvisorModel is part of an experimental API and may change or be removed.
 	AnthropicAdvisorModel *string `json:"anthropicAdvisorModel,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
@@ -532,8 +534,10 @@ type AssistantUsageData struct {
 	// Number of tokens written to prompt cache
 	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
+	// Internal: CopilotUsage is part of the SDK's internal API surface and is not intended for external use.
 	CopilotUsage *AssistantUsageCopilotUsage `json:"copilotUsage,omitempty"`
 	// Model multiplier cost for billing purposes
+	// Experimental: Cost is part of an experimental API and may change or be removed.
 	Cost *float64 `json:"cost,omitempty"`
 	// Duration of the API call in milliseconds
 	Duration *int64 `json:"duration,omitempty"`
@@ -553,6 +557,7 @@ type AssistantUsageData struct {
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
+	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitempty"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
@@ -1052,8 +1057,10 @@ type SessionShutdownData struct {
 	// Cumulative time spent in API calls during the session, in milliseconds
 	TotalAPIDurationMs int64 `json:"totalApiDurationMs"`
 	// Session-wide accumulated nano-AI units cost
+	// Experimental: TotalNanoAiu is part of an experimental API and may change or be removed.
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
+	// Internal: TotalPremiumRequests is part of the SDK's internal API surface and is not intended for external use.
 	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
 }
 
@@ -1465,6 +1472,7 @@ type AssistantMessageToolRequest struct {
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
+// Internal: AssistantUsageCopilotUsage is an internal SDK API and is not part of the public surface.
 type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
@@ -1485,22 +1493,31 @@ type AssistantUsageCopilotUsageTokenDetail struct {
 }
 
 // Schema for the `AssistantUsageQuotaSnapshot` type.
+// Internal: AssistantUsageQuotaSnapshot is an internal SDK API and is not part of the public surface.
 type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
+	// Internal: EntitlementRequests is part of the SDK's internal API surface and is not intended for external use.
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
+	// Internal: IsUnlimitedEntitlement is part of the SDK's internal API surface and is not intended for external use.
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
 	// Number of additional usage requests made this period
+	// Internal: Overage is part of the SDK's internal API surface and is not intended for external use.
 	Overage float64 `json:"overage"`
 	// Whether additional usage is allowed when quota is exhausted
+	// Internal: OverageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
 	// Percentage of quota remaining (0 to 100)
+	// Internal: RemainingPercentage is part of the SDK's internal API surface and is not intended for external use.
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets
+	// Internal: ResetDate is part of the SDK's internal API surface and is not intended for external use.
 	ResetDate *time.Time `json:"resetDate,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
+	// Internal: UsageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests already consumed
+	// Internal: UsedRequests is part of the SDK's internal API surface and is not intended for external use.
 	UsedRequests int64 `json:"usedRequests"`
 }
 
@@ -1525,6 +1542,7 @@ type CompactionCompleteCompactionTokensUsed struct {
 	// Tokens written to prompt cache in the compaction LLM call
 	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
+	// Internal: CopilotUsage is part of the SDK's internal API surface and is not intended for external use.
 	CopilotUsage *CompactionCompleteCompactionTokensUsedCopilotUsage `json:"copilotUsage,omitempty"`
 	// Duration of the compaction LLM call in milliseconds
 	Duration *int64 `json:"duration,omitempty"`
@@ -1537,6 +1555,7 @@ type CompactionCompleteCompactionTokensUsed struct {
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
+// Internal: CompactionCompleteCompactionTokensUsedCopilotUsage is an internal SDK API and is not part of the public surface.
 type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
@@ -2229,6 +2248,7 @@ type ShutdownModelMetric struct {
 	// Token count details per type
 	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
 	// Accumulated nano-AI units cost for this model
+	// Experimental: TotalNanoAiu is part of an experimental API and may change or be removed.
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Token usage breakdown
 	Usage ShutdownModelMetricUsage `json:"usage"`
@@ -2237,8 +2257,10 @@ type ShutdownModelMetric struct {
 // Request count and cost metrics
 type ShutdownModelMetricRequests struct {
 	// Cumulative cost multiplier for requests to this model
+	// Experimental: Cost is part of an experimental API and may change or be removed.
 	Cost *float64 `json:"cost,omitempty"`
 	// Total number of API requests made to this model
+	// Experimental: Count is part of an experimental API and may change or be removed.
 	Count *int64 `json:"count,omitempty"`
 }
 
