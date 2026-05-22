@@ -178,7 +178,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, relativePath);
+            var candidate = Path.Join(dir.FullName, relativePath);
             if (File.Exists(candidate))
                 return Path.GetDirectoryName(candidate)!;
             dir = dir.Parent;
