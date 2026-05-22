@@ -375,7 +375,7 @@ Tools are named types (not closures) — visible in stack traces and navigable v
 
 Tools without an attached handler (`Tool::with_handler` never called) are declaration-only: the SDK advertises them on the wire but doesn't dispatch invocations to anything. Useful when another connected client services the tool.
 
-For trivial tools that don't need a named type, the `define_tool` macro (available with the `derive` feature) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
+For trivial tools that don't need a named type, the `define_tool` helper function (available with the `derive` feature) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
 
 ```rust,ignore
 use github_copilot_sdk::tool::{define_tool, JsonSchema};

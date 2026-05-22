@@ -187,8 +187,8 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
 /// Named handler types (e.g. `struct MyTool;`) are visible in stack
 /// traces and navigable via "go to definition", which is preferable to
 /// closure-based alternatives for non-trivial tools. For trivial tools,
-/// the `define_tool!` macro (available with the `derive` feature) wraps
-/// a free `async fn` or closure into a [`Tool`](crate::types::Tool) with
+/// the `define_tool` helper function (available with the `derive`
+/// feature) wraps a free `async fn` or closure into a [`Tool`](crate::types::Tool) with
 /// the handler already attached.
 ///
 /// # Example
