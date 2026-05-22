@@ -75,7 +75,7 @@ class TestModeHandlers:
     ):
         exit_plan_mode_requests = []
 
-        async def on_exit_plan_mode(request, invocation):
+        async def on_exit_plan_mode_request(request, invocation):
             exit_plan_mode_requests.append(request)
             assert invocation["session_id"] == session.session_id
             return {
@@ -87,7 +87,7 @@ class TestModeHandlers:
         session = await mode_ctx.client.create_session(
             github_token=MODE_HANDLER_TOKEN,
             on_permission_request=PermissionHandler.approve_all,
-            on_exit_plan_mode=on_exit_plan_mode,
+            on_exit_plan_mode_request=on_exit_plan_mode_request,
         )
 
         try:
@@ -139,7 +139,7 @@ class TestModeHandlers:
     ):
         auto_mode_switch_requests = []
 
-        async def on_auto_mode_switch(request, invocation):
+        async def on_auto_mode_switch_request(request, invocation):
             auto_mode_switch_requests.append(request)
             assert invocation["session_id"] == session.session_id
             return "yes"
@@ -147,7 +147,7 @@ class TestModeHandlers:
         session = await mode_ctx.client.create_session(
             github_token=MODE_HANDLER_TOKEN,
             on_permission_request=PermissionHandler.approve_all,
-            on_auto_mode_switch=on_auto_mode_switch,
+            on_auto_mode_switch_request=on_auto_mode_switch_request,
         )
 
         try:

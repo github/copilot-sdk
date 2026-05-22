@@ -184,8 +184,8 @@ class TestStreamingFidelity:
             assistant_events = [e for e in events if e.type.value == "assistant.message"]
             assert len(assistant_events) >= 1, "Expected final assistant.message"
 
-            # Check session.start event (from get_messages) has reasoning_effort
-            all_msgs = await session.get_messages()
+            # Check session.start event (from get_events) has reasoning_effort
+            all_msgs = await session.get_events()
             start_event = next((e for e in all_msgs if isinstance(e.data, SessionStartData)), None)
             assert start_event is not None, "Expected session.start event"
             assert start_event.data.reasoning_effort == "high"

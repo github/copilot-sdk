@@ -103,7 +103,7 @@ asyncio.run(main())
 - ✅ Full JSON-RPC protocol support
 - ✅ stdio and TCP transports
 - ✅ Real-time streaming events
-- ✅ Session history with `get_messages()`
+- ✅ Session history with `get_events()`
 - ✅ Type hints throughout
 - ✅ Async/await native
 - ✅ Async context manager support for automatic resource cleanup

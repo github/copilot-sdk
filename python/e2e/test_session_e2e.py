@@ -23,7 +23,7 @@ class TestSessions:
         )
         assert session.session_id
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         assert len(messages) > 0
         assert messages[0].type.value == "session.start"
         assert messages[0].data.session_id == session.session_id
@@ -32,7 +32,7 @@ class TestSessions:
         await session.disconnect()
 
         with pytest.raises(Exception, match="Session not found"):
-            await session.get_messages()
+            await session.get_events()
 
     async def test_should_have_stateful_conversation(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -194,7 +194,7 @@ class TestSessions:
 
         # All are connected
         for s in [s1, s2, s3]:
-            messages = await s.get_messages()
+            messages = await s.get_events()
             assert len(messages) > 0
             assert messages[0].type.value == "session.start"
             assert messages[0].data.session_id == s.session_id
@@ -203,7 +203,7 @@ class TestSessions:
         await asyncio.gather(s1.disconnect(), s2.disconnect(), s3.disconnect())
         for s in [s1, s2, s3]:
             with pytest.raises(Exception, match="Session not found"):
-                await s.get_messages()
+                await s.get_events()
 
     async def test_should_resume_a_session_using_the_same_client(self, ctx: E2ETestContext):
         # Create initial session
@@ -257,7 +257,7 @@ class TestSessions:
             )
             assert session2.session_id == session_id
 
-            messages = await session2.get_messages()
+            messages = await session2.get_events()
             message_types = [m.type.value for m in messages]
             assert "user.message" in message_types
             assert "session.resume" in message_types
@@ -499,7 +499,7 @@ class TestSessions:
         _ = await wait_for_session_idle
 
         # The session should still be alive and usable after abort
-        messages = await session.get_messages()
+        messages = await session.get_events()
         assert len(messages) > 0
 
         # Verify an abort event exists in messages
@@ -555,7 +555,7 @@ class TestSessions:
         assert "session.idle" in event_types
 
         # Verify the assistant response contains the expected answer.
-        # session.idle is ephemeral and not in get_messages(), but we already
+        # session.idle is ephemeral and not in get_events(), but we already
         # confirmed idle via the live event handler above.
         assistant_message = await get_final_assistant_message(session, already_idle=True)
         assert "300" in assistant_message.data.content
@@ -696,7 +696,7 @@ class TestSessions:
             ],
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         attachments = user_messages[-1].data.attachments
@@ -734,7 +734,7 @@ class TestSessions:
             ],
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         attachments = user_messages[-1].data.attachments
@@ -773,7 +773,7 @@ class TestSessions:
             ],
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         attachments = user_messages[-1].data.attachments
@@ -1085,7 +1085,7 @@ class TestSessions:
             mode="plan",  # type: ignore[arg-type]
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         user_messages = [m for m in messages if isinstance(m.data, UserMessageData)]
         assert user_messages
         last = user_messages[-1].data

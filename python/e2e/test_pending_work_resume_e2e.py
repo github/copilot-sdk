@@ -481,7 +481,7 @@ class TestPendingWorkResume:
                     )
 
                     # Verify resume event: continue_pending_work=False and session_was_active=True
-                    messages = await session2.get_messages()
+                    messages = await session2.get_events()
                     resume_events = [m for m in messages if isinstance(m.data, SessionResumeData)]
                     assert len(resume_events) == 1, "Expected exactly one session.resume event"
                     resume_event = resume_events[0]
@@ -549,7 +549,7 @@ class TestPendingWorkResume:
                     continue_pending_work=True,
                 )
 
-                messages = await resumed_session.get_messages()
+                messages = await resumed_session.get_events()
                 resume_events = [m for m in messages if isinstance(m.data, SessionResumeData)]
                 assert len(resume_events) == 1, "Expected exactly one session.resume event"
                 resume_event = resume_events[0]

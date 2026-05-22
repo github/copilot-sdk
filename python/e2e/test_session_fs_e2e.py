@@ -171,7 +171,7 @@ class TestSessionFs:
             "Call the get_big_string tool and reply with the word DONE only."
         )
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         tool_result = find_tool_call_result(messages, "get_big_string")
         assert tool_result is not None
         assert f"{SESSION_STATE_PATH}/temp/" in tool_result

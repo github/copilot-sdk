@@ -937,7 +937,7 @@ class ProviderConfig(TypedDict, total=False):
     # triggers conversation compaction before sending a request when the prompt
     # (system message, history, tool definitions, user message) would exceed
     # this limit.
-    max_input_tokens: int
+    max_prompt_tokens: int
     # Overrides the resolved model's default max output tokens. When hit, the
     # model stops generating and returns a truncated response.
     max_output_tokens: int
@@ -1027,9 +1027,9 @@ class SessionConfig(TypedDict, total=False):
     # When provided, the server calls back to this client for form-based UI dialogs.
     on_elicitation_request: ElicitationHandler
     # Handler for exit-plan-mode requests from the server.
-    on_exit_plan_mode: ExitPlanModeHandler
+    on_exit_plan_mode_request: ExitPlanModeHandler
     # Handler for auto-mode-switch requests from the server.
-    on_auto_mode_switch: AutoModeSwitchHandler
+    on_auto_mode_switch_request: AutoModeSwitchHandler
     # Handler factory for session-scoped sessionFs operations.
     create_session_fs_handler: CreateSessionFsHandler
 
@@ -1117,9 +1117,9 @@ class ResumeSessionConfig(TypedDict, total=False):
     # Handler for elicitation requests from the server.
     on_elicitation_request: ElicitationHandler
     # Handler for exit-plan-mode requests from the server.
-    on_exit_plan_mode: ExitPlanModeHandler
+    on_exit_plan_mode_request: ExitPlanModeHandler
     # Handler for auto-mode-switch requests from the server.
-    on_auto_mode_switch: AutoModeSwitchHandler
+    on_auto_mode_switch_request: AutoModeSwitchHandler
     # Handler factory for session-scoped sessionFs operations.
     create_session_fs_handler: CreateSessionFsHandler
 
@@ -2252,7 +2252,7 @@ class CopilotSession:
             )
             return None
 
-    async def get_messages(self) -> list[SessionEvent]:
+    async def get_events(self) -> list[SessionEvent]:
         """
         Retrieve all events and messages from this session's history.
 
@@ -2267,7 +2267,7 @@ class CopilotSession:
 
         Example:
             >>> from copilot.generated.session_events import AssistantMessageData
-            >>> events = await session.get_messages()
+            >>> events = await session.get_events()
             >>> for event in events:
             ...     match event.data:
             ...         case AssistantMessageData() as data:

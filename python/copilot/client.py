@@ -1377,8 +1377,8 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
-        on_exit_plan_mode: ExitPlanModeHandler | None = None,
-        on_auto_mode_switch: AutoModeSwitchHandler | None = None,
+        on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
+        on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
@@ -1520,8 +1520,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
-        payload["requestExitPlanMode"] = bool(on_exit_plan_mode)
-        payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch)
+        payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
+        payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
         # Serialize commands (name + description only) into payload
         if commands:
@@ -1664,10 +1664,10 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
             session._register_elicitation_handler(on_elicitation_request)
-        if on_exit_plan_mode:
-            session._register_exit_plan_mode_handler(on_exit_plan_mode)
-        if on_auto_mode_switch:
-            session._register_auto_mode_switch_handler(on_auto_mode_switch)
+        if on_exit_plan_mode_request:
+            session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
+        if on_auto_mode_switch_request:
+            session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1756,8 +1756,8 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
-        on_exit_plan_mode: ExitPlanModeHandler | None = None,
-        on_auto_mode_switch: AutoModeSwitchHandler | None = None,
+        on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
+        on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
@@ -1914,8 +1914,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
-        payload["requestExitPlanMode"] = bool(on_exit_plan_mode)
-        payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch)
+        payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
+        payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
         # Serialize commands (name + description only) into payload
         if commands:
@@ -2017,10 +2017,10 @@ class CopilotClient:
             session._register_user_input_handler(on_user_input_request)
         if on_elicitation_request:
             session._register_elicitation_handler(on_elicitation_request)
-        if on_exit_plan_mode:
-            session._register_exit_plan_mode_handler(on_exit_plan_mode)
-        if on_auto_mode_switch:
-            session._register_auto_mode_switch_handler(on_auto_mode_switch)
+        if on_exit_plan_mode_request:
+            session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
+        if on_auto_mode_switch_request:
+            session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -2548,8 +2548,8 @@ class CopilotClient:
             wire_provider["modelId"] = provider["model_id"]
         if "wire_model" in provider:
             wire_provider["wireModel"] = provider["wire_model"]
-        if "max_input_tokens" in provider:
-            wire_provider["maxPromptTokens"] = provider["max_input_tokens"]
+        if "max_prompt_tokens" in provider:
+            wire_provider["maxPromptTokens"] = provider["max_prompt_tokens"]
         if "max_output_tokens" in provider:
             wire_provider["maxOutputTokens"] = provider["max_output_tokens"]
         if "azure" in provider:

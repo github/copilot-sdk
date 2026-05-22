@@ -494,8 +494,8 @@ class TestOnElicitationContext:
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                on_exit_plan_mode=exit_handler,
-                on_auto_mode_switch=auto_handler,
+                on_exit_plan_mode_request=exit_handler,
+                on_auto_mode_switch_request=auto_handler,
             )
             assert session is not None
 
@@ -528,8 +528,8 @@ class TestOnElicitationContext:
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
-                on_exit_plan_mode=lambda request, invocation: {"approved": True},
-                on_auto_mode_switch=lambda request, invocation: "yes",
+                on_exit_plan_mode_request=lambda request, invocation: {"approved": True},
+                on_auto_mode_switch_request=lambda request, invocation: "yes",
             )
 
             payload = captured["session.resume"]
@@ -570,8 +570,8 @@ class TestOnElicitationContext:
 
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
-                on_exit_plan_mode=exit_handler,
-                on_auto_mode_switch=auto_handler,
+                on_exit_plan_mode_request=exit_handler,
+                on_auto_mode_switch_request=auto_handler,
             )
 
             exit_result = await client._handle_exit_plan_mode_request(
