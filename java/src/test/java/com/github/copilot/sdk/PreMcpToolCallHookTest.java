@@ -14,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -60,7 +59,6 @@ public class PreMcpToolCallHookTest {
      *
      * @see Snapshot: pre_mcp_tool_call_hook/should_set_meta_via_premcptoolcall_hook
      */
-    @Disabled("Requires test harness update with preMcpToolCall snapshot - available after .lastmerge update")
     @Test
     void testShouldSetMetaViaPreMcpToolCallHook() throws Exception {
         ctx.configureForTest("pre_mcp_tool_call_hook", "should_set_meta_via_premcptoolcall_hook");
@@ -109,7 +107,6 @@ public class PreMcpToolCallHookTest {
      * @see Snapshot:
      *      pre_mcp_tool_call_hook/should_replace_meta_via_premcptoolcall_hook
      */
-    @Disabled("Requires test harness update with preMcpToolCall snapshot - available after .lastmerge update")
     @Test
     void testShouldReplaceMetaViaPreMcpToolCallHook() throws Exception {
         ctx.configureForTest("pre_mcp_tool_call_hook", "should_replace_meta_via_premcptoolcall_hook");
@@ -147,7 +144,6 @@ public class PreMcpToolCallHookTest {
      * @see Snapshot:
      *      pre_mcp_tool_call_hook/should_remove_meta_via_premcptoolcall_hook
      */
-    @Disabled("Requires test harness update with preMcpToolCall snapshot - available after .lastmerge update")
     @Test
     void testShouldRemoveMetaViaPreMcpToolCallHook() throws Exception {
         ctx.configureForTest("pre_mcp_tool_call_hook", "should_remove_meta_via_premcptoolcall_hook");
