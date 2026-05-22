@@ -57,11 +57,13 @@ pub fn schema_for<T: schemars::JsonSchema>() -> serde_json::Value {
 }
 
 /// Convert a JSON Schema [`Value`](serde_json::Value) into the
-/// [`Tool::parameters`] map shape expected by the protocol.
+/// [`Tool::parameters`](crate::types::Tool::parameters) map shape
+/// expected by the protocol.
 ///
 /// Panics if the input is not a JSON object — tool parameter schemas
 /// are always top-level objects (`{"type": "object", ...}`). Pair with
-/// [`schema_for`] or a `serde_json::json!(...)` literal.
+/// `schema_for` (available with the `derive` feature) or a
+/// `serde_json::json!(...)` literal.
 ///
 /// Use [`try_tool_parameters`] when the schema comes from dynamic input and
 /// should return a recoverable error instead of panicking.
@@ -179,13 +181,15 @@ pub fn convert_mcp_call_tool_result(value: &serde_json::Value) -> Option<ToolRes
 ///
 /// Implement this trait when you want to bind a Rust function to a tool
 /// name and have the SDK dispatch matching `external_tool.requested`
-/// broadcasts to it. Attach the impl to a [`Tool`] via [`Tool::with_handler`].
+/// broadcasts to it. Attach the impl to a [`Tool`](crate::types::Tool)
+/// via [`Tool::with_handler`](crate::types::Tool::with_handler).
 ///
 /// Named handler types (e.g. `struct MyTool;`) are visible in stack
 /// traces and navigable via "go to definition", which is preferable to
 /// closure-based alternatives for non-trivial tools. For trivial tools,
-/// [`define_tool`] wraps a free `async fn` or closure into a [`Tool`]
-/// with the handler already attached.
+/// the `define_tool` helper function (available with the `derive`
+/// feature) wraps a free `async fn` or closure into a [`Tool`](crate::types::Tool) with
+/// the handler already attached.
 ///
 /// # Example
 ///

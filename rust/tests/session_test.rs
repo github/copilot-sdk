@@ -2823,45 +2823,25 @@ fn session_config_serializes_bucket_b_fields() {
         CloudSessionOptions, CloudSessionRepository, SessionConfig, SessionId,
     };
 
-    let cfg = {
-        let mut cfg = SessionConfig::default();
-        cfg.session_id = Some(SessionId::from("custom-id"));
-        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
-        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
-        cfg.github_token = Some("ghs_secret".to_string());
-        cfg.include_sub_agent_streaming_events = Some(false);
-        cfg.enable_session_telemetry = Some(false);
-        cfg.remote_session =
-            Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
-        cfg.cloud = Some(CloudSessionOptions::with_repository(
-            CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
-        ));
-        cfg
-    };
-    let json = serde_json::to_value(&cfg).unwrap();
-    assert_eq!(json["sessionId"], "custom-id");
-    assert_eq!(json["configDir"], "/tmp/cfg");
-    assert_eq!(json["workingDirectory"], "/tmp/work");
-    assert_eq!(json["gitHubToken"], "ghs_secret");
-    assert_eq!(json["includeSubAgentStreamingEvents"], false);
-    assert_eq!(json["enableSessionTelemetry"], false);
-    assert_eq!(json["remoteSession"], "export");
-    assert_eq!(json["cloud"]["repository"]["owner"], "github");
-    assert_eq!(json["cloud"]["repository"]["name"], "copilot-sdk");
-    assert_eq!(json["cloud"]["repository"]["branch"], "main");
+    let mut cfg = SessionConfig::default();
+    cfg.session_id = Some(SessionId::from("custom-id"));
+    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+    cfg.github_token = Some("ghs_secret".to_string());
+    cfg.include_sub_agent_streaming_events = Some(false);
+    cfg.enable_session_telemetry = Some(false);
+    cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
+    cfg.cloud = Some(CloudSessionOptions::with_repository(
+        CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
+    ));
 
     // Debug never leaks the token.
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
     assert!(debug.contains("<redacted>"), "missing redaction: {debug}");
-
-    // Unset fields are omitted on the wire.
-    let empty = serde_json::to_value(SessionConfig::default()).unwrap();
-    assert!(empty.get("sessionId").is_none());
-    assert!(empty.get("gitHubToken").is_none());
-    assert!(empty.get("enableSessionTelemetry").is_none());
-    assert!(empty.get("remoteSession").is_none());
-    assert!(empty.get("cloud").is_none());
+    // Wire-format coverage now lives in the in-crate unit tests next to
+    // `SessionConfig::into_wire` — the wire payload is `pub(crate)` so
+    // external integration tests can only inspect the user-facing config.
 }
 
 #[test]
@@ -2877,22 +2857,11 @@ fn resume_session_config_serializes_bucket_b_fields() {
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);
     cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::On);
-    let json = serde_json::to_value(&cfg).unwrap();
-    assert_eq!(json["sessionId"], "sess-1");
-    assert_eq!(json["workingDirectory"], "/tmp/work");
-    assert_eq!(json["configDir"], "/tmp/cfg");
-    assert_eq!(json["gitHubToken"], "ghs_secret");
-    assert_eq!(json["includeSubAgentStreamingEvents"], true);
-    assert_eq!(json["enableSessionTelemetry"], false);
-    assert_eq!(json["remoteSession"], "on");
-
-    // Unset remote_session is omitted on the wire.
-    let empty = ResumeSessionConfig::new(SessionId::from("sess-2"));
-    let empty_json = serde_json::to_value(&empty).unwrap();
-    assert!(empty_json.get("remoteSession").is_none());
 
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
+    // Wire-format coverage lives in the in-crate unit tests; see
+    // `ResumeSessionConfig::into_wire`.
 }
 
 // =====================================================================

@@ -122,7 +122,7 @@ impl Drop for PendingSessionRegistration {
 /// Owns an internal event loop that dispatches events to the per-callback
 /// handlers installed on the session config.
 ///
-/// Protocol methods (`send`, `get_messages`, `abort`, etc.) automatically
+/// Protocol methods (`send`, `get_events`, `abort`, etc.) automatically
 /// inject the session ID into RPC params.
 ///
 /// Call [`destroy`](Self::destroy) for graceful cleanup (RPC + local). If dropped
@@ -788,45 +788,27 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
-        let wire = config.to_wire(session_id.clone());
+        let (wire, mut runtime) = config.into_wire(session_id.clone())?;
 
         let permission_handler = crate::permission::resolve_handler(
-            config.permission_handler.take(),
-            config.permission_policy.take(),
+            runtime.permission_handler.take(),
+            runtime.permission_policy.take(),
         );
-        let elicitation_handler = config.elicitation_handler.take();
-        let user_input_handler = config.user_input_handler.take();
-        let exit_plan_mode_handler = config.exit_plan_mode_handler.take();
-        let auto_mode_switch_handler = config.auto_mode_switch_handler.take();
-        let mut tool_map: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
-        if let Some(tools) = config.tools.as_mut() {
-            for tool in tools.iter_mut() {
-                if let Some(handler) = tool.handler.take() {
-                    if tool_map.contains_key(&tool.name) {
-                        return Err(Error::InvalidConfig(format!(
-                            "duplicate tool handler registered for name {:?}",
-                            tool.name
-                        )));
-                    }
-                    tool_map.insert(tool.name.clone(), handler);
-                }
-            }
-        }
         let handlers = SessionHandlers {
             permission: permission_handler,
-            elicitation: elicitation_handler,
-            user_input: user_input_handler,
-            exit_plan_mode: exit_plan_mode_handler,
-            auto_mode_switch: auto_mode_switch_handler,
-            tools: Arc::new(tool_map),
+            elicitation: runtime.elicitation_handler.take(),
+            user_input: runtime.user_input_handler.take(),
+            exit_plan_mode: runtime.exit_plan_mode_handler.take(),
+            auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
         };
-        let hooks = config.hooks_handler.take();
-        let transforms = config.system_message_transform.take();
-        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
-        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
+        let hooks = runtime.hooks_handler.take();
+        let transforms = runtime.system_message_transform.take();
+        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
-        let command_handlers = build_command_handler_map(config.commands.as_deref());
-        let session_fs_provider = config.session_fs_provider.take();
+        let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
         }
@@ -943,45 +925,27 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
-        let wire = config.to_wire();
+        let (wire, mut runtime) = config.into_wire()?;
 
         let permission_handler = crate::permission::resolve_handler(
-            config.permission_handler.take(),
-            config.permission_policy.take(),
+            runtime.permission_handler.take(),
+            runtime.permission_policy.take(),
         );
-        let elicitation_handler = config.elicitation_handler.take();
-        let user_input_handler = config.user_input_handler.take();
-        let exit_plan_mode_handler = config.exit_plan_mode_handler.take();
-        let auto_mode_switch_handler = config.auto_mode_switch_handler.take();
-        let mut tool_map: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
-        if let Some(tools) = config.tools.as_mut() {
-            for tool in tools.iter_mut() {
-                if let Some(handler) = tool.handler.take() {
-                    if tool_map.contains_key(&tool.name) {
-                        return Err(Error::InvalidConfig(format!(
-                            "duplicate tool handler registered for name {:?}",
-                            tool.name
-                        )));
-                    }
-                    tool_map.insert(tool.name.clone(), handler);
-                }
-            }
-        }
         let handlers = SessionHandlers {
             permission: permission_handler,
-            elicitation: elicitation_handler,
-            user_input: user_input_handler,
-            exit_plan_mode: exit_plan_mode_handler,
-            auto_mode_switch: auto_mode_switch_handler,
-            tools: Arc::new(tool_map),
+            elicitation: runtime.elicitation_handler.take(),
+            user_input: runtime.user_input_handler.take(),
+            exit_plan_mode: runtime.exit_plan_mode_handler.take(),
+            auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
         };
-        let hooks = config.hooks_handler.take();
-        let transforms = config.system_message_transform.take();
-        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
-        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
+        let hooks = runtime.hooks_handler.take();
+        let transforms = runtime.system_message_transform.take();
+        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
-        let command_handlers = build_command_handler_map(config.commands.as_deref());
-        let session_fs_provider = config.session_fs_provider.take();
+        let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
         }
@@ -1464,12 +1428,12 @@ async fn handle_notification(
             );
             tokio::spawn(
                 async move {
-                    if data.tool_call_id.is_empty() || data.tool_name.is_empty() {
-                        let error_msg = if data.tool_call_id.is_empty() {
-                            "Missing toolCallId"
-                        } else {
-                            "Missing toolName"
-                        };
+                    // `tool_name.is_empty()` would have produced a `None`
+                    // lookup in `handlers.tools` and short-circuited at the
+                    // outer guard above, so only the tool_call_id check is
+                    // reachable here.
+                    if data.tool_call_id.is_empty() {
+                        let error_msg = "Missing toolCallId";
                         let rpc_start = Instant::now();
                         let _ = client
                             .call(

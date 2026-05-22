@@ -937,26 +937,20 @@ impl Client {
         // to the server. For Tcp, the SDK auto-generates one when the
         // caller leaves it unset so the loopback listener is safe by
         // default.
-        let (mut options, effective_connection_token) = {
-            let mut options = options;
-            let effective = match &mut options.transport {
-                Transport::Stdio => None,
-                Transport::Tcp {
-                    connection_token, ..
-                } => {
-                    if connection_token.is_none() {
-                        *connection_token = Some(generate_connection_token());
-                    }
-                    connection_token.clone()
-                }
-                Transport::External {
-                    connection_token, ..
-                } => connection_token.clone(),
-            };
-            (options, effective)
+        let mut options = options;
+        let effective_connection_token: Option<String> = match &mut options.transport {
+            Transport::Stdio => None,
+            Transport::Tcp {
+                connection_token, ..
+            } => Some(
+                connection_token
+                    .get_or_insert_with(generate_connection_token)
+                    .clone(),
+            ),
+            Transport::External {
+                connection_token, ..
+            } => connection_token.clone(),
         };
-        let _ = &mut options;
-        let effective_connection_token: Option<String> = effective_connection_token;
         let session_fs_config = options.session_fs.clone();
         let session_fs_sqlite_declared = session_fs_config
             .as_ref()
