@@ -408,6 +408,18 @@ pub struct ClientOptions {
     /// GitHub web and mobile. Ignored when connecting to an external server
     /// via [`Transport::External`].
     pub enable_remote_sessions: bool,
+    /// Override the directory where the bundled CLI binary is extracted on
+    /// first use.
+    ///
+    /// When `None` (the default), the SDK extracts the embedded CLI to
+    /// `~/.cache/github-copilot-sdk-{version}/copilot[.exe]` via
+    /// [`dirs::cache_dir()`]. Use this knob to redirect the extraction (e.g.
+    /// to a session-scoped temp directory in CI runners) without changing
+    /// the global cache layout.
+    ///
+    /// Ignored when the SDK was built without a bundled CLI (i.e. with
+    /// `default-features = false` to disable the `bundled-cli` feature).
+    pub bundled_cli_extract_dir: Option<PathBuf>,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -442,6 +454,7 @@ impl std::fmt::Debug for ClientOptions {
             .field("telemetry", &self.telemetry)
             .field("base_directory", &self.base_directory)
             .field("enable_remote_sessions", &self.enable_remote_sessions)
+            .field("bundled_cli_extract_dir", &self.bundled_cli_extract_dir)
             .finish()
     }
 }
@@ -648,6 +661,7 @@ impl Default for ClientOptions {
             telemetry: None,
             base_directory: None,
             enable_remote_sessions: false,
+            bundled_cli_extract_dir: None,
         }
     }
 }
@@ -802,6 +816,13 @@ impl ClientOptions {
     /// to the spawned CLI process.
     pub fn with_enable_remote_sessions(mut self, enabled: bool) -> Self {
         self.enable_remote_sessions = enabled;
+        self
+    }
+
+    /// Override the directory where the bundled CLI binary is extracted on
+    /// first use. See [`Self::bundled_cli_extract_dir`].
+    pub fn with_bundled_cli_extract_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.bundled_cli_extract_dir = Some(dir.into());
         self
     }
 }
@@ -962,7 +983,9 @@ impl Client {
                 path.clone()
             }
             CliProgram::Resolve => {
-                let resolved = resolve::copilot_binary()?;
+                let resolved = resolve::copilot_binary_with_extract_dir(
+                    options.bundled_cli_extract_dir.as_deref(),
+                )?;
                 info!(path = %resolved.display(), "resolved copilot CLI");
                 #[cfg(windows)]
                 {

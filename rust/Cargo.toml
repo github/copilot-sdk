@@ -11,21 +11,23 @@ homepage = "https://github.com/github/copilot-sdk"
 documentation = "https://docs.rs/github-copilot-sdk"
 readme = "README.md"
 license = "MIT"
-exclude = [
-    "RELEASING.md",
-    "rust-toolchain.toml",
-    ".rustfmt.toml",
-    ".rustfmt.nightly.toml",
-    "clippy.toml",
-    ".gitignore",
+include = [
+    "src/**/*",
+    "examples/**/*",
+    "tests/**/*",
+    "build.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "bundled_cli_version.txt",
 ]
 
 [lib]
 name = "github_copilot_sdk"
 
 [features]
-default = []
-embedded-cli = ["dep:sha2", "dep:zstd"]
+default = ["bundled-cli"]
+bundled-cli = ["dep:sha2", "dep:zstd"]
 derive = ["dep:schemars"]
 test-support = []
 

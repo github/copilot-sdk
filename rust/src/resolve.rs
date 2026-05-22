@@ -31,6 +31,22 @@ pub fn copilot_binary() -> Result<PathBuf, Error> {
 
 /// Like [`copilot_binary`] but also reports how the binary was resolved.
 pub fn copilot_binary_with_source() -> Result<(PathBuf, BinarySource), Error> {
+    copilot_binary_with_extract_dir_and_source(None)
+}
+
+/// Resolve the CLI binary, optionally overriding the directory the bundled
+/// CLI is extracted to. Internal entry point used by `Client::start` to
+/// thread `ClientOptions::bundled_cli_extract_dir` through to
+/// `embeddedcli::install_at`.
+pub(crate) fn copilot_binary_with_extract_dir(
+    extract_dir: Option<&Path>,
+) -> Result<PathBuf, Error> {
+    copilot_binary_with_extract_dir_and_source(extract_dir).map(|(path, _)| path)
+}
+
+fn copilot_binary_with_extract_dir_and_source(
+    extract_dir: Option<&Path>,
+) -> Result<(PathBuf, BinarySource), Error> {
     if let Ok(value) = env::var("COPILOT_CLI_PATH") {
         let candidate = PathBuf::from(value);
         if candidate.is_file() {
@@ -44,7 +60,11 @@ pub fn copilot_binary_with_source() -> Result<(PathBuf, BinarySource), Error> {
         warn!(path = %candidate.display(), "COPILOT_CLI_PATH set but not usable");
     }
 
-    if let Some(path) = crate::embeddedcli::path() {
+    let bundled = match extract_dir {
+        Some(dir) => crate::embeddedcli::install_at(dir),
+        None => crate::embeddedcli::path(),
+    };
+    if let Some(path) = bundled {
         return Ok((path, BinarySource::Bundled));
     }
 
