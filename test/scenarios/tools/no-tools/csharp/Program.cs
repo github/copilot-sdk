@@ -7,10 +7,7 @@ const string SystemPrompt = """
     If asked about your capabilities or tools, clearly state that you have no tools available.
     """;
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

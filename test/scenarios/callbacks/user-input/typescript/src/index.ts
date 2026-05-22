@@ -1,11 +1,9 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
   const inputLog: string[] = [];
 
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -21,7 +19,8 @@ async function main() {
     });
 
     const response = await session.sendAndWait({
-      prompt: "I want to learn about a city. Use the ask_user tool to ask me which city I'm interested in. Then tell me about that city.",
+      prompt:
+        "I want to learn about a city. Use the ask_user tool to ask me which city I'm interested in. Then tell me about that city.",
     });
 
     if (response) {

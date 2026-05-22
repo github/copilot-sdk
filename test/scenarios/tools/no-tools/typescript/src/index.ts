@@ -1,4 +1,4 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 const SYSTEM_PROMPT = `You are a minimal assistant with no tools available.
 You cannot execute code, read files, edit files, search, or perform any actions.
@@ -6,9 +6,7 @@ You can only respond with text based on your training data.
 If asked about your capabilities or tools, clearly state that you have no tools available.`;
 
 async function main() {
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({

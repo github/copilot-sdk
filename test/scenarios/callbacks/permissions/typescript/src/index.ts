@@ -1,11 +1,9 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
   const permissionLog: string[] = [];
 
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({

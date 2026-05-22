@@ -1,10 +1,8 @@
-import { CopilotClient, defineTool, approveAll , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient, defineTool, approveAll } from "@github/copilot-sdk";
 import { z } from "zod";
 
 async function main() {
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -12,7 +10,8 @@ async function main() {
       onPermissionRequest: approveAll,
       tools: [
         defineTool("grep", {
-          description: "A custom grep implementation that overrides the built-in",
+          description:
+            "A custom grep implementation that overrides the built-in",
           parameters: z.object({
             query: z.string().describe("Search query"),
           }),

@@ -13,7 +13,7 @@ import (
 const systemPrompt = `You are a helpful assistant. Answer questions about attached files concisely.`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

@@ -1,11 +1,9 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
   const hookLog: string[] = [];
 
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -36,7 +34,8 @@ async function main() {
     });
 
     const response = await session.sendAndWait({
-      prompt: "List the files in the current directory using the glob tool with pattern '*.md'.",
+      prompt:
+        "List the files in the current directory using the glob tool with pattern '*.md'.",
     });
 
     if (response) {

@@ -3,10 +3,7 @@ using GitHub.Copilot;
 const string PiratePrompt = "You are a pirate. Always say Arrr!";
 const string RobotPrompt = "You are a robot. Always say BEEP BOOP!";
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

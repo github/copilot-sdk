@@ -1,12 +1,7 @@
 using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 
-var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    Connection = RuntimeConnection.ForStdio(path: cliPath),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

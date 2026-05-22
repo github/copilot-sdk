@@ -11,7 +11,7 @@ import (
 const piratePrompt = `You are a pirate. Always respond in pirate speak. Say 'Arrr!' in every response. Use nautical terms and pirate slang throughout.`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

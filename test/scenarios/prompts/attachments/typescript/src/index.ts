@@ -1,13 +1,11 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -15,7 +13,8 @@ async function main() {
       availableTools: [],
       systemMessage: {
         mode: "replace",
-        content: "You are a helpful assistant. Answer questions about attached files concisely.",
+        content:
+          "You are a helpful assistant. Answer questions about attached files concisely.",
       },
     });
 

@@ -25,7 +25,7 @@ func main() {
 		model = "claude-sonnet-4-20250514"
 	}
 
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

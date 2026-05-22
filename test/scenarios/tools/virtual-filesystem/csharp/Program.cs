@@ -5,10 +5,7 @@ using Microsoft.Extensions.AI;
 // In-memory virtual filesystem
 var virtualFs = new Dictionary<string, string>();
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

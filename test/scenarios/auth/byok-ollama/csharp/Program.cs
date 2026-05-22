@@ -6,10 +6,7 @@ var model = Environment.GetEnvironmentVariable("OLLAMA_MODEL") ?? "llama3.2:3b";
 var compactSystemPrompt =
     "You are a compact local assistant. Keep answers short, concrete, and under 80 words.";
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

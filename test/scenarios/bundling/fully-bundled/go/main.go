@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// Go SDK auto-reads COPILOT_CLI_PATH from env
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

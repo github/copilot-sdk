@@ -11,7 +11,7 @@ import (
 const systemPrompt = `You are a helpful assistant. You have access to a limited set of tools. When asked about your tools, list exactly which tools you have available.`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

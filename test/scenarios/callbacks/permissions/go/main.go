@@ -15,7 +15,7 @@ func main() {
 		permissionLogMu sync.Mutex
 	)
 
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

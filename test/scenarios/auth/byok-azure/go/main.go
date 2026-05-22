@@ -26,7 +26,7 @@ func main() {
 		apiVersion = "2024-10-21"
 	}
 
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

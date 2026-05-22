@@ -14,7 +14,7 @@ You can only respond with text based on your training data.
 If asked about your capabilities or tools, clearly state that you have no tools available.`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
