@@ -17,18 +17,14 @@ async def main():
     try:
         session1, session2 = await asyncio.gather(
             client.create_session(
-                {
-                    "model": "claude-haiku-4.5",
-                    "system_message": {"mode": "replace", "content": PIRATE_PROMPT},
-                    "available_tools": [],
-                }
+                model="claude-haiku-4.5",
+                system_message={"mode": "replace", "content": PIRATE_PROMPT},
+                available_tools=[],
             ),
             client.create_session(
-                {
-                    "model": "claude-haiku-4.5",
-                    "system_message": {"mode": "replace", "content": ROBOT_PROMPT},
-                    "available_tools": [],
-                }
+                model="claude-haiku-4.5",
+                system_message={"mode": "replace", "content": ROBOT_PROMPT},
+                available_tools=[],
             ),
         )
 

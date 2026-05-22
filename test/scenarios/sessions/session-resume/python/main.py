@@ -13,12 +13,7 @@ async def main():
 
     try:
         # 1. Create a session
-        session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "available_tools": [],
-            }
-        )
+        session = await client.create_session(model="claude-haiku-4.5", available_tools=[])
 
         # 2. Send the secret word
         await session.send_and_wait("Remember this: the secret word is PINEAPPLE.")

@@ -15,11 +15,9 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "system_message": {"mode": "replace", "content": SYSTEM_PROMPT},
-                "available_tools": [],
-            }
+            model="claude-haiku-4.5",
+            system_message={"mode": "replace", "content": SYSTEM_PROMPT},
+            available_tools=[],
         )
 
         sample_file = os.path.join(os.path.dirname(__file__), "..", "sample-data.txt")

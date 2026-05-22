@@ -16,18 +16,16 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": OLLAMA_MODEL,
-                "provider": {
-                    "type": "openai",
-                    "base_url": OLLAMA_BASE_URL,
-                },
-                "available_tools": [],
-                "system_message": {
-                    "mode": "replace",
-                    "content": COMPACT_SYSTEM_PROMPT,
-                },
-            }
+            model=OLLAMA_MODEL,
+            provider={
+                "type": "openai",
+                "base_url": OLLAMA_BASE_URL,
+            },
+            available_tools=[],
+            system_message={
+                "mode": "replace",
+                "content": COMPACT_SYSTEM_PROMPT,
+            },
         )
 
         response = await session.send_and_wait("What is the capital of France?")

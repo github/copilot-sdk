@@ -17,7 +17,7 @@ async def ask_copilot(prompt: str) -> str:
     client = CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri(CLI_URL)))
 
     try:
-        session = await client.create_session({"model": "claude-haiku-4.5"})
+        session = await client.create_session(model="claude-haiku-4.5")
 
         response = await session.send_and_wait(prompt)
 

@@ -15,11 +15,9 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "system_message": {"mode": "replace", "content": SYSTEM_PROMPT},
-                "available_tools": ["grep", "glob", "view"],
-            }
+            model="claude-haiku-4.5",
+            system_message={"mode": "replace", "content": SYSTEM_PROMPT},
+            available_tools=["grep", "glob", "view"],
         )
 
         response = await session.send_and_wait(

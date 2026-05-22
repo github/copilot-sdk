@@ -49,18 +49,16 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "on_permission_request": auto_approve_permission,
-                "hooks": {
-                    "on_session_start": on_session_start,
-                    "on_session_end": on_session_end,
-                    "on_pre_tool_use": on_pre_tool_use,
-                    "on_post_tool_use": on_post_tool_use,
-                    "on_user_prompt_submitted": on_user_prompt_submitted,
-                    "on_error_occurred": on_error_occurred,
-                },
-            }
+            model="claude-haiku-4.5",
+            on_permission_request=auto_approve_permission,
+            hooks={
+                "on_session_start": on_session_start,
+                "on_session_end": on_session_end,
+                "on_pre_tool_use": on_pre_tool_use,
+                "on_post_tool_use": on_post_tool_use,
+                "on_user_prompt_submitted": on_user_prompt_submitted,
+                "on_error_occurred": on_error_occurred,
+            },
         )
 
         response = await session.send_and_wait(

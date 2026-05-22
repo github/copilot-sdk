@@ -18,14 +18,12 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": OPENAI_MODEL,
-                "provider": {
-                    "type": "openai",
-                    "base_url": OPENAI_BASE_URL,
-                    "api_key": OPENAI_API_KEY,
-                },
-            }
+            model=OPENAI_MODEL,
+            provider={
+                "type": "openai",
+                "base_url": OPENAI_BASE_URL,
+                "api_key": OPENAI_API_KEY,
+            },
         )
 
         response = await session.send_and_wait("What is the capital of France?")

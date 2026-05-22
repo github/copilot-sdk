@@ -13,14 +13,12 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "available_tools": [],
-                "system_message": {
-                    "mode": "replace",
-                    "content": "You have no tools. Respond with text only.",
-                },
-            }
+            model="claude-haiku-4.5",
+            available_tools=[],
+            system_message={
+                "mode": "replace",
+                "content": "You have no tools. Respond with text only.",
+            },
         )
 
         response = await session.send_and_wait(

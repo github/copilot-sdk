@@ -13,19 +13,17 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "available_tools": [],
-                "system_message": {
-                    "mode": "replace",
-                    "content": "You are a helpful assistant. Answer concisely in one sentence.",
-                },
-                "infinite_sessions": {
-                    "enabled": True,
-                    "background_compaction_threshold": 0.80,
-                    "buffer_exhaustion_threshold": 0.95,
-                },
-            }
+            model="claude-haiku-4.5",
+            available_tools=[],
+            system_message={
+                "mode": "replace",
+                "content": "You are a helpful assistant. Answer concisely in one sentence.",
+            },
+            infinite_sessions={
+                "enabled": True,
+                "background_compaction_threshold": 0.80,
+                "buffer_exhaustion_threshold": 0.95,
+            },
         )
 
         prompts = [

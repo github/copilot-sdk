@@ -19,22 +19,20 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": AZURE_OPENAI_MODEL,
-                "provider": {
-                    "type": "azure",
-                    "base_url": AZURE_OPENAI_ENDPOINT,
-                    "api_key": AZURE_OPENAI_API_KEY,
-                    "azure": {
-                        "api_version": AZURE_API_VERSION,
-                    },
+            model=AZURE_OPENAI_MODEL,
+            provider={
+                "type": "azure",
+                "base_url": AZURE_OPENAI_ENDPOINT,
+                "api_key": AZURE_OPENAI_API_KEY,
+                "azure": {
+                    "api_version": AZURE_API_VERSION,
                 },
-                "available_tools": [],
-                "system_message": {
-                    "mode": "replace",
-                    "content": "You are a helpful assistant. Answer concisely.",
-                },
-            }
+            },
+            available_tools=[],
+            system_message={
+                "mode": "replace",
+                "content": "You are a helpful assistant. Answer concisely.",
+            },
         )
 
         response = await session.send_and_wait("What is the capital of France?")

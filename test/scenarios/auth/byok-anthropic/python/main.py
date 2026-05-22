@@ -18,19 +18,17 @@ async def main():
 
     try:
         session = await client.create_session(
-            {
-                "model": ANTHROPIC_MODEL,
-                "provider": {
-                    "type": "anthropic",
-                    "base_url": ANTHROPIC_BASE_URL,
-                    "api_key": ANTHROPIC_API_KEY,
-                },
-                "available_tools": [],
-                "system_message": {
-                    "mode": "replace",
-                    "content": "You are a helpful assistant. Answer concisely.",
-                },
-            }
+            model=ANTHROPIC_MODEL,
+            provider={
+                "type": "anthropic",
+                "base_url": ANTHROPIC_BASE_URL,
+                "api_key": ANTHROPIC_API_KEY,
+            },
+            available_tools=[],
+            system_message={
+                "mode": "replace",
+                "content": "You are a helpful assistant. Answer concisely.",
+            },
         )
 
         response = await session.send_and_wait("What is the capital of France?")

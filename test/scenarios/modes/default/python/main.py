@@ -12,11 +12,7 @@ async def main():
     )
 
     try:
-        session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-            }
-        )
+        session = await client.create_session(model="claude-haiku-4.5")
 
         response = await session.send_and_wait(
             "Use the grep tool to search for the word 'SDK' in README.md and show the matching lines."

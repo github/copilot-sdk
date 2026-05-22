@@ -12,12 +12,7 @@ async def main():
     )
 
     try:
-        session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "streaming": True,
-            }
-        )
+        session = await client.create_session(model="claude-haiku-4.5", streaming=True)
 
         chunk_count = 0
 
