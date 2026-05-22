@@ -12,7 +12,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::handler::SessionHandler;
+use crate::handler::{
+    AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
+    UserInputHandler,
+};
 use crate::hooks::SessionHooks;
 pub use crate::session_fs::{
     DirEntry, DirEntryKind, FileInfo, FsError, SessionFsCapabilities, SessionFsConfig,
@@ -22,17 +25,12 @@ pub use crate::session_fs::{
 pub use crate::trace_context::{TraceContext, TraceContextProvider};
 use crate::transforms::SystemMessageTransform;
 
-/// Lifecycle state of a [`Client`](crate::Client) connection to the CLI.
-///
-/// The state advances from `Connecting` → `Connected` during construction,
-/// transitions to `Disconnected` after [`Client::stop`](crate::Client::stop) or
-/// [`Client::force_stop`](crate::Client::force_stop), and lands in
-/// `Error` if startup fails or the underlying transport tears down
-/// unexpectedly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// Lifecycle state of a [`Client`](crate::Client) connection. Internal —
+/// not part of the public API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 #[non_exhaustive]
-pub enum ConnectionState {
+pub(crate) enum ConnectionState {
     /// No CLI process is attached or the process has exited cleanly.
     Disconnected,
     /// The client is starting up (spawning the CLI, negotiating protocol).
@@ -298,7 +296,14 @@ impl PartialEq<&str> for RequestId {
 /// (rather than using the schema-generated form) so it can carry runtime
 /// hints — `overrides_built_in_tool`, `skip_permission` — that don't appear
 /// in the wire schema but are honored by the CLI.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// A `Tool` may optionally carry a [`handler`](Self::handler): an
+/// `Arc<dyn ToolHandler>` that implements the tool's runtime behavior.
+/// When present, the SDK dispatches matching `external_tool.requested`
+/// broadcasts to it automatically. When absent (`None`), the tool is
+/// declaration-only — another connected client must service incoming
+/// invocations.
+#[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Tool {
@@ -327,6 +332,14 @@ pub struct Tool {
     /// access control.
     #[serde(default, skip_serializing_if = "is_false")]
     pub skip_permission: bool,
+    /// Optional runtime implementation. When `Some`, the SDK dispatches
+    /// matching `external_tool.requested` broadcasts to this handler.
+    /// When `None`, the tool is declaration-only.
+    ///
+    /// Skipped during serialization — the handler is runtime behavior,
+    /// not part of the wire representation.
+    #[serde(skip)]
+    pub handler: Option<Arc<dyn crate::tool::ToolHandler>>,
 }
 
 #[inline]
@@ -409,6 +422,32 @@ impl Tool {
     pub fn with_skip_permission(mut self, skip: bool) -> Self {
         self.skip_permission = skip;
         self
+    }
+
+    /// Attach a runtime implementation. The SDK will dispatch matching
+    /// `external_tool.requested` broadcasts to `handler` for this tool's
+    /// name. Without a handler the tool is declaration-only.
+    pub fn with_handler(mut self, handler: Arc<dyn crate::tool::ToolHandler>) -> Self {
+        self.handler = Some(handler);
+        self
+    }
+}
+
+impl std::fmt::Debug for Tool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tool")
+            .field("name", &self.name)
+            .field("namespaced_name", &self.namespaced_name)
+            .field("description", &self.description)
+            .field("instructions", &self.instructions)
+            .field("parameters", &self.parameters)
+            .field("overrides_built_in_tool", &self.overrides_built_in_tool)
+            .field("skip_permission", &self.skip_permission)
+            .field(
+                "handler",
+                &self.handler.as_ref().map(|_| "<set>").unwrap_or("None"),
+            )
+            .finish()
     }
 }
 
@@ -736,7 +775,7 @@ impl CloudSessionOptions {
 /// servers.insert(
 ///     "playwright".to_string(),
 ///     McpServerConfig::Stdio(McpStdioServerConfig {
-///         tools: vec!["*".to_string()],
+///         tools: Some(vec!["*".to_string()]),
 ///         command: "npx".to_string(),
 ///         args: vec!["-y".to_string(), "@playwright/mcp".to_string()],
 ///         ..Default::default()
@@ -745,7 +784,7 @@ impl CloudSessionOptions {
 /// servers.insert(
 ///     "weather".to_string(),
 ///     McpServerConfig::Http(McpHttpServerConfig {
-///         tools: vec!["forecast".to_string()],
+///         tools: Some(vec!["forecast".to_string()]),
 ///         url: "https://example.com/mcp".to_string(),
 ///         ..Default::default()
 ///     }),
@@ -772,9 +811,13 @@ pub enum McpServerConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpStdioServerConfig {
-    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    /// Tools to expose from this server.
+    ///
+    /// - `None` (field omitted on the wire) — expose **all** tools.
+    /// - `Some(vec![])` — expose **no** tools.
+    /// - `Some(vec!["a", ...])` — expose only the listed tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Optional timeout in milliseconds for tool calls to this server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
@@ -798,9 +841,13 @@ pub struct McpStdioServerConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpHttpServerConfig {
-    /// Tools to expose from this server. `["*"]` exposes all; `[]` exposes none.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    /// Tools to expose from this server.
+    ///
+    /// - `None` (field omitted on the wire) — expose **all** tools.
+    /// - `Some(vec![])` — expose **no** tools.
+    /// - `Some(vec!["a", ...])` — expose only the listed tools.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Optional timeout in milliseconds for tool calls to this server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
@@ -1053,35 +1100,9 @@ pub struct SessionConfig {
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the `ask_user` tool for interactive user input. Defaults to
-    /// `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_user_input: Option<bool>,
-    /// Enable `permission.request` JSON-RPC calls from the CLI. Defaults
-    /// to `Some(true)` via [`SessionConfig::default`]; the default
-    /// [`NoopHandler`](crate::handler::NoopHandler) leaves requests pending
-    /// for the consumer to resolve.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_permission: Option<bool>,
-    /// Enable `exitPlanMode.request` JSON-RPC calls for plan approval.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. When `true`, the CLI
-    /// asks the handler whether to switch to auto model when an eligible
-    /// rate limit is hit. Defaults to `Some(true)` via
-    /// [`SessionConfig::default`]. Without this flag, the CLI surfaces the
-    /// rate-limit error directly without offering the auto-mode switch.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
-    /// Advertise elicitation provider capability. When true, the CLI sends
-    /// `elicitation.requested` events that the handler can respond to.
-    /// Defaults to `Some(true)` via [`SessionConfig::default`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_elicitation: Option<bool>,
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
     ///
-    /// When `Some(true)` **and** the runtime has MCP Apps enabled (via the
+    /// When `true` **and** the runtime has MCP Apps enabled (via the
     /// `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
     /// override), the runtime adds the `mcp-apps` capability to the
     /// session, which causes it to advertise the
@@ -1096,14 +1117,14 @@ pub struct SessionConfig {
     /// runtime's `capabilities.ui.mcpApps` on the create/resume response to
     /// detect this.
     ///
-    /// SDK consumers MUST set this to `Some(true)` only when they have an
-    /// iframe renderer that can display `ui://` MCP App bundles. Setting it
-    /// without a renderer will cause MCP servers to register UI-enabled tool
-    /// variants the consumer cannot display.
+    /// SDK consumers MUST set this to `true` only when they have an iframe
+    /// renderer that can display `ui://` MCP App bundles. Setting it
+    /// without a renderer will cause MCP servers to register UI-enabled
+    /// tool variants the consumer cannot display.
     ///
-    /// Defaults to `None` (disabled).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_mcp_apps: Option<bool>,
+    /// Defaults to `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub enable_mcp_apps: bool,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1196,23 +1217,44 @@ pub struct SessionConfig {
     /// See [`SessionFsProvider`].
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
-    /// Session-level event handler. The default is
-    /// [`NoopHandler`](crate::handler::NoopHandler) — permission requests
-    /// and external tool calls are left pending for the consumer to resolve.
-    /// Use [`with_handler`](Self::with_handler) to install a custom handler.
+    /// Optional permission-request handler. When `None`, the SDK sends
+    /// `requestPermission: false` on the wire so the runtime does not
+    /// emit `permission.requested` broadcasts to this client.
     #[serde(skip)]
-    pub handler: Option<Arc<dyn SessionHandler>>,
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional elicitation-request handler. When `None`,
+    /// `requestElicitation: false` goes on the wire.
+    #[serde(skip)]
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional user-input handler. When `None`,
+    /// `requestUserInput: false` goes on the wire and the `ask_user`
+    /// tool is disabled.
+    #[serde(skip)]
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Optional exit-plan-mode handler. When `None`,
+    /// `requestExitPlanMode: false` goes on the wire.
+    #[serde(skip)]
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    /// Optional auto-mode-switch handler. When `None`,
+    /// `requestAutoModeSwitch: false` goes on the wire.
+    #[serde(skip)]
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
     /// Session lifecycle hook handler (pre/post tool use, session
     /// start/end, etc.). When set, the SDK auto-enables the wire-level
     /// `hooks` flag. Use [`with_hooks`](Self::with_hooks) to install one.
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
+    /// Permission policy applied to the handler. Stored separately from
+    /// `permission_handler` so the order of `with_permission_handler` and
+    /// `approve_all_permissions` (and friends) is irrelevant.
+    #[serde(skip)]
+    pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. When set, the SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
-    /// Use [`with_transform`](Self::with_transform) to install one.
+    /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
     #[serde(skip)]
-    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1229,12 +1271,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
-            .field("request_user_input", &self.request_user_input)
-            .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
-            .field("request_elicitation", &self.request_elicitation)
-            .field("request_mcp_apps", &self.request_mcp_apps)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1263,22 +1300,44 @@ impl std::fmt::Debug for SessionConfig {
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
             )
-            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "permission_handler",
+                &self.permission_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "elicitation_handler",
+                &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "user_input_handler",
+                &self.user_input_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "exit_plan_mode_handler",
+                &self.exit_plan_mode_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "auto_mode_switch_handler",
+                &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
-            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
+            .field(
+                "system_message_transform",
+                &self.system_message_transform.as_ref().map(|_| "<set>"),
+            )
             .finish()
     }
 }
 
 impl Default for SessionConfig {
-    /// Permission and elicitation flows are enabled by default. When no handler
-    /// is provided, the SDK installs `NoopHandler`, so permission and external
-    /// tool requests remain pending until the consumer responds out-of-band.
-    /// Callers that want the wire surface fully disabled set these explicitly
-    /// to `Some(false)`.
+    /// All wire-level "request" flags and handler fields start unset.
+    /// Install a [`PermissionHandler`] via
+    /// [`with_permission_handler`](Self::with_permission_handler) and
+    /// the SDK derives `requestPermission: true` on the wire at
+    /// [`Client::create_session`](crate::Client::create_session) time.
     fn default() -> Self {
         Self {
             session_id: None,
@@ -1293,12 +1352,7 @@ impl Default for SessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
-            request_user_input: Some(true),
-            request_permission: Some(true),
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
-            request_elicitation: Some(true),
-            request_mcp_apps: None,
+            enable_mcp_apps: false,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1318,17 +1372,106 @@ impl Default for SessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
-            handler: None,
+            permission_handler: None,
+            elicitation_handler: None,
+            user_input_handler: None,
+            exit_plan_mode_handler: None,
+            auto_mode_switch_handler: None,
             hooks_handler: None,
-            transform: None,
+            permission_policy: None,
+            system_message_transform: None,
         }
     }
 }
 
 impl SessionConfig {
-    /// Install a custom [`SessionHandler`] for this session.
-    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
-        self.handler = Some(handler);
+    /// Build the [`SessionCreateWire`] payload for `session.create` from
+    /// this config. Derives the request_* wire flags from handler
+    /// presence and the policy field; clones plain fields.
+    pub(crate) fn to_wire(&self, session_id: SessionId) -> crate::wire::SessionCreateWire {
+        let permission_active =
+            self.permission_handler.is_some() || self.permission_policy.is_some();
+        crate::wire::SessionCreateWire {
+            session_id,
+            model: self.model.clone(),
+            client_name: self.client_name.clone(),
+            reasoning_effort: self.reasoning_effort.clone(),
+            streaming: self.streaming,
+            system_message: self.system_message.clone(),
+            tools: self.tools.clone(),
+            available_tools: self.available_tools.clone(),
+            excluded_tools: self.excluded_tools.clone(),
+            mcp_servers: self.mcp_servers.clone(),
+            env_value_mode: "direct",
+            enable_config_discovery: self.enable_config_discovery,
+            request_user_input: self.user_input_handler.is_some(),
+            request_permission: permission_active,
+            request_exit_plan_mode: self.exit_plan_mode_handler.is_some(),
+            request_auto_mode_switch: self.auto_mode_switch_handler.is_some(),
+            request_elicitation: self.elicitation_handler.is_some(),
+            request_mcp_apps: self.enable_mcp_apps,
+            hooks: self.hooks_handler.is_some(),
+            skill_directories: self.skill_directories.clone(),
+            instruction_directories: self.instruction_directories.clone(),
+            disabled_skills: self.disabled_skills.clone(),
+            custom_agents: self.custom_agents.clone(),
+            default_agent: self.default_agent.clone(),
+            agent: self.agent.clone(),
+            infinite_sessions: self.infinite_sessions.clone(),
+            provider: self.provider.clone(),
+            enable_session_telemetry: self.enable_session_telemetry,
+            model_capabilities: self.model_capabilities.clone(),
+            config_dir: self.config_dir.clone(),
+            working_directory: self.working_directory.clone(),
+            github_token: self.github_token.clone(),
+            remote_session: self.remote_session.clone(),
+            cloud: self.cloud.clone(),
+            include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            commands: self.commands.as_ref().map(|cmds| {
+                cmds.iter()
+                    .map(|c| crate::wire::CommandWireDefinition {
+                        name: c.name.clone(),
+                        description: c.description.clone(),
+                    })
+                    .collect()
+            }),
+        }
+    }
+
+    /// Install a [`PermissionHandler`] for this session. When omitted, the
+    /// SDK sends `requestPermission: false` on the wire and the runtime
+    /// short-circuits permission prompts for this client.
+    pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
+        self.permission_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ElicitationHandler`]. When omitted, the SDK sends
+    /// `requestElicitation: false` on the wire.
+    pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
+        self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`UserInputHandler`]. Required for the `ask_user` tool
+    /// to be enabled.
+    pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
+        self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ExitPlanModeHandler`].
+    pub fn with_exit_plan_mode_handler(mut self, handler: Arc<dyn ExitPlanModeHandler>) -> Self {
+        self.exit_plan_mode_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`AutoModeSwitchHandler`].
+    pub fn with_auto_mode_switch_handler(
+        mut self,
+        handler: Arc<dyn AutoModeSwitchHandler>,
+    ) -> Self {
+        self.auto_mode_switch_handler = Some(handler);
         self
     }
 
@@ -1359,59 +1502,40 @@ impl SessionConfig {
     /// Install a [`SystemMessageTransform`]. The SDK injects the matching
     /// `action: "transform"` sections into the system message and routes
     /// `systemMessage.transform` RPC callbacks to it during the session.
-    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
-        self.transform = Some(transform);
+    pub fn with_system_message_transform(
+        mut self,
+        transform: Arc<dyn SystemMessageTransform>,
+    ) -> Self {
+        self.system_message_transform = Some(transform);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-approved. Forwards every non-permission event to the inner
-    /// handler unchanged.
-    ///
-    /// If no handler has been installed via [`with_handler`](Self::with_handler),
-    /// wraps a [`NoopHandler`](crate::handler::NoopHandler), so declaration-only
-    /// tools remain pending for manual resolution.
-    ///
-    /// Order-independent: `with_handler(...).approve_all_permissions()` and
-    /// `approve_all_permissions().with_handler(...)` are NOT equivalent —
-    /// the second form discards the wrap because `with_handler` overwrites
-    /// the handler field. Always call `approve_all_permissions` *after*
-    /// `with_handler`.
+    /// Auto-approve every permission request on this session. Stored as a
+    /// policy that's applied at
+    /// [`Client::create_session`](crate::Client::create_session) time, so
+    /// order with [`with_permission_handler`](Self::with_permission_handler)
+    /// is irrelevant.
     pub fn approve_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-denied. See [`approve_all_permissions`](Self::approve_all_permissions)
-    /// for ordering and default-handler semantics.
+    /// Auto-deny every permission request on this session. See
+    /// [`approve_all_permissions`](Self::approve_all_permissions).
     pub fn deny_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::deny_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::DenyAll);
         self
     }
 
-    /// Wrap the configured handler with a closure-based permission policy:
-    /// `predicate` is called for each permission request; `true` approves,
-    /// `false` denies. See
+    /// Apply a closure-based permission policy: `predicate` returns `true`
+    /// to approve, `false` to deny. See
     /// [`approve_all_permissions`](Self::approve_all_permissions) for
-    /// ordering and default-handler semantics.
+    /// ordering semantics.
     pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
         self
     }
 
@@ -1489,40 +1613,10 @@ impl SessionConfig {
         self
     }
 
-    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::default`].
-    pub fn with_request_user_input(mut self, enable: bool) -> Self {
-        self.request_user_input = Some(enable);
-        self
-    }
-
-    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_permission(mut self, enable: bool) -> Self {
-        self.request_permission = Some(enable);
-        self
-    }
-
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
-        self
-    }
-
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
-    /// Advertise elicitation provider capability. Defaults to `Some(true)`.
-    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
-        self.request_elicitation = Some(enable);
-        self
-    }
-
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
-    /// to `None` (disabled). See [`SessionConfig::request_mcp_apps`].
-    pub fn with_request_mcp_apps(mut self, enable: bool) -> Self {
-        self.request_mcp_apps = Some(enable);
+    /// to `false`. See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = enable;
         self
     }
 
@@ -1697,28 +1791,10 @@ pub struct ResumeSessionConfig {
     /// Enable config discovery on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
-    /// Enable the ask_user tool.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_user_input: Option<bool>,
-    /// Enable permission request RPCs. When no handler is set, permission requests
-    /// remain pending until the consumer responds out-of-band.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_permission: Option<bool>,
-    /// Enable exit-plan-mode request RPCs.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_exit_plan_mode: Option<bool>,
-    /// Enable auto-mode-switch request RPCs on resume. Defaults to
-    /// `Some(true)` via [`ResumeSessionConfig::new`]. See
-    /// [`SessionConfig::request_auto_mode_switch`] for details.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_auto_mode_switch: Option<bool>,
-    /// Advertise elicitation provider capability on resume.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_elicitation: Option<bool>,
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
-    /// [`SessionConfig::request_mcp_apps`].
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request_mcp_apps: Option<bool>,
+    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub enable_mcp_apps: bool,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -1788,9 +1864,9 @@ pub struct ResumeSessionConfig {
     #[serde(skip)]
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     /// Force-fail resume if the session does not exist on disk, instead of
-    /// silently starting a new session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub disable_resume: Option<bool>,
+    /// silently starting a new session. Wire field name stays `disableResume`.
+    #[serde(rename = "disableResume", skip_serializing_if = "Option::is_none")]
+    pub suppress_resume_event: Option<bool>,
     /// When `true`, instructs the runtime to continue any tool calls or
     /// permission requests that were pending when the previous connection
     /// was dropped. Use this together with [`Client::force_stop`] to hand
@@ -1800,15 +1876,35 @@ pub struct ResumeSessionConfig {
     /// [`Client::force_stop`]: crate::Client::force_stop
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
-    /// Session-level event handler. See [`SessionConfig::handler`].
+    /// Optional permission-request handler. See
+    /// [`SessionConfig::permission_handler`].
     #[serde(skip)]
-    pub handler: Option<Arc<dyn SessionHandler>>,
+    pub permission_handler: Option<Arc<dyn PermissionHandler>>,
+    /// Optional elicitation handler. See
+    /// [`SessionConfig::elicitation_handler`].
+    #[serde(skip)]
+    pub elicitation_handler: Option<Arc<dyn ElicitationHandler>>,
+    /// Optional user-input handler. See
+    /// [`SessionConfig::user_input_handler`].
+    #[serde(skip)]
+    pub user_input_handler: Option<Arc<dyn UserInputHandler>>,
+    /// Optional exit-plan-mode handler. See
+    /// [`SessionConfig::exit_plan_mode_handler`].
+    #[serde(skip)]
+    pub exit_plan_mode_handler: Option<Arc<dyn ExitPlanModeHandler>>,
+    /// Optional auto-mode-switch handler. See
+    /// [`SessionConfig::auto_mode_switch_handler`].
+    #[serde(skip)]
+    pub auto_mode_switch_handler: Option<Arc<dyn AutoModeSwitchHandler>>,
     /// Session hook handler. See [`SessionConfig::hooks_handler`].
     #[serde(skip)]
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
-    /// System-message transform. See [`SessionConfig::transform`].
+    /// Permission policy. See `SessionConfig::permission_policy`.
     #[serde(skip)]
-    pub transform: Option<Arc<dyn SystemMessageTransform>>,
+    pub(crate) permission_policy: Option<crate::permission::Policy>,
+    /// System-message transform. See [`SessionConfig::system_message_transform`].
+    #[serde(skip)]
+    pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -1824,12 +1920,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
-            .field("request_user_input", &self.request_user_input)
-            .field("request_permission", &self.request_permission)
-            .field("request_exit_plan_mode", &self.request_exit_plan_mode)
-            .field("request_auto_mode_switch", &self.request_auto_mode_switch)
-            .field("request_elicitation", &self.request_elicitation)
-            .field("request_mcp_apps", &self.request_mcp_apps)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1857,19 +1948,94 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "session_fs_provider",
                 &self.session_fs_provider.as_ref().map(|_| "<set>"),
             )
-            .field("handler", &self.handler.as_ref().map(|_| "<set>"))
+            .field(
+                "permission_handler",
+                &self.permission_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "elicitation_handler",
+                &self.elicitation_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "user_input_handler",
+                &self.user_input_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "exit_plan_mode_handler",
+                &self.exit_plan_mode_handler.as_ref().map(|_| "<set>"),
+            )
+            .field(
+                "auto_mode_switch_handler",
+                &self.auto_mode_switch_handler.as_ref().map(|_| "<set>"),
+            )
             .field(
                 "hooks_handler",
                 &self.hooks_handler.as_ref().map(|_| "<set>"),
             )
-            .field("transform", &self.transform.as_ref().map(|_| "<set>"))
-            .field("disable_resume", &self.disable_resume)
+            .field(
+                "system_message_transform",
+                &self.system_message_transform.as_ref().map(|_| "<set>"),
+            )
+            .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
             .finish()
     }
 }
 
 impl ResumeSessionConfig {
+    /// Build the [`SessionResumeWire`] payload for `session.resume` from
+    /// this config. Derives the request_* wire flags from handler
+    /// presence and the policy field; clones plain fields.
+    pub(crate) fn to_wire(&self) -> crate::wire::SessionResumeWire {
+        let permission_active =
+            self.permission_handler.is_some() || self.permission_policy.is_some();
+        crate::wire::SessionResumeWire {
+            session_id: self.session_id.clone(),
+            client_name: self.client_name.clone(),
+            reasoning_effort: self.reasoning_effort.clone(),
+            streaming: self.streaming,
+            system_message: self.system_message.clone(),
+            tools: self.tools.clone(),
+            available_tools: self.available_tools.clone(),
+            excluded_tools: self.excluded_tools.clone(),
+            mcp_servers: self.mcp_servers.clone(),
+            env_value_mode: "direct",
+            enable_config_discovery: self.enable_config_discovery,
+            request_user_input: self.user_input_handler.is_some(),
+            request_permission: permission_active,
+            request_exit_plan_mode: self.exit_plan_mode_handler.is_some(),
+            request_auto_mode_switch: self.auto_mode_switch_handler.is_some(),
+            request_elicitation: self.elicitation_handler.is_some(),
+            request_mcp_apps: self.enable_mcp_apps,
+            hooks: self.hooks_handler.is_some(),
+            skill_directories: self.skill_directories.clone(),
+            instruction_directories: self.instruction_directories.clone(),
+            disabled_skills: self.disabled_skills.clone(),
+            custom_agents: self.custom_agents.clone(),
+            default_agent: self.default_agent.clone(),
+            agent: self.agent.clone(),
+            infinite_sessions: self.infinite_sessions.clone(),
+            provider: self.provider.clone(),
+            enable_session_telemetry: self.enable_session_telemetry,
+            model_capabilities: self.model_capabilities.clone(),
+            config_dir: self.config_dir.clone(),
+            working_directory: self.working_directory.clone(),
+            github_token: self.github_token.clone(),
+            remote_session: self.remote_session.clone(),
+            include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            commands: self.commands.as_ref().map(|cmds| {
+                cmds.iter()
+                    .map(|c| crate::wire::CommandWireDefinition {
+                        name: c.name.clone(),
+                        description: c.description.clone(),
+                    })
+                    .collect()
+            }),
+            suppress_resume_event: self.suppress_resume_event,
+            continue_pending_work: self.continue_pending_work,
+        }
+    }
+
     /// Construct a `ResumeSessionConfig` with the given session ID and all
     /// other fields left unset. Combine with `.with_*` builders or struct
     /// update syntax (`..ResumeSessionConfig::new(id)`) to populate the
@@ -1887,12 +2053,7 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             env_value_mode: default_env_value_mode(),
             enable_config_discovery: None,
-            request_user_input: Some(true),
-            request_permission: Some(true),
-            request_exit_plan_mode: Some(true),
-            request_auto_mode_switch: Some(true),
-            request_elicitation: Some(true),
-            request_mcp_apps: None,
+            enable_mcp_apps: false,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1911,17 +2072,49 @@ impl ResumeSessionConfig {
             include_sub_agent_streaming_events: None,
             commands: None,
             session_fs_provider: None,
-            disable_resume: None,
+            suppress_resume_event: None,
             continue_pending_work: None,
-            handler: None,
+            permission_handler: None,
+            elicitation_handler: None,
+            user_input_handler: None,
+            exit_plan_mode_handler: None,
+            auto_mode_switch_handler: None,
             hooks_handler: None,
-            transform: None,
+            permission_policy: None,
+            system_message_transform: None,
         }
     }
 
-    /// Install a custom [`SessionHandler`] for this session.
-    pub fn with_handler(mut self, handler: Arc<dyn SessionHandler>) -> Self {
-        self.handler = Some(handler);
+    /// Install a [`PermissionHandler`] for the resumed session.
+    pub fn with_permission_handler(mut self, handler: Arc<dyn PermissionHandler>) -> Self {
+        self.permission_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ElicitationHandler`] for the resumed session.
+    pub fn with_elicitation_handler(mut self, handler: Arc<dyn ElicitationHandler>) -> Self {
+        self.elicitation_handler = Some(handler);
+        self
+    }
+
+    /// Install a [`UserInputHandler`] for the resumed session.
+    pub fn with_user_input_handler(mut self, handler: Arc<dyn UserInputHandler>) -> Self {
+        self.user_input_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`ExitPlanModeHandler`] for the resumed session.
+    pub fn with_exit_plan_mode_handler(mut self, handler: Arc<dyn ExitPlanModeHandler>) -> Self {
+        self.exit_plan_mode_handler = Some(handler);
+        self
+    }
+
+    /// Install an [`AutoModeSwitchHandler`] for the resumed session.
+    pub fn with_auto_mode_switch_handler(
+        mut self,
+        handler: Arc<dyn AutoModeSwitchHandler>,
+    ) -> Self {
+        self.auto_mode_switch_handler = Some(handler);
         self
     }
 
@@ -1933,8 +2126,11 @@ impl ResumeSessionConfig {
     }
 
     /// Install a [`SystemMessageTransform`].
-    pub fn with_transform(mut self, transform: Arc<dyn SystemMessageTransform>) -> Self {
-        self.transform = Some(transform);
+    pub fn with_system_message_transform(
+        mut self,
+        transform: Arc<dyn SystemMessageTransform>,
+    ) -> Self {
+        self.system_message_transform = Some(transform);
         self
     }
 
@@ -1953,41 +2149,27 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-approved. See
-    /// [`SessionConfig::approve_all_permissions`] for semantics.
+    /// Auto-approve every permission request on the resumed session. See
+    /// [`SessionConfig::approve_all_permissions`].
     pub fn approve_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::ApproveAll);
         self
     }
 
-    /// Wrap the configured handler so every permission request is
-    /// auto-denied. See
-    /// [`SessionConfig::deny_all_permissions`] for semantics.
+    /// Auto-deny every permission request on the resumed session. See
+    /// [`SessionConfig::deny_all_permissions`].
     pub fn deny_all_permissions(mut self) -> Self {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::deny_all(inner));
+        self.permission_policy = Some(crate::permission::Policy::DenyAll);
         self
     }
 
-    /// Wrap the configured handler with a predicate-based permission policy.
-    /// See [`SessionConfig::approve_permissions_if`] for semantics.
+    /// Apply a closure-based permission policy on the resumed session.
+    /// See [`SessionConfig::approve_permissions_if`].
     pub fn approve_permissions_if<F>(mut self, predicate: F) -> Self
     where
         F: Fn(&crate::types::PermissionRequestData) -> bool + Send + Sync + 'static,
     {
-        let inner = self
-            .handler
-            .take()
-            .unwrap_or_else(|| Arc::new(crate::handler::NoopHandler));
-        self.handler = Some(crate::permission::approve_if(inner, predicate));
+        self.permission_policy = Some(crate::permission::Policy::Predicate(Arc::new(predicate)));
         self
     }
 
@@ -2054,40 +2236,10 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Enable the `ask_user` tool. Defaults to `Some(true)` via [`Self::new`].
-    pub fn with_request_user_input(mut self, enable: bool) -> Self {
-        self.request_user_input = Some(enable);
-        self
-    }
-
-    /// Enable `permission.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_permission(mut self, enable: bool) -> Self {
-        self.request_permission = Some(enable);
-        self
-    }
-
-    /// Enable `exitPlanMode.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_exit_plan_mode(mut self, enable: bool) -> Self {
-        self.request_exit_plan_mode = Some(enable);
-        self
-    }
-
-    /// Enable `autoModeSwitch.request` JSON-RPC calls. Defaults to `Some(true)`.
-    pub fn with_request_auto_mode_switch(mut self, enable: bool) -> Self {
-        self.request_auto_mode_switch = Some(enable);
-        self
-    }
-
-    /// Advertise elicitation provider capability on resume. Defaults to `Some(true)`.
-    pub fn with_request_elicitation(mut self, enable: bool) -> Self {
-        self.request_elicitation = Some(enable);
-        self
-    }
-
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
-    /// `None` (disabled). See [`SessionConfig::request_mcp_apps`].
-    pub fn with_request_mcp_apps(mut self, enable: bool) -> Self {
-        self.request_mcp_apps = Some(enable);
+    /// `false`. See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = enable;
         self
     }
 
@@ -2210,8 +2362,8 @@ impl ResumeSessionConfig {
 
     /// Force-fail resume if the session does not exist on disk, instead
     /// of silently starting a new session.
-    pub fn with_disable_resume(mut self, disable: bool) -> Self {
-        self.disable_resume = Some(disable);
+    pub fn with_suppress_resume_event(mut self, suppress: bool) -> Self {
+        self.suppress_resume_event = Some(suppress);
         self
     }
 
@@ -3097,9 +3249,10 @@ pub enum ElicitationMode {
 
 /// An incoming elicitation request from the CLI (provider side).
 ///
-/// Received via `elicitation.requested` session event when the session was
-/// created with `request_elicitation: true`. The provider should render a
-/// form or dialog and return an [`ElicitationResult`].
+/// Received via `elicitation.requested` session event when the session has
+/// an [`ElicitationHandler`] installed.
+/// The provider should render a form or dialog and return an
+/// [`ElicitationResult`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ElicitationRequest {
@@ -3151,7 +3304,7 @@ pub struct UiCapabilities {
 
 /// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.
 #[derive(Debug, Clone, Default)]
-pub struct InputOptions<'a> {
+pub struct UiInputOptions<'a> {
     /// Title label for the input field.
     pub title: Option<&'a str>,
     /// Descriptive text shown below the field.
@@ -3236,8 +3389,7 @@ pub enum PermissionRequestKind {
 ///
 /// Used for both the `permission.request` RPC call (which expects a response)
 /// and `permission.requested` notifications (fire-and-forget). Contains the
-/// full params object. Note that `requestId` is also available as a separate
-/// field on `HandlerEvent::PermissionRequest`.
+/// full params object.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionRequestData {
@@ -3416,25 +3568,32 @@ mod tests {
     }
 
     #[test]
-    fn session_config_default_enables_permission_flow_flags() {
+    fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
-        assert_eq!(cfg.request_user_input, Some(true));
-        assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_elicitation, Some(true));
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
-        assert_eq!(cfg.request_mcp_apps, None);
+        // Wire flags are derived from handler presence at create_session
+        // time, not stored on the config. With no handlers installed, every
+        // request_* flag should serialize as false.
+        let wire = cfg.to_wire(SessionId::from("default-flags"));
+        assert!(!wire.request_user_input);
+        assert!(!wire.request_permission);
+        assert!(!wire.request_elicitation);
+        assert!(!wire.request_exit_plan_mode);
+        assert!(!wire.request_auto_mode_switch);
+        assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
     }
 
     #[test]
-    fn resume_session_config_new_enables_permission_flow_flags() {
-        let cfg = ResumeSessionConfig::new(SessionId::from("test-id"));
-        assert_eq!(cfg.request_user_input, Some(true));
-        assert_eq!(cfg.request_permission, Some(true));
-        assert_eq!(cfg.request_elicitation, Some(true));
-        assert_eq!(cfg.request_exit_plan_mode, Some(true));
-        assert_eq!(cfg.request_auto_mode_switch, Some(true));
-        assert_eq!(cfg.request_mcp_apps, None);
+    fn resume_session_config_new_wire_flags_off_without_handlers() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
+        let wire = cfg.to_wire();
+        assert!(!wire.request_user_input);
+        assert!(!wire.request_permission);
+        assert!(!wire.request_elicitation);
+        assert!(!wire.request_exit_plan_mode);
+        assert!(!wire.request_auto_mode_switch);
+        assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
     }
 
     #[test]
@@ -3452,9 +3611,6 @@ mod tests {
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_enable_config_discovery(true)
-            .with_request_user_input(false)
-            .with_request_exit_plan_mode(false)
-            .with_request_auto_mode_switch(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
@@ -3480,10 +3636,6 @@ mod tests {
         );
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
-        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, Some(true)); // default preserved
-        assert_eq!(cfg.request_exit_plan_mode, Some(false));
-        assert_eq!(cfg.request_auto_mode_switch, Some(false));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
@@ -3512,9 +3664,6 @@ mod tests {
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
             .with_enable_config_discovery(true)
-            .with_request_user_input(false)
-            .with_request_exit_plan_mode(false)
-            .with_request_auto_mode_switch(false)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
@@ -3523,7 +3672,7 @@ mod tests {
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
-            .with_disable_resume(true)
+            .with_suppress_resume_event(true)
             .with_continue_pending_work(true);
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
@@ -3540,10 +3689,6 @@ mod tests {
         );
         assert!(cfg.mcp_servers.is_some());
         assert_eq!(cfg.enable_config_discovery, Some(true));
-        assert_eq!(cfg.request_user_input, Some(false)); // overrode default
-        assert_eq!(cfg.request_permission, Some(true)); // default preserved
-        assert_eq!(cfg.request_exit_plan_mode, Some(false));
-        assert_eq!(cfg.request_auto_mode_switch, Some(false));
         assert_eq!(
             cfg.skill_directories.as_deref(),
             Some(&[PathBuf::from("/tmp/skills")][..])
@@ -3558,7 +3703,7 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
-        assert_eq!(cfg.disable_resume, Some(true));
+        assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
     }
 
@@ -3576,6 +3721,26 @@ mod tests {
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"));
         let wire = serde_json::to_value(&cfg).unwrap();
         assert!(wire.get("continuePendingWork").is_none());
+    }
+
+    /// The Rust field is `suppress_resume_event`, but the wire field stays
+    /// `disableResume` to preserve compatibility with the runtime and other
+    /// SDKs.
+    #[test]
+    fn resume_session_config_serializes_suppress_resume_event_to_disable_resume_on_wire() {
+        let cfg =
+            ResumeSessionConfig::new(SessionId::from("sess-1")).with_suppress_resume_event(true);
+        let wire = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(wire["disableResume"], true);
+        assert!(wire.get("suppressResumeEvent").is_none());
+
+        // Round-trip: deserialize from the wire shape.
+        let json = serde_json::json!({
+            "sessionId": "sess-2",
+            "disableResume": true,
+        });
+        let parsed: ResumeSessionConfig = serde_json::from_value(json).unwrap();
+        assert_eq!(parsed.suppress_resume_event, Some(true));
     }
 
     /// `instruction_directories` must serialize to wire as
@@ -3735,11 +3900,10 @@ mod tests {
     }
 
     #[test]
-    fn connection_state_error_serializes_to_match_go() {
-        let json = serde_json::to_string(&ConnectionState::Error).unwrap();
-        assert_eq!(json, "\"error\"");
-        let parsed: ConnectionState = serde_json::from_str("\"error\"").unwrap();
-        assert_eq!(parsed, ConnectionState::Error);
+    fn connection_state_distinguishes_variants() {
+        // ConnectionState is now an internal type; verify we can construct
+        // and compare the variants used by the lifecycle code paths.
+        assert_ne!(ConnectionState::Connected, ConnectionState::Disconnected);
     }
 
     /// `agentId` is the sub-agent attribution field added in copilot-sdk
@@ -3799,19 +3963,14 @@ mod tests {
     }
 
     #[test]
-    fn connection_state_other_variants_serialize_as_lowercase() {
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Disconnected).unwrap(),
-            "\"disconnected\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Connecting).unwrap(),
-            "\"connecting\""
-        );
-        assert_eq!(
-            serde_json::to_string(&ConnectionState::Connected).unwrap(),
-            "\"connected\""
-        );
+    fn connection_state_variants_compile() {
+        // Defensive smoke test: all variants must be constructable from
+        // within the crate. (The enum was demoted from pub to pub(crate)
+        // in Phase D; this test guards against accidental removal.)
+        let _ = ConnectionState::Disconnected;
+        let _ = ConnectionState::Connecting;
+        let _ = ConnectionState::Connected;
+        let _ = ConnectionState::Error;
     }
 
     #[test]
@@ -3958,88 +4117,127 @@ mod tests {
 mod permission_builder_tests {
     use std::sync::Arc;
 
-    use crate::handler::{
-        ApproveAllHandler, HandlerEvent, HandlerResponse, PermissionResult, SessionHandler,
-    };
+    use crate::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+    use crate::permission;
     use crate::types::{
         PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
     };
 
-    fn permission_event() -> HandlerEvent {
-        HandlerEvent::PermissionRequest {
-            session_id: SessionId::from("s1"),
-            request_id: RequestId::new("1"),
-            data: PermissionRequestData {
-                extra: serde_json::json!({"tool": "shell"}),
-                ..Default::default()
-            },
+    fn data() -> PermissionRequestData {
+        PermissionRequestData {
+            extra: serde_json::json!({"tool": "shell"}),
+            ..Default::default()
         }
     }
 
-    async fn dispatch(handler: &Arc<dyn SessionHandler>) -> HandlerResponse {
-        handler.on_event(permission_event()).await
+    /// Apply the same policy-resolution logic that `Client::create_session`
+    /// uses, so tests exercise the effective handler.
+    fn resolve_create(mut cfg: SessionConfig) -> Option<Arc<dyn PermissionHandler>> {
+        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
+    }
+
+    fn resolve_resume(mut cfg: ResumeSessionConfig) -> Option<Arc<dyn PermissionHandler>> {
+        permission::resolve_handler(cfg.permission_handler.take(), cfg.permission_policy.take())
+    }
+
+    async fn dispatch(handler: &Arc<dyn PermissionHandler>) -> PermissionResult {
+        handler
+            .handle(SessionId::from("s1"), RequestId::new("1"), data())
+            .await
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_wraps_existing_handler() {
+    async fn approve_all_with_handler_present_approves() {
         let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_create(cfg).expect("policy + handler yields handler");
+        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
     }
 
     #[tokio::test]
-    async fn session_config_approve_all_defaults_to_noop_inner() {
-        // Without with_handler, the wrap defaults to NoopHandler. The
-        // approve-all wrap intercepts permission events, so they're still
-        // approved -- the inner handler is consulted only for other events.
+    async fn approve_all_standalone_produces_handler() {
         let cfg = SessionConfig::default().approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let h = resolve_create(cfg).expect("policy alone yields handler");
+        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
     }
 
+    /// Phase I: order between with_permission_handler and the policy
+    /// builder must not matter.
     #[tokio::test]
-    async fn session_config_deny_all_denies() {
-        let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
-            .deny_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn session_config_approve_permissions_if_consults_predicate() {
-        let cfg = SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
-            .approve_permissions_if(|data| {
-                data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
-            });
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Denied) => {}
-            other => panic!("expected Denied for shell, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn resume_session_config_approve_all_wraps_existing_handler() {
-        let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
-            .with_handler(Arc::new(ApproveAllHandler))
+    async fn approve_all_is_order_independent() {
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
-        let handler = cfg.handler.expect("handler should be set");
-        match dispatch(&handler).await {
-            HandlerResponse::Permission(PermissionResult::Approved) => {}
-            other => panic!("expected Approved, got {other:?}"),
-        }
+        let b = SessionConfig::default()
+            .approve_all_permissions()
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Approved));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Approved));
+    }
+
+    #[tokio::test]
+    async fn deny_all_is_order_independent() {
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .deny_all_permissions();
+        let b = SessionConfig::default()
+            .deny_all_permissions()
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Denied));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Denied));
+    }
+
+    #[tokio::test]
+    async fn approve_permissions_if_consults_predicate() {
+        let cfg = SessionConfig::default().approve_permissions_if(|d| {
+            d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+        });
+        let h = resolve_create(cfg).unwrap();
+        assert!(matches!(dispatch(&h).await, PermissionResult::Denied));
+    }
+
+    #[tokio::test]
+    async fn approve_permissions_if_is_order_independent() {
+        let predicate = |d: &PermissionRequestData| {
+            d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+        };
+        let a = SessionConfig::default()
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .approve_permissions_if(predicate);
+        let b = SessionConfig::default()
+            .approve_permissions_if(predicate)
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_create(a).unwrap();
+        let hb = resolve_create(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Denied));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Denied));
+    }
+
+    #[tokio::test]
+    async fn resume_session_config_approve_all_works() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let h = resolve_resume(cfg).unwrap();
+        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
+    }
+
+    #[tokio::test]
+    async fn resume_session_config_approve_all_is_order_independent() {
+        let a = ResumeSessionConfig::new(SessionId::from("s1"))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
+            .approve_all_permissions();
+        let b = ResumeSessionConfig::new(SessionId::from("s1"))
+            .approve_all_permissions()
+            .with_permission_handler(Arc::new(ApproveAllHandler));
+        let ha = resolve_resume(a).unwrap();
+        let hb = resolve_resume(b).unwrap();
+        assert!(matches!(dispatch(&ha).await, PermissionResult::Approved));
+        assert!(matches!(dispatch(&hb).await, PermissionResult::Approved));
     }
 }

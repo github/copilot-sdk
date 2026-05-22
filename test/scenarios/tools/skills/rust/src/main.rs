@@ -40,7 +40,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     config.model = Some("claude-haiku-4.5".to_string());
     config.skill_directories = Some(vec![skills_dir]);
     let config = config
-        .with_handler(Arc::new(ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
         .with_hooks(Arc::new(AllowAllHooks));
 
     let session = client.create_session(config).await?;
@@ -57,6 +57,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     println!("\nSkill directories configured successfully");
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

@@ -119,17 +119,17 @@ impl E2eContext {
 
     #[expect(dead_code, reason = "used by follow-on E2E ports")]
     pub async fn start_tcp_client(&self, port: u16, token: &str) -> Client {
-        Client::start(
-            self.client_options_with_transport(Transport::Tcp { port })
-                .with_tcp_connection_token(token),
-        )
+        Client::start(self.client_options_with_transport(Transport::Tcp {
+            port,
+            connection_token: Some(token.to_string()),
+        }))
         .await
         .expect("start TCP E2E client")
     }
 
     pub fn approve_all_session_config(&self) -> SessionConfig {
         SessionConfig::default()
-            .with_handler(std::sync::Arc::new(ApproveAllHandler))
+            .with_permission_handler(std::sync::Arc::new(ApproveAllHandler))
             .with_github_token(DEFAULT_TEST_TOKEN)
     }
 
@@ -410,7 +410,7 @@ pub async fn wait_for_final_assistant_message(session: &Session) -> SessionEvent
 #[allow(dead_code, reason = "used by follow-on E2E ports")]
 pub async fn last_assistant_message(session: &Session) -> SessionEvent {
     session
-        .get_messages()
+        .get_events()
         .await
         .expect("get session messages")
         .into_iter()

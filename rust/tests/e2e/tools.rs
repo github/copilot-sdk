@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use github_copilot_sdk::handler::{ApproveAllHandler, PermissionResult, SessionHandler};
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{
     Error, PermissionRequestData, RequestId, SessionConfig, SessionId, Tool, ToolInvocation,
     ToolResult,
@@ -47,16 +47,13 @@ async fn invokes_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(EncryptStringTool)],
-                Arc::new(ApproveAllHandler),
-            );
-            let tools = router.tools();
+            let __perm = Arc::new(ApproveAllHandler);
+            let tools = vec![encrypt_string_tool()];
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
                         .with_tools(tools),
                 )
                 .await
@@ -82,14 +79,13 @@ async fn handles_tool_calling_errors() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router =
-                ToolHandlerRouter::new(vec![Box::new(ErrorTool)], Arc::new(ApproveAllHandler));
-            let tools = router.tools();
+            let __perm = Arc::new(ApproveAllHandler);
+            let tools = vec![error_tool()];
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
                         .with_tools(tools),
                 )
                 .await
@@ -132,16 +128,13 @@ async fn can_receive_and_return_complex_types() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(DbQueryTool)],
-                Arc::new(ApproveAllHandler),
-            );
-            let tools = router.tools();
+            let __perm = Arc::new(ApproveAllHandler);
+            let tools = vec![db_query_tool()];
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
                         .with_tools(tools),
                 )
                 .await
@@ -174,14 +167,13 @@ async fn overrides_built_in_tool_with_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router =
-                ToolHandlerRouter::new(vec![Box::new(CustomGrepTool)], Arc::new(ApproveAllHandler));
-            let tools = router.tools();
+            let __perm = Arc::new(ApproveAllHandler);
+            let tools = vec![custom_grep_tool()];
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
                         .with_tools(tools),
                 )
                 .await
@@ -212,13 +204,13 @@ async fn skippermission_sent_in_tool_definition() {
                 permission_tx,
                 decision: PermissionResult::Denied,
             });
-            let router = ToolHandlerRouter::new(vec![Box::new(SafeLookupTool)], handler);
-            let tools = router.tools();
+            let __perm = handler;
+            let tools = vec![safe_lookup_tool()];
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
+                        .with_permission_handler(__perm)
                         .with_tools(tools),
                 )
                 .await
@@ -262,13 +254,13 @@ async fn invokes_custom_tool_with_permission_handler() {
                     permission_tx,
                     decision: PermissionResult::Approved,
                 });
-                let router = ToolHandlerRouter::new(vec![Box::new(EncryptStringTool)], handler);
-                let tools = router.tools();
+                let __perm = handler;
+                let tools = vec![encrypt_string_tool()];
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
                             .with_tools(tools),
                     )
                     .await
@@ -306,16 +298,13 @@ async fn denies_custom_tool_when_permission_denied() {
                     permission_tx,
                     decision: PermissionResult::Denied,
                 });
-                let router = ToolHandlerRouter::new(
-                    vec![Box::new(TrackedEncryptStringTool { call_tx })],
-                    handler,
-                );
-                let tools = router.tools();
+                let __perm = handler;
+                let tools = vec![tracked_encrypt_string_tool(call_tx)];
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
                             .with_tools(tools),
                     )
                     .await
@@ -351,21 +340,16 @@ async fn should_execute_multiple_custom_tools_in_parallel_single_turn() {
                 let client = ctx.start_client().await;
                 let (city_tx, mut city_rx) = mpsc::unbounded_channel();
                 let (country_tx, mut country_rx) = mpsc::unbounded_channel();
-                let router = ToolHandlerRouter::new(
-                    vec![
-                        Box::new(LookupCityTool { call_tx: city_tx }),
-                        Box::new(LookupCountryTool {
-                            call_tx: country_tx,
-                        }),
-                    ],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                let __perm = Arc::new(ApproveAllHandler);
+                let tools = vec![
+                    lookup_city_tool(city_tx),
+                    lookup_country_tool(country_tx),
+                ];
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
                             .with_tools(tools),
                     )
                     .await
@@ -403,21 +387,13 @@ async fn should_respect_availabletools_and_excludedtools_combined() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let (excluded_tx, mut excluded_rx) = mpsc::unbounded_channel();
-                let router = ToolHandlerRouter::new(
-                    vec![
-                        Box::new(AllowedTool),
-                        Box::new(ExcludedTool {
-                            call_tx: excluded_tx,
-                        }),
-                    ],
-                    Arc::new(ApproveAllHandler),
-                );
-                let tools = router.tools();
+                let __perm = Arc::new(ApproveAllHandler);
+                let tools = vec![allowed_tool(), excluded_tool(excluded_tx)];
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
+                            .with_permission_handler(__perm)
                             .with_tools(tools)
                             .with_available_tools(["allowed_tool", "excluded_tool"])
                             .with_excluded_tools(["excluded_tool"]),
@@ -450,23 +426,24 @@ async fn should_respect_availabletools_and_excludedtools_combined() {
 
 struct EncryptStringTool;
 
+fn encrypt_string_tool() -> Tool {
+    Tool::new("encrypt_string")
+        .with_description("Encrypts a string")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "description": "String to encrypt"
+                }
+            },
+            "required": ["input"]
+        }))
+        .with_handler(Arc::new(EncryptStringTool))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for EncryptStringTool {
-    fn tool(&self) -> Tool {
-        Tool::new("encrypt_string")
-            .with_description("Encrypts a string")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "input": {
-                        "type": "string",
-                        "description": "String to encrypt"
-                    }
-                },
-                "required": ["input"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let input = invocation
             .arguments
@@ -481,12 +458,24 @@ struct TrackedEncryptStringTool {
     call_tx: mpsc::UnboundedSender<()>,
 }
 
+fn tracked_encrypt_string_tool(call_tx: mpsc::UnboundedSender<()>) -> Tool {
+    Tool::new("encrypt_string")
+        .with_description("Encrypts a string")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string",
+                    "description": "String to encrypt"
+                }
+            },
+            "required": ["input"]
+        }))
+        .with_handler(Arc::new(TrackedEncryptStringTool { call_tx }))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for TrackedEncryptStringTool {
-    fn tool(&self) -> Tool {
-        EncryptStringTool.tool()
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let _ = self.call_tx.send(());
         EncryptStringTool.call(invocation).await
@@ -495,12 +484,14 @@ impl ToolHandler for TrackedEncryptStringTool {
 
 struct ErrorTool;
 
+fn error_tool() -> Tool {
+    Tool::new("get_user_location")
+        .with_description("Gets the user's location")
+        .with_handler(Arc::new(ErrorTool))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for ErrorTool {
-    fn tool(&self) -> Tool {
-        Tool::new("get_user_location").with_description("Gets the user's location")
-    }
-
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
         Ok(ToolResult::Text(
             "Failed to execute `get_user_location` tool with arguments: {} due to error: Error: Tool execution failed"
@@ -511,21 +502,22 @@ impl ToolHandler for ErrorTool {
 
 struct CustomGrepTool;
 
+fn custom_grep_tool() -> Tool {
+    Tool::new("grep")
+        .with_description("A custom grep implementation that overrides the built-in")
+        .with_overrides_built_in_tool(true)
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "description": "Search query" }
+            },
+            "required": ["query"]
+        }))
+        .with_handler(Arc::new(CustomGrepTool))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for CustomGrepTool {
-    fn tool(&self) -> Tool {
-        Tool::new("grep")
-            .with_description("A custom grep implementation that overrides the built-in")
-            .with_overrides_built_in_tool(true)
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "query": { "type": "string", "description": "Search query" }
-                },
-                "required": ["query"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let query = invocation
             .arguments
@@ -538,21 +530,22 @@ impl ToolHandler for CustomGrepTool {
 
 struct SafeLookupTool;
 
+fn safe_lookup_tool() -> Tool {
+    Tool::new("safe_lookup")
+        .with_description("A tool that skips permission")
+        .with_skip_permission(true)
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string", "description": "Lookup ID" }
+            },
+            "required": ["id"]
+        }))
+        .with_handler(Arc::new(SafeLookupTool))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for SafeLookupTool {
-    fn tool(&self) -> Tool {
-        Tool::new("safe_lookup")
-            .with_description("A tool that skips permission")
-            .with_skip_permission(true)
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "id": { "type": "string", "description": "Lookup ID" }
-                },
-                "required": ["id"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let id = invocation
             .arguments
@@ -567,20 +560,21 @@ struct LookupCityTool {
     call_tx: mpsc::UnboundedSender<String>,
 }
 
+fn lookup_city_tool(call_tx: mpsc::UnboundedSender<String>) -> Tool {
+    Tool::new("lookup_city")
+        .with_description("Looks up city information")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "city": { "type": "string", "description": "City name" }
+            },
+            "required": ["city"]
+        }))
+        .with_handler(Arc::new(LookupCityTool { call_tx }))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for LookupCityTool {
-    fn tool(&self) -> Tool {
-        Tool::new("lookup_city")
-            .with_description("Looks up city information")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "city": { "type": "string", "description": "City name" }
-                },
-                "required": ["city"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let city = invocation
             .arguments
@@ -597,20 +591,21 @@ struct LookupCountryTool {
     call_tx: mpsc::UnboundedSender<String>,
 }
 
+fn lookup_country_tool(call_tx: mpsc::UnboundedSender<String>) -> Tool {
+    Tool::new("lookup_country")
+        .with_description("Looks up country information")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "country": { "type": "string", "description": "Country name" }
+            },
+            "required": ["country"]
+        }))
+        .with_handler(Arc::new(LookupCountryTool { call_tx }))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for LookupCountryTool {
-    fn tool(&self) -> Tool {
-        Tool::new("lookup_country")
-            .with_description("Looks up country information")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "country": { "type": "string", "description": "Country name" }
-                },
-                "required": ["country"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let country = invocation
             .arguments
@@ -628,20 +623,21 @@ impl ToolHandler for LookupCountryTool {
 
 struct AllowedTool;
 
+fn allowed_tool() -> Tool {
+    Tool::new("allowed_tool")
+        .with_description("An allowed tool")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "input": { "type": "string", "description": "Input value" }
+            },
+            "required": ["input"]
+        }))
+        .with_handler(Arc::new(AllowedTool))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for AllowedTool {
-    fn tool(&self) -> Tool {
-        Tool::new("allowed_tool")
-            .with_description("An allowed tool")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "input": { "type": "string", "description": "Input value" }
-                },
-                "required": ["input"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let input = invocation
             .arguments
@@ -659,20 +655,21 @@ struct ExcludedTool {
     call_tx: mpsc::UnboundedSender<()>,
 }
 
+fn excluded_tool(call_tx: mpsc::UnboundedSender<()>) -> Tool {
+    Tool::new("excluded_tool")
+        .with_description("A tool that should be excluded")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "input": { "type": "string", "description": "Input value" }
+            },
+            "required": ["input"]
+        }))
+        .with_handler(Arc::new(ExcludedTool { call_tx }))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for ExcludedTool {
-    fn tool(&self) -> Tool {
-        Tool::new("excluded_tool")
-            .with_description("A tool that should be excluded")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "input": { "type": "string", "description": "Input value" }
-                },
-                "required": ["input"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let _ = self.call_tx.send(());
         let input = invocation
@@ -693,8 +690,8 @@ struct RecordingPermissionHandler {
 }
 
 #[async_trait::async_trait]
-impl SessionHandler for RecordingPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for RecordingPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -707,31 +704,32 @@ impl SessionHandler for RecordingPermissionHandler {
 
 struct DbQueryTool;
 
+fn db_query_tool() -> Tool {
+    Tool::new("db_query")
+        .with_description("Performs a database query")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "object",
+                    "properties": {
+                        "table": { "type": "string" },
+                        "ids": {
+                            "type": "array",
+                            "items": { "type": "integer" }
+                        },
+                        "sortAscending": { "type": "boolean" }
+                    },
+                    "required": ["table", "ids", "sortAscending"]
+                }
+            },
+            "required": ["query"]
+        }))
+        .with_handler(Arc::new(DbQueryTool))
+}
+
 #[async_trait::async_trait]
 impl ToolHandler for DbQueryTool {
-    fn tool(&self) -> Tool {
-        Tool::new("db_query")
-            .with_description("Performs a database query")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "object",
-                        "properties": {
-                            "table": { "type": "string" },
-                            "ids": {
-                                "type": "array",
-                                "items": { "type": "integer" }
-                            },
-                            "sortAscending": { "type": "boolean" }
-                        },
-                        "required": ["table", "ids", "sortAscending"]
-                    }
-                },
-                "required": ["query"]
-            }))
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let query = invocation.arguments.get("query").expect("query argument");
         assert_eq!(

@@ -25,7 +25,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
             .map(|s| s.split(' ').map(str::to_string).collect())
             .unwrap_or_default();
         let stdio = McpStdioServerConfig {
-            tools: vec!["*".to_string()],
             command: cmd.clone(),
             args,
             ..Default::default()
@@ -45,7 +44,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     config.system_message = Some(sysmsg);
     config.available_tools = Some(Vec::new());
     config.mcp_servers = mcp_servers;
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 
@@ -63,6 +62,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         println!("\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)");
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

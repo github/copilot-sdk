@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use github_copilot_sdk::generated::session_events::{
     CapabilitiesChangedData, CommandsChangedData, SessionEventType,
 };
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{
+    ApproveAllHandler, ElicitationHandler, PermissionHandler, PermissionResult,
+};
 use github_copilot_sdk::{
     Client, CommandContext, CommandDefinition, CommandHandler, ElicitationRequest,
     ElicitationResult, RequestId, ResumeSessionConfig, SessionId, Transport,
@@ -80,10 +82,7 @@ async fn capabilities_changed_fires_when_second_client_joins_with_elicitation_ha
                 let port = free_tcp_port();
                 let server = start_tcp_server(ctx, port).await;
                 let session1 = server
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
                 assert_ne!(
@@ -105,7 +104,8 @@ async fn capabilities_changed_fires_when_second_client_joins_with_elicitation_ha
                 let session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(Arc::new(ElicitationApproveHandler)),
+                            .with_permission_handler(Arc::new(ElicitationApproveHandler))
+                            .with_elicitation_handler(Arc::new(ElicitationApproveHandler)),
                     )
                     .await
                     .expect("resume session with elicitation handler");
@@ -142,10 +142,7 @@ async fn capabilities_changed_fires_when_elicitation_provider_disconnects() {
                 let port = free_tcp_port();
                 let server = start_tcp_server(ctx, port).await;
                 let session1 = server
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
                 let client2 = start_external_client(ctx, port).await;
@@ -162,7 +159,8 @@ async fn capabilities_changed_fires_when_elicitation_provider_disconnects() {
                 let _session2 = client2
                     .resume_session(
                         resume_config(session1.id().clone())
-                            .with_handler(Arc::new(ElicitationApproveHandler)),
+                            .with_permission_handler(Arc::new(ElicitationApproveHandler))
+                            .with_elicitation_handler(Arc::new(ElicitationApproveHandler)),
                     )
                     .await
                     .expect("resume session with elicitation handler");
@@ -199,27 +197,25 @@ async fn capabilities_changed_fires_when_elicitation_provider_disconnects() {
 fn resume_config(session_id: SessionId) -> ResumeSessionConfig {
     ResumeSessionConfig::new(session_id)
         .with_github_token(DEFAULT_TEST_TOKEN)
-        .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
-        .with_disable_resume(true)
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .with_suppress_resume_event(true)
 }
 
 async fn start_tcp_server(ctx: &E2eContext, port: u16) -> Client {
-    Client::start(
-        ctx.client_options_with_transport(Transport::Tcp { port })
-            .with_tcp_connection_token(SHARED_TOKEN),
-    )
+    Client::start(ctx.client_options_with_transport(Transport::Tcp {
+        port,
+        connection_token: Some(SHARED_TOKEN.to_string()),
+    }))
     .await
     .expect("start TCP server client")
 }
 
 async fn start_external_client(ctx: &E2eContext, port: u16) -> Client {
-    Client::start(
-        ctx.client_options_with_transport(Transport::External {
-            host: "127.0.0.1".to_string(),
-            port,
-        })
-        .with_tcp_connection_token(SHARED_TOKEN),
-    )
+    Client::start(ctx.client_options_with_transport(Transport::External {
+        host: "127.0.0.1".to_string(),
+        port,
+        connection_token: Some(SHARED_TOKEN.to_string()),
+    }))
     .await
     .expect("start external client")
 }
@@ -241,8 +237,8 @@ impl CommandHandler for NoopCommandHandler {
 struct ElicitationApproveHandler;
 
 #[async_trait]
-impl SessionHandler for ElicitationApproveHandler {
-    async fn on_permission_request(
+impl PermissionHandler for ElicitationApproveHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -250,8 +246,11 @@ impl SessionHandler for ElicitationApproveHandler {
     ) -> PermissionResult {
         PermissionResult::Approved
     }
+}
 
-    async fn on_elicitation(
+#[async_trait]
+impl ElicitationHandler for ElicitationApproveHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,

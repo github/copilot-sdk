@@ -100,7 +100,7 @@ session.On((SessionEvent e) =>
 use github_copilot_sdk::{Client, ClientOptions, PermissionRequestResult, SessionConfig};
 
 let client = Client::start(
-    ClientOptions::new().with_remote(true)
+    ClientOptions::new().with_enable_remote_sessions(true)
 ).await?;
 let session = client.create_session(
     SessionConfig::new("/path/to/github-repo")

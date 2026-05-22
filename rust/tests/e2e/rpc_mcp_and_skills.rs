@@ -438,7 +438,7 @@ fn test_mcp_servers(message: &str) -> HashMap<String, McpServerConfig> {
     HashMap::from([(
         message.to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
-            tools: vec!["*".to_string()],
+            tools: Some(vec!["*".to_string()]),
             command: echo_command(),
             args: echo_args(message),
             ..McpStdioServerConfig::default()

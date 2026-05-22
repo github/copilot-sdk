@@ -1537,8 +1537,8 @@ class CopilotClient:
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
 
-        # Always enable permission request callback
-        payload["requestPermission"] = True
+        # Enable permission request callback if handler provided
+        payload["requestPermission"] = bool(on_permission_request)
 
         # Enable user input request callback if handler provided
         if on_user_input_request:
@@ -1935,8 +1935,8 @@ class CopilotClient:
             else True
         )
 
-        # Always enable permission request callback
-        payload["requestPermission"] = True
+        # Enable permission request callback if handler provided
+        payload["requestPermission"] = bool(on_permission_request)
 
         if on_user_input_request:
             payload["requestUserInput"] = True
