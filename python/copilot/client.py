@@ -962,19 +962,18 @@ def _session_lifecycle_event_from_dict(data: dict) -> SessionLifecycleEvent:
     if "metadata" in data and data["metadata"]:
         metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])
     session_id = data.get("sessionId", "")
-    match data.get("type"):
-        case "session.created":
-            return SessionCreatedEvent(session_id=session_id, metadata=metadata)
-        case "session.deleted":
-            return SessionDeletedEvent(session_id=session_id, metadata=metadata)
-        case "session.foreground":
-            return SessionForegroundEvent(session_id=session_id, metadata=metadata)
-        case "session.background":
-            return SessionBackgroundEvent(session_id=session_id, metadata=metadata)
-        case _:
-            # Default to ``session.updated`` for unknown event types so consumers
-            # keep working across server upgrades.
-            return SessionUpdatedEvent(session_id=session_id, metadata=metadata)
+    event_type = data.get("type")
+    if event_type == "session.created":
+        return SessionCreatedEvent(session_id=session_id, metadata=metadata)
+    if event_type == "session.deleted":
+        return SessionDeletedEvent(session_id=session_id, metadata=metadata)
+    if event_type == "session.foreground":
+        return SessionForegroundEvent(session_id=session_id, metadata=metadata)
+    if event_type == "session.background":
+        return SessionBackgroundEvent(session_id=session_id, metadata=metadata)
+    # Default to ``session.updated`` for unknown event types so consumers
+    # keep working across server upgrades.
+    return SessionUpdatedEvent(session_id=session_id, metadata=metadata)
 
 
 SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
@@ -2542,12 +2541,14 @@ class CopilotClient:
             raise RuntimeError(f"Failed to set foreground session: {error}")
 
     @overload
-    def on_lifecycle(self, handler: SessionLifecycleHandler, /) -> HandlerUnsubcribe: ...
+    def on_lifecycle(self, handler: SessionLifecycleHandler, /) -> HandlerUnsubcribe:
+        pass
 
     @overload
     def on_lifecycle(
         self, event_type: SessionLifecycleEventType, /, handler: SessionLifecycleHandler
-    ) -> HandlerUnsubcribe: ...
+    ) -> HandlerUnsubcribe:
+        pass
 
     def on_lifecycle(
         self,
