@@ -1054,7 +1054,7 @@ type SessionShutdownData struct {
 	// Session-wide accumulated nano-AI units cost
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
-	TotalPremiumRequests float64 `json:"totalPremiumRequests"`
+	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
 }
 
 func (*SessionShutdownData) sessionEventData()      {}
@@ -1269,6 +1269,8 @@ type ToolExecutionCompleteData struct {
 	ParentToolCallID *string `json:"parentToolCallId,omitempty"`
 	// Tool execution result on success
 	Result *ToolExecutionCompleteResult `json:"result,omitempty"`
+	// Whether this tool execution ran inside a sandbox container
+	Sandboxed *bool `json:"sandboxed,omitempty"`
 	// Whether the tool execution completed successfully
 	Success bool `json:"success"`
 	// Unique identifier for the completed tool call
@@ -2235,9 +2237,9 @@ type ShutdownModelMetric struct {
 // Request count and cost metrics
 type ShutdownModelMetricRequests struct {
 	// Cumulative cost multiplier for requests to this model
-	Cost float64 `json:"cost"`
+	Cost *float64 `json:"cost,omitempty"`
 	// Total number of API requests made to this model
-	Count int64 `json:"count"`
+	Count *int64 `json:"count,omitempty"`
 }
 
 // Schema for the `ShutdownModelMetricTokenDetail` type.

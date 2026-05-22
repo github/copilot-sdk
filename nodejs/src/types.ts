@@ -298,13 +298,15 @@ export type ToolBinaryResult = {
     description?: string;
 };
 
+export type ToolTelemetry = Record<string, Record<string, unknown> | undefined>;
+
 export type ToolResultObject = {
     textResultForLlm: string;
     binaryResultsForLlm?: ToolBinaryResult[];
     resultType: ToolResultType;
     error?: string;
     sessionLog?: string;
-    toolTelemetry?: Record<string, unknown>;
+    toolTelemetry?: ToolTelemetry;
 };
 
 export type ToolResult = string | ToolResultObject;

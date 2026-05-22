@@ -1188,7 +1188,11 @@ export interface AgentInfo {
    * MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
    */
   mcpServers?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Skill names preloaded into this agent's context. Omitted means none.
@@ -2142,7 +2146,11 @@ export interface ExternalToolTextResultForLlm {
    * Optional tool-specific telemetry
    */
   toolTelemetry?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Base64-encoded binary results returned to the model
@@ -5328,6 +5336,30 @@ export interface ScheduleStopResult {
   entry?: ScheduleEntry;
 }
 /**
+ * Secret values to add to the redaction filter.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SecretsAddFilterValuesRequest".
+ */
+export interface SecretsAddFilterValuesRequest {
+  /**
+   * Raw secret values to register for redaction
+   */
+  values: string[];
+}
+/**
+ * Confirmation that the secret values were registered.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SecretsAddFilterValuesResult".
+ */
+export interface SecretsAddFilterValuesResult {
+  /**
+   * Whether the values were successfully registered
+   */
+  ok: true;
+}
+/**
  * File attachment
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -6073,7 +6105,11 @@ export interface SessionFsSqliteQueryResult {
    * For SELECT: array of row objects. For others: empty array.
    */
   rows: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   }[];
   /**
    * Column names from the result set
@@ -6943,7 +6979,9 @@ export interface SessionUpdateOptionsParams {
   /**
    * Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.
    */
-  additionalContentExclusionPolicies?: unknown[];
+  additionalContentExclusionPolicies?: {
+    [k: string]: unknown | undefined;
+  }[];
   /**
    * Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
    */
@@ -7776,7 +7814,11 @@ export interface Tool {
    * JSON Schema for the tool's input parameters
    */
   parameters?: {
-    [k: string]: unknown | undefined;
+    [k: string]:
+      | {
+          [k: string]: unknown | undefined;
+        }
+      | undefined;
   };
   /**
    * Optional instructions for how to use this tool effectively
@@ -8758,6 +8800,17 @@ export function createServerRpc(connection: MessageConnection) {
              */
             getQuota: async (params: AccountGetQuotaRequest): Promise<AccountGetQuotaResult> =>
                 connection.sendRequest("account.getQuota", params),
+        },
+        secrets: {
+            /**
+             * Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
+             *
+             * @param params Secret values to add to the redaction filter.
+             *
+             * @returns Confirmation that the secret values were registered.
+             */
+            addFilterValues: async (params: SecretsAddFilterValuesRequest): Promise<SecretsAddFilterValuesResult> =>
+                connection.sendRequest("secrets.addFilterValues", params),
         },
         mcp: {
             config: {

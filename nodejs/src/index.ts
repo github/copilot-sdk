@@ -117,6 +117,7 @@ export type {
     Tool,
     ToolHandler,
     ToolInvocation,
+    ToolTelemetry,
     ToolResultObject,
     TypedSessionEventHandler,
     TypedSessionLifecycleHandler,
