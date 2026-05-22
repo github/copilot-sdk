@@ -980,9 +980,10 @@ class SessionConfig(TypedDict, total=False):
     # session telemetry is always disabled regardless of this setting.
     # This is independent of the client OpenTelemetry configuration.
     enable_session_telemetry: bool
-    # Enable streaming of assistant message and reasoning chunks
+    # Enable streaming of assistant message and reasoning chunks.
     # When True, assistant.message_delta and assistant.reasoning_delta events
-    # with delta_content are sent as the response is generated
+    # with delta_content are sent as the response is generated.
+    # Defaults to False.
     streaming: bool
     # Include sub-agent streaming events in the event stream. When True, streaming
     # delta events from sub-agents (e.g., assistant.message_delta,
@@ -1071,7 +1072,7 @@ class ResumeSessionConfig(TypedDict, total=False):
     working_directory: str
     # Override the default configuration directory location.
     config_dir: str
-    # Enable streaming of assistant message chunks
+    # Enable streaming of assistant message chunks. Defaults to False.
     streaming: bool
     # Include sub-agent streaming events in the event stream. When True, streaming
     # delta events from sub-agents (e.g., assistant.message_delta,

@@ -12480,6 +12480,123 @@ class UserAuthInfo:
             result["copilotUser"] = from_union([lambda x: to_class(CopilotUserResponse, x), from_none], self.copilot_user)
         return result
 
+@dataclass
+class PermissionDecisionApproveForIonApproval:
+    """Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalCommands` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalRead` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalWrite` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMcp` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMcpSampling` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalMemory` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalCustomTool` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionManagement` type.
+
+    Schema for the `PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess`
+    type.
+
+    Approval to persist for this location
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalCommands` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalRead` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalWrite` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMcp` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMcpSampling` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalMemory` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalCustomTool` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionManagement` type.
+
+    Schema for the `PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess`
+    type.
+
+    The approval to add as a session-scoped rule
+
+    The approval to persist for this location
+    """
+    command_identifiers: list[str] | None = None
+    """Command identifiers covered by this approval."""
+
+    kind: ApprovalKind | None = None
+    """Approval scoped to specific command identifiers.
+
+    Approval covering read-only filesystem operations.
+
+    Approval covering filesystem write operations.
+
+    Approval covering an MCP tool.
+
+    Approval covering MCP sampling requests for a server.
+
+    Approval covering writes to long-term memory.
+
+    Approval covering a custom tool.
+
+    Approval covering extension lifecycle operations such as enable, disable, or reload.
+
+    Approval covering an extension's request to access a permission-gated capability.
+    """
+    server_name: str | None = None
+    """MCP server name."""
+
+    tool_name: str | None = None
+    """MCP tool name, or null to cover every tool on the server.
+
+    Custom tool name.
+    """
+    operation: str | None = None
+    """Optional operation identifier; when omitted, the approval covers all extension management
+    operations.
+    """
+    extension_name: str | None = None
+    """Extension name."""
+
+    external_ref_marker_external_ref_user_tool_session_approval: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
+        assert isinstance(obj, dict)
+        command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
+        kind = from_union([ApprovalKind, from_none], obj.get("kind"))
+        server_name = from_union([from_str, from_none], obj.get("serverName"))
+        tool_name = from_union([from_none, from_str], obj.get("toolName"))
+        operation = from_union([from_str, from_none], obj.get("operation"))
+        extension_name = from_union([from_str, from_none], obj.get("extensionName"))
+        external_ref_marker_external_ref_user_tool_session_approval = from_union([from_str, from_none], obj.get("__externalRefMarker___ExternalRef_UserToolSessionApproval"))
+        return PermissionDecisionApproveForIonApproval(command_identifiers, kind, server_name, tool_name, operation, extension_name, external_ref_marker_external_ref_user_tool_session_approval)
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.command_identifiers is not None:
+            result["commandIdentifiers"] = from_union([lambda x: from_list(from_str, x), from_none], self.command_identifiers)
+        if self.kind is not None:
+            result["kind"] = from_union([lambda x: to_enum(ApprovalKind, x), from_none], self.kind)
+        if self.server_name is not None:
+            result["serverName"] = from_union([from_str, from_none], self.server_name)
+        if self.tool_name is not None:
+            result["toolName"] = from_union([from_none, from_str], self.tool_name)
+        if self.operation is not None:
+            result["operation"] = from_union([from_str, from_none], self.operation)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_str, from_none], self.extension_name)
+        if self.external_ref_marker_external_ref_user_tool_session_approval is not None:
+            result["__externalRefMarker___ExternalRef_UserToolSessionApproval"] = from_union([from_str, from_none], self.external_ref_marker_external_ref_user_tool_session_approval)
+        return result
+
 # Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class HandlePendingToolCallRequest:
