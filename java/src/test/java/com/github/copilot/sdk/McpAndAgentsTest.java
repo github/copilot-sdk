@@ -158,11 +158,13 @@ public class McpAndAgentsTest {
     /**
      * Verifies that MCP server configuration is accepted without args.
      *
-     * @see Snapshot: mcp_and_agents/accept_mcp_server_config_without_args
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_create
      */
     @Test
     void testAcceptMcpServerConfigWithoutArgs() throws Exception {
-        ctx.configureForTest("mcp_and_agents", "accept_mcp_server_config_without_args");
+        // Reuse existing snapshot - this test validates that args can be omitted
+        ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
 
         var mcpServers = new HashMap<String, McpServerConfig>();
         // Create MCP server config without specifying args
