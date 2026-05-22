@@ -18,6 +18,7 @@ from .client import (
     RuntimeConnection,
     StdioRuntimeConnection,
     TcpRuntimeConnection,
+    TelemetryConfig,
     UriRuntimeConnection,
 )
 from .session import (
@@ -101,6 +102,7 @@ __all__ = [
     "SessionUiCapabilities",
     "StdioRuntimeConnection",
     "TcpRuntimeConnection",
+    "TelemetryConfig",
     "Tool",
     "ToolBinaryResult",
     "ToolInvocation",
