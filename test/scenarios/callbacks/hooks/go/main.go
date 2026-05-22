@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -22,9 +21,7 @@ func main() {
 		hookLogMu.Unlock()
 	}
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(&copilot.ClientOptions{})
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

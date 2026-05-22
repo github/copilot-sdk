@@ -63,8 +63,8 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 }

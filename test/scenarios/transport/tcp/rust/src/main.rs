@@ -22,7 +22,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         port,
         connection_token: None,
     };
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
     let client = Client::start(opts).await?;
 
     let mut config = SessionConfig::default();

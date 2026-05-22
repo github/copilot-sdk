@@ -11,9 +11,7 @@ import (
 )
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(&copilot.ClientOptions{})
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
@@ -63,10 +61,10 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 
 	if len(mcpServers) > 0 {
 		keys := make([]string, 0, len(mcpServers))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -12,9 +11,7 @@ import (
 const piratePrompt = `You are a pirate. Always respond in pirate speak. Say 'Arrr!' in every response. Use nautical terms and pirate slang throughout.`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(&copilot.ClientOptions{})
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
@@ -43,8 +40,8 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	}
 }

@@ -40,7 +40,6 @@ const listFiles = defineTool("list_files", {
 async function main() {
   const client = new CopilotClient({
     connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-    gitHubToken: process.env.GITHUB_TOKEN,
   });
 
   try {

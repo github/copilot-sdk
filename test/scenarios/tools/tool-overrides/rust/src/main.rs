@@ -19,9 +19,7 @@ struct GrepParams {
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let mut grep_tool = define_tool(
         "grep",

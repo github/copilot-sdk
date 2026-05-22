@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(&copilot.ClientOptions{})
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
@@ -36,10 +33,10 @@ func main() {
 	}
 
 	if response != nil {
-if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
-fmt.Printf("Response: %s\n", d.Content)
-}
-}
+		if d, ok := response.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Printf("Response: %s\n", d.Content)
+		}
+	}
 
 	fmt.Println("Default mode test complete")
 }

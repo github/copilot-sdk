@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from copilot import CopilotClient
 
@@ -7,9 +6,7 @@ PIRATE_PROMPT = """You are a pirate. Always respond in pirate speak. Say 'Arrr!'
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

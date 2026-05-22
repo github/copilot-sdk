@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from copilot import CopilotClient
 
@@ -8,9 +7,7 @@ ROBOT_PROMPT = "You are a robot. Always say BEEP BOOP!"
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session1, session2 = await asyncio.gather(

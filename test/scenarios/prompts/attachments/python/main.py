@@ -7,9 +7,7 @@ SYSTEM_PROMPT = """You are a helpful assistant. Answer questions about attached 
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

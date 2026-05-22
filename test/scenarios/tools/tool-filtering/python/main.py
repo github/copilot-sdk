@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from copilot import CopilotClient
 
@@ -7,9 +6,7 @@ SYSTEM_PROMPT = """You are a helpful assistant. You have access to a limited set
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(
