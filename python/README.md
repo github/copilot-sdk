@@ -113,7 +113,7 @@ asyncio.run(main())
 ### CopilotClient
 
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
 from copilot.session import PermissionHandler
 
 async with CopilotClient() as client:
@@ -133,40 +133,44 @@ async with CopilotClient() as client:
 > **Note:** For manual lifecycle management, see [Manual Resource Management](#manual-resource-management) above.
 
 ```python
-from copilot import CopilotClient, ExternalServerConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 
 # Connect to an existing CLI server
-client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
+client = CopilotClient(
+    CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000"))
+)
 ```
 
 **CopilotClient Constructor:**
 
 ```python
 CopilotClient(
-    config=None,        # SubprocessConfig | ExternalServerConfig | None
+    options=None,        # CopilotClientOptions | None
     *,
-    auto_start=True,    # auto-start server on first use
+    auto_start=True,     # auto-start server on first use
     on_list_models=None, # custom handler for list_models()
 )
 ```
 
-**SubprocessConfig** — spawn a local CLI process:
+**CopilotClientOptions** — configure the client:
 
-- `cli_path` (str | None): Path to CLI executable (default: `COPILOT_CLI_PATH` env var, or bundled binary)
-- `cli_args` (list[str]): Extra arguments for the CLI executable
-- `cwd` (str | None): Working directory for CLI process (default: current dir)
-- `use_stdio` (bool): Use stdio transport instead of TCP (default: True)
-- `port` (int): Server port for TCP mode (default: 0 for random)
-- `log_level` (str): Log level (default: "info")
-- `env` (dict | None): Environment variables for the CLI process
+- `connection` (RuntimeConnection | None): How to reach the runtime. Use
+  `RuntimeConnection.stdio(...)`, `RuntimeConnection.tcp(...)`, or
+  `RuntimeConnection.uri(...)`. Defaults to a stdio connection with the bundled binary.
+- `working_directory` (str | None): Working directory for the CLI process (default: current dir).
+- `log_level` (str): Log level (default: "info").
+- `env` (dict | None): Environment variables for the CLI process.
 - `github_token` (str | None): GitHub token for authentication. When provided, takes priority over other auth methods.
-- `copilot_home` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `ExternalServerConfig`.
+- `base_directory` (str | None): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When `None`, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using a `UriRuntimeConnection`.
 - `use_logged_in_user` (bool | None): Whether to use logged-in user for authentication (default: True, but False when `github_token` is provided).
 - `telemetry` (dict | None): OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `enable_remote_sessions` (bool): Enable remote/cloud session support (default: False).
 
-**ExternalServerConfig** — connect to an existing CLI server:
+**RuntimeConnection variants:**
 
-- `url` (str): Server URL (e.g., `"localhost:8080"`, `"http://127.0.0.1:9000"`, or just `"8080"`).
+- `RuntimeConnection.stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
+- `RuntimeConnection.tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
+- `RuntimeConnection.uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
 
 **`CopilotClient.create_session()`:**
 
@@ -197,10 +201,10 @@ await client.set_foreground_session_id("session-123")
 def on_lifecycle(event):
     print(f"{event.type}: {event.sessionId}")
 
-unsubscribe = client.on(on_lifecycle)
+unsubscribe = client.on_lifecycle(on_lifecycle)
 
 # Subscribe to specific event type
-unsubscribe = client.on("session.foreground", lambda e: print(f"Foreground: {e.sessionId}"))
+unsubscribe = client.on_lifecycle("session.foreground", lambda e: print(f"Foreground: {e.sessionId}"))
 
 # Later, to stop receiving events:
 unsubscribe()
@@ -531,9 +535,9 @@ async with await client.create_session(
 The SDK supports OpenTelemetry for distributed tracing. Provide a `telemetry` config to enable trace export and automatic W3C Trace Context propagation.
 
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(
+client = CopilotClient(CopilotClientOptions(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },

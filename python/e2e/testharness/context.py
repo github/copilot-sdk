@@ -12,8 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 
 from .proxy import CapiProxy
 
@@ -80,9 +79,11 @@ class E2ETestContext:
 
         # Create the shared client (like Node.js/Go do)
         self._client = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
-                cli_args=cli_args or [],
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(
+                    path=self.cli_path,
+                    args=tuple(cli_args or []),
+                ),
                 working_directory=self.work_dir,
                 env=self.get_env(),
                 github_token=DEFAULT_GITHUB_TOKEN,
@@ -148,7 +149,7 @@ class E2ETestContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "COPILOT_HOME": self.home_dir,
+                "base_directory": self.home_dir,
                 "COPILOT_SDK_AUTH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GH_CONFIG_DIR": self.home_dir,
                 "GH_TOKEN": DEFAULT_GITHUB_TOKEN,

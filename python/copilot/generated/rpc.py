@@ -4,9 +4,23 @@ Generated from: api.schema.json
 """
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
-from .session_events import AbortReason, EmbeddedBlobResourceContents, EmbeddedTextResourceContents, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule, ReasoningSummary, SessionEvent, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval
+from .session_events import (
+    AbortReason,
+    EmbeddedBlobResourceContents,
+    EmbeddedTextResourceContents,
+    McpServerSource,
+    McpServerStatus,
+    PermissionPromptRequest,
+    PermissionRule,
+    ReasoningSummary,
+    SessionEvent,
+    SessionMode,
+    ShutdownType,
+    SkillSource,
+    UserToolSessionApproval,
+)
 
 if TYPE_CHECKING:
     from .._jsonrpc import JsonRpcClient
@@ -84,7 +98,7 @@ class AbortRequest:
     """Finite reason code describing why the current turn was aborted"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AbortRequest':
+    def from_dict(obj: Any) -> AbortRequest:
         assert isinstance(obj, dict)
         reason = from_union([AbortReason, from_none], obj.get("reason"))
         return AbortRequest(reason)
@@ -107,7 +121,7 @@ class AbortResult:
     """Error message if the abort failed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AbortResult':
+    def from_dict(obj: Any) -> AbortResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         error = from_union([from_str, from_none], obj.get("error"))
@@ -128,7 +142,7 @@ class AccountGetQuotaRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AccountGetQuotaRequest':
+    def from_dict(obj: Any) -> AccountGetQuotaRequest:
         assert isinstance(obj, dict)
         git_hub_token = from_union([from_str, from_none], obj.get("gitHubToken"))
         return AccountGetQuotaRequest(git_hub_token)
@@ -168,7 +182,7 @@ class AccountQuotaSnapshot:
     """Date when the quota resets (ISO 8601 string)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AccountQuotaSnapshot':
+    def from_dict(obj: Any) -> AccountQuotaSnapshot:
         assert isinstance(obj, dict)
         entitlement_requests = from_int(obj.get("entitlementRequests"))
         is_unlimited_entitlement = from_bool(obj.get("isUnlimitedEntitlement"))
@@ -213,7 +227,7 @@ class AgentSelectRequest:
     """Name of the custom agent to select"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentSelectRequest':
+    def from_dict(obj: Any) -> AgentSelectRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         return AgentSelectRequest(name)
@@ -234,7 +248,7 @@ class CopilotUserResponseEndpoints:
     telemetry: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotUserResponseEndpoints':
+    def from_dict(obj: Any) -> CopilotUserResponseEndpoints:
         assert isinstance(obj, dict)
         api = from_union([from_str, from_none], obj.get("api"))
         origin_tracker = from_union([from_str, from_none], obj.get("origin-tracker"))
@@ -296,7 +310,7 @@ class CommandsHandlePendingCommandRequest:
     """Error message if the command handler failed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsHandlePendingCommandRequest':
+    def from_dict(obj: Any) -> CommandsHandlePendingCommandRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         error = from_union([from_str, from_none], obj.get("error"))
@@ -318,7 +332,7 @@ class CommandsHandlePendingCommandResult:
     """Whether the command was handled successfully"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsHandlePendingCommandResult':
+    def from_dict(obj: Any) -> CommandsHandlePendingCommandResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return CommandsHandlePendingCommandResult(success)
@@ -340,7 +354,7 @@ class CommandsInvokeRequest:
     """Raw input after the command name"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsInvokeRequest':
+    def from_dict(obj: Any) -> CommandsInvokeRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         input = from_union([from_str, from_none], obj.get("input"))
@@ -368,7 +382,7 @@ class CommandsListRequest:
     """Include enabled user-invocable skills and commands"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsListRequest':
+    def from_dict(obj: Any) -> CommandsListRequest:
         assert isinstance(obj, dict)
         include_builtins = from_union([from_bool, from_none], obj.get("includeBuiltins"))
         include_client_commands = from_union([from_bool, from_none], obj.get("includeClientCommands"))
@@ -398,7 +412,7 @@ class CommandsRespondToQueuedCommandRequest:
     """Result of the queued command execution."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsRespondToQueuedCommandRequest':
+    def from_dict(obj: Any) -> CommandsRespondToQueuedCommandRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = _load_QueuedCommandResult(obj.get("result"))
@@ -421,7 +435,7 @@ class CommandsRespondToQueuedCommandResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandsRespondToQueuedCommandResult':
+    def from_dict(obj: Any) -> CommandsRespondToQueuedCommandResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return CommandsRespondToQueuedCommandResult(success)
@@ -440,7 +454,7 @@ class ConnectRemoteSessionParams:
     """Session ID to connect to."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectRemoteSessionParams':
+    def from_dict(obj: Any) -> ConnectRemoteSessionParams:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return ConnectRemoteSessionParams(session_id)
@@ -459,7 +473,7 @@ class ConnectRequest:
     """Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectRequest':
+    def from_dict(obj: Any) -> ConnectRequest:
         assert isinstance(obj, dict)
         token = from_union([from_str, from_none], obj.get("token"))
         return ConnectRequest(token)
@@ -485,7 +499,7 @@ class ConnectResult:
     """Server package version"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectResult':
+    def from_dict(obj: Any) -> ConnectResult:
         assert isinstance(obj, dict)
         ok = from_bool(obj.get("ok"))
         protocol_version = from_int(obj.get("protocolVersion"))
@@ -521,7 +535,7 @@ class ConnectedRemoteSessionMetadataRepository:
     """Repository owner or organization login."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadataRepository':
+    def from_dict(obj: Any) -> ConnectedRemoteSessionMetadataRepository:
         assert isinstance(obj, dict)
         branch = from_str(obj.get("branch"))
         name = from_str(obj.get("name"))
@@ -569,7 +583,7 @@ class CopilotUserResponseQuotaSnapshotsChat:
     unlimited: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotUserResponseQuotaSnapshotsChat':
+    def from_dict(obj: Any) -> CopilotUserResponseQuotaSnapshotsChat:
         assert isinstance(obj, dict)
         entitlement = from_union([from_float, from_none], obj.get("entitlement"))
         has_quota = from_union([from_bool, from_none], obj.get("has_quota"))
@@ -632,7 +646,7 @@ class CopilotUserResponseQuotaSnapshotsCompletions:
     unlimited: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotUserResponseQuotaSnapshotsCompletions':
+    def from_dict(obj: Any) -> CopilotUserResponseQuotaSnapshotsCompletions:
         assert isinstance(obj, dict)
         entitlement = from_union([from_float, from_none], obj.get("entitlement"))
         has_quota = from_union([from_bool, from_none], obj.get("has_quota"))
@@ -695,7 +709,7 @@ class CopilotUserResponseQuotaSnapshotsPremiumInteractions:
     unlimited: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotUserResponseQuotaSnapshotsPremiumInteractions':
+    def from_dict(obj: Any) -> CopilotUserResponseQuotaSnapshotsPremiumInteractions:
         assert isinstance(obj, dict)
         entitlement = from_union([from_float, from_none], obj.get("entitlement"))
         has_quota = from_union([from_bool, from_none], obj.get("has_quota"))
@@ -754,7 +768,7 @@ class CurrentModel:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CurrentModel':
+    def from_dict(obj: Any) -> CurrentModel:
         assert isinstance(obj, dict)
         model_id = from_union([from_str, from_none], obj.get("modelId"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
@@ -787,7 +801,7 @@ class EnqueueCommandParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EnqueueCommandParams':
+    def from_dict(obj: Any) -> EnqueueCommandParams:
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
         return EnqueueCommandParams(command)
@@ -808,7 +822,7 @@ class EnqueueCommandResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EnqueueCommandResult':
+    def from_dict(obj: Any) -> EnqueueCommandResult:
         assert isinstance(obj, dict)
         queued = from_bool(obj.get("queued"))
         return EnqueueCommandResult(queued)
@@ -844,7 +858,7 @@ class EventLogReleaseInterestResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EventLogReleaseInterestResult':
+    def from_dict(obj: Any) -> EventLogReleaseInterestResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return EventLogReleaseInterestResult(success)
@@ -870,7 +884,7 @@ class EventLogTailResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EventLogTailResult':
+    def from_dict(obj: Any) -> EventLogTailResult:
         assert isinstance(obj, dict)
         cursor = from_str(obj.get("cursor"))
         return EventLogTailResult(cursor)
@@ -901,7 +915,7 @@ class ExecuteCommandParams:
     """Name of the slash command to invoke (without the leading '/')."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExecuteCommandParams':
+    def from_dict(obj: Any) -> ExecuteCommandParams:
         assert isinstance(obj, dict)
         args = from_str(obj.get("args"))
         command_name = from_str(obj.get("commandName"))
@@ -924,7 +938,7 @@ class ExecuteCommandResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExecuteCommandResult':
+    def from_dict(obj: Any) -> ExecuteCommandResult:
         assert isinstance(obj, dict)
         error = from_union([from_str, from_none], obj.get("error"))
         return ExecuteCommandResult(error)
@@ -960,7 +974,7 @@ class ExtensionsDisableRequest:
     """Source-qualified extension ID to disable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExtensionsDisableRequest':
+    def from_dict(obj: Any) -> ExtensionsDisableRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         return ExtensionsDisableRequest(id)
@@ -979,7 +993,7 @@ class ExtensionsEnableRequest:
     """Source-qualified extension ID to enable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExtensionsEnableRequest':
+    def from_dict(obj: Any) -> ExtensionsEnableRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         return ExtensionsEnableRequest(id)
@@ -1039,7 +1053,7 @@ class FleetStartRequest:
     """Optional user prompt to combine with fleet instructions"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'FleetStartRequest':
+    def from_dict(obj: Any) -> FleetStartRequest:
         assert isinstance(obj, dict)
         prompt = from_union([from_str, from_none], obj.get("prompt"))
         return FleetStartRequest(prompt)
@@ -1059,7 +1073,7 @@ class FleetStartResult:
     """Whether fleet mode was successfully activated"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'FleetStartResult':
+    def from_dict(obj: Any) -> FleetStartResult:
         assert isinstance(obj, dict)
         started = from_bool(obj.get("started"))
         return FleetStartResult(started)
@@ -1078,7 +1092,7 @@ class FolderTrustAddParams:
     """Folder path to mark as trusted"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'FolderTrustAddParams':
+    def from_dict(obj: Any) -> FolderTrustAddParams:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return FolderTrustAddParams(path)
@@ -1097,7 +1111,7 @@ class FolderTrustCheckParams:
     """Folder path to check"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'FolderTrustCheckParams':
+    def from_dict(obj: Any) -> FolderTrustCheckParams:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return FolderTrustCheckParams(path)
@@ -1116,7 +1130,7 @@ class FolderTrustCheckResult:
     """Whether the folder is trusted"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'FolderTrustCheckResult':
+    def from_dict(obj: Any) -> FolderTrustCheckResult:
         assert isinstance(obj, dict)
         trusted = from_bool(obj.get("trusted"))
         return FolderTrustCheckResult(trusted)
@@ -1138,7 +1152,7 @@ class HandlePendingToolCallResult:
     """Whether the tool call result was handled successfully"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HandlePendingToolCallResult':
+    def from_dict(obj: Any) -> HandlePendingToolCallResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return HandlePendingToolCallResult(success)
@@ -1159,7 +1173,7 @@ class HistoryAbortManualCompactionResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryAbortManualCompactionResult':
+    def from_dict(obj: Any) -> HistoryAbortManualCompactionResult:
         assert isinstance(obj, dict)
         aborted = from_bool(obj.get("aborted"))
         return HistoryAbortManualCompactionResult(aborted)
@@ -1180,7 +1194,7 @@ class HistoryCancelBackgroundCompactionResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryCancelBackgroundCompactionResult':
+    def from_dict(obj: Any) -> HistoryCancelBackgroundCompactionResult:
         assert isinstance(obj, dict)
         cancelled = from_bool(obj.get("cancelled"))
         return HistoryCancelBackgroundCompactionResult(cancelled)
@@ -1214,7 +1228,7 @@ class HistoryCompactContextWindow:
     """Token count from tool definitions"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryCompactContextWindow':
+    def from_dict(obj: Any) -> HistoryCompactContextWindow:
         assert isinstance(obj, dict)
         current_tokens = from_int(obj.get("currentTokens"))
         messages_length = from_int(obj.get("messagesLength"))
@@ -1246,7 +1260,7 @@ class HistoryCompactRequest:
     """Optional user-provided instructions to focus the compaction summary"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryCompactRequest':
+    def from_dict(obj: Any) -> HistoryCompactRequest:
         assert isinstance(obj, dict)
         custom_instructions = from_union([from_str, from_none], obj.get("customInstructions"))
         return HistoryCompactRequest(custom_instructions)
@@ -1268,7 +1282,7 @@ class HistorySummarizeForHandoffResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistorySummarizeForHandoffResult':
+    def from_dict(obj: Any) -> HistorySummarizeForHandoffResult:
         assert isinstance(obj, dict)
         summary = from_str(obj.get("summary"))
         return HistorySummarizeForHandoffResult(summary)
@@ -1287,7 +1301,7 @@ class HistoryTruncateRequest:
     """Event ID to truncate to. This event and all events after it are removed from the session."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryTruncateRequest':
+    def from_dict(obj: Any) -> HistoryTruncateRequest:
         assert isinstance(obj, dict)
         event_id = from_str(obj.get("eventId"))
         return HistoryTruncateRequest(event_id)
@@ -1306,7 +1320,7 @@ class HistoryTruncateResult:
     """Number of events that were removed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryTruncateResult':
+    def from_dict(obj: Any) -> HistoryTruncateResult:
         assert isinstance(obj, dict)
         events_removed = from_int(obj.get("eventsRemoved"))
         return HistoryTruncateResult(events_removed)
@@ -1372,7 +1386,7 @@ class LogResult:
     """The unique identifier of the emitted session event"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'LogResult':
+    def from_dict(obj: Any) -> LogResult:
         assert isinstance(obj, dict)
         event_id = UUID(obj.get("eventId"))
         return LogResult(event_id)
@@ -1401,7 +1415,7 @@ class LspInitializeRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'LspInitializeRequest':
+    def from_dict(obj: Any) -> LspInitializeRequest:
         assert isinstance(obj, dict)
         force = from_union([from_bool, from_none], obj.get("force"))
         git_root = from_union([from_str, from_none], obj.get("gitRoot"))
@@ -1427,7 +1441,7 @@ class MCPCancelSamplingExecutionParams:
     """The requestId previously passed to executeSampling that should be cancelled"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPCancelSamplingExecutionParams':
+    def from_dict(obj: Any) -> MCPCancelSamplingExecutionParams:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         return MCPCancelSamplingExecutionParams(request_id)
@@ -1450,7 +1464,7 @@ class MCPCancelSamplingExecutionResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPCancelSamplingExecutionResult':
+    def from_dict(obj: Any) -> MCPCancelSamplingExecutionResult:
         assert isinstance(obj, dict)
         cancelled = from_bool(obj.get("cancelled"))
         return MCPCancelSamplingExecutionResult(cancelled)
@@ -1468,7 +1482,7 @@ class MCPServerConfigHTTPAuth:
     """Fixed port for the OAuth redirect callback server."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfigHTTPAuth':
+    def from_dict(obj: Any) -> MCPServerConfigHTTPAuth:
         assert isinstance(obj, dict)
         redirect_port = from_union([from_int, from_none], obj.get("redirectPort"))
         return MCPServerConfigHTTPAuth(redirect_port)
@@ -1502,7 +1516,7 @@ class MCPConfigDisableRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigDisableRequest':
+    def from_dict(obj: Any) -> MCPConfigDisableRequest:
         assert isinstance(obj, dict)
         names = from_list(from_str, obj.get("names"))
         return MCPConfigDisableRequest(names)
@@ -1522,7 +1536,7 @@ class MCPConfigEnableRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigEnableRequest':
+    def from_dict(obj: Any) -> MCPConfigEnableRequest:
         assert isinstance(obj, dict)
         names = from_list(from_str, obj.get("names"))
         return MCPConfigEnableRequest(names)
@@ -1540,7 +1554,7 @@ class MCPConfigRemoveRequest:
     """Name of the MCP server to remove"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigRemoveRequest':
+    def from_dict(obj: Any) -> MCPConfigRemoveRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         return MCPConfigRemoveRequest(name)
@@ -1559,7 +1573,7 @@ class MCPDisableRequest:
     """Name of the MCP server to disable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPDisableRequest':
+    def from_dict(obj: Any) -> MCPDisableRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         return MCPDisableRequest(server_name)
@@ -1577,7 +1591,7 @@ class MCPDiscoverRequest:
     """Working directory used as context for discovery (e.g., plugin resolution)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPDiscoverRequest':
+    def from_dict(obj: Any) -> MCPDiscoverRequest:
         assert isinstance(obj, dict)
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
         return MCPDiscoverRequest(working_directory)
@@ -1597,7 +1611,7 @@ class MCPEnableRequest:
     """Name of the MCP server to enable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPEnableRequest':
+    def from_dict(obj: Any) -> MCPEnableRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         return MCPEnableRequest(server_name)
@@ -1635,7 +1649,7 @@ class MCPOauthLoginRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPOauthLoginRequest':
+    def from_dict(obj: Any) -> MCPOauthLoginRequest:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         callback_success_message = from_union([from_str, from_none], obj.get("callbackSuccessMessage"))
@@ -1669,7 +1683,7 @@ class MCPOauthLoginResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPOauthLoginResult':
+    def from_dict(obj: Any) -> MCPOauthLoginResult:
         assert isinstance(obj, dict)
         authorization_url = from_union([from_str, from_none], obj.get("authorizationUrl"))
         return MCPOauthLoginResult(authorization_url)
@@ -1693,7 +1707,7 @@ class MCPRemoveGitHubResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPRemoveGitHubResult':
+    def from_dict(obj: Any) -> MCPRemoveGitHubResult:
         assert isinstance(obj, dict)
         removed = from_bool(obj.get("removed"))
         return MCPRemoveGitHubResult(removed)
@@ -1731,7 +1745,7 @@ class MCPServer:
     """Configuration source: user, workspace, plugin, or builtin"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServer':
+    def from_dict(obj: Any) -> MCPServer:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         status = McpServerStatus(obj.get("status"))
@@ -1800,7 +1814,7 @@ class SessionContextInfo:
     """Sum of system, conversation and tool-definition tokens"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionContextInfo':
+    def from_dict(obj: Any) -> SessionContextInfo:
         assert isinstance(obj, dict)
         buffer_tokens = from_int(obj.get("bufferTokens"))
         compaction_threshold = from_int(obj.get("compactionThreshold"))
@@ -1839,7 +1853,7 @@ class MetadataIsProcessingResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataIsProcessingResult':
+    def from_dict(obj: Any) -> MetadataIsProcessingResult:
         assert isinstance(obj, dict)
         processing = from_bool(obj.get("processing"))
         return MetadataIsProcessingResult(processing)
@@ -1869,7 +1883,7 @@ class MetadataRecomputeContextTokensResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataRecomputeContextTokensResult':
+    def from_dict(obj: Any) -> MetadataRecomputeContextTokensResult:
         assert isinstance(obj, dict)
         messages_token_count = from_int(obj.get("messagesTokenCount"))
         system_token_count = from_int(obj.get("systemTokenCount"))
@@ -1905,7 +1919,7 @@ class MetadataRecordContextChangeResult:
     session's normal lifecycle (e.g., after a shell command in interactive mode).
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataRecordContextChangeResult':
+    def from_dict(obj: Any) -> MetadataRecordContextChangeResult:
         assert isinstance(obj, dict)
         return MetadataRecordContextChangeResult()
 
@@ -1925,7 +1939,7 @@ class MetadataSetWorkingDirectoryRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataSetWorkingDirectoryRequest':
+    def from_dict(obj: Any) -> MetadataSetWorkingDirectoryRequest:
         assert isinstance(obj, dict)
         working_directory = from_str(obj.get("workingDirectory"))
         return MetadataSetWorkingDirectoryRequest(working_directory)
@@ -1947,7 +1961,7 @@ class MetadataSetWorkingDirectoryResult:
     """Working directory after the update"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataSetWorkingDirectoryResult':
+    def from_dict(obj: Any) -> MetadataSetWorkingDirectoryResult:
         assert isinstance(obj, dict)
         working_directory = from_str(obj.get("workingDirectory"))
         return MetadataSetWorkingDirectoryResult(working_directory)
@@ -1980,7 +1994,7 @@ class MetadataSnapshotRemoteMetadataRepository:
     """The GitHub owner (user or organization) of the target repository."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataSnapshotRemoteMetadataRepository':
+    def from_dict(obj: Any) -> MetadataSnapshotRemoteMetadataRepository:
         assert isinstance(obj, dict)
         branch = from_str(obj.get("branch"))
         name = from_str(obj.get("name"))
@@ -2011,7 +2025,7 @@ class ModeSetRequest:
     """The session mode the agent is operating in"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModeSetRequest':
+    def from_dict(obj: Any) -> ModeSetRequest:
         assert isinstance(obj, dict)
         mode = SessionMode(obj.get("mode"))
         return ModeSetRequest(mode)
@@ -2042,7 +2056,7 @@ class ModelBillingTokenPrices:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelBillingTokenPrices':
+    def from_dict(obj: Any) -> ModelBillingTokenPrices:
         assert isinstance(obj, dict)
         batch_size = from_union([from_int, from_none], obj.get("batchSize"))
         cache_price = from_union([from_int, from_none], obj.get("cachePrice"))
@@ -2076,7 +2090,7 @@ class ModelCapabilitiesLimitsVision:
     """MIME types the model accepts"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesLimitsVision':
+    def from_dict(obj: Any) -> ModelCapabilitiesLimitsVision:
         assert isinstance(obj, dict)
         max_prompt_image_size = from_int(obj.get("max_prompt_image_size"))
         max_prompt_images = from_int(obj.get("max_prompt_images"))
@@ -2101,7 +2115,7 @@ class ModelCapabilitiesSupports:
     """Whether this model supports vision/image input"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesSupports':
+    def from_dict(obj: Any) -> ModelCapabilitiesSupports:
         assert isinstance(obj, dict)
         reasoning_effort = from_union([from_bool, from_none], obj.get("reasoningEffort"))
         vision = from_union([from_bool, from_none], obj.get("vision"))
@@ -2145,7 +2159,7 @@ class ModelCapabilitiesOverrideLimitsVision:
     """MIME types the model accepts"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideLimitsVision':
+    def from_dict(obj: Any) -> ModelCapabilitiesOverrideLimitsVision:
         assert isinstance(obj, dict)
         max_prompt_image_size = from_union([from_int, from_none], obj.get("max_prompt_image_size"))
         max_prompt_images = from_union([from_int, from_none], obj.get("max_prompt_images"))
@@ -2174,7 +2188,7 @@ class ModelCapabilitiesOverrideSupports:
     """Whether this model supports vision/image input"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideSupports':
+    def from_dict(obj: Any) -> ModelCapabilitiesOverrideSupports:
         assert isinstance(obj, dict)
         reasoning_effort = from_union([from_bool, from_none], obj.get("reasoningEffort"))
         vision = from_union([from_bool, from_none], obj.get("vision"))
@@ -2199,7 +2213,7 @@ class ModelSetReasoningEffortRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelSetReasoningEffortRequest':
+    def from_dict(obj: Any) -> ModelSetReasoningEffortRequest:
         assert isinstance(obj, dict)
         reasoning_effort = from_str(obj.get("reasoningEffort"))
         return ModelSetReasoningEffortRequest(reasoning_effort)
@@ -2220,7 +2234,7 @@ class ModelSetReasoningEffortResult:
     """Reasoning effort level recorded on the session after the update"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelSetReasoningEffortResult':
+    def from_dict(obj: Any) -> ModelSetReasoningEffortResult:
         assert isinstance(obj, dict)
         reasoning_effort = from_str(obj.get("reasoningEffort"))
         return ModelSetReasoningEffortResult(reasoning_effort)
@@ -2239,7 +2253,7 @@ class ModelSwitchToResult:
     """Currently active model identifier after the switch"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelSwitchToResult':
+    def from_dict(obj: Any) -> ModelSwitchToResult:
         assert isinstance(obj, dict)
         model_id = from_union([from_str, from_none], obj.get("modelId"))
         return ModelSwitchToResult(model_id)
@@ -2258,7 +2272,7 @@ class ModelsListRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelsListRequest':
+    def from_dict(obj: Any) -> ModelsListRequest:
         assert isinstance(obj, dict)
         git_hub_token = from_union([from_str, from_none], obj.get("gitHubToken"))
         return ModelsListRequest(git_hub_token)
@@ -2278,7 +2292,7 @@ class NameGetResult:
     """The session name (user-set or auto-generated), or null if not yet set"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'NameGetResult':
+    def from_dict(obj: Any) -> NameGetResult:
         assert isinstance(obj, dict)
         name = from_union([from_none, from_str], obj.get("name"))
         return NameGetResult(name)
@@ -2300,7 +2314,7 @@ class NameSetAutoRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'NameSetAutoRequest':
+    def from_dict(obj: Any) -> NameSetAutoRequest:
         assert isinstance(obj, dict)
         summary = from_str(obj.get("summary"))
         return NameSetAutoRequest(summary)
@@ -2321,7 +2335,7 @@ class NameSetAutoResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'NameSetAutoResult':
+    def from_dict(obj: Any) -> NameSetAutoResult:
         assert isinstance(obj, dict)
         applied = from_bool(obj.get("applied"))
         return NameSetAutoResult(applied)
@@ -2340,7 +2354,7 @@ class NameSetRequest:
     """New session name (1–100 characters, trimmed of leading/trailing whitespace)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'NameSetRequest':
+    def from_dict(obj: Any) -> NameSetRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         return NameSetRequest(name)
@@ -2363,7 +2377,7 @@ class PendingPermissionRequest:
     """Unique identifier for the pending permission request"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PendingPermissionRequest':
+    def from_dict(obj: Any) -> PendingPermissionRequest:
         assert isinstance(obj, dict)
         request = PermissionPromptRequest.from_dict(obj.get("request"))
         request_id = from_str(obj.get("requestId"))
@@ -2484,7 +2498,7 @@ class PermissionDecisionRequest:
     """The client's response to the pending permission prompt"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionRequest':
+    def from_dict(obj: Any) -> PermissionDecisionRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = _load_PermissionDecision(obj.get("result"))
@@ -2508,7 +2522,7 @@ class PermissionLocationApplyParams:
     """Working directory whose persisted location permissions should be applied"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionLocationApplyParams':
+    def from_dict(obj: Any) -> PermissionLocationApplyParams:
         assert isinstance(obj, dict)
         working_directory = from_str(obj.get("workingDirectory"))
         return PermissionLocationApplyParams(working_directory)
@@ -2534,7 +2548,7 @@ class PermissionLocationResolveParams:
     """Working directory whose permission location should be resolved"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionLocationResolveParams':
+    def from_dict(obj: Any) -> PermissionLocationResolveParams:
         assert isinstance(obj, dict)
         working_directory = from_str(obj.get("workingDirectory"))
         return PermissionLocationResolveParams(working_directory)
@@ -2555,7 +2569,7 @@ class PermissionPathsAddParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsAddParams':
+    def from_dict(obj: Any) -> PermissionPathsAddParams:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return PermissionPathsAddParams(path)
@@ -2574,7 +2588,7 @@ class PermissionPathsAllowedCheckParams:
     """Path to check against the session's allowed directories"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsAllowedCheckParams':
+    def from_dict(obj: Any) -> PermissionPathsAllowedCheckParams:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return PermissionPathsAllowedCheckParams(path)
@@ -2593,7 +2607,7 @@ class PermissionPathsAllowedCheckResult:
     """Whether the path is within the session's allowed directories"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsAllowedCheckResult':
+    def from_dict(obj: Any) -> PermissionPathsAllowedCheckResult:
         assert isinstance(obj, dict)
         allowed = from_bool(obj.get("allowed"))
         return PermissionPathsAllowedCheckResult(allowed)
@@ -2615,7 +2629,7 @@ class PermissionPathsList:
     """The primary working directory for this session."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsList':
+    def from_dict(obj: Any) -> PermissionPathsList:
         assert isinstance(obj, dict)
         directories = from_list(from_str, obj.get("directories"))
         primary = from_str(obj.get("primary"))
@@ -2636,7 +2650,7 @@ class PermissionPathsUpdatePrimaryParams:
     """Directory to set as the new primary working directory for the session's permission policy."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsUpdatePrimaryParams':
+    def from_dict(obj: Any) -> PermissionPathsUpdatePrimaryParams:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return PermissionPathsUpdatePrimaryParams(path)
@@ -2655,7 +2669,7 @@ class PermissionPathsWorkspaceCheckParams:
     """Path to check against the session workspace directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsWorkspaceCheckParams':
+    def from_dict(obj: Any) -> PermissionPathsWorkspaceCheckParams:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return PermissionPathsWorkspaceCheckParams(path)
@@ -2674,7 +2688,7 @@ class PermissionPathsWorkspaceCheckResult:
     """Whether the path is within the session workspace directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsWorkspaceCheckResult':
+    def from_dict(obj: Any) -> PermissionPathsWorkspaceCheckResult:
         assert isinstance(obj, dict)
         allowed = from_bool(obj.get("allowed"))
         return PermissionPathsWorkspaceCheckResult(allowed)
@@ -2696,7 +2710,7 @@ class PermissionPromptShownNotification:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPromptShownNotification':
+    def from_dict(obj: Any) -> PermissionPromptShownNotification:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         return PermissionPromptShownNotification(message)
@@ -2716,7 +2730,7 @@ class PermissionRequestResult:
     """Whether the permission request was handled successfully"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionRequestResult':
+    def from_dict(obj: Any) -> PermissionRequestResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionRequestResult(success)
@@ -2739,7 +2753,7 @@ class PermissionRulesSet:
     """Rules that auto-deny matching requests"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionRulesSet':
+    def from_dict(obj: Any) -> PermissionRulesSet:
         assert isinstance(obj, dict)
         approved = from_list(PermissionRule.from_dict, obj.get("approved"))
         denied = from_list(PermissionRule.from_dict, obj.get("denied"))
@@ -2768,7 +2782,7 @@ class PermissionUrlsConfig:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionUrlsConfig':
+    def from_dict(obj: Any) -> PermissionUrlsConfig:
         assert isinstance(obj, dict)
         initial_allowed = from_union([lambda x: from_list(from_str, x), from_none], obj.get("initialAllowed"))
         unrestricted = from_union([from_bool, from_none], obj.get("unrestricted"))
@@ -2793,7 +2807,7 @@ class PermissionUrlsSetUnrestrictedModeParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionUrlsSetUnrestrictedModeParams':
+    def from_dict(obj: Any) -> PermissionUrlsSetUnrestrictedModeParams:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         return PermissionUrlsSetUnrestrictedModeParams(enabled)
@@ -2812,7 +2826,7 @@ class PermissionsConfigureAdditionalContentExclusionPolicyRuleSource:
     type: str
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsConfigureAdditionalContentExclusionPolicyRuleSource':
+    def from_dict(obj: Any) -> PermissionsConfigureAdditionalContentExclusionPolicyRuleSource:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         type = from_str(obj.get("type"))
@@ -2841,7 +2855,7 @@ class PermissionsConfigureResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsConfigureResult':
+    def from_dict(obj: Any) -> PermissionsConfigureResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsConfigureResult(success)
@@ -2860,7 +2874,7 @@ class PermissionsFolderTrustAddTrustedResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsFolderTrustAddTrustedResult':
+    def from_dict(obj: Any) -> PermissionsFolderTrustAddTrustedResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsFolderTrustAddTrustedResult(success)
@@ -2879,7 +2893,7 @@ class PermissionsLocationsAddToolApprovalResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalResult':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsLocationsAddToolApprovalResult(success)
@@ -2906,7 +2920,7 @@ class PermissionsModifyRulesResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsModifyRulesResult':
+    def from_dict(obj: Any) -> PermissionsModifyRulesResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsModifyRulesResult(success)
@@ -2925,7 +2939,7 @@ class PermissionsNotifyPromptShownResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsNotifyPromptShownResult':
+    def from_dict(obj: Any) -> PermissionsNotifyPromptShownResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsNotifyPromptShownResult(success)
@@ -2944,7 +2958,7 @@ class PermissionsPathsAddResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsPathsAddResult':
+    def from_dict(obj: Any) -> PermissionsPathsAddResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsPathsAddResult(success)
@@ -2959,7 +2973,7 @@ class PermissionsPathsAddResult:
 class PermissionsPathsListRequest:
     """No parameters; returns the session's allow-listed directories."""
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsPathsListRequest':
+    def from_dict(obj: Any) -> PermissionsPathsListRequest:
         assert isinstance(obj, dict)
         return PermissionsPathsListRequest()
 
@@ -2976,7 +2990,7 @@ class PermissionsPathsUpdatePrimaryResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsPathsUpdatePrimaryResult':
+    def from_dict(obj: Any) -> PermissionsPathsUpdatePrimaryResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsPathsUpdatePrimaryResult(success)
@@ -2991,7 +3005,7 @@ class PermissionsPathsUpdatePrimaryResult:
 class PermissionsPendingRequestsRequest:
     """No parameters; returns currently-pending permission requests for the session."""
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsPendingRequestsRequest':
+    def from_dict(obj: Any) -> PermissionsPendingRequestsRequest:
         assert isinstance(obj, dict)
         return PermissionsPendingRequestsRequest()
 
@@ -3004,7 +3018,7 @@ class PermissionsPendingRequestsRequest:
 class PermissionsResetSessionApprovalsRequest:
     """No parameters; clears all session-scoped tool permission approvals."""
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsResetSessionApprovalsRequest':
+    def from_dict(obj: Any) -> PermissionsResetSessionApprovalsRequest:
         assert isinstance(obj, dict)
         return PermissionsResetSessionApprovalsRequest()
 
@@ -3021,7 +3035,7 @@ class PermissionsResetSessionApprovalsResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsResetSessionApprovalsResult':
+    def from_dict(obj: Any) -> PermissionsResetSessionApprovalsResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsResetSessionApprovalsResult(success)
@@ -3040,7 +3054,7 @@ class PermissionsSetApproveAllResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsSetApproveAllResult':
+    def from_dict(obj: Any) -> PermissionsSetApproveAllResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsSetApproveAllResult(success)
@@ -3062,7 +3076,7 @@ class PermissionsSetRequiredRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsSetRequiredRequest':
+    def from_dict(obj: Any) -> PermissionsSetRequiredRequest:
         assert isinstance(obj, dict)
         required = from_bool(obj.get("required"))
         return PermissionsSetRequiredRequest(required)
@@ -3081,7 +3095,7 @@ class PermissionsSetRequiredResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsSetRequiredResult':
+    def from_dict(obj: Any) -> PermissionsSetRequiredResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsSetRequiredResult(success)
@@ -3100,7 +3114,7 @@ class PermissionsUrlsSetUnrestrictedModeResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsUrlsSetUnrestrictedModeResult':
+    def from_dict(obj: Any) -> PermissionsUrlsSetUnrestrictedModeResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return PermissionsUrlsSetUnrestrictedModeResult(success)
@@ -3118,7 +3132,7 @@ class PingRequest:
     """Optional message to echo back"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PingRequest':
+    def from_dict(obj: Any) -> PingRequest:
         assert isinstance(obj, dict)
         message = from_union([from_str, from_none], obj.get("message"))
         return PingRequest(message)
@@ -3144,7 +3158,7 @@ class PingResult:
     """ISO 8601 timestamp when the server handled the ping"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PingResult':
+    def from_dict(obj: Any) -> PingResult:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         protocol_version = from_int(obj.get("protocolVersion"))
@@ -3173,7 +3187,7 @@ class PlanReadResult:
     """Absolute file path of the plan file, or null if workspace is not enabled"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PlanReadResult':
+    def from_dict(obj: Any) -> PlanReadResult:
         assert isinstance(obj, dict)
         exists = from_bool(obj.get("exists"))
         content = from_union([from_none, from_str], obj.get("content"))
@@ -3196,7 +3210,7 @@ class PlanUpdateRequest:
     """The new content for the plan file"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PlanUpdateRequest':
+    def from_dict(obj: Any) -> PlanUpdateRequest:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         return PlanUpdateRequest(content)
@@ -3224,7 +3238,7 @@ class Plugin:
     """Installed version"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Plugin':
+    def from_dict(obj: Any) -> Plugin:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         marketplace = from_str(obj.get("marketplace"))
@@ -3259,7 +3273,7 @@ class QueueRemoveMostRecentResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'QueueRemoveMostRecentResult':
+    def from_dict(obj: Any) -> QueueRemoveMostRecentResult:
         assert isinstance(obj, dict)
         removed = from_bool(obj.get("removed"))
         return QueueRemoveMostRecentResult(removed)
@@ -3283,7 +3297,7 @@ class QueuedCommandHandled:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'QueuedCommandHandled':
+    def from_dict(obj: Any) -> QueuedCommandHandled:
         assert isinstance(obj, dict)
         stop_processing_queue = from_union([from_bool, from_none], obj.get("stopProcessingQueue"))
         return QueuedCommandHandled(stop_processing_queue)
@@ -3306,7 +3320,7 @@ class QueuedCommandNotHandled:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'QueuedCommandNotHandled':
+    def from_dict(obj: Any) -> QueuedCommandNotHandled:
         assert isinstance(obj, dict)
         return QueuedCommandNotHandled()
 
@@ -3337,7 +3351,7 @@ class RegisterEventInterestParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RegisterEventInterestParams':
+    def from_dict(obj: Any) -> RegisterEventInterestParams:
         assert isinstance(obj, dict)
         event_type = from_str(obj.get("eventType"))
         return RegisterEventInterestParams(event_type)
@@ -3359,7 +3373,7 @@ class RegisterEventInterestResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RegisterEventInterestResult':
+    def from_dict(obj: Any) -> RegisterEventInterestResult:
         assert isinstance(obj, dict)
         handle = from_str(obj.get("handle"))
         return RegisterEventInterestResult(handle)
@@ -3382,7 +3396,7 @@ class ReleaseEventInterestParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ReleaseEventInterestParams':
+    def from_dict(obj: Any) -> ReleaseEventInterestParams:
         assert isinstance(obj, dict)
         handle = from_str(obj.get("handle"))
         return ReleaseEventInterestParams(handle)
@@ -3413,7 +3427,7 @@ class RemoteEnableResult:
     """GitHub frontend URL for this session"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RemoteEnableResult':
+    def from_dict(obj: Any) -> RemoteEnableResult:
         assert isinstance(obj, dict)
         remote_steerable = from_bool(obj.get("remoteSteerable"))
         url = from_union([from_str, from_none], obj.get("url"))
@@ -3438,7 +3452,7 @@ class RemoteNotifySteerableChangedRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RemoteNotifySteerableChangedRequest':
+    def from_dict(obj: Any) -> RemoteNotifySteerableChangedRequest:
         assert isinstance(obj, dict)
         remote_steerable = from_bool(obj.get("remoteSteerable"))
         return RemoteNotifySteerableChangedRequest(remote_steerable)
@@ -3456,7 +3470,7 @@ class RemoteNotifySteerableChangedResult:
     remote exporter that the runtime does not directly own.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'RemoteNotifySteerableChangedResult':
+    def from_dict(obj: Any) -> RemoteNotifySteerableChangedResult:
         assert isinstance(obj, dict)
         return RemoteNotifySteerableChangedResult()
 
@@ -3493,7 +3507,7 @@ class ScheduleEntry:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ScheduleEntry':
+    def from_dict(obj: Any) -> ScheduleEntry:
         assert isinstance(obj, dict)
         id = from_int(obj.get("id"))
         interval_ms = from_int(obj.get("intervalMs"))
@@ -3523,7 +3537,7 @@ class ScheduleStopRequest:
     """Id of the scheduled prompt to remove."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ScheduleStopRequest':
+    def from_dict(obj: Any) -> ScheduleStopRequest:
         assert isinstance(obj, dict)
         id = from_int(obj.get("id"))
         return ScheduleStopRequest(id)
@@ -3541,7 +3555,7 @@ class SecretsAddFilterValuesRequest:
     """Raw secret values to register for redaction"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SecretsAddFilterValuesRequest':
+    def from_dict(obj: Any) -> SecretsAddFilterValuesRequest:
         assert isinstance(obj, dict)
         values = from_list(from_str, obj.get("values"))
         return SecretsAddFilterValuesRequest(values)
@@ -3559,7 +3573,7 @@ class SecretsAddFilterValuesResult:
     """Whether the values were successfully registered"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SecretsAddFilterValuesResult':
+    def from_dict(obj: Any) -> SecretsAddFilterValuesResult:
         assert isinstance(obj, dict)
         ok = from_bool(obj.get("ok"))
         return SecretsAddFilterValuesResult(ok)
@@ -3591,7 +3605,7 @@ class SendAttachmentFileLineRange:
     """Start line number (1-based)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentFileLineRange':
+    def from_dict(obj: Any) -> SendAttachmentFileLineRange:
         assert isinstance(obj, dict)
         end = from_int(obj.get("end"))
         start = from_int(obj.get("start"))
@@ -3622,7 +3636,7 @@ class SendAttachmentSelectionDetailsEnd:
     """End line number (0-based)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetailsEnd':
+    def from_dict(obj: Any) -> SendAttachmentSelectionDetailsEnd:
         assert isinstance(obj, dict)
         character = from_int(obj.get("character"))
         line = from_int(obj.get("line"))
@@ -3646,7 +3660,7 @@ class SendAttachmentSelectionDetailsStart:
     """Start line number (0-based)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetailsStart':
+    def from_dict(obj: Any) -> SendAttachmentSelectionDetailsStart:
         assert isinstance(obj, dict)
         character = from_int(obj.get("character"))
         line = from_int(obj.get("line"))
@@ -3695,7 +3709,7 @@ class SendResult:
     """Unique identifier assigned to the message"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendResult':
+    def from_dict(obj: Any) -> SendResult:
         assert isinstance(obj, dict)
         message_id = from_str(obj.get("messageId"))
         return SendResult(message_id)
@@ -3731,7 +3745,7 @@ class ServerSkill:
     """The project path this skill belongs to (only for project/inherited skills)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ServerSkill':
+    def from_dict(obj: Any) -> ServerSkill:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
@@ -3767,7 +3781,7 @@ class SessionBulkDeleteResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionBulkDeleteResult':
+    def from_dict(obj: Any) -> SessionBulkDeleteResult:
         assert isinstance(obj, dict)
         freed_bytes = from_dict(from_int, obj.get("freedBytes"))
         return SessionBulkDeleteResult(freed_bytes)
@@ -3795,7 +3809,7 @@ class SessionFSAppendFileRequest:
     """Optional POSIX-style mode for newly created files"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSAppendFileRequest':
+    def from_dict(obj: Any) -> SessionFSAppendFileRequest:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         path = from_str(obj.get("path"))
@@ -3829,7 +3843,7 @@ class SessionFSExistsRequest:
     """Target session identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSExistsRequest':
+    def from_dict(obj: Any) -> SessionFSExistsRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -3849,7 +3863,7 @@ class SessionFSExistsResult:
     """Whether the path exists"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSExistsResult':
+    def from_dict(obj: Any) -> SessionFSExistsResult:
         assert isinstance(obj, dict)
         exists = from_bool(obj.get("exists"))
         return SessionFSExistsResult(exists)
@@ -3877,7 +3891,7 @@ class SessionFSMkdirRequest:
     """Create parent directories as needed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSMkdirRequest':
+    def from_dict(obj: Any) -> SessionFSMkdirRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -3906,7 +3920,7 @@ class SessionFSReadFileRequest:
     """Target session identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReadFileRequest':
+    def from_dict(obj: Any) -> SessionFSReadFileRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -3929,7 +3943,7 @@ class SessionFSReaddirRequest:
     """Target session identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirRequest':
+    def from_dict(obj: Any) -> SessionFSReaddirRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -3959,7 +3973,7 @@ class SessionFSReaddirWithTypesRequest:
     """Target session identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesRequest':
+    def from_dict(obj: Any) -> SessionFSReaddirWithTypesRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -3986,7 +4000,7 @@ class SessionFSRenameRequest:
     """Source path using SessionFs conventions"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSRenameRequest':
+    def from_dict(obj: Any) -> SessionFSRenameRequest:
         assert isinstance(obj, dict)
         dest = from_str(obj.get("dest"))
         session_id = from_str(obj.get("sessionId"))
@@ -4018,7 +4032,7 @@ class SessionFSRmRequest:
     """Remove directories and their contents recursively"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSRmRequest':
+    def from_dict(obj: Any) -> SessionFSRmRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -4044,7 +4058,7 @@ class SessionFSSetProviderCapabilities:
     """Whether the provider supports SQLite query/exists operations"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSetProviderCapabilities':
+    def from_dict(obj: Any) -> SessionFSSetProviderCapabilities:
         assert isinstance(obj, dict)
         sqlite = from_union([from_bool, from_none], obj.get("sqlite"))
         return SessionFSSetProviderCapabilities(sqlite)
@@ -4069,7 +4083,7 @@ class SessionFSSetProviderResult:
     """Whether the provider was set successfully"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSetProviderResult':
+    def from_dict(obj: Any) -> SessionFSSetProviderResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return SessionFSSetProviderResult(success)
@@ -4087,7 +4101,7 @@ class SessionFSSqliteExistsRequest:
     """Target session identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSqliteExistsRequest':
+    def from_dict(obj: Any) -> SessionFSSqliteExistsRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionFSSqliteExistsRequest(session_id)
@@ -4105,7 +4119,7 @@ class SessionFSSqliteExistsResult:
     """Whether the session database already exists"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSqliteExistsResult':
+    def from_dict(obj: Any) -> SessionFSSqliteExistsResult:
         assert isinstance(obj, dict)
         exists = from_bool(obj.get("exists"))
         return SessionFSSqliteExistsResult(exists)
@@ -4134,7 +4148,7 @@ class SessionFSStatRequest:
     """Target session identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSStatRequest':
+    def from_dict(obj: Any) -> SessionFSStatRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         session_id = from_str(obj.get("sessionId"))
@@ -4163,7 +4177,7 @@ class SessionFSWriteFileRequest:
     """Optional POSIX-style mode for newly created files"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSWriteFileRequest':
+    def from_dict(obj: Any) -> SessionFSWriteFileRequest:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         path = from_str(obj.get("path"))
@@ -4198,7 +4212,7 @@ class SessionListFilter:
     """Match sessions whose context.repository equals this value"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionListFilter':
+    def from_dict(obj: Any) -> SessionListFilter:
         assert isinstance(obj, dict)
         branch = from_union([from_str, from_none], obj.get("branch"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
@@ -4233,7 +4247,7 @@ class SessionLoadDeferredRepoHooksResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionLoadDeferredRepoHooksResult':
+    def from_dict(obj: Any) -> SessionLoadDeferredRepoHooksResult:
         assert isinstance(obj, dict)
         hook_count = from_int(obj.get("hookCount"))
         startup_prompts = from_list(from_str, obj.get("startupPrompts"))
@@ -4267,7 +4281,7 @@ class SessionPruneResult:
     """Session IDs that were skipped (e.g., named sessions)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionPruneResult':
+    def from_dict(obj: Any) -> SessionPruneResult:
         assert isinstance(obj, dict)
         candidates = from_list(from_str, obj.get("candidates"))
         deleted = from_list(from_str, obj.get("deleted"))
@@ -4299,7 +4313,7 @@ class SessionSetCredentialsParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionSetCredentialsParams':
+    def from_dict(obj: Any) -> SessionSetCredentialsParams:
         assert isinstance(obj, dict)
         credentials = from_union([_load_AuthInfo, from_none], obj.get("credentials"))
         return SessionSetCredentialsParams(credentials)
@@ -4319,7 +4333,7 @@ class SessionSetCredentialsResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionSetCredentialsResult':
+    def from_dict(obj: Any) -> SessionSetCredentialsResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return SessionSetCredentialsResult(success)
@@ -4338,7 +4352,7 @@ class SessionSizes:
     """Map of sessionId -> on-disk size in bytes for the session's workspace directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionSizes':
+    def from_dict(obj: Any) -> SessionSizes:
         assert isinstance(obj, dict)
         sizes = from_dict(from_int, obj.get("sizes"))
         return SessionSizes(sizes)
@@ -4357,7 +4371,7 @@ class SessionUpdateOptionsResult:
     """Whether the operation succeeded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionUpdateOptionsResult':
+    def from_dict(obj: Any) -> SessionUpdateOptionsResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return SessionUpdateOptionsResult(success)
@@ -4376,7 +4390,7 @@ class SessionsBulkDeleteRequest:
     """Session IDs to close, deactivate, and delete from disk"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsBulkDeleteRequest':
+    def from_dict(obj: Any) -> SessionsBulkDeleteRequest:
         assert isinstance(obj, dict)
         session_ids = from_list(from_str, obj.get("sessionIds"))
         return SessionsBulkDeleteRequest(session_ids)
@@ -4395,7 +4409,7 @@ class SessionsCheckInUseRequest:
     """Session IDs to test for live in-use locks"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsCheckInUseRequest':
+    def from_dict(obj: Any) -> SessionsCheckInUseRequest:
         assert isinstance(obj, dict)
         session_ids = from_list(from_str, obj.get("sessionIds"))
         return SessionsCheckInUseRequest(session_ids)
@@ -4416,7 +4430,7 @@ class SessionsCheckInUseResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsCheckInUseResult':
+    def from_dict(obj: Any) -> SessionsCheckInUseResult:
         assert isinstance(obj, dict)
         in_use = from_list(from_str, obj.get("inUse"))
         return SessionsCheckInUseResult(in_use)
@@ -4435,7 +4449,7 @@ class SessionsCloseRequest:
     """Session ID to close"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsCloseRequest':
+    def from_dict(obj: Any) -> SessionsCloseRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionsCloseRequest(session_id)
@@ -4453,7 +4467,7 @@ class SessionsCloseResult:
     currently active.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsCloseResult':
+    def from_dict(obj: Any) -> SessionsCloseResult:
         assert isinstance(obj, dict)
         return SessionsCloseResult()
 
@@ -4472,7 +4486,7 @@ class SessionsFindByPrefixRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsFindByPrefixRequest':
+    def from_dict(obj: Any) -> SessionsFindByPrefixRequest:
         assert isinstance(obj, dict)
         prefix = from_str(obj.get("prefix"))
         return SessionsFindByPrefixRequest(prefix)
@@ -4491,7 +4505,7 @@ class SessionsFindByPrefixResult:
     """Omitted when no unique session matches the prefix (no match or ambiguous)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsFindByPrefixResult':
+    def from_dict(obj: Any) -> SessionsFindByPrefixResult:
         assert isinstance(obj, dict)
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         return SessionsFindByPrefixResult(session_id)
@@ -4511,7 +4525,7 @@ class SessionsFindByTaskIDRequest:
     """GitHub task ID to look up"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsFindByTaskIDRequest':
+    def from_dict(obj: Any) -> SessionsFindByTaskIDRequest:
         assert isinstance(obj, dict)
         task_id = from_str(obj.get("taskId"))
         return SessionsFindByTaskIDRequest(task_id)
@@ -4530,7 +4544,7 @@ class SessionsFindByTaskIDResult:
     """Omitted when no local session is bound to that GitHub task"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsFindByTaskIDResult':
+    def from_dict(obj: Any) -> SessionsFindByTaskIDResult:
         assert isinstance(obj, dict)
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         return SessionsFindByTaskIDResult(session_id)
@@ -4559,7 +4573,7 @@ class SessionsForkRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsForkRequest':
+    def from_dict(obj: Any) -> SessionsForkRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         name = from_union([from_str, from_none], obj.get("name"))
@@ -4587,7 +4601,7 @@ class SessionsForkResult:
     """Friendly name assigned to the forked session, if any."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsForkResult':
+    def from_dict(obj: Any) -> SessionsForkResult:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         name = from_union([from_str, from_none], obj.get("name"))
@@ -4609,7 +4623,7 @@ class SessionsGetEventFilePathRequest:
     """Session ID whose event-log file path to compute"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsGetEventFilePathRequest':
+    def from_dict(obj: Any) -> SessionsGetEventFilePathRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionsGetEventFilePathRequest(session_id)
@@ -4628,7 +4642,7 @@ class SessionsGetEventFilePathResult:
     """Absolute path to the session's events.jsonl file"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsGetEventFilePathResult':
+    def from_dict(obj: Any) -> SessionsGetEventFilePathResult:
         assert isinstance(obj, dict)
         file_path = from_str(obj.get("filePath"))
         return SessionsGetEventFilePathResult(file_path)
@@ -4647,7 +4661,7 @@ class SessionsGetLastForContextResult:
     """Most-relevant session ID for the supplied context, or omitted when no sessions exist"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsGetLastForContextResult':
+    def from_dict(obj: Any) -> SessionsGetLastForContextResult:
         assert isinstance(obj, dict)
         session_id = from_union([from_str, from_none], obj.get("sessionId"))
         return SessionsGetLastForContextResult(session_id)
@@ -4667,7 +4681,7 @@ class SessionsGetPersistedRemoteSteerableRequest:
     """Session ID to look up the persisted remote-steerable flag for"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsGetPersistedRemoteSteerableRequest':
+    def from_dict(obj: Any) -> SessionsGetPersistedRemoteSteerableRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionsGetPersistedRemoteSteerableRequest(session_id)
@@ -4689,7 +4703,7 @@ class SessionsGetPersistedRemoteSteerableResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsGetPersistedRemoteSteerableResult':
+    def from_dict(obj: Any) -> SessionsGetPersistedRemoteSteerableResult:
         assert isinstance(obj, dict)
         remote_steerable = from_union([from_bool, from_none], obj.get("remoteSteerable"))
         return SessionsGetPersistedRemoteSteerableResult(remote_steerable)
@@ -4709,7 +4723,7 @@ class SessionsLoadDeferredRepoHooksRequest:
     """Active session ID whose deferred repo-level hooks should be loaded"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsLoadDeferredRepoHooksRequest':
+    def from_dict(obj: Any) -> SessionsLoadDeferredRepoHooksRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionsLoadDeferredRepoHooksRequest(session_id)
@@ -4738,7 +4752,7 @@ class SessionsPruneOldRequest:
     """When true, named sessions (set via /rename) are also eligible for pruning"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsPruneOldRequest':
+    def from_dict(obj: Any) -> SessionsPruneOldRequest:
         assert isinstance(obj, dict)
         older_than_days = from_int(obj.get("olderThanDays"))
         dry_run = from_union([from_bool, from_none], obj.get("dryRun"))
@@ -4766,7 +4780,7 @@ class SessionsReleaseLockRequest:
     """Session ID whose in-use lock should be released"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsReleaseLockRequest':
+    def from_dict(obj: Any) -> SessionsReleaseLockRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionsReleaseLockRequest(session_id)
@@ -4783,7 +4797,7 @@ class SessionsReleaseLockResult:
     process does not currently hold a lock for the session.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsReleaseLockResult':
+    def from_dict(obj: Any) -> SessionsReleaseLockResult:
         assert isinstance(obj, dict)
         return SessionsReleaseLockResult()
 
@@ -4805,7 +4819,7 @@ class SessionsReloadPluginHooksRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsReloadPluginHooksRequest':
+    def from_dict(obj: Any) -> SessionsReloadPluginHooksRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         defer_repo_hooks = from_union([from_bool, from_none], obj.get("deferRepoHooks"))
@@ -4826,7 +4840,7 @@ class SessionsReloadPluginHooksResult:
     when no active session matches the given sessionId.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsReloadPluginHooksResult':
+    def from_dict(obj: Any) -> SessionsReloadPluginHooksResult:
         assert isinstance(obj, dict)
         return SessionsReloadPluginHooksResult()
 
@@ -4843,7 +4857,7 @@ class SessionsSaveRequest:
     """Session ID whose pending events should be flushed to disk"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsSaveRequest':
+    def from_dict(obj: Any) -> SessionsSaveRequest:
         assert isinstance(obj, dict)
         session_id = from_str(obj.get("sessionId"))
         return SessionsSaveRequest(session_id)
@@ -4860,7 +4874,7 @@ class SessionsSaveResult:
     (e.g., already closed).
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsSaveResult':
+    def from_dict(obj: Any) -> SessionsSaveResult:
         assert isinstance(obj, dict)
         return SessionsSaveResult()
 
@@ -4876,7 +4890,7 @@ class SessionsSetAdditionalPluginsResult:
     until the next reload.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsSetAdditionalPluginsResult':
+    def from_dict(obj: Any) -> SessionsSetAdditionalPluginsResult:
         assert isinstance(obj, dict)
         return SessionsSetAdditionalPluginsResult()
 
@@ -4899,7 +4913,7 @@ class ShellExecRequest:
     """Timeout in milliseconds (default: 30000)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ShellExecRequest':
+    def from_dict(obj: Any) -> ShellExecRequest:
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
@@ -4925,7 +4939,7 @@ class ShellExecResult:
     """Unique identifier for tracking streamed output"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ShellExecResult':
+    def from_dict(obj: Any) -> ShellExecResult:
         assert isinstance(obj, dict)
         process_id = from_str(obj.get("processId"))
         return ShellExecResult(process_id)
@@ -4953,7 +4967,7 @@ class ShellKillResult:
     """Whether the signal was sent successfully"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ShellKillResult':
+    def from_dict(obj: Any) -> ShellKillResult:
         assert isinstance(obj, dict)
         killed = from_bool(obj.get("killed"))
         return ShellKillResult(killed)
@@ -4976,7 +4990,7 @@ class ShutdownRequest:
     """Why the session is being shut down. Defaults to "routine" when omitted."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ShutdownRequest':
+    def from_dict(obj: Any) -> ShutdownRequest:
         assert isinstance(obj, dict)
         reason = from_union([from_str, from_none], obj.get("reason"))
         type = from_union([ShutdownType, from_none], obj.get("type"))
@@ -5017,7 +5031,7 @@ class Skill:
     """Name of the plugin that provides the skill, when source is 'plugin'"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Skill':
+    def from_dict(obj: Any) -> Skill:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
@@ -5050,7 +5064,7 @@ class SkillsDisableRequest:
     """Name of the skill to disable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsDisableRequest':
+    def from_dict(obj: Any) -> SkillsDisableRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         return SkillsDisableRequest(name)
@@ -5071,7 +5085,7 @@ class SkillsDiscoverRequest:
     """Optional list of additional skill directory paths to include"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsDiscoverRequest':
+    def from_dict(obj: Any) -> SkillsDiscoverRequest:
         assert isinstance(obj, dict)
         project_paths = from_union([lambda x: from_list(from_str, x), from_none], obj.get("projectPaths"))
         skill_directories = from_union([lambda x: from_list(from_str, x), from_none], obj.get("skillDirectories"))
@@ -5094,7 +5108,7 @@ class SkillsEnableRequest:
     """Name of the skill to enable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsEnableRequest':
+    def from_dict(obj: Any) -> SkillsEnableRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         return SkillsEnableRequest(name)
@@ -5125,7 +5139,7 @@ class SkillsInvokedSkill:
     """Tools that should be auto-approved when this skill is active, captured at invocation time"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsInvokedSkill':
+    def from_dict(obj: Any) -> SkillsInvokedSkill:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         invoked_at_turn = from_int(obj.get("invokedAtTurn"))
@@ -5156,7 +5170,7 @@ class SkillsLoadDiagnostics:
     """Warnings emitted while loading skills (e.g. skills that loaded but had issues)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsLoadDiagnostics':
+    def from_dict(obj: Any) -> SkillsLoadDiagnostics:
         assert isinstance(obj, dict)
         errors = from_list(from_str, obj.get("errors"))
         warnings = from_list(from_str, obj.get("warnings"))
@@ -5195,7 +5209,7 @@ class SlashCommandSelectSubcommandOption:
     """Optional group label for organizing options"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandSelectSubcommandOption':
+    def from_dict(obj: Any) -> SlashCommandSelectSubcommandOption:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         name = from_str(obj.get("name"))
@@ -5245,7 +5259,7 @@ class TaskProgressLine:
     """ISO 8601 timestamp when this event occurred"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskProgressLine':
+    def from_dict(obj: Any) -> TaskProgressLine:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         timestamp = from_datetime(obj.get("timestamp"))
@@ -5278,7 +5292,7 @@ class TaskList:
     """Currently tracked tasks"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskList':
+    def from_dict(obj: Any) -> TaskList:
         assert isinstance(obj, dict)
         tasks = from_list(_load_TaskInfo, obj.get("tasks"))
         return TaskList(tasks)
@@ -5300,7 +5314,7 @@ class TasksCancelRequest:
     """Task identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksCancelRequest':
+    def from_dict(obj: Any) -> TasksCancelRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         return TasksCancelRequest(id)
@@ -5319,7 +5333,7 @@ class TasksCancelResult:
     """Whether the task was successfully cancelled"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksCancelResult':
+    def from_dict(obj: Any) -> TasksCancelResult:
         assert isinstance(obj, dict)
         cancelled = from_bool(obj.get("cancelled"))
         return TasksCancelResult(cancelled)
@@ -5341,7 +5355,7 @@ class TasksGetCurrentPromotableResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksGetCurrentPromotableResult':
+    def from_dict(obj: Any) -> TasksGetCurrentPromotableResult:
         assert isinstance(obj, dict)
         task = from_union([_load_TaskInfo, from_none], obj.get("task"))
         return TasksGetCurrentPromotableResult(task)
@@ -5361,7 +5375,7 @@ class TasksGetProgressRequest:
     """Task identifier (agent ID or shell ID)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksGetProgressRequest':
+    def from_dict(obj: Any) -> TasksGetProgressRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         return TasksGetProgressRequest(id)
@@ -5384,7 +5398,7 @@ class TasksPromoteCurrentToBackgroundResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksPromoteCurrentToBackgroundResult':
+    def from_dict(obj: Any) -> TasksPromoteCurrentToBackgroundResult:
         assert isinstance(obj, dict)
         task = from_union([_load_TaskInfo, from_none], obj.get("task"))
         return TasksPromoteCurrentToBackgroundResult(task)
@@ -5404,7 +5418,7 @@ class TasksPromoteToBackgroundRequest:
     """Task identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksPromoteToBackgroundRequest':
+    def from_dict(obj: Any) -> TasksPromoteToBackgroundRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         return TasksPromoteToBackgroundRequest(id)
@@ -5423,7 +5437,7 @@ class TasksPromoteToBackgroundResult:
     """Whether the task was successfully promoted to background mode"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksPromoteToBackgroundResult':
+    def from_dict(obj: Any) -> TasksPromoteToBackgroundResult:
         assert isinstance(obj, dict)
         promoted = from_bool(obj.get("promoted"))
         return TasksPromoteToBackgroundResult(promoted)
@@ -5440,7 +5454,7 @@ class TasksRefreshResult:
     long pause to pick up exit/output state for shells running outside the agent loop.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksRefreshResult':
+    def from_dict(obj: Any) -> TasksRefreshResult:
         assert isinstance(obj, dict)
         return TasksRefreshResult()
 
@@ -5457,7 +5471,7 @@ class TasksRemoveRequest:
     """Task identifier"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksRemoveRequest':
+    def from_dict(obj: Any) -> TasksRemoveRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         return TasksRemoveRequest(id)
@@ -5479,7 +5493,7 @@ class TasksRemoveResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksRemoveResult':
+    def from_dict(obj: Any) -> TasksRemoveResult:
         assert isinstance(obj, dict)
         removed = from_bool(obj.get("removed"))
         return TasksRemoveResult(removed)
@@ -5504,7 +5518,7 @@ class TasksSendMessageRequest:
     """Agent ID of the sender, if sent on behalf of another agent"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksSendMessageRequest':
+    def from_dict(obj: Any) -> TasksSendMessageRequest:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         message = from_str(obj.get("message"))
@@ -5531,7 +5545,7 @@ class TasksSendMessageResult:
     """Error message if delivery failed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksSendMessageResult':
+    def from_dict(obj: Any) -> TasksSendMessageResult:
         assert isinstance(obj, dict)
         sent = from_bool(obj.get("sent"))
         error = from_union([from_str, from_none], obj.get("error"))
@@ -5565,7 +5579,7 @@ class TasksStartAgentRequest:
     """Optional model override"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksStartAgentRequest':
+    def from_dict(obj: Any) -> TasksStartAgentRequest:
         assert isinstance(obj, dict)
         agent_type = from_str(obj.get("agentType"))
         name = from_str(obj.get("name"))
@@ -5594,7 +5608,7 @@ class TasksStartAgentResult:
     """Generated agent ID for the background task"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksStartAgentResult':
+    def from_dict(obj: Any) -> TasksStartAgentResult:
         assert isinstance(obj, dict)
         agent_id = from_str(obj.get("agentId"))
         return TasksStartAgentResult(agent_id)
@@ -5613,7 +5627,7 @@ class TasksWaitForPendingResult:
     COPILOT_TASK_WAIT_TIMEOUT_SECONDS).
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksWaitForPendingResult':
+    def from_dict(obj: Any) -> TasksWaitForPendingResult:
         assert isinstance(obj, dict)
         return TasksWaitForPendingResult()
 
@@ -5633,7 +5647,7 @@ class TelemetrySetFeatureOverridesRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TelemetrySetFeatureOverridesRequest':
+    def from_dict(obj: Any) -> TelemetrySetFeatureOverridesRequest:
         assert isinstance(obj, dict)
         features = from_dict(from_str, obj.get("features"))
         return TelemetrySetFeatureOverridesRequest(features)
@@ -5667,7 +5681,7 @@ class Tool:
     """JSON Schema for the tool's input parameters"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Tool':
+    def from_dict(obj: Any) -> Tool:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         name = from_str(obj.get("name"))
@@ -5696,7 +5710,7 @@ class ToolsInitializeAndValidateResult:
     base-class implementation is a no-op for sessions that don't support tool validation.
     """
     @staticmethod
-    def from_dict(obj: Any) -> 'ToolsInitializeAndValidateResult':
+    def from_dict(obj: Any) -> ToolsInitializeAndValidateResult:
         assert isinstance(obj, dict)
         return ToolsInitializeAndValidateResult()
 
@@ -5714,7 +5728,7 @@ class ToolsListRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ToolsListRequest':
+    def from_dict(obj: Any) -> ToolsListRequest:
         assert isinstance(obj, dict)
         model = from_union([from_str, from_none], obj.get("model"))
         return ToolsListRequest(model)
@@ -5746,7 +5760,7 @@ class UIElicitationArrayAnyOfFieldItemsAnyOf:
     """Display label for this option."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfFieldItemsAnyOf':
+    def from_dict(obj: Any) -> UIElicitationArrayAnyOfFieldItemsAnyOf:
         assert isinstance(obj, dict)
         const = from_str(obj.get("const"))
         title = from_str(obj.get("title"))
@@ -5785,7 +5799,7 @@ class UIElicitationStringOneOfFieldOneOf:
     """Display label for this option."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationStringOneOfFieldOneOf':
+    def from_dict(obj: Any) -> UIElicitationStringOneOfFieldOneOf:
         assert isinstance(obj, dict)
         const = from_str(obj.get("const"))
         title = from_str(obj.get("title"))
@@ -5829,7 +5843,7 @@ class UIElicitationResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationResult':
+    def from_dict(obj: Any) -> UIElicitationResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return UIElicitationResult(success)
@@ -5871,7 +5885,7 @@ class UIHandlePendingResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingResult':
+    def from_dict(obj: Any) -> UIHandlePendingResult:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         return UIHandlePendingResult(success)
@@ -5896,7 +5910,7 @@ class UIHandlePendingSamplingRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingSamplingRequest':
+    def from_dict(obj: Any) -> UIHandlePendingSamplingRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         response = from_union([lambda x: from_dict(lambda x: x, x), from_none], obj.get("response"))
@@ -5923,7 +5937,7 @@ class UIUserInputResponse:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIUserInputResponse':
+    def from_dict(obj: Any) -> UIUserInputResponse:
         assert isinstance(obj, dict)
         answer = from_str(obj.get("answer"))
         was_freeform = from_bool(obj.get("wasFreeform"))
@@ -5951,7 +5965,7 @@ class UIRegisterDirectAutoModeSwitchHandlerResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIRegisterDirectAutoModeSwitchHandlerResult':
+    def from_dict(obj: Any) -> UIRegisterDirectAutoModeSwitchHandlerResult:
         assert isinstance(obj, dict)
         handle = from_str(obj.get("handle"))
         return UIRegisterDirectAutoModeSwitchHandlerResult(handle)
@@ -5970,7 +5984,7 @@ class UIUnregisterDirectAutoModeSwitchHandlerRequest:
     """Handle previously returned by `registerDirectAutoModeSwitchHandler`"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIUnregisterDirectAutoModeSwitchHandlerRequest':
+    def from_dict(obj: Any) -> UIUnregisterDirectAutoModeSwitchHandlerRequest:
         assert isinstance(obj, dict)
         handle = from_str(obj.get("handle"))
         return UIUnregisterDirectAutoModeSwitchHandlerRequest(handle)
@@ -5991,7 +6005,7 @@ class UIUnregisterDirectAutoModeSwitchHandlerResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIUnregisterDirectAutoModeSwitchHandlerResult':
+    def from_dict(obj: Any) -> UIUnregisterDirectAutoModeSwitchHandlerResult:
         assert isinstance(obj, dict)
         unregistered = from_bool(obj.get("unregistered"))
         return UIUnregisterDirectAutoModeSwitchHandlerResult(unregistered)
@@ -6019,7 +6033,7 @@ class UsageMetricsCodeChanges:
     """Total lines of code removed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetricsCodeChanges':
+    def from_dict(obj: Any) -> UsageMetricsCodeChanges:
         assert isinstance(obj, dict)
         files_modified = from_list(from_str, obj.get("filesModified"))
         files_modified_count = from_int(obj.get("filesModifiedCount"))
@@ -6047,7 +6061,7 @@ class UsageMetricsModelMetricRequests:
     """Number of API requests made with this model"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetricsModelMetricRequests':
+    def from_dict(obj: Any) -> UsageMetricsModelMetricRequests:
         assert isinstance(obj, dict)
         cost = from_float(obj.get("cost"))
         count = from_int(obj.get("count"))
@@ -6068,7 +6082,7 @@ class UsageMetricsModelMetricTokenDetail:
     """Accumulated token count for this token type"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetricsModelMetricTokenDetail':
+    def from_dict(obj: Any) -> UsageMetricsModelMetricTokenDetail:
         assert isinstance(obj, dict)
         token_count = from_int(obj.get("tokenCount"))
         return UsageMetricsModelMetricTokenDetail(token_count)
@@ -6099,7 +6113,7 @@ class UsageMetricsModelMetricUsage:
     """Total output tokens used for reasoning"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetricsModelMetricUsage':
+    def from_dict(obj: Any) -> UsageMetricsModelMetricUsage:
         assert isinstance(obj, dict)
         cache_read_tokens = from_int(obj.get("cacheReadTokens"))
         cache_write_tokens = from_int(obj.get("cacheWriteTokens"))
@@ -6127,7 +6141,7 @@ class UsageMetricsTokenDetail:
     """Accumulated token count for this token type"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetricsTokenDetail':
+    def from_dict(obj: Any) -> UsageMetricsTokenDetail:
         assert isinstance(obj, dict)
         token_count = from_int(obj.get("tokenCount"))
         return UsageMetricsTokenDetail(token_count)
@@ -6155,7 +6169,7 @@ class WorkspacesCheckpoints:
     """Human-readable checkpoint title"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesCheckpoints':
+    def from_dict(obj: Any) -> WorkspacesCheckpoints:
         assert isinstance(obj, dict)
         filename = from_str(obj.get("filename"))
         number = from_int(obj.get("number"))
@@ -6181,7 +6195,7 @@ class WorkspacesCreateFileRequest:
     """Relative path within the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesCreateFileRequest':
+    def from_dict(obj: Any) -> WorkspacesCreateFileRequest:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         path = from_str(obj.get("path"))
@@ -6202,7 +6216,7 @@ class WorkspacesListFilesResult:
     """Relative file paths in the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesListFilesResult':
+    def from_dict(obj: Any) -> WorkspacesListFilesResult:
         assert isinstance(obj, dict)
         files = from_list(from_str, obj.get("files"))
         return WorkspacesListFilesResult(files)
@@ -6221,7 +6235,7 @@ class WorkspacesReadCheckpointRequest:
     """Checkpoint number to read"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesReadCheckpointRequest':
+    def from_dict(obj: Any) -> WorkspacesReadCheckpointRequest:
         assert isinstance(obj, dict)
         number = from_int(obj.get("number"))
         return WorkspacesReadCheckpointRequest(number)
@@ -6240,7 +6254,7 @@ class WorkspacesReadCheckpointResult:
     """Checkpoint content as a UTF-8 string, or null when the checkpoint or workspace is missing"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesReadCheckpointResult':
+    def from_dict(obj: Any) -> WorkspacesReadCheckpointResult:
         assert isinstance(obj, dict)
         content = from_union([from_none, from_str], obj.get("content"))
         return WorkspacesReadCheckpointResult(content)
@@ -6259,7 +6273,7 @@ class WorkspacesReadFileRequest:
     """Relative path within the workspace files directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesReadFileRequest':
+    def from_dict(obj: Any) -> WorkspacesReadFileRequest:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         return WorkspacesReadFileRequest(path)
@@ -6278,7 +6292,7 @@ class WorkspacesReadFileResult:
     """File content as a UTF-8 string"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesReadFileResult':
+    def from_dict(obj: Any) -> WorkspacesReadFileResult:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         return WorkspacesReadFileResult(content)
@@ -6297,7 +6311,7 @@ class WorkspacesSaveLargePasteRequest:
     """Pasted content to save as a UTF-8 file"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesSaveLargePasteRequest':
+    def from_dict(obj: Any) -> WorkspacesSaveLargePasteRequest:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         return WorkspacesSaveLargePasteRequest(content)
@@ -6319,7 +6333,7 @@ class Saved:
     """Size of the saved file in bytes"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Saved':
+    def from_dict(obj: Any) -> Saved:
         assert isinstance(obj, dict)
         filename = from_str(obj.get("filename"))
         file_path = from_str(obj.get("filePath"))
@@ -6341,7 +6355,7 @@ class AccountGetQuotaResult:
     """Quota snapshots keyed by type (e.g., chat, completions, premium_interactions)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AccountGetQuotaResult':
+    def from_dict(obj: Any) -> AccountGetQuotaResult:
         assert isinstance(obj, dict)
         quota_snapshots = from_dict(AccountQuotaSnapshot.from_dict, obj.get("quotaSnapshots"))
         return AccountGetQuotaResult(quota_snapshots)
@@ -6375,7 +6389,7 @@ class SessionAuthStatus:
     """Human-readable authentication status description"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionAuthStatus':
+    def from_dict(obj: Any) -> SessionAuthStatus:
         assert isinstance(obj, dict)
         is_authenticated = from_bool(obj.get("isAuthenticated"))
         auth_type = from_union([AuthInfoType, from_none], obj.get("authType"))
@@ -6421,7 +6435,7 @@ class SlashCommandInput:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandInput':
+    def from_dict(obj: Any) -> SlashCommandInput:
         assert isinstance(obj, dict)
         hint = from_str(obj.get("hint"))
         completion = from_union([SlashCommandInputCompletion, from_none], obj.get("completion"))
@@ -6455,7 +6469,7 @@ class SendAttachmentDirectory:
     """Attachment type discriminator"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentDirectory':
+    def from_dict(obj: Any) -> SendAttachmentDirectory:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
@@ -6507,7 +6521,7 @@ class ConnectedRemoteSessionMetadata:
     """Optional session summary."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ConnectedRemoteSessionMetadata':
+    def from_dict(obj: Any) -> ConnectedRemoteSessionMetadata:
         assert isinstance(obj, dict)
         kind = ConnectedRemoteSessionMetadataKind(obj.get("kind"))
         modified_time = from_datetime(obj.get("modifiedTime"))
@@ -6574,7 +6588,7 @@ class MCPServerConfigStdio:
     """Tools to include. Defaults to all tools if not specified."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfigStdio':
+    def from_dict(obj: Any) -> MCPServerConfigStdio:
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
         args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
@@ -6628,7 +6642,7 @@ class CopilotUserResponseQuotaSnapshots:
     unlimited: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotUserResponseQuotaSnapshots':
+    def from_dict(obj: Any) -> CopilotUserResponseQuotaSnapshots:
         assert isinstance(obj, dict)
         entitlement = from_union([from_float, from_none], obj.get("entitlement"))
         has_quota = from_union([from_bool, from_none], obj.get("has_quota"))
@@ -6689,7 +6703,7 @@ class DiscoveredMCPServer:
     """Server transport type: stdio, http, sse, or memory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'DiscoveredMCPServer':
+    def from_dict(obj: Any) -> DiscoveredMCPServer:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         name = from_str(obj.get("name"))
@@ -6736,7 +6750,7 @@ class EventLogReadRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EventLogReadRequest':
+    def from_dict(obj: Any) -> EventLogReadRequest:
         assert isinstance(obj, dict)
         agent_scope = from_union([EventsAgentScope, from_none], obj.get("agentScope"))
         cursor = from_union([from_str, from_none], obj.get("cursor"))
@@ -6786,7 +6800,7 @@ class EventsReadResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EventsReadResult':
+    def from_dict(obj: Any) -> EventsReadResult:
         assert isinstance(obj, dict)
         cursor = from_str(obj.get("cursor"))
         cursor_status = EventsCursorStatus(obj.get("cursorStatus"))
@@ -6823,7 +6837,7 @@ class Extension:
     """Process ID if the extension is running"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Extension':
+    def from_dict(obj: Any) -> Extension:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         name = from_str(obj.get("name"))
@@ -6861,7 +6875,7 @@ class ExternalToolTextResultForLlmBinaryResultsForLlm:
     """Human-readable description of the binary data"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmBinaryResultsForLlm':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmBinaryResultsForLlm:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -6896,7 +6910,7 @@ class ExternalToolTextResultForLlmContentResourceLinkIcon:
     """Theme variant this icon is intended for"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceLinkIcon':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentResourceLinkIcon:
         assert isinstance(obj, dict)
         src = from_str(obj.get("src"))
         mime_type = from_union([from_str, from_none], obj.get("mimeType"))
@@ -6932,7 +6946,7 @@ class ExternalToolTextResultForLlmContentAudio:
     """Content block type discriminator"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentAudio':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentAudio:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -6960,7 +6974,7 @@ class ExternalToolTextResultForLlmContentImage:
     """Content block type discriminator"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentImage':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentImage:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -6985,7 +6999,7 @@ class ExternalToolTextResultForLlmContentResource:
     """Content block type discriminator"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResource':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentResource:
         assert isinstance(obj, dict)
         resource = (lambda x: from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], x))(obj.get("resource"))
         return ExternalToolTextResultForLlmContentResource(resource)
@@ -7014,7 +7028,7 @@ class ExternalToolTextResultForLlmContentTerminal:
     """Process exit code, if the command has completed"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentTerminal':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentTerminal:
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
@@ -7043,7 +7057,7 @@ class ExternalToolTextResultForLlmContentText:
     """Content block type discriminator"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentText':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentText:
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
         return ExternalToolTextResultForLlmContentText(text)
@@ -7077,7 +7091,7 @@ class SlashCommandTextResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandTextResult':
+    def from_dict(obj: Any) -> SlashCommandTextResult:
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
         markdown = from_union([from_bool, from_none], obj.get("markdown"))
@@ -7121,7 +7135,7 @@ class HistoryCompactResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HistoryCompactResult':
+    def from_dict(obj: Any) -> HistoryCompactResult:
         assert isinstance(obj, dict)
         messages_removed = from_int(obj.get("messagesRemoved"))
         success = from_bool(obj.get("success"))
@@ -7154,7 +7168,7 @@ class InstalledPluginSourceGithub:
     ref: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstalledPluginSourceGithub':
+    def from_dict(obj: Any) -> InstalledPluginSourceGithub:
         assert isinstance(obj, dict)
         repo = from_str(obj.get("repo"))
         source = FluffySource(obj.get("source"))
@@ -7185,7 +7199,7 @@ class SessionInstalledPluginSourceGithub:
     ref: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionInstalledPluginSourceGithub':
+    def from_dict(obj: Any) -> SessionInstalledPluginSourceGithub:
         assert isinstance(obj, dict)
         repo = from_str(obj.get("repo"))
         source = FluffySource(obj.get("source"))
@@ -7213,7 +7227,7 @@ class InstalledPluginSourceLocal:
     """Constant value. Always "local"."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstalledPluginSourceLocal':
+    def from_dict(obj: Any) -> InstalledPluginSourceLocal:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         source = TentacledSource(obj.get("source"))
@@ -7235,7 +7249,7 @@ class SessionInstalledPluginSourceLocal:
     """Constant value. Always "local"."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionInstalledPluginSourceLocal':
+    def from_dict(obj: Any) -> SessionInstalledPluginSourceLocal:
         assert isinstance(obj, dict)
         path = from_str(obj.get("path"))
         source = TentacledSource(obj.get("source"))
@@ -7260,7 +7274,7 @@ class InstalledPluginSourceURL:
     ref: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstalledPluginSourceURL':
+    def from_dict(obj: Any) -> InstalledPluginSourceURL:
         assert isinstance(obj, dict)
         source = StickySource(obj.get("source"))
         url = from_str(obj.get("url"))
@@ -7291,7 +7305,7 @@ class SessionInstalledPluginSourceURL:
     ref: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionInstalledPluginSourceURL':
+    def from_dict(obj: Any) -> SessionInstalledPluginSourceURL:
         assert isinstance(obj, dict)
         source = StickySource(obj.get("source"))
         url = from_str(obj.get("url"))
@@ -7343,7 +7357,7 @@ class InstructionsSources:
     """Short description (body after frontmatter) for use in instruction tables"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstructionsSources':
+    def from_dict(obj: Any) -> InstructionsSources:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         id = from_str(obj.get("id"))
@@ -7399,7 +7413,7 @@ class LogRequest:
     """Optional URL the user can open in their browser for more details"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'LogRequest':
+    def from_dict(obj: Any) -> LogRequest:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         ephemeral = from_union([from_bool, from_none], obj.get("ephemeral"))
@@ -7480,7 +7494,7 @@ class MCPServerConfig:
     """URL of the remote MCP server endpoint."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfig':
+    def from_dict(obj: Any) -> MCPServerConfig:
         assert isinstance(obj, dict)
         args = from_union([lambda x: from_list(from_str, x), from_none], obj.get("args"))
         command = from_union([from_str, from_none], obj.get("command"))
@@ -7573,7 +7587,7 @@ class MCPServerConfigHTTP:
     """Remote transport type. Defaults to "http" when omitted."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerConfigHTTP':
+    def from_dict(obj: Any) -> MCPServerConfigHTTP:
         assert isinstance(obj, dict)
         url = from_str(obj.get("url"))
         auth = from_union([MCPServerConfigHTTPAuth.from_dict, from_none], obj.get("auth"))
@@ -7633,7 +7647,7 @@ class MCPSamplingExecutionResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPSamplingExecutionResult':
+    def from_dict(obj: Any) -> MCPSamplingExecutionResult:
         assert isinstance(obj, dict)
         action = MCPSamplingExecutionAction(obj.get("action"))
         error = from_union([from_str, from_none], obj.get("error"))
@@ -7658,7 +7672,7 @@ class MCPServerList:
     """Configured MCP servers"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPServerList':
+    def from_dict(obj: Any) -> MCPServerList:
         assert isinstance(obj, dict)
         servers = from_list(MCPServer.from_dict, obj.get("servers"))
         return MCPServerList(servers)
@@ -7682,7 +7696,7 @@ class MCPSetEnvValueModeParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPSetEnvValueModeParams':
+    def from_dict(obj: Any) -> MCPSetEnvValueModeParams:
         assert isinstance(obj, dict)
         mode = MCPSetEnvValueModeDetails(obj.get("mode"))
         return MCPSetEnvValueModeParams(mode)
@@ -7701,7 +7715,7 @@ class MCPSetEnvValueModeResult:
     """Mode recorded on the session after the update"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPSetEnvValueModeResult':
+    def from_dict(obj: Any) -> MCPSetEnvValueModeResult:
         assert isinstance(obj, dict)
         mode = MCPSetEnvValueModeDetails(obj.get("mode"))
         return MCPSetEnvValueModeResult(mode)
@@ -7722,7 +7736,7 @@ class MetadataContextInfoResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataContextInfoResult':
+    def from_dict(obj: Any) -> MetadataContextInfoResult:
         assert isinstance(obj, dict)
         context_info = from_union([SessionContextInfo.from_dict, from_none], obj.get("contextInfo"))
         return MetadataContextInfoResult(context_info)
@@ -7765,7 +7779,7 @@ class SessionWorkingDirectoryContext:
     """Raw host string from the git remote URL (e.g. "github.com", "dev.azure.com")"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionWorkingDirectoryContext':
+    def from_dict(obj: Any) -> SessionWorkingDirectoryContext:
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
         base_commit = from_union([from_str, from_none], obj.get("baseCommit"))
@@ -7820,7 +7834,7 @@ class SessionContext:
     """Repository slug in `owner/name` form, when known"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionContext':
+    def from_dict(obj: Any) -> SessionContext:
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
         branch = from_union([from_str, from_none], obj.get("branch"))
@@ -7864,7 +7878,7 @@ class Workspace:
     user_named: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Workspace':
+    def from_dict(obj: Any) -> Workspace:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         branch = from_union([from_str, from_none], obj.get("branch"))
@@ -7941,7 +7955,7 @@ class MetadataSnapshotRemoteMetadata:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataSnapshotRemoteMetadata':
+    def from_dict(obj: Any) -> MetadataSnapshotRemoteMetadata:
         assert isinstance(obj, dict)
         repository = MetadataSnapshotRemoteMetadataRepository.from_dict(obj.get("repository"))
         pull_request_number = from_union([from_int, from_none], obj.get("pullRequestNumber"))
@@ -7971,7 +7985,7 @@ class ModelBilling:
     """Token-level pricing information for this model"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelBilling':
+    def from_dict(obj: Any) -> ModelBilling:
         assert isinstance(obj, dict)
         multiplier = from_union([from_float, from_none], obj.get("multiplier"))
         token_prices = from_union([ModelBillingTokenPrices.from_dict, from_none], obj.get("tokenPrices"))
@@ -8002,7 +8016,7 @@ class ModelCapabilitiesLimits:
     """Vision-specific limits"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesLimits':
+    def from_dict(obj: Any) -> ModelCapabilitiesLimits:
         assert isinstance(obj, dict)
         max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
         max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
@@ -8033,7 +8047,7 @@ class ModelPolicy:
     """Usage terms or conditions for this model"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelPolicy':
+    def from_dict(obj: Any) -> ModelPolicy:
         assert isinstance(obj, dict)
         state = ModelPolicyState(obj.get("state"))
         terms = from_union([from_str, from_none], obj.get("terms"))
@@ -8064,7 +8078,7 @@ class ModelCapabilitiesOverrideLimits:
     """Vision-specific limits"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesOverrideLimits':
+    def from_dict(obj: Any) -> ModelCapabilitiesOverrideLimits:
         assert isinstance(obj, dict)
         max_context_window_tokens = from_union([from_int, from_none], obj.get("max_context_window_tokens"))
         max_output_tokens = from_union([from_int, from_none], obj.get("max_output_tokens"))
@@ -8097,7 +8111,7 @@ class PendingPermissionRequestList:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PendingPermissionRequestList':
+    def from_dict(obj: Any) -> PendingPermissionRequestList:
         assert isinstance(obj, dict)
         items = from_list(PendingPermissionRequest.from_dict, obj.get("items"))
         return PendingPermissionRequestList(items)
@@ -8122,7 +8136,7 @@ class PermissionDecisionApproveForLocation:
     """Location key (git root or cwd) to persist the approval to"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocation':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocation:
         assert isinstance(obj, dict)
         approval = _load_PermissionDecisionApproveForLocationApproval(obj.get("approval"))
         location_key = from_str(obj.get("locationKey"))
@@ -8147,7 +8161,7 @@ class PermissionDecisionApproveForLocationApprovalCommands:
     """Approval scoped to specific command identifiers."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCommands':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalCommands:
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         return PermissionDecisionApproveForLocationApprovalCommands(command_identifiers)
@@ -8170,7 +8184,7 @@ class PermissionDecisionApproveForSessionApprovalCommands:
     """Approval scoped to specific command identifiers."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCommands':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalCommands:
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         return PermissionDecisionApproveForSessionApprovalCommands(command_identifiers)
@@ -8193,7 +8207,7 @@ class PermissionsLocationsAddToolApprovalDetailsCommands:
     """Approval scoped to specific command identifiers."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsCommands':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsCommands:
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         return PermissionsLocationsAddToolApprovalDetailsCommands(command_identifiers)
@@ -8216,7 +8230,7 @@ class PermissionDecisionApproveForLocationApprovalCustomTool:
     """Custom tool name."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalCustomTool':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalCustomTool:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         return PermissionDecisionApproveForLocationApprovalCustomTool(tool_name)
@@ -8239,7 +8253,7 @@ class PermissionDecisionApproveForSessionApprovalCustomTool:
     """Custom tool name."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalCustomTool':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalCustomTool:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         return PermissionDecisionApproveForSessionApprovalCustomTool(tool_name)
@@ -8262,7 +8276,7 @@ class PermissionsLocationsAddToolApprovalDetailsCustomTool:
     """Custom tool name."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsCustomTool':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsCustomTool:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         return PermissionsLocationsAddToolApprovalDetailsCustomTool(tool_name)
@@ -8287,7 +8301,7 @@ class PermissionDecisionApproveForLocationApprovalExtensionManagement:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionManagement':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_union([from_str, from_none], obj.get("operation"))
         return PermissionDecisionApproveForLocationApprovalExtensionManagement(operation)
@@ -8313,7 +8327,7 @@ class PermissionDecisionApproveForSessionApprovalExtensionManagement:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionManagement':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_union([from_str, from_none], obj.get("operation"))
         return PermissionDecisionApproveForSessionApprovalExtensionManagement(operation)
@@ -8339,7 +8353,7 @@ class PermissionsLocationsAddToolApprovalDetailsExtensionManagement:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsExtensionManagement':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_union([from_str, from_none], obj.get("operation"))
         return PermissionsLocationsAddToolApprovalDetailsExtensionManagement(operation)
@@ -8366,7 +8380,7 @@ class PermissionDecisionApproveForLocationApprovalMCP:
     """MCP tool name, or null to cover every tool on the server."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCP':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalMCP:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
@@ -8394,7 +8408,7 @@ class PermissionDecisionApproveForSessionApprovalMCP:
     """MCP tool name, or null to cover every tool on the server."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCP':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalMCP:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
@@ -8422,7 +8436,7 @@ class PermissionsLocationsAddToolApprovalDetailsMCP:
     """MCP tool name, or null to cover every tool on the server."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMCP':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsMCP:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
@@ -8447,7 +8461,7 @@ class PermissionDecisionApproveForLocationApprovalMCPSampling:
     """MCP server name."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMCPSampling':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalMCPSampling:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         return PermissionDecisionApproveForLocationApprovalMCPSampling(server_name)
@@ -8470,7 +8484,7 @@ class PermissionDecisionApproveForSessionApprovalMCPSampling:
     """MCP server name."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMCPSampling':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalMCPSampling:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         return PermissionDecisionApproveForSessionApprovalMCPSampling(server_name)
@@ -8493,7 +8507,7 @@ class PermissionsLocationsAddToolApprovalDetailsMCPSampling:
     """MCP server name."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMCPSampling':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsMCPSampling:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         return PermissionsLocationsAddToolApprovalDetailsMCPSampling(server_name)
@@ -8513,7 +8527,7 @@ class PermissionDecisionApproveForLocationApprovalMemory:
     """Approval covering writes to long-term memory."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalMemory':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalMemory:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveForLocationApprovalMemory()
 
@@ -8531,7 +8545,7 @@ class PermissionDecisionApproveForSessionApprovalMemory:
     """Approval covering writes to long-term memory."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalMemory':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalMemory:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveForSessionApprovalMemory()
 
@@ -8549,7 +8563,7 @@ class PermissionsLocationsAddToolApprovalDetailsMemory:
     """Approval covering writes to long-term memory."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsMemory':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsMemory:
         assert isinstance(obj, dict)
         return PermissionsLocationsAddToolApprovalDetailsMemory()
 
@@ -8567,7 +8581,7 @@ class PermissionDecisionApproveForLocationApprovalRead:
     """Approval covering read-only filesystem operations."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalRead':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalRead:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveForLocationApprovalRead()
 
@@ -8585,7 +8599,7 @@ class PermissionDecisionApproveForSessionApprovalRead:
     """Approval covering read-only filesystem operations."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalRead':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalRead:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveForSessionApprovalRead()
 
@@ -8603,7 +8617,7 @@ class PermissionsLocationsAddToolApprovalDetailsRead:
     """Approval covering read-only filesystem operations."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsRead':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsRead:
         assert isinstance(obj, dict)
         return PermissionsLocationsAddToolApprovalDetailsRead()
 
@@ -8621,7 +8635,7 @@ class PermissionDecisionApproveForLocationApprovalWrite:
     """Approval covering filesystem write operations."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalWrite':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalWrite:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveForLocationApprovalWrite()
 
@@ -8639,7 +8653,7 @@ class PermissionDecisionApproveForSessionApprovalWrite:
     """Approval covering filesystem write operations."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalWrite':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalWrite:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveForSessionApprovalWrite()
 
@@ -8657,7 +8671,7 @@ class PermissionsLocationsAddToolApprovalDetailsWrite:
     """Approval covering filesystem write operations."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsWrite':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsWrite:
         assert isinstance(obj, dict)
         return PermissionsLocationsAddToolApprovalDetailsWrite()
 
@@ -8681,7 +8695,7 @@ class PermissionDecisionApproveForSession:
     """URL domain to approve for the rest of the session (URL prompts only)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSession':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSession:
         assert isinstance(obj, dict)
         approval = from_union([_load_PermissionDecisionApproveForSessionApproval, from_none], obj.get("approval"))
         domain = from_union([from_str, from_none], obj.get("domain"))
@@ -8705,7 +8719,7 @@ class PermissionDecisionApproveOnce:
     """Approve this single request only"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveOnce':
+    def from_dict(obj: Any) -> PermissionDecisionApproveOnce:
         assert isinstance(obj, dict)
         return PermissionDecisionApproveOnce()
 
@@ -8726,7 +8740,7 @@ class PermissionDecisionApprovePermanently:
     """Approve and persist across sessions (URL prompts only)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovePermanently':
+    def from_dict(obj: Any) -> PermissionDecisionApprovePermanently:
         assert isinstance(obj, dict)
         domain = from_str(obj.get("domain"))
         return PermissionDecisionApprovePermanently(domain)
@@ -8746,7 +8760,7 @@ class PermissionDecisionApproved:
     """The permission request was approved"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproved':
+    def from_dict(obj: Any) -> PermissionDecisionApproved:
         assert isinstance(obj, dict)
         return PermissionDecisionApproved()
 
@@ -8770,7 +8784,7 @@ class PermissionDecisionApprovedForLocation:
     """The location key (git root or cwd) to persist the approval to"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForLocation':
+    def from_dict(obj: Any) -> PermissionDecisionApprovedForLocation:
         assert isinstance(obj, dict)
         approval = UserToolSessionApproval.from_dict(obj.get("approval"))
         location_key = from_str(obj.get("locationKey"))
@@ -8795,7 +8809,7 @@ class PermissionDecisionApprovedForSession:
     """Approved and remembered for the rest of the session"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApprovedForSession':
+    def from_dict(obj: Any) -> PermissionDecisionApprovedForSession:
         assert isinstance(obj, dict)
         approval = UserToolSessionApproval.from_dict(obj.get("approval"))
         return PermissionDecisionApprovedForSession(approval)
@@ -8818,7 +8832,7 @@ class PermissionDecisionCancelled:
     """Optional explanation of why the request was cancelled"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionCancelled':
+    def from_dict(obj: Any) -> PermissionDecisionCancelled:
         assert isinstance(obj, dict)
         reason = from_union([from_str, from_none], obj.get("reason"))
         return PermissionDecisionCancelled(reason)
@@ -8845,7 +8859,7 @@ class PermissionDecisionDeniedByContentExclusionPolicy:
     """File path that triggered the exclusion"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedByContentExclusionPolicy':
+    def from_dict(obj: Any) -> PermissionDecisionDeniedByContentExclusionPolicy:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         path = from_str(obj.get("path"))
@@ -8873,7 +8887,7 @@ class PermissionDecisionDeniedByPermissionRequestHook:
     """Optional message from the hook explaining the denial"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedByPermissionRequestHook':
+    def from_dict(obj: Any) -> PermissionDecisionDeniedByPermissionRequestHook:
         assert isinstance(obj, dict)
         interrupt = from_union([from_bool, from_none], obj.get("interrupt"))
         message = from_union([from_str, from_none], obj.get("message"))
@@ -8900,7 +8914,7 @@ class PermissionDecisionDeniedByRules:
     """Rules that denied the request"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedByRules':
+    def from_dict(obj: Any) -> PermissionDecisionDeniedByRules:
         assert isinstance(obj, dict)
         rules = from_list(PermissionRule.from_dict, obj.get("rules"))
         return PermissionDecisionDeniedByRules(rules)
@@ -8926,7 +8940,7 @@ class PermissionDecisionDeniedInteractivelyByUser:
     """Whether to force-reject the current agent turn"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedInteractivelyByUser':
+    def from_dict(obj: Any) -> PermissionDecisionDeniedInteractivelyByUser:
         assert isinstance(obj, dict)
         feedback = from_union([from_str, from_none], obj.get("feedback"))
         force_reject = from_union([from_bool, from_none], obj.get("forceReject"))
@@ -8950,7 +8964,7 @@ class PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
     """Denied because no approval rule matched and user confirmation was unavailable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser':
+    def from_dict(obj: Any) -> PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
         assert isinstance(obj, dict)
         return PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser()
 
@@ -8971,7 +8985,7 @@ class PermissionDecisionReject:
     """Optional feedback explaining the rejection"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionReject':
+    def from_dict(obj: Any) -> PermissionDecisionReject:
         assert isinstance(obj, dict)
         feedback = from_union([from_str, from_none], obj.get("feedback"))
         return PermissionDecisionReject(feedback)
@@ -8992,7 +9006,7 @@ class PermissionDecisionUserNotAvailable:
     """No user is available to confirm the request"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionUserNotAvailable':
+    def from_dict(obj: Any) -> PermissionDecisionUserNotAvailable:
         assert isinstance(obj, dict)
         return PermissionDecisionUserNotAvailable()
 
@@ -9025,7 +9039,7 @@ class PermissionLocationApplyResult:
     """Whether the location is a git repo or directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionLocationApplyResult':
+    def from_dict(obj: Any) -> PermissionLocationApplyResult:
         assert isinstance(obj, dict)
         applied_directory_count = from_int(obj.get("appliedDirectoryCount"))
         applied_rule_count = from_int(obj.get("appliedRuleCount"))
@@ -9057,7 +9071,7 @@ class PermissionLocationResolveResult:
     """Whether the location is a git repo or directory"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionLocationResolveResult':
+    def from_dict(obj: Any) -> PermissionLocationResolveResult:
         assert isinstance(obj, dict)
         location_key = from_str(obj.get("locationKey"))
         location_type = PermissionLocationType(obj.get("locationType"))
@@ -9082,7 +9096,7 @@ class PermissionsConfigureAdditionalContentExclusionPolicyRule:
     if_none_match: list[str] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsConfigureAdditionalContentExclusionPolicyRule':
+    def from_dict(obj: Any) -> PermissionsConfigureAdditionalContentExclusionPolicyRule:
         assert isinstance(obj, dict)
         paths = from_list(from_str, obj.get("paths"))
         source = PermissionsConfigureAdditionalContentExclusionPolicyRuleSource.from_dict(obj.get("source"))
@@ -9122,7 +9136,7 @@ class PermissionsModifyRulesParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsModifyRulesParams':
+    def from_dict(obj: Any) -> PermissionsModifyRulesParams:
         assert isinstance(obj, dict)
         scope = PermissionsModifyRulesScope(obj.get("scope"))
         add = from_union([lambda x: from_list(PermissionRule.from_dict, x), from_none], obj.get("add"))
@@ -9150,7 +9164,7 @@ class PluginList:
     """Installed plugins"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PluginList':
+    def from_dict(obj: Any) -> PluginList:
         assert isinstance(obj, dict)
         plugins = from_list(Plugin.from_dict, obj.get("plugins"))
         return PluginList(plugins)
@@ -9172,7 +9186,7 @@ class QueuePendingItems:
     """Whether this item is a queued user message or a queued slash command / model change"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'QueuePendingItems':
+    def from_dict(obj: Any) -> QueuePendingItems:
         assert isinstance(obj, dict)
         display_text = from_str(obj.get("displayText"))
         kind = QueuePendingItemsKind(obj.get("kind"))
@@ -9196,7 +9210,7 @@ class RemoteEnableRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RemoteEnableRequest':
+    def from_dict(obj: Any) -> RemoteEnableRequest:
         assert isinstance(obj, dict)
         mode = from_union([RemoteSessionMode, from_none], obj.get("mode"))
         return RemoteEnableRequest(mode)
@@ -9216,7 +9230,7 @@ class ScheduleList:
     """Active scheduled prompts, ordered by id."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ScheduleList':
+    def from_dict(obj: Any) -> ScheduleList:
         assert isinstance(obj, dict)
         entries = from_list(ScheduleEntry.from_dict, obj.get("entries"))
         return ScheduleList(entries)
@@ -9235,7 +9249,7 @@ class ScheduleStopResult:
     """The removed entry, or omitted if no entry matched."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ScheduleStopResult':
+    def from_dict(obj: Any) -> ScheduleStopResult:
         assert isinstance(obj, dict)
         entry = from_union([ScheduleEntry.from_dict, from_none], obj.get("entry"))
         return ScheduleStopResult(entry)
@@ -9258,7 +9272,7 @@ class SendAttachmentSelectionDetails:
     """Start position of the selection"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelectionDetails':
+    def from_dict(obj: Any) -> SendAttachmentSelectionDetails:
         assert isinstance(obj, dict)
         end = SendAttachmentSelectionDetailsEnd.from_dict(obj.get("end"))
         start = SendAttachmentSelectionDetailsStart.from_dict(obj.get("start"))
@@ -9288,7 +9302,7 @@ class SendAttachmentBlob:
     """User-facing display name for the attachment"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentBlob':
+    def from_dict(obj: Any) -> SendAttachmentBlob:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -9322,7 +9336,7 @@ class SendAttachmentFile:
     """Optional line range to scope the attachment to a specific section of the file"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentFile':
+    def from_dict(obj: Any) -> SendAttachmentFile:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
@@ -9362,7 +9376,7 @@ class SendAttachmentGithubReference:
     """URL to the referenced item on GitHub"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentGithubReference':
+    def from_dict(obj: Any) -> SendAttachmentGithubReference:
         assert isinstance(obj, dict)
         number = from_int(obj.get("number"))
         reference_type = SendAttachmentGithubReferenceTypeEnum(obj.get("referenceType"))
@@ -9437,7 +9451,7 @@ class SendRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendRequest':
+    def from_dict(obj: Any) -> SendRequest:
         assert isinstance(obj, dict)
         prompt = from_str(obj.get("prompt"))
         agent_mode = from_union([SendAgentMode, from_none], obj.get("agentMode"))
@@ -9491,7 +9505,7 @@ class ServerSkillList:
     """All discovered skills across all sources"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ServerSkillList':
+    def from_dict(obj: Any) -> ServerSkillList:
         assert isinstance(obj, dict)
         skills = from_list(ServerSkill.from_dict, obj.get("skills"))
         return ServerSkillList(skills)
@@ -9512,7 +9526,7 @@ class SessionFSError:
     """Free-form detail about the error, for logging/diagnostics"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSError':
+    def from_dict(obj: Any) -> SessionFSError:
         assert isinstance(obj, dict)
         code = SessionFSErrorCode(obj.get("code"))
         message = from_union([from_str, from_none], obj.get("message"))
@@ -9536,7 +9550,7 @@ class SessionFSReaddirWithTypesEntry:
     """Entry type"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesEntry':
+    def from_dict(obj: Any) -> SessionFSReaddirWithTypesEntry:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         type = SessionFSReaddirWithTypesEntryType(obj.get("type"))
@@ -9566,7 +9580,7 @@ class SessionFSSetProviderRequest:
     """Optional capabilities declared by the provider"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSetProviderRequest':
+    def from_dict(obj: Any) -> SessionFSSetProviderRequest:
         assert isinstance(obj, dict)
         conventions = SessionFSSetProviderConventions(obj.get("conventions"))
         initial_cwd = from_str(obj.get("initialCwd"))
@@ -9602,7 +9616,7 @@ class SessionFSSqliteQueryRequest:
     """Optional named bind parameters"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSqliteQueryRequest':
+    def from_dict(obj: Any) -> SessionFSSqliteQueryRequest:
         assert isinstance(obj, dict)
         query = from_str(obj.get("query"))
         query_type = SessionFSSqliteQueryType(obj.get("queryType"))
@@ -9634,7 +9648,7 @@ class SessionsListRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsListRequest':
+    def from_dict(obj: Any) -> SessionsListRequest:
         assert isinstance(obj, dict)
         filter = from_union([SessionListFilter.from_dict, from_none], obj.get("filter"))
         metadata_limit = from_union([from_int, from_none], obj.get("metadataLimit"))
@@ -9660,7 +9674,7 @@ class ShellKillRequest:
     """Signal to send (default: SIGTERM)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ShellKillRequest':
+    def from_dict(obj: Any) -> ShellKillRequest:
         assert isinstance(obj, dict)
         process_id = from_str(obj.get("processId"))
         signal = from_union([ShellKillSignal, from_none], obj.get("signal"))
@@ -9720,7 +9734,7 @@ class AgentInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentInfo':
+    def from_dict(obj: Any) -> AgentInfo:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         display_name = from_str(obj.get("displayName"))
@@ -9766,7 +9780,7 @@ class SkillList:
     """Available skills"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillList':
+    def from_dict(obj: Any) -> SkillList:
         assert isinstance(obj, dict)
         skills = from_list(Skill.from_dict, obj.get("skills"))
         return SkillList(skills)
@@ -9784,7 +9798,7 @@ class SkillsConfigSetDisabledSkillsRequest:
     """List of skill names to disable"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsConfigSetDisabledSkillsRequest':
+    def from_dict(obj: Any) -> SkillsConfigSetDisabledSkillsRequest:
         assert isinstance(obj, dict)
         disabled_skills = from_list(from_str, obj.get("disabledSkills"))
         return SkillsConfigSetDisabledSkillsRequest(disabled_skills)
@@ -9803,7 +9817,7 @@ class SkillsGetInvokedResult:
     """Skills invoked during this session, ordered by invocation time (most recent last)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SkillsGetInvokedResult':
+    def from_dict(obj: Any) -> SkillsGetInvokedResult:
         assert isinstance(obj, dict)
         skills = from_list(SkillsInvokedSkill.from_dict, obj.get("skills"))
         return SkillsGetInvokedResult(skills)
@@ -9836,7 +9850,7 @@ class SlashCommandAgentPromptResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandAgentPromptResult':
+    def from_dict(obj: Any) -> SlashCommandAgentPromptResult:
         assert isinstance(obj, dict)
         display_prompt = from_str(obj.get("displayPrompt"))
         prompt = from_str(obj.get("prompt"))
@@ -9872,7 +9886,7 @@ class SlashCommandCompletedResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandCompletedResult':
+    def from_dict(obj: Any) -> SlashCommandCompletedResult:
         assert isinstance(obj, dict)
         message = from_union([from_str, from_none], obj.get("message"))
         runtime_settings_changed = from_union([from_bool, from_none], obj.get("runtimeSettingsChanged"))
@@ -9910,7 +9924,7 @@ class SlashCommandSelectSubcommandResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandSelectSubcommandResult':
+    def from_dict(obj: Any) -> SlashCommandSelectSubcommandResult:
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
         options = from_list(SlashCommandSelectSubcommandOption.from_dict, obj.get("options"))
@@ -9943,7 +9957,7 @@ class TaskAgentProgress:
     """The most recent intent reported by the agent"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskAgentProgress':
+    def from_dict(obj: Any) -> TaskAgentProgress:
         assert isinstance(obj, dict)
         recent_activity = from_list(TaskProgressLine.from_dict, obj.get("recentActivity"))
         type = TaskAgentInfoType(obj.get("type"))
@@ -10001,7 +10015,7 @@ class TaskShellInfo:
     """Process ID when available"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskShellInfo':
+    def from_dict(obj: Any) -> TaskShellInfo:
         assert isinstance(obj, dict)
         attachment_mode = TaskShellInfoAttachmentMode(obj.get("attachmentMode"))
         command = from_str(obj.get("command"))
@@ -10052,7 +10066,7 @@ class TaskShellProgress:
     """Process ID when available"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskShellProgress':
+    def from_dict(obj: Any) -> TaskShellProgress:
         assert isinstance(obj, dict)
         recent_output = from_str(obj.get("recentOutput"))
         type = TaskShellInfoType(obj.get("type"))
@@ -10079,7 +10093,7 @@ class PermissionLocationAddToolApprovalParams:
     """Location key (git root or cwd) to persist the approval to"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionLocationAddToolApprovalParams':
+    def from_dict(obj: Any) -> PermissionLocationAddToolApprovalParams:
         assert isinstance(obj, dict)
         approval = _load_PermissionsLocationsAddToolApprovalDetails(obj.get("approval"))
         location_key = from_str(obj.get("locationKey"))
@@ -10099,7 +10113,7 @@ class ToolList:
     """List of available built-in tools with metadata"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ToolList':
+    def from_dict(obj: Any) -> ToolList:
         assert isinstance(obj, dict)
         tools = from_list(Tool.from_dict, obj.get("tools"))
         return ToolList(tools)
@@ -10123,7 +10137,7 @@ class UIHandlePendingAutoModeSwitchRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingAutoModeSwitchRequest':
+    def from_dict(obj: Any) -> UIHandlePendingAutoModeSwitchRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         response = UIAutoModeSwitchResponse(obj.get("response"))
@@ -10144,7 +10158,7 @@ class UIElicitationArrayAnyOfFieldItems:
     """Selectable options, each with a value and a display label."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfFieldItems':
+    def from_dict(obj: Any) -> UIElicitationArrayAnyOfFieldItems:
         assert isinstance(obj, dict)
         any_of = from_list(UIElicitationArrayAnyOfFieldItemsAnyOf.from_dict, obj.get("anyOf"))
         return UIElicitationArrayAnyOfFieldItems(any_of)
@@ -10166,7 +10180,7 @@ class UIElicitationArrayEnumFieldItems:
     """Type discriminator. Always "string"."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayEnumFieldItems':
+    def from_dict(obj: Any) -> UIElicitationArrayEnumFieldItems:
         assert isinstance(obj, dict)
         enum = from_list(from_str, obj.get("enum"))
         type = UIElicitationArrayEnumFieldItemsType(obj.get("type"))
@@ -10192,7 +10206,7 @@ class UIElicitationArrayFieldItems:
     """Selectable options, each with a value and a display label."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayFieldItems':
+    def from_dict(obj: Any) -> UIElicitationArrayFieldItems:
         assert isinstance(obj, dict)
         enum = from_union([lambda x: from_list(from_str, x), from_none], obj.get("enum"))
         type = from_union([UIElicitationArrayEnumFieldItemsType, from_none], obj.get("type"))
@@ -10233,7 +10247,7 @@ class UIElicitationStringEnumField:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationStringEnumField':
+    def from_dict(obj: Any) -> UIElicitationStringEnumField:
         assert isinstance(obj, dict)
         enum = from_list(from_str, obj.get("enum"))
         type = UIElicitationArrayEnumFieldItemsType(obj.get("type"))
@@ -10284,7 +10298,7 @@ class UIElicitationSchemaPropertyString:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyString':
+    def from_dict(obj: Any) -> UIElicitationSchemaPropertyString:
         assert isinstance(obj, dict)
         type = UIElicitationArrayEnumFieldItemsType(obj.get("type"))
         default = from_union([from_str, from_none], obj.get("default"))
@@ -10333,7 +10347,7 @@ class UIElicitationStringOneOfField:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationStringOneOfField':
+    def from_dict(obj: Any) -> UIElicitationStringOneOfField:
         assert isinstance(obj, dict)
         one_of = from_list(UIElicitationStringOneOfFieldOneOf.from_dict, obj.get("oneOf"))
         type = UIElicitationArrayEnumFieldItemsType(obj.get("type"))
@@ -10366,7 +10380,7 @@ class UIElicitationResponse:
     """The form values submitted by the user (present when action is 'accept')"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationResponse':
+    def from_dict(obj: Any) -> UIElicitationResponse:
         assert isinstance(obj, dict)
         action = UIElicitationResponseAction(obj.get("action"))
         content = from_union([lambda x: from_dict(lambda x: from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str], x), x), from_none], obj.get("content"))
@@ -10397,7 +10411,7 @@ class UIElicitationSchemaPropertyBoolean:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyBoolean':
+    def from_dict(obj: Any) -> UIElicitationSchemaPropertyBoolean:
         assert isinstance(obj, dict)
         type = UIElicitationSchemaPropertyBooleanType(obj.get("type"))
         default = from_union([from_bool, from_none], obj.get("default"))
@@ -10440,7 +10454,7 @@ class UIElicitationSchemaPropertyNumber:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchemaPropertyNumber':
+    def from_dict(obj: Any) -> UIElicitationSchemaPropertyNumber:
         assert isinstance(obj, dict)
         type = UIElicitationSchemaPropertyNumberType(obj.get("type"))
         default = from_union([from_float, from_none], obj.get("default"))
@@ -10485,7 +10499,7 @@ class UIExitPlanModeResponse:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIExitPlanModeResponse':
+    def from_dict(obj: Any) -> UIExitPlanModeResponse:
         assert isinstance(obj, dict)
         approved = from_bool(obj.get("approved"))
         auto_approve_edits = from_union([from_bool, from_none], obj.get("autoApproveEdits"))
@@ -10516,7 +10530,7 @@ class UIHandlePendingUserInputRequest:
     """Schema for the `UIUserInputResponse` type."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingUserInputRequest':
+    def from_dict(obj: Any) -> UIHandlePendingUserInputRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         response = UIUserInputResponse.from_dict(obj.get("response"))
@@ -10546,7 +10560,7 @@ class UsageMetricsModelMetric:
     """Accumulated nano-AI units cost for this model"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageMetricsModelMetric':
+    def from_dict(obj: Any) -> UsageMetricsModelMetric:
         assert isinstance(obj, dict)
         requests = UsageMetricsModelMetricRequests.from_dict(obj.get("requests"))
         usage = UsageMetricsModelMetricUsage.from_dict(obj.get("usage"))
@@ -10575,7 +10589,7 @@ class WorkspacesSaveLargePasteResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesSaveLargePasteResult':
+    def from_dict(obj: Any) -> WorkspacesSaveLargePasteResult:
         assert isinstance(obj, dict)
         saved = from_union([Saved.from_dict, from_none], obj.get("saved"))
         return WorkspacesSaveLargePasteResult(saved)
@@ -10613,7 +10627,7 @@ class SlashCommandInfo:
     """Optional unstructured input hint"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SlashCommandInfo':
+    def from_dict(obj: Any) -> SlashCommandInfo:
         assert isinstance(obj, dict)
         allow_during_agent_execution = from_bool(obj.get("allowDuringAgentExecution"))
         description = from_str(obj.get("description"))
@@ -10650,7 +10664,7 @@ class RemoteSessionConnectionResult:
     """SDK session ID for the connected remote session."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RemoteSessionConnectionResult':
+    def from_dict(obj: Any) -> RemoteSessionConnectionResult:
         assert isinstance(obj, dict)
         metadata = ConnectedRemoteSessionMetadata.from_dict(obj.get("metadata"))
         session_id = from_str(obj.get("sessionId"))
@@ -10698,7 +10712,7 @@ class CopilotUserResponse:
     token_based_billing: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotUserResponse':
+    def from_dict(obj: Any) -> CopilotUserResponse:
         assert isinstance(obj, dict)
         access_type_sku = from_union([from_str, from_none], obj.get("access_type_sku"))
         analytics_tracking_id = from_union([from_str, from_none], obj.get("analytics_tracking_id"))
@@ -10783,7 +10797,7 @@ class MCPDiscoverResult:
     """MCP servers discovered from all sources"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPDiscoverResult':
+    def from_dict(obj: Any) -> MCPDiscoverResult:
         assert isinstance(obj, dict)
         servers = from_list(DiscoveredMCPServer.from_dict, obj.get("servers"))
         return MCPDiscoverResult(servers)
@@ -10802,7 +10816,7 @@ class ExtensionList:
     """Discovered extensions and their current status"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExtensionList':
+    def from_dict(obj: Any) -> ExtensionList:
         assert isinstance(obj, dict)
         extensions = from_list(Extension.from_dict, obj.get("extensions"))
         return ExtensionList(extensions)
@@ -10825,7 +10839,7 @@ class PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
     """Approval covering an extension's request to access a permission-gated capability."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess:
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
         return PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess(extension_name)
@@ -10849,7 +10863,7 @@ class PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
     """Approval covering an extension's request to access a permission-gated capability."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess:
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
         return PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess(extension_name)
@@ -10872,7 +10886,7 @@ class PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess:
     """Approval covering an extension's request to access a permission-gated capability."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess':
+    def from_dict(obj: Any) -> PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess:
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
         return PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess(extension_name)
@@ -10911,7 +10925,7 @@ class ExternalToolTextResultForLlm:
     """Optional tool-specific telemetry"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlm':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlm:
         assert isinstance(obj, dict)
         text_result_for_llm = from_str(obj.get("textResultForLlm"))
         binary_results_for_llm = from_union([lambda x: from_list(ExternalToolTextResultForLlmBinaryResultsForLlm.from_dict, x), from_none], obj.get("binaryResultsForLlm"))
@@ -10969,7 +10983,7 @@ class ExternalToolTextResultForLlmContentResourceLink:
     """Human-readable display title for the resource"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ExternalToolTextResultForLlmContentResourceLink':
+    def from_dict(obj: Any) -> ExternalToolTextResultForLlmContentResourceLink:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         uri = from_str(obj.get("uri"))
@@ -11019,7 +11033,7 @@ class InstalledPluginSource:
     url: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstalledPluginSource':
+    def from_dict(obj: Any) -> InstalledPluginSource:
         assert isinstance(obj, dict)
         source = PurpleSource(obj.get("source"))
         path = from_union([from_str, from_none], obj.get("path"))
@@ -11063,7 +11077,7 @@ class SessionInstalledPluginSource:
     url: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionInstalledPluginSource':
+    def from_dict(obj: Any) -> SessionInstalledPluginSource:
         assert isinstance(obj, dict)
         source = PurpleSource(obj.get("source"))
         path = from_union([from_str, from_none], obj.get("path"))
@@ -11094,7 +11108,7 @@ class InstructionsGetSourcesResult:
     """Instruction sources for the session"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstructionsGetSourcesResult':
+    def from_dict(obj: Any) -> InstructionsGetSourcesResult:
         assert isinstance(obj, dict)
         sources = from_list(InstructionsSources.from_dict, obj.get("sources"))
         return InstructionsGetSourcesResult(sources)
@@ -11115,7 +11129,7 @@ class MCPConfigAddRequest:
     """Unique name for the MCP server"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigAddRequest':
+    def from_dict(obj: Any) -> MCPConfigAddRequest:
         assert isinstance(obj, dict)
         config = MCPServerConfig.from_dict(obj.get("config"))
         name = from_str(obj.get("name"))
@@ -11135,7 +11149,7 @@ class MCPConfigList:
     """All MCP servers from user config, keyed by name"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigList':
+    def from_dict(obj: Any) -> MCPConfigList:
         assert isinstance(obj, dict)
         servers = from_dict(MCPServerConfig.from_dict, obj.get("servers"))
         return MCPConfigList(servers)
@@ -11156,7 +11170,7 @@ class MCPConfigUpdateRequest:
     """Name of the MCP server to update"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPConfigUpdateRequest':
+    def from_dict(obj: Any) -> MCPConfigUpdateRequest:
         assert isinstance(obj, dict)
         config = MCPServerConfig.from_dict(obj.get("config"))
         name = from_str(obj.get("name"))
@@ -11179,7 +11193,7 @@ class MetadataRecordContextChangeRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataRecordContextChangeRequest':
+    def from_dict(obj: Any) -> MetadataRecordContextChangeRequest:
         assert isinstance(obj, dict)
         context = SessionWorkingDirectoryContext.from_dict(obj.get("context"))
         return MetadataRecordContextChangeRequest(context)
@@ -11220,7 +11234,7 @@ class SessionMetadata:
     """Short summary of the session, when one has been derived"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionMetadata':
+    def from_dict(obj: Any) -> SessionMetadata:
         assert isinstance(obj, dict)
         is_remote = from_bool(obj.get("isRemote"))
         modified_time = from_str(obj.get("modifiedTime"))
@@ -11259,7 +11273,7 @@ class SessionsGetLastForContextRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsGetLastForContextRequest':
+    def from_dict(obj: Any) -> SessionsGetLastForContextRequest:
         assert isinstance(obj, dict)
         context = from_union([SessionContext.from_dict, from_none], obj.get("context"))
         return SessionsGetLastForContextRequest(context)
@@ -11297,7 +11311,7 @@ class PermissionPathsConfig:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionPathsConfig':
+    def from_dict(obj: Any) -> PermissionPathsConfig:
         assert isinstance(obj, dict)
         additional_directories = from_union([lambda x: from_list(from_str, x), from_none], obj.get("additionalDirectories"))
         include_temp_directory = from_union([from_bool, from_none], obj.get("includeTempDirectory"))
@@ -11350,7 +11364,7 @@ class WorkspaceSummary:
     """ISO 8601 timestamp when the workspace was last updated"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspaceSummary':
+    def from_dict(obj: Any) -> WorkspaceSummary:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         branch = from_union([from_str, from_none], obj.get("branch"))
@@ -11398,7 +11412,7 @@ class WorkspacesGetWorkspaceResult:
     """Current workspace metadata, or null if not available"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesGetWorkspaceResult':
+    def from_dict(obj: Any) -> WorkspacesGetWorkspaceResult:
         assert isinstance(obj, dict)
         path = from_union([from_str, from_none], obj.get("path"))
         workspace = from_union([Workspace.from_dict, from_none], obj.get("workspace"))
@@ -11420,7 +11434,7 @@ class WorkspacesListCheckpointsResult:
     """Workspace checkpoints in chronological order. Empty when workspace is not enabled."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'WorkspacesListCheckpointsResult':
+    def from_dict(obj: Any) -> WorkspacesListCheckpointsResult:
         assert isinstance(obj, dict)
         checkpoints = from_list(WorkspacesCheckpoints.from_dict, obj.get("checkpoints"))
         return WorkspacesListCheckpointsResult(checkpoints)
@@ -11442,7 +11456,7 @@ class ModelCapabilitiesOverride:
     """Feature flags indicating what the model supports"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilitiesOverride':
+    def from_dict(obj: Any) -> ModelCapabilitiesOverride:
         assert isinstance(obj, dict)
         limits = from_union([ModelCapabilitiesOverrideLimits.from_dict, from_none], obj.get("limits"))
         supports = from_union([ModelCapabilitiesOverrideSupports.from_dict, from_none], obj.get("supports"))
@@ -11469,7 +11483,7 @@ class PermissionsConfigureAdditionalContentExclusionPolicy:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsConfigureAdditionalContentExclusionPolicy':
+    def from_dict(obj: Any) -> PermissionsConfigureAdditionalContentExclusionPolicy:
         assert isinstance(obj, dict)
         last_updated_at = from_union([from_float, from_str], obj.get("last_updated_at"))
         rules = from_list(PermissionsConfigureAdditionalContentExclusionPolicyRule.from_dict, obj.get("rules"))
@@ -11498,7 +11512,7 @@ class QueuePendingItemsResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'QueuePendingItemsResult':
+    def from_dict(obj: Any) -> QueuePendingItemsResult:
         assert isinstance(obj, dict)
         items = from_list(QueuePendingItems.from_dict, obj.get("items"))
         steering_messages = from_list(from_str, obj.get("steeringMessages"))
@@ -11531,7 +11545,7 @@ class SendAttachmentSelection:
     """Attachment type discriminator"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SendAttachmentSelection':
+    def from_dict(obj: Any) -> SendAttachmentSelection:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         file_path = from_str(obj.get("filePath"))
@@ -11559,7 +11573,7 @@ class SessionFSReadFileResult:
     """Describes a filesystem error."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReadFileResult':
+    def from_dict(obj: Any) -> SessionFSReadFileResult:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
@@ -11583,7 +11597,7 @@ class SessionFSReaddirResult:
     """Describes a filesystem error."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirResult':
+    def from_dict(obj: Any) -> SessionFSReaddirResult:
         assert isinstance(obj, dict)
         entries = from_list(from_str, obj.get("entries"))
         error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
@@ -11617,7 +11631,7 @@ class SessionFSSqliteQueryResult:
     """SQLite last_insert_rowid() value for INSERT."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSSqliteQueryResult':
+    def from_dict(obj: Any) -> SessionFSSqliteQueryResult:
         assert isinstance(obj, dict)
         columns = from_list(from_str, obj.get("columns"))
         rows = from_list(lambda x: from_dict(lambda x: x, x), obj.get("rows"))
@@ -11660,7 +11674,7 @@ class SessionFSStatResult:
     """Describes a filesystem error."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSStatResult':
+    def from_dict(obj: Any) -> SessionFSStatResult:
         assert isinstance(obj, dict)
         birthtime = from_datetime(obj.get("birthtime"))
         is_directory = from_bool(obj.get("isDirectory"))
@@ -11693,7 +11707,7 @@ class SessionFSReaddirWithTypesResult:
     """Describes a filesystem error."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionFSReaddirWithTypesResult':
+    def from_dict(obj: Any) -> SessionFSReaddirWithTypesResult:
         assert isinstance(obj, dict)
         entries = from_list(SessionFSReaddirWithTypesEntry.from_dict, obj.get("entries"))
         error = from_union([SessionFSError.from_dict, from_none], obj.get("error"))
@@ -11715,7 +11729,7 @@ class AgentGetCurrentResult:
     """Currently selected custom agent, or null if using the default agent"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentGetCurrentResult':
+    def from_dict(obj: Any) -> AgentGetCurrentResult:
         assert isinstance(obj, dict)
         agent = from_union([AgentInfo.from_dict, from_none], obj.get("agent"))
         return AgentGetCurrentResult(agent)
@@ -11735,7 +11749,7 @@ class AgentList:
     """Available custom agents"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentList':
+    def from_dict(obj: Any) -> AgentList:
         assert isinstance(obj, dict)
         agents = from_list(AgentInfo.from_dict, obj.get("agents"))
         return AgentList(agents)
@@ -11754,7 +11768,7 @@ class AgentReloadResult:
     """Reloaded custom agents"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentReloadResult':
+    def from_dict(obj: Any) -> AgentReloadResult:
         assert isinstance(obj, dict)
         agents = from_list(AgentInfo.from_dict, obj.get("agents"))
         return AgentReloadResult(agents)
@@ -11773,7 +11787,7 @@ class AgentSelectResult:
     """The newly selected custom agent"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'AgentSelectResult':
+    def from_dict(obj: Any) -> AgentSelectResult:
         assert isinstance(obj, dict)
         agent = AgentInfo.from_dict(obj.get("agent"))
         return AgentSelectResult(agent)
@@ -11806,7 +11820,7 @@ class TaskProgress:
     """Recent stdout/stderr lines from the running shell command"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskProgress':
+    def from_dict(obj: Any) -> TaskProgress:
         assert isinstance(obj, dict)
         type = TaskInfoType(obj.get("type"))
         latest_intent = from_union([from_str, from_none], obj.get("latestIntent"))
@@ -11855,7 +11869,7 @@ class UIElicitationArrayAnyOfField:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayAnyOfField':
+    def from_dict(obj: Any) -> UIElicitationArrayAnyOfField:
         assert isinstance(obj, dict)
         items = UIElicitationArrayAnyOfFieldItems.from_dict(obj.get("items"))
         type = UIElicitationArrayAnyOfFieldType(obj.get("type"))
@@ -11909,7 +11923,7 @@ class UIElicitationArrayEnumField:
     """Human-readable label for the field."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationArrayEnumField':
+    def from_dict(obj: Any) -> UIElicitationArrayEnumField:
         assert isinstance(obj, dict)
         items = UIElicitationArrayEnumFieldItems.from_dict(obj.get("items"))
         type = UIElicitationArrayAnyOfFieldType(obj.get("type"))
@@ -12011,7 +12025,7 @@ class UIElicitationSchemaProperty:
     """Minimum allowed value (inclusive)."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchemaProperty':
+    def from_dict(obj: Any) -> UIElicitationSchemaProperty:
         assert isinstance(obj, dict)
         type = UIElicitationSchemaPropertyType(obj.get("type"))
         default = from_union([from_float, from_bool, lambda x: from_list(from_str, x), from_str, from_none], obj.get("default"))
@@ -12076,7 +12090,7 @@ class UIHandlePendingElicitationRequest:
     """The elicitation response (accept with form values, decline, or cancel)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingElicitationRequest':
+    def from_dict(obj: Any) -> UIHandlePendingElicitationRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = UIElicitationResponse.from_dict(obj.get("result"))
@@ -12100,7 +12114,7 @@ class UIHandlePendingExitPlanModeRequest:
     """Schema for the `UIExitPlanModeResponse` type."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIHandlePendingExitPlanModeRequest':
+    def from_dict(obj: Any) -> UIHandlePendingExitPlanModeRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         response = UIExitPlanModeResponse.from_dict(obj.get("response"))
@@ -12153,7 +12167,7 @@ class UsageGetMetricsResult:
     """Session-wide accumulated nano-AI units cost"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UsageGetMetricsResult':
+    def from_dict(obj: Any) -> UsageGetMetricsResult:
         assert isinstance(obj, dict)
         code_changes = UsageMetricsCodeChanges.from_dict(obj.get("codeChanges"))
         last_call_input_tokens = from_int(obj.get("lastCallInputTokens"))
@@ -12195,7 +12209,7 @@ class CommandList:
     """Commands available in this session"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CommandList':
+    def from_dict(obj: Any) -> CommandList:
         assert isinstance(obj, dict)
         commands = from_list(SlashCommandInfo.from_dict, obj.get("commands"))
         return CommandList(commands)
@@ -12226,7 +12240,7 @@ class APIKeyAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'APIKeyAuthInfo':
+    def from_dict(obj: Any) -> APIKeyAuthInfo:
         assert isinstance(obj, dict)
         api_key = from_str(obj.get("apiKey"))
         host = from_str(obj.get("host"))
@@ -12262,7 +12276,7 @@ class CopilotAPITokenAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'CopilotAPITokenAuthInfo':
+    def from_dict(obj: Any) -> CopilotAPITokenAuthInfo:
         assert isinstance(obj, dict)
         host = Host(obj.get("host"))
         copilot_user = from_union([CopilotUserResponse.from_dict, from_none], obj.get("copilotUser"))
@@ -12305,7 +12319,7 @@ class EnvAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'EnvAuthInfo':
+    def from_dict(obj: Any) -> EnvAuthInfo:
         assert isinstance(obj, dict)
         env_var = from_str(obj.get("envVar"))
         host = from_str(obj.get("host"))
@@ -12350,7 +12364,7 @@ class GhCLIAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'GhCLIAuthInfo':
+    def from_dict(obj: Any) -> GhCLIAuthInfo:
         assert isinstance(obj, dict)
         host = from_str(obj.get("host"))
         login = from_str(obj.get("login"))
@@ -12389,7 +12403,7 @@ class HMACAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HMACAuthInfo':
+    def from_dict(obj: Any) -> HMACAuthInfo:
         assert isinstance(obj, dict)
         hmac = from_str(obj.get("hmac"))
         host = Host(obj.get("host"))
@@ -12426,7 +12440,7 @@ class TokenAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TokenAuthInfo':
+    def from_dict(obj: Any) -> TokenAuthInfo:
         assert isinstance(obj, dict)
         host = from_str(obj.get("host"))
         token = from_str(obj.get("token"))
@@ -12464,7 +12478,7 @@ class UserAuthInfo:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UserAuthInfo':
+    def from_dict(obj: Any) -> UserAuthInfo:
         assert isinstance(obj, dict)
         host = from_str(obj.get("host"))
         login = from_str(obj.get("login"))
@@ -12568,7 +12582,7 @@ class PermissionDecisionApproveForIonApproval:
     external_ref_marker_external_ref_user_tool_session_approval: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionDecisionApproveForIonApproval':
+    def from_dict(obj: Any) -> PermissionDecisionApproveForIonApproval:
         assert isinstance(obj, dict)
         command_identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("commandIdentifiers"))
         kind = from_union([ApprovalKind, from_none], obj.get("kind"))
@@ -12613,7 +12627,7 @@ class HandlePendingToolCallRequest:
     """Tool call result (string or expanded result object)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'HandlePendingToolCallRequest':
+    def from_dict(obj: Any) -> HandlePendingToolCallRequest:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         error = from_union([from_str, from_none], obj.get("error"))
@@ -12656,7 +12670,7 @@ class InstalledPlugin:
     """Version installed (if available)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'InstalledPlugin':
+    def from_dict(obj: Any) -> InstalledPlugin:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         installed_at = from_str(obj.get("installed_at"))
@@ -12708,7 +12722,7 @@ class SessionInstalledPlugin:
     """Installed version, if known"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionInstalledPlugin':
+    def from_dict(obj: Any) -> SessionInstalledPlugin:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         installed_at = from_str(obj.get("installed_at"))
@@ -12742,7 +12756,7 @@ class SessionEnrichMetadataResult:
     """Same records, with summary and context backfilled"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionEnrichMetadataResult':
+    def from_dict(obj: Any) -> SessionEnrichMetadataResult:
         assert isinstance(obj, dict)
         sessions = from_list(SessionMetadata.from_dict, obj.get("sessions"))
         return SessionEnrichMetadataResult(sessions)
@@ -12761,7 +12775,7 @@ class SessionList:
     """Sessions ordered most-recently-modified first"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionList':
+    def from_dict(obj: Any) -> SessionList:
         assert isinstance(obj, dict)
         sessions = from_list(SessionMetadata.from_dict, obj.get("sessions"))
         return SessionList(sessions)
@@ -12782,7 +12796,7 @@ class SessionsEnrichMetadataRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsEnrichMetadataRequest':
+    def from_dict(obj: Any) -> SessionsEnrichMetadataRequest:
         assert isinstance(obj, dict)
         sessions = from_list(SessionMetadata.from_dict, obj.get("sessions"))
         return SessionsEnrichMetadataRequest(sessions)
@@ -12849,7 +12863,7 @@ class SessionMetadataSnapshot:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionMetadataSnapshot':
+    def from_dict(obj: Any) -> SessionMetadataSnapshot:
         assert isinstance(obj, dict)
         already_in_use = from_bool(obj.get("alreadyInUse"))
         current_mode = MetadataSnapshotCurrentMode(obj.get("currentMode"))
@@ -12922,7 +12936,7 @@ class PermissionsConfigureParams:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsConfigureParams':
+    def from_dict(obj: Any) -> PermissionsConfigureParams:
         assert isinstance(obj, dict)
         additional_content_exclusion_policies = from_union([lambda x: from_list(PermissionsConfigureAdditionalContentExclusionPolicy.from_dict, x), from_none], obj.get("additionalContentExclusionPolicies"))
         approve_all_read_permission_requests = from_union([from_bool, from_none], obj.get("approveAllReadPermissionRequests"))
@@ -12959,7 +12973,7 @@ class TasksGetProgressResult:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TasksGetProgressResult':
+    def from_dict(obj: Any) -> TasksGetProgressResult:
         assert isinstance(obj, dict)
         progress = from_union([TaskProgress.from_dict, from_none], obj.get("progress"))
         return TasksGetProgressResult(progress)
@@ -12985,7 +12999,7 @@ class UIElicitationSchema:
     """List of required field names"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationSchema':
+    def from_dict(obj: Any) -> UIElicitationSchema:
         assert isinstance(obj, dict)
         properties = from_dict(UIElicitationSchemaProperty.from_dict, obj.get("properties"))
         type = UIElicitationSchemaType(obj.get("type"))
@@ -13011,7 +13025,7 @@ class SessionsSetAdditionalPluginsRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionsSetAdditionalPluginsRequest':
+    def from_dict(obj: Any) -> SessionsSetAdditionalPluginsRequest:
         assert isinstance(obj, dict)
         plugins = from_list(InstalledPlugin.from_dict, obj.get("plugins"))
         return SessionsSetAdditionalPluginsRequest(plugins)
@@ -13144,7 +13158,7 @@ class SessionUpdateOptionsParams:
     """Absolute working-directory path for shell tools."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'SessionUpdateOptionsParams':
+    def from_dict(obj: Any) -> SessionUpdateOptionsParams:
         assert isinstance(obj, dict)
         additional_content_exclusion_policies = from_union([lambda x: from_list(lambda x: x, x), from_none], obj.get("additionalContentExclusionPolicies"))
         agent_context = from_union([from_str, from_none], obj.get("agentContext"))
@@ -13272,7 +13286,7 @@ class UIElicitationRequest:
     """JSON Schema describing the form fields to present to the user"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'UIElicitationRequest':
+    def from_dict(obj: Any) -> UIElicitationRequest:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         requested_schema = UIElicitationSchema.from_dict(obj.get("requestedSchema"))
@@ -13308,7 +13322,7 @@ class MCPExecuteSamplingParams:
     """Name of the MCP server that initiated the sampling request"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MCPExecuteSamplingParams':
+    def from_dict(obj: Any) -> MCPExecuteSamplingParams:
         assert isinstance(obj, dict)
         mcp_request_id = from_union([from_float, from_str], obj.get("mcpRequestId"))
         request = from_dict(lambda x: x, obj.get("request"))
@@ -13341,7 +13355,7 @@ class MetadataContextInfoRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataContextInfoRequest':
+    def from_dict(obj: Any) -> MetadataContextInfoRequest:
         assert isinstance(obj, dict)
         output_token_limit = from_int(obj.get("outputTokenLimit"))
         prompt_token_limit = from_int(obj.get("promptTokenLimit"))
@@ -13367,7 +13381,7 @@ class MetadataRecomputeContextTokensRequest:
     """
 
     @staticmethod
-    def from_dict(obj: Any) -> 'MetadataRecomputeContextTokensRequest':
+    def from_dict(obj: Any) -> MetadataRecomputeContextTokensRequest:
         assert isinstance(obj, dict)
         model_id = from_str(obj.get("modelId"))
         return MetadataRecomputeContextTokensRequest(model_id)
@@ -13388,7 +13402,7 @@ class ModelCapabilities:
     """Feature flags indicating what the model supports"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelCapabilities':
+    def from_dict(obj: Any) -> ModelCapabilities:
         assert isinstance(obj, dict)
         limits = from_union([ModelCapabilitiesLimits.from_dict, from_none], obj.get("limits"))
         supports = from_union([ModelCapabilitiesSupports.from_dict, from_none], obj.get("supports"))
@@ -13441,7 +13455,7 @@ class Model:
     """Supported reasoning effort levels (only present if model supports reasoning effort)"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'Model':
+    def from_dict(obj: Any) -> Model:
         assert isinstance(obj, dict)
         capabilities = ModelCapabilities.from_dict(obj.get("capabilities"))
         id = from_str(obj.get("id"))
@@ -13482,7 +13496,7 @@ class ModelList:
     """List of available models with full metadata"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelList':
+    def from_dict(obj: Any) -> ModelList:
         assert isinstance(obj, dict)
         models = from_list(Model.from_dict, obj.get("models"))
         return ModelList(models)
@@ -13510,7 +13524,7 @@ class ModelSwitchToRequest:
     """Reasoning summary mode to request for supported model clients"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'ModelSwitchToRequest':
+    def from_dict(obj: Any) -> ModelSwitchToRequest:
         assert isinstance(obj, dict)
         model_id = from_str(obj.get("modelId"))
         model_capabilities = from_union([ModelCapabilitiesOverride.from_dict, from_none], obj.get("modelCapabilities"))
@@ -13550,7 +13564,7 @@ class PermissionsSetApproveAllRequest:
     """Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers."""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'PermissionsSetApproveAllRequest':
+    def from_dict(obj: Any) -> PermissionsSetApproveAllRequest:
         assert isinstance(obj, dict)
         enabled = from_bool(obj.get("enabled"))
         source = from_union([PermissionsSetApproveAllSource, from_none], obj.get("source"))
@@ -13625,7 +13639,7 @@ class TaskAgentInfo:
     """Result text from the task when available"""
 
     @staticmethod
-    def from_dict(obj: Any) -> 'TaskAgentInfo':
+    def from_dict(obj: Any) -> TaskAgentInfo:
         assert isinstance(obj, dict)
         agent_type = from_str(obj.get("agentType"))
         description = from_str(obj.get("description"))
@@ -14189,7 +14203,7 @@ class RPC:
     workspace_summary: WorkspaceSummary | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> 'RPC':
+    def from_dict(obj: Any) -> RPC:
         assert isinstance(obj, dict)
         abort_request = AbortRequest.from_dict(obj.get("AbortRequest"))
         abort_result = AbortResult.from_dict(obj.get("AbortResult"))
@@ -15220,7 +15234,7 @@ def rpc_to_dict(x: RPC) -> Any:
 # The new auth credentials to install on the session. When omitted or `undefined`, the call is a no-op and the session's existing credentials are preserved. The runtime stores the value verbatim and uses it for outbound model/API requests; it does NOT re-validate or re-fetch the associated Copilot user response. Several variants carry secret material; treat this method's params as containing secrets at rest and in transit.
 AuthInfo = HMACAuthInfo | EnvAuthInfo | TokenAuthInfo | CopilotAPITokenAuthInfo | UserAuthInfo | GhCLIAuthInfo | APIKeyAuthInfo
 
-def _load_AuthInfo(obj: Any) -> "AuthInfo":
+def _load_AuthInfo(obj: Any) -> AuthInfo:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -15236,7 +15250,7 @@ def _load_AuthInfo(obj: Any) -> "AuthInfo":
 # A content block within a tool result, which may be text, terminal output, image, audio, or a resource
 ExternalToolTextResultForLlmContent = ExternalToolTextResultForLlmContentText | ExternalToolTextResultForLlmContentTerminal | ExternalToolTextResultForLlmContentImage | ExternalToolTextResultForLlmContentAudio | ExternalToolTextResultForLlmContentResourceLink | ExternalToolTextResultForLlmContentResource
 
-def _load_ExternalToolTextResultForLlmContent(obj: Any) -> "ExternalToolTextResultForLlmContent":
+def _load_ExternalToolTextResultForLlmContent(obj: Any) -> ExternalToolTextResultForLlmContent:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -15251,7 +15265,7 @@ def _load_ExternalToolTextResultForLlmContent(obj: Any) -> "ExternalToolTextResu
 # The client's response to the pending permission prompt
 PermissionDecision = PermissionDecisionApproveOnce | PermissionDecisionApproveForSession | PermissionDecisionApproveForLocation | PermissionDecisionApprovePermanently | PermissionDecisionReject | PermissionDecisionUserNotAvailable | PermissionDecisionApproved | PermissionDecisionApprovedForSession | PermissionDecisionApprovedForLocation | PermissionDecisionCancelled | PermissionDecisionDeniedByRules | PermissionDecisionDeniedNoApprovalRuleAndCouldNotRequestFromUser | PermissionDecisionDeniedInteractivelyByUser | PermissionDecisionDeniedByContentExclusionPolicy | PermissionDecisionDeniedByPermissionRequestHook
 
-def _load_PermissionDecision(obj: Any) -> "PermissionDecision":
+def _load_PermissionDecision(obj: Any) -> PermissionDecision:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -15275,7 +15289,7 @@ def _load_PermissionDecision(obj: Any) -> "PermissionDecision":
 # Approval to persist for this location
 PermissionDecisionApproveForLocationApproval = PermissionDecisionApproveForLocationApprovalCommands | PermissionDecisionApproveForLocationApprovalRead | PermissionDecisionApproveForLocationApprovalWrite | PermissionDecisionApproveForLocationApprovalMCP | PermissionDecisionApproveForLocationApprovalMCPSampling | PermissionDecisionApproveForLocationApprovalMemory | PermissionDecisionApproveForLocationApprovalCustomTool | PermissionDecisionApproveForLocationApprovalExtensionManagement | PermissionDecisionApproveForLocationApprovalExtensionPermissionAccess
 
-def _load_PermissionDecisionApproveForLocationApproval(obj: Any) -> "PermissionDecisionApproveForLocationApproval":
+def _load_PermissionDecisionApproveForLocationApproval(obj: Any) -> PermissionDecisionApproveForLocationApproval:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -15293,7 +15307,7 @@ def _load_PermissionDecisionApproveForLocationApproval(obj: Any) -> "PermissionD
 # Session-scoped approval to remember (tool prompts only; omitted for path/url prompts)
 PermissionDecisionApproveForSessionApproval = PermissionDecisionApproveForSessionApprovalCommands | PermissionDecisionApproveForSessionApprovalRead | PermissionDecisionApproveForSessionApprovalWrite | PermissionDecisionApproveForSessionApprovalMCP | PermissionDecisionApproveForSessionApprovalMCPSampling | PermissionDecisionApproveForSessionApprovalMemory | PermissionDecisionApproveForSessionApprovalCustomTool | PermissionDecisionApproveForSessionApprovalExtensionManagement | PermissionDecisionApproveForSessionApprovalExtensionPermissionAccess
 
-def _load_PermissionDecisionApproveForSessionApproval(obj: Any) -> "PermissionDecisionApproveForSessionApproval":
+def _load_PermissionDecisionApproveForSessionApproval(obj: Any) -> PermissionDecisionApproveForSessionApproval:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -15311,7 +15325,7 @@ def _load_PermissionDecisionApproveForSessionApproval(obj: Any) -> "PermissionDe
 # Tool approval to persist and apply
 PermissionsLocationsAddToolApprovalDetails = PermissionsLocationsAddToolApprovalDetailsCommands | PermissionsLocationsAddToolApprovalDetailsRead | PermissionsLocationsAddToolApprovalDetailsWrite | PermissionsLocationsAddToolApprovalDetailsMCP | PermissionsLocationsAddToolApprovalDetailsMCPSampling | PermissionsLocationsAddToolApprovalDetailsMemory | PermissionsLocationsAddToolApprovalDetailsCustomTool | PermissionsLocationsAddToolApprovalDetailsExtensionManagement | PermissionsLocationsAddToolApprovalDetailsExtensionPermissionAccess
 
-def _load_PermissionsLocationsAddToolApprovalDetails(obj: Any) -> "PermissionsLocationsAddToolApprovalDetails":
+def _load_PermissionsLocationsAddToolApprovalDetails(obj: Any) -> PermissionsLocationsAddToolApprovalDetails:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -15329,7 +15343,7 @@ def _load_PermissionsLocationsAddToolApprovalDetails(obj: Any) -> "PermissionsLo
 # Result of the queued command execution.
 QueuedCommandResult = QueuedCommandHandled | QueuedCommandNotHandled
 
-def _load_QueuedCommandResult(obj: Any) -> "QueuedCommandResult":
+def _load_QueuedCommandResult(obj: Any) -> QueuedCommandResult:
     assert isinstance(obj, dict)
     kind = obj.get("handled")
     match kind:
@@ -15340,7 +15354,7 @@ def _load_QueuedCommandResult(obj: Any) -> "QueuedCommandResult":
 # A user message attachment — a file, directory, code selection, blob, or GitHub reference
 SendAttachment = SendAttachmentFile | SendAttachmentDirectory | SendAttachmentSelection | SendAttachmentGithubReference | SendAttachmentBlob
 
-def _load_SendAttachment(obj: Any) -> "SendAttachment":
+def _load_SendAttachment(obj: Any) -> SendAttachment:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -15354,7 +15368,7 @@ def _load_SendAttachment(obj: Any) -> "SendAttachment":
 # Result of invoking the slash command (text output, prompt to send to the agent, or completion).
 SlashCommandInvocationResult = SlashCommandTextResult | SlashCommandAgentPromptResult | SlashCommandCompletedResult | SlashCommandSelectSubcommandResult
 
-def _load_SlashCommandInvocationResult(obj: Any) -> "SlashCommandInvocationResult":
+def _load_SlashCommandInvocationResult(obj: Any) -> SlashCommandInvocationResult:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -15367,7 +15381,7 @@ def _load_SlashCommandInvocationResult(obj: Any) -> "SlashCommandInvocationResul
 # Schema for the `TaskInfo` type.
 TaskInfo = TaskAgentInfo | TaskShellInfo
 
-def _load_TaskInfo(obj: Any) -> "TaskInfo":
+def _load_TaskInfo(obj: Any) -> TaskInfo:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -15417,7 +15431,7 @@ def _patch_model_capabilities(data: dict) -> dict:
 
 
 class ServerModelsApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def list(self, params: ModelsListRequest, *, timeout: float | None = None) -> ModelList:
@@ -15427,7 +15441,7 @@ class ServerModelsApi:
 
 
 class ServerToolsApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def list(self, params: ToolsListRequest, *, timeout: float | None = None) -> ToolList:
@@ -15437,7 +15451,7 @@ class ServerToolsApi:
 
 
 class ServerAccountApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def get_quota(self, params: AccountGetQuotaRequest, *, timeout: float | None = None) -> AccountGetQuotaResult:
@@ -15447,7 +15461,7 @@ class ServerAccountApi:
 
 
 class ServerSecretsApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def add_filter_values(self, params: SecretsAddFilterValuesRequest, *, timeout: float | None = None) -> SecretsAddFilterValuesResult:
@@ -15457,7 +15471,7 @@ class ServerSecretsApi:
 
 
 class ServerMcpConfigApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def list(self, *, timeout: float | None = None) -> MCPConfigList:
@@ -15491,7 +15505,7 @@ class ServerMcpConfigApi:
 
 
 class ServerMcpApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
         self.config = ServerMcpConfigApi(client)
 
@@ -15502,7 +15516,7 @@ class ServerMcpApi:
 
 
 class ServerSkillsConfigApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def set_disabled_skills(self, params: SkillsConfigSetDisabledSkillsRequest, *, timeout: float | None = None) -> None:
@@ -15512,7 +15526,7 @@ class ServerSkillsConfigApi:
 
 
 class ServerSkillsApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
         self.config = ServerSkillsConfigApi(client)
 
@@ -15523,7 +15537,7 @@ class ServerSkillsApi:
 
 
 class ServerSessionFsApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def set_provider(self, params: SessionFSSetProviderRequest, *, timeout: float | None = None) -> SessionFSSetProviderResult:
@@ -15534,7 +15548,7 @@ class ServerSessionFsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ServerSessionsApi:
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def fork(self, params: SessionsForkRequest, *, timeout: float | None = None) -> SessionsForkResult:
@@ -15634,7 +15648,7 @@ class ServerSessionsApi:
 
 class ServerRpc:
     """Typed server-scoped RPC methods."""
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
         self.models = ServerModelsApi(client)
         self.tools = ServerToolsApi(client)
@@ -15653,7 +15667,7 @@ class ServerRpc:
 
 class _InternalServerRpc:
     """Internal SDK server-scoped RPC methods. Not part of the public API."""
-    def __init__(self, client: "JsonRpcClient"):
+    def __init__(self, client: JsonRpcClient):
         self._client = client
 
     async def connect(self, params: ConnectRequest, *, timeout: float | None = None) -> ConnectResult:
@@ -15664,7 +15678,7 @@ class _InternalServerRpc:
 
 # Experimental: this API group is experimental and may change or be removed.
 class AuthApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15681,7 +15695,7 @@ class AuthApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ModelApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15704,7 +15718,7 @@ class ModelApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ModeApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15721,7 +15735,7 @@ class ModeApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class NameApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15744,7 +15758,7 @@ class NameApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PlanApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15765,7 +15779,7 @@ class PlanApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class WorkspacesApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15808,7 +15822,7 @@ class WorkspacesApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class InstructionsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15819,7 +15833,7 @@ class InstructionsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class FleetApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15832,7 +15846,7 @@ class FleetApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class AgentApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15861,7 +15875,7 @@ class AgentApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class TasksApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15924,7 +15938,7 @@ class TasksApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class SkillsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15959,7 +15973,7 @@ class SkillsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class McpOauthApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -15972,7 +15986,7 @@ class McpOauthApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class McpApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
         self.oauth = McpOauthApi(client, session_id)
@@ -16022,7 +16036,7 @@ class McpApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PluginsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16033,7 +16047,7 @@ class PluginsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class OptionsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16046,7 +16060,7 @@ class OptionsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class LspApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16059,7 +16073,7 @@ class LspApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ExtensionsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16086,7 +16100,7 @@ class ExtensionsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ToolsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16103,7 +16117,7 @@ class ToolsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class CommandsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16146,7 +16160,7 @@ class CommandsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class TelemetryApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16159,7 +16173,7 @@ class TelemetryApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class UiApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16212,7 +16226,7 @@ class UiApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PermissionsPathsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16247,7 +16261,7 @@ class PermissionsPathsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PermissionsLocationsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16272,7 +16286,7 @@ class PermissionsLocationsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PermissionsFolderTrustApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16291,7 +16305,7 @@ class PermissionsFolderTrustApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PermissionsUrlsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16304,7 +16318,7 @@ class PermissionsUrlsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class PermissionsApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
         self.paths = PermissionsPathsApi(client, session_id)
@@ -16359,7 +16373,7 @@ class PermissionsApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class MetadataApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16398,7 +16412,7 @@ class MetadataApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ShellApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16417,7 +16431,7 @@ class ShellApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class HistoryApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16448,7 +16462,7 @@ class HistoryApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class QueueApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16467,7 +16481,7 @@ class QueueApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class EventLogApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16496,7 +16510,7 @@ class EventLogApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class UsageApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16507,7 +16521,7 @@ class UsageApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class RemoteApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16530,7 +16544,7 @@ class RemoteApi:
 
 # Experimental: this API group is experimental and may change or be removed.
 class ScheduleApi:
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
 
@@ -16547,7 +16561,7 @@ class ScheduleApi:
 
 class SessionRpc:
     """Typed session-scoped RPC methods."""
-    def __init__(self, client: "JsonRpcClient", session_id: str):
+    def __init__(self, client: JsonRpcClient, session_id: str):
         self._client = client
         self._session_id = session_id
         self.auth = AuthApi(client, session_id)
@@ -16652,7 +16666,7 @@ class ClientSessionApiHandlers:
     session_fs: SessionFsHandler | None = None
 
 def register_client_session_api_handlers(
-    client: "JsonRpcClient",
+    client: JsonRpcClient,
     get_handlers: Callable[[str], ClientSessionApiHandlers],
 ) -> None:
     """Register client-session request handlers on a JSON-RPC connection."""

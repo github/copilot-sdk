@@ -12,8 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.generated.rpc import (
     AccountGetQuotaRequest,
     MCPDiscoverRequest,
@@ -48,7 +47,7 @@ def _create_skill_directory(work_dir: str, skill_name: str, description: str) ->
 @pytest.fixture(scope="module")
 async def authed_ctx(ctx: E2ETestContext):
     """Configure proxy to redirect GitHub user lookups so per-token auth works."""
-    ctx.client._config.env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
+    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
     return ctx
 
 
@@ -56,8 +55,8 @@ def _make_authed_client(ctx: E2ETestContext, token: str) -> CopilotClient:
     env = ctx.get_env()
     env["COPILOT_DEBUG_GITHUB_API_URL"] = ctx.proxy_url
     return CopilotClient(
-        SubprocessConfig(
-            cli_path=ctx.cli_path,
+        CopilotClientOptions(
+            connection=RuntimeConnection.stdio(path=ctx.cli_path),
             working_directory=ctx.work_dir,
             env=env,
             github_token=token,

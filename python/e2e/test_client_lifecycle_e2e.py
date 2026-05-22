@@ -1,5 +1,5 @@
 """
-Client lifecycle tests covering ``client.on(...)`` lifecycle event subscriptions
+Client lifecycle tests covering ``client.on_lifecycle(...)`` lifecycle event subscriptions
 and connection-state transitions across ``start``/``stop``.
 
 Mirrors ``dotnet/test/ClientLifecycleTests.cs`` plus the existing ``client_lifecycle``
@@ -14,8 +14,7 @@ import os
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -60,8 +59,8 @@ def _make_isolated_client(ctx: E2ETestContext) -> CopilotClient:
         "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
     )
     return CopilotClient(
-        SubprocessConfig(
-            cli_path=ctx.cli_path,
+        CopilotClientOptions(
+            connection=RuntimeConnection.stdio(path=ctx.cli_path),
             working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=github_token,
@@ -84,7 +83,7 @@ class TestClientLifecycle:
 
     async def test_should_emit_session_lifecycle_events(self, ctx: E2ETestContext):
         events: list = []
-        unsubscribe = ctx.client.on(events.append)
+        unsubscribe = ctx.client.on_lifecycle(events.append)
         try:
             session = await ctx.client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -111,7 +110,7 @@ class TestClientLifecycle:
             if event.type == "session.created" and not created.done():
                 created.set_result(event)
 
-        unsubscribe = ctx.client.on(handler)
+        unsubscribe = ctx.client.on_lifecycle(handler)
         try:
             session = await ctx.client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -133,7 +132,7 @@ class TestClientLifecycle:
             if not created.done():
                 created.set_result(event)
 
-        unsubscribe = ctx.client.on("session.created", handler)
+        unsubscribe = ctx.client.on_lifecycle("session.created", handler)
         try:
             session = await ctx.client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -157,11 +156,11 @@ class TestClientLifecycle:
             nonlocal unsubscribed_count
             unsubscribed_count += 1
 
-        unsubscribe_disposed = ctx.client.on(disposed_handler)
+        unsubscribe_disposed = ctx.client.on_lifecycle(disposed_handler)
         unsubscribe_disposed()  # Immediately dispose first subscription.
 
         active_event: asyncio.Future = loop.create_future()
-        unsubscribe_active = ctx.client.on(
+        unsubscribe_active = ctx.client.on_lifecycle(
             "session.created",
             lambda evt: active_event.set_result(evt) if not active_event.done() else None,
         )
@@ -212,7 +211,7 @@ class TestClientLifecycle:
             ):
                 updated.set_result(event)
 
-        unsubscribe = ctx.client.on(handler)
+        unsubscribe = ctx.client.on_lifecycle(handler)
         try:
             await session.rpc.mode.set(ModeSetRequest(mode=SessionMode.PLAN))
             event = await asyncio.wait_for(updated, timeout=15.0)
@@ -247,7 +246,7 @@ class TestClientLifecycle:
             ):
                 deleted.set_result(event)
 
-        unsubscribe = ctx.client.on(handler)
+        unsubscribe = ctx.client.on_lifecycle(handler)
         try:
             await session.disconnect()
             await ctx.client.delete_session(session_id)

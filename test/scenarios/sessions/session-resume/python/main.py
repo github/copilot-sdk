@@ -1,14 +1,15 @@
 import asyncio
 import os
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+
+from copilot import CopilotClient, CopilotClientOptions
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient(
+        CopilotClientOptions(
+            github_token=os.environ.get("GITHUB_TOKEN"),
+        )
+    )
 
     try:
         # 1. Create a session
@@ -20,9 +21,7 @@ async def main():
         )
 
         # 2. Send the secret word
-        await session.send_and_wait(
-            "Remember this: the secret word is PINEAPPLE."
-        )
+        await session.send_and_wait("Remember this: the secret word is PINEAPPLE.")
 
         # 3. Get the session ID (don't disconnect — resume needs the session to persist)
         session_id = session.session_id
@@ -32,9 +31,7 @@ async def main():
         print("Session resumed")
 
         # 5. Ask for the secret word
-        response = await resumed.send_and_wait(
-            "What was the secret word I told you?"
-        )
+        response = await resumed.send_and_wait("What was the secret word I told you?")
 
         if response:
             print(response.data.content)

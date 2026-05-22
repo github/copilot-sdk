@@ -35,7 +35,7 @@ AUTO_MODE_PROMPT = "Explain that auto mode recovered from a rate limit in one sh
 async def mode_ctx(ctx: E2ETestContext):
     """Configure per-token user responses for mode-handler tests."""
     proxy_url = ctx.proxy_url
-    ctx.client._config.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
+    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
 
     await ctx.set_copilot_user_by_token(
         MODE_HANDLER_TOKEN,

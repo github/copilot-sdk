@@ -2,7 +2,7 @@
 
 import pytest
 
-from copilot.client import CopilotClient, SubprocessConfig
+from copilot.client import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -18,7 +18,7 @@ async def auth_ctx(ctx: E2ETestContext):
     # Redirect GitHub API calls to the proxy so per-session auth token
     # resolution (fetchCopilotUser) is intercepted. Must be set before the
     # CLI subprocess is spawned (i.e., before the first create_session call).
-    ctx.client._config.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
+    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
 
     await ctx.set_copilot_user_by_token(
         "token-alice",
@@ -97,8 +97,8 @@ class TestPerSessionAuth:
         env = without_auth_env(auth_ctx.get_env())
         env["COPILOT_DEBUG_GITHUB_API_URL"] = auth_ctx.proxy_url
         no_token_client = CopilotClient(
-            SubprocessConfig(
-                cli_path=auth_ctx.cli_path,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=auth_ctx.cli_path),
                 working_directory=auth_ctx.work_dir,
                 env=env,
                 use_logged_in_user=False,

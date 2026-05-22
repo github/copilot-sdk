@@ -25,8 +25,8 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Awaitable, Callable
-from dataclasses import KW_ONLY, dataclass, field
+from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
@@ -156,61 +156,162 @@ class TelemetryConfig(TypedDict, total=False):
 
 
 @dataclass
-class SubprocessConfig:
-    """Config for spawning a local Copilot CLI subprocess.
+class RuntimeConnection:
+    """Discriminated config describing how to reach the Copilot runtime.
+
+    Construct via the static factories :meth:`stdio`, :meth:`tcp`, or
+    :meth:`uri`. Each factory returns the matching subclass; pattern-match
+    on the subclass (or :func:`isinstance`) to branch on the transport.
 
     Example:
-        >>> config = SubprocessConfig(github_token="ghp_...")
-        >>> client = CopilotClient(config)
-
-        >>> # Custom CLI path with TCP transport
-        >>> config = SubprocessConfig(
-        ...     cli_path="/usr/local/bin/copilot",
-        ...     use_stdio=False,
-        ...     log_level="debug",
-        ... )
+        >>> CopilotClient()  # default: stdio with the bundled runtime
+        >>> CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000")))
     """
 
-    cli_path: str | None = None
-    """Path to the Copilot CLI executable. ``None`` uses the bundled binary."""
+    @staticmethod
+    def stdio(
+        *,
+        path: str | None = None,
+        args: Sequence[str] = (),
+    ) -> StdioRuntimeConnection:
+        """Spawn a runtime child process and communicate over its stdin/stdout.
 
-    cli_args: list[str] = field(default_factory=list)
-    """Extra arguments passed to the CLI executable (inserted before SDK-managed args)."""
+        This is the default when no :attr:`CopilotClientOptions.connection`
+        is supplied.
 
-    _: KW_ONLY
+        Args:
+            path: Path to the runtime executable. When ``None``, uses the
+                bundled binary.
+            args: Extra command-line arguments passed to the runtime process.
+        """
+        return StdioRuntimeConnection(path=path, args=tuple(args))
 
-    working_directory: str | None = None
-    """Working directory for the CLI process. ``None`` uses the current directory."""
+    @staticmethod
+    def tcp(
+        *,
+        port: int = 0,
+        connection_token: str | None = None,
+        path: str | None = None,
+        args: Sequence[str] = (),
+    ) -> TcpRuntimeConnection:
+        """Spawn a runtime child process listening on a TCP socket.
 
-    use_stdio: bool = True
-    """Use stdio transport (``True``, default) or TCP (``False``)."""
+        Args:
+            port: TCP port to listen on. ``0`` (the default) auto-allocates
+                a free port. If the chosen port is already in use, startup
+                fails.
+            connection_token: Optional shared secret the SDK sends to the
+                spawned runtime to authenticate the TCP connection. When
+                ``None``, a UUID is generated automatically so the loopback
+                listener is safe by default.
+            path: Path to the runtime executable. When ``None``, uses the
+                bundled binary.
+            args: Extra command-line arguments passed to the runtime process.
+        """
+        return TcpRuntimeConnection(
+            path=path,
+            args=tuple(args),
+            port=port,
+            connection_token=connection_token,
+        )
 
-    tcp_connection_token: str | None = None
-    """Connection token for the headless CLI server (TCP only).
+    @staticmethod
+    def uri(url: str, *, connection_token: str | None = None) -> UriRuntimeConnection:
+        """Connect to an already-running runtime at the given URL.
 
-    Only meaningful when ``use_stdio=False``. When the SDK spawns the CLI in TCP mode and
-    this is omitted, a UUID is generated automatically so the loopback listener is safe by
-    default. Combining this with ``use_stdio=True`` raises :class:`ValueError`.
+        Args:
+            url: URL of the runtime to connect to. Accepts ``"port"``,
+                ``"host:port"``, or a full URL.
+            connection_token: Optional shared secret to authenticate the
+                connection. Required when the server was started with a
+                token; ignored by legacy servers without ``connect`` support.
+        """
+        return UriRuntimeConnection(url=url, connection_token=connection_token)
+
+
+@dataclass
+class ChildProcessRuntimeConnection(RuntimeConnection):
+    """Base for :class:`RuntimeConnection` variants that spawn a runtime child process.
+
+    Construct via :meth:`RuntimeConnection.stdio` or :meth:`RuntimeConnection.tcp`.
+    """
+
+    path: str | None = None
+    """Path to the runtime executable. ``None`` uses the bundled binary."""
+
+    args: Sequence[str] = ()
+    """Extra command-line arguments passed to the runtime process."""
+
+
+@dataclass
+class StdioRuntimeConnection(ChildProcessRuntimeConnection):
+    """Spawns a runtime child process and communicates over its stdin/stdout.
+
+    Construct via :meth:`RuntimeConnection.stdio`.
+    """
+
+
+@dataclass
+class TcpRuntimeConnection(ChildProcessRuntimeConnection):
+    """Spawns a runtime child process listening on a TCP socket.
+
+    Construct via :meth:`RuntimeConnection.tcp`.
     """
 
     port: int = 0
-    """TCP port for the CLI server (only when ``use_stdio=False``). 0 means random."""
+    """TCP port to listen on. ``0`` (the default) auto-allocates a free port."""
+
+    connection_token: str | None = None
+    """Shared secret the SDK sends to the spawned runtime. ``None`` auto-generates one."""
+
+
+@dataclass
+class UriRuntimeConnection(RuntimeConnection):
+    """Connects to an already-running runtime at the specified URL.
+
+    Construct via :meth:`RuntimeConnection.uri`.
+    """
+
+    url: str = ""
+    """URL of the runtime to connect to. Accepts ``"port"``, ``"host:port"``, or a full URL."""
+
+    connection_token: str | None = None
+    """Shared secret to authenticate the connection."""
+
+
+@dataclass
+class CopilotClientOptions:
+    """Configuration options for a :class:`CopilotClient`.
+
+    All process-management options (``working_directory``, ``log_level``,
+    ``env``, ``github_token``, …) apply only when the SDK spawns the runtime
+    (stdio / tcp connections). They are ignored when connecting to an
+    existing runtime via :meth:`RuntimeConnection.uri`.
+    """
+
+    connection: RuntimeConnection | None = None
+    """How to reach the runtime.
+
+    Defaults to :meth:`RuntimeConnection.stdio` with the bundled binary.
+    """
+
+    working_directory: str | None = None
+    """Working directory for the runtime process. ``None`` uses the current directory."""
 
     log_level: LogLevel = "info"
-    """Log level for the CLI process."""
+    """Log level for the runtime process."""
 
     env: dict[str, str] | None = None
-    """Environment variables for the CLI process. ``None`` inherits the current env."""
+    """Environment variables for the runtime process. ``None`` inherits the current env."""
 
     github_token: str | None = None
     """GitHub token for authentication. Takes priority over other auth methods."""
 
-    copilot_home: str | None = None
+    base_directory: str | None = None
     """Base directory for Copilot data (session state, config, etc.).
 
-    Sets the ``COPILOT_HOME`` environment variable on the spawned CLI process.
-    When ``None``, the CLI defaults to ``~/.copilot``.
-    This option is only used when the SDK spawns the CLI process.
+    Sets the ``COPILOT_HOME`` environment variable on the spawned runtime.
+    When ``None``, the runtime defaults to ``~/.copilot``.
     """
 
     use_logged_in_user: bool | None = None
@@ -220,7 +321,7 @@ class SubprocessConfig:
     """
 
     telemetry: TelemetryConfig | None = None
-    """OpenTelemetry configuration. Providing this enables telemetry — no separate flag needed."""
+    """OpenTelemetry configuration. Providing this enables telemetry."""
 
     session_fs: SessionFsConfig | None = None
     """Connection-level session filesystem provider configuration."""
@@ -229,39 +330,15 @@ class SubprocessConfig:
     """Server-wide session idle timeout in seconds.
 
     Sessions without activity for this duration are automatically cleaned up.
-    Set to ``None`` or ``0`` to disable (sessions live indefinitely).
-    This option is only used when the SDK spawns the CLI process.
+    Set to ``None`` or ``0`` to disable.
     """
 
-    remote: bool = False
+    enable_remote_sessions: bool = False
     """Enable remote session support (Mission Control integration).
 
     When ``True``, sessions in a GitHub repository working directory are
     accessible from GitHub web and mobile.
-    This option is only used when the SDK spawns the CLI process.
     """
-
-
-@dataclass
-class ExternalServerConfig:
-    """Config for connecting to an existing Copilot CLI server over TCP.
-
-    Example:
-        >>> config = ExternalServerConfig(url="localhost:3000")
-        >>> client = CopilotClient(config)
-    """
-
-    url: str
-    """Server URL. Supports ``"host:port"``, ``"http://host:port"``, or just ``"port"``."""
-
-    _: KW_ONLY
-
-    tcp_connection_token: str | None = None
-    """Connection token sent in the ``connect`` handshake. Required when the server was
-    started with a token; ignored by legacy servers without ``connect`` support."""
-
-    session_fs: SessionFsConfig | None = None
-    """Connection-level session filesystem provider configuration."""
 
 
 # ============================================================================
@@ -925,12 +1002,14 @@ class CopilotClient:
         >>> await client.stop()
 
         >>> # Or connect to an existing server
-        >>> client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
+        >>> client = CopilotClient(
+        ...     CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000"))
+        ... )
     """
 
     def __init__(
         self,
-        config: SubprocessConfig | ExternalServerConfig | None = None,
+        options: CopilotClientOptions | None = None,
         *,
         auto_start: bool = True,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
@@ -939,81 +1018,93 @@ class CopilotClient:
         Initialize a new CopilotClient.
 
         Args:
-            config: Connection configuration. Pass a :class:`SubprocessConfig` to
-                spawn a local CLI process, or an :class:`ExternalServerConfig` to
-                connect to an existing server. Defaults to ``SubprocessConfig()``.
+            options: Client configuration. Defaults to ``CopilotClientOptions()``
+                with a default :meth:`RuntimeConnection.stdio` connection using
+                the bundled runtime binary.
             auto_start: Automatically start the connection on first use
                 (default: ``True``).
             on_list_models: Custom handler for :meth:`list_models`. When provided,
-                the handler is called instead of querying the CLI server.
+                the handler is called instead of querying the runtime server.
 
         Example:
-            >>> # Default — spawns CLI server using stdio
+            >>> # Default — spawns runtime using stdio with the bundled binary
             >>> client = CopilotClient()
             >>>
-            >>> # Connect to an existing server
-            >>> client = CopilotClient(ExternalServerConfig(url="localhost:3000"))
-            >>>
-            >>> # Custom CLI path with specific log level
+            >>> # Connect to an existing runtime
             >>> client = CopilotClient(
-            ...     SubprocessConfig(
-            ...         cli_path="/usr/local/bin/copilot",
+            ...     CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000"))
+            ... )
+            >>>
+            >>> # Custom runtime path with specific log level
+            >>> client = CopilotClient(
+            ...     CopilotClientOptions(
+            ...         connection=RuntimeConnection.stdio(path="/usr/local/bin/copilot"),
             ...         log_level="debug",
             ...     )
             ... )
         """
-        if config is None:
-            config = SubprocessConfig()
+        if options is None:
+            options = CopilotClientOptions()
+        connection = (
+            options.connection if options.connection is not None else RuntimeConnection.stdio()
+        )
 
-        self._config: SubprocessConfig | ExternalServerConfig = config
+        self._options: CopilotClientOptions = options
+        self._connection: RuntimeConnection = connection
         self._auto_start = auto_start
         self._on_list_models = on_list_models
 
-        # Resolve connection-mode-specific state
+        # Resolve connection-mode-specific state.
         self._actual_host: str = "localhost"
-        self._is_external_server: bool = isinstance(config, ExternalServerConfig)
+        self._is_external_server: bool = isinstance(connection, UriRuntimeConnection)
 
-        if config.tcp_connection_token is not None and len(config.tcp_connection_token) == 0:
-            raise ValueError("tcp_connection_token must be a non-empty string")
-
-        if isinstance(config, ExternalServerConfig):
-            self._actual_host, actual_port = self._parse_cli_url(config.url)
-            self._actual_port: int | None = actual_port
-            self._effective_connection_token: str | None = config.tcp_connection_token
+        if isinstance(connection, UriRuntimeConnection):
+            if connection.connection_token is not None and len(connection.connection_token) == 0:
+                raise ValueError("connection_token must be a non-empty string")
+            self._actual_host, actual_port = self._parse_cli_url(connection.url)
+            self._runtime_port: int | None = actual_port
+            self._effective_connection_token: str | None = connection.connection_token
         else:
-            self._actual_port = None
+            assert isinstance(connection, ChildProcessRuntimeConnection)
+            self._runtime_port = None
 
-            if config.tcp_connection_token is not None and config.use_stdio:
-                raise ValueError("tcp_connection_token cannot be used with use_stdio=True")
-            if config.use_stdio:
-                self._effective_connection_token = None
-            elif config.tcp_connection_token is not None:
-                self._effective_connection_token = config.tcp_connection_token
+            if isinstance(connection, TcpRuntimeConnection):
+                if (
+                    connection.connection_token is not None
+                    and len(connection.connection_token) == 0
+                ):
+                    raise ValueError("connection_token must be a non-empty string")
+                self._effective_connection_token = (
+                    connection.connection_token
+                    if connection.connection_token is not None
+                    else str(uuid.uuid4())
+                )
             else:
-                self._effective_connection_token = str(uuid.uuid4())
+                self._effective_connection_token = None
 
-            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary
-            effective_env = config.env if config.env is not None else os.environ
+            # Resolve CLI path: explicit > COPILOT_CLI_PATH env var > bundled binary.
+            effective_env = options.env if options.env is not None else os.environ
             self._cli_path_source: str | None = "explicit"
-            if config.cli_path is None:
+            if connection.path is None:
                 env_cli_path = effective_env.get("COPILOT_CLI_PATH")
                 if env_cli_path:
-                    config.cli_path = env_cli_path
+                    connection.path = env_cli_path
                     self._cli_path_source = "environment"
                 else:
                     bundled_path = _get_bundled_cli_path()
                     if bundled_path:
-                        config.cli_path = bundled_path
+                        connection.path = bundled_path
                         self._cli_path_source = "bundled"
                     else:
                         raise RuntimeError(
                             "Copilot CLI not found. The bundled CLI binary is not available. "
-                            "Ensure you installed a platform-specific wheel, or provide cli_path."
+                            "Ensure you installed a platform-specific wheel, or set "
+                            "RuntimeConnection.stdio(path=...) / RuntimeConnection.tcp(path=...)."
                         )
 
             # Resolve use_logged_in_user default
-            if config.use_logged_in_user is None:
-                config.use_logged_in_user = not bool(config.github_token)
+            if options.use_logged_in_user is None:
+                options.use_logged_in_user = not bool(options.github_token)
 
         self._process: subprocess.Popen | None = None
         self._client: JsonRpcClient | None = None
@@ -1029,9 +1120,9 @@ class CopilotClient:
         self._lifecycle_handlers_lock = threading.Lock()
         self._rpc: ServerRpc | None = None
         self._negotiated_protocol_version: int | None = None
-        if config.session_fs is not None:
-            _validate_session_fs_config(config.session_fs)
-        self._session_fs_config = config.session_fs
+        if options.session_fs is not None:
+            _validate_session_fs_config(options.session_fs)
+        self._session_fs_config = options.session_fs
 
     @property
     def rpc(self) -> ServerRpc:
@@ -1041,14 +1132,14 @@ class CopilotClient:
         return self._rpc
 
     @property
-    def actual_port(self) -> int | None:
-        """The actual TCP port the CLI server is listening on, if using TCP transport.
+    def runtime_port(self) -> int | None:
+        """TCP port the runtime is listening on, when using TCP transport.
 
         Useful for multi-client scenarios where a second client needs to connect
-        to the same server. Only available after :meth:`start` completes and
+        to the same runtime. Only available after :meth:`start` completes and
         only when not using stdio transport.
         """
-        return self._actual_port
+        return self._runtime_port
 
     def _parse_cli_url(self, url: str) -> tuple[str, int]:
         """
@@ -1130,7 +1221,7 @@ class CopilotClient:
         """
         Start the CLI server and establish a connection.
 
-        If connecting to an external server (via :class:`ExternalServerConfig`),
+        If connecting to an already-running runtime (via :meth:`RuntimeConnection.uri`),
         only establishes the connection. Otherwise, spawns the CLI server process
         and then connects.
 
@@ -1287,7 +1378,7 @@ class CopilotClient:
 
         self._state = "disconnected"
         if not self._is_external_server:
-            self._actual_port = None
+            self._runtime_port = None
 
         if errors:
             raise ExceptionGroup("errors during CopilotClient.stop()", errors)
@@ -1342,7 +1433,7 @@ class CopilotClient:
 
         self._state = "disconnected"
         if not self._is_external_server:
-            self._actual_port = None
+            self._runtime_port = None
 
     async def create_session(
         self,
@@ -2378,14 +2469,14 @@ class CopilotClient:
             raise RuntimeError(f"Failed to set foreground session: {error}")
 
     @overload
-    def on(self, handler: SessionLifecycleHandler, /) -> HandlerUnsubcribe: ...
+    def on_lifecycle(self, handler: SessionLifecycleHandler, /) -> HandlerUnsubcribe: ...
 
     @overload
-    def on(
+    def on_lifecycle(
         self, event_type: SessionLifecycleEventType, /, handler: SessionLifecycleHandler
     ) -> HandlerUnsubcribe: ...
 
-    def on(
+    def on_lifecycle(
         self,
         event_type_or_handler: SessionLifecycleEventType | SessionLifecycleHandler,
         /,
@@ -2398,8 +2489,8 @@ class CopilotClient:
         or change foreground/background state (in TUI+server mode).
 
         Can be called in two ways:
-        - on(handler): Subscribe to all lifecycle events
-        - on(event_type, handler): Subscribe to a specific event type
+        - on_lifecycle(handler): Subscribe to all lifecycle events
+        - on_lifecycle(event_type, handler): Subscribe to a specific event type
 
         Args:
             event_type_or_handler: Either a specific event type to listen for,
@@ -2411,10 +2502,12 @@ class CopilotClient:
 
         Example:
             >>> # Subscribe to specific event type
-            >>> unsubscribe = client.on("session.foreground", lambda e: print(e.sessionId))
+            >>> unsubscribe = client.on_lifecycle(
+            ...     "session.foreground", lambda e: print(e.sessionId)
+            ... )
             >>>
             >>> # Subscribe to all events
-            >>> unsubscribe = client.on(lambda e: print(f"{e.type}: {e.sessionId}"))
+            >>> unsubscribe = client.on_lifecycle(lambda e: print(f"{e.type}: {e.sessionId}"))
             >>>
             >>> # Later, to stop receiving events:
             >>> unsubscribe()
@@ -2446,7 +2539,10 @@ class CopilotClient:
 
                 return unsubscribe_typed
             else:
-                raise ValueError("Invalid arguments: use on(handler) or on(event_type, handler)")
+                raise ValueError(
+                    "Invalid arguments: use on_lifecycle(handler) "
+                    "or on_lifecycle(event_type, handler)"
+                )
 
     def _dispatch_lifecycle_event(self, event: SessionLifecycleEvent) -> None:
         """Dispatch a lifecycle event to all registered handlers."""
@@ -2608,19 +2704,21 @@ class CopilotClient:
         return wire
 
     async def _start_cli_server(self) -> None:
-        """
-        Start the CLI server process.
+        """Start the runtime process.
 
-        This spawns the CLI server as a subprocess using the configured transport
+        This spawns the runtime as a subprocess using the configured transport
         mode (stdio or TCP).
 
         Raises:
             RuntimeError: If the server fails to start or times out.
         """
-        assert isinstance(self._config, SubprocessConfig)
-        cfg = self._config
+        assert isinstance(self._connection, ChildProcessRuntimeConnection)
+        conn = self._connection
+        opts = self._options
+        use_stdio = isinstance(conn, StdioRuntimeConnection)
+        tcp_port = conn.port if isinstance(conn, TcpRuntimeConnection) else 0
 
-        cli_path = cfg.cli_path
+        cli_path = conn.path
         assert cli_path is not None  # resolved in __init__
 
         # Verify CLI exists
@@ -2629,24 +2727,24 @@ class CopilotClient:
             if (cli_path := shutil.which(cli_path)) is None:
                 raise RuntimeError(f"Copilot CLI not found at {original_path}")
 
-        # Start with user-provided cli_args, then add SDK-managed args
-        args = list(cfg.cli_args) + [
+        # Start with user-provided args, then add SDK-managed args
+        args = list(conn.args) + [
             "--headless",
             "--no-auto-update",
             "--log-level",
-            cfg.log_level,
+            opts.log_level,
         ]
 
         # Add auth-related flags
-        if cfg.github_token:
+        if opts.github_token:
             args.extend(["--auth-token-env", "COPILOT_SDK_AUTH_TOKEN"])
-        if not cfg.use_logged_in_user:
+        if not opts.use_logged_in_user:
             args.append("--no-auto-login")
 
-        if cfg.session_idle_timeout_seconds is not None and cfg.session_idle_timeout_seconds > 0:
-            args.extend(["--session-idle-timeout", str(cfg.session_idle_timeout_seconds)])
+        if opts.session_idle_timeout_seconds is not None and opts.session_idle_timeout_seconds > 0:
+            args.extend(["--session-idle-timeout", str(opts.session_idle_timeout_seconds)])
 
-        if cfg.remote:
+        if opts.enable_remote_sessions:
             args.append("--remote")
 
         # If cli_path is a .js file, run it with node
@@ -2661,28 +2759,28 @@ class CopilotClient:
                 "cli_path": cli_path,
                 "executable": args[0],
                 "cli_path_source": self._cli_path_source,
-                "use_stdio": cfg.use_stdio,
-                "port": None if cfg.use_stdio else cfg.port,
+                "use_stdio": use_stdio,
+                "port": None if use_stdio else tcp_port,
             },
         )
 
         # Get environment variables
-        if cfg.env is None:
+        if opts.env is None:
             env = dict(os.environ)
         else:
-            env = dict(cfg.env)
+            env = dict(opts.env)
 
         # Set auth token in environment if provided
-        if cfg.github_token:
-            env["COPILOT_SDK_AUTH_TOKEN"] = cfg.github_token
+        if opts.github_token:
+            env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
 
         if self._effective_connection_token:
             env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token
-        if cfg.copilot_home:
-            env["COPILOT_HOME"] = cfg.copilot_home
+        if opts.base_directory:
+            env["COPILOT_HOME"] = opts.base_directory
 
         # Set OpenTelemetry environment variables if telemetry config is provided
-        telemetry = cfg.telemetry
+        telemetry = opts.telemetry
         if telemetry is not None:
             env["COPILOT_OTEL_ENABLED"] = "true"
             if "otlp_endpoint" in telemetry:
@@ -2701,11 +2799,11 @@ class CopilotClient:
         # On Windows, hide the console window to avoid distracting users in GUI apps
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-        cwd = cfg.working_directory or os.getcwd()
+        cwd = opts.working_directory or os.getcwd()
 
         # Choose transport mode
         spawn_start = time.perf_counter()
-        if cfg.use_stdio:
+        if use_stdio:
             args.append("--stdio")
             # Use regular Popen with pipes (buffering=0 for unbuffered)
             self._process = subprocess.Popen(
@@ -2719,8 +2817,8 @@ class CopilotClient:
                 creationflags=creationflags,
             )
         else:
-            if cfg.port > 0:
-                args.extend(["--port", str(cfg.port)])
+            if tcp_port > 0:
+                args.extend(["--port", str(tcp_port)])
             self._process = subprocess.Popen(
                 args,
                 stdin=subprocess.DEVNULL,
@@ -2738,7 +2836,7 @@ class CopilotClient:
         )
 
         # For stdio mode, we're ready immediately
-        if cfg.use_stdio:
+        if use_stdio:
             return
 
         # For TCP mode, wait for port announcement
@@ -2757,7 +2855,7 @@ class CopilotClient:
                 logger.debug("[CLI] %s", line_str.rstrip())
                 match = re.search(r"listening on port (\d+)", line_str, re.IGNORECASE)
                 if match:
-                    self._actual_port = int(match.group(1))
+                    self._runtime_port = int(match.group(1))
                     return
 
         try:
@@ -2768,14 +2866,13 @@ class CopilotClient:
                 logging.DEBUG,
                 "CopilotClient._start_cli_server TCP port wait complete",
                 port_wait_start,
-                port=self._actual_port,
+                port=self._runtime_port,
             )
         except TimeoutError:
             raise RuntimeError("Timeout waiting for CLI server to start")
 
     async def _connect_to_server(self) -> None:
-        """
-        Connect to the CLI server via the configured transport.
+        """Connect to the runtime via the configured transport.
 
         Uses either stdio or TCP based on the client configuration.
 
@@ -2783,8 +2880,7 @@ class CopilotClient:
             RuntimeError: If the connection fails.
         """
         setup_start = time.perf_counter()
-        use_stdio = isinstance(self._config, SubprocessConfig) and self._config.use_stdio
-        if use_stdio:
+        if isinstance(self._connection, StdioRuntimeConnection):
             await self._connect_via_stdio()
         else:
             await self._connect_via_tcp()
@@ -2862,7 +2958,7 @@ class CopilotClient:
         Raises:
             RuntimeError: If the server port is not available or connection fails.
         """
-        if not self._actual_port:
+        if not self._runtime_port:
             raise RuntimeError("Server port not available")
 
         # Create a TCP socket connection with timeout
@@ -2878,9 +2974,9 @@ class CopilotClient:
             tcp_connect_start = time.perf_counter()
             logger.info(
                 "CopilotClient._connect_via_tcp connecting to CLI server",
-                extra={"host": self._actual_host, "port": self._actual_port},
+                extra={"host": self._actual_host, "port": self._runtime_port},
             )
-            sock.connect((self._actual_host, self._actual_port))
+            sock.connect((self._actual_host, self._runtime_port))
             sock.settimeout(None)  # Remove timeout after connection
             log_timing(
                 logger,
@@ -2888,11 +2984,11 @@ class CopilotClient:
                 "CopilotClient._connect_via_tcp TCP connect complete",
                 tcp_connect_start,
                 host=self._actual_host,
-                port=self._actual_port,
+                port=self._runtime_port,
             )
         except OSError as e:
             raise RuntimeError(
-                f"Failed to connect to CLI server at {self._actual_host}:{self._actual_port}: {e}"
+                f"Failed to connect to CLI server at {self._actual_host}:{self._runtime_port}: {e}"
             )
 
         # Create a file-like wrapper for the socket

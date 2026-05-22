@@ -205,7 +205,7 @@ class SessionEventType(Enum):
     UNKNOWN = "unknown"
 
     @classmethod
-    def _missing_(cls, value: object) -> "SessionEventType":
+    def _missing_(cls, value: object) -> SessionEventType:
         return cls.UNKNOWN
 
 
@@ -214,7 +214,7 @@ class RawSessionEventData:
     raw: Any
 
     @staticmethod
-    def from_dict(obj: Any) -> "RawSessionEventData":
+    def from_dict(obj: Any) -> RawSessionEventData:
         return RawSessionEventData(obj)
 
     def to_dict(self) -> Any:
@@ -269,7 +269,7 @@ class Data:
             setattr(self, key, value)
 
     @staticmethod
-    def from_dict(obj: Any) -> "Data":
+    def from_dict(obj: Any) -> Data:
         assert isinstance(obj, dict)
         return Data(**{_compat_to_python_key(key): _compat_from_json_value(value) for key, value in obj.items()})
 
@@ -283,7 +283,7 @@ class AbortData:
     reason: AbortReason
 
     @staticmethod
-    def from_dict(obj: Any) -> "AbortData":
+    def from_dict(obj: Any) -> AbortData:
         assert isinstance(obj, dict)
         reason = parse_enum(AbortReason, obj.get("reason"))
         return AbortData(
@@ -302,7 +302,7 @@ class AssistantIntentData:
     intent: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantIntentData":
+    def from_dict(obj: Any) -> AssistantIntentData:
         assert isinstance(obj, dict)
         intent = from_str(obj.get("intent"))
         return AssistantIntentData(
@@ -336,7 +336,7 @@ class AssistantMessageData:
     turn_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantMessageData":
+    def from_dict(obj: Any) -> AssistantMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         message_id = from_str(obj.get("messageId"))
@@ -413,7 +413,7 @@ class AssistantMessageDeltaData:
     parent_tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantMessageDeltaData":
+    def from_dict(obj: Any) -> AssistantMessageDeltaData:
         assert isinstance(obj, dict)
         delta_content = from_str(obj.get("deltaContent"))
         message_id = from_str(obj.get("messageId"))
@@ -440,7 +440,7 @@ class AssistantMessageStartData:
     phase: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantMessageStartData":
+    def from_dict(obj: Any) -> AssistantMessageStartData:
         assert isinstance(obj, dict)
         message_id = from_str(obj.get("messageId"))
         phase = from_union([from_none, from_str], obj.get("phase"))
@@ -470,7 +470,7 @@ class AssistantMessageToolRequest:
     type: AssistantMessageToolRequestType | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantMessageToolRequest":
+    def from_dict(obj: Any) -> AssistantMessageToolRequest:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         tool_call_id = from_str(obj.get("toolCallId"))
@@ -517,7 +517,7 @@ class AssistantReasoningData:
     reasoning_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantReasoningData":
+    def from_dict(obj: Any) -> AssistantReasoningData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         reasoning_id = from_str(obj.get("reasoningId"))
@@ -540,7 +540,7 @@ class AssistantReasoningDeltaData:
     reasoning_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantReasoningDeltaData":
+    def from_dict(obj: Any) -> AssistantReasoningDeltaData:
         assert isinstance(obj, dict)
         delta_content = from_str(obj.get("deltaContent"))
         reasoning_id = from_str(obj.get("reasoningId"))
@@ -562,7 +562,7 @@ class AssistantStreamingDeltaData:
     total_response_size_bytes: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantStreamingDeltaData":
+    def from_dict(obj: Any) -> AssistantStreamingDeltaData:
         assert isinstance(obj, dict)
         total_response_size_bytes = from_int(obj.get("totalResponseSizeBytes"))
         return AssistantStreamingDeltaData(
@@ -581,7 +581,7 @@ class AssistantTurnEndData:
     turn_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantTurnEndData":
+    def from_dict(obj: Any) -> AssistantTurnEndData:
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
         return AssistantTurnEndData(
@@ -601,7 +601,7 @@ class AssistantTurnStartData:
     interaction_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantTurnStartData":
+    def from_dict(obj: Any) -> AssistantTurnStartData:
         assert isinstance(obj, dict)
         turn_id = from_str(obj.get("turnId"))
         interaction_id = from_union([from_none, from_str], obj.get("interactionId"))
@@ -625,7 +625,7 @@ class AssistantUsageCopilotUsage:
     total_nano_aiu: float
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantUsageCopilotUsage":
+    def from_dict(obj: Any) -> AssistantUsageCopilotUsage:
         assert isinstance(obj, dict)
         token_details = from_list(AssistantUsageCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
@@ -650,7 +650,7 @@ class AssistantUsageCopilotUsageTokenDetail:
     token_type: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantUsageCopilotUsageTokenDetail":
+    def from_dict(obj: Any) -> AssistantUsageCopilotUsageTokenDetail:
         assert isinstance(obj, dict)
         batch_size = from_int(obj.get("batchSize"))
         cost_per_batch = from_int(obj.get("costPerBatch"))
@@ -696,7 +696,7 @@ class AssistantUsageData:
     time_to_first_token: timedelta | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantUsageData":
+    def from_dict(obj: Any) -> AssistantUsageData:
         assert isinstance(obj, dict)
         model = from_str(obj.get("model"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
@@ -790,7 +790,7 @@ class AssistantUsageQuotaSnapshot:
     reset_date: datetime | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AssistantUsageQuotaSnapshot":
+    def from_dict(obj: Any) -> AssistantUsageQuotaSnapshot:
         assert isinstance(obj, dict)
         entitlement_requests = from_int(obj.get("entitlementRequests"))
         is_unlimited_entitlement = from_bool(obj.get("isUnlimitedEntitlement"))
@@ -832,7 +832,7 @@ class AutoModeSwitchCompletedData:
     response: AutoModeSwitchResponse
 
     @staticmethod
-    def from_dict(obj: Any) -> "AutoModeSwitchCompletedData":
+    def from_dict(obj: Any) -> AutoModeSwitchCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         response = parse_enum(AutoModeSwitchResponse, obj.get("response"))
@@ -856,7 +856,7 @@ class AutoModeSwitchRequestedData:
     retry_after_seconds: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "AutoModeSwitchRequestedData":
+    def from_dict(obj: Any) -> AutoModeSwitchRequestedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
@@ -883,7 +883,7 @@ class CapabilitiesChangedData:
     ui: CapabilitiesChangedUI | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "CapabilitiesChangedData":
+    def from_dict(obj: Any) -> CapabilitiesChangedData:
         assert isinstance(obj, dict)
         ui = from_union([from_none, CapabilitiesChangedUI.from_dict], obj.get("ui"))
         return CapabilitiesChangedData(
@@ -903,7 +903,7 @@ class CapabilitiesChangedUI:
     elicitation: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "CapabilitiesChangedUI":
+    def from_dict(obj: Any) -> CapabilitiesChangedUI:
         assert isinstance(obj, dict)
         elicitation = from_union([from_none, from_bool], obj.get("elicitation"))
         return CapabilitiesChangedUI(
@@ -923,7 +923,7 @@ class CommandCompletedData:
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "CommandCompletedData":
+    def from_dict(obj: Any) -> CommandCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         return CommandCompletedData(
@@ -945,7 +945,7 @@ class CommandExecuteData:
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "CommandExecuteData":
+    def from_dict(obj: Any) -> CommandExecuteData:
         assert isinstance(obj, dict)
         args = from_str(obj.get("args"))
         command = from_str(obj.get("command"))
@@ -974,7 +974,7 @@ class CommandQueuedData:
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "CommandQueuedData":
+    def from_dict(obj: Any) -> CommandQueuedData:
         assert isinstance(obj, dict)
         command = from_str(obj.get("command"))
         request_id = from_str(obj.get("requestId"))
@@ -997,7 +997,7 @@ class CommandsChangedCommand:
     description: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "CommandsChangedCommand":
+    def from_dict(obj: Any) -> CommandsChangedCommand:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         description = from_union([from_none, from_str], obj.get("description"))
@@ -1020,7 +1020,7 @@ class CommandsChangedData:
     commands: list[CommandsChangedCommand]
 
     @staticmethod
-    def from_dict(obj: Any) -> "CommandsChangedData":
+    def from_dict(obj: Any) -> CommandsChangedData:
         assert isinstance(obj, dict)
         commands = from_list(CommandsChangedCommand.from_dict, obj.get("commands"))
         return CommandsChangedData(
@@ -1045,7 +1045,7 @@ class CompactionCompleteCompactionTokensUsed:
     output_tokens: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsed":
+    def from_dict(obj: Any) -> CompactionCompleteCompactionTokensUsed:
         assert isinstance(obj, dict)
         cache_read_tokens = from_union([from_none, from_int], obj.get("cacheReadTokens"))
         cache_write_tokens = from_union([from_none, from_int], obj.get("cacheWriteTokens"))
@@ -1090,7 +1090,7 @@ class CompactionCompleteCompactionTokensUsedCopilotUsage:
     total_nano_aiu: float
 
     @staticmethod
-    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsage":
+    def from_dict(obj: Any) -> CompactionCompleteCompactionTokensUsedCopilotUsage:
         assert isinstance(obj, dict)
         token_details = from_list(CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail.from_dict, obj.get("tokenDetails"))
         total_nano_aiu = from_float(obj.get("totalNanoAiu"))
@@ -1115,7 +1115,7 @@ class CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
     token_type: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail":
+    def from_dict(obj: Any) -> CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail:
         assert isinstance(obj, dict)
         batch_size = from_int(obj.get("batchSize"))
         cost_per_batch = from_int(obj.get("costPerBatch"))
@@ -1150,7 +1150,7 @@ class CustomAgentsUpdatedAgent:
     model: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "CustomAgentsUpdatedAgent":
+    def from_dict(obj: Any) -> CustomAgentsUpdatedAgent:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         display_name = from_str(obj.get("displayName"))
@@ -1193,7 +1193,7 @@ class ElicitationCompletedData:
     content: dict[str, Any] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ElicitationCompletedData":
+    def from_dict(obj: Any) -> ElicitationCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         action = from_union([from_none, lambda x: parse_enum(ElicitationCompletedAction, x)], obj.get("action"))
@@ -1226,7 +1226,7 @@ class ElicitationRequestedData:
     url: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ElicitationRequestedData":
+    def from_dict(obj: Any) -> ElicitationRequestedData:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         request_id = from_str(obj.get("requestId"))
@@ -1270,7 +1270,7 @@ class ElicitationRequestedSchema:
     required: list[str] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ElicitationRequestedSchema":
+    def from_dict(obj: Any) -> ElicitationRequestedSchema:
         assert isinstance(obj, dict)
         properties = from_dict(lambda x: x, obj.get("properties"))
         type = from_str(obj.get("type"))
@@ -1298,7 +1298,7 @@ class EmbeddedBlobResourceContents:
     mime_type: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "EmbeddedBlobResourceContents":
+    def from_dict(obj: Any) -> EmbeddedBlobResourceContents:
         assert isinstance(obj, dict)
         blob = from_str(obj.get("blob"))
         uri = from_str(obj.get("uri"))
@@ -1326,7 +1326,7 @@ class EmbeddedTextResourceContents:
     mime_type: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "EmbeddedTextResourceContents":
+    def from_dict(obj: Any) -> EmbeddedTextResourceContents:
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
         uri = from_str(obj.get("uri"))
@@ -1356,7 +1356,7 @@ class ExitPlanModeCompletedData:
     selected_action: ExitPlanModeAction | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ExitPlanModeCompletedData":
+    def from_dict(obj: Any) -> ExitPlanModeCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         approved = from_union([from_none, from_bool], obj.get("approved"))
@@ -1395,7 +1395,7 @@ class ExitPlanModeRequestedData:
     summary: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "ExitPlanModeRequestedData":
+    def from_dict(obj: Any) -> ExitPlanModeRequestedData:
         assert isinstance(obj, dict)
         actions = from_list(lambda x: parse_enum(ExitPlanModeAction, x), obj.get("actions"))
         plan_content = from_str(obj.get("planContent"))
@@ -1429,7 +1429,7 @@ class ExtensionsLoadedExtension:
     status: ExtensionsLoadedExtensionStatus
 
     @staticmethod
-    def from_dict(obj: Any) -> "ExtensionsLoadedExtension":
+    def from_dict(obj: Any) -> ExtensionsLoadedExtension:
         assert isinstance(obj, dict)
         id = from_str(obj.get("id"))
         name = from_str(obj.get("name"))
@@ -1457,7 +1457,7 @@ class ExternalToolCompletedData:
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "ExternalToolCompletedData":
+    def from_dict(obj: Any) -> ExternalToolCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         return ExternalToolCompletedData(
@@ -1482,7 +1482,7 @@ class ExternalToolRequestedData:
     tracestate: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ExternalToolRequestedData":
+    def from_dict(obj: Any) -> ExternalToolRequestedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         session_id = from_str(obj.get("sessionId"))
@@ -1524,7 +1524,7 @@ class HandoffRepository:
     branch: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "HandoffRepository":
+    def from_dict(obj: Any) -> HandoffRepository:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         owner = from_str(obj.get("owner"))
@@ -1554,7 +1554,7 @@ class HookEndData:
     output: Any = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "HookEndData":
+    def from_dict(obj: Any) -> HookEndData:
         assert isinstance(obj, dict)
         hook_invocation_id = from_str(obj.get("hookInvocationId"))
         hook_type = from_str(obj.get("hookType"))
@@ -1588,7 +1588,7 @@ class HookEndError:
     stack: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "HookEndError":
+    def from_dict(obj: Any) -> HookEndError:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         stack = from_union([from_none, from_str], obj.get("stack"))
@@ -1613,7 +1613,7 @@ class HookStartData:
     input: Any = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "HookStartData":
+    def from_dict(obj: Any) -> HookStartData:
         assert isinstance(obj, dict)
         hook_invocation_id = from_str(obj.get("hookInvocationId"))
         hook_type = from_str(obj.get("hookType"))
@@ -1639,7 +1639,7 @@ class McpOauthCompletedData:
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "McpOauthCompletedData":
+    def from_dict(obj: Any) -> McpOauthCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         return McpOauthCompletedData(
@@ -1661,7 +1661,7 @@ class McpOauthRequiredData:
     static_client_config: McpOauthRequiredStaticClientConfig | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "McpOauthRequiredData":
+    def from_dict(obj: Any) -> McpOauthRequiredData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         server_name = from_str(obj.get("serverName"))
@@ -1692,7 +1692,7 @@ class McpOauthRequiredStaticClientConfig:
     public_client: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "McpOauthRequiredStaticClientConfig":
+    def from_dict(obj: Any) -> McpOauthRequiredStaticClientConfig:
         assert isinstance(obj, dict)
         client_id = from_str(obj.get("clientId"))
         grant_type = from_union([from_none, from_str], obj.get("grantType"))
@@ -1722,7 +1722,7 @@ class McpServersLoadedServer:
     source: McpServerSource | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "McpServersLoadedServer":
+    def from_dict(obj: Any) -> McpServersLoadedServer:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         status = parse_enum(McpServerStatus, obj.get("status"))
@@ -1759,7 +1759,7 @@ class ModelCallFailureData:
     status_code: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ModelCallFailureData":
+    def from_dict(obj: Any) -> ModelCallFailureData:
         assert isinstance(obj, dict)
         source = parse_enum(ModelCallFailureSource, obj.get("source"))
         api_call_id = from_union([from_none, from_str], obj.get("apiCallId"))
@@ -1804,7 +1804,7 @@ class ModelCallFailureData:
 class PendingMessagesModifiedData:
     "Empty payload; the event signals that the pending message queue has changed"
     @staticmethod
-    def from_dict(obj: Any) -> "PendingMessagesModifiedData":
+    def from_dict(obj: Any) -> PendingMessagesModifiedData:
         assert isinstance(obj, dict)
         return PendingMessagesModifiedData()
 
@@ -1818,7 +1818,7 @@ class PermissionApproved:
     kind: ClassVar[str] = "approved"
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionApproved":
+    def from_dict(obj: Any) -> PermissionApproved:
         assert isinstance(obj, dict)
         return PermissionApproved(
         )
@@ -1837,7 +1837,7 @@ class PermissionApprovedForLocation:
     location_key: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionApprovedForLocation":
+    def from_dict(obj: Any) -> PermissionApprovedForLocation:
         assert isinstance(obj, dict)
         approval = _load_UserToolSessionApproval(obj.get("approval"))
         location_key = from_str(obj.get("locationKey"))
@@ -1861,7 +1861,7 @@ class PermissionApprovedForSession:
     kind: ClassVar[str] = "approved-for-session"
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionApprovedForSession":
+    def from_dict(obj: Any) -> PermissionApprovedForSession:
         assert isinstance(obj, dict)
         approval = _load_UserToolSessionApproval(obj.get("approval"))
         return PermissionApprovedForSession(
@@ -1882,7 +1882,7 @@ class PermissionCancelled:
     reason: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionCancelled":
+    def from_dict(obj: Any) -> PermissionCancelled:
         assert isinstance(obj, dict)
         reason = from_union([from_none, from_str], obj.get("reason"))
         return PermissionCancelled(
@@ -1905,7 +1905,7 @@ class PermissionCompletedData:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionCompletedData":
+    def from_dict(obj: Any) -> PermissionCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         result = _load_PermissionResult(obj.get("result"))
@@ -1933,7 +1933,7 @@ class PermissionDeniedByContentExclusionPolicy:
     path: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionDeniedByContentExclusionPolicy":
+    def from_dict(obj: Any) -> PermissionDeniedByContentExclusionPolicy:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         path = from_str(obj.get("path"))
@@ -1958,7 +1958,7 @@ class PermissionDeniedByPermissionRequestHook:
     message: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionDeniedByPermissionRequestHook":
+    def from_dict(obj: Any) -> PermissionDeniedByPermissionRequestHook:
         assert isinstance(obj, dict)
         interrupt = from_union([from_none, from_bool], obj.get("interrupt"))
         message = from_union([from_none, from_str], obj.get("message"))
@@ -1984,7 +1984,7 @@ class PermissionDeniedByRules:
     rules: list[PermissionRule]
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionDeniedByRules":
+    def from_dict(obj: Any) -> PermissionDeniedByRules:
         assert isinstance(obj, dict)
         rules = from_list(PermissionRule.from_dict, obj.get("rules"))
         return PermissionDeniedByRules(
@@ -2006,7 +2006,7 @@ class PermissionDeniedInteractivelyByUser:
     force_reject: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionDeniedInteractivelyByUser":
+    def from_dict(obj: Any) -> PermissionDeniedInteractivelyByUser:
         assert isinstance(obj, dict)
         feedback = from_union([from_none, from_str], obj.get("feedback"))
         force_reject = from_union([from_none, from_bool], obj.get("forceReject"))
@@ -2031,7 +2031,7 @@ class PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
     kind: ClassVar[str] = "denied-no-approval-rule-and-could-not-request-from-user"
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser":
+    def from_dict(obj: Any) -> PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser:
         assert isinstance(obj, dict)
         return PermissionDeniedNoApprovalRuleAndCouldNotRequestFromUser(
         )
@@ -2054,7 +2054,7 @@ class PermissionPromptRequestCommands:
     warning: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestCommands":
+    def from_dict(obj: Any) -> PermissionPromptRequestCommands:
         assert isinstance(obj, dict)
         can_offer_session_approval = from_bool(obj.get("canOfferSessionApproval"))
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
@@ -2095,7 +2095,7 @@ class PermissionPromptRequestCustomTool:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestCustomTool":
+    def from_dict(obj: Any) -> PermissionPromptRequestCustomTool:
         assert isinstance(obj, dict)
         tool_description = from_str(obj.get("toolDescription"))
         tool_name = from_str(obj.get("toolName"))
@@ -2129,7 +2129,7 @@ class PermissionPromptRequestExtensionManagement:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestExtensionManagement":
+    def from_dict(obj: Any) -> PermissionPromptRequestExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_str(obj.get("operation"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
@@ -2160,7 +2160,7 @@ class PermissionPromptRequestExtensionPermissionAccess:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestExtensionPermissionAccess":
+    def from_dict(obj: Any) -> PermissionPromptRequestExtensionPermissionAccess:
         assert isinstance(obj, dict)
         capabilities = from_list(from_str, obj.get("capabilities"))
         extension_name = from_str(obj.get("extensionName"))
@@ -2191,7 +2191,7 @@ class PermissionPromptRequestHook:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestHook":
+    def from_dict(obj: Any) -> PermissionPromptRequestHook:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
@@ -2228,7 +2228,7 @@ class PermissionPromptRequestMcp:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestMcp":
+    def from_dict(obj: Any) -> PermissionPromptRequestMcp:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         tool_name = from_str(obj.get("toolName"))
@@ -2269,7 +2269,7 @@ class PermissionPromptRequestMemory:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestMemory":
+    def from_dict(obj: Any) -> PermissionPromptRequestMemory:
         assert isinstance(obj, dict)
         fact = from_str(obj.get("fact"))
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
@@ -2316,7 +2316,7 @@ class PermissionPromptRequestPath:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestPath":
+    def from_dict(obj: Any) -> PermissionPromptRequestPath:
         assert isinstance(obj, dict)
         access_kind = parse_enum(PermissionPromptRequestPathAccessKind, obj.get("accessKind"))
         paths = from_list(from_str, obj.get("paths"))
@@ -2346,7 +2346,7 @@ class PermissionPromptRequestRead:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestRead":
+    def from_dict(obj: Any) -> PermissionPromptRequestRead:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         path = from_str(obj.get("path"))
@@ -2376,7 +2376,7 @@ class PermissionPromptRequestUrl:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestUrl":
+    def from_dict(obj: Any) -> PermissionPromptRequestUrl:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         url = from_str(obj.get("url"))
@@ -2409,7 +2409,7 @@ class PermissionPromptRequestWrite:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionPromptRequestWrite":
+    def from_dict(obj: Any) -> PermissionPromptRequestWrite:
         assert isinstance(obj, dict)
         can_offer_session_approval = from_bool(obj.get("canOfferSessionApproval"))
         diff = from_str(obj.get("diff"))
@@ -2450,7 +2450,7 @@ class PermissionRequestCustomTool:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestCustomTool":
+    def from_dict(obj: Any) -> PermissionRequestCustomTool:
         assert isinstance(obj, dict)
         tool_description = from_str(obj.get("toolDescription"))
         tool_name = from_str(obj.get("toolName"))
@@ -2484,7 +2484,7 @@ class PermissionRequestExtensionManagement:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestExtensionManagement":
+    def from_dict(obj: Any) -> PermissionRequestExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_str(obj.get("operation"))
         extension_name = from_union([from_none, from_str], obj.get("extensionName"))
@@ -2515,7 +2515,7 @@ class PermissionRequestExtensionPermissionAccess:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestExtensionPermissionAccess":
+    def from_dict(obj: Any) -> PermissionRequestExtensionPermissionAccess:
         assert isinstance(obj, dict)
         capabilities = from_list(from_str, obj.get("capabilities"))
         extension_name = from_str(obj.get("extensionName"))
@@ -2546,7 +2546,7 @@ class PermissionRequestHook:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestHook":
+    def from_dict(obj: Any) -> PermissionRequestHook:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         hook_message = from_union([from_none, from_str], obj.get("hookMessage"))
@@ -2584,7 +2584,7 @@ class PermissionRequestMcp:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestMcp":
+    def from_dict(obj: Any) -> PermissionRequestMcp:
         assert isinstance(obj, dict)
         read_only = from_bool(obj.get("readOnly"))
         server_name = from_str(obj.get("serverName"))
@@ -2628,7 +2628,7 @@ class PermissionRequestMemory:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestMemory":
+    def from_dict(obj: Any) -> PermissionRequestMemory:
         assert isinstance(obj, dict)
         fact = from_str(obj.get("fact"))
         action = from_union([from_none, lambda x: parse_enum(PermissionRequestMemoryAction, x)], obj.get("action"))
@@ -2675,7 +2675,7 @@ class PermissionRequestRead:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestRead":
+    def from_dict(obj: Any) -> PermissionRequestRead:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         path = from_str(obj.get("path"))
@@ -2711,7 +2711,7 @@ class PermissionRequestShell:
     warning: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestShell":
+    def from_dict(obj: Any) -> PermissionRequestShell:
         assert isinstance(obj, dict)
         can_offer_session_approval = from_bool(obj.get("canOfferSessionApproval"))
         commands = from_list(PermissionRequestShellCommand.from_dict, obj.get("commands"))
@@ -2758,7 +2758,7 @@ class PermissionRequestShellCommand:
     read_only: bool
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestShellCommand":
+    def from_dict(obj: Any) -> PermissionRequestShellCommand:
         assert isinstance(obj, dict)
         identifier = from_str(obj.get("identifier"))
         read_only = from_bool(obj.get("readOnly"))
@@ -2780,7 +2780,7 @@ class PermissionRequestShellPossibleUrl:
     url: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestShellPossibleUrl":
+    def from_dict(obj: Any) -> PermissionRequestShellPossibleUrl:
         assert isinstance(obj, dict)
         url = from_str(obj.get("url"))
         return PermissionRequestShellPossibleUrl(
@@ -2802,7 +2802,7 @@ class PermissionRequestUrl:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestUrl":
+    def from_dict(obj: Any) -> PermissionRequestUrl:
         assert isinstance(obj, dict)
         intention = from_str(obj.get("intention"))
         url = from_str(obj.get("url"))
@@ -2835,7 +2835,7 @@ class PermissionRequestWrite:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestWrite":
+    def from_dict(obj: Any) -> PermissionRequestWrite:
         assert isinstance(obj, dict)
         can_offer_session_approval = from_bool(obj.get("canOfferSessionApproval"))
         diff = from_str(obj.get("diff"))
@@ -2875,7 +2875,7 @@ class PermissionRequestedData:
     resolved_by_hook: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRequestedData":
+    def from_dict(obj: Any) -> PermissionRequestedData:
         assert isinstance(obj, dict)
         permission_request = _load_PermissionRequest(obj.get("permissionRequest"))
         request_id = from_str(obj.get("requestId"))
@@ -2906,7 +2906,7 @@ class PermissionRule:
     kind: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "PermissionRule":
+    def from_dict(obj: Any) -> PermissionRule:
         assert isinstance(obj, dict)
         argument = from_union([from_none, from_str], obj.get("argument"))
         kind = from_str(obj.get("kind"))
@@ -2928,7 +2928,7 @@ class SamplingCompletedData:
     request_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "SamplingCompletedData":
+    def from_dict(obj: Any) -> SamplingCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         return SamplingCompletedData(
@@ -2949,7 +2949,7 @@ class SamplingRequestedData:
     server_name: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "SamplingRequestedData":
+    def from_dict(obj: Any) -> SamplingRequestedData:
         assert isinstance(obj, dict)
         mcp_request_id = obj.get("mcpRequestId")
         request_id = from_str(obj.get("requestId"))
@@ -2972,7 +2972,7 @@ class SamplingRequestedData:
 class SessionBackgroundTasksChangedData:
     "Schema for the `BackgroundTasksChangedData` type."
     @staticmethod
-    def from_dict(obj: Any) -> "SessionBackgroundTasksChangedData":
+    def from_dict(obj: Any) -> SessionBackgroundTasksChangedData:
         assert isinstance(obj, dict)
         return SessionBackgroundTasksChangedData()
 
@@ -3001,7 +3001,7 @@ class SessionCompactionCompleteData:
     tool_definitions_tokens: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionCompactionCompleteData":
+    def from_dict(obj: Any) -> SessionCompactionCompleteData:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         checkpoint_number = from_union([from_none, from_int], obj.get("checkpointNumber"))
@@ -3082,7 +3082,7 @@ class SessionCompactionStartData:
     tool_definitions_tokens: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionCompactionStartData":
+    def from_dict(obj: Any) -> SessionCompactionStartData:
         assert isinstance(obj, dict)
         conversation_tokens = from_union([from_none, from_int], obj.get("conversationTokens"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
@@ -3117,7 +3117,7 @@ class SessionContextChangedData:
     repository_host: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionContextChangedData":
+    def from_dict(obj: Any) -> SessionContextChangedData:
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
         base_commit = from_union([from_none, from_str], obj.get("baseCommit"))
@@ -3166,7 +3166,7 @@ class SessionCustomAgentsUpdatedData:
     warnings: list[str]
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionCustomAgentsUpdatedData":
+    def from_dict(obj: Any) -> SessionCustomAgentsUpdatedData:
         assert isinstance(obj, dict)
         agents = from_list(CustomAgentsUpdatedAgent.from_dict, obj.get("agents"))
         errors = from_list(from_str, obj.get("errors"))
@@ -3195,7 +3195,7 @@ class SessionCustomNotificationData:
     version: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionCustomNotificationData":
+    def from_dict(obj: Any) -> SessionCustomNotificationData:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         payload = obj.get("payload")
@@ -3235,7 +3235,7 @@ class SessionErrorData:
     url: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionErrorData":
+    def from_dict(obj: Any) -> SessionErrorData:
         assert isinstance(obj, dict)
         error_type = from_str(obj.get("errorType"))
         message = from_str(obj.get("message"))
@@ -3281,7 +3281,7 @@ class SessionExtensionsLoadedData:
     extensions: list[ExtensionsLoadedExtension]
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionExtensionsLoadedData":
+    def from_dict(obj: Any) -> SessionExtensionsLoadedData:
         assert isinstance(obj, dict)
         extensions = from_list(ExtensionsLoadedExtension.from_dict, obj.get("extensions"))
         return SessionExtensionsLoadedData(
@@ -3306,7 +3306,7 @@ class SessionHandoffData:
     summary: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionHandoffData":
+    def from_dict(obj: Any) -> SessionHandoffData:
         assert isinstance(obj, dict)
         handoff_time = from_datetime(obj.get("handoffTime"))
         source_type = parse_enum(HandoffSourceType, obj.get("sourceType"))
@@ -3348,7 +3348,7 @@ class SessionIdleData:
     aborted: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionIdleData":
+    def from_dict(obj: Any) -> SessionIdleData:
         assert isinstance(obj, dict)
         aborted = from_union([from_none, from_bool], obj.get("aborted"))
         return SessionIdleData(
@@ -3371,7 +3371,7 @@ class SessionInfoData:
     url: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionInfoData":
+    def from_dict(obj: Any) -> SessionInfoData:
         assert isinstance(obj, dict)
         info_type = from_str(obj.get("infoType"))
         message = from_str(obj.get("message"))
@@ -3402,7 +3402,7 @@ class SessionMcpServerStatusChangedData:
     status: McpServerStatus
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionMcpServerStatusChangedData":
+    def from_dict(obj: Any) -> SessionMcpServerStatusChangedData:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         status = parse_enum(McpServerStatus, obj.get("status"))
@@ -3424,7 +3424,7 @@ class SessionMcpServersLoadedData:
     servers: list[McpServersLoadedServer]
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionMcpServersLoadedData":
+    def from_dict(obj: Any) -> SessionMcpServersLoadedData:
         assert isinstance(obj, dict)
         servers = from_list(McpServersLoadedServer.from_dict, obj.get("servers"))
         return SessionMcpServersLoadedData(
@@ -3444,7 +3444,7 @@ class SessionModeChangedData:
     previous_mode: SessionMode
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionModeChangedData":
+    def from_dict(obj: Any) -> SessionModeChangedData:
         assert isinstance(obj, dict)
         new_mode = parse_enum(SessionMode, obj.get("newMode"))
         previous_mode = parse_enum(SessionMode, obj.get("previousMode"))
@@ -3472,7 +3472,7 @@ class SessionModelChangeData:
     reasoning_summary: ReasoningSummary | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionModelChangeData":
+    def from_dict(obj: Any) -> SessionModelChangeData:
         assert isinstance(obj, dict)
         new_model = from_str(obj.get("newModel"))
         cause = from_union([from_none, from_str], obj.get("cause"))
@@ -3515,7 +3515,7 @@ class SessionPlanChangedData:
     operation: PlanChangedOperation
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionPlanChangedData":
+    def from_dict(obj: Any) -> SessionPlanChangedData:
         assert isinstance(obj, dict)
         operation = parse_enum(PlanChangedOperation, obj.get("operation"))
         return SessionPlanChangedData(
@@ -3534,7 +3534,7 @@ class SessionRemoteSteerableChangedData:
     remote_steerable: bool
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionRemoteSteerableChangedData":
+    def from_dict(obj: Any) -> SessionRemoteSteerableChangedData:
         assert isinstance(obj, dict)
         remote_steerable = from_bool(obj.get("remoteSteerable"))
         return SessionRemoteSteerableChangedData(
@@ -3562,7 +3562,7 @@ class SessionResumeData:
     session_was_active: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionResumeData":
+    def from_dict(obj: Any) -> SessionResumeData:
         assert isinstance(obj, dict)
         event_count = from_int(obj.get("eventCount"))
         resume_time = from_datetime(obj.get("resumeTime"))
@@ -3616,7 +3616,7 @@ class SessionScheduleCancelledData:
     id: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionScheduleCancelledData":
+    def from_dict(obj: Any) -> SessionScheduleCancelledData:
         assert isinstance(obj, dict)
         id = from_int(obj.get("id"))
         return SessionScheduleCancelledData(
@@ -3639,7 +3639,7 @@ class SessionScheduleCreatedData:
     recurring: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionScheduleCreatedData":
+    def from_dict(obj: Any) -> SessionScheduleCreatedData:
         assert isinstance(obj, dict)
         id = from_int(obj.get("id"))
         interval = from_timedelta(obj.get("intervalMs"))
@@ -3685,7 +3685,7 @@ class SessionShutdownData:
     total_premium_requests: float | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionShutdownData":
+    def from_dict(obj: Any) -> SessionShutdownData:
         assert isinstance(obj, dict)
         code_changes = ShutdownCodeChanges.from_dict(obj.get("codeChanges"))
         model_metrics = from_dict(ShutdownModelMetric.from_dict, obj.get("modelMetrics"))
@@ -3752,7 +3752,7 @@ class SessionSkillsLoadedData:
     skills: list[SkillsLoadedSkill]
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionSkillsLoadedData":
+    def from_dict(obj: Any) -> SessionSkillsLoadedData:
         assert isinstance(obj, dict)
         skills = from_list(SkillsLoadedSkill.from_dict, obj.get("skills"))
         return SessionSkillsLoadedData(
@@ -3772,7 +3772,7 @@ class SessionSnapshotRewindData:
     up_to_event_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionSnapshotRewindData":
+    def from_dict(obj: Any) -> SessionSnapshotRewindData:
         assert isinstance(obj, dict)
         events_removed = from_int(obj.get("eventsRemoved"))
         up_to_event_id = from_str(obj.get("upToEventId"))
@@ -3805,7 +3805,7 @@ class SessionStartData:
     selected_model: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionStartData":
+    def from_dict(obj: Any) -> SessionStartData:
         assert isinstance(obj, dict)
         copilot_version = from_str(obj.get("copilotVersion"))
         producer = from_str(obj.get("producer"))
@@ -3865,7 +3865,7 @@ class SessionTaskCompleteData:
     summary: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionTaskCompleteData":
+    def from_dict(obj: Any) -> SessionTaskCompleteData:
         assert isinstance(obj, dict)
         success = from_union([from_none, from_bool], obj.get("success"))
         summary = from_union([from_none, from_str], obj.get("summary"))
@@ -3889,7 +3889,7 @@ class SessionTitleChangedData:
     title: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionTitleChangedData":
+    def from_dict(obj: Any) -> SessionTitleChangedData:
         assert isinstance(obj, dict)
         title = from_str(obj.get("title"))
         return SessionTitleChangedData(
@@ -3908,7 +3908,7 @@ class SessionToolsUpdatedData:
     model: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionToolsUpdatedData":
+    def from_dict(obj: Any) -> SessionToolsUpdatedData:
         assert isinstance(obj, dict)
         model = from_str(obj.get("model"))
         return SessionToolsUpdatedData(
@@ -3934,7 +3934,7 @@ class SessionTruncationData:
     tokens_removed_during_truncation: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionTruncationData":
+    def from_dict(obj: Any) -> SessionTruncationData:
         assert isinstance(obj, dict)
         messages_removed_during_truncation = from_int(obj.get("messagesRemovedDuringTruncation"))
         performed_by = from_str(obj.get("performedBy"))
@@ -3980,7 +3980,7 @@ class SessionUsageInfoData:
     tool_definitions_tokens: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionUsageInfoData":
+    def from_dict(obj: Any) -> SessionUsageInfoData:
         assert isinstance(obj, dict)
         current_tokens = from_int(obj.get("currentTokens"))
         messages_length = from_int(obj.get("messagesLength"))
@@ -4023,7 +4023,7 @@ class SessionWarningData:
     url: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionWarningData":
+    def from_dict(obj: Any) -> SessionWarningData:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         warning_type = from_str(obj.get("warningType"))
@@ -4050,7 +4050,7 @@ class SessionWorkspaceFileChangedData:
     path: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionWorkspaceFileChangedData":
+    def from_dict(obj: Any) -> SessionWorkspaceFileChangedData:
         assert isinstance(obj, dict)
         operation = parse_enum(WorkspaceFileChangedOperation, obj.get("operation"))
         path = from_str(obj.get("path"))
@@ -4074,7 +4074,7 @@ class ShutdownCodeChanges:
     lines_removed: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "ShutdownCodeChanges":
+    def from_dict(obj: Any) -> ShutdownCodeChanges:
         assert isinstance(obj, dict)
         files_modified = from_list(from_str, obj.get("filesModified"))
         lines_added = from_int(obj.get("linesAdded"))
@@ -4102,7 +4102,7 @@ class ShutdownModelMetric:
     total_nano_aiu: float | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ShutdownModelMetric":
+    def from_dict(obj: Any) -> ShutdownModelMetric:
         assert isinstance(obj, dict)
         requests = ShutdownModelMetricRequests.from_dict(obj.get("requests"))
         usage = ShutdownModelMetricUsage.from_dict(obj.get("usage"))
@@ -4133,7 +4133,7 @@ class ShutdownModelMetricRequests:
     count: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ShutdownModelMetricRequests":
+    def from_dict(obj: Any) -> ShutdownModelMetricRequests:
         assert isinstance(obj, dict)
         cost = from_union([from_none, from_float], obj.get("cost"))
         count = from_union([from_none, from_int], obj.get("count"))
@@ -4157,7 +4157,7 @@ class ShutdownModelMetricTokenDetail:
     token_count: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "ShutdownModelMetricTokenDetail":
+    def from_dict(obj: Any) -> ShutdownModelMetricTokenDetail:
         assert isinstance(obj, dict)
         token_count = from_int(obj.get("tokenCount"))
         return ShutdownModelMetricTokenDetail(
@@ -4180,7 +4180,7 @@ class ShutdownModelMetricUsage:
     reasoning_tokens: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ShutdownModelMetricUsage":
+    def from_dict(obj: Any) -> ShutdownModelMetricUsage:
         assert isinstance(obj, dict)
         cache_read_tokens = from_int(obj.get("cacheReadTokens"))
         cache_write_tokens = from_int(obj.get("cacheWriteTokens"))
@@ -4212,7 +4212,7 @@ class ShutdownTokenDetail:
     token_count: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "ShutdownTokenDetail":
+    def from_dict(obj: Any) -> ShutdownTokenDetail:
         assert isinstance(obj, dict)
         token_count = from_int(obj.get("tokenCount"))
         return ShutdownTokenDetail(
@@ -4237,7 +4237,7 @@ class SkillInvokedData:
     plugin_version: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SkillInvokedData":
+    def from_dict(obj: Any) -> SkillInvokedData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         name = from_str(obj.get("name"))
@@ -4283,7 +4283,7 @@ class SkillsLoadedSkill:
     path: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SkillsLoadedSkill":
+    def from_dict(obj: Any) -> SkillsLoadedSkill:
         assert isinstance(obj, dict)
         description = from_str(obj.get("description"))
         enabled = from_bool(obj.get("enabled"))
@@ -4324,7 +4324,7 @@ class SubagentCompletedData:
     total_tool_calls: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SubagentCompletedData":
+    def from_dict(obj: Any) -> SubagentCompletedData:
         assert isinstance(obj, dict)
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
@@ -4363,7 +4363,7 @@ class SubagentCompletedData:
 class SubagentDeselectedData:
     "Empty payload; the event signals that the custom agent was deselected, returning to the default agent"
     @staticmethod
-    def from_dict(obj: Any) -> "SubagentDeselectedData":
+    def from_dict(obj: Any) -> SubagentDeselectedData:
         assert isinstance(obj, dict)
         return SubagentDeselectedData()
 
@@ -4384,7 +4384,7 @@ class SubagentFailedData:
     total_tool_calls: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SubagentFailedData":
+    def from_dict(obj: Any) -> SubagentFailedData:
         assert isinstance(obj, dict)
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
@@ -4430,7 +4430,7 @@ class SubagentSelectedData:
     tools: list[str] | None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SubagentSelectedData":
+    def from_dict(obj: Any) -> SubagentSelectedData:
         assert isinstance(obj, dict)
         agent_display_name = from_str(obj.get("agentDisplayName"))
         agent_name = from_str(obj.get("agentName"))
@@ -4459,7 +4459,7 @@ class SubagentStartedData:
     model: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SubagentStartedData":
+    def from_dict(obj: Any) -> SubagentStartedData:
         assert isinstance(obj, dict)
         agent_description = from_str(obj.get("agentDescription"))
         agent_display_name = from_str(obj.get("agentDisplayName"))
@@ -4494,7 +4494,7 @@ class SystemMessageData:
     name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemMessageData":
+    def from_dict(obj: Any) -> SystemMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         role = parse_enum(SystemMessageRole, obj.get("role"))
@@ -4525,7 +4525,7 @@ class SystemMessageMetadata:
     variables: dict[str, Any] | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemMessageMetadata":
+    def from_dict(obj: Any) -> SystemMessageMetadata:
         assert isinstance(obj, dict)
         prompt_version = from_union([from_none, from_str], obj.get("promptVersion"))
         variables = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("variables"))
@@ -4554,7 +4554,7 @@ class SystemNotificationAgentCompleted:
     prompt: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationAgentCompleted":
+    def from_dict(obj: Any) -> SystemNotificationAgentCompleted:
         assert isinstance(obj, dict)
         agent_id = from_str(obj.get("agentId"))
         agent_type = from_str(obj.get("agentType"))
@@ -4591,7 +4591,7 @@ class SystemNotificationAgentIdle:
     description: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationAgentIdle":
+    def from_dict(obj: Any) -> SystemNotificationAgentIdle:
         assert isinstance(obj, dict)
         agent_id = from_str(obj.get("agentId"))
         agent_type = from_str(obj.get("agentType"))
@@ -4619,7 +4619,7 @@ class SystemNotificationData:
     kind: SystemNotification
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationData":
+    def from_dict(obj: Any) -> SystemNotificationData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         kind = _load_SystemNotification(obj.get("kind"))
@@ -4645,7 +4645,7 @@ class SystemNotificationInstructionDiscovered:
     description: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationInstructionDiscovered":
+    def from_dict(obj: Any) -> SystemNotificationInstructionDiscovered:
         assert isinstance(obj, dict)
         source_path = from_str(obj.get("sourcePath"))
         trigger_file = from_str(obj.get("triggerFile"))
@@ -4679,7 +4679,7 @@ class SystemNotificationNewInboxMessage:
     type: ClassVar[str] = "new_inbox_message"
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationNewInboxMessage":
+    def from_dict(obj: Any) -> SystemNotificationNewInboxMessage:
         assert isinstance(obj, dict)
         entry_id = from_str(obj.get("entryId"))
         sender_name = from_str(obj.get("senderName"))
@@ -4711,7 +4711,7 @@ class SystemNotificationShellCompleted:
     exit_code: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationShellCompleted":
+    def from_dict(obj: Any) -> SystemNotificationShellCompleted:
         assert isinstance(obj, dict)
         shell_id = from_str(obj.get("shellId"))
         description = from_union([from_none, from_str], obj.get("description"))
@@ -4741,7 +4741,7 @@ class SystemNotificationShellDetachedCompleted:
     description: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SystemNotificationShellDetachedCompleted":
+    def from_dict(obj: Any) -> SystemNotificationShellDetachedCompleted:
         assert isinstance(obj, dict)
         shell_id = from_str(obj.get("shellId"))
         description = from_union([from_none, from_str], obj.get("description"))
@@ -4767,7 +4767,7 @@ class ToolExecutionCompleteContentAudio:
     type: ClassVar[str] = "audio"
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentAudio":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentAudio:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -4792,7 +4792,7 @@ class ToolExecutionCompleteContentImage:
     type: ClassVar[str] = "image"
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentImage":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentImage:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -4816,7 +4816,7 @@ class ToolExecutionCompleteContentResource:
     type: ClassVar[str] = "resource"
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentResource":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentResource:
         assert isinstance(obj, dict)
         resource = from_union([EmbeddedTextResourceContents.from_dict, EmbeddedBlobResourceContents.from_dict], obj.get("resource"))
         return ToolExecutionCompleteContentResource(
@@ -4843,7 +4843,7 @@ class ToolExecutionCompleteContentResourceLink:
     title: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentResourceLink":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentResourceLink:
         assert isinstance(obj, dict)
         name = from_str(obj.get("name"))
         uri = from_str(obj.get("uri"))
@@ -4889,7 +4889,7 @@ class ToolExecutionCompleteContentResourceLinkIcon:
     theme: ToolExecutionCompleteContentResourceLinkIconTheme | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentResourceLinkIcon":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentResourceLinkIcon:
         assert isinstance(obj, dict)
         src = from_str(obj.get("src"))
         mime_type = from_union([from_none, from_str], obj.get("mimeType"))
@@ -4923,7 +4923,7 @@ class ToolExecutionCompleteContentTerminal:
     exit_code: int | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentTerminal":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentTerminal:
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
         cwd = from_union([from_none, from_str], obj.get("cwd"))
@@ -4952,7 +4952,7 @@ class ToolExecutionCompleteContentText:
     type: ClassVar[str] = "text"
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteContentText":
+    def from_dict(obj: Any) -> ToolExecutionCompleteContentText:
         assert isinstance(obj, dict)
         text = from_str(obj.get("text"))
         return ToolExecutionCompleteContentText(
@@ -4983,7 +4983,7 @@ class ToolExecutionCompleteData:
     turn_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteData":
+    def from_dict(obj: Any) -> ToolExecutionCompleteData:
         assert isinstance(obj, dict)
         success = from_bool(obj.get("success"))
         tool_call_id = from_str(obj.get("toolCallId"))
@@ -5042,7 +5042,7 @@ class ToolExecutionCompleteError:
     code: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteError":
+    def from_dict(obj: Any) -> ToolExecutionCompleteError:
         assert isinstance(obj, dict)
         message = from_str(obj.get("message"))
         code = from_union([from_none, from_str], obj.get("code"))
@@ -5067,7 +5067,7 @@ class ToolExecutionCompleteResult:
     detailed_content: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionCompleteResult":
+    def from_dict(obj: Any) -> ToolExecutionCompleteResult:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
@@ -5095,7 +5095,7 @@ class ToolExecutionPartialResultData:
     tool_call_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionPartialResultData":
+    def from_dict(obj: Any) -> ToolExecutionPartialResultData:
         assert isinstance(obj, dict)
         partial_output = from_str(obj.get("partialOutput"))
         tool_call_id = from_str(obj.get("toolCallId"))
@@ -5118,7 +5118,7 @@ class ToolExecutionProgressData:
     tool_call_id: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionProgressData":
+    def from_dict(obj: Any) -> ToolExecutionProgressData:
         assert isinstance(obj, dict)
         progress_message = from_str(obj.get("progressMessage"))
         tool_call_id = from_str(obj.get("toolCallId"))
@@ -5147,7 +5147,7 @@ class ToolExecutionStartData:
     turn_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolExecutionStartData":
+    def from_dict(obj: Any) -> ToolExecutionStartData:
         assert isinstance(obj, dict)
         tool_call_id = from_str(obj.get("toolCallId"))
         tool_name = from_str(obj.get("toolName"))
@@ -5191,7 +5191,7 @@ class ToolUserRequestedData:
     arguments: Any = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "ToolUserRequestedData":
+    def from_dict(obj: Any) -> ToolUserRequestedData:
         assert isinstance(obj, dict)
         tool_call_id = from_str(obj.get("toolCallId"))
         tool_name = from_str(obj.get("toolName"))
@@ -5219,7 +5219,7 @@ class UserInputCompletedData:
     was_freeform: bool | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserInputCompletedData":
+    def from_dict(obj: Any) -> UserInputCompletedData:
         assert isinstance(obj, dict)
         request_id = from_str(obj.get("requestId"))
         answer = from_union([from_none, from_str], obj.get("answer"))
@@ -5250,7 +5250,7 @@ class UserInputRequestedData:
     tool_call_id: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserInputRequestedData":
+    def from_dict(obj: Any) -> UserInputRequestedData:
         assert isinstance(obj, dict)
         question = from_str(obj.get("question"))
         request_id = from_str(obj.get("requestId"))
@@ -5287,7 +5287,7 @@ class UserMessageAttachmentBlob:
     display_name: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentBlob":
+    def from_dict(obj: Any) -> UserMessageAttachmentBlob:
         assert isinstance(obj, dict)
         data = from_str(obj.get("data"))
         mime_type = from_str(obj.get("mimeType"))
@@ -5316,7 +5316,7 @@ class UserMessageAttachmentDirectory:
     type: ClassVar[str] = "directory"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentDirectory":
+    def from_dict(obj: Any) -> UserMessageAttachmentDirectory:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
@@ -5342,7 +5342,7 @@ class UserMessageAttachmentFile:
     line_range: UserMessageAttachmentFileLineRange | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentFile":
+    def from_dict(obj: Any) -> UserMessageAttachmentFile:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         path = from_str(obj.get("path"))
@@ -5370,7 +5370,7 @@ class UserMessageAttachmentFileLineRange:
     start: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentFileLineRange":
+    def from_dict(obj: Any) -> UserMessageAttachmentFileLineRange:
         assert isinstance(obj, dict)
         end = from_int(obj.get("end"))
         start = from_int(obj.get("start"))
@@ -5397,7 +5397,7 @@ class UserMessageAttachmentGithubReference:
     url: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentGithubReference":
+    def from_dict(obj: Any) -> UserMessageAttachmentGithubReference:
         assert isinstance(obj, dict)
         number = from_int(obj.get("number"))
         reference_type = parse_enum(UserMessageAttachmentGithubReferenceType, obj.get("referenceType"))
@@ -5433,7 +5433,7 @@ class UserMessageAttachmentSelection:
     type: ClassVar[str] = "selection"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelection":
+    def from_dict(obj: Any) -> UserMessageAttachmentSelection:
         assert isinstance(obj, dict)
         display_name = from_str(obj.get("displayName"))
         file_path = from_str(obj.get("filePath"))
@@ -5463,7 +5463,7 @@ class UserMessageAttachmentSelectionDetails:
     start: UserMessageAttachmentSelectionDetailsStart
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetails":
+    def from_dict(obj: Any) -> UserMessageAttachmentSelectionDetails:
         assert isinstance(obj, dict)
         end = UserMessageAttachmentSelectionDetailsEnd.from_dict(obj.get("end"))
         start = UserMessageAttachmentSelectionDetailsStart.from_dict(obj.get("start"))
@@ -5486,7 +5486,7 @@ class UserMessageAttachmentSelectionDetailsEnd:
     line: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetailsEnd":
+    def from_dict(obj: Any) -> UserMessageAttachmentSelectionDetailsEnd:
         assert isinstance(obj, dict)
         character = from_int(obj.get("character"))
         line = from_int(obj.get("line"))
@@ -5509,7 +5509,7 @@ class UserMessageAttachmentSelectionDetailsStart:
     line: int
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageAttachmentSelectionDetailsStart":
+    def from_dict(obj: Any) -> UserMessageAttachmentSelectionDetailsStart:
         assert isinstance(obj, dict)
         character = from_int(obj.get("character"))
         line = from_int(obj.get("line"))
@@ -5540,7 +5540,7 @@ class UserMessageData:
     transformed_content: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserMessageData":
+    def from_dict(obj: Any) -> UserMessageData:
         assert isinstance(obj, dict)
         content = from_str(obj.get("content"))
         agent_mode = from_union([from_none, lambda x: parse_enum(UserMessageAgentMode, x)], obj.get("agentMode"))
@@ -5596,7 +5596,7 @@ class UserToolSessionApprovalCommands:
     kind: ClassVar[str] = "commands"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalCommands":
+    def from_dict(obj: Any) -> UserToolSessionApprovalCommands:
         assert isinstance(obj, dict)
         command_identifiers = from_list(from_str, obj.get("commandIdentifiers"))
         return UserToolSessionApprovalCommands(
@@ -5617,7 +5617,7 @@ class UserToolSessionApprovalCustomTool:
     tool_name: str
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalCustomTool":
+    def from_dict(obj: Any) -> UserToolSessionApprovalCustomTool:
         assert isinstance(obj, dict)
         tool_name = from_str(obj.get("toolName"))
         return UserToolSessionApprovalCustomTool(
@@ -5638,7 +5638,7 @@ class UserToolSessionApprovalExtensionManagement:
     operation: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalExtensionManagement":
+    def from_dict(obj: Any) -> UserToolSessionApprovalExtensionManagement:
         assert isinstance(obj, dict)
         operation = from_union([from_none, from_str], obj.get("operation"))
         return UserToolSessionApprovalExtensionManagement(
@@ -5660,7 +5660,7 @@ class UserToolSessionApprovalExtensionPermissionAccess:
     kind: ClassVar[str] = "extension-permission-access"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalExtensionPermissionAccess":
+    def from_dict(obj: Any) -> UserToolSessionApprovalExtensionPermissionAccess:
         assert isinstance(obj, dict)
         extension_name = from_str(obj.get("extensionName"))
         return UserToolSessionApprovalExtensionPermissionAccess(
@@ -5682,7 +5682,7 @@ class UserToolSessionApprovalMcp:
     tool_name: str | None
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalMcp":
+    def from_dict(obj: Any) -> UserToolSessionApprovalMcp:
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         tool_name = from_union([from_none, from_str], obj.get("toolName"))
@@ -5705,7 +5705,7 @@ class UserToolSessionApprovalMemory:
     kind: ClassVar[str] = "memory"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalMemory":
+    def from_dict(obj: Any) -> UserToolSessionApprovalMemory:
         assert isinstance(obj, dict)
         return UserToolSessionApprovalMemory(
         )
@@ -5722,7 +5722,7 @@ class UserToolSessionApprovalRead:
     kind: ClassVar[str] = "read"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalRead":
+    def from_dict(obj: Any) -> UserToolSessionApprovalRead:
         assert isinstance(obj, dict)
         return UserToolSessionApprovalRead(
         )
@@ -5739,7 +5739,7 @@ class UserToolSessionApprovalWrite:
     kind: ClassVar[str] = "write"
 
     @staticmethod
-    def from_dict(obj: Any) -> "UserToolSessionApprovalWrite":
+    def from_dict(obj: Any) -> UserToolSessionApprovalWrite:
         assert isinstance(obj, dict)
         return UserToolSessionApprovalWrite(
         )
@@ -5763,7 +5763,7 @@ class WorkingDirectoryContext:
     repository_host: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "WorkingDirectoryContext":
+    def from_dict(obj: Any) -> WorkingDirectoryContext:
         assert isinstance(obj, dict)
         cwd = from_str(obj.get("cwd"))
         base_commit = from_union([from_none, from_str], obj.get("baseCommit"))
@@ -5804,7 +5804,7 @@ class WorkingDirectoryContext:
         return result
 
 
-def _load_PermissionPromptRequest(obj: Any) -> "PermissionPromptRequest":
+def _load_PermissionPromptRequest(obj: Any) -> PermissionPromptRequest:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -5822,7 +5822,7 @@ def _load_PermissionPromptRequest(obj: Any) -> "PermissionPromptRequest":
         case _: raise ValueError(f"Unknown PermissionPromptRequest kind: {kind!r}")
 
 
-def _load_PermissionRequest(obj: Any) -> "PermissionRequest":
+def _load_PermissionRequest(obj: Any) -> PermissionRequest:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -5839,7 +5839,7 @@ def _load_PermissionRequest(obj: Any) -> "PermissionRequest":
         case _: raise ValueError(f"Unknown PermissionRequest kind: {kind!r}")
 
 
-def _load_PermissionResult(obj: Any) -> "PermissionResult":
+def _load_PermissionResult(obj: Any) -> PermissionResult:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -5855,7 +5855,7 @@ def _load_PermissionResult(obj: Any) -> "PermissionResult":
         case _: raise ValueError(f"Unknown PermissionResult kind: {kind!r}")
 
 
-def _load_SystemNotification(obj: Any) -> "SystemNotification":
+def _load_SystemNotification(obj: Any) -> SystemNotification:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -5868,7 +5868,7 @@ def _load_SystemNotification(obj: Any) -> "SystemNotification":
         case _: raise ValueError(f"Unknown SystemNotification type: {kind!r}")
 
 
-def _load_ToolExecutionCompleteContent(obj: Any) -> "ToolExecutionCompleteContent":
+def _load_ToolExecutionCompleteContent(obj: Any) -> ToolExecutionCompleteContent:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -5881,7 +5881,7 @@ def _load_ToolExecutionCompleteContent(obj: Any) -> "ToolExecutionCompleteConten
         case _: raise ValueError(f"Unknown ToolExecutionCompleteContent type: {kind!r}")
 
 
-def _load_UserMessageAttachment(obj: Any) -> "UserMessageAttachment":
+def _load_UserMessageAttachment(obj: Any) -> UserMessageAttachment:
     assert isinstance(obj, dict)
     kind = obj.get("type")
     match kind:
@@ -5893,7 +5893,7 @@ def _load_UserMessageAttachment(obj: Any) -> "UserMessageAttachment":
         case _: raise ValueError(f"Unknown UserMessageAttachment type: {kind!r}")
 
 
-def _load_UserToolSessionApproval(obj: Any) -> "UserToolSessionApproval":
+def _load_UserToolSessionApproval(obj: Any) -> UserToolSessionApproval:
     assert isinstance(obj, dict)
     kind = obj.get("kind")
     match kind:
@@ -6235,7 +6235,7 @@ class SessionEvent:
     raw_type: str | None = None
 
     @staticmethod
-    def from_dict(obj: Any) -> "SessionEvent":
+    def from_dict(obj: Any) -> SessionEvent:
         assert isinstance(obj, dict)
         raw_type = from_str(obj.get("type"))
         event_type = SessionEventType(raw_type)

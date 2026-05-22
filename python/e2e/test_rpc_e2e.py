@@ -2,8 +2,7 @@
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.generated.rpc import ModelsListRequest, PingRequest
 from copilot.session import PermissionHandler
 
@@ -16,7 +15,9 @@ class TestRpc:
     @pytest.mark.asyncio
     async def test_should_call_rpc_ping_with_typed_params(self):
         """Test calling rpc.ping with typed params and result"""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
 
         try:
             await client.start()
@@ -32,7 +33,9 @@ class TestRpc:
     @pytest.mark.asyncio
     async def test_should_call_rpc_models_list(self):
         """Test calling rpc.models.list with typed result"""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
 
         try:
             await client.start()
@@ -55,7 +58,9 @@ class TestRpc:
     @pytest.mark.asyncio
     async def test_should_call_rpc_account_get_quota(self):
         """Test calling rpc.account.getQuota when authenticated"""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
 
         try:
             await client.start()
@@ -116,7 +121,9 @@ class TestSessionRpc:
         """Test getting and setting session mode"""
         from copilot.generated.rpc import ModeSetRequest, SessionMode
 
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
 
         try:
             await client.start()
@@ -148,7 +155,9 @@ class TestSessionRpc:
         """Test reading, updating, and deleting plan"""
         from copilot.generated.rpc import PlanUpdateRequest
 
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
 
         try:
             await client.start()
@@ -191,7 +200,9 @@ class TestSessionRpc:
             WorkspacesReadFileRequest,
         )
 
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
 
         try:
             await client.start()

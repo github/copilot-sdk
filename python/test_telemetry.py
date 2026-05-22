@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from copilot import CopilotClientOptions, RuntimeConnection
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.client import SubprocessConfig, TelemetryConfig
+from copilot.client import TelemetryConfig
 
 
 class TestGetTraceContext:
@@ -75,11 +76,12 @@ class TestTelemetryConfig:
 
     def test_telemetry_config_in_subprocess_config(self):
         """TelemetryConfig can be used in SubprocessConfig."""
-        config = SubprocessConfig(
+        config = CopilotClientOptions(
+            connection=RuntimeConnection.stdio(),
             telemetry={
                 "otlp_endpoint": "http://localhost:4318",
                 "exporter_type": "otlp-http",
-            }
+            },
         )
         assert config.telemetry is not None
         assert config.telemetry["otlp_endpoint"] == "http://localhost:4318"

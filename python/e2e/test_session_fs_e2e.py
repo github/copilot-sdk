@@ -12,8 +12,13 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient, SessionFsConfig, define_tool
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import (
+    CopilotClient,
+    CopilotClientOptions,
+    RuntimeConnection,
+    SessionFsConfig,
+    define_tool,
+)
 from copilot.generated.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesEntryType,
@@ -45,8 +50,8 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 @pytest_asyncio.fixture(scope="module", loop_scope="module")
 async def session_fs_client(ctx: E2ETestContext):
     client = CopilotClient(
-        SubprocessConfig(
-            cli_path=ctx.cli_path,
+        CopilotClientOptions(
+            connection=RuntimeConnection.stdio(path=ctx.cli_path),
             working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=DEFAULT_GITHUB_TOKEN,
@@ -117,11 +122,10 @@ class TestSessionFs:
 
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
         client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=ctx.cli_path,
+            CopilotClientOptions(
+                connection=RuntimeConnection.tcp(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=ctx.get_env(),
-                use_stdio=False,
                 github_token=DEFAULT_GITHUB_TOKEN,
             )
         )
@@ -132,12 +136,12 @@ class TestSessionFs:
             session = await client1.create_session(
                 on_permission_request=PermissionHandler.approve_all,
             )
-            actual_port = client1.actual_port
+            actual_port = client1.runtime_port
             assert actual_port is not None
 
             client2 = CopilotClient(
-                ExternalServerConfig(
-                    url=f"localhost:{actual_port}",
+                CopilotClientOptions(
+                    connection=RuntimeConnection.uri(f"localhost:{actual_port}"),
                     session_fs=SESSION_FS_CONFIG,
                 )
             )

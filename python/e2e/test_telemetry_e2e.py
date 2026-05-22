@@ -22,9 +22,8 @@ from typing import Any
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection, TelemetryConfig
 from copilot._telemetry import get_trace_context, trace_context
-from copilot.client import SubprocessConfig, TelemetryConfig
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
 
@@ -82,8 +81,8 @@ class TestTelemetryExport:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=ctx.cli_path,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 github_token=github_token,
@@ -213,7 +212,7 @@ class TestSubprocessConfigTelemetry:
     """Mirrors CopilotClientOptions_Telemetry_DefaultsToNull."""
 
     async def test_telemetry_defaults_to_none(self):
-        config = SubprocessConfig()
+        config = CopilotClientOptions(connection=RuntimeConnection.stdio())
         assert config.telemetry is None
 
     # NOTE: CopilotClientOptions_Clone_CopiesTelemetry from the C# baseline has

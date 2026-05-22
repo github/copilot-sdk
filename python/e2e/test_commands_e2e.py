@@ -15,8 +15,7 @@ import tempfile
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.session import CommandDefinition, PermissionHandler
 
 from .testharness.context import SNAPSHOTS_DIR, get_cli_path_for_tests
@@ -56,13 +55,13 @@ class CommandsMultiClientContext:
 
         # Client 1 uses TCP mode so a second client can connect
         self._client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
+            CopilotClientOptions(
+                connection=RuntimeConnection.tcp(
+                    path=self.cli_path, connection_token="py-tcp-shared-test-token"
+                ),
                 working_directory=self.work_dir,
                 env=self._get_env(),
-                use_stdio=False,
                 github_token=github_token,
-                tcp_connection_token="py-tcp-shared-test-token",
             )
         )
 
@@ -72,12 +71,14 @@ class CommandsMultiClientContext:
         )
         await init_session.disconnect()
 
-        actual_port = self._client1.actual_port
+        actual_port = self._client1.runtime_port
         assert actual_port is not None
 
         self._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            CopilotClientOptions(
+                connection=RuntimeConnection.uri(
+                    f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
+                )
             )
         )
 
@@ -120,7 +121,7 @@ class CommandsMultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "COPILOT_HOME": self.home_dir,
+                "base_directory": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }

@@ -14,8 +14,7 @@ from typing import Any
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.generated.rpc import PermissionDecisionUserNotAvailable
 from copilot.session import PermissionHandler
 from copilot.tools import Tool, ToolInvocation, ToolResult
@@ -32,13 +31,11 @@ def _make_subprocess_client(ctx: E2ETestContext, *, use_stdio: bool = True) -> C
         "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
     )
     return CopilotClient(
-        SubprocessConfig(
-            cli_path=ctx.cli_path,
+        CopilotClientOptions(
+            connection=RuntimeConnection.stdio(path=ctx.cli_path),
             working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=github_token,
-            use_stdio=use_stdio,
-            tcp_connection_token="py-tcp-shared-test-token",
         )
     )
 
@@ -100,11 +97,15 @@ class TestSuspend:
         server = _make_subprocess_client(ctx, use_stdio=False)
         await server.start()
         try:
-            cli_url = f"localhost:{server.actual_port}"
+            cli_url = f"localhost:{server.runtime_port}"
             session_id: str
 
             first_client = CopilotClient(
-                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+                CopilotClientOptions(
+                    connection=RuntimeConnection.uri(
+                        cli_url, connection_token="py-tcp-shared-test-token"
+                    )
+                )
             )
             try:
                 session1 = await first_client.create_session(
@@ -121,7 +122,11 @@ class TestSuspend:
                 await _safe_force_stop(first_client)
 
             resumed_client = CopilotClient(
-                ExternalServerConfig(url=cli_url, tcp_connection_token="py-tcp-shared-test-token")
+                CopilotClientOptions(
+                    connection=RuntimeConnection.uri(
+                        cli_url, connection_token="py-tcp-shared-test-token"
+                    )
+                )
             )
             try:
                 session2 = await resumed_client.resume_session(

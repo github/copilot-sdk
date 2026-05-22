@@ -1,9 +1,8 @@
 import asyncio
 import os
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
-from copilot.generated.rpc import PermissionDecisionApproveOnce
 
+from copilot import CopilotClient, CopilotClientOptions
+from copilot.generated.rpc import PermissionDecisionApproveOnce
 
 hook_log: list[str] = []
 
@@ -42,10 +41,11 @@ async def on_error_occurred(input_data, invocation):
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient(
+        CopilotClientOptions(
+            github_token=os.environ.get("GITHUB_TOKEN"),
+        )
+    )
 
     try:
         session = await client.create_session(

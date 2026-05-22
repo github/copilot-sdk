@@ -4,9 +4,7 @@ import os
 import time
 import urllib.request
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
-
+from copilot import CopilotClient, CopilotClientOptions
 
 DEVICE_CODE_URL = "https://github.com/login/device/code"
 ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
@@ -61,7 +59,9 @@ def poll_for_access_token(client_id: str, device_code: str, interval: int) -> st
         if data.get("error") == "slow_down":
             delay_seconds = int(data.get("interval", delay_seconds + 5))
             continue
-        raise RuntimeError(data.get("error_description") or data.get("error") or "OAuth polling failed")
+        raise RuntimeError(
+            data.get("error_description") or data.get("error") or "OAuth polling failed"
+        )
 
 
 async def main():
@@ -79,10 +79,7 @@ async def main():
     display_name = f" ({user.get('name')})" if user.get("name") else ""
     print(f"Authenticated as: {user.get('login')}{display_name}")
 
-    client = CopilotClient(SubprocessConfig(
-        github_token=token,
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient(CopilotClientOptions(github_token=token))
 
     try:
         session = await client.create_session({"model": "claude-haiku-4.5"})

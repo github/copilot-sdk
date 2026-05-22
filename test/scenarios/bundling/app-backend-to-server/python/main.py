@@ -4,9 +4,9 @@ import os
 import sys
 import urllib.request
 
-from flask import Flask, request, jsonify
-from copilot import CopilotClient
-from copilot.client import ExternalServerConfig
+from flask import Flask, jsonify, request
+
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 
 app = Flask(__name__)
 
@@ -14,7 +14,7 @@ CLI_URL = os.environ.get("CLI_URL", os.environ.get("COPILOT_CLI_URL", "localhost
 
 
 async def ask_copilot(prompt: str) -> str:
-    client = CopilotClient(ExternalServerConfig(url=CLI_URL))
+    client = CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri(CLI_URL)))
 
     try:
         session = await client.create_session({"model": "claude-haiku-4.5"})
@@ -70,6 +70,7 @@ if __name__ == "__main__":
         )
         server_thread.start()
         import time
+
         time.sleep(1)
         self_test(port)
     else:

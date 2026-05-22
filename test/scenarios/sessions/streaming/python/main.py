@@ -1,14 +1,15 @@
 import asyncio
 import os
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+
+from copilot import CopilotClient, CopilotClientOptions
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient(
+        CopilotClientOptions(
+            github_token=os.environ.get("GITHUB_TOKEN"),
+        )
+    )
 
     try:
         session = await client.create_session(
@@ -27,9 +28,7 @@ async def main():
 
         session.on(on_event)
 
-        response = await session.send_and_wait(
-            "What is the capital of France?"
-        )
+        response = await session.send_and_wait("What is the capital of France?")
 
         if response:
             print(response.data.content)

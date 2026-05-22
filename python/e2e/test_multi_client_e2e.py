@@ -14,8 +14,7 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel, Field
 
-from copilot import CopilotClient, define_tool
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection, define_tool
 from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
 from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import ToolInvocation
@@ -54,13 +53,13 @@ class MultiClientContext:
 
         # Client 1 uses TCP mode so a second client can connect to the same server
         self._client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
+            CopilotClientOptions(
+                connection=RuntimeConnection.tcp(
+                    path=self.cli_path, connection_token="py-tcp-shared-test-token"
+                ),
                 working_directory=self.work_dir,
                 env=self.get_env(),
-                use_stdio=False,
                 github_token=github_token,
-                tcp_connection_token="py-tcp-shared-test-token",
             )
         )
 
@@ -71,12 +70,14 @@ class MultiClientContext:
         await init_session.disconnect()
 
         # Read the actual port from client 1 and create client 2
-        actual_port = self._client1.actual_port
+        actual_port = self._client1.runtime_port
         assert actual_port is not None, "Client 1 should have an actual port after connecting"
 
         self._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            CopilotClientOptions(
+                connection=RuntimeConnection.uri(
+                    f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
+                )
             )
         )
 
@@ -134,7 +135,7 @@ class MultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "COPILOT_HOME": self.home_dir,
+                "base_directory": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }
@@ -426,10 +427,12 @@ class TestMultiClientBroadcast:
         await asyncio.sleep(0.5)
 
         # Recreate client2 for future tests (but don't rejoin the session)
-        actual_port = mctx.client1.actual_port
+        actual_port = mctx.client1.runtime_port
         mctx._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            CopilotClientOptions(
+                connection=RuntimeConnection.uri(
+                    f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
+                )
             )
         )
 

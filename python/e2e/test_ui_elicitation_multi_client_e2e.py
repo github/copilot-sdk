@@ -16,8 +16,7 @@ import tempfile
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.generated.session_events import CapabilitiesChangedData
 from copilot.session import (
     ElicitationContext,
@@ -63,13 +62,13 @@ class ElicitationMultiClientContext:
 
         # Client 1 uses TCP mode so additional clients can connect
         self._client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
+            CopilotClientOptions(
+                connection=RuntimeConnection.tcp(
+                    path=self.cli_path, connection_token="py-tcp-shared-test-token"
+                ),
                 working_directory=self.work_dir,
                 env=self._get_env(),
-                use_stdio=False,
                 github_token=github_token,
-                tcp_connection_token="py-tcp-shared-test-token",
             )
         )
 
@@ -79,13 +78,14 @@ class ElicitationMultiClientContext:
         )
         await init_session.disconnect()
 
-        self._actual_port = self._client1.actual_port
+        self._actual_port = self._client1.runtime_port
         assert self._actual_port is not None
 
         self._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{self._actual_port}",
-                tcp_connection_token="py-tcp-shared-test-token",
+            CopilotClientOptions(
+                connection=RuntimeConnection.uri(
+                    f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
+                )
             )
         )
 
@@ -128,7 +128,7 @@ class ElicitationMultiClientContext:
         env.update(
             {
                 "COPILOT_API_URL": self.proxy_url,
-                "COPILOT_HOME": self.home_dir,
+                "base_directory": self.home_dir,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
             }
@@ -139,9 +139,10 @@ class ElicitationMultiClientContext:
         """Create a new external client connected to the same CLI server."""
         assert self._actual_port is not None
         return CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{self._actual_port}",
-                tcp_connection_token="py-tcp-shared-test-token",
+            CopilotClientOptions(
+                connection=RuntimeConnection.uri(
+                    f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
+                )
             )
         )
 

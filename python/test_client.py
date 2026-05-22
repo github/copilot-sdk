@@ -8,16 +8,20 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from copilot import CopilotClient, define_tool
+from copilot import (
+    CopilotClient,
+    CopilotClientOptions,
+    RuntimeConnection,
+    StdioRuntimeConnection,
+    define_tool,
+)
 from copilot.client import (
     CloudSessionOptions,
     CloudSessionRepository,
-    ExternalServerConfig,
     ModelCapabilities,
     ModelInfo,
     ModelLimits,
     ModelSupports,
-    SubprocessConfig,
 )
 from copilot.session import PermissionHandler, PermissionNoResult
 from e2e.testharness import CLI_PATH
@@ -26,7 +30,9 @@ from e2e.testharness import CLI_PATH
 class TestPermissionHandlerOptional:
     @pytest.mark.asyncio
     async def test_create_session_allows_missing_permission_handler(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
         try:
             session = await client.create_session()
@@ -36,7 +42,9 @@ class TestPermissionHandlerOptional:
 
     @pytest.mark.asyncio
     async def test_create_session_allows_none_permission_handler(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
         try:
             session = await client.create_session(on_permission_request=None)
@@ -46,7 +54,9 @@ class TestPermissionHandlerOptional:
 
     @pytest.mark.asyncio
     async def test_v2_permission_adapter_rejects_no_result(self):
-        client = CopilotClient(SubprocessConfig(CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
         try:
             session = await client.create_session(
@@ -70,7 +80,9 @@ class TestPermissionHandlerOptional:
 
     @pytest.mark.asyncio
     async def test_resume_session_allows_none_permission_handler(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
         try:
             session = await client.create_session(
@@ -85,7 +97,9 @@ class TestPermissionHandlerOptional:
 class TestCreateSessionConfig:
     @pytest.mark.asyncio
     async def test_create_session_forwards_cloud_options(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
         try:
             captured = {}
@@ -121,47 +135,55 @@ class TestCreateSessionConfig:
 
 class TestURLParsing:
     def test_parse_port_only_url(self):
-        client = CopilotClient(ExternalServerConfig(url="8080"))
-        assert client._actual_port == 8080
+        client = CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("8080")))
+        assert client._runtime_port == 8080
         assert client._actual_host == "localhost"
         assert client._is_external_server
 
     def test_parse_host_port_url(self):
-        client = CopilotClient(ExternalServerConfig(url="127.0.0.1:9000"))
-        assert client._actual_port == 9000
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.uri("127.0.0.1:9000"))
+        )
+        assert client._runtime_port == 9000
         assert client._actual_host == "127.0.0.1"
         assert client._is_external_server
 
     def test_parse_http_url(self):
-        client = CopilotClient(ExternalServerConfig(url="http://localhost:7000"))
-        assert client._actual_port == 7000
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.uri("http://localhost:7000"))
+        )
+        assert client._runtime_port == 7000
         assert client._actual_host == "localhost"
         assert client._is_external_server
 
     def test_parse_https_url(self):
-        client = CopilotClient(ExternalServerConfig(url="https://example.com:443"))
-        assert client._actual_port == 443
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.uri("https://example.com:443"))
+        )
+        assert client._runtime_port == 443
         assert client._actual_host == "example.com"
         assert client._is_external_server
 
     def test_invalid_url_format(self):
         with pytest.raises(ValueError, match="Invalid cli_url format"):
-            CopilotClient(ExternalServerConfig(url="invalid-url"))
+            CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("invalid-url")))
 
     def test_invalid_port_too_high(self):
         with pytest.raises(ValueError, match="Invalid port in cli_url"):
-            CopilotClient(ExternalServerConfig(url="localhost:99999"))
+            CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("localhost:99999")))
 
     def test_invalid_port_zero(self):
         with pytest.raises(ValueError, match="Invalid port in cli_url"):
-            CopilotClient(ExternalServerConfig(url="localhost:0"))
+            CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("localhost:0")))
 
     def test_invalid_port_negative(self):
         with pytest.raises(ValueError, match="Invalid port in cli_url"):
-            CopilotClient(ExternalServerConfig(url="localhost:-1"))
+            CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("localhost:-1")))
 
     def test_is_external_server_true(self):
-        client = CopilotClient(ExternalServerConfig(url="localhost:8080"))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.uri("localhost:8080"))
+        )
         assert client._is_external_server
 
 
@@ -169,8 +191,8 @@ class TestSessionFsConfig:
     def test_missing_initial_cwd(self):
         with pytest.raises(ValueError, match="session_fs.initial_working_directory is required"):
             CopilotClient(
-                SubprocessConfig(
-                    cli_path=CLI_PATH,
+                CopilotClientOptions(
+                    connection=RuntimeConnection.stdio(path=CLI_PATH),
                     log_level="error",
                     session_fs={
                         "initial_working_directory": "",
@@ -183,8 +205,8 @@ class TestSessionFsConfig:
     def test_missing_session_state_path(self):
         with pytest.raises(ValueError, match="session_fs.session_state_path is required"):
             CopilotClient(
-                SubprocessConfig(
-                    cli_path=CLI_PATH,
+                CopilotClientOptions(
+                    connection=RuntimeConnection.stdio(path=CLI_PATH),
                     log_level="error",
                     session_fs={
                         "initial_working_directory": "/",
@@ -198,100 +220,109 @@ class TestSessionFsConfig:
 class TestAuthOptions:
     def test_accepts_github_token(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH),
                 github_token="gho_test_token",
                 log_level="error",
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.github_token == "gho_test_token"
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.github_token == "gho_test_token"
 
     def test_default_use_logged_in_user_true_without_token(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, log_level="error"))
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.use_logged_in_user is True
+        client = CopilotClient(
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH), log_level="error"
+            )
+        )
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.use_logged_in_user is True
 
     def test_default_use_logged_in_user_false_with_token(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH),
                 github_token="gho_test_token",
                 log_level="error",
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.use_logged_in_user is False
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.use_logged_in_user is False
 
     def test_explicit_use_logged_in_user_true_with_token(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH),
                 github_token="gho_test_token",
                 use_logged_in_user=True,
                 log_level="error",
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.use_logged_in_user is True
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.use_logged_in_user is True
 
     def test_explicit_use_logged_in_user_false_without_token(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH),
                 use_logged_in_user=False,
                 log_level="error",
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.use_logged_in_user is False
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.use_logged_in_user is False
 
 
 class TestSessionIdleTimeoutSeconds:
     def test_accepts_session_idle_timeout_seconds(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH),
                 session_idle_timeout_seconds=600,
                 log_level="error",
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.session_idle_timeout_seconds == 600
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.session_idle_timeout_seconds == 600
 
     def test_default_session_idle_timeout_seconds_is_none(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, log_level="error"))
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.session_idle_timeout_seconds is None
+        client = CopilotClient(
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH), log_level="error"
+            )
+        )
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.session_idle_timeout_seconds is None
 
 
 class TestCopilotHome:
     def test_accepts_copilot_home(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
-                copilot_home="/custom/copilot/home",
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH),
+                base_directory="/custom/copilot/home",
                 log_level="error",
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.copilot_home == "/custom/copilot/home"
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.base_directory == "/custom/copilot/home"
 
     def test_default_copilot_home_is_none(self):
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
-                log_level="error",
+            CopilotClientOptions(
+                connection=RuntimeConnection.stdio(path=CLI_PATH), log_level="error"
             )
         )
-        assert isinstance(client._config, SubprocessConfig)
-        assert client._config.copilot_home is None
+        assert isinstance(client._options.connection, StdioRuntimeConnection)
+        assert client._options.base_directory is None
 
 
 class TestOverridesBuiltInTool:
     @pytest.mark.asyncio
     async def test_overrides_built_in_tool_sent_in_tool_definition(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -320,7 +351,9 @@ class TestOverridesBuiltInTool:
 
     @pytest.mark.asyncio
     async def test_resume_session_sends_overrides_built_in_tool(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -357,7 +390,9 @@ class TestOverridesBuiltInTool:
 class TestInstructionDirectories:
     @pytest.mark.asyncio
     async def test_create_session_sends_instruction_directories(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -385,7 +420,9 @@ class TestInstructionDirectories:
 
     @pytest.mark.asyncio
     async def test_resume_session_sends_instruction_directories(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -434,7 +471,7 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            SubprocessConfig(cli_path=CLI_PATH),
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH)),
             on_list_models=handler,
         )
         await client.start()
@@ -466,7 +503,7 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            SubprocessConfig(cli_path=CLI_PATH),
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH)),
             on_list_models=handler,
         )
         await client.start()
@@ -495,7 +532,7 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            SubprocessConfig(cli_path=CLI_PATH),
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH)),
             on_list_models=handler,
         )
         await client.start()
@@ -526,7 +563,7 @@ class TestOnListModels:
             return custom_models
 
         client = CopilotClient(
-            SubprocessConfig(cli_path=CLI_PATH),
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH)),
             on_list_models=handler,
         )
         models = await client.list_models()
@@ -537,7 +574,9 @@ class TestOnListModels:
 class TestSessionConfigForwarding:
     @pytest.mark.asyncio
     async def test_create_session_forwards_client_name(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -558,7 +597,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_client_name(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -588,7 +629,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_create_session_forwards_enable_session_telemetry(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -610,7 +653,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_enable_session_telemetry(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -639,7 +684,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_create_session_forwards_provider_headers(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -677,7 +724,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_provider_headers(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -720,7 +769,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_session_send_forwards_request_headers(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -752,7 +803,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_create_session_forwards_agent(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -775,7 +828,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_agent(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -805,7 +860,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_create_session_defaults_include_sub_agent_streaming_events_to_true(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -828,7 +885,9 @@ class TestSessionConfigForwarding:
     async def test_create_session_preserves_explicit_false_include_sub_agent_streaming_events(
         self,
     ):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -850,7 +909,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_defaults_include_sub_agent_streaming_events_to_true(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -880,7 +941,9 @@ class TestSessionConfigForwarding:
     async def test_resume_session_preserves_explicit_false_include_sub_agent_streaming_events(
         self,
     ):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -909,7 +972,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_continue_pending_work(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -938,7 +1003,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_resume_session_omits_continue_pending_work_by_default(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -966,7 +1033,9 @@ class TestSessionConfigForwarding:
 
     @pytest.mark.asyncio
     async def test_set_model_sends_correct_rpc(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         await client.start()
 
         try:
@@ -994,7 +1063,9 @@ class TestSessionConfigForwarding:
 class TestCopilotClientContextManager:
     @pytest.mark.asyncio
     async def test_aenter_calls_start_and_returns_self(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         with patch.object(client, "start", new_callable=AsyncMock) as mock_start:
             result = await client.__aenter__()
             mock_start.assert_awaited_once()
@@ -1002,7 +1073,9 @@ class TestCopilotClientContextManager:
 
     @pytest.mark.asyncio
     async def test_aexit_calls_stop(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(
+            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+        )
         with patch.object(client, "stop", new_callable=AsyncMock) as mock_stop:
             await client.__aexit__(None, None, None)
             mock_stop.assert_awaited_once()
