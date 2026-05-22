@@ -152,6 +152,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
                 }
                 catch (OperationCanceledException) when (cts.IsCancellationRequested)
                 {
+                    // Expected when cleanup cancels the send task.
                 }
             }
         }
@@ -165,7 +166,7 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
             _ => (McpServerConfig)new McpStdioServerConfig
             {
                 Command = "node",
-                Args = [Path.Combine(testHarnessDir, "test-mcp-server.mjs")],
+                Args = [Path.Join(testHarnessDir, "test-mcp-server.mjs")],
                 WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             });
@@ -173,10 +174,11 @@ public abstract class E2ETestBase : IClassFixture<E2ETestFixture>, IAsyncLifetim
 
     protected static string FindTestHarnessDir()
     {
+        var relativePath = Path.Join("test", "harness", "test-mcp-server.mjs");
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, "test", "harness", "test-mcp-server.mjs");
+            var candidate = Path.Combine(dir.FullName, relativePath);
             if (File.Exists(candidate))
                 return Path.GetDirectoryName(candidate)!;
             dir = dir.Parent;
