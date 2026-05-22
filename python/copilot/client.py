@@ -979,13 +979,13 @@ SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
 
 HandlerUnsubcribe = Callable[[], None]
 
-NO_RESULT_PERMISSION_V2_ERROR = (
+_NO_RESULT_PERMISSION_V2_ERROR = (
     "Permission handlers cannot return 'no-result' when connected to a protocol v2 server."
 )
 
 # Minimum protocol version this SDK can communicate with.
 # Servers reporting a version below this are rejected.
-MIN_PROTOCOL_VERSION = 2
+_MIN_PROTOCOL_VERSION = 2
 
 
 def _get_bundled_cli_path() -> str | None:
@@ -2664,15 +2664,15 @@ class CopilotClient:
         if server_version is None:
             raise RuntimeError(
                 "SDK protocol version mismatch: "
-                f"SDK supports versions {MIN_PROTOCOL_VERSION}-{max_version}"
+                f"SDK supports versions {_MIN_PROTOCOL_VERSION}-{max_version}"
                 ", but server does not report a protocol version. "
                 "Please update your server to ensure compatibility."
             )
 
-        if server_version < MIN_PROTOCOL_VERSION or server_version > max_version:
+        if server_version < _MIN_PROTOCOL_VERSION or server_version > max_version:
             raise RuntimeError(
                 "SDK protocol version mismatch: "
-                f"SDK supports versions {MIN_PROTOCOL_VERSION}-{max_version}"
+                f"SDK supports versions {_MIN_PROTOCOL_VERSION}-{max_version}"
                 f", but server reports version {server_version}. "
                 "Please update your SDK or server to ensure compatibility."
             )
@@ -3364,10 +3364,10 @@ class CopilotClient:
             perm_request = _load_PermissionRequest(permission_request)
             result = await session._handle_permission_request(perm_request)
             if isinstance(result, PermissionNoResult):
-                raise ValueError(NO_RESULT_PERMISSION_V2_ERROR)
+                raise ValueError(_NO_RESULT_PERMISSION_V2_ERROR)
             return {"result": result.to_dict()}
         except ValueError as exc:
-            if str(exc) == NO_RESULT_PERMISSION_V2_ERROR:
+            if str(exc) == _NO_RESULT_PERMISSION_V2_ERROR:
                 raise
             return {"result": PermissionDecisionUserNotAvailable().to_dict()}
         except Exception:  # pylint: disable=broad-except

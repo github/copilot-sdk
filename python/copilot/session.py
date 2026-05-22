@@ -2338,26 +2338,6 @@ class CopilotSession:
             with self._auto_mode_switch_handler_lock:
                 self._auto_mode_switch_handler = None
 
-    async def destroy(self) -> None:
-        """
-        .. deprecated::
-            Use :meth:`disconnect` instead. This method will be removed in a future release.
-
-        Disconnect this session and release all in-memory resources.
-        Session data on disk is preserved for later resumption.
-
-        Raises:
-            Exception: If the connection fails.
-        """
-        import warnings
-
-        warnings.warn(
-            "destroy() is deprecated, use disconnect() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        await self.disconnect()
-
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""
         return self
