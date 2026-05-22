@@ -944,10 +944,13 @@ class ProviderConfig(TypedDict, total=False):
     max_output_tokens: int
 
 
-class SessionConfig(TypedDict, total=False):
-    """Configuration for creating a session"""
+class SessionConfigBase(TypedDict, total=False):
+    """Shared configuration fields between :class:`SessionConfig` and
+    :class:`ResumeSessionConfig`.
 
-    session_id: str  # Optional custom session ID
+    See those classes for the create-only / resume-only fields.
+    """
+
     # Client name to identify the application using the SDK.
     # Included in the User-Agent header for API requests.
     client_name: str
@@ -1018,9 +1021,10 @@ class SessionConfig(TypedDict, total=False):
     # Set to {"enabled": False} to disable.
     infinite_sessions: InfiniteSessionConfig
     # Optional event handler that is registered on the session before the
-    # session.create RPC is issued, ensuring early events (e.g. session.start)
-    # are delivered. Equivalent to calling session.on(handler) immediately
-    # after creation, but executes earlier in the lifecycle so no events are missed.
+    # session.create / session.resume RPC is issued, ensuring early events
+    # (e.g. session.start) are delivered. Equivalent to calling session.on(handler)
+    # immediately after creation, but executes earlier in the lifecycle so no
+    # events are missed.
     on_event: Callable[[SessionEvent], None]
     # Slash commands to register with the session.
     # When the CLI has a TUI, each command appears as /name for the user to invoke.
@@ -1036,69 +1040,23 @@ class SessionConfig(TypedDict, total=False):
     create_session_fs_handler: CreateSessionFsHandler
 
 
-class ResumeSessionConfig(TypedDict, total=False):
-    """Configuration for resuming a session"""
+class SessionConfig(SessionConfigBase, total=False):
+    """Configuration for creating a session.
 
-    # Client name to identify the application using the SDK.
-    # Included in the User-Agent header for API requests.
-    client_name: str
-    # Model to use for this session. Can change the model when resuming.
-    model: str
-    tools: list[Tool]
-    system_message: SystemMessageConfig  # System message configuration
-    # List of tool names to allow. When specified, only these tools will be available.
-    # Applies to the full merged tool catalog (built-in, MCP, and custom tools
-    # registered via tools=). Takes precedence over excluded_tools.
-    available_tools: list[str]
-    # List of tool names to disable. Applies to all tools including custom tools
-    # registered via tools=. Ignored if available_tools is set.
-    excluded_tools: list[str]
-    provider: ProviderConfig
-    # Enables or disables internal session telemetry for this session. When False,
-    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
-    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
-    # session telemetry is always disabled regardless of this setting.
-    # This is independent of the client OpenTelemetry configuration.
-    enable_session_telemetry: bool
-    # Reasoning effort level for models that support it.
-    reasoning_effort: ReasoningEffort
-    # Optional handler for permission requests from the server. When omitted,
-    # requests are surfaced as events and left pending for manual resolution.
-    on_permission_request: _PermissionHandlerFn | None
-    # Handler for user input requestsfrom the agent (enables ask_user tool)
-    on_user_input_request: UserInputHandler
-    # Hook handlers for intercepting session lifecycle events
-    hooks: SessionHooks
-    # Working directory for the session. Tool operations will be relative to this directory.
-    working_directory: str
-    # Override the default configuration directory location.
-    config_dir: str
-    # Enable streaming of assistant message chunks. Defaults to False.
-    streaming: bool
-    # Include sub-agent streaming events in the event stream. When True, streaming
-    # delta events from sub-agents (e.g., assistant.message_delta,
-    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
-    # forwarded to this connection. When False, only non-streaming sub-agent events
-    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
-    # are suppressed. Defaults to True.
-    include_sub_agent_streaming_events: bool
-    # MCP server configurations for the session
-    mcp_servers: dict[str, MCPServerConfig]
-    # Custom agent configurations for the session
-    custom_agents: list[CustomAgentConfig]
-    # Configuration for the default agent.
-    default_agent: DefaultAgentConfig
-    # Name of the custom agent to activate when the session starts.
-    # Must match the name of one of the agents in custom_agents.
-    agent: str
-    # Directories to load skills from
-    skill_directories: list[str]
-    # Additional directories to search for custom instruction files.
-    instruction_directories: list[str]
-    # List of skill names to disable
-    disabled_skills: list[str]
-    # Infinite session configuration for persistent workspaces and automatic compaction.
-    infinite_sessions: InfiniteSessionConfig
+    Inherits all shared fields from :class:`SessionConfigBase`; only the
+    create-specific fields appear here.
+    """
+
+    session_id: str  # Optional custom session ID
+
+
+class ResumeSessionConfig(SessionConfigBase, total=False):
+    """Configuration for resuming a session.
+
+    Inherits all shared fields from :class:`SessionConfigBase`; only the
+    resume-specific fields appear here.
+    """
+
     # When True, skips emitting the session.resume event.
     # Useful for reconnecting to a session without triggering resume-related side effects.
     disable_resume: bool
@@ -1111,19 +1069,6 @@ class ResumeSessionConfig(TypedDict, total=False):
     # calls, the consumer is expected to supply the result via the corresponding
     # low-level RPC method.
     continue_pending_work: bool
-    # Optional event handler registered before the session.resume RPC is issued,
-    # ensuring early events are delivered. See SessionConfig.on_event.
-    on_event: Callable[[SessionEvent], None]
-    # Slash commands to register with the session.
-    commands: list[CommandDefinition]
-    # Handler for elicitation requests from the server.
-    on_elicitation_request: ElicitationHandler
-    # Handler for exit-plan-mode requests from the server.
-    on_exit_plan_mode_request: ExitPlanModeHandler
-    # Handler for auto-mode-switch requests from the server.
-    on_auto_mode_switch_request: AutoModeSwitchHandler
-    # Handler factory for session-scoped sessionFs operations.
-    create_session_fs_handler: CreateSessionFsHandler
 
 
 SessionEventHandler = Callable[[SessionEvent], None]
