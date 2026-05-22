@@ -2657,7 +2657,7 @@ class CopilotClient:
                 # is silently dropped — the legacy server can't enforce one.
                 used_fallback_ping = True
                 ping_result = await self.ping()
-                server_version = ping_result.protocolVersion
+                server_version = ping_result.protocol_version
             else:
                 raise
 

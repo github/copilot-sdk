@@ -2180,13 +2180,16 @@ class CopilotSession:
             # - Convert "timestamp" from epoch milliseconds to ``datetime`` so
             #   hook handlers see a timezone-aware ``datetime`` rather than a
             #   raw integer (matches TS PR #1357 Phase E).
-            transformed = dict(input_data)
+            transformed: dict[str, Any] = dict(input_data)
             if "cwd" in transformed:
                 transformed["workingDirectory"] = transformed.pop("cwd")
             timestamp = transformed.get("timestamp")
             if isinstance(timestamp, (int, float)):
                 transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
-            input_data = transformed
+            # Each per-hook-type TypedDict is structurally compatible with the
+            # normalized dict; cast to ``Any`` so ty doesn't try to narrow the
+            # specific TypedDict variant from the runtime ``dict``.
+            input_data = cast(Any, transformed)
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
