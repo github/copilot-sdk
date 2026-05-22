@@ -1,9 +1,10 @@
 import asyncio
 import os
-from copilot import CopilotClient, define_tool
-from copilot.client import SubprocessConfig
-from copilot.session import PermissionRequestResult
+
 from pydantic import BaseModel, Field
+
+from copilot import CopilotClient, define_tool
+from copilot.generated.rpc import PermissionDecisionApproveOnce
 
 # In-memory virtual filesystem
 virtual_fs: dict[str, str] = {}
@@ -40,7 +41,7 @@ def list_files() -> str:
 
 
 async def auto_approve_permission(request, invocation):
-    return PermissionRequestResult(kind="approve-once")
+    return PermissionDecisionApproveOnce()
 
 
 async def auto_approve_tool(input_data, invocation):
@@ -48,10 +49,9 @@ async def auto_approve_tool(input_data, invocation):
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
+    client = CopilotClient(
         github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    )
 
     try:
         session = await client.create_session(

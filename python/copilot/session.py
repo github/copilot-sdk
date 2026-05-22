@@ -18,6 +18,7 @@ import threading
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict, cast
 
@@ -32,8 +33,9 @@ from .generated.rpc import (
     LogRequest,
     ModelSwitchToRequest,
     PermissionDecision,
-    PermissionDecisionKind,
+    PermissionDecisionApproveOnce,
     PermissionDecisionRequest,
+    PermissionDecisionUserNotAvailable,
     SessionLogLevel,
     SessionRpc,
     UIElicitationRequest,
@@ -231,19 +233,26 @@ SystemMessageConfig = (
 # Permission Types
 # ============================================================================
 
-PermissionRequestResultKind = Literal[
-    "approve-once",
-    "reject",
-    "user-not-available",
-    "no-result",
-]
-
 
 @dataclass
-class PermissionRequestResult:
-    """Result of a permission request."""
+class PermissionNoResult:
+    """Sentinel returned by a permission handler to leave the request unanswered.
 
-    kind: PermissionRequestResultKind = "user-not-available"
+    Only meaningful against protocol-v1 servers. v2 servers reject ``no-result``
+    responses; the SDK raises :class:`ValueError` if a v2 server receives one.
+    Mirrors the ``{kind: "no-result"}`` extension TS adds to its ``PermissionDecision``
+    union (see ``nodejs/src/types.ts:883``).
+    """
+
+    kind: Literal["no-result"] = "no-result"
+
+
+# The decision returned by a permission handler. Identical shape to the wire
+# ``PermissionDecision`` discriminated union, plus a :class:`PermissionNoResult`
+# sentinel for v1 servers. Construct via the generated variant classes:
+# ``PermissionDecisionApproveOnce(kind=...)``, ``PermissionDecisionReject(kind=...,
+# feedback=...)``, etc.
+PermissionRequestResult = PermissionDecision | PermissionNoResult
 
 
 _PermissionHandlerFn = Callable[
@@ -257,7 +266,7 @@ class PermissionHandler:
     def approve_all(
         request: PermissionRequest, invocation: dict[str, str]
     ) -> PermissionRequestResult:
-        return PermissionRequestResult(kind="approve-once")
+        return PermissionDecisionApproveOnce()
 
 
 # ============================================================================
@@ -625,7 +634,7 @@ class PreToolUseHookInput(TypedDict):
     """Input for pre-tool-use hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     toolName: str
     toolArgs: Any
@@ -651,7 +660,7 @@ class PreMcpToolCallHookInput(TypedDict):
     """Input for pre-MCP-tool-call hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     serverName: str
     toolName: str
@@ -682,7 +691,7 @@ class PostToolUseHookInput(TypedDict):
     """Input for post-tool-use hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     toolName: str
     toolArgs: Any
@@ -707,7 +716,7 @@ class UserPromptSubmittedHookInput(TypedDict):
     """Input for user-prompt-submitted hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     prompt: str
 
@@ -730,7 +739,7 @@ class SessionStartHookInput(TypedDict):
     """Input for session-start hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     source: Literal["startup", "resume", "new"]
     initialPrompt: NotRequired[str]
@@ -753,7 +762,7 @@ class SessionEndHookInput(TypedDict):
     """Input for session-end hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     reason: Literal["complete", "error", "abort", "timeout", "user_exit"]
     finalMessage: NotRequired[str]
@@ -778,7 +787,7 @@ class ErrorOccurredHookInput(TypedDict):
     """Input for error-occurred hook"""
 
     sessionId: str
-    timestamp: int
+    timestamp: datetime
     workingDirectory: str
     error: str
     errorContext: Literal["model_call", "tool_execution", "system", "user_input"]
@@ -935,191 +944,10 @@ class ProviderConfig(TypedDict, total=False):
     # triggers conversation compaction before sending a request when the prompt
     # (system message, history, tool definitions, user message) would exceed
     # this limit.
-    max_input_tokens: int
+    max_prompt_tokens: int
     # Overrides the resolved model's default max output tokens. When hit, the
     # model stops generating and returns a truncated response.
     max_output_tokens: int
-
-
-class SessionConfig(TypedDict, total=False):
-    """Configuration for creating a session"""
-
-    session_id: str  # Optional custom session ID
-    # Client name to identify the application using the SDK.
-    # Included in the User-Agent header for API requests.
-    client_name: str
-    model: str  # Model to use for this session. Use client.list_models() to see available models.
-    # Reasoning effort level for models that support it.
-    # Only valid for models where capabilities.supports.reasoning_effort is True.
-    reasoning_effort: ReasoningEffort
-    tools: list[Tool]
-    system_message: SystemMessageConfig  # System message configuration
-    # List of tool names to allow. When specified, only these tools will be available.
-    # Applies to the full merged tool catalog (built-in, MCP, and custom tools
-    # registered via tools=). Takes precedence over excluded_tools.
-    available_tools: list[str]
-    # List of tool names to disable. Applies to all tools including custom tools
-    # registered via tools=. Ignored if available_tools is set.
-    excluded_tools: list[str]
-    # Optional handler for permission requests from the server. When omitted,
-    # requests are surfaced as events and left pending for manual resolution.
-    on_permission_request: _PermissionHandlerFn | None
-    # Handler for user input requests from the agent (enables ask_user tool)
-    on_user_input_request: UserInputHandler
-    # Hook handlers for intercepting session lifecycle events
-    hooks: SessionHooks
-    # Working directory for the session. Tool operations will be relative to this directory.
-    working_directory: str
-    # Custom provider configuration (BYOK - Bring Your Own Key)
-    provider: ProviderConfig
-    # Enables or disables internal session telemetry for this session. When False,
-    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
-    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
-    # session telemetry is always disabled regardless of this setting.
-    # This is independent of the client OpenTelemetry configuration.
-    enable_session_telemetry: bool
-    # Enable streaming of assistant message and reasoning chunks
-    # When True, assistant.message_delta and assistant.reasoning_delta events
-    # with delta_content are sent as the response is generated
-    streaming: bool
-    # Include sub-agent streaming events in the event stream. When True, streaming
-    # delta events from sub-agents (e.g., assistant.message_delta,
-    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
-    # forwarded to this connection. When False, only non-streaming sub-agent events
-    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
-    # are suppressed. Defaults to True.
-    include_sub_agent_streaming_events: bool
-    # MCP server configurations for the session
-    mcp_servers: dict[str, MCPServerConfig]
-    # Custom agent configurations for the session
-    custom_agents: list[CustomAgentConfig]
-    # Configuration for the default agent.
-    # Use excluded_tools to hide tools from the default agent
-    # while keeping them available to sub-agents.
-    default_agent: DefaultAgentConfig
-    # Name of the custom agent to activate when the session starts.
-    # Must match the name of one of the agents in custom_agents.
-    agent: str
-    # Override the default configuration directory location.
-    # When specified, the session will use this directory for storing config and state.
-    config_dir: str
-    # Directories to load skills from
-    skill_directories: list[str]
-    # Additional directories to search for custom instruction files.
-    instruction_directories: list[str]
-    # List of skill names to disable
-    disabled_skills: list[str]
-    # Infinite session configuration for persistent workspaces and automatic compaction.
-    # When enabled (default), sessions automatically manage context limits and persist state.
-    # Set to {"enabled": False} to disable.
-    infinite_sessions: InfiniteSessionConfig
-    # Optional event handler that is registered on the session before the
-    # session.create RPC is issued, ensuring early events (e.g. session.start)
-    # are delivered. Equivalent to calling session.on(handler) immediately
-    # after creation, but executes earlier in the lifecycle so no events are missed.
-    on_event: Callable[[SessionEvent], None]
-    # Slash commands to register with the session.
-    # When the CLI has a TUI, each command appears as /name for the user to invoke.
-    commands: list[CommandDefinition]
-    # Handler for elicitation requests from the server.
-    # When provided, the server calls back to this client for form-based UI dialogs.
-    on_elicitation_request: ElicitationHandler
-    # Handler for exit-plan-mode requests from the server.
-    on_exit_plan_mode: ExitPlanModeHandler
-    # Handler for auto-mode-switch requests from the server.
-    on_auto_mode_switch: AutoModeSwitchHandler
-    # Handler factory for session-scoped sessionFs operations.
-    create_session_fs_handler: CreateSessionFsHandler
-
-
-class ResumeSessionConfig(TypedDict, total=False):
-    """Configuration for resuming a session"""
-
-    # Client name to identify the application using the SDK.
-    # Included in the User-Agent header for API requests.
-    client_name: str
-    # Model to use for this session. Can change the model when resuming.
-    model: str
-    tools: list[Tool]
-    system_message: SystemMessageConfig  # System message configuration
-    # List of tool names to allow. When specified, only these tools will be available.
-    # Applies to the full merged tool catalog (built-in, MCP, and custom tools
-    # registered via tools=). Takes precedence over excluded_tools.
-    available_tools: list[str]
-    # List of tool names to disable. Applies to all tools including custom tools
-    # registered via tools=. Ignored if available_tools is set.
-    excluded_tools: list[str]
-    provider: ProviderConfig
-    # Enables or disables internal session telemetry for this session. When False,
-    # disables session telemetry. When omitted (the default) or True, telemetry is enabled for
-    # GitHub-authenticated sessions. When a custom provider (BYOK) is configured,
-    # session telemetry is always disabled regardless of this setting.
-    # This is independent of the client OpenTelemetry configuration.
-    enable_session_telemetry: bool
-    # Reasoning effort level for models that support it.
-    reasoning_effort: ReasoningEffort
-    # Optional handler for permission requests from the server. When omitted,
-    # requests are surfaced as events and left pending for manual resolution.
-    on_permission_request: _PermissionHandlerFn | None
-    # Handler for user input requestsfrom the agent (enables ask_user tool)
-    on_user_input_request: UserInputHandler
-    # Hook handlers for intercepting session lifecycle events
-    hooks: SessionHooks
-    # Working directory for the session. Tool operations will be relative to this directory.
-    working_directory: str
-    # Override the default configuration directory location.
-    config_dir: str
-    # Enable streaming of assistant message chunks
-    streaming: bool
-    # Include sub-agent streaming events in the event stream. When True, streaming
-    # delta events from sub-agents (e.g., assistant.message_delta,
-    # assistant.reasoning_delta, assistant.streaming_delta with agentId set) are
-    # forwarded to this connection. When False, only non-streaming sub-agent events
-    # and subagent.* lifecycle events are forwarded; streaming deltas from sub-agents
-    # are suppressed. Defaults to True.
-    include_sub_agent_streaming_events: bool
-    # MCP server configurations for the session
-    mcp_servers: dict[str, MCPServerConfig]
-    # Custom agent configurations for the session
-    custom_agents: list[CustomAgentConfig]
-    # Configuration for the default agent.
-    default_agent: DefaultAgentConfig
-    # Name of the custom agent to activate when the session starts.
-    # Must match the name of one of the agents in custom_agents.
-    agent: str
-    # Directories to load skills from
-    skill_directories: list[str]
-    # Additional directories to search for custom instruction files.
-    instruction_directories: list[str]
-    # List of skill names to disable
-    disabled_skills: list[str]
-    # Infinite session configuration for persistent workspaces and automatic compaction.
-    infinite_sessions: InfiniteSessionConfig
-    # When True, skips emitting the session.resume event.
-    # Useful for reconnecting to a session without triggering resume-related side effects.
-    disable_resume: bool
-    # When True, instructs the runtime to continue any tool calls or permission prompts
-    # that were still pending when the session was last suspended. When False (the
-    # default), the runtime treats pending work as interrupted on resume.
-    #
-    # For permission requests, the runtime re-emits ``permission.requested`` so the
-    # registered ``on_permission_request`` handler can re-prompt; for external tool
-    # calls, the consumer is expected to supply the result via the corresponding
-    # low-level RPC method.
-    continue_pending_work: bool
-    # Optional event handler registered before the session.resume RPC is issued,
-    # ensuring early events are delivered. See SessionConfig.on_event.
-    on_event: Callable[[SessionEvent], None]
-    # Slash commands to register with the session.
-    commands: list[CommandDefinition]
-    # Handler for elicitation requests from the server.
-    on_elicitation_request: ElicitationHandler
-    # Handler for exit-plan-mode requests from the server.
-    on_exit_plan_mode: ExitPlanModeHandler
-    # Handler for auto-mode-switch requests from the server.
-    on_auto_mode_switch: AutoModeSwitchHandler
-    # Handler factory for session-scoped sessionFs operations.
-    create_session_fs_handler: CreateSessionFsHandler
 
 
 SessionEventHandler = Callable[[SessionEvent], None]
@@ -1709,18 +1537,14 @@ class CopilotSession:
             )
 
             result = cast(PermissionRequestResult, result)
-            if result.kind == "no-result":
+            if isinstance(result, PermissionNoResult):
                 return
-
-            perm_result = PermissionDecision(
-                kind=PermissionDecisionKind(result.kind),
-            )
 
             rpc_start = time.perf_counter()
             await self.rpc.permissions.handle_pending_permission_request(
                 PermissionDecisionRequest(
                     request_id=request_id,
-                    result=perm_result,
+                    result=result,
                 )
             )
             log_timing(
@@ -1736,9 +1560,7 @@ class CopilotSession:
                 await self.rpc.permissions.handle_pending_permission_request(
                     PermissionDecisionRequest(
                         request_id=request_id,
-                        result=PermissionDecision(
-                            kind=PermissionDecisionKind.USER_NOT_AVAILABLE,
-                        ),
+                        result=PermissionDecisionUserNotAvailable(),
                     )
                 )
             except (JsonRpcError, ProcessExitedError, OSError):
@@ -2001,8 +1823,8 @@ class CopilotSession:
             handler = self._permission_handler
 
         if not handler:
-            # No handler registered, deny permission
-            return PermissionRequestResult()
+            # No handler registered, deny permission.
+            return PermissionDecisionUserNotAvailable()
 
         try:
             handler_start = time.perf_counter()
@@ -2018,13 +1840,13 @@ class CopilotSession:
             )
             return cast(PermissionRequestResult, result)
         except Exception:  # pylint: disable=broad-except
-            # Handler failed, deny permission
+            # Handler failed, deny permission.
             logger.debug(
                 "Error handling permission request",
                 extra={"session_id": self.session_id},
                 exc_info=True,
             )
-            return PermissionRequestResult()
+            return PermissionDecisionUserNotAvailable()
 
     def _register_user_input_handler(self, handler: UserInputHandler | None) -> None:
         """
@@ -2232,9 +2054,21 @@ class CopilotSession:
 
         try:
             handler_start = time.perf_counter()
-            # Remap wire key "cwd" to public API key "workingDirectory"
-            if "cwd" in input_data:
-                input_data = {**input_data, "workingDirectory": input_data.pop("cwd")}
+            # Normalize input from the wire format:
+            # - Remap wire key "cwd" to public API key "workingDirectory".
+            # - Convert "timestamp" from epoch milliseconds to ``datetime`` so
+            #   hook handlers see a timezone-aware ``datetime`` rather than a
+            #   raw integer (matches TS PR #1357 Phase E).
+            transformed: dict[str, Any] = dict(input_data)
+            if "cwd" in transformed:
+                transformed["workingDirectory"] = transformed.pop("cwd")
+            timestamp = transformed.get("timestamp")
+            if isinstance(timestamp, (int, float)):
+                transformed["timestamp"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC)
+            # Each per-hook-type TypedDict is structurally compatible with the
+            # normalized dict; cast to ``Any`` so ty doesn't try to narrow the
+            # specific TypedDict variant from the runtime ``dict``.
+            input_data = cast(Any, transformed)
             result = handler(input_data, {"session_id": self.session_id})
             if inspect.isawaitable(result):
                 result = await result
@@ -2256,7 +2090,7 @@ class CopilotSession:
             )
             return None
 
-    async def get_messages(self) -> list[SessionEvent]:
+    async def get_events(self) -> list[SessionEvent]:
         """
         Retrieve all events and messages from this session's history.
 
@@ -2271,7 +2105,7 @@ class CopilotSession:
 
         Example:
             >>> from copilot.generated.session_events import AssistantMessageData
-            >>> events = await session.get_messages()
+            >>> events = await session.get_events()
             >>> for event in events:
             ...     match event.data:
             ...         case AssistantMessageData() as data:
@@ -2330,26 +2164,6 @@ class CopilotSession:
                 self._exit_plan_mode_handler = None
             with self._auto_mode_switch_handler_lock:
                 self._auto_mode_switch_handler = None
-
-    async def destroy(self) -> None:
-        """
-        .. deprecated::
-            Use :meth:`disconnect` instead. This method will be removed in a future release.
-
-        Disconnect this session and release all in-memory resources.
-        Session data on disk is preserved for later resumption.
-
-        Raises:
-            Exception: If the connection fails.
-        """
-        import warnings
-
-        warnings.warn(
-            "destroy() is deprecated, use disconnect() instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        await self.disconnect()
 
     async def __aenter__(self) -> CopilotSession:
         """Enable use as an async context manager."""

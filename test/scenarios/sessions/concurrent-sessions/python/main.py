@@ -1,43 +1,34 @@
 import asyncio
 import os
+
 from copilot import CopilotClient
-from copilot.client import SubprocessConfig
 
 PIRATE_PROMPT = "You are a pirate. Always say Arrr!"
 ROBOT_PROMPT = "You are a robot. Always say BEEP BOOP!"
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
+    client = CopilotClient(
         github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    )
 
     try:
         session1, session2 = await asyncio.gather(
             client.create_session(
-                {
-                    "model": "claude-haiku-4.5",
-                    "system_message": {"mode": "replace", "content": PIRATE_PROMPT},
-                    "available_tools": [],
-                }
+                model="claude-haiku-4.5",
+                system_message={"mode": "replace", "content": PIRATE_PROMPT},
+                available_tools=[],
             ),
             client.create_session(
-                {
-                    "model": "claude-haiku-4.5",
-                    "system_message": {"mode": "replace", "content": ROBOT_PROMPT},
-                    "available_tools": [],
-                }
+                model="claude-haiku-4.5",
+                system_message={"mode": "replace", "content": ROBOT_PROMPT},
+                available_tools=[],
             ),
         )
 
         response1, response2 = await asyncio.gather(
-            session1.send_and_wait(
-                "What is the capital of France?"
-            ),
-            session2.send_and_wait(
-                "What is the capital of France?"
-            ),
+            session1.send_and_wait("What is the capital of France?"),
+            session2.send_and_wait("What is the capital of France?"),
         )
 
         if response1:

@@ -171,7 +171,7 @@ class TestSessionConfig:
         )
         assert session.session_id == requested_session_id
 
-        messages = await session.get_messages()
+        messages = await session.get_events()
         assert messages
         start_event = messages[0]
         assert isinstance(start_event.data, SessionStartData)

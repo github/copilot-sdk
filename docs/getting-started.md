@@ -665,13 +665,12 @@ unsubscribeIdle();
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 from copilot.generated.session_events import SessionEvent, SessionEventType
-from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 
-session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approve-once"))
+session = await client.create_session(on_permission_request=lambda req, inv: PermissionDecisionApproveOnce())
 
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
@@ -1968,12 +1967,12 @@ const session = await client.createSession({ onPermissionRequest: approveAll });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient({
-    "cli_url": "localhost:4321"
-})
+client = CopilotClient(CopilotClientOptions(
+    connection=RuntimeConnection.for_uri("localhost:4321"),
+))
 await client.start()
 
 # Use the client normally
@@ -2138,9 +2137,9 @@ Optional peer dependency: `@opentelemetry/api`
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(
+client = CopilotClient(CopilotClientOptions(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },
