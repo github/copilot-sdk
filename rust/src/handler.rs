@@ -18,34 +18,64 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+use crate::generated::api_types::{
+    PermissionDecision, PermissionDecisionApproveOnce, PermissionDecisionReject,
+    PermissionDecisionUserNotAvailable,
+};
 use crate::types::{
     ElicitationRequest, ElicitationResult, ExitPlanModeData, PermissionRequestData, RequestId,
     SessionId,
 };
 
-/// Result of a permission request.
+/// Decision returned by a [`PermissionHandler`].
+///
+/// Either a concrete wire-level [`PermissionDecision`] (approve, reject,
+/// approve-for-session, approve-permanently, user-not-available, …) or
+/// [`PermissionResult::NoResult`], which tells the SDK to suppress its
+/// response so another connected client can answer instead.
 #[derive(Debug, Clone)]
-#[non_exhaustive]
 pub enum PermissionResult {
-    /// Permission granted.
-    Approved,
-    /// Permission denied.
-    Denied,
-    /// Defer the response. The handler will resolve this request itself
-    /// later -- typically after a UI prompt -- by calling
-    /// `session.permissions.handlePendingPermissionRequest` directly. The
-    /// SDK skips its own response on this path.
-    Deferred,
-    /// Provide the full response payload directly. The SDK forwards the
-    /// value as-is on the wire.
-    Custom(serde_json::Value),
-    /// Decline to handle this broadcast. The SDK does not send a response,
-    /// which lets another connected client respond instead.
+    /// Send a permission decision on the wire.
+    Decision(PermissionDecision),
+    /// Decline to respond to this request, allowing another connected
+    /// client to answer instead. The SDK suppresses the response.
     NoResult,
-    /// No user is available to answer the prompt. On the notification
-    /// path, the SDK will not send a pending response. On the direct
-    /// RPC path, the SDK responds with `{ "kind": "user-not-available" }`.
-    UserNotAvailable,
+}
+
+impl PermissionResult {
+    /// Approve this single request.
+    pub fn approve_once() -> Self {
+        Self::Decision(PermissionDecision::ApproveOnce(
+            PermissionDecisionApproveOnce::default(),
+        ))
+    }
+
+    /// Reject the request, optionally forwarding feedback to the LLM.
+    pub fn reject(feedback: impl Into<Option<String>>) -> Self {
+        Self::Decision(PermissionDecision::Reject(PermissionDecisionReject {
+            feedback: feedback.into(),
+            ..Default::default()
+        }))
+    }
+
+    /// Deny because no user is available to confirm.
+    pub fn user_not_available() -> Self {
+        Self::Decision(PermissionDecision::UserNotAvailable(
+            PermissionDecisionUserNotAvailable::default(),
+        ))
+    }
+
+    /// Decline to respond, allowing another connected client to answer
+    /// instead.
+    pub fn no_result() -> Self {
+        Self::NoResult
+    }
+}
+
+impl From<PermissionDecision> for PermissionResult {
+    fn from(value: PermissionDecision) -> Self {
+        Self::Decision(value)
+    }
 }
 
 /// Response to a user input request.
@@ -183,7 +213,7 @@ impl PermissionHandler for ApproveAllHandler {
         _request_id: RequestId,
         _data: PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -199,7 +229,7 @@ impl PermissionHandler for DenyAllHandler {
         _request_id: RequestId,
         _data: PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::Denied
+        PermissionResult::reject(None)
     }
 }
 
@@ -216,7 +246,10 @@ mod tests {
                 PermissionRequestData::default(),
             )
             .await;
-        assert!(matches!(result, PermissionResult::Approved));
+        assert!(matches!(
+            result,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
     #[tokio::test]
@@ -228,6 +261,9 @@ mod tests {
                 PermissionRequestData::default(),
             )
             .await;
-        assert!(matches!(result, PermissionResult::Denied));
+        assert!(matches!(
+            result,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
     }
 }

@@ -116,9 +116,9 @@ impl PermissionHandler for PolicyHandler {
             Policy::Predicate(f) => f(&data),
         };
         if approved {
-            PermissionResult::Approved
+            PermissionResult::approve_once()
         } else {
-            PermissionResult::Denied
+            PermissionResult::reject(None)
         }
     }
 }
@@ -140,7 +140,7 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Approved
+            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
         ));
     }
 
@@ -150,7 +150,7 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Denied
+            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
         ));
     }
 
@@ -160,7 +160,7 @@ mod tests {
         assert!(matches!(
             h.handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Denied
+            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
         ));
     }
 
@@ -175,7 +175,7 @@ mod tests {
                 _: RequestId,
                 _: PermissionRequestData,
             ) -> PermissionResult {
-                PermissionResult::Approved
+                PermissionResult::approve_once()
             }
         }
         let resolved =
@@ -185,7 +185,7 @@ mod tests {
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Denied
+            PermissionResult::Decision(crate::types::PermissionDecision::Reject(_))
         ));
     }
 
@@ -200,7 +200,7 @@ mod tests {
                 _: RequestId,
                 _: PermissionRequestData,
             ) -> PermissionResult {
-                PermissionResult::Approved
+                PermissionResult::approve_once()
             }
         }
         let resolved = resolve_handler(Some(Arc::new(H)), None).unwrap();
@@ -208,7 +208,7 @@ mod tests {
             resolved
                 .handle(SessionId::from("s"), RequestId::new("1"), data())
                 .await,
-            PermissionResult::Approved
+            PermissionResult::Decision(crate::types::PermissionDecision::ApproveOnce(_))
         ));
     }
 

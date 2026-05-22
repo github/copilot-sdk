@@ -5,9 +5,7 @@ from copilot import CopilotClient
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         # MCP server config — demonstrates the configuration pattern.

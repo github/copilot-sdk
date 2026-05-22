@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using Xunit;
@@ -100,7 +101,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         // and the underlying tool function is never invoked because the cancelled
         // permission means the runtime never grants execution.
         var permissionHandlerEntered = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releasePermissionHandler = new TaskCompletionSource<PermissionRequestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releasePermissionHandler = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         var toolInvoked = false;
 
         var session = await CreateSessionAsync(new SessionConfig
@@ -142,10 +143,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         {
             // Defensive: release the dangling SDK-side handler task so it doesn't keep
             // a stray TaskCompletionSource alive after the test ends.
-            releasePermissionHandler.TrySetResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable,
-            });
+            releasePermissionHandler.TrySetResult(PermissionDecision.UserNotAvailable());
         }
 
         await session.DisposeAsync();

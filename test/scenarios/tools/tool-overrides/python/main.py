@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from pydantic import BaseModel, Field
 
@@ -21,9 +20,7 @@ def custom_grep(params: GrepParams) -> str:
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

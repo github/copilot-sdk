@@ -131,10 +131,6 @@ Resume an existing session. Returns the session with `workspacePath` populated i
 
 Ping the server to check connectivity.
 
-##### `getState(): ConnectionState`
-
-Get current connection state.
-
 ##### `listSessions(filter?: SessionListFilter): Promise<SessionMetadata[]>`
 
 List all available sessions. Optionally filter by working directory context.

@@ -38,10 +38,10 @@ func main() {
 	}
 
 	if response1 != nil {
-if d, ok := response1.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-} else {
+		if d, ok := response1.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	} else {
 		log.Fatal("No response content received for session 1")
 	}
 
@@ -66,10 +66,10 @@ fmt.Println(d.Content)
 	}
 
 	if response2 != nil {
-if d, ok := response2.Data.(*copilot.AssistantMessageData); ok {
-fmt.Println(d.Content)
-}
-} else {
+		if d, ok := response2.Data.(*copilot.AssistantMessageData); ok {
+			fmt.Println(d.Content)
+		}
+	} else {
 		log.Fatal("No response content received for session 2")
 	}
 

@@ -60,7 +60,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly CopilotClient _parentClient;
 
-    private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? _permissionHandler;
+    private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? _permissionHandler;
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
@@ -535,7 +535,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? handler)
+    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? handler)
     {
         _permissionHandler = handler;
     }
@@ -545,16 +545,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <param name="permissionRequestData">The permission request data from the CLI.</param>
     /// <returns>A task that resolves with the permission decision.</returns>
-    internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
+    internal async Task<PermissionDecision> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
         var handler = _permissionHandler;
 
         if (handler == null)
         {
-            return new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable
-            };
+            return PermissionDecision.UserNotAvailable();
         }
 
         var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionEventsJsonContext.Default.PermissionRequest)
@@ -765,7 +762,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a permission handler and sends the result back via the HandlePendingPermissionRequest RPC.
     /// </summary>
-    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>> handler)
+    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>> handler)
     {
         try
         {
@@ -775,20 +772,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
             };
 
             var permissionTimestamp = Stopwatch.GetTimestamp();
-            var result = await handler(permissionRequest, invocation);
+            var decision = await handler(permissionRequest, invocation);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 permissionTimestamp,
                 SessionId,
                 requestId);
-            if (result.Kind == new PermissionRequestResultKind("no-result"))
+            if (decision is PermissionDecisionNoResult)
             {
                 return;
             }
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            PermissionDecision decision = result.Kind == PermissionRequestResultKind.Rejected
-                ? new PermissionDecisionReject { Feedback = result.Feedback }
-                : new PermissionDecision { Kind = result.Kind.Value };
             await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, decision);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
@@ -800,10 +794,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             try
             {
-                await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionDecision
-                {
-                    Kind = PermissionRequestResultKind.UserNotAvailable.Value
-                });
+                await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());
             }
             catch (IOException)
             {

@@ -154,10 +154,7 @@ describe("Client options", async () => {
             }
         });
 
-        expect(client.getState()).toBe("disconnected");
-
         const session = await client.createSession({ onPermissionRequest: approveAll });
-        expect(client.getState()).toBe("connected");
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
 
         await session.disconnect();
@@ -183,7 +180,6 @@ describe("Client options", async () => {
 
         await client.start();
 
-        expect(client.getState()).toBe("connected");
         expect((client as unknown as { runtimePort: number }).runtimePort).toBe(port);
 
         const response = await client.ping("fixed-port");

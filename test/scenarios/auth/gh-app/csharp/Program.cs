@@ -60,7 +60,6 @@ Console.WriteLine($"Authenticated as: {userResponse.GetProperty("login").GetStri
 // Step 4: Use the token with Copilot
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
     GitHubToken = accessToken,
 });
 

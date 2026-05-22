@@ -1,13 +1,10 @@
 import asyncio
-import os
 
 from copilot import CopilotClient
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(model="claude-haiku-4.5", streaming=True)

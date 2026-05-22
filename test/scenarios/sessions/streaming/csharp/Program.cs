@@ -1,17 +1,6 @@
 using GitHub.Copilot;
 
-var options = new CopilotClientOptions
-{
-    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
-};
-
-var cliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH");
-if (!string.IsNullOrEmpty(cliPath))
-{
-    options.Connection = RuntimeConnection.ForStdio(path: cliPath);
-}
-
-using var client = new CopilotClient(options);
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

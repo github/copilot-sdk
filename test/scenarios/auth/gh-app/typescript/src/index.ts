@@ -1,4 +1,4 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
@@ -33,7 +33,10 @@ if (!CLIENT_ID) {
   process.exit(1);
 }
 
-async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
+async function postJson<T>(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -44,7 +47,9 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Request failed: ${response.status} ${response.statusText}`,
+    );
   }
 
   return (await response.json()) as T;
@@ -60,7 +65,9 @@ async function getJson<T>(url: string, token: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`GitHub API failed: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `GitHub API failed: ${response.status} ${response.statusText}`,
+    );
   }
 
   return (await response.json()) as T;
@@ -73,7 +80,10 @@ async function startDeviceFlow(): Promise<DeviceCodeResponse> {
   });
 }
 
-async function pollForAccessToken(deviceCode: string, intervalSeconds: number): Promise<string> {
+async function pollForAccessToken(
+  deviceCode: string,
+  intervalSeconds: number,
+): Promise<string> {
   let interval = intervalSeconds;
 
   while (true) {
@@ -92,7 +102,9 @@ async function pollForAccessToken(deviceCode: string, intervalSeconds: number): 
       continue;
     }
 
-    throw new Error(data.error_description ?? data.error ?? "OAuth token polling failed");
+    throw new Error(
+      data.error_description ?? data.error ?? "OAuth token polling failed",
+    );
   }
 }
 
@@ -100,17 +112,23 @@ async function main() {
   console.log("Starting GitHub OAuth device flow...");
   const device = await startDeviceFlow();
 
-  console.log(`Open ${device.verification_uri} and enter code: ${device.user_code}`);
+  console.log(
+    `Open ${device.verification_uri} and enter code: ${device.user_code}`,
+  );
   const rl = readline.createInterface({ input, output });
   await rl.question("Press Enter after you authorize this app...");
   rl.close();
 
-  const accessToken = await pollForAccessToken(device.device_code, device.interval);
+  const accessToken = await pollForAccessToken(
+    device.device_code,
+    device.interval,
+  );
   const user = await getJson<GitHubUser>(USER_URL, accessToken);
-  console.log(`Authenticated as: ${user.login}${user.name ? ` (${user.name})` : ""}`);
+  console.log(
+    `Authenticated as: ${user.login}${user.name ? ` (${user.name})` : ""}`,
+  );
 
   const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
     gitHubToken: accessToken,
   });
 

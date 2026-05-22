@@ -4,18 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
 
-func boolPtr(b bool) *bool       { return &b }
+func boolPtr(b bool) *bool          { return &b }
 func float64Ptr(f float64) *float64 { return &f }
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

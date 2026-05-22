@@ -207,9 +207,9 @@ impl PermissionHandler for MyPermissions {
         data: PermissionRequestData,
     ) -> PermissionResult {
         if data.extra.get("tool").and_then(|v| v.as_str()) == Some("view") {
-            PermissionResult::Approved
+            PermissionResult::approve_once()
         } else {
-            PermissionResult::Denied
+            PermissionResult::reject(None)
         }
     }
 }

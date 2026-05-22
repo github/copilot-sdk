@@ -3293,7 +3293,8 @@ impl InputFormat {
 /// `pub use types::*` surfaces them alongside hand-written SDK types.
 pub use crate::generated::api_types::{
     Model, ModelBilling, ModelCapabilities, ModelCapabilitiesLimits, ModelCapabilitiesLimitsVision,
-    ModelCapabilitiesSupports, ModelList, ModelPolicy,
+    ModelCapabilitiesSupports, ModelList, ModelPolicy, PermissionDecision,
+    PermissionDecisionApproveOnce, PermissionDecisionReject, PermissionDecisionUserNotAvailable,
 };
 
 /// Permission categories the CLI may request approval for.
@@ -4060,7 +4061,8 @@ mod permission_builder_tests {
     use crate::handler::{ApproveAllHandler, PermissionHandler, PermissionResult};
     use crate::permission;
     use crate::types::{
-        PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
+        PermissionDecision, PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig,
+        SessionId,
     };
 
     fn data() -> PermissionRequestData {
@@ -4092,14 +4094,20 @@ mod permission_builder_tests {
             .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
         let h = resolve_create(cfg).expect("policy + handler yields handler");
-        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
     #[tokio::test]
     async fn approve_all_standalone_produces_handler() {
         let cfg = SessionConfig::default().approve_all_permissions();
         let h = resolve_create(cfg).expect("policy alone yields handler");
-        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
     /// Phase I: order between with_permission_handler and the policy
@@ -4114,8 +4122,14 @@ mod permission_builder_tests {
             .with_permission_handler(Arc::new(ApproveAllHandler));
         let ha = resolve_create(a).unwrap();
         let hb = resolve_create(b).unwrap();
-        assert!(matches!(dispatch(&ha).await, PermissionResult::Approved));
-        assert!(matches!(dispatch(&hb).await, PermissionResult::Approved));
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
     #[tokio::test]
@@ -4128,8 +4142,14 @@ mod permission_builder_tests {
             .with_permission_handler(Arc::new(ApproveAllHandler));
         let ha = resolve_create(a).unwrap();
         let hb = resolve_create(b).unwrap();
-        assert!(matches!(dispatch(&ha).await, PermissionResult::Denied));
-        assert!(matches!(dispatch(&hb).await, PermissionResult::Denied));
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
     }
 
     #[tokio::test]
@@ -4138,7 +4158,10 @@ mod permission_builder_tests {
             d.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
         });
         let h = resolve_create(cfg).unwrap();
-        assert!(matches!(dispatch(&h).await, PermissionResult::Denied));
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
     }
 
     #[tokio::test]
@@ -4154,8 +4177,14 @@ mod permission_builder_tests {
             .with_permission_handler(Arc::new(ApproveAllHandler));
         let ha = resolve_create(a).unwrap();
         let hb = resolve_create(b).unwrap();
-        assert!(matches!(dispatch(&ha).await, PermissionResult::Denied));
-        assert!(matches!(dispatch(&hb).await, PermissionResult::Denied));
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::Reject(_))
+        ));
     }
 
     #[tokio::test]
@@ -4164,7 +4193,10 @@ mod permission_builder_tests {
             .with_permission_handler(Arc::new(ApproveAllHandler))
             .approve_all_permissions();
         let h = resolve_resume(cfg).unwrap();
-        assert!(matches!(dispatch(&h).await, PermissionResult::Approved));
+        assert!(matches!(
+            dispatch(&h).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 
     #[tokio::test]
@@ -4177,7 +4209,13 @@ mod permission_builder_tests {
             .with_permission_handler(Arc::new(ApproveAllHandler));
         let ha = resolve_resume(a).unwrap();
         let hb = resolve_resume(b).unwrap();
-        assert!(matches!(dispatch(&ha).await, PermissionResult::Approved));
-        assert!(matches!(dispatch(&hb).await, PermissionResult::Approved));
+        assert!(matches!(
+            dispatch(&ha).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
+        assert!(matches!(
+            dispatch(&hb).await,
+            PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
+        ));
     }
 }
