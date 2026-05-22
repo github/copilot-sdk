@@ -29,18 +29,18 @@ public sealed class PermissionDecisionNoResult : PermissionDecision
 public partial class PermissionDecision
 {
     /// <summary>Approve this single request.</summary>
-    public static PermissionDecisionApproveOnce ApproveOnce() => new();
+    public static PermissionDecision ApproveOnce() => new PermissionDecisionApproveOnce();
 
     /// <summary>Reject the request, optionally forwarding feedback to the LLM.</summary>
-    public static PermissionDecisionReject Reject(string? feedback = null) =>
-        new() { Feedback = feedback };
+    public static PermissionDecision Reject(string? feedback = null) =>
+        new PermissionDecisionReject { Feedback = feedback };
 
     /// <summary>Deny the request because no user is available to confirm it.</summary>
-    public static PermissionDecisionUserNotAvailable UserNotAvailable() => new();
+    public static PermissionDecision UserNotAvailable() => new PermissionDecisionUserNotAvailable();
 
     /// <summary>
     /// Decline to respond to this permission request, allowing another
     /// connected client to answer instead.
     /// </summary>
-    public static PermissionDecisionNoResult NoResult() => new();
+    public static PermissionDecision NoResult() => new PermissionDecisionNoResult();
 }

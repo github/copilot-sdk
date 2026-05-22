@@ -301,9 +301,12 @@ function wrapCodeForValidation(block: CodeBlock): string {
         }
       }
 
-      // Always ensure SDK using is present
-      if (!usings.some(u => u.includes("GitHub.Copilot"))) {
+      // Always ensure SDK usings are present
+      if (!usings.some(u => u.includes("GitHub.Copilot;"))) {
         usings.push("using GitHub.Copilot;");
+      }
+      if (!usings.some(u => u.includes("GitHub.Copilot.Rpc"))) {
+        usings.push("using GitHub.Copilot.Rpc;");
       }
 
       // Generate a unique class name based on block location
@@ -335,9 +338,12 @@ ${indentedCode}
 }`;
       }
     } else {
-      // Has structure, but may still need using directive
+      // Has structure, but may still need using directives
       if (!code.includes("using GitHub.Copilot;")) {
         code = "using GitHub.Copilot;\n" + code;
+      }
+      if (!code.includes("using GitHub.Copilot.Rpc;")) {
+        code = "using GitHub.Copilot.Rpc;\n" + code;
       }
     }
   }
