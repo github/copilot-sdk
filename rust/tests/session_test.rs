@@ -1189,7 +1189,7 @@ async fn permission_request_dispatches_to_handler() {
             _request_id: RequestId,
             _data: PermissionRequestData,
         ) -> PermissionResult {
-            PermissionResult::Denied
+            PermissionResult::reject(None)
         }
     }
 

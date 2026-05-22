@@ -29,7 +29,7 @@ impl PermissionHandler for PermissionLogger {
             .unwrap_or("")
             .to_string();
         self.log.lock().await.push(format!("approved:{tool_name}"));
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 

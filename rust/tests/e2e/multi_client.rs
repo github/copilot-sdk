@@ -119,7 +119,7 @@ async fn one_client_approves_permission_and_both_see_the_result() {
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(permission_handler_with_counter(
-                                PermissionResult::Approved,
+                                PermissionResult::approve_once(),
                                 Arc::clone(&permission_requests),
                             )),
                     )
@@ -207,7 +207,9 @@ async fn one_client_rejects_permission_and_both_see_the_result() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_permission_handler(permission_handler(PermissionResult::Denied)),
+                            .with_permission_handler(permission_handler(PermissionResult::reject(
+                                None,
+                            ))),
                     )
                     .await
                     .expect("create session");

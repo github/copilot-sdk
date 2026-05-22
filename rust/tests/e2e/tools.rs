@@ -202,7 +202,7 @@ async fn skippermission_sent_in_tool_definition() {
             let (permission_tx, mut permission_rx) = mpsc::unbounded_channel();
             let handler = Arc::new(RecordingPermissionHandler {
                 permission_tx,
-                decision: PermissionResult::Denied,
+                decision: PermissionResult::reject(None),
             });
             let __perm = handler;
             let tools = vec![safe_lookup_tool()];
@@ -252,7 +252,7 @@ async fn invokes_custom_tool_with_permission_handler() {
                 let (permission_tx, mut permission_rx) = mpsc::unbounded_channel();
                 let handler = Arc::new(RecordingPermissionHandler {
                     permission_tx,
-                    decision: PermissionResult::Approved,
+                    decision: PermissionResult::approve_once(),
                 });
                 let __perm = handler;
                 let tools = vec![encrypt_string_tool()];
@@ -296,7 +296,7 @@ async fn denies_custom_tool_when_permission_denied() {
                 let (permission_tx, _permission_rx) = mpsc::unbounded_channel();
                 let handler = Arc::new(RecordingPermissionHandler {
                     permission_tx,
-                    decision: PermissionResult::Denied,
+                    decision: PermissionResult::reject(None),
                 });
                 let __perm = handler;
                 let tools = vec![tracked_encrypt_string_tool(call_tx)];

@@ -10,10 +10,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
-use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, PermissionDecision, PermissionDecisionApproveOnce,
-    PermissionDecisionApproveOnceKind, PermissionDecisionReject, PermissionDecisionRejectKind,
-};
+use crate::generated::api_types::{LogRequest, ModelSwitchToRequest};
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
     SessionEventType,
@@ -1203,63 +1200,30 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
-fn pending_permission_result_kind(result: &PermissionResult) -> &'static str {
-    match result {
-        PermissionResult::Approved => "approve-once",
-        PermissionResult::Denied => "reject",
-        // Fallback to "user-not-available" for UserNotAvailable, Deferred (when
-        // forced through this path), Custom (handled separately upstream), and
-        // NoResult that gets here defensively.
-        _ => "user-not-available",
-    }
-}
-
-fn permission_request_response(result: &PermissionResult) -> PermissionDecision {
-    match result {
-        PermissionResult::Approved => {
-            PermissionDecision::ApproveOnce(PermissionDecisionApproveOnce {
-                kind: PermissionDecisionApproveOnceKind::ApproveOnce,
-            })
-        }
-        _ => PermissionDecision::Reject(PermissionDecisionReject {
-            kind: PermissionDecisionRejectKind::Reject,
-            feedback: None,
-        }),
-    }
-}
-
-/// Map a permission result into the `result` payload for the notification
-/// path (`session.permissions.handlePendingPermissionRequest`).
+/// Map a [`PermissionResult`] to the `result` payload for the
+/// broadcast-event response path (`session.permissions.handlePendingPermissionRequest`).
 ///
-/// Returns `None` when the SDK must not respond.
+/// Returns `None` when the SDK must not send a response.
 fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
     match result {
-        PermissionResult::Deferred | PermissionResult::NoResult => None,
-        PermissionResult::Custom(value) => Some(value.clone()),
-        _ => Some(serde_json::json!({
-            "kind": pending_permission_result_kind(result),
-        })),
+        PermissionResult::NoResult => None,
+        PermissionResult::Decision(decision) => Some(
+            serde_json::to_value(decision).expect("serializing permission decision should succeed"),
+        ),
     }
 }
 
-/// Map a permission result into the JSON-RPC `result` payload for the
+/// Map a [`PermissionResult`] to the JSON-RPC `result` payload for the
 /// direct-RPC path (`permission.request`).
 ///
-/// Always returns a value. [`PermissionResult::Deferred`] is treated as
-/// [`PermissionResult::Approved`] here because the JSON-RPC contract
-/// requires a reply — see the variant's doc comment.
+/// Always returns a value. `NoResult` is mapped to `user-not-available`
+/// because the JSON-RPC contract requires a reply.
 fn direct_permission_payload(result: &PermissionResult) -> Value {
     match result {
-        PermissionResult::Custom(value) => value.clone(),
-        PermissionResult::Deferred => {
-            serde_json::to_value(permission_request_response(&PermissionResult::Approved))
-                .expect("serializing direct permission response should succeed")
+        PermissionResult::Decision(decision) => {
+            serde_json::to_value(decision).expect("serializing permission decision should succeed")
         }
-        PermissionResult::NoResult | PermissionResult::UserNotAvailable => serde_json::json!({
-            "kind": pending_permission_result_kind(result),
-        }),
-        _ => serde_json::to_value(permission_request_response(result))
-            .expect("serializing direct permission response should succeed"),
+        PermissionResult::NoResult => serde_json::json!({ "kind": "user-not-available" }),
     }
 }
 
@@ -2139,107 +2103,50 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{
-        direct_permission_payload, notification_permission_payload, pending_permission_result_kind,
-        permission_request_response,
-    };
+    use super::{direct_permission_payload, notification_permission_payload};
     use crate::handler::PermissionResult;
 
     #[test]
-    fn pending_permission_requests_use_decision_kinds() {
-        assert_eq!(
-            pending_permission_result_kind(&PermissionResult::Approved),
-            "approve-once"
-        );
-        assert_eq!(
-            pending_permission_result_kind(&PermissionResult::Denied),
-            "reject"
-        );
-        assert_eq!(
-            pending_permission_result_kind(&PermissionResult::UserNotAvailable),
-            "user-not-available"
-        );
-    }
-
-    #[test]
-    fn direct_permission_requests_use_decision_response_kinds() {
-        assert_eq!(
-            serde_json::to_value(permission_request_response(&PermissionResult::Approved))
-                .expect("serializing approved permission response should succeed"),
-            json!({ "kind": "approve-once" })
-        );
-        assert_eq!(
-            serde_json::to_value(permission_request_response(&PermissionResult::Denied))
-                .expect("serializing denied permission response should succeed"),
-            json!({ "kind": "reject" })
-        );
-        assert_eq!(
-            serde_json::to_value(permission_request_response(
-                &PermissionResult::UserNotAvailable
-            ))
-            .expect("serializing fallback permission response should succeed"),
-            json!({ "kind": "reject" })
-        );
-    }
-
-    #[test]
-    fn notification_payload_handles_non_responses_and_custom() {
-        // Deferred/NoResult -> no payload, SDK must not respond.
-        assert!(notification_permission_payload(&PermissionResult::Deferred).is_none());
+    fn notification_payload_suppresses_no_result() {
         assert!(notification_permission_payload(&PermissionResult::NoResult).is_none());
+    }
 
-        // Custom → handler-supplied value passed through verbatim.
-        let custom = json!({
-            "kind": "approve-and-remember",
-            "allowlist": ["ls", "grep"],
-        });
+    #[test]
+    fn notification_payload_serializes_decisions() {
         assert_eq!(
-            notification_permission_payload(&PermissionResult::Custom(custom.clone())),
-            Some(custom)
-        );
-
-        // Approved/Denied → existing kind-only shape.
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::Approved),
+            notification_permission_payload(&PermissionResult::approve_once()),
             Some(json!({ "kind": "approve-once" }))
         );
         assert_eq!(
-            notification_permission_payload(&PermissionResult::Denied),
+            notification_permission_payload(&PermissionResult::reject(None)),
             Some(json!({ "kind": "reject" }))
+        );
+        assert_eq!(
+            notification_permission_payload(&PermissionResult::reject(Some("bad".to_string()))),
+            Some(json!({ "kind": "reject", "feedback": "bad" }))
+        );
+        assert_eq!(
+            notification_permission_payload(&PermissionResult::user_not_available()),
+            Some(json!({ "kind": "user-not-available" }))
         );
     }
 
     #[test]
-    fn direct_payload_handles_deferred_and_custom() {
-        // Custom → handler-supplied value passed through verbatim.
-        let custom = json!({
-            "kind": "approve-and-remember",
-            "allowlist": ["ls", "grep"],
-        });
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::Custom(custom.clone())),
-            custom
-        );
-
-        // Deferred → falls back to Approved because the direct RPC must reply.
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::Deferred),
-            json!({ "kind": "approve-once" })
-        );
-
-        // NoResult -> direct RPC cannot be left pending, so report no user.
+    fn direct_payload_maps_no_result_to_user_not_available() {
         assert_eq!(
             direct_permission_payload(&PermissionResult::NoResult),
             json!({ "kind": "user-not-available" })
         );
+    }
 
-        // Approved/Denied → existing kind-only shape.
+    #[test]
+    fn direct_payload_serializes_decisions() {
         assert_eq!(
-            direct_permission_payload(&PermissionResult::Approved),
+            direct_permission_payload(&PermissionResult::approve_once()),
             json!({ "kind": "approve-once" })
         );
         assert_eq!(
-            direct_permission_payload(&PermissionResult::Denied),
+            direct_permission_payload(&PermissionResult::reject(None)),
             json!({ "kind": "reject" })
         );
     }

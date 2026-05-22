@@ -24,7 +24,7 @@ impl PermissionHandler for InputResponder {
         _request_id: RequestId,
         _data: PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 

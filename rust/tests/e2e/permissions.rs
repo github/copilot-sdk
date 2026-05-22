@@ -45,9 +45,14 @@ async fn should_work_with_approve_all_permission_handler() {
 
 #[tokio::test]
 async fn should_handle_permission_handler_errors_gracefully() {
-    let result = PermissionResult::UserNotAvailable;
+    let result = PermissionResult::user_not_available();
 
-    assert!(matches!(result, PermissionResult::UserNotAvailable));
+    assert!(matches!(
+        result,
+        PermissionResult::Decision(
+            github_copilot_sdk::types::PermissionDecision::UserNotAvailable(_)
+        )
+    ));
 }
 
 #[tokio::test]
@@ -77,7 +82,7 @@ async fn should_deny_permission_when_handler_returns_denied() {
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::Denied,
+                                PermissionResult::reject(None),
                             ))),
                     )
                     .await
@@ -127,7 +132,7 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies() {
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::UserNotAvailable,
+                                PermissionResult::user_not_available(),
                             ))),
                     )
                     .await
@@ -273,7 +278,7 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies_after_resume
                         ResumeSessionConfig::new(session_id)
                             .with_github_token(DEFAULT_TEST_TOKEN)
                             .with_permission_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::UserNotAvailable,
+                                PermissionResult::user_not_available(),
                             ))),
                     )
                     .await
@@ -653,7 +658,7 @@ impl PermissionHandler for RecordingPermissionHandler {
         data: PermissionRequestData,
     ) -> PermissionResult {
         let _ = self.request_tx.send(data);
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -689,7 +694,7 @@ impl PermissionHandler for AsyncPermissionHandler {
     ) -> PermissionResult {
         tokio::task::yield_now().await;
         let _ = self.request_tx.send(data);
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -712,6 +717,6 @@ impl PermissionHandler for SlowPermissionHandler {
         if let Some(release_rx) = self.release_rx.lock().await.take() {
             let _ = release_rx.await;
         }
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
