@@ -24,6 +24,8 @@ pub mod rpc_methods {
     pub const TOOLS_LIST: &str = "tools.list";
     /// `account.getQuota`
     pub const ACCOUNT_GETQUOTA: &str = "account.getQuota";
+    /// `secrets.addFilterValues`
+    pub const SECRETS_ADDFILTERVALUES: &str = "secrets.addFilterValues";
     /// `mcp.config.list`
     pub const MCP_CONFIG_LIST: &str = "mcp.config.list";
     /// `mcp.config.add`
@@ -4923,6 +4925,22 @@ pub struct ScheduleStopResult {
     /// The removed entry, or omitted if no entry matched.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<ScheduleEntry>,
+}
+
+/// Secret values to add to the redaction filter.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretsAddFilterValuesRequest {
+    /// Raw secret values to register for redaction
+    pub values: Vec<String>,
+}
+
+/// Confirmation that the secret values were registered.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretsAddFilterValuesResult {
+    /// Whether the values were successfully registered
+    pub ok: bool,
 }
 
 /// Blob attachment with inline base64-encoded data

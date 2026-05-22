@@ -41,6 +41,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `secrets.*` sub-namespace.
+    pub fn secrets(&self) -> ClientRpcSecrets<'a> {
+        ClientRpcSecrets {
+            client: self.client,
+        }
+    }
+
     /// `sessionFs.*` sub-namespace.
     pub fn session_fs(&self) -> ClientRpcSessionFs<'a> {
         ClientRpcSessionFs {
@@ -335,6 +342,37 @@ impl<'a> ClientRpcModels<'a> {
         let _value = self
             .client
             .call(rpc_methods::MODELS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `secrets.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcSecrets<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcSecrets<'a> {
+    /// Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
+    ///
+    /// Wire method: `secrets.addFilterValues`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Secret values to add to the redaction filter.
+    ///
+    /// # Returns
+    ///
+    /// Confirmation that the secret values were registered.
+    pub async fn add_filter_values(
+        &self,
+        params: SecretsAddFilterValuesRequest,
+    ) -> Result<SecretsAddFilterValuesResult, Error> {
+        let wire_params = serde_json::to_value(params)?;
+        let _value = self
+            .client
+            .call(rpc_methods::SECRETS_ADDFILTERVALUES, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

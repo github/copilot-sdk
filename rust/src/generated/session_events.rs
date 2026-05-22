@@ -723,9 +723,11 @@ pub struct ShutdownCodeChanges {
 #[serde(rename_all = "camelCase")]
 pub struct ShutdownModelMetricRequests {
     /// Cumulative cost multiplier for requests to this model
-    pub cost: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost: Option<f64>,
     /// Total number of API requests made to this model
-    pub count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<i64>,
 }
 
 /// Schema for the `ShutdownModelMetricTokenDetail` type.
@@ -816,7 +818,8 @@ pub struct SessionShutdownData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_nano_aiu: Option<f64>,
     /// Total number of premium API requests used during the session
-    pub total_premium_requests: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_premium_requests: Option<f64>,
 }
 
 /// Session event "session.context_changed". Updated working directory and git context after the change
@@ -1587,6 +1590,9 @@ pub struct ToolExecutionCompleteData {
     /// Tool execution result on success
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<ToolExecutionCompleteResult>,
+    /// Whether this tool execution ran inside a sandbox container
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandboxed: Option<bool>,
     /// Whether the tool execution completed successfully
     pub success: bool,
     /// Unique identifier for the completed tool call

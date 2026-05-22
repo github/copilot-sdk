@@ -1108,6 +1108,8 @@ type InstalledPlugin struct {
 // Source for direct repo installs (when marketplace is empty)
 // Experimental: InstalledPluginSource is part of an experimental API and may change or be
 // removed.
+// Experimental: InstalledPluginSource is part of an experimental API and may change or be
+// removed.
 type InstalledPluginSource struct {
 	InstalledPluginSourceGithub *InstalledPluginSourceGithub
 	InstalledPluginSourceLocal  *InstalledPluginSourceLocal
@@ -1357,6 +1359,8 @@ type McpExecuteSamplingRequest struct {
 // MCP CreateMessageResult payload (with optional 'tools' extension), present when
 // action='success'. Treated as opaque at the schema layer; consumers should
 // construct/consume it per the MCP CreateMessageResult shape.
+// Experimental: McpExecuteSamplingResult is part of an experimental API and may change or
+// be removed.
 // Experimental: McpExecuteSamplingResult is part of an experimental API and may change or
 // be removed.
 type McpExecuteSamplingResult struct {
@@ -3215,6 +3219,18 @@ type ScheduleStopResult struct {
 	Entry *ScheduleEntry `json:"entry,omitempty"`
 }
 
+// Secret values to add to the redaction filter.
+type SecretsAddFilterValuesRequest struct {
+	// Raw secret values to register for redaction
+	Values []string `json:"values"`
+}
+
+// Confirmation that the secret values were registered.
+type SecretsAddFilterValuesResult struct {
+	// Whether the values were successfully registered
+	Ok bool `json:"ok"`
+}
+
 // A user message attachment — a file, directory, code selection, blob, or GitHub reference
 // Experimental: SendAttachment is part of an experimental API and may change or be removed.
 type SendAttachment interface {
@@ -3783,6 +3799,8 @@ type SessionInstalledPlugin struct {
 }
 
 // Source descriptor for direct repo installs (when marketplace is empty)
+// Experimental: SessionInstalledPluginSource is part of an experimental API and may change
+// or be removed.
 // Experimental: SessionInstalledPluginSource is part of an experimental API and may change
 // or be removed.
 type SessionInstalledPluginSource struct {
@@ -7044,6 +7062,28 @@ func (a *ServerModelsApi) List(ctx context.Context, params *ModelsListRequest) (
 	return &result, nil
 }
 
+type ServerSecretsApi serverApi
+
+// AddFilterValues registers secret values for redaction in session logs and exports. The
+// SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).
+//
+// RPC method: secrets.addFilterValues.
+//
+// Parameters: Secret values to add to the redaction filter.
+//
+// Returns: Confirmation that the secret values were registered.
+func (a *ServerSecretsApi) AddFilterValues(ctx context.Context, params *SecretsAddFilterValuesRequest) (*SecretsAddFilterValuesResult, error) {
+	raw, err := a.client.Request("secrets.addFilterValues", params)
+	if err != nil {
+		return nil, err
+	}
+	var result SecretsAddFilterValuesResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 type ServerSessionFsApi serverApi
 
 // SetProvider registers an SDK client as the session filesystem provider.
@@ -7533,6 +7573,7 @@ type ServerRpc struct {
 	Account   *ServerAccountApi
 	Mcp       *ServerMcpApi
 	Models    *ServerModelsApi
+	Secrets   *ServerSecretsApi
 	SessionFs *ServerSessionFsApi
 	Sessions  *ServerSessionsApi
 	Skills    *ServerSkillsApi
@@ -7565,6 +7606,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Account = (*ServerAccountApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
 	r.Models = (*ServerModelsApi)(&r.common)
+	r.Secrets = (*ServerSecretsApi)(&r.common)
 	r.SessionFs = (*ServerSessionFsApi)(&r.common)
 	r.Sessions = (*ServerSessionsApi)(&r.common)
 	r.Skills = (*ServerSkillsApi)(&r.common)

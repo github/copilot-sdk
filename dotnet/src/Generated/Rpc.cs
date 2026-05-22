@@ -318,6 +318,22 @@ internal sealed class AccountGetQuotaRequest
     public string? GitHubToken { get; set; }
 }
 
+/// <summary>Confirmation that the secret values were registered.</summary>
+public sealed class SecretsAddFilterValuesResult
+{
+    /// <summary>Whether the values were successfully registered.</summary>
+    [JsonPropertyName("ok")]
+    public bool Ok { get; set; }
+}
+
+/// <summary>Secret values to add to the redaction filter.</summary>
+internal sealed class SecretsAddFilterValuesRequest
+{
+    /// <summary>Raw secret values to register for redaction.</summary>
+    [JsonPropertyName("values")]
+    public IList<string> Values { get => field ??= []; set; }
+}
+
 /// <summary>Schema for the `DiscoveredMcpServer` type.</summary>
 public sealed class DiscoveredMcpServer
 {
@@ -1256,8 +1272,6 @@ public partial class SendAttachmentGithubReference : SendAttachment
     public required string Title { get; set; }
 
     /// <summary>URL to the referenced item on GitHub.</summary>
-    [Url]
-    [StringSyntax(StringSyntaxAttribute.Uri)]
     [JsonPropertyName("url")]
     public required string Url { get; set; }
 }
@@ -10169,6 +10183,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>Secrets APIs.</summary>
+    public ServerSecretsApi Secrets =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>Mcp APIs.</summary>
     public ServerMcpApi Mcp =>
         field ??
@@ -10254,6 +10274,29 @@ public sealed class ServerAccountApi
     {
         var request = new AccountGetQuotaRequest { GitHubToken = gitHubToken };
         return await CopilotClient.InvokeRpcAsync<AccountGetQuotaResult>(_rpc, "account.getQuota", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped Secrets APIs.</summary>
+public sealed class ServerSecretsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerSecretsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Registers secret values for redaction in session logs and exports. The SDK calls this to inject dynamically generated secret values (e.g., OIDC tokens).</summary>
+    /// <param name="values">Raw secret values to register for redaction.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Confirmation that the secret values were registered.</returns>
+    public async Task<SecretsAddFilterValuesResult> AddFilterValuesAsync(IList<string> values, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+
+        var request = new SecretsAddFilterValuesRequest { Values = values };
+        return await CopilotClient.InvokeRpcAsync<SecretsAddFilterValuesResult>(_rpc, "secrets.addFilterValues", [request], cancellationToken);
     }
 }
 
@@ -13518,6 +13561,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ScheduleList))]
 [JsonSerializable(typeof(ScheduleStopRequest))]
 [JsonSerializable(typeof(ScheduleStopResult))]
+[JsonSerializable(typeof(SecretsAddFilterValuesRequest))]
+[JsonSerializable(typeof(SecretsAddFilterValuesResult))]
 [JsonSerializable(typeof(SendAttachment))]
 [JsonSerializable(typeof(SendAttachmentFileLineRange))]
 [JsonSerializable(typeof(SendAttachmentSelectionDetails))]
