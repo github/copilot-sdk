@@ -1101,7 +1101,7 @@ pub struct SessionConfig {
     /// Defaults to `Some(true)` via [`SessionConfig::default`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
-    /// Renderer-side opt-in (V1.1): when `true`, the runtime surfaces canvas
+    /// Renderer-side opt-in: when `true`, the runtime surfaces canvas
     /// agent tools (`open_canvas`, `discover_canvases`, ...) to the model.
     /// Default off — TUI / headless / SDK callers stay clean unless they can
     /// actually display canvases. Independent of provider semantics, which
@@ -1206,7 +1206,7 @@ pub struct SessionConfig {
     /// associated [`CommandHandler`] is called when executed.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
-    /// Canvas V1.1 declarations. Each entry binds a [`CanvasDeclaration`] +
+    /// Canvas declarations. Each entry binds a [`CanvasDeclaration`] +
     /// [`crate::canvas::CanvasHandler`] for this session; the runtime treats
     /// the declaring connection as the live provider for every declared
     /// canvas id. Serialized as an array of `CanvasDeclaration` on the wire.
@@ -1545,7 +1545,7 @@ impl SessionConfig {
         self
     }
 
-    /// Renderer-side opt-in (V1.1): surface canvas agent tools to the model.
+    /// Renderer-side opt-in: surface canvas agent tools to the model.
     pub fn with_request_canvas_renderer(mut self, enable: bool) -> Self {
         self.request_canvas_renderer = Some(enable);
         self
@@ -1748,7 +1748,7 @@ pub struct ResumeSessionConfig {
     /// Advertise elicitation provider capability on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_elicitation: Option<bool>,
-    /// Renderer-side opt-in (V1.1) on resume; see
+    /// Renderer-side opt-in on resume; see
     /// [`SessionConfig::request_canvas_renderer`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_canvas_renderer: Option<bool>,
@@ -1818,7 +1818,7 @@ pub struct ResumeSessionConfig {
     /// so the resume payload re-supplies the registration.
     #[serde(skip_serializing_if = "Option::is_none", skip_deserializing)]
     pub commands: Option<Vec<CommandDefinition>>,
-    /// Canvas V1.1 declarations to (re-)register on resume. Same semantics
+    /// Canvas declarations to (re-)register on resume. Same semantics
     /// as [`SessionConfig::canvases`]; re-declaring a canvas id replaces
     /// the prior entry on the runtime side.
     #[serde(default, skip_serializing_if = "Vec::is_empty", skip_deserializing)]
@@ -2158,7 +2158,7 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Renderer-side opt-in (V1.1) on resume: surface canvas agent tools to the model.
+    /// Renderer-side opt-in on resume: surface canvas agent tools to the model.
     pub fn with_request_canvas_renderer(mut self, enable: bool) -> Self {
         self.request_canvas_renderer = Some(enable);
         self

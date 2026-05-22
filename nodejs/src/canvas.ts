@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Canvas V1.1 — extension-owned canvases declared via
+ * Extension-owned canvases declared via
  * `joinSession({ canvases: [createCanvas({...})] })`.
  *
  * The on-the-wire declaration shape mirrors the runtime's `CanvasDeclaration`
@@ -13,11 +13,9 @@
  * `canvas.action.invoke` dispatches by `(canvasId, actionName)` back to the
  * handlers.
  *
- * The wire RPC method is still `hostExtension.invoke` (runtime preserves the
- * legacy name); inside, `method === "canvas.action.invoke"` identifies canvas
- * dispatches. The runtime synthesizes an internal
- * `implementationId = "v1.1.<extensionId>/<canvasId>"`, but the SDK ignores
- * it and routes purely on `params.canvasId` + `params.actionName`.
+ * The wire RPC method is `hostExtension.invoke`; inside,
+ * `method === "canvas.action.invoke"` identifies canvas dispatches. The SDK
+ * routes purely on `params.canvasId` + `params.actionName`.
  */
 
 /**

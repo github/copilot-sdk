@@ -1861,10 +1861,10 @@ export class CopilotClient {
                 await this.handleSystemMessageTransform(params)
         );
 
-        // Canvas V1.1: runtime preserves the legacy `hostExtension.invoke`
-        // wire method for canvas dispatches. The inner `method` discriminates;
+        // Canvas dispatch: the runtime uses the `hostExtension.invoke` wire
+        // method for canvas dispatches. The inner `method` discriminates;
         // we route `canvas.action.invoke` to the per-session canvas registry
-        // and reject anything else (no other inner method is in use post-V1.1).
+        // and reject anything else.
         this.connection.onRequest(
             "hostExtension.invoke",
             async (params: {
@@ -2071,9 +2071,8 @@ export class CopilotClient {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
         const { method, params: inner } = params.request;
-        // Canvas V1.1: only `canvas.action.invoke` is in use. Other inner methods
-        // are dead in the V1.1 cutover; reject explicitly so misrouted calls
-        // don't silently no-op.
+        // Only `canvas.action.invoke` is accepted as an inner method; reject
+        // anything else explicitly so misrouted calls don't silently no-op.
         if (method !== "canvas.action.invoke") {
             throw new Error(`Unsupported hostExtension.invoke method: ${method}`);
         }

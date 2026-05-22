@@ -1350,7 +1350,7 @@ export interface SessionConfig {
     tools?: Tool<any>[];
 
     /**
-     * Canvases contributed by this session participant (V1.1). The declaring
+     * Canvases contributed by this session participant. The declaring
      * connection becomes the live provider for `canvas.open|focus|close|reload`
      * and `canvas.action.invoke` dispatches targeting each canvas's `id` for
      * the lifetime of the connection. Re-declaring the same id on resume

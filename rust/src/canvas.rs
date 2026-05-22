@@ -1,18 +1,10 @@
-//! Canvas V1.1 — extension-owned canvases declared via `joinSession({ canvases: [...] })`.
+//! Extension-owned canvases declared via `joinSession({ canvases: [...] })`.
 //!
-//! This module is the Rust mirror of the locked TypeScript wire shape committed
-//! in runtime PR #8441 (`jmoseley/canvas-runtime-support`, commit `0d9535192b`).
+//! This module is the Rust mirror of the TypeScript wire shape.
 //!
-//! Status: **additive types + handler trait + Canvas/CanvasBuilder + dispatch routing**.
-//!
-//! The wire RPC method is still `hostExtension.invoke` (runtime keeps the
-//! legacy name); inside, the inner `method == "canvas.action.invoke"`
-//! identifies canvas dispatches. Runtime synthesizes
-//! `implementationId = "v1.1.<extensionId>/<canvasId>"`, but the SDK routes
-//! purely on `params.canvasId` + `params.actionName`.
-//!
-//! Old hosted-extension types in `types.rs` are scheduled for deletion in a
-//! follow-up edit once the host fully migrates to the new path.
+//! The wire RPC method is `hostExtension.invoke`; inside, the inner
+//! `method == "canvas.action.invoke"` identifies canvas dispatches. The SDK
+//! routes purely on `params.canvasId` + `params.actionName`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -356,9 +348,6 @@ pub fn build_registry(canvases: &[Canvas]) -> CanvasRegistry {
 
 /// Wire-level params for `canvas.action.invoke` (the inner `method` field of
 /// a `hostExtension.invoke` JSON-RPC request).
-///
-/// Mirrors the runtime's `HostedExtensionRequest.params` shape exactly —
-/// `canvas-agent-runtime/src/core/server.ts` `dispatchCanvas*`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasInvokeParams {

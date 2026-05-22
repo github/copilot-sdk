@@ -1815,7 +1815,7 @@ async fn handle_request(
         }
 
         "hostExtension.invoke" => {
-            // V1.1 canvas dispatch: the only inner method accepted is
+            // Canvas dispatch: the only inner method accepted is
             // `canvas.action.invoke`, routed through the canvas registry built
             // from `SessionConfig.canvases`.
             #[derive(serde::Deserialize)]
