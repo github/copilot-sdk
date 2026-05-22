@@ -1843,11 +1843,6 @@ export type TypedSessionEventHandler<T extends SessionEventType> = (
 export type SessionEventHandler = (event: SessionEvent) => void;
 
 /**
- * Connection state
- */
-export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
-
-/**
  * Working directory context for a session
  */
 export interface SessionContext {

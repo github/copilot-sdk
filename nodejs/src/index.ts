@@ -40,7 +40,6 @@ export type {
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
-    ConnectionState,
     CopilotClientOptions,
     StdioRuntimeConnection,
     TcpRuntimeConnection,
