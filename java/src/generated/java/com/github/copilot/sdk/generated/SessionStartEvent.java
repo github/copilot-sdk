@@ -39,7 +39,7 @@ public final class SessionStartEvent extends SessionEvent {
         /** Unique identifier for the session */
         @JsonProperty("sessionId") String sessionId,
         /** Schema version number for the session event format */
-        @JsonProperty("version") Double version,
+        @JsonProperty("version") Long version,
         /** Identifier of the software producing the events (e.g., "copilot-agent") */
         @JsonProperty("producer") String producer,
         /** Version string of the Copilot application */

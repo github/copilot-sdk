@@ -22,6 +22,6 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShutdownTokenDetail(
     /** Accumulated token count for this token type */
-    @JsonProperty("tokenCount") Double tokenCount
+    @JsonProperty("tokenCount") Long tokenCount
 ) {
 }

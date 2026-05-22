@@ -94,7 +94,7 @@
             reference-impl-sync workflow and deal with the subsequent
             PR.
         -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.49-1</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.52-1</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
 
     </properties>
 
@@ -321,7 +321,7 @@
                         CompactionTest) where snapshot matching can be sensitive
                         to non-deterministic compaction behaviour.
                         Revisit this once this issue is successfully resolved.
-                        https://github.com/github/copilot-sdk/issues/1227 
+                        https://github.com/github/copilot-sdk/issues/1227
                     -->
                     <rerunFailingTestsCount>2</rerunFailingTestsCount>
                     <systemPropertyVariables>

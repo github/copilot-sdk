@@ -10,6 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import javax.annotation.processing.Generated;
 
@@ -27,13 +28,13 @@ public record SessionUsageGetMetricsResult(
     /** Raw count of user-initiated API requests */
     @JsonProperty("totalUserRequests") Long totalUserRequests,
     /** Session-wide accumulated nano-AI units cost */
-    @JsonProperty("totalNanoAiu") Long totalNanoAiu,
+    @JsonProperty("totalNanoAiu") Double totalNanoAiu,
     /** Session-wide per-token-type accumulated token counts */
     @JsonProperty("tokenDetails") Map<String, UsageMetricsTokenDetail> tokenDetails,
     /** Total time spent in model API calls (milliseconds) */
-    @JsonProperty("totalApiDurationMs") Double totalApiDurationMs,
-    /** Session start timestamp (epoch milliseconds) */
-    @JsonProperty("sessionStartTime") Long sessionStartTime,
+    @JsonProperty("totalApiDurationMs") Long totalApiDurationMs,
+    /** ISO 8601 timestamp when the session started */
+    @JsonProperty("sessionStartTime") OffsetDateTime sessionStartTime,
     /** Aggregated code change metrics */
     @JsonProperty("codeChanges") UsageMetricsCodeChanges codeChanges,
     /** Per-model token and request metrics, keyed by model identifier */

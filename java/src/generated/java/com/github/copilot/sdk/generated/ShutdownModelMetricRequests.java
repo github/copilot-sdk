@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShutdownModelMetricRequests(
     /** Total number of API requests made to this model */
-    @JsonProperty("count") Double count,
+    @JsonProperty("count") Long count,
     /** Cumulative cost multiplier for requests to this model */
     @JsonProperty("cost") Double cost
 ) {

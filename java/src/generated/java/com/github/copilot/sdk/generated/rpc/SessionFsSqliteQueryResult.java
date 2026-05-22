@@ -29,8 +29,8 @@ public record SessionFsSqliteQueryResult(
     @JsonProperty("columns") List<String> columns,
     /** Number of rows affected (for INSERT/UPDATE/DELETE) */
     @JsonProperty("rowsAffected") Long rowsAffected,
-    /** Last inserted row ID (for INSERT) */
-    @JsonProperty("lastInsertRowid") Double lastInsertRowid,
+    /** SQLite last_insert_rowid() value for INSERT. */
+    @JsonProperty("lastInsertRowid") Long lastInsertRowid,
     /** Describes a filesystem error. */
     @JsonProperty("error") SessionFsError error
 ) {

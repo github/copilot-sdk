@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Whether to auto-approve all tool permission requests for the rest of the session.
+ * Allow-all toggle for tool permission requests, with an optional telemetry source.
  *
  * @since 1.0.0
  */
@@ -24,6 +24,8 @@ public record SessionPermissionsSetApproveAllParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
     /** Whether to auto-approve all tool permission requests */
-    @JsonProperty("enabled") Boolean enabled
+    @JsonProperty("enabled") Boolean enabled,
+    /** Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers. */
+    @JsonProperty("source") PermissionsSetApproveAllSource source
 ) {
 }

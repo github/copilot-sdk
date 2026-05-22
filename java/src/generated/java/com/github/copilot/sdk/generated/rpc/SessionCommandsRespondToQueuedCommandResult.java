@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Indicates whether the queued-command response was accepted by the session.
+ * Indicates whether the queued-command response was matched to a pending request.
  *
  * @since 1.0.0
  */
@@ -21,7 +21,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionCommandsRespondToQueuedCommandResult(
-    /** Whether the response was accepted (false if the requestId was not found or already resolved) */
+    /** Whether a pending queued command with the given request ID was found and resolved. False when the request was already resolved, cancelled, or unknown. */
     @JsonProperty("success") Boolean success
 ) {
 }

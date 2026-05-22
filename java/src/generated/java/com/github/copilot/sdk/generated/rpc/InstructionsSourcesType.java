@@ -27,7 +27,9 @@ public enum InstructionsSourcesType {
     /** The {@code nested-agents} variant. */
     NESTED_AGENTS("nested-agents"),
     /** The {@code child-instructions} variant. */
-    CHILD_INSTRUCTIONS("child-instructions");
+    CHILD_INSTRUCTIONS("child-instructions"),
+    /** The {@code plugin} variant. */
+    PLUGIN("plugin");
 
     private final String value;
     InstructionsSourcesType(String value) { this.value = value; }

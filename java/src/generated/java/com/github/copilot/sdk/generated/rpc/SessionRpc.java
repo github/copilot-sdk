@@ -54,24 +54,38 @@ public final class SessionRpc {
     public final SessionMcpApi mcp;
     /** API methods for the {@code plugins} namespace. */
     public final SessionPluginsApi plugins;
+    /** API methods for the {@code options} namespace. */
+    public final SessionOptionsApi options;
+    /** API methods for the {@code lsp} namespace. */
+    public final SessionLspApi lsp;
     /** API methods for the {@code extensions} namespace. */
     public final SessionExtensionsApi extensions;
     /** API methods for the {@code tools} namespace. */
     public final SessionToolsApi tools;
     /** API methods for the {@code commands} namespace. */
     public final SessionCommandsApi commands;
+    /** API methods for the {@code telemetry} namespace. */
+    public final SessionTelemetryApi telemetry;
     /** API methods for the {@code ui} namespace. */
     public final SessionUiApi ui;
     /** API methods for the {@code permissions} namespace. */
     public final SessionPermissionsApi permissions;
+    /** API methods for the {@code metadata} namespace. */
+    public final SessionMetadataApi metadata;
     /** API methods for the {@code shell} namespace. */
     public final SessionShellApi shell;
     /** API methods for the {@code history} namespace. */
     public final SessionHistoryApi history;
+    /** API methods for the {@code queue} namespace. */
+    public final SessionQueueApi queue;
+    /** API methods for the {@code eventLog} namespace. */
+    public final SessionEventLogApi eventLog;
     /** API methods for the {@code usage} namespace. */
     public final SessionUsageApi usage;
     /** API methods for the {@code remote} namespace. */
     public final SessionRemoteApi remote;
+    /** API methods for the {@code schedule} namespace. */
+    public final SessionScheduleApi schedule;
 
     /**
      * Creates a new session RPC client.
@@ -95,19 +109,28 @@ public final class SessionRpc {
         this.skills = new SessionSkillsApi(caller, sessionId);
         this.mcp = new SessionMcpApi(caller, sessionId);
         this.plugins = new SessionPluginsApi(caller, sessionId);
+        this.options = new SessionOptionsApi(caller, sessionId);
+        this.lsp = new SessionLspApi(caller, sessionId);
         this.extensions = new SessionExtensionsApi(caller, sessionId);
         this.tools = new SessionToolsApi(caller, sessionId);
         this.commands = new SessionCommandsApi(caller, sessionId);
+        this.telemetry = new SessionTelemetryApi(caller, sessionId);
         this.ui = new SessionUiApi(caller, sessionId);
         this.permissions = new SessionPermissionsApi(caller, sessionId);
+        this.metadata = new SessionMetadataApi(caller, sessionId);
         this.shell = new SessionShellApi(caller, sessionId);
         this.history = new SessionHistoryApi(caller, sessionId);
+        this.queue = new SessionQueueApi(caller, sessionId);
+        this.eventLog = new SessionEventLogApi(caller, sessionId);
         this.usage = new SessionUsageApi(caller, sessionId);
         this.remote = new SessionRemoteApi(caller, sessionId);
+        this.schedule = new SessionScheduleApi(caller, sessionId);
     }
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<Void> suspend() {
@@ -115,10 +138,57 @@ public final class SessionRpc {
     }
 
     /**
-     * Message text, optional severity level, persistence flag, and optional follow-up URL.
+     * Parameters for sending a user message to the session
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionSendResult> send(SessionSendParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.send", _p, SessionSendResult.class);
+    }
+
+    /**
+     * Parameters for aborting the current turn
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionAbortResult> abort(SessionAbortParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.abort", _p, SessionAbortResult.class);
+    }
+
+    /**
+     * Parameters for shutting down the session
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> shutdown(SessionShutdownParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.shutdown", _p, Void.class);
+    }
+
+    /**
+     * Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionLogResult> log(SessionLogParams params) {

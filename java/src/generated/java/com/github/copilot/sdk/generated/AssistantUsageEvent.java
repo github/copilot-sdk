@@ -39,21 +39,21 @@ public final class AssistantUsageEvent extends SessionEvent {
         /** Model identifier used for this API call */
         @JsonProperty("model") String model,
         /** Number of input tokens consumed */
-        @JsonProperty("inputTokens") Double inputTokens,
+        @JsonProperty("inputTokens") Long inputTokens,
         /** Number of output tokens produced */
-        @JsonProperty("outputTokens") Double outputTokens,
+        @JsonProperty("outputTokens") Long outputTokens,
         /** Number of tokens read from prompt cache */
-        @JsonProperty("cacheReadTokens") Double cacheReadTokens,
+        @JsonProperty("cacheReadTokens") Long cacheReadTokens,
         /** Number of tokens written to prompt cache */
-        @JsonProperty("cacheWriteTokens") Double cacheWriteTokens,
+        @JsonProperty("cacheWriteTokens") Long cacheWriteTokens,
         /** Number of output tokens used for reasoning (e.g., chain-of-thought) */
-        @JsonProperty("reasoningTokens") Double reasoningTokens,
+        @JsonProperty("reasoningTokens") Long reasoningTokens,
         /** Model multiplier cost for billing purposes */
         @JsonProperty("cost") Double cost,
         /** Duration of the API call in milliseconds */
-        @JsonProperty("duration") Double duration,
+        @JsonProperty("duration") Long duration,
         /** Time to first token in milliseconds. Only available for streaming requests */
-        @JsonProperty("ttftMs") Double ttftMs,
+        @JsonProperty("timeToFirstTokenMs") Long timeToFirstTokenMs,
         /** Average inter-token latency in milliseconds. Only available for streaming requests */
         @JsonProperty("interTokenLatencyMs") Double interTokenLatencyMs,
         /** What initiated this API call (e.g., "sub-agent", "mcp-sampling"); absent for user-initiated calls */
