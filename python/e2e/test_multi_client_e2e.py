@@ -54,7 +54,7 @@ class MultiClientContext:
         # Client 1 uses TCP mode so a second client can connect to the same server
         self._client1 = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.tcp(
+                connection=RuntimeConnection.for_tcp(
                     path=self.cli_path, connection_token="py-tcp-shared-test-token"
                 ),
                 working_directory=self.work_dir,
@@ -75,7 +75,7 @@ class MultiClientContext:
 
         self._client2 = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.uri(
+                connection=RuntimeConnection.for_uri(
                     f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
                 )
             )
@@ -430,7 +430,7 @@ class TestMultiClientBroadcast:
         actual_port = mctx.client1.runtime_port
         mctx._client2 = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.uri(
+                connection=RuntimeConnection.for_uri(
                     f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
                 )
             )

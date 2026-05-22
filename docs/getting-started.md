@@ -1971,7 +1971,7 @@ from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 from copilot.session import PermissionHandler
 
 client = CopilotClient(CopilotClientOptions(
-    connection=RuntimeConnection.uri("localhost:4321"),
+    connection=RuntimeConnection.for_uri("localhost:4321"),
 ))
 await client.start()
 

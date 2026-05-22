@@ -16,7 +16,7 @@ class TestRpc:
     async def test_should_call_rpc_ping_with_typed_params(self):
         """Test calling rpc.ping with typed params and result"""
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         )
 
         try:
@@ -34,7 +34,7 @@ class TestRpc:
     async def test_should_call_rpc_models_list(self):
         """Test calling rpc.models.list with typed result"""
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         )
 
         try:
@@ -59,7 +59,7 @@ class TestRpc:
     async def test_should_call_rpc_account_get_quota(self):
         """Test calling rpc.account.getQuota when authenticated"""
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         )
 
         try:
@@ -122,7 +122,7 @@ class TestSessionRpc:
         from copilot.generated.rpc import ModeSetRequest, SessionMode
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         )
 
         try:
@@ -156,7 +156,7 @@ class TestSessionRpc:
         from copilot.generated.rpc import PlanUpdateRequest
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         )
 
         try:
@@ -201,7 +201,7 @@ class TestSessionRpc:
         )
 
         client = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.stdio(path=CLI_PATH))
+            CopilotClientOptions(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         )
 
         try:

@@ -165,11 +165,13 @@ class RuntimeConnection:
 
     Example:
         >>> CopilotClient()  # default: stdio with the bundled runtime
-        >>> CopilotClient(CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000")))
+        >>> CopilotClient(
+        ...     CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
+        ... )
     """
 
     @staticmethod
-    def stdio(
+    def for_stdio(
         *,
         path: str | None = None,
         args: Sequence[str] = (),
@@ -187,7 +189,7 @@ class RuntimeConnection:
         return StdioRuntimeConnection(path=path, args=tuple(args))
 
     @staticmethod
-    def tcp(
+    def for_tcp(
         *,
         port: int = 0,
         connection_token: str | None = None,
@@ -216,7 +218,7 @@ class RuntimeConnection:
         )
 
     @staticmethod
-    def uri(url: str, *, connection_token: str | None = None) -> UriRuntimeConnection:
+    def for_uri(url: str, *, connection_token: str | None = None) -> UriRuntimeConnection:
         """Connect to an already-running runtime at the given URL.
 
         Args:
@@ -1073,7 +1075,7 @@ class CopilotClient:
 
         >>> # Or connect to an existing server
         >>> client = CopilotClient(
-        ...     CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000"))
+        ...     CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
         ... )
     """
 
@@ -1102,13 +1104,13 @@ class CopilotClient:
             >>>
             >>> # Connect to an existing runtime
             >>> client = CopilotClient(
-            ...     CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000"))
+            ...     CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
             ... )
             >>>
             >>> # Custom runtime path with specific log level
             >>> client = CopilotClient(
             ...     CopilotClientOptions(
-            ...         connection=RuntimeConnection.stdio(path="/usr/local/bin/copilot"),
+            ...         connection=RuntimeConnection.for_stdio(path="/usr/local/bin/copilot"),
             ...         log_level="debug",
             ...     )
             ... )
@@ -1116,7 +1118,7 @@ class CopilotClient:
         if options is None:
             options = CopilotClientOptions()
         connection = (
-            options.connection if options.connection is not None else RuntimeConnection.stdio()
+            options.connection if options.connection is not None else RuntimeConnection.for_stdio()
         )
 
         self._options: CopilotClientOptions = options
@@ -1169,7 +1171,8 @@ class CopilotClient:
                         raise RuntimeError(
                             "Copilot CLI not found. The bundled CLI binary is not available. "
                             "Ensure you installed a platform-specific wheel, or set "
-                            "RuntimeConnection.stdio(path=...) / RuntimeConnection.tcp(path=...)."
+                            "RuntimeConnection.for_stdio(path=...) / "
+                            "RuntimeConnection.for_tcp(path=...)."
                         )
 
             # Resolve use_logged_in_user default

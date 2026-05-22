@@ -80,7 +80,7 @@ class E2ETestContext:
         # Create the shared client (like Node.js/Go do)
         self._client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.stdio(
+                connection=RuntimeConnection.for_stdio(
                     path=self.cli_path,
                     args=tuple(cli_args or []),
                 ),

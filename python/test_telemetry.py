@@ -77,7 +77,7 @@ class TestTelemetryConfig:
     def test_telemetry_config_in_subprocess_config(self):
         """TelemetryConfig can be used in SubprocessConfig."""
         config = CopilotClientOptions(
-            connection=RuntimeConnection.stdio(),
+            connection=RuntimeConnection.for_stdio(),
             telemetry={
                 "otlp_endpoint": "http://localhost:4318",
                 "exporter_type": "otlp-http",

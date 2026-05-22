@@ -79,7 +79,7 @@ class TestStreamingFidelity:
         )
         new_client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.stdio(path=ctx.cli_path),
+                connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 github_token=github_token,
@@ -131,7 +131,7 @@ class TestStreamingFidelity:
         # Resume with streaming disabled
         new_client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.stdio(path=ctx.cli_path),
+                connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 github_token=github_token,

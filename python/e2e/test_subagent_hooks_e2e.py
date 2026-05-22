@@ -51,7 +51,7 @@ class TestSubagentHooks:
         )
         client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.stdio(path=ctx.cli_path),
+                connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=env,
                 github_token=github_token,

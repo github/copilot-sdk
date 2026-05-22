@@ -98,7 +98,7 @@ class TestPerSessionAuth:
         env["COPILOT_DEBUG_GITHUB_API_URL"] = auth_ctx.proxy_url
         no_token_client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.stdio(path=auth_ctx.cli_path),
+                connection=RuntimeConnection.for_stdio(path=auth_ctx.cli_path),
                 working_directory=auth_ctx.work_dir,
                 env=env,
                 use_logged_in_user=False,

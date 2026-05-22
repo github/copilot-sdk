@@ -5,7 +5,7 @@ E2E coverage for ``CopilotClient`` configuration options exposed via
 Mirrors ``dotnet/test/ClientOptionsTests.cs``. The two CliUrl-conflict tests
 (``Should_Throw_When_GitHubToken_Used_With_CliUrl`` and
 ``Should_Throw_When_UseLoggedInUser_Used_With_CliUrl``) have no Python
-equivalent because Python's ``RuntimeConnection.uri(...)`` does not accept
+equivalent because Python's ``RuntimeConnection.for_uri(...)`` does not accept
 ``github_token`` / ``use_logged_in_user`` fields at all (those live on
 ``CopilotClientOptions``, but a Uri-connected runtime ignores them), so the
 conflict cannot be expressed in code and the configurations are therefore
@@ -41,14 +41,14 @@ def _make_options(
 ) -> CopilotClientOptions:
     """Build a ``CopilotClientOptions`` pre-populated for the test harness."""
     if use_tcp:
-        connection = RuntimeConnection.tcp(
+        connection = RuntimeConnection.for_tcp(
             port=port,
             connection_token=connection_token,
             path=cli_path if cli_path is not None else ctx.cli_path,
             args=tuple(cli_args or []),
         )
     else:
-        connection = RuntimeConnection.stdio(
+        connection = RuntimeConnection.for_stdio(
             path=cli_path if cli_path is not None else ctx.cli_path,
             args=tuple(cli_args or []),
         )

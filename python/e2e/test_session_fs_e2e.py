@@ -51,7 +51,7 @@ SESSION_FS_CONFIG: SessionFsConfig = {
 async def session_fs_client(ctx: E2ETestContext):
     client = CopilotClient(
         CopilotClientOptions(
-            connection=RuntimeConnection.stdio(path=ctx.cli_path),
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
             working_directory=ctx.work_dir,
             env=ctx.get_env(),
             github_token=DEFAULT_GITHUB_TOKEN,
@@ -123,7 +123,7 @@ class TestSessionFs:
     async def test_should_reject_setprovider_when_sessions_already_exist(self, ctx: E2ETestContext):
         client1 = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.tcp(path=ctx.cli_path),
+                connection=RuntimeConnection.for_tcp(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 github_token=DEFAULT_GITHUB_TOKEN,
@@ -141,7 +141,7 @@ class TestSessionFs:
 
             client2 = CopilotClient(
                 CopilotClientOptions(
-                    connection=RuntimeConnection.uri(f"localhost:{actual_port}"),
+                    connection=RuntimeConnection.for_uri(f"localhost:{actual_port}"),
                     session_fs=SESSION_FS_CONFIG,
                 )
             )

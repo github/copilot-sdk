@@ -7,7 +7,7 @@ from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 async def main():
     client = CopilotClient(
         CopilotClientOptions(
-            connection=RuntimeConnection.uri(
+            connection=RuntimeConnection.for_uri(
                 os.environ.get("COPILOT_CLI_URL", "localhost:3000"),
             ),
         )

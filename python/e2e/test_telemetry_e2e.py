@@ -82,7 +82,7 @@ class TestTelemetryExport:
         )
         client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.stdio(path=ctx.cli_path),
+                connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
                 working_directory=ctx.work_dir,
                 env=ctx.get_env(),
                 github_token=github_token,
@@ -212,7 +212,7 @@ class TestSubprocessConfigTelemetry:
     """Mirrors CopilotClientOptions_Telemetry_DefaultsToNull."""
 
     async def test_telemetry_defaults_to_none(self):
-        config = CopilotClientOptions(connection=RuntimeConnection.stdio())
+        config = CopilotClientOptions(connection=RuntimeConnection.for_stdio())
         assert config.telemetry is None
 
     # NOTE: CopilotClientOptions_Clone_CopiesTelemetry from the C# baseline has

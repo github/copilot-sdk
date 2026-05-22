@@ -137,7 +137,7 @@ from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
 
 # Connect to an existing CLI server
 client = CopilotClient(
-    CopilotClientOptions(connection=RuntimeConnection.uri("localhost:3000"))
+    CopilotClientOptions(connection=RuntimeConnection.for_uri("localhost:3000"))
 )
 ```
 
@@ -155,8 +155,8 @@ CopilotClient(
 **CopilotClientOptions** — configure the client:
 
 - `connection` (RuntimeConnection | None): How to reach the runtime. Use
-  `RuntimeConnection.stdio(...)`, `RuntimeConnection.tcp(...)`, or
-  `RuntimeConnection.uri(...)`. Defaults to a stdio connection with the bundled binary.
+  `RuntimeConnection.for_stdio(...)`, `RuntimeConnection.for_tcp(...)`, or
+  `RuntimeConnection.for_uri(...)`. Defaults to a stdio connection with the bundled binary.
 - `working_directory` (str | None): Working directory for the CLI process (default: current dir).
 - `log_level` (str): Log level (default: "info").
 - `env` (dict | None): Environment variables for the CLI process.
@@ -168,9 +168,9 @@ CopilotClient(
 
 **RuntimeConnection variants:**
 
-- `RuntimeConnection.stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
-- `RuntimeConnection.tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
-- `RuntimeConnection.uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
+- `RuntimeConnection.for_stdio(path=None, args=None)` — spawn a local CLI process and talk over stdio.
+- `RuntimeConnection.for_tcp(port=0, connection_token=None, path=None, args=None)` — spawn a local CLI in TCP mode.
+- `RuntimeConnection.for_uri(url, connection_token=None)` — connect to an existing CLI server (e.g. `"localhost:8080"`).
 
 **`CopilotClient.create_session()`:**
 

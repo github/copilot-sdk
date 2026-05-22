@@ -63,7 +63,7 @@ class ElicitationMultiClientContext:
         # Client 1 uses TCP mode so additional clients can connect
         self._client1 = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.tcp(
+                connection=RuntimeConnection.for_tcp(
                     path=self.cli_path, connection_token="py-tcp-shared-test-token"
                 ),
                 working_directory=self.work_dir,
@@ -83,7 +83,7 @@ class ElicitationMultiClientContext:
 
         self._client2 = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.uri(
+                connection=RuntimeConnection.for_uri(
                     f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
                 )
             )
@@ -140,7 +140,7 @@ class ElicitationMultiClientContext:
         assert self._actual_port is not None
         return CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.uri(
+                connection=RuntimeConnection.for_uri(
                     f"localhost:{self._actual_port}", connection_token="py-tcp-shared-test-token"
                 )
             )

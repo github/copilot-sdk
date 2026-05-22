@@ -47,7 +47,9 @@ class ConnectionTokenContext:
 
         self._client = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.tcp(path=self.cli_path, connection_token=self.token),
+                connection=RuntimeConnection.for_tcp(
+                    path=self.cli_path, connection_token=self.token
+                ),
                 working_directory=self.work_dir,
                 env=self.get_env(),
                 github_token=github_token,
@@ -135,7 +137,7 @@ class TestConnectionToken:
 
         wrong = CopilotClient(
             CopilotClientOptions(
-                connection=RuntimeConnection.uri(f"localhost:{port}", connection_token="wrong")
+                connection=RuntimeConnection.for_uri(f"localhost:{port}", connection_token="wrong")
             )
         )
         try:
@@ -155,7 +157,7 @@ class TestConnectionToken:
         assert port is not None
 
         no_token = CopilotClient(
-            CopilotClientOptions(connection=RuntimeConnection.uri(f"localhost:{port}"))
+            CopilotClientOptions(connection=RuntimeConnection.for_uri(f"localhost:{port}"))
         )
         try:
             with pytest.raises(Exception, match="AUTHENTICATION_FAILED"):

@@ -131,7 +131,7 @@ const client = new CopilotClient({
 ```
 
 > [!NOTE]
-> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `RuntimeConnection.uri(...)`.
+> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `RuntimeConnection.for_uri(...)`.
 
 </details>
 
