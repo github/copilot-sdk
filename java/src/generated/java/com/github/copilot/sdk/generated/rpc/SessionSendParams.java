@@ -50,6 +50,6 @@ public record SessionSendParams(
     /** W3C Trace Context tracestate header for distributed tracing */
     @JsonProperty("tracestate") String tracestate,
     /** If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves. */
-    @JsonProperty("wait") Boolean wait
+    @JsonProperty("wait") Boolean wait_
 ) {
 }

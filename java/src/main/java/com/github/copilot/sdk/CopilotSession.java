@@ -1782,7 +1782,8 @@ public final class CopilotSession implements AutoCloseable {
                 rpcLevel = SessionLogLevel.INFO;
             }
         }
-        return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, ephemeral, url)).thenApply(r -> null);
+        return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, null, ephemeral, url, null))
+                .thenApply(r -> null);
     }
 
     /**
