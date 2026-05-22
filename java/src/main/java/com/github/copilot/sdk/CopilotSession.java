@@ -81,6 +81,7 @@ import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.PostToolUseHookInput;
+import com.github.copilot.sdk.json.PreMcpToolCallHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.SendMessageRequest;
 import com.github.copilot.sdk.json.SendMessageResponse;
@@ -1544,6 +1545,13 @@ public final class CopilotSession implements AutoCloseable {
                     if (hooks.getOnPreToolUse() != null) {
                         PreToolUseHookInput preInput = MAPPER.treeToValue(input, PreToolUseHookInput.class);
                         return hooks.getOnPreToolUse().handle(preInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "preMcpToolCall" :
+                    if (hooks.getOnPreMcpToolCall() != null) {
+                        PreMcpToolCallHookInput mcpInput = MAPPER.treeToValue(input, PreMcpToolCallHookInput.class);
+                        return hooks.getOnPreMcpToolCall().handle(mcpInput, invocation)
                                 .thenApply(output -> (Object) output);
                     }
                     break;
