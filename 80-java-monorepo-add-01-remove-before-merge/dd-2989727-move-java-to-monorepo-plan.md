@@ -152,9 +152,9 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 
 7. Migrate `commit-as-pull-request` skill (check if monorepo already has equivalent).
 
-### Phase 05: Cross-Cutting Updates
+### ⌛ Phase 05: Cross-Cutting Updates
 
-1. Update monorepo `copilot-instructions.md` to include Java section.
+1. Update monorepo `copilot-instructions.md` to include Java section. See https://github.com/github/copilot-sdk/issues/1390 .
 2. Update monorepo `README.md` to list Java as a supported language.
 3. Update `scenario-builds.yml` to include Java scenarios (if applicable).
 4. Update `docs-validation.yml` to include Java code snippets.
