@@ -17,20 +17,6 @@ describe("CopilotClient", () => {
         expect(spy).not.toHaveBeenCalled();
     });
 
-    it("throws when a v2 permission handler returns no-result", async () => {
-        const session = new CopilotSession("session-1", {} as any);
-        session.registerPermissionHandler(() => ({ kind: "no-result" }));
-        const client = new CopilotClient();
-        (client as any).sessions.set(session.sessionId, session);
-
-        await expect(
-            (client as any).handlePermissionRequestV2({
-                sessionId: session.sessionId,
-                permissionRequest: { kind: "write" },
-            })
-        ).rejects.toThrow(/protocol v2 server/);
-    });
-
     it("forwards clientName in session.create request", async () => {
         const client = new CopilotClient();
         await client.start();

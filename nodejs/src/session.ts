@@ -28,7 +28,6 @@ import type {
     MessageOptions,
     PermissionHandler,
     PermissionRequest,
-    PermissionRequestResult,
     ReasoningEffort,
     ModelCapabilitiesOverride,
     SectionTransformFn,

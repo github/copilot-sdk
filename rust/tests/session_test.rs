@@ -8,8 +8,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
-    ExitPlanModeHandler, ExitPlanModeResult, PermissionHandler, PermissionResult, UserInputHandler,
-    UserInputResponse,
+    ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
@@ -1179,41 +1178,6 @@ async fn elicitation_returns_typed_result() {
 }
 
 #[tokio::test]
-async fn permission_request_dispatches_to_handler() {
-    struct DenyHandler;
-    #[async_trait]
-    impl PermissionHandler for DenyHandler {
-        async fn handle(
-            &self,
-            _session_id: SessionId,
-            _request_id: RequestId,
-            _data: PermissionRequestData,
-        ) -> PermissionResult {
-            PermissionResult::reject(None)
-        }
-    }
-
-    let (_session, mut server) =
-        create_session_pair_with_config(|cfg| cfg.with_permission_handler(Arc::new(DenyHandler)))
-            .await;
-    server
-        .send_request(
-            200,
-            "permission.request",
-            serde_json::json!({
-                "sessionId": server.session_id,
-                "requestId": "perm-1",
-                "kind": "shell",
-            }),
-        )
-        .await;
-
-    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
-    assert_eq!(response["id"], 200);
-    assert_eq!(response["result"]["kind"], "reject");
-}
-
-#[tokio::test]
 async fn user_input_request_dispatches_to_handler() {
     struct InputHandler;
     #[async_trait]
@@ -1455,18 +1419,23 @@ async fn approve_all_handler_approves_permission() {
     .await;
 
     server
-        .send_request(
-            500,
-            "permission.request",
+        .send_event(
+            "permission.requested",
             serde_json::json!({
-                "sessionId": server.session_id,
                 "requestId": "perm-auto",
-                "kind": "shell",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
             }),
         )
         .await;
-    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
-    assert_eq!(response["result"]["kind"], "approve-once");
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        request["method"],
+        "session.permissions.handlePendingPermissionRequest"
+    );
+    assert_eq!(request["params"]["requestId"], "perm-auto");
+    assert_eq!(request["params"]["result"]["kind"], "approve-once");
 }
 
 #[tokio::test]
