@@ -56,23 +56,32 @@ final class PendingRoutingState {
 
     /**
      * Decrement the guard count. If the count reaches zero, clears all buffered
-     * events and completes all parked waiters exceptionally.
-     *
-     * @return list of waiters that should be completed exceptionally (caller must
-     *         complete them outside this lock to avoid re-entrancy)
+     * events and completes all parked request waiters exceptionally with a
+     * canonical message that is distinct from the overflow-eviction path.
      */
-    synchronized List<CompletableFuture<CopilotSession>> decrementGuard() {
+    synchronized void decrementGuard() {
         guardCount = Math.max(0, guardCount - 1);
-        if (guardCount == 0) {
-            pendingEvents.clear();
-            var stale = new ArrayList<CompletableFuture<CopilotSession>>();
-            for (var list : pendingWaiters.values()) {
-                stale.addAll(list);
-            }
-            pendingWaiters.clear();
-            return stale;
+        if (guardCount != 0) {
+            return;
         }
-        return Collections.emptyList();
+        pendingEvents.clear();
+        var stale = new ArrayList<CompletableFuture<CopilotSession>>();
+        for (var list : pendingWaiters.values()) {
+            stale.addAll(list);
+        }
+        pendingWaiters.clear();
+        if (!stale.isEmpty()) {
+            // Use a distinct phrasing from the overflow-eviction path so that
+            // debugging can tell the two failure modes apart. Matches the Rust
+            // SDK message (PR #1394 commit e0ff254f) and the TS SDK (commit
+            // c167bc3e).
+            LOG.warning("Pending session routing ended before session was registered; " + "completing " + stale.size()
+                    + " parked request waiter(s) exceptionally");
+            var ex = new RuntimeException("pending session routing ended before session was registered");
+            for (var waiter : stale) {
+                waiter.completeExceptionally(ex);
+            }
+        }
     }
 
     /**
@@ -137,7 +146,19 @@ final class PendingRoutingState {
             return null; // no pending; caller sends error
         }
         var future = new CompletableFuture<CopilotSession>();
-        pendingWaiters.computeIfAbsent(sessionId, k -> new ArrayList<>()).add(future);
+        var list = pendingWaiters.computeIfAbsent(sessionId, k -> new ArrayList<>());
+        if (list.size() >= BUFFER_LIMIT) {
+            // Cap parked waiters per session. When exceeded, evict the oldest
+            // and complete it with a distinct overflow message so the runtime
+            // gets an error response rather than hanging on a reply that will
+            // never arrive. Matches Rust PR #1394 (commit 491b4427) and TS
+            // (commit c167bc3e).
+            var oldest = list.remove(0);
+            LOG.warning("Pending session request waiter buffer full for session " + sessionId + " (limit="
+                    + BUFFER_LIMIT + "); evicting oldest request");
+            oldest.completeExceptionally(new RuntimeException("pending session buffer overflow"));
+        }
+        list.add(future);
         return future;
     }
 

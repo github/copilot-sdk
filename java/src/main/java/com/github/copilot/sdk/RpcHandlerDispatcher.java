@@ -570,9 +570,22 @@ final class RpcHandlerDispatcher {
             CompletableFuture<CopilotSession> waiter = pendingState.tryParkRequest(sessionId, sessions);
             if (waiter != null) {
                 if (waiter.isDone()) {
-                    // Resolved synchronously (session was already registered under the lock)
+                    // Session was already registered under tryParkRequest's lock —
+                    // complete synchronously. If the waiter was completed exceptionally
+                    // (e.g. overflow eviction just beat us to isDone()), send the
+                    // same -32603 error as the blocking path so the runtime isn't
+                    // left waiting for a reply that will never arrive.
                     try {
                         return waiter.get();
+                    } catch (ExecutionException e) {
+                        Throwable cause = e.getCause();
+                        try {
+                            rpc.sendErrorResponse(requestId, -32603, "Session " + sessionId + " not registered: "
+                                    + (cause != null ? cause.getMessage() : e.getMessage()));
+                        } catch (IOException ioe) {
+                            LOG.log(Level.SEVERE, "Failed to send synchronous registration-failed error", ioe);
+                        }
+                        return null;
                     } catch (Exception e) {
                         // fall through to send error
                     }

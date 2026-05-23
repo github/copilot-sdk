@@ -306,8 +306,7 @@ class CloudSessionTest {
         }
 
         // Release the guard
-        var staleWaiters = pendingState.decrementGuard();
-        assertTrue(staleWaiters.isEmpty(), "No stale waiters expected");
+        pendingState.decrementGuard();
 
         // The buffered session.event should now have been replayed to the session
         Thread.sleep(50);
@@ -413,15 +412,11 @@ class CloudSessionTest {
 
         Thread.sleep(100);
 
-        // Drop the guard WITHOUT registering the session → waiters should be completed
-        // exceptionally
-        var staleWaiters = pendingState.decrementGuard();
-        // Complete them exceptionally to simulate what CopilotClient does on failure
-        for (var w : staleWaiters) {
-            w.completeExceptionally(new RuntimeException("Cloud session.create failed; request dropped"));
-        }
+        // Drop the guard WITHOUT registering the session. decrementGuard now
+        // completes parked waiters internally with the canonical message.
+        pendingState.decrementGuard();
 
-        // The handler should eventually receive the exceptional completion and send an
+        // The handler should receive the exceptional completion and send an
         // error response
         toolCallFuture.get(5, TimeUnit.SECONDS);
 
@@ -429,5 +424,92 @@ class CloudSessionTest {
         assertNotNull(response, "Should have received an error response");
         assertEquals(99, response.get("id").asInt());
         assertNotNull(response.get("error"), "Response should be an error (not a result)");
+        String errorMessage = response.get("error").get("message").asText();
+        assertTrue(errorMessage.contains("routing ended before session was registered"),
+                "Error message should contain the canonical guard-drop phrase; got: " + errorMessage);
+    }
+
+    // =========================================================================
+    // Test 8: overflow path — oldest parked waiter gets the overflow message
+    // =========================================================================
+
+    @Test
+    void parkedRequestWaiterBuffer_overflow_evictsOldestWithOverflowMessage() throws Exception {
+        pendingState.incrementGuard();
+        String sid = "cloud-overflow-requests";
+
+        // Park BUFFER_LIMIT + 1 waiters via tryParkRequest. The 129th call must
+        // evict the very first waiter and complete it with the overflow message.
+        var waiters = new java.util.ArrayList<CompletableFuture<CopilotSession>>();
+        for (int i = 0; i < PendingRoutingState.BUFFER_LIMIT + 1; i++) {
+            waiters.add(pendingState.tryParkRequest(sid, sessions));
+        }
+
+        // The first waiter (oldest) must have been evicted with the overflow message.
+        CompletableFuture<CopilotSession> oldest = waiters.get(0);
+        assertTrue(oldest.isCompletedExceptionally(), "Oldest waiter should be completed exceptionally on overflow");
+        ExecutionException ex = assertThrows(ExecutionException.class, oldest::get);
+        assertEquals("pending session buffer overflow", ex.getCause().getMessage());
+
+        // The remaining BUFFER_LIMIT waiters should still be pending.
+        for (int i = 1; i <= PendingRoutingState.BUFFER_LIMIT; i++) {
+            assertFalse(waiters.get(i).isDone(), "Waiter " + i + " should still be pending after overflow eviction");
+        }
+
+        // Registering the session resolves the remaining 128 waiters normally.
+        var session = new CopilotSession(sid, rpc);
+        var flush = pendingState.registerAndFlush(sid, session, sessions);
+        assertEquals(PendingRoutingState.BUFFER_LIMIT, flush.waiters().size(),
+                "registerAndFlush should return all non-evicted waiters");
+        for (var waiter : flush.waiters()) {
+            waiter.complete(session);
+        }
+        for (int i = 1; i <= PendingRoutingState.BUFFER_LIMIT; i++) {
+            assertFalse(waiters.get(i).isCompletedExceptionally(),
+                    "Waiter " + i + " should complete normally, not exceptionally");
+            assertEquals(session, waiters.get(i).get(1, TimeUnit.SECONDS));
+        }
+
+        pendingState.decrementGuard();
+    }
+
+    // =========================================================================
+    // Test 9: guard-drop message is distinct from overflow message
+    // =========================================================================
+
+    @Test
+    void parkedRequestWaiter_guardDropMessage_isDistinctFromOverflowMessage() throws Exception {
+        String pendingSessionId = "cloud-session-distinct-msg";
+
+        pendingState.incrementGuard();
+
+        // Park a request in the background via the full handler path so the
+        // response travels over the socket — this mirrors the real runtime flow.
+        var toolCallFuture = CompletableFuture.runAsync(() -> {
+            ObjectNode params = MAPPER.createObjectNode();
+            params.put("sessionId", pendingSessionId);
+            params.put("toolCallId", "tc-distinct");
+            params.put("toolName", "noop");
+            params.set("arguments", MAPPER.createObjectNode());
+            invokeHandler("tool.call", "77", params);
+        });
+
+        Thread.sleep(100);
+
+        // Drop the guard without registration. decrementGuard completes waiters
+        // internally with the canonical guard-drop message.
+        pendingState.decrementGuard();
+
+        toolCallFuture.get(5, TimeUnit.SECONDS);
+
+        JsonNode response = readResponse();
+        assertEquals(77, response.get("id").asInt());
+        assertNotNull(response.get("error"), "Should be an error response");
+        String msg = response.get("error").get("message").asText();
+
+        // Must contain the guard-drop phrase — NOT the overflow phrase.
+        assertTrue(msg.contains("routing ended before session was registered"),
+                "Guard-drop error must use the routing-ended phrase; got: " + msg);
+        assertFalse(msg.contains("buffer overflow"), "Guard-drop error must NOT use the overflow phrase; got: " + msg);
     }
 }

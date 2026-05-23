@@ -583,9 +583,7 @@ public final class CopilotClient implements AutoCloseable {
                 if (returnedId == null || returnedId.isEmpty()) {
                     // No id: release the guard and surface the error. Any runtime session
                     // created on the other side may leak — we have nothing to destroy.
-                    var staleWaiters = pendingRoutingState.decrementGuard();
-                    completeWaitersExceptionally(staleWaiters,
-                            "Cloud session.create completed without registering this sessionId; request dropped");
+                    pendingRoutingState.decrementGuard();
                     LOG.warning("Cloud session.create response missing sessionId; runtime session may leak");
                     throw new RuntimeException(
                             "Cloud session.create response did not include a sessionId; cannot register session.");
@@ -619,43 +617,28 @@ public final class CopilotClient implements AutoCloseable {
                         waiter.complete(session);
                     }
                 } catch (Exception e) {
-                    // Roll back: remove session from map, release guard with exceptional completion
+                    // Roll back: remove session from map, release guard.
                     sessions.remove(returnedId);
-                    var staleWaiters = pendingRoutingState.decrementGuard();
-                    completeWaitersExceptionally(staleWaiters,
-                            "Cloud session post-registration setup failed; request dropped");
+                    pendingRoutingState.decrementGuard();
                     LoggingHelpers.logTiming(LOG, Level.WARNING, e,
                             "CopilotClient.createCloudSession post-registration setup failed. Elapsed={Elapsed}",
                             totalNanos);
                     throw e instanceof RuntimeException re ? re : new RuntimeException(e);
                 }
 
-                var staleWaiters = pendingRoutingState.decrementGuard();
-                completeWaitersExceptionally(staleWaiters,
-                        "Cloud session.create completed without registering this sessionId; request dropped");
+                pendingRoutingState.decrementGuard();
 
                 LoggingHelpers.logTiming(LOG, Level.FINE,
                         "CopilotClient.createCloudSession complete. Elapsed={Elapsed}, SessionId=" + returnedId,
                         totalNanos);
                 return session;
             }).exceptionally(ex -> {
-                var staleWaiters = pendingRoutingState.decrementGuard();
-                completeWaitersExceptionally(staleWaiters, "Cloud session.create failed; request dropped");
+                pendingRoutingState.decrementGuard();
                 LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
                         "CopilotClient.createCloudSession failed. Elapsed={Elapsed}", totalNanos);
                 throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
             });
         });
-    }
-
-    private static void completeWaitersExceptionally(java.util.List<CompletableFuture<CopilotSession>> waiters,
-            String message) {
-        if (!waiters.isEmpty()) {
-            var ex = new RuntimeException(message);
-            for (var waiter : waiters) {
-                waiter.completeExceptionally(ex);
-            }
-        }
     }
 
     /**
