@@ -50,9 +50,11 @@ impl CanvasHandler for TestCanvasHandler {
 }
 
 fn test_canvas(id: &str) -> Canvas {
-    Canvas::builder(
-        CanvasDeclaration::new(id, "Test Canvas").with_description("Test canvas description"),
-    )
+    Canvas::builder(CanvasDeclaration::new(
+        id,
+        "Test Canvas",
+        "Test canvas description",
+    ))
     .handler(Arc::new(TestCanvasHandler))
     .build()
     .unwrap()

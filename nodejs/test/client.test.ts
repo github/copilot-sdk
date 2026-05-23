@@ -76,6 +76,7 @@ describe("CopilotClient", () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
+            description: "A counter canvas",
             onOpen: () => ({ url: "https://example.test/counter" }),
         });
         const spy = vi
@@ -108,6 +109,7 @@ describe("CopilotClient", () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
+            description: "A counter canvas",
             onOpen: ({ instanceId }) => ({ url: `https://example.test/${instanceId}` }),
             onAction: ({ actionName, input }) => ({ actionName, input }),
         });
@@ -149,6 +151,7 @@ describe("CopilotClient", () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
+            description: "A counter canvas",
             onOpen,
         });
         const session = new CopilotSession("session-1", {} as any);

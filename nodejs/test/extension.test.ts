@@ -51,6 +51,7 @@ describe("joinSession", () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
+            description: "A counter canvas",
             onOpen: () => ({ url: "https://example.test/counter" }),
         });
 

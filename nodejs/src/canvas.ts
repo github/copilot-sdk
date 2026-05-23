@@ -60,8 +60,8 @@ export interface CanvasDeclaration {
     id: string;
     /** Human-readable label shown in discovery and host UI chrome. */
     displayName: string;
-    /** One-line description shown in discovery for agent reasoning. */
-    description?: string;
+    /** Short, single-sentence description shown to the agent in canvas catalogs. */
+    description: string;
     /** Optional JSON Schema for the `input` payload accepted by `canvas.open`. */
     inputSchema?: CanvasJsonSchema;
     /** Agent-invocable actions exposed via `invoke_canvas_action`. */
@@ -168,7 +168,7 @@ export interface CanvasOptions {
     /** @see CanvasDeclaration.displayName */
     displayName: string;
     /** @see CanvasDeclaration.description */
-    description?: string;
+    description: string;
     /** @see CanvasDeclaration.inputSchema */
     inputSchema?: CanvasJsonSchema;
     /** @see CanvasDeclaration.agentActions */

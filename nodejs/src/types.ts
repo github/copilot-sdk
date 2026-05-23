@@ -1486,9 +1486,9 @@ export interface SessionConfigBase {
 
     /**
      * Renderer-side opt-in: when true, the runtime surfaces canvas agent tools
-     * (`discover_canvases`, `open_canvas`, `invoke_canvas_action`) to the model
-     * for this connection. Default off so SDK callers that cannot display
-     * canvases stay clean.
+     * (`list_canvas_capabilities`, `open_canvas`, `invoke_canvas_action`) to
+     * the model for this connection. Default off so SDK callers that cannot
+     * display canvases stay clean.
      */
     requestCanvasRenderer?: boolean;
 

@@ -70,9 +70,8 @@ pub struct CanvasDeclaration {
     pub id: String,
     /// Human-readable name shown in host UI and canvas pickers.
     pub display_name: String,
-    /// Description surfaced in discovery and agent context.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    /// Short, single-sentence description shown to the agent in canvas catalogs.
+    pub description: String,
     /// JSON Schema for the `input` payload accepted by `canvas.open`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<Value>,
@@ -86,11 +85,15 @@ pub struct CanvasDeclaration {
 
 impl CanvasDeclaration {
     /// Construct a canvas declaration with the required fields set.
-    pub fn new(id: impl Into<String>, display_name: impl Into<String>) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        display_name: impl Into<String>,
+        description: impl Into<String>,
+    ) -> Self {
         Self {
             id: id.into(),
             display_name: display_name.into(),
-            description: None,
+            description: description.into(),
             input_schema: None,
             agent_actions: None,
             toolbar: None,
@@ -99,7 +102,7 @@ impl CanvasDeclaration {
 
     /// Set the description surfaced in discovery and agent context.
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
-        self.description = Some(description.into());
+        self.description = description.into();
         self
     }
 }
@@ -281,9 +284,8 @@ pub struct DiscoveredCanvas {
     pub canvas_id: String,
     /// Human-readable canvas name.
     pub display_name: String,
-    /// Canvas description for discovery.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
+    /// Short, single-sentence description shown to the agent in canvas catalogs.
+    pub description: String,
     /// JSON Schema for canvas open input.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<Value>,
@@ -732,7 +734,7 @@ mod tests {
         let decl = CanvasDeclaration {
             id: "counter".to_string(),
             display_name: "Counter".to_string(),
-            description: None,
+            description: "Count things".to_string(),
             input_schema: None,
             agent_actions: Some(vec![CanvasAgentActionDeclaration {
                 name: "increment".to_string(),
@@ -746,13 +748,13 @@ mod tests {
 
         assert_eq!(value["id"], "counter");
         assert_eq!(value["displayName"], "Counter");
-        assert!(value.get("description").is_none());
+        assert_eq!(value["description"], "Count things");
         assert_eq!(value["agentActions"][0]["name"], "increment");
     }
 
     #[tokio::test]
     async fn dispatch_routes_canvas_open() {
-        let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo"))
+        let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo", "Echo values"))
             .handler(Arc::new(EchoHandler))
             .build()
             .unwrap();
@@ -775,7 +777,7 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_routes_custom_action() {
-        let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo"))
+        let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo", "Echo values"))
             .handler(Arc::new(EchoHandler))
             .build()
             .unwrap();
@@ -821,7 +823,7 @@ mod tests {
 
     #[test]
     fn builder_requires_handler() {
-        let err = Canvas::builder(CanvasDeclaration::new("echo", "Echo"))
+        let err = Canvas::builder(CanvasDeclaration::new("echo", "Echo", "Echo values"))
             .build()
             .unwrap_err();
 
