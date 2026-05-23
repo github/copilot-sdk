@@ -88,6 +88,13 @@ func validateSessionFsConfig(config *SessionFsConfig) error {
 //	}
 //	defer client.Stop()
 //
+// Sentinel errors for the two pending-routing rejection paths. Using distinct
+// values lets callers (and debugging) tell overflow eviction from guard-drop.
+var (
+	errPendingSessionBufferOverflow = errors.New("pending session buffer overflow")
+	errPendingSessionRoutingEnded   = errors.New("pending session routing ended before session was registered")
+)
+
 // pendingResult carries the outcome of a parked inbound-request session lookup.
 type pendingResult struct {
 	session *Session
@@ -1021,7 +1028,7 @@ func (c *Client) beginPendingSessionRouting() func() {
 
 			for _, chs := range waiters {
 				for _, ch := range chs {
-					ch <- pendingResult{err: fmt.Errorf("request dropped: cloud session.create completed without registering this session id")}
+					ch <- pendingResult{err: errPendingSessionRoutingEnded}
 				}
 			}
 		})
@@ -1076,10 +1083,12 @@ func (c *Client) waitForSession(sessionID string) (*Session, error) {
 	ch := make(chan pendingResult, 1)
 	waiters := c.pending.waiters[sessionID]
 	if len(waiters) >= pendingSessionBufferLimit {
-		// Reject the oldest waiter to keep the queue bounded.
+		// Reject the oldest waiter to keep the queue bounded. Send a JSON-RPC
+		// error response via the handler return so the runtime doesn't hang on
+		// the request id waiting for a reply that would never come.
 		oldest := waiters[0]
 		waiters = waiters[1:]
-		oldest <- pendingResult{err: fmt.Errorf("request dropped: pending session waiter buffer full for %s", sessionID)}
+		oldest <- pendingResult{err: errPendingSessionBufferOverflow}
 	}
 	c.pending.waiters[sessionID] = append(waiters, ch)
 	c.pending.mu.Unlock()
@@ -2126,6 +2135,18 @@ func (c *Client) handleSessionEvent(req sessionEventRequest) {
 	c.pending.mu.Unlock()
 }
 
+// pendingRoutingRPCError maps an error from waitForSession to the appropriate
+// JSON-RPC error. Overflow and guard-drop rejections use -32603 (internal
+// error) so the runtime gets a proper error response instead of hanging on the
+// request id. All other waitForSession errors (e.g. unknown session) keep the
+// existing -32602 (invalid params) code.
+func pendingRoutingRPCError(err error) *jsonrpc2.Error {
+	if errors.Is(err, errPendingSessionBufferOverflow) || errors.Is(err, errPendingSessionRoutingEnded) {
+		return &jsonrpc2.Error{Code: -32603, Message: err.Error()}
+	}
+	return &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+}
+
 // handleUserInputRequest handles a user input request from the CLI server.
 func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputResponse, *jsonrpc2.Error) {
 	if req.SessionID == "" || req.Question == "" {
@@ -2134,7 +2155,7 @@ func (c *Client) handleUserInputRequest(req userInputRequest) (*userInputRespons
 
 	session, err := c.waitForSession(req.SessionID)
 	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		return nil, pendingRoutingRPCError(err)
 	}
 
 	response, err := session.handleUserInputRequest(UserInputRequest{
@@ -2161,7 +2182,7 @@ func (c *Client) handleExitPlanModeRequest(req exitPlanModeRequest) (*ExitPlanMo
 
 	session, err := c.waitForSession(req.SessionID)
 	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		return nil, pendingRoutingRPCError(err)
 	}
 
 	response, err := session.handleExitPlanModeRequest(ExitPlanModeRequest{
@@ -2185,7 +2206,7 @@ func (c *Client) handleAutoModeSwitchRequest(req autoModeSwitchRequest) (*autoMo
 
 	session, err := c.waitForSession(req.SessionID)
 	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		return nil, pendingRoutingRPCError(err)
 	}
 
 	response, err := session.handleAutoModeSwitchRequest(AutoModeSwitchRequest{
@@ -2207,7 +2228,7 @@ func (c *Client) handleHooksInvoke(req hooksInvokeRequest) (map[string]any, *jso
 
 	session, err := c.waitForSession(req.SessionID)
 	if err != nil {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		return nil, pendingRoutingRPCError(err)
 	}
 
 	output, err := session.handleHooksInvoke(req.Type, req.Input)
@@ -2230,7 +2251,7 @@ func (c *Client) handleSystemMessageTransform(req systemMessageTransformRequest)
 
 	session, err := c.waitForSession(req.SessionID)
 	if err != nil {
-		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32602, Message: err.Error()}
+		return systemMessageTransformResponse{}, pendingRoutingRPCError(err)
 	}
 
 	resp, err := session.handleSystemMessageTransform(req.Sections)

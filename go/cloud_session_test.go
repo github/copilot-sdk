@@ -317,8 +317,133 @@ func TestPendingRouting_RejectsWaitersOnDispose(t *testing.T) {
 		if rpcErr == nil {
 			t.Fatal("expected an rpc error after dispose without registration")
 		}
-		if !strings.Contains(rpcErr.Message, "dropped") {
-			t.Errorf("expected 'dropped' in error message, got: %s", rpcErr.Message)
+		if !strings.Contains(rpcErr.Message, "routing ended before session was registered") {
+			t.Errorf("expected routing-ended message, got: %s", rpcErr.Message)
+		}
+		if rpcErr.Code != -32603 {
+			t.Errorf("expected code -32603, got: %d", rpcErr.Code)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for rejected waiter")
+	}
+}
+
+// TestPendingRouting_OverflowEmitsError verifies that when the parked-waiter
+// buffer reaches its cap, the oldest waiter receives the overflow error response
+// and the remaining 128 waiters resolve normally after registration.
+func TestPendingRouting_OverflowEmitsError(t *testing.T) {
+	client := newCloudTestClient()
+	dispose := client.beginPendingSessionRouting()
+
+	const pendingID = "overflow-request-session"
+	const total = pendingSessionBufferLimit + 1 // 129
+
+	type result struct {
+		resp *userInputResponse
+		err  *jsonrpcError
+	}
+
+	// Register a user-input handler so the session resolves successfully.
+	session, cleanup := newTestSession()
+	defer cleanup()
+	session.SessionID = pendingID
+	session.registerUserInputHandler(func(req UserInputRequest, _ UserInputInvocation) (UserInputResponse, error) {
+		return UserInputResponse{Answer: "yes"}, nil
+	})
+
+	results := make([]chan result, total)
+	for i := range total {
+		results[i] = make(chan result, 1)
+		go func(ch chan result) {
+			resp, rpcErr := client.handleUserInputRequest(userInputRequest{
+				SessionID: pendingID,
+				Question:  "Proceed?",
+			})
+			ch <- result{resp, rpcErr}
+		}(results[i])
+	}
+
+	// Give goroutines time to park.
+	time.Sleep(50 * time.Millisecond)
+
+	// Register the session and flush — this resolves the 128 remaining waiters.
+	client.sessionsMux.Lock()
+	client.sessions[pendingID] = session
+	client.sessionsMux.Unlock()
+	client.flushPendingForSession(pendingID, session)
+	dispose()
+
+	// Collect all results with a timeout.
+	var gotOverflow int
+	var gotSuccess int
+	deadline := time.After(2 * time.Second)
+	for _, ch := range results {
+		select {
+		case r := <-ch:
+			if r.err != nil {
+				if !strings.Contains(r.err.Message, "pending session buffer overflow") {
+					t.Errorf("unexpected error message: %s", r.err.Message)
+				}
+				if r.err.Code != -32603 {
+					t.Errorf("expected code -32603 for overflow, got: %d", r.err.Code)
+				}
+				gotOverflow++
+			} else {
+				gotSuccess++
+			}
+		case <-deadline:
+			t.Fatalf("timed out: overflow=%d success=%d", gotOverflow, gotSuccess)
+		}
+	}
+
+	if gotOverflow != 1 {
+		t.Errorf("expected exactly 1 overflow rejection, got %d", gotOverflow)
+	}
+	if gotSuccess != pendingSessionBufferLimit {
+		t.Errorf("expected %d successful resolutions, got %d", pendingSessionBufferLimit, gotSuccess)
+	}
+}
+
+// TestPendingRouting_GuardDropDistinctMessage verifies that when the last
+// pending-routing guard drops without registration, parked waiters receive the
+// distinct routing-ended error (not the overflow message) so the two paths are
+// distinguishable in logs and debugging.
+func TestPendingRouting_GuardDropDistinctMessage(t *testing.T) {
+	client := newCloudTestClient()
+	dispose := client.beginPendingSessionRouting()
+
+	const pendingID = "guard-drop-session"
+
+	resultCh := make(chan *jsonrpcError, 1)
+	go func() {
+		_, rpcErr := client.handleUserInputRequest(userInputRequest{
+			SessionID: pendingID,
+			Question:  "Proceed?",
+		})
+		resultCh <- rpcErr
+	}()
+
+	// Give the goroutine time to park.
+	time.Sleep(20 * time.Millisecond)
+
+	// Drop the guard without registering — simulates session.create failing.
+	dispose()
+
+	select {
+	case rpcErr := <-resultCh:
+		if rpcErr == nil {
+			t.Fatal("expected an rpc error after guard drop without registration")
+		}
+		const want = "pending session routing ended before session was registered"
+		if rpcErr.Message != want {
+			t.Errorf("expected exact message %q, got %q", want, rpcErr.Message)
+		}
+		if rpcErr.Code != -32603 {
+			t.Errorf("expected code -32603, got: %d", rpcErr.Code)
+		}
+		// Must NOT contain the overflow message.
+		if strings.Contains(rpcErr.Message, "buffer overflow") {
+			t.Errorf("guard-drop path must not use overflow message, got: %s", rpcErr.Message)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for rejected waiter")
