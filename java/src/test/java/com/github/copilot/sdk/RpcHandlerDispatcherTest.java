@@ -66,7 +66,7 @@ class RpcHandlerDispatcherTest {
 
         sessions = new ConcurrentHashMap<>();
         lifecycleEvents = new CopyOnWriteArrayList<>();
-        dispatcher = new RpcHandlerDispatcher(sessions, lifecycleEvents::add, null);
+        dispatcher = new RpcHandlerDispatcher(sessions, lifecycleEvents::add, null, null);
         dispatcher.registerHandlers(rpc);
 
         // Extract the registered handlers via reflection so we can invoke them directly
