@@ -551,7 +551,7 @@ type DiscoveredMcpServer struct {
 	Name string `json:"name"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source McpServerSource `json:"source"`
-	// Server transport type: stdio, http, sse, or memory
+	// Server transport type: stdio, http, sse (deprecated), or memory
 	Type *DiscoveredMcpServerType `json:"type,omitempty"`
 }
 
@@ -747,6 +747,8 @@ type ExternalToolTextResultForLlmBinaryResultsForLlm struct {
 	Data string `json:"data"`
 	// Human-readable description of the binary data
 	Description *string `json:"description,omitempty"`
+	// Optional metadata from the producing tool.
+	Metadata map[string]any `json:"metadata,omitempty"`
 	// MIME type of the binary data
 	MIMEType string `json:"mimeType"`
 	// Binary result type discriminator. Use "image" for images and "resource" for other binary
@@ -1220,6 +1222,176 @@ type LspInitializeRequest struct {
 	// Working directory used to load project-level LSP configs. Defaults to the session working
 	// directory when omitted.
 	WorkingDirectory *string `json:"workingDirectory,omitempty"`
+}
+
+// MCP server, tool name, and arguments to invoke from an MCP App view.
+// Experimental: McpAppsCallToolRequest is part of an experimental API and may change or be
+// removed.
+type McpAppsCallToolRequest struct {
+	// Tool arguments
+	Arguments map[string]any `json:"arguments,omitempty"`
+	// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the
+	// app from this server only'), the call is rejected when this differs from `serverName`,
+	// and rejected outright when missing.
+	OriginServerName string `json:"originServerName"`
+	// MCP server hosting the tool
+	ServerName string `json:"serverName"`
+	// MCP tool name
+	ToolName string `json:"toolName"`
+}
+
+// Capability negotiation snapshot
+// Experimental: McpAppsDiagnoseCapability is part of an experimental API and may change or
+// be removed.
+type McpAppsDiagnoseCapability struct {
+	// Whether the runtime advertises `extensions.io.modelcontextprotocol/ui` to MCP servers
+	Advertised bool `json:"advertised"`
+	// Whether the MCP_APPS feature flag (or COPILOT_MCP_APPS env override) is on
+	FeatureFlagEnabled bool `json:"featureFlagEnabled"`
+	// Whether the session has the `mcp-apps` capability
+	SessionHasMcpApps bool `json:"sessionHasMcpApps"`
+}
+
+// MCP server to diagnose MCP Apps wiring for.
+// Experimental: McpAppsDiagnoseRequest is part of an experimental API and may change or be
+// removed.
+type McpAppsDiagnoseRequest struct {
+	// MCP server to probe
+	ServerName string `json:"serverName"`
+}
+
+// Diagnostic snapshot of MCP Apps wiring for the named server.
+// Experimental: McpAppsDiagnoseResult is part of an experimental API and may change or be
+// removed.
+type McpAppsDiagnoseResult struct {
+	// Capability negotiation snapshot
+	Capability McpAppsDiagnoseCapability `json:"capability"`
+	// What the server returned for this session
+	Server McpAppsDiagnoseServer `json:"server"`
+}
+
+// What the server returned for this session
+// Experimental: McpAppsDiagnoseServer is part of an experimental API and may change or be
+// removed.
+type McpAppsDiagnoseServer struct {
+	// Whether the named server is currently connected
+	Connected bool `json:"connected"`
+	// Up to 5 tool names with `_meta.ui` for quick inspection
+	SampleToolNames []string `json:"sampleToolNames"`
+	// Total tools returned by the server's tools/list
+	ToolCount float64 `json:"toolCount"`
+	// Tools whose `_meta.ui` is populated (resourceUri and/or visibility set)
+	ToolsWithUIMeta float64 `json:"toolsWithUiMeta"`
+}
+
+// Current host context advertised to MCP App guests.
+// Experimental: McpAppsHostContext is part of an experimental API and may change or be
+// removed.
+type McpAppsHostContext struct {
+	// Current host context
+	Context McpAppsHostContextDetails `json:"context"`
+}
+
+// Current host context
+// Experimental: McpAppsHostContextDetails is part of an experimental API and may change or
+// be removed.
+type McpAppsHostContextDetails struct {
+	// Display modes the host supports
+	AvailableDisplayModes []McpAppsHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
+	// Current display mode (SEP-1865)
+	DisplayMode *McpAppsHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
+	// BCP-47 locale, e.g. 'en-US'
+	Locale *string `json:"locale,omitempty"`
+	// Platform type for responsive design
+	Platform *McpAppsHostContextDetailsPlatform `json:"platform,omitempty"`
+	// UI theme preference per SEP-1865
+	Theme *McpAppsHostContextDetailsTheme `json:"theme,omitempty"`
+	// IANA timezone, e.g. 'America/New_York'
+	TimeZone *string `json:"timeZone,omitempty"`
+	// Host application identifier
+	UserAgent *string `json:"userAgent,omitempty"`
+}
+
+// MCP server to list app-callable tools for.
+// Experimental: McpAppsListToolsRequest is part of an experimental API and may change or be
+// removed.
+type McpAppsListToolsRequest struct {
+	// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the
+	// app from this server only'), the call is rejected when this differs from `serverName`,
+	// and rejected outright when missing.
+	OriginServerName string `json:"originServerName"`
+	// MCP server hosting the app
+	ServerName string `json:"serverName"`
+}
+
+// App-callable tools from the named MCP server.
+// Experimental: McpAppsListToolsResult is part of an experimental API and may change or be
+// removed.
+type McpAppsListToolsResult struct {
+	// App-callable tools from the server
+	Tools []map[string]any `json:"tools"`
+}
+
+// MCP server and resource URI to fetch.
+// Experimental: McpAppsReadResourceRequest is part of an experimental API and may change or
+// be removed.
+type McpAppsReadResourceRequest struct {
+	// Name of the MCP server hosting the resource
+	ServerName string `json:"serverName"`
+	// Resource URI (typically ui://...)
+	URI string `json:"uri"`
+}
+
+// Resource contents returned by the MCP server.
+// Experimental: McpAppsReadResourceResult is part of an experimental API and may change or
+// be removed.
+type McpAppsReadResourceResult struct {
+	// Resource contents returned by the server
+	Contents []McpAppsResourceContent `json:"contents"`
+}
+
+// Schema for the `McpAppsResourceContent` type.
+// Experimental: McpAppsResourceContent is part of an experimental API and may change or be
+// removed.
+type McpAppsResourceContent struct {
+	// Base64-encoded binary content
+	Blob *string `json:"blob,omitempty"`
+	// Resource-level metadata (CSP, permissions, etc.)
+	Meta map[string]any `json:"_meta,omitempty"`
+	// MIME type of the content
+	MIMEType *string `json:"mimeType,omitempty"`
+	// Text content (e.g. HTML)
+	Text *string `json:"text,omitempty"`
+	// The resource URI (typically ui://...)
+	URI string `json:"uri"`
+}
+
+// Host context advertised to MCP App guests
+// Experimental: McpAppsSetHostContextDetails is part of an experimental API and may change
+// or be removed.
+type McpAppsSetHostContextDetails struct {
+	// Display modes the host supports
+	AvailableDisplayModes []McpAppsSetHostContextDetailsAvailableDisplayMode `json:"availableDisplayModes,omitempty"`
+	// Current display mode (SEP-1865)
+	DisplayMode *McpAppsSetHostContextDetailsDisplayMode `json:"displayMode,omitempty"`
+	// BCP-47 locale, e.g. 'en-US'
+	Locale *string `json:"locale,omitempty"`
+	// Platform type for responsive design
+	Platform *McpAppsSetHostContextDetailsPlatform `json:"platform,omitempty"`
+	// UI theme preference per SEP-1865
+	Theme *McpAppsSetHostContextDetailsTheme `json:"theme,omitempty"`
+	// IANA timezone, e.g. 'America/New_York'
+	TimeZone *string `json:"timeZone,omitempty"`
+	// Host application identifier
+	UserAgent *string `json:"userAgent,omitempty"`
+}
+
+// Host context to advertise to MCP App guests.
+// Experimental: McpAppsSetHostContextRequest is part of an experimental API and may change
+// or be removed.
+type McpAppsSetHostContextRequest struct {
+	// Host context advertised to MCP App guests
+	Context McpAppsSetHostContextDetails `json:"context"`
 }
 
 // The requestId previously passed to executeSampling that should be cancelled.
@@ -1697,15 +1869,28 @@ type ModelBilling struct {
 type ModelBillingTokenPrices struct {
 	// Number of tokens per standard billing batch
 	BatchSize *int64 `json:"batchSize,omitempty"`
-	// Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1
-	// AIU = $0.01 USD)
-	CachePrice *int64 `json:"cachePrice,omitempty"`
-	// Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU
-	// = $0.01 USD)
-	InputPrice *int64 `json:"inputPrice,omitempty"`
-	// Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1
-	// AIU = $0.01 USD)
-	OutputPrice *int64 `json:"outputPrice,omitempty"`
+	// AI Credits cost per billing batch of cached tokens
+	CachePrice *float64 `json:"cachePrice,omitempty"`
+	// Maximum context window tokens for the default tier
+	ContextMax *int64 `json:"contextMax,omitempty"`
+	// AI Credits cost per billing batch of input tokens
+	InputPrice *float64 `json:"inputPrice,omitempty"`
+	// Long context tier pricing (available for models with extended context windows)
+	LongContext *ModelBillingTokenPricesLongContext `json:"longContext,omitempty"`
+	// AI Credits cost per billing batch of output tokens
+	OutputPrice *float64 `json:"outputPrice,omitempty"`
+}
+
+// Long context tier pricing (available for models with extended context windows)
+type ModelBillingTokenPricesLongContext struct {
+	// AI Credits cost per billing batch of cached tokens
+	CachePrice *float64 `json:"cachePrice,omitempty"`
+	// Maximum context window tokens for the long context tier
+	ContextMax *int64 `json:"contextMax,omitempty"`
+	// AI Credits cost per billing batch of input tokens
+	InputPrice *float64 `json:"inputPrice,omitempty"`
+	// AI Credits cost per billing batch of output tokens
+	OutputPrice *float64 `json:"outputPrice,omitempty"`
 }
 
 // Model capabilities and limits
@@ -3876,6 +4061,16 @@ type SessionLoadDeferredRepoHooksResult struct {
 type SessionLspInitializeResult struct {
 }
 
+// Standard MCP CallToolResult
+// Experimental: SessionMcpAppsCallToolResult is part of an experimental API and may change
+// or be removed.
+type SessionMcpAppsCallToolResult map[string]any
+
+// Experimental: SessionMcpAppsSetHostContextResult is part of an experimental API and may
+// change or be removed.
+type SessionMcpAppsSetHostContextResult struct {
+}
+
 // Experimental: SessionMcpDisableResult is part of an experimental API and may change or be
 // removed.
 type SessionMcpDisableResult struct {
@@ -5941,7 +6136,7 @@ const (
 	CopilotAPITokenAuthInfoHostHTTPSGithubCom CopilotAPITokenAuthInfoHost = "https://github.com"
 )
 
-// Server transport type: stdio, http, sse, or memory
+// Server transport type: stdio, http, sse (deprecated), or memory
 type DiscoveredMcpServerType string
 
 const (
@@ -5949,7 +6144,7 @@ const (
 	DiscoveredMcpServerTypeHTTP DiscoveredMcpServerType = "http"
 	// Server is backed by an in-memory runtime implementation.
 	DiscoveredMcpServerTypeMemory DiscoveredMcpServerType = "memory"
-	// Server communicates over Server-Sent Events.
+	// Server communicates over Server-Sent Events (deprecated).
 	DiscoveredMcpServerTypeSse DiscoveredMcpServerType = "sse"
 	// Server communicates over stdio with a local child process.
 	DiscoveredMcpServerTypeStdio DiscoveredMcpServerType = "stdio"
@@ -6117,6 +6312,114 @@ const (
 	InstructionsSourcesTypeRepo InstructionsSourcesType = "repo"
 	// Instructions loaded from VS Code instruction files.
 	InstructionsSourcesTypeVscode InstructionsSourcesType = "vscode"
+)
+
+// Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
+// Experimental: McpAppsHostContextDetailsAvailableDisplayMode is part of an experimental
+// API and may change or be removed.
+type McpAppsHostContextDetailsAvailableDisplayMode string
+
+const (
+	// Rendered as a fullscreen overlay
+	McpAppsHostContextDetailsAvailableDisplayModeFullscreen McpAppsHostContextDetailsAvailableDisplayMode = "fullscreen"
+	// Rendered inline within the host conversation surface
+	McpAppsHostContextDetailsAvailableDisplayModeInline McpAppsHostContextDetailsAvailableDisplayMode = "inline"
+	// Rendered as a picture-in-picture floating panel
+	McpAppsHostContextDetailsAvailableDisplayModePip McpAppsHostContextDetailsAvailableDisplayMode = "pip"
+)
+
+// Current display mode (SEP-1865)
+// Experimental: McpAppsHostContextDetailsDisplayMode is part of an experimental API and may
+// change or be removed.
+type McpAppsHostContextDetailsDisplayMode string
+
+const (
+	// Rendered as a fullscreen overlay
+	McpAppsHostContextDetailsDisplayModeFullscreen McpAppsHostContextDetailsDisplayMode = "fullscreen"
+	// Rendered inline within the host conversation surface
+	McpAppsHostContextDetailsDisplayModeInline McpAppsHostContextDetailsDisplayMode = "inline"
+	// Rendered as a picture-in-picture floating panel
+	McpAppsHostContextDetailsDisplayModePip McpAppsHostContextDetailsDisplayMode = "pip"
+)
+
+// Platform type for responsive design
+// Experimental: McpAppsHostContextDetailsPlatform is part of an experimental API and may
+// change or be removed.
+type McpAppsHostContextDetailsPlatform string
+
+const (
+	// Host runs as a desktop application
+	McpAppsHostContextDetailsPlatformDesktop McpAppsHostContextDetailsPlatform = "desktop"
+	// Host runs on a mobile device
+	McpAppsHostContextDetailsPlatformMobile McpAppsHostContextDetailsPlatform = "mobile"
+	// Host runs in a web browser
+	McpAppsHostContextDetailsPlatformWeb McpAppsHostContextDetailsPlatform = "web"
+)
+
+// UI theme preference per SEP-1865
+// Experimental: McpAppsHostContextDetailsTheme is part of an experimental API and may
+// change or be removed.
+type McpAppsHostContextDetailsTheme string
+
+const (
+	// Dark UI theme
+	McpAppsHostContextDetailsThemeDark McpAppsHostContextDetailsTheme = "dark"
+	// Light UI theme
+	McpAppsHostContextDetailsThemeLight McpAppsHostContextDetailsTheme = "light"
+)
+
+// Allowed values for the `McpAppsSetHostContextDetailsAvailableDisplayMode` enumeration.
+// Experimental: McpAppsSetHostContextDetailsAvailableDisplayMode is part of an experimental
+// API and may change or be removed.
+type McpAppsSetHostContextDetailsAvailableDisplayMode string
+
+const (
+	// Rendered as a fullscreen overlay
+	McpAppsSetHostContextDetailsAvailableDisplayModeFullscreen McpAppsSetHostContextDetailsAvailableDisplayMode = "fullscreen"
+	// Rendered inline within the host conversation surface
+	McpAppsSetHostContextDetailsAvailableDisplayModeInline McpAppsSetHostContextDetailsAvailableDisplayMode = "inline"
+	// Rendered as a picture-in-picture floating panel
+	McpAppsSetHostContextDetailsAvailableDisplayModePip McpAppsSetHostContextDetailsAvailableDisplayMode = "pip"
+)
+
+// Current display mode (SEP-1865)
+// Experimental: McpAppsSetHostContextDetailsDisplayMode is part of an experimental API and
+// may change or be removed.
+type McpAppsSetHostContextDetailsDisplayMode string
+
+const (
+	// Rendered as a fullscreen overlay
+	McpAppsSetHostContextDetailsDisplayModeFullscreen McpAppsSetHostContextDetailsDisplayMode = "fullscreen"
+	// Rendered inline within the host conversation surface
+	McpAppsSetHostContextDetailsDisplayModeInline McpAppsSetHostContextDetailsDisplayMode = "inline"
+	// Rendered as a picture-in-picture floating panel
+	McpAppsSetHostContextDetailsDisplayModePip McpAppsSetHostContextDetailsDisplayMode = "pip"
+)
+
+// Platform type for responsive design
+// Experimental: McpAppsSetHostContextDetailsPlatform is part of an experimental API and may
+// change or be removed.
+type McpAppsSetHostContextDetailsPlatform string
+
+const (
+	// Host runs as a desktop application
+	McpAppsSetHostContextDetailsPlatformDesktop McpAppsSetHostContextDetailsPlatform = "desktop"
+	// Host runs on a mobile device
+	McpAppsSetHostContextDetailsPlatformMobile McpAppsSetHostContextDetailsPlatform = "mobile"
+	// Host runs in a web browser
+	McpAppsSetHostContextDetailsPlatformWeb McpAppsSetHostContextDetailsPlatform = "web"
+)
+
+// UI theme preference per SEP-1865
+// Experimental: McpAppsSetHostContextDetailsTheme is part of an experimental API and may
+// change or be removed.
+type McpAppsSetHostContextDetailsTheme string
+
+const (
+	// Dark UI theme
+	McpAppsSetHostContextDetailsThemeDark McpAppsSetHostContextDetailsTheme = "dark"
+	// Light UI theme
+	McpAppsSetHostContextDetailsThemeLight McpAppsSetHostContextDetailsTheme = "light"
 )
 
 // Outcome of the sampling inference. 'success' produced a response; 'failure' encountered
@@ -8524,6 +8827,159 @@ func (a *McpApi) SetEnvValueMode(ctx context.Context, params *McpSetEnvValueMode
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Experimental: McpAppsApi contains experimental APIs that may change or be removed.
+type McpAppsApi sessionApi
+
+// CallTool call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check
+// that prevents an app iframe from invoking model-only tools. Returns the standard MCP
+// `CallToolResult`.
+//
+// RPC method: session.mcp.apps.callTool.
+//
+// Parameters: MCP server, tool name, and arguments to invoke from an MCP App view.
+//
+// Returns: Standard MCP CallToolResult
+func (a *McpAppsApi) CallTool(ctx context.Context, params *McpAppsCallToolRequest) (*SessionMcpAppsCallToolResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.Arguments != nil {
+			req["arguments"] = params.Arguments
+		}
+		req["originServerName"] = params.OriginServerName
+		req["serverName"] = params.ServerName
+		req["toolName"] = params.ToolName
+	}
+	raw, err := a.client.Request("session.mcp.apps.callTool", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMcpAppsCallToolResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Diagnose MCP Apps wiring for a specific MCP server. Reports the session capability,
+// feature-flag state, advertised extension, and how many tools have `_meta.ui` populated.
+//
+// RPC method: session.mcp.apps.diagnose.
+//
+// Parameters: MCP server to diagnose MCP Apps wiring for.
+//
+// Returns: Diagnostic snapshot of MCP Apps wiring for the named server.
+func (a *McpAppsApi) Diagnose(ctx context.Context, params *McpAppsDiagnoseRequest) (*McpAppsDiagnoseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.apps.diagnose", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpAppsDiagnoseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// GetHostContext read the current host context advertised to MCP App guests.
+//
+// RPC method: session.mcp.apps.getHostContext.
+//
+// Returns: Current host context advertised to MCP App guests.
+func (a *McpAppsApi) GetHostContext(ctx context.Context) (*McpAppsHostContext, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.mcp.apps.getHostContext", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpAppsHostContext
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListTools list tools that an MCP App view is allowed to call (SEP-1865 visibility
+// filter). Returns tools whose `_meta.ui.visibility` is unset (default `["model","app"]`)
+// or includes `"app"`.
+//
+// RPC method: session.mcp.apps.listTools.
+//
+// Parameters: MCP server to list app-callable tools for.
+//
+// Returns: App-callable tools from the named MCP server.
+func (a *McpAppsApi) ListTools(ctx context.Context, params *McpAppsListToolsRequest) (*McpAppsListToolsResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["originServerName"] = params.OriginServerName
+		req["serverName"] = params.ServerName
+	}
+	raw, err := a.client.Request("session.mcp.apps.listTools", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpAppsListToolsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ReadResource fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865)
+// from a connected server. Requires the `mcp-apps` session capability.
+//
+// RPC method: session.mcp.apps.readResource.
+//
+// Parameters: MCP server and resource URI to fetch.
+//
+// Returns: Resource contents returned by the MCP server.
+func (a *McpAppsApi) ReadResource(ctx context.Context, params *McpAppsReadResourceRequest) (*McpAppsReadResourceResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["serverName"] = params.ServerName
+		req["uri"] = params.URI
+	}
+	raw, err := a.client.Request("session.mcp.apps.readResource", req)
+	if err != nil {
+		return nil, err
+	}
+	var result McpAppsReadResourceResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetHostContext replace the host context returned to MCP App guests on `ui/initialize`.
+// Hosts use this to advertise theme, locale, or other metadata to the guest UI.
+//
+// RPC method: session.mcp.apps.setHostContext.
+//
+// Parameters: Host context to advertise to MCP App guests.
+func (a *McpAppsApi) SetHostContext(ctx context.Context, params *McpAppsSetHostContextRequest) (*SessionMcpAppsSetHostContextResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["context"] = params.Context
+	}
+	raw, err := a.client.Request("session.mcp.apps.setHostContext", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionMcpAppsSetHostContextResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Apps returns experimental APIs that may change or be removed.
+func (s *McpApi) Apps() *McpAppsApi {
+	return (*McpAppsApi)(s)
 }
 
 // Experimental: McpOauthApi contains experimental APIs that may change or be removed.

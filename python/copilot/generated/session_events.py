@@ -202,6 +202,7 @@ class SessionEventType(Enum):
     SESSION_MCP_SERVERS_LOADED = "session.mcp_servers_loaded"
     SESSION_MCP_SERVER_STATUS_CHANGED = "session.mcp_server_status_changed"
     SESSION_EXTENSIONS_LOADED = "session.extensions_loaded"
+    MCP_APP_TOOL_CALL_COMPLETE = "mcp_app.tool_call_complete"
     UNKNOWN = "unknown"
 
     @classmethod
@@ -334,6 +335,7 @@ class AssistantMessageData:
     reasoning_opaque: str | None = None
     reasoning_text: str | None = None
     request_id: str | None = None
+    service_request_id: str | None = None
     tool_requests: list[AssistantMessageToolRequest] | None = None
     turn_id: str | None = None
 
@@ -353,6 +355,7 @@ class AssistantMessageData:
         reasoning_opaque = from_union([from_none, from_str], obj.get("reasoningOpaque"))
         reasoning_text = from_union([from_none, from_str], obj.get("reasoningText"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
+        service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         tool_requests = from_union([from_none, lambda x: from_list(AssistantMessageToolRequest.from_dict, x)], obj.get("toolRequests"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return AssistantMessageData(
@@ -369,6 +372,7 @@ class AssistantMessageData:
             reasoning_opaque=reasoning_opaque,
             reasoning_text=reasoning_text,
             request_id=request_id,
+            service_request_id=service_request_id,
             tool_requests=tool_requests,
             turn_id=turn_id,
         )
@@ -399,6 +403,8 @@ class AssistantMessageData:
             result["reasoningText"] = from_union([from_none, from_str], self.reasoning_text)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
+        if self.service_request_id is not None:
+            result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.tool_requests is not None:
             result["toolRequests"] = from_union([from_none, lambda x: from_list(lambda x: to_class(AssistantMessageToolRequest, x), x)], self.tool_requests)
         if self.turn_id is not None:
@@ -698,6 +704,7 @@ class AssistantUsageData:
     _quota_snapshots: dict[str, _AssistantUsageQuotaSnapshot] | None = None
     reasoning_effort: str | None = None
     reasoning_tokens: int | None = None
+    service_request_id: str | None = None
     time_to_first_token: timedelta | None = None
 
     @staticmethod
@@ -720,6 +727,7 @@ class AssistantUsageData:
         _quota_snapshots = from_union([from_none, lambda x: from_dict(_AssistantUsageQuotaSnapshot.from_dict, x)], obj.get("quotaSnapshots"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_tokens = from_union([from_none, from_int], obj.get("reasoningTokens"))
+        service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         time_to_first_token = from_union([from_none, from_timedelta], obj.get("timeToFirstTokenMs"))
         return AssistantUsageData(
             model=model,
@@ -739,6 +747,7 @@ class AssistantUsageData:
             _quota_snapshots=_quota_snapshots,
             reasoning_effort=reasoning_effort,
             reasoning_tokens=reasoning_tokens,
+            service_request_id=service_request_id,
             time_to_first_token=time_to_first_token,
         )
 
@@ -777,6 +786,8 @@ class AssistantUsageData:
             result["reasoningEffort"] = from_union([from_none, from_str], self.reasoning_effort)
         if self.reasoning_tokens is not None:
             result["reasoningTokens"] = from_union([from_none, to_int], self.reasoning_tokens)
+        if self.service_request_id is not None:
+            result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.time_to_first_token is not None:
             result["timeToFirstTokenMs"] = from_union([from_none, to_timedelta_int], self.time_to_first_token)
         return result
@@ -914,19 +925,24 @@ class CapabilitiesChangedData:
 class CapabilitiesChangedUI:
     "UI capability changes"
     elicitation: bool | None = None
+    mcp_apps: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CapabilitiesChangedUI":
         assert isinstance(obj, dict)
         elicitation = from_union([from_none, from_bool], obj.get("elicitation"))
+        mcp_apps = from_union([from_none, from_bool], obj.get("mcpApps"))
         return CapabilitiesChangedUI(
             elicitation=elicitation,
+            mcp_apps=mcp_apps,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         if self.elicitation is not None:
             result["elicitation"] = from_union([from_none, from_bool], self.elicitation)
+        if self.mcp_apps is not None:
+            result["mcpApps"] = from_union([from_none, from_bool], self.mcp_apps)
         return result
 
 
@@ -1648,6 +1664,121 @@ class HookStartData:
 
 
 @dataclass
+class McpAppToolCallCompleteData:
+    "MCP App view called a tool on a connected MCP server (SEP-1865)"
+    duration_ms: float
+    server_name: str
+    success: bool
+    tool_name: str
+    arguments: dict[str, Any] | None = None
+    error: McpAppToolCallCompleteError | None = None
+    result: dict[str, Any] | None = None
+    tool_meta: McpAppToolCallCompleteToolMeta | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpAppToolCallCompleteData":
+        assert isinstance(obj, dict)
+        duration_ms = from_float(obj.get("durationMs"))
+        server_name = from_str(obj.get("serverName"))
+        success = from_bool(obj.get("success"))
+        tool_name = from_str(obj.get("toolName"))
+        arguments = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("arguments"))
+        error = from_union([from_none, McpAppToolCallCompleteError.from_dict], obj.get("error"))
+        result = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("result"))
+        tool_meta = from_union([from_none, McpAppToolCallCompleteToolMeta.from_dict], obj.get("toolMeta"))
+        return McpAppToolCallCompleteData(
+            duration_ms=duration_ms,
+            server_name=server_name,
+            success=success,
+            tool_name=tool_name,
+            arguments=arguments,
+            error=error,
+            result=result,
+            tool_meta=tool_meta,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["durationMs"] = to_float(self.duration_ms)
+        result["serverName"] = from_str(self.server_name)
+        result["success"] = from_bool(self.success)
+        result["toolName"] = from_str(self.tool_name)
+        if self.arguments is not None:
+            result["arguments"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.arguments)
+        if self.error is not None:
+            result["error"] = from_union([from_none, lambda x: to_class(McpAppToolCallCompleteError, x)], self.error)
+        if self.result is not None:
+            result["result"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.result)
+        if self.tool_meta is not None:
+            result["toolMeta"] = from_union([from_none, lambda x: to_class(McpAppToolCallCompleteToolMeta, x)], self.tool_meta)
+        return result
+
+
+@dataclass
+class McpAppToolCallCompleteError:
+    "Set when the underlying tools/call threw an error before returning a CallToolResult"
+    message: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpAppToolCallCompleteError":
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        return McpAppToolCallCompleteError(
+            message=message,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
+        return result
+
+
+@dataclass
+class McpAppToolCallCompleteToolMeta:
+    "The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools."
+    ui: McpAppToolCallCompleteToolMetaUI | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpAppToolCallCompleteToolMeta":
+        assert isinstance(obj, dict)
+        ui = from_union([from_none, McpAppToolCallCompleteToolMetaUI.from_dict], obj.get("ui"))
+        return McpAppToolCallCompleteToolMeta(
+            ui=ui,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.ui is not None:
+            result["ui"] = from_union([from_none, lambda x: to_class(McpAppToolCallCompleteToolMetaUI, x)], self.ui)
+        return result
+
+
+@dataclass
+class McpAppToolCallCompleteToolMetaUI:
+    "Schema for the `McpAppToolCallCompleteToolMetaUI` type."
+    resource_uri: str | None = None
+    visibility: list[str] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "McpAppToolCallCompleteToolMetaUI":
+        assert isinstance(obj, dict)
+        resource_uri = from_union([from_none, from_str], obj.get("resourceUri"))
+        visibility = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("visibility"))
+        return McpAppToolCallCompleteToolMetaUI(
+            resource_uri=resource_uri,
+            visibility=visibility,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.resource_uri is not None:
+            result["resourceUri"] = from_union([from_none, from_str], self.resource_uri)
+        if self.visibility is not None:
+            result["visibility"] = from_union([from_none, lambda x: from_list(from_str, x)], self.visibility)
+        return result
+
+
+@dataclass
 class McpOauthCompletedData:
     "MCP OAuth request completion notification"
     request_id: str
@@ -1733,7 +1864,10 @@ class McpServersLoadedServer:
     name: str
     status: McpServerStatus
     error: str | None = None
+    plugin_name: str | None = None
+    plugin_version: str | None = None
     source: McpServerSource | None = None
+    transport: McpServerTransport | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "McpServersLoadedServer":
@@ -1741,12 +1875,18 @@ class McpServersLoadedServer:
         name = from_str(obj.get("name"))
         status = parse_enum(McpServerStatus, obj.get("status"))
         error = from_union([from_none, from_str], obj.get("error"))
+        plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
+        plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
         source = from_union([from_none, lambda x: parse_enum(McpServerSource, x)], obj.get("source"))
+        transport = from_union([from_none, lambda x: parse_enum(McpServerTransport, x)], obj.get("transport"))
         return McpServersLoadedServer(
             name=name,
             status=status,
             error=error,
+            plugin_name=plugin_name,
+            plugin_version=plugin_version,
             source=source,
+            transport=transport,
         )
 
     def to_dict(self) -> dict:
@@ -1755,8 +1895,14 @@ class McpServersLoadedServer:
         result["status"] = to_enum(McpServerStatus, self.status)
         if self.error is not None:
             result["error"] = from_union([from_none, from_str], self.error)
+        if self.plugin_name is not None:
+            result["pluginName"] = from_union([from_none, from_str], self.plugin_name)
+        if self.plugin_version is not None:
+            result["pluginVersion"] = from_union([from_none, from_str], self.plugin_version)
         if self.source is not None:
             result["source"] = from_union([from_none, lambda x: to_enum(McpServerSource, x)], self.source)
+        if self.transport is not None:
+            result["transport"] = from_union([from_none, lambda x: to_enum(McpServerTransport, x)], self.transport)
         return result
 
 
@@ -1770,6 +1916,7 @@ class ModelCallFailureData:
     initiator: str | None = None
     model: str | None = None
     provider_call_id: str | None = None
+    service_request_id: str | None = None
     status_code: int | None = None
 
     @staticmethod
@@ -1782,6 +1929,7 @@ class ModelCallFailureData:
         initiator = from_union([from_none, from_str], obj.get("initiator"))
         model = from_union([from_none, from_str], obj.get("model"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         return ModelCallFailureData(
             source=source,
@@ -1791,6 +1939,7 @@ class ModelCallFailureData:
             initiator=initiator,
             model=model,
             provider_call_id=provider_call_id,
+            service_request_id=service_request_id,
             status_code=status_code,
         )
 
@@ -1809,6 +1958,8 @@ class ModelCallFailureData:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
+        if self.service_request_id is not None:
+            result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.status_code is not None:
             result["statusCode"] = from_union([from_none, to_int], self.status_code)
         return result
@@ -3009,6 +3160,7 @@ class SessionCompactionCompleteData:
     pre_compaction_messages_length: int | None = None
     pre_compaction_tokens: int | None = None
     request_id: str | None = None
+    service_request_id: str | None = None
     summary_content: str | None = None
     system_tokens: int | None = None
     tokens_removed: int | None = None
@@ -3029,6 +3181,7 @@ class SessionCompactionCompleteData:
         pre_compaction_messages_length = from_union([from_none, from_int], obj.get("preCompactionMessagesLength"))
         pre_compaction_tokens = from_union([from_none, from_int], obj.get("preCompactionTokens"))
         request_id = from_union([from_none, from_str], obj.get("requestId"))
+        service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         summary_content = from_union([from_none, from_str], obj.get("summaryContent"))
         system_tokens = from_union([from_none, from_int], obj.get("systemTokens"))
         tokens_removed = from_union([from_none, from_int], obj.get("tokensRemoved"))
@@ -3046,6 +3199,7 @@ class SessionCompactionCompleteData:
             pre_compaction_messages_length=pre_compaction_messages_length,
             pre_compaction_tokens=pre_compaction_tokens,
             request_id=request_id,
+            service_request_id=service_request_id,
             summary_content=summary_content,
             system_tokens=system_tokens,
             tokens_removed=tokens_removed,
@@ -3077,6 +3231,8 @@ class SessionCompactionCompleteData:
             result["preCompactionTokens"] = from_union([from_none, to_int], self.pre_compaction_tokens)
         if self.request_id is not None:
             result["requestId"] = from_union([from_none, from_str], self.request_id)
+        if self.service_request_id is not None:
+            result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.summary_content is not None:
             result["summaryContent"] = from_union([from_none, from_str], self.summary_content)
         if self.system_tokens is not None:
@@ -3244,6 +3400,7 @@ class SessionErrorData:
     eligible_for_auto_switch: bool | None = None
     error_code: str | None = None
     provider_call_id: str | None = None
+    service_request_id: str | None = None
     stack: str | None = None
     status_code: int | None = None
     url: str | None = None
@@ -3256,6 +3413,7 @@ class SessionErrorData:
         eligible_for_auto_switch = from_union([from_none, from_bool], obj.get("eligibleForAutoSwitch"))
         error_code = from_union([from_none, from_str], obj.get("errorCode"))
         provider_call_id = from_union([from_none, from_str], obj.get("providerCallId"))
+        service_request_id = from_union([from_none, from_str], obj.get("serviceRequestId"))
         stack = from_union([from_none, from_str], obj.get("stack"))
         status_code = from_union([from_none, from_int], obj.get("statusCode"))
         url = from_union([from_none, from_str], obj.get("url"))
@@ -3265,6 +3423,7 @@ class SessionErrorData:
             eligible_for_auto_switch=eligible_for_auto_switch,
             error_code=error_code,
             provider_call_id=provider_call_id,
+            service_request_id=service_request_id,
             stack=stack,
             status_code=status_code,
             url=url,
@@ -3280,6 +3439,8 @@ class SessionErrorData:
             result["errorCode"] = from_union([from_none, from_str], self.error_code)
         if self.provider_call_id is not None:
             result["providerCallId"] = from_union([from_none, from_str], self.provider_call_id)
+        if self.service_request_id is not None:
+            result["serviceRequestId"] = from_union([from_none, from_str], self.service_request_id)
         if self.stack is not None:
             result["stack"] = from_union([from_none, from_str], self.stack)
         if self.status_code is not None:
@@ -3414,21 +3575,26 @@ class SessionMcpServerStatusChangedData:
     "Schema for the `McpServerStatusChangedData` type."
     server_name: str
     status: McpServerStatus
+    error: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SessionMcpServerStatusChangedData":
         assert isinstance(obj, dict)
         server_name = from_str(obj.get("serverName"))
         status = parse_enum(McpServerStatus, obj.get("status"))
+        error = from_union([from_none, from_str], obj.get("error"))
         return SessionMcpServerStatusChangedData(
             server_name=server_name,
             status=status,
+            error=error,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
         result["serverName"] = from_str(self.server_name)
         result["status"] = to_enum(McpServerStatus, self.status)
+        if self.error is not None:
+            result["error"] = from_union([from_none, from_str], self.error)
         return result
 
 
@@ -3479,6 +3645,7 @@ class SessionModelChangeData:
     "Model change details including previous and new model identifiers"
     new_model: str
     cause: str | None = None
+    context_tier: SessionModelChangeDataContextTier | None = None
     previous_model: str | None = None
     previous_reasoning_effort: str | None = None
     previous_reasoning_summary: ReasoningSummary | None = None
@@ -3490,6 +3657,7 @@ class SessionModelChangeData:
         assert isinstance(obj, dict)
         new_model = from_str(obj.get("newModel"))
         cause = from_union([from_none, from_str], obj.get("cause"))
+        context_tier = from_union([from_none, lambda x: parse_enum(SessionModelChangeDataContextTier, x)], obj.get("contextTier"))
         previous_model = from_union([from_none, from_str], obj.get("previousModel"))
         previous_reasoning_effort = from_union([from_none, from_str], obj.get("previousReasoningEffort"))
         previous_reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("previousReasoningSummary"))
@@ -3498,6 +3666,7 @@ class SessionModelChangeData:
         return SessionModelChangeData(
             new_model=new_model,
             cause=cause,
+            context_tier=context_tier,
             previous_model=previous_model,
             previous_reasoning_effort=previous_reasoning_effort,
             previous_reasoning_summary=previous_reasoning_summary,
@@ -3510,6 +3679,8 @@ class SessionModelChangeData:
         result["newModel"] = from_str(self.new_model)
         if self.cause is not None:
             result["cause"] = from_union([from_none, from_str], self.cause)
+        if self.context_tier is not None:
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionModelChangeDataContextTier, x)], self.context_tier)
         if self.previous_model is not None:
             result["previousModel"] = from_union([from_none, from_str], self.previous_model)
         if self.previous_reasoning_effort is not None:
@@ -4254,6 +4425,8 @@ class SkillInvokedData:
     description: str | None = None
     plugin_name: str | None = None
     plugin_version: str | None = None
+    source: str | None = None
+    trigger: SkillInvokedTrigger | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "SkillInvokedData":
@@ -4265,6 +4438,8 @@ class SkillInvokedData:
         description = from_union([from_none, from_str], obj.get("description"))
         plugin_name = from_union([from_none, from_str], obj.get("pluginName"))
         plugin_version = from_union([from_none, from_str], obj.get("pluginVersion"))
+        source = from_union([from_none, from_str], obj.get("source"))
+        trigger = from_union([from_none, lambda x: parse_enum(SkillInvokedTrigger, x)], obj.get("trigger"))
         return SkillInvokedData(
             content=content,
             name=name,
@@ -4273,6 +4448,8 @@ class SkillInvokedData:
             description=description,
             plugin_name=plugin_name,
             plugin_version=plugin_version,
+            source=source,
+            trigger=trigger,
         )
 
     def to_dict(self) -> dict:
@@ -4288,6 +4465,10 @@ class SkillInvokedData:
             result["pluginName"] = from_union([from_none, from_str], self.plugin_name)
         if self.plugin_version is not None:
             result["pluginVersion"] = from_union([from_none, from_str], self.plugin_version)
+        if self.source is not None:
+            result["source"] = from_union([from_none, from_str], self.source)
+        if self.trigger is not None:
+            result["trigger"] = from_union([from_none, lambda x: to_enum(SkillInvokedTrigger, x)], self.trigger)
         return result
 
 
@@ -4998,6 +5179,7 @@ class ToolExecutionCompleteData:
     parent_tool_call_id: str | None = None
     result: ToolExecutionCompleteResult | None = None
     sandboxed: bool | None = None
+    tool_description: ToolExecutionCompleteToolDescription | None = None
     tool_telemetry: dict[str, Any] | None = None
     turn_id: str | None = None
 
@@ -5013,6 +5195,7 @@ class ToolExecutionCompleteData:
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
         result = from_union([from_none, ToolExecutionCompleteResult.from_dict], obj.get("result"))
         sandboxed = from_union([from_none, from_bool], obj.get("sandboxed"))
+        tool_description = from_union([from_none, ToolExecutionCompleteToolDescription.from_dict], obj.get("toolDescription"))
         tool_telemetry = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("toolTelemetry"))
         turn_id = from_union([from_none, from_str], obj.get("turnId"))
         return ToolExecutionCompleteData(
@@ -5025,6 +5208,7 @@ class ToolExecutionCompleteData:
             parent_tool_call_id=parent_tool_call_id,
             result=result,
             sandboxed=sandboxed,
+            tool_description=tool_description,
             tool_telemetry=tool_telemetry,
             turn_id=turn_id,
         )
@@ -5047,6 +5231,8 @@ class ToolExecutionCompleteData:
             result["result"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteResult, x)], self.result)
         if self.sandboxed is not None:
             result["sandboxed"] = from_union([from_none, from_bool], self.sandboxed)
+        if self.tool_description is not None:
+            result["toolDescription"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteToolDescription, x)], self.tool_description)
         if self.tool_telemetry is not None:
             result["toolTelemetry"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.tool_telemetry)
         if self.turn_id is not None:
@@ -5084,6 +5270,7 @@ class ToolExecutionCompleteResult:
     content: str
     contents: list[ToolExecutionCompleteContent] | None = None
     detailed_content: str | None = None
+    ui_resource: ToolExecutionCompleteUIResource | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ToolExecutionCompleteResult":
@@ -5091,10 +5278,12 @@ class ToolExecutionCompleteResult:
         content = from_str(obj.get("content"))
         contents = from_union([from_none, lambda x: from_list(_load_ToolExecutionCompleteContent, x)], obj.get("contents"))
         detailed_content = from_union([from_none, from_str], obj.get("detailedContent"))
+        ui_resource = from_union([from_none, ToolExecutionCompleteUIResource.from_dict], obj.get("uiResource"))
         return ToolExecutionCompleteResult(
             content=content,
             contents=contents,
             detailed_content=detailed_content,
+            ui_resource=ui_resource,
         )
 
     def to_dict(self) -> dict:
@@ -5104,7 +5293,294 @@ class ToolExecutionCompleteResult:
             result["contents"] = from_union([from_none, lambda x: from_list(lambda x: x.to_dict(), x)], self.contents)
         if self.detailed_content is not None:
             result["detailedContent"] = from_union([from_none, from_str], self.detailed_content)
+        if self.ui_resource is not None:
+            result["uiResource"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResource, x)], self.ui_resource)
         return result
+
+
+@dataclass
+class ToolExecutionCompleteToolDescription:
+    "Tool definition metadata, present for MCP tools with MCP Apps support"
+    name: str
+    _meta: ToolExecutionCompleteToolDescriptionMeta | None = None
+    description: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteToolDescription":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        _meta = from_union([from_none, ToolExecutionCompleteToolDescriptionMeta.from_dict], obj.get("_meta"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        return ToolExecutionCompleteToolDescription(
+            name=name,
+            _meta=_meta,
+            description=description,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        if self._meta is not None:
+            result["_meta"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteToolDescriptionMeta, x)], self._meta)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteToolDescriptionMeta:
+    "MCP Apps metadata for UI resource association"
+    ui: ToolExecutionCompleteToolDescriptionMetaUI | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteToolDescriptionMeta":
+        assert isinstance(obj, dict)
+        ui = from_union([from_none, ToolExecutionCompleteToolDescriptionMetaUI.from_dict], obj.get("ui"))
+        return ToolExecutionCompleteToolDescriptionMeta(
+            ui=ui,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.ui is not None:
+            result["ui"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteToolDescriptionMetaUI, x)], self.ui)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteToolDescriptionMetaUI:
+    "Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type."
+    resource_uri: str | None = None
+    visibility: list[ToolExecutionCompleteToolDescriptionMetaUIVisibility] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteToolDescriptionMetaUI":
+        assert isinstance(obj, dict)
+        resource_uri = from_union([from_none, from_str], obj.get("resourceUri"))
+        visibility = from_union([from_none, lambda x: from_list(lambda x: parse_enum(ToolExecutionCompleteToolDescriptionMetaUIVisibility, x), x)], obj.get("visibility"))
+        return ToolExecutionCompleteToolDescriptionMetaUI(
+            resource_uri=resource_uri,
+            visibility=visibility,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.resource_uri is not None:
+            result["resourceUri"] = from_union([from_none, from_str], self.resource_uri)
+        if self.visibility is not None:
+            result["visibility"] = from_union([from_none, lambda x: from_list(lambda x: to_enum(ToolExecutionCompleteToolDescriptionMetaUIVisibility, x), x)], self.visibility)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteUIResource:
+    "MCP Apps UI resource content for rendering in a sandboxed iframe"
+    mime_type: str
+    uri: str
+    _meta: ToolExecutionCompleteUIResourceMeta | None = None
+    blob: str | None = None
+    text: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResource":
+        assert isinstance(obj, dict)
+        mime_type = from_str(obj.get("mimeType"))
+        uri = from_str(obj.get("uri"))
+        _meta = from_union([from_none, ToolExecutionCompleteUIResourceMeta.from_dict], obj.get("_meta"))
+        blob = from_union([from_none, from_str], obj.get("blob"))
+        text = from_union([from_none, from_str], obj.get("text"))
+        return ToolExecutionCompleteUIResource(
+            mime_type=mime_type,
+            uri=uri,
+            _meta=_meta,
+            blob=blob,
+            text=text,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["mimeType"] = from_str(self.mime_type)
+        result["uri"] = from_str(self.uri)
+        if self._meta is not None:
+            result["_meta"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMeta, x)], self._meta)
+        if self.blob is not None:
+            result["blob"] = from_union([from_none, from_str], self.blob)
+        if self.text is not None:
+            result["text"] = from_union([from_none, from_str], self.text)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMeta:
+    "Resource-level UI metadata (CSP, permissions, visual preferences)"
+    ui: ToolExecutionCompleteUIResourceMetaUI | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMeta":
+        assert isinstance(obj, dict)
+        ui = from_union([from_none, ToolExecutionCompleteUIResourceMetaUI.from_dict], obj.get("ui"))
+        return ToolExecutionCompleteUIResourceMeta(
+            ui=ui,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.ui is not None:
+            result["ui"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUI, x)], self.ui)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUI:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUI` type."
+    csp: ToolExecutionCompleteUIResourceMetaUICsp | None = None
+    domain: str | None = None
+    permissions: ToolExecutionCompleteUIResourceMetaUIPermissions | None = None
+    prefers_border: bool | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUI":
+        assert isinstance(obj, dict)
+        csp = from_union([from_none, ToolExecutionCompleteUIResourceMetaUICsp.from_dict], obj.get("csp"))
+        domain = from_union([from_none, from_str], obj.get("domain"))
+        permissions = from_union([from_none, ToolExecutionCompleteUIResourceMetaUIPermissions.from_dict], obj.get("permissions"))
+        prefers_border = from_union([from_none, from_bool], obj.get("prefersBorder"))
+        return ToolExecutionCompleteUIResourceMetaUI(
+            csp=csp,
+            domain=domain,
+            permissions=permissions,
+            prefers_border=prefers_border,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.csp is not None:
+            result["csp"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUICsp, x)], self.csp)
+        if self.domain is not None:
+            result["domain"] = from_union([from_none, from_str], self.domain)
+        if self.permissions is not None:
+            result["permissions"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUIPermissions, x)], self.permissions)
+        if self.prefers_border is not None:
+            result["prefersBorder"] = from_union([from_none, from_bool], self.prefers_border)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUICsp:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type."
+    base_uri_domains: list[str] | None = None
+    connect_domains: list[str] | None = None
+    frame_domains: list[str] | None = None
+    resource_domains: list[str] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUICsp":
+        assert isinstance(obj, dict)
+        base_uri_domains = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("baseUriDomains"))
+        connect_domains = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("connectDomains"))
+        frame_domains = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("frameDomains"))
+        resource_domains = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("resourceDomains"))
+        return ToolExecutionCompleteUIResourceMetaUICsp(
+            base_uri_domains=base_uri_domains,
+            connect_domains=connect_domains,
+            frame_domains=frame_domains,
+            resource_domains=resource_domains,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.base_uri_domains is not None:
+            result["baseUriDomains"] = from_union([from_none, lambda x: from_list(from_str, x)], self.base_uri_domains)
+        if self.connect_domains is not None:
+            result["connectDomains"] = from_union([from_none, lambda x: from_list(from_str, x)], self.connect_domains)
+        if self.frame_domains is not None:
+            result["frameDomains"] = from_union([from_none, lambda x: from_list(from_str, x)], self.frame_domains)
+        if self.resource_domains is not None:
+            result["resourceDomains"] = from_union([from_none, lambda x: from_list(from_str, x)], self.resource_domains)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUIPermissions:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type."
+    camera: ToolExecutionCompleteUIResourceMetaUIPermissionsCamera | None = None
+    clipboard_write: ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite | None = None
+    geolocation: ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation | None = None
+    microphone: ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissions":
+        assert isinstance(obj, dict)
+        camera = from_union([from_none, ToolExecutionCompleteUIResourceMetaUIPermissionsCamera.from_dict], obj.get("camera"))
+        clipboard_write = from_union([from_none, ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite.from_dict], obj.get("clipboardWrite"))
+        geolocation = from_union([from_none, ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation.from_dict], obj.get("geolocation"))
+        microphone = from_union([from_none, ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone.from_dict], obj.get("microphone"))
+        return ToolExecutionCompleteUIResourceMetaUIPermissions(
+            camera=camera,
+            clipboard_write=clipboard_write,
+            geolocation=geolocation,
+            microphone=microphone,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        if self.camera is not None:
+            result["camera"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUIPermissionsCamera, x)], self.camera)
+        if self.clipboard_write is not None:
+            result["clipboardWrite"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite, x)], self.clipboard_write)
+        if self.geolocation is not None:
+            result["geolocation"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation, x)], self.geolocation)
+        if self.microphone is not None:
+            result["microphone"] = from_union([from_none, lambda x: to_class(ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone, x)], self.microphone)
+        return result
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUIPermissionsCamera:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type."
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsCamera":
+        assert isinstance(obj, dict)
+        return ToolExecutionCompleteUIResourceMetaUIPermissionsCamera()
+
+    def to_dict(self) -> dict:
+        return {}
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type."
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite":
+        assert isinstance(obj, dict)
+        return ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite()
+
+    def to_dict(self) -> dict:
+        return {}
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type."
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation":
+        assert isinstance(obj, dict)
+        return ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation()
+
+    def to_dict(self) -> dict:
+        return {}
+
+
+@dataclass
+class ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone:
+    "Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type."
+    @staticmethod
+    def from_dict(obj: Any) -> "ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone":
+        assert isinstance(obj, dict)
+        return ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone()
+
+    def to_dict(self) -> dict:
+        return {}
 
 
 @dataclass
@@ -6085,6 +6561,18 @@ class McpServerStatus(Enum):
     NOT_CONFIGURED = "not_configured"
 
 
+class McpServerTransport(Enum):
+    "Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)"
+    # Server communicates over stdio with a local child process.
+    STDIO = "stdio"
+    # Server communicates over streamable HTTP.
+    HTTP = "http"
+    # Server communicates over Server-Sent Events (deprecated).
+    SSE = "sse"
+    # Server is backed by an in-memory runtime implementation.
+    MEMORY = "memory"
+
+
 class ModelCallFailureSource(Enum):
     "Where the failed model call originated"
     # Model call from the top-level agent.
@@ -6151,12 +6639,29 @@ class SessionMode(Enum):
     AUTOPILOT = "autopilot"
 
 
+class SessionModelChangeDataContextTier(Enum):
+    # Default context tier with standard context window size.
+    DEFAULT = "default"
+    # Extended context tier with a larger context window.
+    LONG_CONTEXT = "long_context"
+
+
 class ShutdownType(Enum):
     "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
     # The session ended normally.
     ROUTINE = "routine"
     # The session ended because of a crash or fatal error.
     ERROR = "error"
+
+
+class SkillInvokedTrigger(Enum):
+    "What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)"
+    # Skill invocation requested explicitly by the user, such as via a slash command or UI affordance.
+    USER_INVOKED = "user-invoked"
+    # Skill invocation requested by the agent.
+    AGENT_INVOKED = "agent-invoked"
+    # Skill content loaded as part of another context, such as a configured custom agent or subagent.
+    CONTEXT_LOAD = "context-load"
 
 
 class SkillSource(Enum):
@@ -6201,6 +6706,14 @@ class ToolExecutionCompleteContentResourceLinkIconTheme(Enum):
     DARK = "dark"
 
 
+class ToolExecutionCompleteToolDescriptionMetaUIVisibility(Enum):
+    "Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration."
+    # Tool is callable by the model (LLM tool surface)
+    MODEL = "model"
+    # Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool
+    APP = "app"
+
+
 class UserMessageAgentMode(Enum):
     "The agent mode that was active when this message was sent"
     # The agent is responding interactively to the user.
@@ -6239,7 +6752,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -6346,6 +6859,7 @@ class SessionEvent:
             case SessionEventType.SESSION_MCP_SERVERS_LOADED: data = SessionMcpServersLoadedData.from_dict(data_obj)
             case SessionEventType.SESSION_MCP_SERVER_STATUS_CHANGED: data = SessionMcpServerStatusChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_EXTENSIONS_LOADED: data = SessionExtensionsLoadedData.from_dict(data_obj)
+            case SessionEventType.MCP_APP_TOOL_CALL_COMPLETE: data = McpAppToolCallCompleteData.from_dict(data_obj)
             case _: data = RawSessionEventData.from_dict(data_obj)
         return SessionEvent(
             data=data,

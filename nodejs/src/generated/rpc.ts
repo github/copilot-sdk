@@ -120,7 +120,7 @@ export type ContentFilterMode =
   /** Remove characters that can hide directives. */
   | "hidden_characters";
 /**
- * Server transport type: stdio, http, sse, or memory
+ * Server transport type: stdio, http, sse (deprecated), or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "DiscoveredMcpServerType".
@@ -130,7 +130,7 @@ export type DiscoveredMcpServerType =
   | "stdio"
   /** Server communicates over streamable HTTP. */
   | "http"
-  /** Server communicates over Server-Sent Events. */
+  /** Server communicates over Server-Sent Events (deprecated). */
   | "sse"
   /** Server is backed by an in-memory runtime implementation. */
   | "memory";
@@ -325,6 +325,114 @@ export type SessionLogLevel =
   | "warning"
   /** Error message describing a failure. */
   | "error";
+/**
+ * UI theme preference per SEP-1865
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsHostContextDetailsTheme".
+ */
+/** @experimental */
+export type McpAppsHostContextDetailsTheme =
+  /** Light UI theme */
+  | "light"
+  /** Dark UI theme */
+  | "dark";
+/**
+ * Current display mode (SEP-1865)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsHostContextDetailsDisplayMode".
+ */
+/** @experimental */
+export type McpAppsHostContextDetailsDisplayMode =
+  /** Rendered inline within the host conversation surface */
+  | "inline"
+  /** Rendered as a fullscreen overlay */
+  | "fullscreen"
+  /** Rendered as a picture-in-picture floating panel */
+  | "pip";
+/**
+ * Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsHostContextDetailsAvailableDisplayMode".
+ */
+/** @experimental */
+export type McpAppsHostContextDetailsAvailableDisplayMode =
+  /** Rendered inline within the host conversation surface */
+  | "inline"
+  /** Rendered as a fullscreen overlay */
+  | "fullscreen"
+  /** Rendered as a picture-in-picture floating panel */
+  | "pip";
+/**
+ * Platform type for responsive design
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsHostContextDetailsPlatform".
+ */
+/** @experimental */
+export type McpAppsHostContextDetailsPlatform =
+  /** Host runs in a web browser */
+  | "web"
+  /** Host runs as a desktop application */
+  | "desktop"
+  /** Host runs on a mobile device */
+  | "mobile";
+/**
+ * UI theme preference per SEP-1865
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsSetHostContextDetailsTheme".
+ */
+/** @experimental */
+export type McpAppsSetHostContextDetailsTheme =
+  /** Light UI theme */
+  | "light"
+  /** Dark UI theme */
+  | "dark";
+/**
+ * Current display mode (SEP-1865)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsSetHostContextDetailsDisplayMode".
+ */
+/** @experimental */
+export type McpAppsSetHostContextDetailsDisplayMode =
+  /** Rendered inline within the host conversation surface */
+  | "inline"
+  /** Rendered as a fullscreen overlay */
+  | "fullscreen"
+  /** Rendered as a picture-in-picture floating panel */
+  | "pip";
+/**
+ * Allowed values for the `McpAppsSetHostContextDetailsAvailableDisplayMode` enumeration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsSetHostContextDetailsAvailableDisplayMode".
+ */
+/** @experimental */
+export type McpAppsSetHostContextDetailsAvailableDisplayMode =
+  /** Rendered inline within the host conversation surface */
+  | "inline"
+  /** Rendered as a fullscreen overlay */
+  | "fullscreen"
+  /** Rendered as a picture-in-picture floating panel */
+  | "pip";
+/**
+ * Platform type for responsive design
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsSetHostContextDetailsPlatform".
+ */
+/** @experimental */
+export type McpAppsSetHostContextDetailsPlatform =
+  /** Host runs in a web browser */
+  | "web"
+  /** Host runs as a desktop application */
+  | "desktop"
+  /** Host runs on a mobile device */
+  | "mobile";
 /**
  * MCP server configuration (stdio process or remote HTTP/SSE)
  *
@@ -2177,6 +2285,12 @@ export interface ExternalToolTextResultForLlmBinaryResultsForLlm {
    * Human-readable description of the binary data
    */
   description?: string;
+  /**
+   * Optional metadata from the producing tool.
+   */
+  metadata?: {
+    [k: string]: unknown | undefined;
+  };
 }
 /**
  * Plain text content block
@@ -2767,6 +2881,274 @@ export interface LspInitializeRequest {
    * Force re-initialization even when LSP configs were already loaded for the working directory.
    */
   force?: boolean;
+}
+/**
+ * MCP server, tool name, and arguments to invoke from an MCP App view.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsCallToolRequest".
+ */
+/** @experimental */
+export interface McpAppsCallToolRequest {
+  /**
+   * MCP server hosting the tool
+   */
+  serverName: string;
+  /**
+   * MCP tool name
+   */
+  toolName: string;
+  /**
+   * Tool arguments
+   */
+  arguments?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
+   */
+  originServerName: string;
+}
+/**
+ * Capability negotiation snapshot
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsDiagnoseCapability".
+ */
+/** @experimental */
+export interface McpAppsDiagnoseCapability {
+  /**
+   * Whether the session has the `mcp-apps` capability
+   */
+  sessionHasMcpApps: boolean;
+  /**
+   * Whether the MCP_APPS feature flag (or COPILOT_MCP_APPS env override) is on
+   */
+  featureFlagEnabled: boolean;
+  /**
+   * Whether the runtime advertises `extensions.io.modelcontextprotocol/ui` to MCP servers
+   */
+  advertised: boolean;
+}
+/**
+ * MCP server to diagnose MCP Apps wiring for.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsDiagnoseRequest".
+ */
+/** @experimental */
+export interface McpAppsDiagnoseRequest {
+  /**
+   * MCP server to probe
+   */
+  serverName: string;
+}
+/**
+ * Diagnostic snapshot of MCP Apps wiring for the named server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsDiagnoseResult".
+ */
+/** @experimental */
+export interface McpAppsDiagnoseResult {
+  capability: McpAppsDiagnoseCapability;
+  server: McpAppsDiagnoseServer;
+}
+/**
+ * What the server returned for this session
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsDiagnoseServer".
+ */
+/** @experimental */
+export interface McpAppsDiagnoseServer {
+  /**
+   * Whether the named server is currently connected
+   */
+  connected: boolean;
+  /**
+   * Total tools returned by the server's tools/list
+   */
+  toolCount: number;
+  /**
+   * Tools whose `_meta.ui` is populated (resourceUri and/or visibility set)
+   */
+  toolsWithUiMeta: number;
+  /**
+   * Up to 5 tool names with `_meta.ui` for quick inspection
+   */
+  sampleToolNames: string[];
+}
+/**
+ * Current host context advertised to MCP App guests.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsHostContext".
+ */
+/** @experimental */
+export interface McpAppsHostContext {
+  context: McpAppsHostContextDetails;
+}
+/**
+ * Current host context
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsHostContextDetails".
+ */
+/** @experimental */
+export interface McpAppsHostContextDetails {
+  theme?: McpAppsHostContextDetailsTheme;
+  /**
+   * BCP-47 locale, e.g. 'en-US'
+   */
+  locale?: string;
+  /**
+   * IANA timezone, e.g. 'America/New_York'
+   */
+  timeZone?: string;
+  displayMode?: McpAppsHostContextDetailsDisplayMode;
+  /**
+   * Display modes the host supports
+   */
+  availableDisplayModes?: McpAppsHostContextDetailsAvailableDisplayMode[];
+  platform?: McpAppsHostContextDetailsPlatform;
+  /**
+   * Host application identifier
+   */
+  userAgent?: string;
+  [k: string]: unknown | undefined;
+}
+/**
+ * MCP server to list app-callable tools for.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsListToolsRequest".
+ */
+/** @experimental */
+export interface McpAppsListToolsRequest {
+  /**
+   * MCP server hosting the app
+   */
+  serverName: string;
+  /**
+   * **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
+   */
+  originServerName: string;
+}
+/**
+ * App-callable tools from the named MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsListToolsResult".
+ */
+/** @experimental */
+export interface McpAppsListToolsResult {
+  /**
+   * App-callable tools from the server
+   */
+  tools: {
+    [k: string]: unknown | undefined;
+  }[];
+}
+/**
+ * MCP server and resource URI to fetch.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsReadResourceRequest".
+ */
+/** @experimental */
+export interface McpAppsReadResourceRequest {
+  /**
+   * Name of the MCP server hosting the resource
+   */
+  serverName: string;
+  /**
+   * Resource URI (typically ui://...)
+   */
+  uri: string;
+}
+/**
+ * Resource contents returned by the MCP server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsReadResourceResult".
+ */
+/** @experimental */
+export interface McpAppsReadResourceResult {
+  /**
+   * Resource contents returned by the server
+   */
+  contents: McpAppsResourceContent[];
+}
+/**
+ * Schema for the `McpAppsResourceContent` type.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsResourceContent".
+ */
+/** @experimental */
+export interface McpAppsResourceContent {
+  /**
+   * The resource URI (typically ui://...)
+   */
+  uri: string;
+  /**
+   * MIME type of the content
+   */
+  mimeType?: string;
+  /**
+   * Text content (e.g. HTML)
+   */
+  text?: string;
+  /**
+   * Base64-encoded binary content
+   */
+  blob?: string;
+  /**
+   * Resource-level metadata (CSP, permissions, etc.)
+   */
+  _meta?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Host context advertised to MCP App guests
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsSetHostContextDetails".
+ */
+/** @experimental */
+export interface McpAppsSetHostContextDetails {
+  theme?: McpAppsSetHostContextDetailsTheme;
+  /**
+   * BCP-47 locale, e.g. 'en-US'
+   */
+  locale?: string;
+  /**
+   * IANA timezone, e.g. 'America/New_York'
+   */
+  timeZone?: string;
+  displayMode?: McpAppsSetHostContextDetailsDisplayMode;
+  /**
+   * Display modes the host supports
+   */
+  availableDisplayModes?: McpAppsSetHostContextDetailsAvailableDisplayMode[];
+  platform?: McpAppsSetHostContextDetailsPlatform;
+  /**
+   * Host application identifier
+   */
+  userAgent?: string;
+  [k: string]: unknown | undefined;
+}
+/**
+ * Host context to advertise to MCP App guests.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpAppsSetHostContextRequest".
+ */
+/** @experimental */
+export interface McpAppsSetHostContextRequest {
+  context: McpAppsSetHostContextDetails;
 }
 /**
  * The requestId previously passed to executeSampling that should be cancelled.
@@ -3506,21 +3888,50 @@ export interface ModelBilling {
  */
 export interface ModelBillingTokenPrices {
   /**
-   * Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+   * AI Credits cost per billing batch of input tokens
    */
   inputPrice?: number;
   /**
-   * Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+   * AI Credits cost per billing batch of output tokens
    */
   outputPrice?: number;
   /**
-   * Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+   * AI Credits cost per billing batch of cached tokens
    */
   cachePrice?: number;
   /**
    * Number of tokens per standard billing batch
    */
   batchSize?: number;
+  /**
+   * Maximum context window tokens for the default tier
+   */
+  contextMax?: number;
+  longContext?: ModelBillingTokenPricesLongContext;
+}
+/**
+ * Long context tier pricing (available for models with extended context windows)
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelBillingTokenPricesLongContext".
+ */
+export interface ModelBillingTokenPricesLongContext {
+  /**
+   * AI Credits cost per billing batch of input tokens
+   */
+  inputPrice?: number;
+  /**
+   * AI Credits cost per billing batch of output tokens
+   */
+  outputPrice?: number;
+  /**
+   * AI Credits cost per billing batch of cached tokens
+   */
+  cachePrice?: number;
+  /**
+   * Maximum context window tokens for the long context tier
+   */
+  contextMax?: number;
 }
 /**
  * Override individual model capabilities resolved by the runtime
@@ -8736,6 +9147,16 @@ export interface WorkspacesSaveLargePasteResult {
   } | null;
 }
 /**
+ * Standard MCP CallToolResult
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionMcpAppsCallToolResult".
+ */
+/** @experimental */
+export interface SessionMcpAppsCallToolResult {
+  [k: string]: unknown | undefined;
+}
+/**
  * Identifies the target session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9563,6 +9984,59 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
                  */
                 login: async (params: McpOauthLoginRequest): Promise<McpOauthLoginResult> =>
                     connection.sendRequest("session.mcp.oauth.login", { sessionId, ...params }),
+            },
+            /** @experimental */
+            apps: {
+                /**
+                 * Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
+                 *
+                 * @param params MCP server and resource URI to fetch.
+                 *
+                 * @returns Resource contents returned by the MCP server.
+                 */
+                readResource: async (params: McpAppsReadResourceRequest): Promise<McpAppsReadResourceResult> =>
+                    connection.sendRequest("session.mcp.apps.readResource", { sessionId, ...params }),
+                /**
+                 * List tools that an MCP App view is allowed to call (SEP-1865 visibility filter). Returns tools whose `_meta.ui.visibility` is unset (default `["model","app"]`) or includes `"app"`.
+                 *
+                 * @param params MCP server to list app-callable tools for.
+                 *
+                 * @returns App-callable tools from the named MCP server.
+                 */
+                listTools: async (params: McpAppsListToolsRequest): Promise<McpAppsListToolsResult> =>
+                    connection.sendRequest("session.mcp.apps.listTools", { sessionId, ...params }),
+                /**
+                 * Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.
+                 *
+                 * @param params MCP server, tool name, and arguments to invoke from an MCP App view.
+                 *
+                 * @returns Standard MCP CallToolResult
+                 */
+                callTool: async (params: McpAppsCallToolRequest): Promise<SessionMcpAppsCallToolResult> =>
+                    connection.sendRequest("session.mcp.apps.callTool", { sessionId, ...params }),
+                /**
+                 * Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.
+                 *
+                 * @param params Host context to advertise to MCP App guests.
+                 */
+                setHostContext: async (params: McpAppsSetHostContextRequest): Promise<void> =>
+                    connection.sendRequest("session.mcp.apps.setHostContext", { sessionId, ...params }),
+                /**
+                 * Read the current host context advertised to MCP App guests.
+                 *
+                 * @returns Current host context advertised to MCP App guests.
+                 */
+                getHostContext: async (): Promise<McpAppsHostContext> =>
+                    connection.sendRequest("session.mcp.apps.getHostContext", { sessionId }),
+                /**
+                 * Diagnose MCP Apps wiring for a specific MCP server. Reports the session capability, feature-flag state, advertised extension, and how many tools have `_meta.ui` populated.
+                 *
+                 * @param params MCP server to diagnose MCP Apps wiring for.
+                 *
+                 * @returns Diagnostic snapshot of MCP Apps wiring for the named server.
+                 */
+                diagnose: async (params: McpAppsDiagnoseRequest): Promise<McpAppsDiagnoseResult> =>
+                    connection.sendRequest("session.mcp.apps.diagnose", { sessionId, ...params }),
             },
         },
         /** @experimental */
