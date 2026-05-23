@@ -109,6 +109,20 @@ export interface CanvasActionContext {
     host?: CanvasHostContext;
 }
 
+/** Context handed to a canvas's `onClose` handler. */
+export interface CanvasLifecycleContext {
+    /** Session owning the canvas instance. */
+    sessionId: string;
+    /** Extension id that owns the canvas. */
+    extensionId: string;
+    /** Canvas id (matches the declaring `CanvasDeclaration.id`). */
+    canvasId: string;
+    /** Instance id this lifecycle event applies to. */
+    instanceId: string;
+    /** Host capabilities supplied by the runtime. */
+    host?: CanvasHostContext;
+}
+
 /** Structured error returned from canvas handlers. */
 export class CanvasError extends Error {
     constructor(
@@ -152,6 +166,13 @@ export interface CanvasOptions {
      * If omitted, dispatched actions return `canvas_action_no_handler`.
      */
     onAction?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
+
+    /**
+     * Optional. Notified when a canvas instance is closed by the user, the
+     * agent, or the host. Fire-and-forget: the return value is ignored and
+     * errors are logged but not surfaced to the runtime.
+     */
+    onClose?: (ctx: CanvasLifecycleContext) => Promise<void> | void;
 }
 
 /** A registered canvas: declarative metadata + in-process handler closures. */
@@ -159,6 +180,7 @@ export class Canvas {
     readonly declaration: CanvasDeclaration;
     readonly open: NonNullable<CanvasOptions["open"]>;
     readonly onAction?: CanvasOptions["onAction"];
+    readonly onClose?: CanvasOptions["onClose"];
 
     /** @internal */
     constructor(options: CanvasOptions) {
@@ -171,6 +193,7 @@ export class Canvas {
         };
         this.open = options.open;
         this.onAction = options.onAction;
+        this.onClose = options.onClose;
     }
 }
 
@@ -218,6 +241,15 @@ export async function dispatchCanvasProviderRequest(
             return result ?? {};
         }
         case "canvas.close": {
+            if (canvas.onClose) {
+                await canvas.onClose({
+                    sessionId: params.sessionId,
+                    extensionId: params.extensionId,
+                    canvasId: params.canvasId,
+                    instanceId: params.instanceId,
+                    host: params.host,
+                });
+            }
             return undefined;
         }
         default: {
