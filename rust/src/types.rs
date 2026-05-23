@@ -1853,6 +1853,8 @@ pub struct ResumeSessionConfig {
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
     pub canvases: Option<Vec<Canvas>>,
+    /// Open canvas instances the caller knows were open before this resume.
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
     /// Request canvas renderer tools for this connection.
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
@@ -1961,6 +1963,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
+            .field("open_canvases", &self.open_canvases)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
             .field("extension_info", &self.extension_info)
@@ -2088,6 +2091,7 @@ impl ResumeSessionConfig {
             system_message: self.system_message,
             tools: self.tools,
             canvases: wire_canvases,
+            open_canvases: self.open_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
             extension_info: self.extension_info,
@@ -2153,6 +2157,7 @@ impl ResumeSessionConfig {
             system_message: None,
             tools: None,
             canvases: None,
+            open_canvases: None,
             request_canvas_renderer: None,
             request_extensions: None,
             extension_info: None,
@@ -2313,6 +2318,15 @@ impl ResumeSessionConfig {
     /// Re-supply canvas declarations and provider handlers on resume.
     pub fn with_canvases<I: IntoIterator<Item = Canvas>>(mut self, canvases: I) -> Self {
         self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Seed open canvas instances that were visible before resuming.
+    pub fn with_open_canvases<I: IntoIterator<Item = OpenCanvasInstance>>(
+        mut self,
+        open_canvases: I,
+    ) -> Self {
+        self.open_canvases = Some(open_canvases.into_iter().collect());
         self
     }
 

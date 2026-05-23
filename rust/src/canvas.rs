@@ -48,6 +48,18 @@ pub enum CanvasToolDefinitionDefer {
     Never,
 }
 
+/// Runtime-controlled routing state for an open canvas instance.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CanvasInstanceAvailability {
+    /// The owning provider is currently connected and routing calls will be dispatched normally.
+    Ready,
+    /// The owning provider is not currently connected; routing calls fail with
+    /// `canvas_provider_unavailable` until the agent re-issues `open_canvas` or
+    /// the provider reconnects.
+    Stale,
+}
+
 /// Declarative metadata for a single canvas, sent over the wire on
 /// `session.create` / `session.resume`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -177,6 +189,75 @@ pub struct OpenCanvasInstance {
     pub input: Option<Value>,
     /// Whether this snapshot came from an idempotent reopen.
     pub reopen: bool,
+    /// Runtime-controlled routing state for this instance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub availability: Option<CanvasInstanceAvailability>,
+}
+
+impl OpenCanvasInstance {
+    /// Construct an open canvas instance snapshot with the required fields set.
+    pub fn new(
+        instance_id: impl Into<String>,
+        extension_id: impl Into<String>,
+        canvas_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            instance_id: instance_id.into(),
+            extension_id: extension_id.into(),
+            extension_name: None,
+            canvas_id: canvas_id.into(),
+            title: None,
+            status: None,
+            url: None,
+            toolbar: None,
+            tools: None,
+            input: None,
+            reopen: false,
+            availability: None,
+        }
+    }
+
+    /// Set the owning extension display name.
+    pub fn with_extension_name(mut self, extension_name: impl Into<String>) -> Self {
+        self.extension_name = Some(extension_name.into());
+        self
+    }
+
+    /// Set the rendered title.
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    /// Set the provider-supplied status text.
+    pub fn with_status(mut self, status: impl Into<String>) -> Self {
+        self.status = Some(status.into());
+        self
+    }
+
+    /// Set the URL for web-rendered canvases.
+    pub fn with_url(mut self, url: impl Into<String>) -> Self {
+        self.url = Some(url.into());
+        self
+    }
+
+    /// Set the input supplied when the instance was opened.
+    pub fn with_input(mut self, input: Value) -> Self {
+        self.input = Some(input);
+        self
+    }
+
+    /// Set whether this snapshot came from an idempotent reopen.
+    pub fn with_reopen(mut self, reopen: bool) -> Self {
+        self.reopen = reopen;
+        self
+    }
+
+    /// Set the runtime-controlled routing availability.
+    pub fn with_availability(mut self, availability: CanvasInstanceAvailability) -> Self {
+        self.availability = Some(availability);
+        self
+    }
 }
 
 /// Result returned by [`SessionCanvas::discover`](crate::session::SessionCanvas::discover).

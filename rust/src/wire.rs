@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use crate::canvas::CanvasDeclaration;
+use crate::canvas::{CanvasDeclaration, OpenCanvasInstance};
 use crate::generated::api_types::{ModelCapabilitiesOverride, RemoteSessionMode};
 use crate::types::{
     CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
@@ -129,6 +129,8 @@ pub(crate) struct SessionResumeWire {
     pub tools: Option<Vec<Tool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canvases: Option<Vec<CanvasDeclaration>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_canvas_renderer: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -8,8 +8,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use github_copilot_sdk::canvas::{
     Canvas, CanvasActionContext, CanvasCloseRequest, CanvasDeclaration, CanvasHandler,
-    CanvasInvokeActionRequest, CanvasOpenContext, CanvasOpenRequest, CanvasOpenResponse,
-    CanvasResult,
+    CanvasInstanceAvailability, CanvasInvokeActionRequest, CanvasOpenContext, CanvasOpenRequest,
+    CanvasOpenResponse, CanvasResult, OpenCanvasInstance,
 };
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
@@ -2613,7 +2613,18 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                 .with_canvases([test_canvas("counter")])
                 .with_request_canvas_renderer(true)
                 .with_request_extensions(true)
-                .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"));
+                .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"))
+                .with_open_canvases([OpenCanvasInstance::new(
+                    "counter-1",
+                    "github-app:counter-provider",
+                    "counter",
+                )
+                .with_extension_name("Counter Provider")
+                .with_title("Counter")
+                .with_status("ready")
+                .with_url("https://example.test/counter")
+                .with_input(serde_json::json!({ "seed": 1 }))
+                .with_availability(CanvasInstanceAvailability::Stale)]);
             client.resume_session(cfg).await.unwrap()
         }
     });
@@ -2628,7 +2639,10 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
         request["params"]["extensionInfo"]["name"],
         "counter-provider"
     );
-    assert!(request["params"].get("openCanvasInstances").is_none());
+    assert_eq!(
+        request["params"]["openCanvases"][0]["availability"],
+        "stale"
+    );
 
     let id = request["id"].as_u64().unwrap();
     let response = serde_json::json!({
@@ -2641,7 +2655,8 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                 "canvasId": "counter",
                 "instanceId": "counter-1",
                 "url": "https://example.test/counter",
-                "reopen": false
+                "reopen": false,
+                "availability": "ready"
             }],
             "capabilities": {
                 "ui": { "canvases": true }
@@ -2660,6 +2675,10 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
     let open = session.open_canvases();
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(
+        open[0].availability,
+        Some(CanvasInstanceAvailability::Ready)
+    );
     let caps = session.capabilities();
     assert_eq!(caps.ui.unwrap().canvases, Some(true));
 }
