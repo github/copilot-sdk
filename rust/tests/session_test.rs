@@ -914,9 +914,20 @@ fn permission_request_data_extracts_typed_kind() {
 
     let custom: PermissionRequestData = serde_json::from_value(serde_json::json!({
         "kind": "custom-tool",
+        "toolName": "open_canvas",
+        "args": {
+            "extensionId": "github-app:counter-provider",
+            "canvasId": "counter",
+            "instanceId": "counter-1"
+        }
     }))
     .unwrap();
     assert_eq!(custom.kind, Some(PermissionRequestKind::CustomTool));
+    assert_eq!(custom.extra["toolName"], "open_canvas");
+    assert_eq!(
+        custom.extra["args"]["extensionId"],
+        "github-app:counter-provider"
+    );
 
     // Unknown kinds fall through to the catch-all variant rather than failing.
     let unknown: PermissionRequestData = serde_json::from_value(serde_json::json!({
