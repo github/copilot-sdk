@@ -174,6 +174,82 @@ final class SessionRequestBuilder {
     }
 
     /**
+     * Builds a CreateSessionRequest for cloud session creation. Unlike
+     * {@link #buildCreateRequest(SessionConfig, String)}, this method omits
+     * {@code sessionId} from the request — the runtime assigns the session id for
+     * cloud sessions.
+     *
+     * @param config
+     *            the session configuration (may be null)
+     * @return the built request object with {@code sessionId} left null
+     */
+    static CreateSessionRequest buildCloudCreateRequest(SessionConfig config) {
+        var request = new CreateSessionRequest();
+        // Always request permission callbacks to enable deny-by-default behavior
+        request.setRequestPermission(true);
+        // Always send envValueMode=direct for MCP servers
+        request.setEnvValueMode("direct");
+        // sessionId intentionally omitted: the runtime assigns the id for cloud
+        // sessions
+        if (config == null) {
+            return request;
+        }
+
+        request.setModel(config.getModel());
+        request.setClientName(config.getClientName());
+        request.setReasoningEffort(config.getReasoningEffort());
+        request.setTools(config.getTools());
+        request.setSystemMessage(config.getSystemMessage());
+        request.setAvailableTools(config.getAvailableTools());
+        request.setExcludedTools(config.getExcludedTools());
+        // provider intentionally omitted: cloud sessions use the runtime's provider
+        config.getEnableSessionTelemetry().ifPresent(request::setEnableSessionTelemetry);
+        if (config.getOnUserInputRequest() != null) {
+            request.setRequestUserInput(true);
+        }
+        if (config.getHooks() != null && config.getHooks().hasHooks()) {
+            request.setHooks(true);
+        }
+        request.setWorkingDirectory(config.getWorkingDirectory());
+        if (config.isStreaming()) {
+            request.setStreaming(true);
+        }
+        config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
+        request.setMcpServers(config.getMcpServers());
+        request.setCustomAgents(config.getCustomAgents());
+        request.setDefaultAgent(config.getDefaultAgent());
+        request.setAgent(config.getAgent());
+        request.setInfiniteSessions(config.getInfiniteSessions());
+        request.setSkillDirectories(config.getSkillDirectories());
+        request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setDisabledSkills(config.getDisabledSkills());
+        request.setConfigDir(config.getConfigDir());
+        config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
+        request.setModelCapabilities(config.getModelCapabilities());
+
+        if (config.getCommands() != null && !config.getCommands().isEmpty()) {
+            var wireCommands = config.getCommands().stream()
+                    .map(c -> new CommandWireDefinition(c.getName(), c.getDescription()))
+                    .collect(java.util.stream.Collectors.toList());
+            request.setCommands(wireCommands);
+        }
+        if (config.getOnElicitationRequest() != null) {
+            request.setRequestElicitation(true);
+        }
+        if (config.getOnExitPlanMode() != null) {
+            request.setRequestExitPlanMode(true);
+        }
+        if (config.getOnAutoModeSwitch() != null) {
+            request.setRequestAutoModeSwitch(true);
+        }
+        request.setGitHubToken(config.getGitHubToken());
+        request.setRemoteSession(config.getRemoteSession());
+        request.setCloud(config.getCloud());
+
+        return request;
+    }
+
+    /**
      * Builds a ResumeSessionRequest from the given session ID and configuration.
      *
      * @param sessionId

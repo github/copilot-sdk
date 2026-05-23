@@ -81,6 +81,7 @@ public final class CopilotClient implements AutoCloseable {
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
+    private final PendingRoutingState pendingRoutingState = new PendingRoutingState();
     private volatile CompletableFuture<Connection> connectionFuture;
     private volatile boolean disposed = false;
     private final String optionsHost;
@@ -210,7 +211,7 @@ public final class CopilotClient implements AutoCloseable {
 
             // Register handlers for server-to-client calls
             RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch,
-                    options.getExecutor());
+                    options.getExecutor(), pendingRoutingState);
             dispatcher.registerHandlers(rpc);
 
             // Verify protocol version
@@ -426,6 +427,10 @@ public final class CopilotClient implements AutoCloseable {
                             + "For example, to allow all permissions, use: "
                             + "new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
         }
+        if (config.getCloud() != null) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException(
+                    "CopilotClient.createSession does not support cloud sessions; use createCloudSession instead."));
+        }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
             // Pre-generate session ID so the session can be registered before the RPC call,
@@ -482,6 +487,155 @@ public final class CopilotClient implements AutoCloseable {
                 sessions.remove(sessionId);
                 LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
                         "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
+                throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
+            });
+        });
+    }
+
+    /**
+     * Creates a Mission Control–backed cloud session.
+     *
+     * <p>
+     * The runtime owns the session ID for cloud sessions. Do <strong>not</strong>
+     * set {@link SessionConfig#setSessionId(String) sessionId} or
+     * {@link SessionConfig#setProvider(com.github.copilot.sdk.json.ProviderConfig)
+     * provider} on the config; the SDK rejects both with
+     * {@link IllegalArgumentException}. The config must have
+     * {@link SessionConfig#setCloud(com.github.copilot.sdk.json.CloudSessionOptions)
+     * cloud} set;
+     * {@link SessionConfig#setOnPermissionRequest(com.github.copilot.sdk.json.PermissionHandler)
+     * onPermissionRequest} is required.
+     *
+     * <p>
+     * The SDK omits {@code sessionId} from the {@code session.create} wire request
+     * and registers the returned session under the id the runtime assigns. Any
+     * {@code session.event} notifications or inbound JSON-RPC requests that arrive
+     * between sending {@code session.create} and receiving its response are
+     * buffered (bounded, drop-oldest, up to
+     * {@value PendingRoutingState#BUFFER_LIMIT} per session id) and replayed once
+     * the session is registered.
+     *
+     * <p>
+     * Example:
+     *
+     * <pre>{@code
+     * var session = client.createCloudSession(new SessionConfig()
+     * 		.setCloud(new CloudSessionOptions()
+     * 				.setRepository(new CloudSessionRepository().setOwner("github").setName("copilot-sdk")))
+     * 		.setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
+     * }</pre>
+     *
+     * @param config
+     *            configuration for the cloud session; must have {@code cloud} set
+     *            and an {@code onPermissionRequest} handler; must not have
+     *            {@code sessionId} or {@code provider} set
+     * @return a future that resolves with the created {@link CopilotSession}
+     * @throws IllegalArgumentException
+     *             if validation fails (see above)
+     * @see SessionConfig#setCloud(com.github.copilot.sdk.json.CloudSessionOptions)
+     * @see com.github.copilot.sdk.json.PermissionHandler#APPROVE_ALL
+     * @since 1.6.0
+     */
+    public CompletableFuture<CopilotSession> createCloudSession(SessionConfig config) {
+        if (config == null || config.getOnPermissionRequest() == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("An onPermissionRequest handler is required when creating a session. "
+                            + "For example, to allow all permissions, use: "
+                            + "new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)"));
+        }
+        if (config.getCloud() == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("CopilotClient.createCloudSession requires config.cloud to be set."));
+        }
+        if (config.getSessionId() != null && !config.getSessionId().isEmpty()) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException(
+                    "CopilotClient.createCloudSession does not support a caller-provided sessionId; "
+                            + "the runtime assigns one."));
+        }
+        if (config.getProvider() != null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("CopilotClient.createCloudSession does not support config.provider; "
+                            + "cloud sessions use the runtime's provider."));
+        }
+
+        return ensureConnected().thenCompose(connection -> {
+            long totalNanos = System.nanoTime();
+
+            // Enter pending-routing mode before sending session.create so that any
+            // session.event notifications or inbound RPC requests that arrive during
+            // the in-flight RPC are buffered rather than dropped.
+            pendingRoutingState.incrementGuard();
+
+            var request = SessionRequestBuilder.buildCloudCreateRequest(config);
+
+            // Extract transform callbacks from the system message config.
+            var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
+            if (extracted.wireSystemMessage() != config.getSystemMessage()) {
+                request.setSystemMessage(extracted.wireSystemMessage());
+            }
+
+            long rpcNanos = System.nanoTime();
+            return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.createCloudSession session.create completed. Elapsed={Elapsed}", rpcNanos);
+
+                String returnedId = response.sessionId();
+                if (returnedId == null || returnedId.isEmpty()) {
+                    // No id: release the guard and surface the error. Any runtime session
+                    // created on the other side may leak — we have nothing to destroy.
+                    pendingRoutingState.decrementGuard();
+                    LOG.warning("Cloud session.create response missing sessionId; runtime session may leak");
+                    throw new RuntimeException(
+                            "Cloud session.create response did not include a sessionId; cannot register session.");
+                }
+
+                var session = new CopilotSession(returnedId, connection.rpc);
+                if (options.getExecutor() != null) {
+                    session.setExecutor(options.getExecutor());
+                }
+                SessionRequestBuilder.configureSession(session, config);
+                if (extracted.transformCallbacks() != null) {
+                    session.registerTransformCallbacks(extracted.transformCallbacks());
+                }
+
+                try {
+                    // Atomically register the session in the sessions map and drain any
+                    // buffered events/parked waiters. The sessions.put happens inside the
+                    // PendingRoutingState lock so concurrent tryBufferNotification /
+                    // tryParkRequest calls see the session as registered.
+                    var flush = pendingRoutingState.registerAndFlush(returnedId, session, sessions);
+
+                    session.setWorkspacePath(response.workspacePath());
+                    session.setCapabilities(response.capabilities());
+
+                    // Replay buffered session.event notifications
+                    for (var event : flush.events()) {
+                        session.dispatchEvent(event);
+                    }
+                    // Complete parked request waiters
+                    for (var waiter : flush.waiters()) {
+                        waiter.complete(session);
+                    }
+                } catch (Exception e) {
+                    // Roll back: remove session from map, release guard.
+                    sessions.remove(returnedId);
+                    pendingRoutingState.decrementGuard();
+                    LoggingHelpers.logTiming(LOG, Level.WARNING, e,
+                            "CopilotClient.createCloudSession post-registration setup failed. Elapsed={Elapsed}",
+                            totalNanos);
+                    throw e instanceof RuntimeException re ? re : new RuntimeException(e);
+                }
+
+                pendingRoutingState.decrementGuard();
+
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.createCloudSession complete. Elapsed={Elapsed}, SessionId=" + returnedId,
+                        totalNanos);
+                return session;
+            }).exceptionally(ex -> {
+                pendingRoutingState.decrementGuard();
+                LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                        "CopilotClient.createCloudSession failed. Elapsed={Elapsed}", totalNanos);
                 throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
             });
         });

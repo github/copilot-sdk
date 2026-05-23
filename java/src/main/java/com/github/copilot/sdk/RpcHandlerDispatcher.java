@@ -9,8 +9,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -49,6 +52,10 @@ final class RpcHandlerDispatcher {
     private final Map<String, CopilotSession> sessions;
     private final LifecycleEventDispatcher lifecycleDispatcher;
     private final Executor executor;
+    private final PendingRoutingState pendingState;
+
+    /** Timeout in seconds to wait for a pending cloud session to register. */
+    private static final int PENDING_SESSION_TIMEOUT_SECONDS = 60;
 
     /**
      * Creates a dispatcher with session registry and lifecycle dispatcher.
@@ -59,12 +66,16 @@ final class RpcHandlerDispatcher {
      *            callback for dispatching lifecycle events
      * @param executor
      *            the executor for async dispatch, or {@code null} for default
+     * @param pendingState
+     *            the pending-routing state for cloud sessions, or {@code null} to
+     *            disable pending routing
      */
     RpcHandlerDispatcher(Map<String, CopilotSession> sessions, LifecycleEventDispatcher lifecycleDispatcher,
-            Executor executor) {
+            Executor executor, PendingRoutingState pendingState) {
         this.sessions = sessions;
         this.lifecycleDispatcher = lifecycleDispatcher;
         this.executor = executor;
+        this.pendingState = pendingState;
     }
 
     /**
@@ -96,13 +107,28 @@ final class RpcHandlerDispatcher {
             JsonNode eventNode = params.get("event");
             LOG.fine("Received session.event: " + eventNode);
 
-            CopilotSession session = sessions.get(sessionId);
-            if (session != null && eventNode != null) {
-                SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
-                if (event != null) {
-                    session.dispatchEvent(event);
-                }
+            if (eventNode == null) {
+                return;
             }
+            SessionEvent event = MAPPER.treeToValue(eventNode, SessionEvent.class);
+            if (event == null) {
+                return;
+            }
+
+            // Fast path: session already registered — dispatch directly.
+            CopilotSession session = sessions.get(sessionId);
+            if (session != null) {
+                session.dispatchEvent(event);
+                return;
+            }
+
+            // Slow path: session not found. Attempt to buffer for a pending cloud
+            // session.create. The tryBufferNotification check is inside the pending
+            // state's lock so it's atomic with registerAndFlush's sessions.put.
+            if (pendingState != null && pendingState.tryBufferNotification(sessionId, event, sessions)) {
+                return; // buffered; will be replayed when session is registered
+            }
+            // session not registered and no pending routing active; silently drop
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Error handling session event", e);
         }
@@ -141,9 +167,8 @@ final class RpcHandlerDispatcher {
                 String toolName = params.get("toolName").asText();
                 JsonNode arguments = params.get("arguments");
 
-                CopilotSession session = sessions.get(sessionId);
+                CopilotSession session = resolveSessionForRequest(sessionId, requestIdLong, rpc);
                 if (session == null) {
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -203,7 +228,20 @@ final class RpcHandlerDispatcher {
                 String sessionId = params.get("sessionId").asText();
                 JsonNode permissionRequest = params.get("permissionRequest");
 
+                // Try to resolve the session; for a pending cloud session, park until
+                // registration. If not found and no pending routing, fall back to the
+                // protocol-correct DENIED_COULD_NOT_REQUEST_FROM_USER response.
                 CopilotSession session = sessions.get(sessionId);
+                if (session == null && pendingState != null) {
+                    CompletableFuture<CopilotSession> waiter = pendingState.tryParkRequest(sessionId, sessions);
+                    if (waiter != null) {
+                        try {
+                            session = waiter.get(PENDING_SESSION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                        } catch (Exception e) {
+                            session = null;
+                        }
+                    }
+                }
                 if (session == null) {
                     var result = new PermissionRequestResult()
                             .setKind(PermissionRequestResultKind.DENIED_COULD_NOT_REQUEST_FROM_USER);
@@ -254,11 +292,10 @@ final class RpcHandlerDispatcher {
                 JsonNode choicesNode = params.get("choices");
                 JsonNode allowFreeformNode = params.get("allowFreeform");
 
-                CopilotSession session = sessions.get(sessionId);
+                CopilotSession session = resolveSessionForRequest(sessionId, requestIdLong, rpc);
                 LOG.fine("Found session: " + (session != null));
                 if (session == null) {
                     LOG.fine("Session not found, sending error");
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -309,9 +346,8 @@ final class RpcHandlerDispatcher {
             try {
                 String sessionId = params.get("sessionId").asText();
 
-                CopilotSession session = sessions.get(sessionId);
+                CopilotSession session = resolveSessionForRequest(sessionId, requestIdLong, rpc);
                 if (session == null) {
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -363,9 +399,8 @@ final class RpcHandlerDispatcher {
             try {
                 String sessionId = params.get("sessionId").asText();
 
-                CopilotSession session = sessions.get(sessionId);
+                CopilotSession session = resolveSessionForRequest(sessionId, requestIdLong, rpc);
                 if (session == null) {
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -409,9 +444,8 @@ final class RpcHandlerDispatcher {
                 String hookType = params.get("hookType").asText();
                 JsonNode input = params.get("input");
 
-                CopilotSession session = sessions.get(sessionId);
+                CopilotSession session = resolveSessionForRequest(sessionId, requestIdLong, rpc);
                 if (session == null) {
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -454,9 +488,8 @@ final class RpcHandlerDispatcher {
                 String sessionId = params.has("sessionId") ? params.get("sessionId").asText() : null;
                 JsonNode sections = params.get("sections");
 
-                CopilotSession session = sessionId != null ? sessions.get(sessionId) : null;
+                CopilotSession session = resolveSessionForRequest(sessionId, requestIdLong, rpc);
                 if (session == null) {
-                    rpc.sendErrorResponse(requestIdLong, -32602, "Unknown session " + sessionId);
                     return;
                 }
 
@@ -497,6 +530,105 @@ final class RpcHandlerDispatcher {
             LOG.log(Level.SEVERE, "Invalid requestId for " + methodName + ": " + requestId, nfe);
             return -1;
         }
+    }
+
+    /**
+     * Resolve a session for an inbound RPC request, optionally parking until a
+     * pending cloud session is registered.
+     *
+     * <p>
+     * If the session is already registered, returns it immediately. If pending
+     * routing is active (a cloud {@code session.create} is in flight), parks this
+     * call until the session is registered or the guard expires. On failure, sends
+     * an error response and returns {@code null}.
+     *
+     * @param sessionId
+     *            the session id extracted from the request params
+     * @param requestId
+     *            the JSON-RPC request id (for error responses)
+     * @param rpc
+     *            the JSON-RPC client
+     * @return the resolved session, or {@code null} if an error was sent
+     */
+    private CopilotSession resolveSessionForRequest(String sessionId, long requestId, JsonRpcClient rpc) {
+        if (sessionId == null) {
+            try {
+                rpc.sendErrorResponse(requestId, -32602, "Missing sessionId in request");
+            } catch (IOException e) {
+                LOG.log(Level.SEVERE, "Failed to send missing-sessionId error", e);
+            }
+            return null;
+        }
+
+        // Fast path: session already registered
+        CopilotSession session = sessions.get(sessionId);
+        if (session != null) {
+            return session;
+        }
+
+        if (pendingState != null) {
+            CompletableFuture<CopilotSession> waiter = pendingState.tryParkRequest(sessionId, sessions);
+            if (waiter != null) {
+                if (waiter.isDone()) {
+                    // Session was already registered under tryParkRequest's lock —
+                    // complete synchronously. If the waiter was completed exceptionally
+                    // (e.g. overflow eviction just beat us to isDone()), send the
+                    // same -32603 error as the blocking path so the runtime isn't
+                    // left waiting for a reply that will never arrive.
+                    try {
+                        return waiter.get();
+                    } catch (ExecutionException e) {
+                        Throwable cause = e.getCause();
+                        try {
+                            rpc.sendErrorResponse(requestId, -32603, "Session " + sessionId + " not registered: "
+                                    + (cause != null ? cause.getMessage() : e.getMessage()));
+                        } catch (IOException ioe) {
+                            LOG.log(Level.SEVERE, "Failed to send synchronous registration-failed error", ioe);
+                        }
+                        return null;
+                    } catch (Exception e) {
+                        // fall through to send error
+                    }
+                } else {
+                    try {
+                        return waiter.get(PENDING_SESSION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                    } catch (TimeoutException e) {
+                        try {
+                            rpc.sendErrorResponse(requestId, -32603, "Session " + sessionId + " not registered within "
+                                    + PENDING_SESSION_TIMEOUT_SECONDS + "s");
+                        } catch (IOException ioe) {
+                            LOG.log(Level.SEVERE, "Failed to send timeout error", ioe);
+                        }
+                        return null;
+                    } catch (ExecutionException e) {
+                        Throwable cause = e.getCause();
+                        try {
+                            rpc.sendErrorResponse(requestId, -32603, "Session " + sessionId + " not registered: "
+                                    + (cause != null ? cause.getMessage() : e.getMessage()));
+                        } catch (IOException ioe) {
+                            LOG.log(Level.SEVERE, "Failed to send registration-failed error", ioe);
+                        }
+                        return null;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        try {
+                            rpc.sendErrorResponse(requestId, -32603, "Interrupted waiting for session " + sessionId);
+                        } catch (IOException ioe) {
+                            LOG.log(Level.SEVERE, "Failed to send interrupted error", ioe);
+                        }
+                        return null;
+                    }
+                }
+            }
+        }
+
+        // No pending routing active or pending routing returned null; send error
+        try {
+            rpc.sendErrorResponse(requestId, -32602, "Unknown session " + sessionId);
+        } catch (IOException e) {
+            LOG.log(Level.SEVERE, "Failed to send unknown-session error", e);
+        }
+        return null;
     }
 
     private void runAsync(Runnable task) {
