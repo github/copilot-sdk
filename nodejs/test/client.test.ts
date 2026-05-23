@@ -33,7 +33,7 @@ describe("CopilotClient", () => {
             displayName: "Counter",
             description: "A counter canvas",
             agentActions: [{ name: "increment", description: "Increment the counter" }],
-            onOpen: () => ({ url: "https://example.test/counter" }),
+            open: () => ({ url: "https://example.test/counter" }),
         });
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
@@ -77,7 +77,7 @@ describe("CopilotClient", () => {
             id: "counter",
             displayName: "Counter",
             description: "A counter canvas",
-            onOpen: () => ({ url: "https://example.test/counter" }),
+            open: () => ({ url: "https://example.test/counter" }),
         });
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
@@ -110,7 +110,7 @@ describe("CopilotClient", () => {
             id: "counter",
             displayName: "Counter",
             description: "A counter canvas",
-            onOpen: ({ instanceId }) => ({ url: `https://example.test/${instanceId}` }),
+            open: ({ instanceId }) => ({ url: `https://example.test/${instanceId}` }),
             onAction: ({ actionName, input }) => ({ actionName, input }),
         });
         const session = new CopilotSession("session-1", {} as any);
@@ -147,12 +147,12 @@ describe("CopilotClient", () => {
     });
 
     it("rejects direct canvas provider payloads without extension ids", async () => {
-        const onOpen = vi.fn(() => ({ url: "https://example.test/counter" }));
+        const open = vi.fn(() => ({ url: "https://example.test/counter" }));
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
             description: "A counter canvas",
-            onOpen,
+            open,
         });
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
@@ -166,7 +166,7 @@ describe("CopilotClient", () => {
                 instanceId: "counter-1",
             })
         ).rejects.toThrow("Invalid canvas provider request payload");
-        expect(onOpen).not.toHaveBeenCalled();
+        expect(open).not.toHaveBeenCalled();
     });
 
     it("throws for unknown direct canvas dispatches", async () => {

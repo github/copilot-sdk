@@ -20,7 +20,6 @@ export {
     type CanvasDeclaration,
     type CanvasHostContext,
     type CanvasJsonSchema,
-    type CanvasLifecycleContext,
     type CanvasOpenContext,
     type CanvasOpenResponse,
     type CanvasOptions,

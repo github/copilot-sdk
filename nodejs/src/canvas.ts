@@ -70,7 +70,7 @@ export interface CanvasDeclaration {
     toolbar?: CanvasToolbarItemDeclaration[];
 }
 
-/** Response returned from `onOpen`. */
+/** Response returned from `open`. */
 export interface CanvasOpenResponse {
     /** URL the host should render. Optional for native canvases. */
     url?: string;
@@ -91,7 +91,7 @@ export interface CanvasHostContext {
     };
 }
 
-/** Context handed to a canvas's `onOpen` handler. */
+/** Context handed to a canvas's `open` handler. */
 export interface CanvasOpenContext {
     /** Session that requested the canvas. */
     sessionId: string;
@@ -121,20 +121,6 @@ export interface CanvasActionContext {
     actionName: string;
     /** Validated `input` payload, shaped by the action's `inputSchema`. */
     input: unknown;
-    /** Host capabilities supplied by the runtime. */
-    host?: CanvasHostContext;
-}
-
-/** Context handed to a canvas's lifecycle hooks (`onFocus`, `onClose`, `onReload`). */
-export interface CanvasLifecycleContext {
-    /** Session owning the canvas instance. */
-    sessionId: string;
-    /** Extension id that owns the canvas. */
-    extensionId: string;
-    /** Canvas id (matches the declaring `CanvasDeclaration.id`). */
-    canvasId: string;
-    /** Instance id this lifecycle event applies to. */
-    instanceId: string;
     /** Host capabilities supplied by the runtime. */
     host?: CanvasHostContext;
 }
@@ -177,32 +163,20 @@ export interface CanvasOptions {
     toolbar?: CanvasToolbarItemDeclaration[];
 
     /** Required. Open a new canvas instance. */
-    onOpen: (ctx: CanvasOpenContext) => Promise<CanvasOpenResponse> | CanvasOpenResponse;
+    open: (ctx: CanvasOpenContext) => Promise<CanvasOpenResponse> | CanvasOpenResponse;
 
     /**
      * Optional. Handle a non-lifecycle action declared in `agentActions`.
      * If omitted, dispatched actions return `canvas_action_no_handler`.
      */
     onAction?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
-
-    /** Optional. Canvas was brought to the foreground. */
-    onFocus?: (ctx: CanvasLifecycleContext) => Promise<void> | void;
-
-    /** Optional. Canvas was closed by the user or agent. */
-    onClose?: (ctx: CanvasLifecycleContext) => Promise<void> | void;
-
-    /** Optional. Host requested a reload. */
-    onReload?: (ctx: CanvasLifecycleContext) => Promise<void> | void;
 }
 
 /** A registered canvas: declarative metadata + in-process handler closures. */
 export class Canvas {
     readonly declaration: CanvasDeclaration;
-    readonly onOpen: NonNullable<CanvasOptions["onOpen"]>;
+    readonly open: NonNullable<CanvasOptions["open"]>;
     readonly onAction?: CanvasOptions["onAction"];
-    readonly onFocus?: CanvasOptions["onFocus"];
-    readonly onClose?: CanvasOptions["onClose"];
-    readonly onReload?: CanvasOptions["onReload"];
 
     /** @internal */
     constructor(options: CanvasOptions) {
@@ -214,11 +188,8 @@ export class Canvas {
             agentActions: options.agentActions,
             toolbar: options.toolbar,
         };
-        this.onOpen = options.onOpen;
+        this.open = options.open;
         this.onAction = options.onAction;
-        this.onFocus = options.onFocus;
-        this.onClose = options.onClose;
-        this.onReload = options.onReload;
     }
 }
 
@@ -255,7 +226,7 @@ export async function dispatchCanvasProviderRequest(
 ): Promise<unknown> {
     switch (actionName) {
         case "canvas.open": {
-            const result = await canvas.onOpen({
+            const result = await canvas.open({
                 sessionId: params.sessionId,
                 extensionId: params.extensionId,
                 canvasId: params.canvasId,
@@ -268,20 +239,6 @@ export async function dispatchCanvasProviderRequest(
         case "canvas.focus":
         case "canvas.close":
         case "canvas.reload": {
-            const hook =
-                actionName === "canvas.focus"
-                    ? canvas.onFocus
-                    : actionName === "canvas.close"
-                      ? canvas.onClose
-                      : canvas.onReload;
-            if (!hook) return undefined;
-            await hook({
-                sessionId: params.sessionId,
-                extensionId: params.extensionId,
-                canvasId: params.canvasId,
-                instanceId: params.instanceId,
-                host: params.host,
-            });
             return undefined;
         }
         default: {

@@ -52,7 +52,7 @@ describe("joinSession", () => {
             id: "counter",
             displayName: "Counter",
             description: "A counter canvas",
-            onOpen: () => ({ url: "https://example.test/counter" }),
+            open: () => ({ url: "https://example.test/counter" }),
         });
 
         expect(canvas.declaration.id).toBe("counter");
