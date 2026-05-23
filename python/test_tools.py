@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from copilot import define_tool
 from copilot.tools import (
+    ToolError,
     ToolInvocation,
     ToolResult,
     _normalize_result,
@@ -196,6 +197,30 @@ class TestDefineTool:
         assert "error" in result.text_result_for_llm.lower()
         # But the actual error is stored internally
         assert result.error == "secret error message"
+
+    async def test_tool_error_is_surfaced_to_llm(self):
+        class Params(BaseModel):
+            pass
+
+        @define_tool("failing", description="A failing tool")
+        def failing_tool(params: Params, invocation: ToolInvocation) -> str:
+            raise ToolError("public error message")
+
+        invocation = ToolInvocation(
+            session_id="s1",
+            tool_call_id="c1",
+            tool_name="failing",
+            arguments={},
+        )
+
+        result = await failing_tool.handler(invocation)
+
+        assert result.result_type == "failure"
+        assert result.text_result_for_llm == "public error message"
+        assert result.error == "public error message"
+        # ToolError must take the deliberate-failure path so the structured
+        # result reaches the LLM verbatim.
+        assert result._from_exception is False
 
     async def test_function_style_api(self):
         class Params(BaseModel):

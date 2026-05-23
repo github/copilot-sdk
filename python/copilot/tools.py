@@ -18,6 +18,13 @@ from pydantic import BaseModel
 ToolResultType = Literal["success", "failure", "rejected", "denied", "timeout"]
 
 
+class ToolError(Exception):
+    """
+    Exception raised by tool handlers to return a failure result to the LLM.
+    Unlike other exceptions, the message is intentionally surfaced to the LLM.
+    """
+
+
 @dataclass
 class ToolBinaryResult:
     """Binary content returned by a tool."""
@@ -214,6 +221,14 @@ def define_tool(
                     result = await result
 
                 return _normalize_result(result)
+
+            except ToolError as exc:
+                msg = str(exc)
+                return ToolResult(
+                    text_result_for_llm=msg,
+                    result_type="failure",
+                    error=msg,
+                )
 
             except Exception as exc:
                 # Don't expose detailed error information to the LLM for security reasons.
