@@ -92,10 +92,9 @@ async fn rejected_when_version_out_of_range() {
     let err = res.unwrap_err();
     assert!(matches!(
         err.kind(),
-        github_copilot_sdk::ErrorKind::Protocol(github_copilot_sdk::ProtocolErrorKind::VersionMismatch {
-            server: 1,
-            ..
-        })
+        github_copilot_sdk::ErrorKind::Protocol(
+            github_copilot_sdk::ProtocolErrorKind::VersionMismatch { server: 1, .. }
+        )
     ));
     assert_eq!(version, None);
 }

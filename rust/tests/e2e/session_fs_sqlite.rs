@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use github_copilot_sdk::session_fs::{FsError, FsErrorKind};
 use github_copilot_sdk::{
-    Client, DirEntry, DirEntryKind, FileInfo, session_fs::{FsError, FsErrorKind}, SessionConfig, SessionFsCapabilities,
+    Client, DirEntry, DirEntryKind, FileInfo, SessionConfig, SessionFsCapabilities,
     SessionFsConfig, SessionFsConventions, SessionFsProvider, SessionFsSqliteProvider,
     SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
 };
@@ -53,7 +54,8 @@ impl InMemorySqliteProvider {
 
     fn get_or_create_db(db: &mut Option<Connection>) -> Result<&mut Connection, FsError> {
         if db.is_none() {
-            let conn = Connection::open_in_memory().map_err(|e| FsError::new(FsErrorKind::Other, e))?;
+            let conn =
+                Connection::open_in_memory().map_err(|e| FsError::new(FsErrorKind::Other, e))?;
             conn.execute_batch("PRAGMA busy_timeout = 5000;")
                 .map_err(|e| FsError::new(FsErrorKind::Other, e))?;
             *db = Some(conn);
@@ -261,15 +263,18 @@ impl SessionFsSqliteProvider for InMemorySqliteProvider {
                     .map(|i| stmt.column_name(i).unwrap().to_string())
                     .collect();
                 let mut rows = vec![];
-                let mut query_rows = stmt.query([]).map_err(|e| FsError::new(FsErrorKind::Other, e))?;
+                let mut query_rows = stmt
+                    .query([])
+                    .map_err(|e| FsError::new(FsErrorKind::Other, e))?;
                 while let Some(row) = query_rows
                     .next()
                     .map_err(|e| FsError::new(FsErrorKind::Other, e))?
                 {
                     let mut map = HashMap::new();
                     for (i, col) in columns.iter().enumerate() {
-                        let val: rusqlite::types::Value =
-                            row.get(i).map_err(|e| FsError::new(FsErrorKind::Other, e))?;
+                        let val: rusqlite::types::Value = row
+                            .get(i)
+                            .map_err(|e| FsError::new(FsErrorKind::Other, e))?;
                         let json_val = match val {
                             rusqlite::types::Value::Null => serde_json::Value::Null,
                             rusqlite::types::Value::Integer(n) => {

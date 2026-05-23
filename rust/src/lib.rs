@@ -756,10 +756,10 @@ impl Client {
             && options.base_directory.is_none()
             && options.session_fs.is_none()
         {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "ClientMode::Empty requires either `base_directory` or \
-                 `session_fs` to be set (no implicit ~/.copilot fallback)."
-                    .to_string(),
+                 `session_fs` to be set (no implicit ~/.copilot fallback).",
             ));
         }
         if let Some(cfg) = &options.session_fs {
@@ -1280,11 +1280,7 @@ impl Client {
         Ok(child)
     }
 
-    async fn spawn_tcp(
-        program: &Path,
-        options: &ClientOptions,
-        port: u16,
-    ) -> Result<(Child, u16)> {
+    async fn spawn_tcp(program: &Path, options: &ClientOptions, port: u16) -> Result<(Child, u16)> {
         info!(cwd = ?options.working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options);
         command
@@ -1426,7 +1422,8 @@ impl Client {
             if err.message.contains("Session not found") {
                 return Err(ErrorKind::Session(SessionErrorKind::NotFound(
                     session_id.unwrap_or_else(|| "unknown".into()),
-                )).into());
+                ))
+                .into());
             }
             return Err(Error::with_message(
                 ErrorKind::Rpc { code: err.code },
@@ -1528,7 +1525,8 @@ impl Client {
                     server: v,
                     min: MIN_PROTOCOL_VERSION,
                     max: SDK_PROTOCOL_VERSION,
-}).into());
+                })
+                .into());
             }
             Some(v) => {
                 if let Some(&existing) = self.inner.negotiated_protocol_version.get() {
@@ -1536,7 +1534,8 @@ impl Client {
                         return Err(ErrorKind::Protocol(ProtocolErrorKind::VersionChanged {
                             previous: existing,
                             current: v,
-                        }).into());
+                        })
+                        .into());
                     }
                 } else {
                     let _ = self.inner.negotiated_protocol_version.set(v);
@@ -2204,7 +2203,10 @@ mod tests {
             })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
-        assert!(matches!(err.kind(), ErrorKind::InvalidConfig), "got {err:?}");
+        assert!(
+            matches!(err.kind(), ErrorKind::InvalidConfig),
+            "got {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2217,7 +2219,10 @@ mod tests {
             })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
-        assert!(matches!(err.kind(), ErrorKind::InvalidConfig), "got {err:?}");
+        assert!(
+            matches!(err.kind(), ErrorKind::InvalidConfig),
+            "got {err:?}"
+        );
     }
 
     #[test]

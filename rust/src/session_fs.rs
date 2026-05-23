@@ -41,13 +41,18 @@
 //! }
 //! ```
 
+use std::borrow::{Borrow, Cow};
+use std::collections::HashMap;
+use std::fmt;
+
 use async_trait::async_trait;
-use std::{borrow::{Borrow, Cow}, collections::HashMap, fmt};
+
 pub use crate::generated::api_types::SessionFsSqliteQueryType;
-use crate::{Custom, Repr, generated::api_types::{
+use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
-}};
+};
+use crate::{Custom, Repr};
 
 /// Optional capabilities declared by a session filesystem provider.
 #[non_exhaustive]
@@ -183,9 +188,9 @@ impl FsError {
     /// The [`FsErrorKind`] of this error.
     pub fn kind(&self) -> &FsErrorKind {
         match &self.repr {
-            Repr::Simple(k)
-            | Repr::SimpleMessage(k, ..)
-            | Repr::Custom(Custom { kind: k, .. }) => k,
+            Repr::Simple(k) | Repr::SimpleMessage(k, ..) | Repr::Custom(Custom { kind: k, .. }) => {
+                k
+            }
         }
     }
 
@@ -243,7 +248,9 @@ impl std::error::Error for FsError {
 
 impl From<FsErrorKind> for FsError {
     fn from(kind: FsErrorKind) -> Self {
-        Self { repr: Repr::Simple(kind) }
+        Self {
+            repr: Repr::Simple(kind),
+        }
     }
 }
 
@@ -255,7 +262,6 @@ impl From<std::io::Error> for FsError {
         }
     }
 }
-
 
 /// File or directory metadata returned by [`SessionFsProvider::stat`].
 ///
@@ -384,7 +390,10 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     /// Read the full contents of a file as UTF-8.
     async fn read_file(&self, path: &str) -> Result<String, FsError> {
         let _ = path;
-        Err(FsError::with_message(FsErrorKind::Other, "read_file not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "read_file not supported",
+        ))
     }
 
     /// Write content to a file, creating parent directories if needed.
@@ -395,7 +404,10 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         mode: Option<i64>,
     ) -> Result<(), FsError> {
         let _ = (path, content, mode);
-        Err(FsError::with_message(FsErrorKind::Other, "write_file not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "write_file not supported",
+        ))
     }
 
     /// Append content to a file, creating parent directories if needed.
@@ -406,7 +418,10 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         mode: Option<i64>,
     ) -> Result<(), FsError> {
         let _ = (path, content, mode);
-        Err(FsError::with_message(FsErrorKind::Other, "append_file not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "append_file not supported",
+        ))
     }
 
     /// Check whether a path exists.
@@ -414,44 +429,65 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     /// Returns `Ok(false)` for non-existent paths, not [`FsErrorKind::NotFound`].
     async fn exists(&self, path: &str) -> Result<bool, FsError> {
         let _ = path;
-        Err(FsError::with_message(FsErrorKind::Other, "exists not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "exists not supported",
+        ))
     }
 
     /// Get metadata about a file or directory.
     async fn stat(&self, path: &str) -> Result<FileInfo, FsError> {
         let _ = path;
-        Err(FsError::with_message(FsErrorKind::Other, "stat not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "stat not supported",
+        ))
     }
 
     /// Create a directory. When `recursive`, missing parents are also created.
     async fn mkdir(&self, path: &str, recursive: bool, mode: Option<i64>) -> Result<(), FsError> {
         let _ = (path, recursive, mode);
-        Err(FsError::with_message(FsErrorKind::Other, "mkdir not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "mkdir not supported",
+        ))
     }
 
     /// List entry names in a directory.
     async fn readdir(&self, path: &str) -> Result<Vec<String>, FsError> {
         let _ = path;
-        Err(FsError::with_message(FsErrorKind::Other, "readdir not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "readdir not supported",
+        ))
     }
 
     /// List directory entries with type information.
     async fn readdir_with_types(&self, path: &str) -> Result<Vec<DirEntry>, FsError> {
         let _ = path;
-        Err(FsError::with_message(FsErrorKind::Other, "readdir_with_types not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "readdir_with_types not supported",
+        ))
     }
 
     /// Remove a file or directory. When `force`, missing paths are not an
     /// error. When `recursive`, directory contents are removed as well.
     async fn rm(&self, path: &str, recursive: bool, force: bool) -> Result<(), FsError> {
         let _ = (path, recursive, force);
-        Err(FsError::with_message(FsErrorKind::Other, "rm not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "rm not supported",
+        ))
     }
 
     /// Rename or move a file or directory.
     async fn rename(&self, src: &str, dest: &str) -> Result<(), FsError> {
         let _ = (src, dest);
-        Err(FsError::with_message(FsErrorKind::Other, "rename not supported"))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "rename not supported",
+        ))
     }
 
     /// Return a reference to the SQLite provider, if this provider supports
@@ -520,7 +556,9 @@ mod tests {
     fn fs_error_maps_io_not_found_to_enoent() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing.txt");
         let fs_err: FsError = io_err.into();
-        assert!(matches!(fs_err.kind(), FsErrorKind::NotFound(message) if message == "missing.txt"));
+        assert!(
+            matches!(fs_err.kind(), FsErrorKind::NotFound(message) if message == "missing.txt")
+        );
         let wire = fs_err.into_wire();
         assert_eq!(wire.code, SessionFsErrorCode::ENOENT);
     }
@@ -555,6 +593,8 @@ mod tests {
     async fn default_impls_return_unsupported() {
         let p = DefaultProvider;
         let err = p.read_file("/x").await.unwrap_err();
-        assert!(matches!(err.kind(), FsErrorKind::Other) && err.to_string().contains("not supported"));
+        assert!(
+            matches!(err.kind(), FsErrorKind::Other) && err.to_string().contains("not supported")
+        );
     }
 }

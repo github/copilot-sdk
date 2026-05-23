@@ -32,7 +32,10 @@ use crate::types::{
     SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
     UiInputOptions, ensure_attachment_display_names,
 };
-use crate::{Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification, error_codes};
+use crate::{
+    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
+    error_codes,
+};
 
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
@@ -311,9 +314,9 @@ impl Session {
         }
         // Fail any pending send_and_wait so it returns immediately.
         if let Some(waiter) = self.idle_waiter.lock().take() {
-            let _ = waiter
-                .tx
-                .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
+            let _ = waiter.tx.send(Err(
+                ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()
+            ));
         }
     }
 
@@ -803,11 +806,11 @@ impl Client {
         }
         let mode = self.inner.mode;
         if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "ClientMode::Empty requires available_tools to be set on the session config. \
                  Use ToolSet to specify which tools the session may use (e.g. \
-                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED))."
-                    .to_string(),
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
             ));
         }
         crate::mode::validate_tool_filter_list(
@@ -920,7 +923,8 @@ impl Client {
             return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: session_id,
                 returned: create_result.session_id,
-            }).into());
+            })
+            .into());
         }
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
 
@@ -976,11 +980,11 @@ impl Client {
         }
         let mode = self.inner.mode;
         if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "ClientMode::Empty requires available_tools to be set on the session config. \
                  Use ToolSet to specify which tools the session may use (e.g. \
-                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED))."
-                    .to_string(),
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
             ));
         }
         crate::mode::validate_tool_filter_list(
@@ -1099,7 +1103,8 @@ impl Client {
             return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: session_id,
                 returned: cli_session_id,
-            }).into());
+            })
+            .into());
         }
 
         // Reload skills after resume (best-effort).
@@ -1387,12 +1392,10 @@ async fn handle_notification(
                                             .map(|s| s.to_string())
                                     })
                                     .unwrap_or_else(|| "session error".to_string());
-                                let _ = waiter
-                                    .tx
-                                    .send(Err(Error::with_message(
-                                        ErrorKind::Session(SessionErrorKind::AgentError),
-                                        error_msg,
-                                    )));
+                                let _ = waiter.tx.send(Err(Error::with_message(
+                                    ErrorKind::Session(SessionErrorKind::AgentError),
+                                    error_msg,
+                                )));
                             }
                         }
                     }

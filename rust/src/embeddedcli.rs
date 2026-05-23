@@ -132,7 +132,8 @@ fn default_install_dir(version: &str) -> PathBuf {
 fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     let verbose = std::env::var("COPILOT_CLI_INSTALL_VERBOSE").ok().as_deref() == Some("1");
 
-    fs::create_dir_all(install_dir).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
+    fs::create_dir_all(install_dir)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
 
     let final_path = install_dir.join(CLI_BINARY_NAME);
 
@@ -164,9 +165,15 @@ fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliErr
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
-    for entry in tar.entries().map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))? {
-        let mut entry = entry.map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
-        let path = entry.path().map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+    for entry in tar
+        .entries()
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
+    {
+        let mut entry =
+            entry.map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+        let path = entry
+            .path()
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
         let name = path.to_string_lossy();
         if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
@@ -182,13 +189,17 @@ fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, Embedded
 #[cfg(all(has_bundled_cli, windows))]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let cursor = std::io::Cursor::new(archive);
-    let mut zip = zip::ZipArchive::new(cursor).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
+    let mut zip = zip::ZipArchive::new(cursor)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
     for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
+        let mut entry = zip
+            .by_index(i)
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
         let name = entry.name().to_string();
         if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
-            std::io::copy(&mut entry, &mut bytes).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
+            std::io::copy(&mut entry, &mut bytes)
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
             return Ok(bytes);
         }
     }
@@ -215,7 +226,8 @@ fn write_binary(path: &Path, data: &[u8]) -> Result<(), EmbeddedCliError> {
         .open(path)
         .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
 
-    file.write_all(data).map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
+    file.write_all(data)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
 
     #[cfg(unix)]
     {
@@ -276,7 +288,6 @@ impl EmbeddedCliError {
             }),
         }
     }
-
 }
 
 #[cfg(has_bundled_cli)]

@@ -35,8 +35,8 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt as _};
 
-use crate::{Custom, Repr};
 use crate::types::{SessionEvent, SessionLifecycleEvent};
+use crate::{Custom, Repr};
 
 /// The subscription fell behind the producer.
 ///
@@ -95,9 +95,9 @@ impl RecvError {
     /// The [`RecvErrorKind`] of this error.
     pub fn kind(&self) -> &RecvErrorKind {
         match &self.repr {
-            Repr::Simple(k)
-            | Repr::SimpleMessage(k, ..)
-            | Repr::Custom(Custom { kind: k, .. }) => k,
+            Repr::Simple(k) | Repr::SimpleMessage(k, ..) | Repr::Custom(Custom { kind: k, .. }) => {
+                k
+            }
         }
     }
 }
@@ -123,7 +123,9 @@ impl std::error::Error for RecvError {
 
 impl From<RecvErrorKind> for RecvError {
     fn from(kind: RecvErrorKind) -> Self {
-        Self { repr: Repr::Simple(kind) }
+        Self {
+            repr: Repr::Simple(kind),
+        }
     }
 }
 
@@ -156,9 +158,9 @@ macro_rules! define_subscription {
             /// Returns:
             ///
             /// - `Ok(event)` for the next delivered event.
-            /// - `Err(`[`RecvErrorKind::Lagged`]`)` if the subscriber fell behind;
+            /// - `Err(`[`RecvError`]`)` with [`RecvError::kind()`] [`RecvErrorKind::Lagged`] if the subscriber fell behind;
             ///   call `recv` again to continue from the next live event.
-            /// - `Err(`[`RecvErrorKind::Closed`]`)` once the producer is gone.
+            /// - `Err(`[`RecvError`]`)` with [`RecvError::kind()`] [`RecvErrorKind::Closed`] once the producer is gone.
             ///
             /// # Cancel safety
             ///
@@ -248,7 +250,10 @@ mod tests {
 
         assert_eq!(sub.recv().await.unwrap().id, "a");
         assert_eq!(sub.recv().await.unwrap().id, "b");
-        assert!(matches!(sub.recv().await.unwrap_err().kind(), RecvErrorKind::Closed));
+        assert!(matches!(
+            sub.recv().await.unwrap_err().kind(),
+            RecvErrorKind::Closed
+        ));
     }
 
     #[tokio::test]

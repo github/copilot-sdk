@@ -75,7 +75,8 @@ pub(crate) fn copilot_binary_with_extract_dir(
              `CliProgram::Path(...)` on `ClientOptions::program`."
                 .into(),
         ),
-    }.into())
+    }
+    .into())
 }
 
 /// Path to the CLI extracted into the per-user cache by `build.rs` when

@@ -1720,8 +1720,12 @@ async fn send_and_wait_returns_error_on_session_error() {
         .unwrap()
         .unwrap_err();
     assert!(
-        matches!(err.kind(), github_copilot_sdk::ErrorKind::Session(github_copilot_sdk::SessionErrorKind::AgentError))
-            && err.to_string().contains("something went wrong")
+        matches!(
+            err.kind(),
+            github_copilot_sdk::ErrorKind::Session(
+                github_copilot_sdk::SessionErrorKind::AgentError
+            )
+        ) && err.to_string().contains("something went wrong")
     );
 }
 
@@ -3307,8 +3311,9 @@ async fn command_execute_handler_error_propagates_to_ack() {
 // SessionFsProvider tests --------------------------------------------------
 
 use github_copilot_sdk::session_fs::{
-    DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConventions, SessionFsProvider,
-    SessionFsSqliteProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConventions,
+    SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
 };
 
 struct RecordingFsProvider {
@@ -3518,7 +3523,10 @@ async fn session_fs_maps_other_to_unknown() {
     #[async_trait]
     impl SessionFsProvider for AlwaysFails {
         async fn stat(&self, _path: &str) -> Result<FileInfo, FsError> {
-            Err(FsError::with_message(FsErrorKind::Other, "backing store unavailable"))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "backing store unavailable",
+            ))
         }
     }
 
@@ -3609,11 +3617,17 @@ async fn session_fs_maps_sqlite_errors_to_results() {
             _query: &str,
             _params: Option<&std::collections::HashMap<String, serde_json::Value>>,
         ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
-            Err(FsError::with_message(FsErrorKind::Other, "sqlite unavailable"))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "sqlite unavailable",
+            ))
         }
 
         async fn sqlite_exists(&self) -> Result<bool, FsError> {
-            Err(FsError::with_message(FsErrorKind::Other, "sqlite unavailable"))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "sqlite unavailable",
+            ))
         }
     }
 

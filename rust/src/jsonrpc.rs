@@ -352,9 +352,9 @@ impl JsonRpcClient {
 
             if let Some(value) = trimmed.strip_prefix(CONTENT_LENGTH_HEADER) {
                 content_length = Some(value.trim().parse::<usize>().map_err(|_| {
-                    Error::from(ErrorKind::Protocol(ProtocolErrorKind::InvalidContentLength(
-                        value.trim().to_string(),
-                    )))
+                    Error::from(ErrorKind::Protocol(
+                        ProtocolErrorKind::InvalidContentLength(value.trim().to_string()),
+                    ))
                 })?);
             }
         }

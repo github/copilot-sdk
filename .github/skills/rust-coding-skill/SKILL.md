@@ -13,7 +13,7 @@ Opinionated Rust rules for the Copilot Rust SDK (`rust/`). Priority order:
 
 ## Error handling
 
-The SDK's public error type is `crate::Error` (`rust/src/error.rs`). Add new
+The SDK's public error type is `crate::Error` (`rust/src/errors.rs`). Add new
 variants to `crate::ErrorKind` rather than introducing parallel error enums
 per module — every public failure mode is part of the API contract and should
 be expressible in one type.
