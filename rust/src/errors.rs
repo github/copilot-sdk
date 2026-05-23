@@ -1,9 +1,7 @@
 //! Crate errors.
 
 use std::{
-    borrow::{Borrow, Cow},
-    fmt,
-    time::Duration,
+    backtrace::{Backtrace, BacktraceStatus}, borrow::{Borrow, Cow}, fmt, time::Duration
 };
 use crate::types::SessionId;
 
@@ -228,9 +226,11 @@ impl fmt::Display for ErrorKind {
 }
 
 /// Errors returned by the SDK.
-#[derive(Debug)]
 pub struct Error {
     repr: Repr<ErrorKind>,
+    // Only `Some` when `RUST_BACKTRACE` is set; boxed so the `Some` variant
+    // doesn't inflate `Error` beyond `clippy::result_large_err` limits.
+    backtrace: Option<Box<Backtrace>>,
 }
 
 impl Error {
@@ -244,6 +244,7 @@ impl Error {
                 kind,
                 error: error.into(),
             }),
+            backtrace: capture_backtrace(),
         }
     }
 
@@ -272,6 +273,7 @@ impl Error {
     {
         Self {
             repr: Repr::SimpleMessage(kind, message.into()),
+            backtrace: capture_backtrace(),
         }
     }
 
@@ -308,6 +310,17 @@ impl fmt::Display for Error {
     }
 }
 
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut dbg = f.debug_struct("Error");
+        dbg.field("context", &self.repr);
+        if let Some(backtrace) = &self.backtrace {
+            return dbg.field("backtrace", backtrace).finish();
+        }
+        dbg.finish_non_exhaustive()
+    }
+}
+
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.repr {
@@ -321,6 +334,7 @@ impl From<ErrorKind> for Error {
     fn from(kind: ErrorKind) -> Self {
         Self {
             repr: Repr::Simple(kind),
+            backtrace: capture_backtrace(),
         }
     }
 }
@@ -346,6 +360,16 @@ impl From<std::io::Error> for Error {
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
         Self::new(ErrorKind::Json, error)
+    }
+}
+
+#[inline(always)]
+fn capture_backtrace() -> Option<Box<Backtrace>> {
+    let backtrace = Backtrace::capture();
+    if backtrace.status() == BacktraceStatus::Captured {
+        Some(Box::new(backtrace))
+    } else {
+        None
     }
 }
 
