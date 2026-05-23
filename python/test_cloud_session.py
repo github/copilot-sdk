@@ -307,8 +307,7 @@ class TestPendingRequestBufferOverflow:
 
             total = _PENDING_SESSION_BUFFER_LIMIT + 1  # 129 concurrent waiters
             tasks = [
-                asyncio.ensure_future(client._resolve_session(session_id))
-                for _ in range(total)
+                asyncio.ensure_future(client._resolve_session(session_id)) for _ in range(total)
             ]
 
             # Yield so all _resolve_session calls park on futures.
@@ -371,9 +370,7 @@ class TestPendingRequestGuardDropWithoutRegistration:
             client._client.request = mock_request
 
             session_id = "failing-cloud-session"
-            create_task = asyncio.ensure_future(
-                client.create_cloud_session(**_cloud_config())
-            )
+            create_task = asyncio.ensure_future(client.create_cloud_session(**_cloud_config()))
 
             # Yield so create_cloud_session enters pending-routing mode.
             await asyncio.sleep(0)
