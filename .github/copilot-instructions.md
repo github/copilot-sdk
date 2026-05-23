@@ -39,6 +39,8 @@
 
 ## Project-specific conventions & patterns ✅
 
+- **Cross-SDK features ship in a single PR.** When adding or changing a feature that lives in multiple SDKs (client/session API, wire protocol, etc.), put all the language implementations in **one** pull request — not one PR per language. The `sdk-consistency-review` workflow (`.github/workflows/sdk-consistency-review.md`) auto-reviews every PR touching `nodejs/`, `python/`, `go/`, or `dotnet/` and will flag per-language PRs as "missing in N other languages" even when follow-ups are planned. Exception: an early, isolated reference implementation (e.g. the Rust spike at PR #1394) can ship alone; the remaining languages then follow up as **one** consolidated PR.
+
 - Tools: each SDK has helper APIs to expose functions as tools; prefer the language's `DefineTool`/`@define_tool`/`CopilotTool.DefineTool` patterns (see language READMEs).
 - Infinite sessions are enabled by default and persist workspace state to `~/.copilot/session-state/{sessionId}`; compaction events are emitted (`session.compaction_start`, `session.compaction_complete`). See language READMEs for usage.
 - Streaming: when `streaming`/`Streaming=true` you receive delta events (`assistant.message_delta`, `assistant.reasoning_delta`) and final events (`assistant.message`, `assistant.reasoning`) — tests expect this behavior.
