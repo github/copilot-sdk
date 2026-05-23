@@ -966,7 +966,6 @@ impl Client {
         inject_trace_context(&mut params, &trace_ctx);
 
         let setup_start = Instant::now();
-        self.ensure_session_router_started();
         let pending_guard = self.begin_pending_session_routing();
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),

@@ -140,14 +140,12 @@ impl Drop for PendingSessionRouting {
 /// Internal to the SDK — consumers interact via `Client::register_session()`.
 pub(crate) struct SessionRouter {
     state: Arc<Mutex<SessionRouterState>>,
-    started: Mutex<bool>,
 }
 
 impl SessionRouter {
     pub(crate) fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(SessionRouterState::default())),
-            started: Mutex::new(false),
         }
     }
 
@@ -204,22 +202,17 @@ impl SessionRouter {
         state.pending.clear();
     }
 
-    /// Start the router tasks if not already running.
+    /// Spawn the notification and request routing tasks.
     ///
-    /// Takes the notification broadcast and request channel from the Client.
-    /// If `request_rx` is `None` (already taken by `take_request_rx()`),
-    /// only notification routing is available.
-    pub(crate) fn ensure_started(
+    /// Called exactly once during [`Client::from_streams`]. Takes the
+    /// notification broadcast and request channel from the Client. If
+    /// `request_rx` is `None` (already taken by `take_request_rx()`), only
+    /// notification routing is available.
+    pub(crate) fn start(
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
         request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
     ) {
-        let mut started = self.started.lock();
-        if *started {
-            return;
-        }
-        *started = true;
-
         // Notification routing task
         let state = self.state.clone();
         let mut notif_rx = notification_tx.subscribe();

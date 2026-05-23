@@ -1221,6 +1221,10 @@ impl Client {
             }),
         };
         client.spawn_lifecycle_dispatcher();
+        client
+            .inner
+            .router
+            .start(&client.inner.notification_tx, &client.inner.request_rx);
         debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             pid = ?pid,
@@ -1577,14 +1581,7 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> crate::router::SessionChannels {
-        self.ensure_session_router_started();
         self.inner.router.register(session_id)
-    }
-
-    pub(crate) fn ensure_session_router_started(&self) {
-        self.inner
-            .router
-            .ensure_started(&self.inner.notification_tx, &self.inner.request_rx);
     }
 
     /// Enter pending-routing mode on the router. While the returned guard is
@@ -1593,7 +1590,6 @@ impl Client {
     /// [`Client::create_cloud_session`] so the SDK can receive events that
     /// the runtime emits between `session.create` and the response.
     pub(crate) fn begin_pending_session_routing(&self) -> crate::router::PendingSessionRouting {
-        self.ensure_session_router_started();
         self.inner.router.begin_pending_session_routing()
     }
 
