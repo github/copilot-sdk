@@ -4,7 +4,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex as ParkingLotMutex;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
