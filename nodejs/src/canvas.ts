@@ -27,8 +27,9 @@ export interface CanvasToolDefinition {
     defer?: "auto" | "never";
 }
 
-/** A single agent-callable action contributed by a canvas. Names MUST NOT
- * start with `canvas.` - that prefix is reserved for lifecycle verbs.
+/** A single agent-callable action contributed by a canvas, as serialized over
+ * the wire. Names MUST NOT start with `canvas.` - that prefix is reserved for
+ * lifecycle verbs.
  */
 export interface CanvasAgentActionDeclaration {
     /** Action identifier, unique within the canvas. */
@@ -37,6 +38,18 @@ export interface CanvasAgentActionDeclaration {
     description?: string;
     /** Optional JSON Schema for the action's `input` payload. */
     inputSchema?: CanvasJsonSchema;
+}
+
+/**
+ * Authoring shape for an action passed to {@link createCanvas}. Extends the
+ * wire {@link CanvasAgentActionDeclaration} with an optional per-action
+ * `handler`. When set, the handler is preferred over the top-level
+ * {@link CanvasOptions.onAction} for matching `actionName` dispatches; it is
+ * stripped before the declaration is sent on the wire.
+ */
+export interface CanvasAction extends CanvasAgentActionDeclaration {
+    /** Optional per-action dispatch handler. */
+    handler?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
 }
 
 /**
@@ -155,15 +168,20 @@ export interface CanvasOptions {
     description: string;
     /** @see CanvasDeclaration.inputSchema */
     inputSchema?: CanvasJsonSchema;
-    /** @see CanvasDeclaration.actions */
-    actions?: CanvasAgentActionDeclaration[];
+    /**
+     * Agent-invocable actions exposed via `invoke_canvas_action`. Each action
+     * may carry its own optional `handler`; the action's wire metadata
+     * (`name`, `description`, `inputSchema`) is what reaches the runtime.
+     */
+    actions?: CanvasAction[];
 
     /** Required. Open a new canvas instance. */
     open: (ctx: CanvasOpenContext) => Promise<CanvasOpenResponse> | CanvasOpenResponse;
 
     /**
-     * Optional. Handle a non-lifecycle action declared in `actions`.
-     * If omitted, dispatched actions return `canvas_action_no_handler`.
+     * Optional. Fallback handler invoked when an action has no per-action
+     * `handler`. If neither is wired for the dispatched action, the SDK
+     * returns `canvas_action_no_handler`.
      */
     onAction?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
 
@@ -181,19 +199,32 @@ export class Canvas {
     readonly open: NonNullable<CanvasOptions["open"]>;
     readonly onAction?: CanvasOptions["onAction"];
     readonly onClose?: CanvasOptions["onClose"];
+    /** @internal */
+    readonly actionHandlers: Map<string, NonNullable<CanvasAction["handler"]>>;
 
     /** @internal */
     constructor(options: CanvasOptions) {
+        const actionHandlers = new Map<string, NonNullable<CanvasAction["handler"]>>();
+        const wireActions: CanvasAgentActionDeclaration[] | undefined = options.actions?.map(
+            ({ handler, ...wire }) => {
+                if (handler) {
+                    actionHandlers.set(wire.name, handler);
+                }
+                return wire;
+            }
+        );
+
         this.declaration = {
             id: options.id,
             displayName: options.displayName,
             description: options.description,
             inputSchema: options.inputSchema,
-            actions: options.actions,
+            actions: wireActions,
         };
         this.open = options.open;
         this.onAction = options.onAction;
         this.onClose = options.onClose;
+        this.actionHandlers = actionHandlers;
     }
 }
 
@@ -253,10 +284,7 @@ export async function dispatchCanvasProviderRequest(
             return undefined;
         }
         default: {
-            if (!canvas.onAction) {
-                throw CanvasError.noHandler();
-            }
-            return canvas.onAction({
+            const actionCtx: CanvasActionContext = {
                 sessionId: params.sessionId,
                 extensionId: params.extensionId,
                 canvasId: params.canvasId,
@@ -264,7 +292,15 @@ export async function dispatchCanvasProviderRequest(
                 actionName,
                 input: params.input,
                 host: params.host,
-            });
+            };
+            const perAction = canvas.actionHandlers.get(actionName);
+            if (perAction) {
+                return perAction(actionCtx);
+            }
+            if (canvas.onAction) {
+                return canvas.onAction(actionCtx);
+            }
+            throw CanvasError.noHandler();
         }
     }
 }

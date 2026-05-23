@@ -15,6 +15,7 @@ export {
     Canvas,
     CanvasError,
     createCanvas,
+    type CanvasAction,
     type CanvasActionContext,
     type CanvasAgentActionDeclaration,
     type CanvasDeclaration,
