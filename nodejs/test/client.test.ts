@@ -213,6 +213,96 @@ describe("CopilotClient", () => {
         await expect(parked).resolves.toEqual({ answer: "yes", wasFreeform: false });
     });
 
+    it("rejects parked requests with overflow error when buffer cap exceeded", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        let resolveCreate: ((value: unknown) => void) | undefined;
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            (method: unknown) => {
+                if (method !== "session.create") return Promise.resolve({});
+                return new Promise((resolve) => {
+                    resolveCreate = resolve;
+                });
+            }
+        );
+
+        const sessionPromise = client.createCloudSession({
+            onPermissionRequest: approveAll,
+            cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+            onUserInputRequest: async () => ({ answer: "ok", wasFreeform: false }),
+        });
+        await new Promise<void>((r) => setImmediate(r));
+
+        const handler = (
+            client as unknown as {
+                handleUserInputRequest: (p: {
+                    sessionId: string;
+                    question: string;
+                }) => Promise<{ answer: string; wasFreeform: boolean }>;
+            }
+        ).handleUserInputRequest.bind(client);
+
+        // Park 128 + 1 requests; the oldest must reject with overflow message.
+        // vscode-jsonrpc translates the rejection into a JSON-RPC error response
+        // back to the runtime so the request id isn't left hanging.
+        const parked: Promise<unknown>[] = [];
+        for (let i = 0; i < 129; i++) {
+            parked.push(handler({ sessionId: "cloud-session", question: `q${i}` }));
+        }
+
+        await expect(parked[0]).rejects.toThrow(/pending session buffer overflow/);
+
+        resolveCreate!({ sessionId: "cloud-session" });
+        await sessionPromise;
+
+        // The remaining 128 parked requests resolve after registration.
+        for (let i = 1; i < 129; i++) {
+            await expect(parked[i]).resolves.toEqual({ answer: "ok", wasFreeform: false });
+        }
+    });
+
+    it("rejects parked requests when pending routing ends without registration", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        let rejectCreate: ((err: Error) => void) | undefined;
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            (method: unknown) => {
+                if (method !== "session.create") return Promise.resolve({});
+                return new Promise((_resolve, reject) => {
+                    rejectCreate = reject;
+                });
+            }
+        );
+
+        const sessionPromise = client.createCloudSession({
+            onPermissionRequest: approveAll,
+            cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+        });
+        await new Promise<void>((r) => setImmediate(r));
+
+        const parked = (
+            client as unknown as {
+                handleUserInputRequest: (p: {
+                    sessionId: string;
+                    question: string;
+                }) => Promise<{ answer: string; wasFreeform: boolean }>;
+            }
+        ).handleUserInputRequest({ sessionId: "cloud-session", question: "ok?" });
+
+        // session.create fails before registration; guard drop must reject all
+        // parked waiters with a distinct message (separate from overflow).
+        rejectCreate!(new Error("create failed"));
+        await expect(sessionPromise).rejects.toThrow();
+
+        await expect(parked).rejects.toThrow(
+            /pending session routing ended before session was registered/
+        );
+    });
+
     it("forwards clientName in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();

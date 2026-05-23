@@ -1129,9 +1129,12 @@ export class CopilotClient {
                     this.pendingSessionEvents.clear();
                     for (const waiters of this.pendingSessionWaiters.values()) {
                         for (const w of waiters) {
+                            // Distinct phrasing from the overflow-eviction path so the
+                            // runtime / future debugging can tell the two cases apart.
+                            // Matches the Rust SDK message in PR #1394 (commit e0ff254f).
                             w.reject(
                                 new Error(
-                                    "Cloud session.create completed without registering this sessionId; request dropped"
+                                    "pending session routing ended before session was registered"
                                 )
                             );
                         }
@@ -2270,6 +2273,18 @@ export class CopilotClient {
                 if (!waiters) {
                     waiters = [];
                     this.pendingSessionWaiters.set(sessionId, waiters);
+                }
+                // Cap parked waiters per session id. When exceeded, reject the
+                // oldest with a distinct message; vscode-jsonrpc surfaces the
+                // rejection as a JSON-RPC error response to the runtime (rather
+                // than silently dropping, which would hang the runtime on the
+                // request id). Matches the Rust SDK fix in PR #1394 (commit
+                // 491b4427).
+                if (waiters.length >= CopilotClient.PENDING_SESSION_BUFFER_LIMIT) {
+                    const oldest = waiters.shift();
+                    if (oldest) {
+                        oldest.reject(new Error("pending session buffer overflow"));
+                    }
                 }
                 waiters.push({ resolve, reject });
             });
