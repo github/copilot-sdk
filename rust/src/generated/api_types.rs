@@ -2592,18 +2592,6 @@ pub struct McpExecuteSamplingParams {
     pub server_name: String,
 }
 
-/// MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpExecuteSamplingResult {}
-
 /// Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
 ///
 /// <div class="warning">
@@ -11418,6 +11406,36 @@ pub struct SessionFsSqliteExistsParams {
     /// Target session identifier
     pub session_id: SessionId,
 }
+
+/// MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
+
+/// The form values submitted by the user (present when action is 'accept')
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
+
+/// Standard MCP CallToolResult
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
 
 /// Where the agent definition was loaded from
 ///
