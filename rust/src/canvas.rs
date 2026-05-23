@@ -193,8 +193,7 @@ pub struct OpenCanvasInstance {
     /// Whether this snapshot came from an idempotent reopen.
     pub reopen: bool,
     /// Runtime-controlled routing state for this instance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub availability: Option<CanvasInstanceAvailability>,
+    pub availability: CanvasInstanceAvailability,
 }
 
 impl OpenCanvasInstance {
@@ -216,7 +215,7 @@ impl OpenCanvasInstance {
             tools: None,
             input: None,
             reopen: false,
-            availability: None,
+            availability: CanvasInstanceAvailability::Stale,
         }
     }
 
@@ -258,7 +257,7 @@ impl OpenCanvasInstance {
 
     /// Set the runtime-controlled routing availability.
     pub fn with_availability(mut self, availability: CanvasInstanceAvailability) -> Self {
-        self.availability = Some(availability);
+        self.availability = availability;
         self
     }
 }

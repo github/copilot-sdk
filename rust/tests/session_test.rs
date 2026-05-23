@@ -453,7 +453,8 @@ async fn session_canvas_host_api_sends_requests_and_tracks_open_instances() {
                 "extensionId": "project:counter",
                 "canvasId": "counter",
                 "url": "https://example.test/counter",
-                "reopen": false
+                "reopen": false,
+                "availability": "ready"
             }),
         )
         .await;
@@ -469,7 +470,8 @@ async fn session_canvas_host_api_sends_requests_and_tracks_open_instances() {
                     "extensionId": "project:counter",
                     "canvasId": "counter",
                     "url": "https://example.test/counter",
-                    "reopen": false
+                    "reopen": false,
+                    "availability": "ready"
                 }]
             }),
         )
@@ -2689,10 +2691,7 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
     let open = session.open_canvases();
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].instance_id, "counter-1");
-    assert_eq!(
-        open[0].availability,
-        Some(CanvasInstanceAvailability::Ready)
-    );
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
     let caps = session.capabilities();
     assert_eq!(caps.ui.unwrap().canvases, Some(true));
 }
