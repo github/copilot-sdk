@@ -31,8 +31,12 @@ struct SessionSenders {
 
 #[derive(Default)]
 struct PendingSessionMessages {
-    notifications: VecDeque<SessionEventNotification>,
-    requests: VecDeque<JsonRpcRequest>,
+    items: VecDeque<PendingItem>,
+}
+
+enum PendingItem {
+    Notification(SessionEventNotification),
+    Request(JsonRpcRequest),
 }
 
 #[derive(Default)]
@@ -45,11 +49,15 @@ struct SessionRouterState {
 impl SessionRouterState {
     fn register(&mut self, session_id: &SessionId, senders: SessionSenders) {
         if let Some(pending) = self.pending.remove(session_id.as_str()) {
-            for notification in pending.notifications {
-                let _ = senders.notifications.send(notification);
-            }
-            for request in pending.requests {
-                let _ = senders.requests.send(request);
+            for item in pending.items {
+                match item {
+                    PendingItem::Notification(n) => {
+                        let _ = senders.notifications.send(n);
+                    }
+                    PendingItem::Request(r) => {
+                        let _ = senders.requests.send(r);
+                    }
+                }
             }
         }
         self.sessions.insert(session_id.clone(), senders);
@@ -65,16 +73,11 @@ impl SessionRouterState {
         }
 
         let session_id = SessionId::from(session_id);
-        let pending = self.pending.entry(session_id.clone()).or_default();
-        if pending.notifications.len() >= PENDING_SESSION_BUFFER_LIMIT {
-            pending.notifications.pop_front();
-            warn!(
-                session_id = %session_id,
-                limit = PENDING_SESSION_BUFFER_LIMIT,
-                "pending session notification buffer full; dropping oldest notification"
-            );
-        }
-        pending.notifications.push_back(notification);
+        push_pending(
+            self.pending.entry(session_id.clone()).or_default(),
+            &session_id,
+            PendingItem::Notification(notification),
+        );
     }
 
     fn route_request(&mut self, request: JsonRpcRequest) {
@@ -101,17 +104,30 @@ impl SessionRouterState {
         }
 
         let session_id = SessionId::from(session_id);
-        let pending = self.pending.entry(session_id.clone()).or_default();
-        if pending.requests.len() >= PENDING_SESSION_BUFFER_LIMIT {
-            pending.requests.pop_front();
-            warn!(
-                session_id = %session_id,
-                limit = PENDING_SESSION_BUFFER_LIMIT,
-                "pending session request buffer full; dropping oldest request"
-            );
-        }
-        pending.requests.push_back(request);
+        push_pending(
+            self.pending.entry(session_id.clone()).or_default(),
+            &session_id,
+            PendingItem::Request(request),
+        );
     }
+}
+
+/// Push an item into a session's pending buffer, evicting the oldest entry
+/// (regardless of type) when the per-session limit is reached. A single
+/// FIFO across notifications and requests preserves cross-type arrival
+/// order, which matters because some session.event notifications must be
+/// observed by the consumer before later inbound requests (e.g. an
+/// "approval requested" event arriving before the matching tool call).
+fn push_pending(buf: &mut PendingSessionMessages, session_id: &SessionId, item: PendingItem) {
+    if buf.items.len() >= PENDING_SESSION_BUFFER_LIMIT {
+        buf.items.pop_front();
+        warn!(
+            session_id = %session_id,
+            limit = PENDING_SESSION_BUFFER_LIMIT,
+            "pending session buffer full; dropping oldest entry"
+        );
+    }
+    buf.items.push_back(item);
 }
 
 /// Guard that keeps the router in "pending routing" mode for cloud
@@ -354,7 +370,36 @@ mod tests {
 
         let state = router.state.lock();
         let pending = state.pending.get("remote").expect("pending bucket exists");
-        assert_eq!(pending.notifications.len(), PENDING_SESSION_BUFFER_LIMIT);
+        assert_eq!(pending.items.len(), PENDING_SESSION_BUFFER_LIMIT);
+    }
+
+    #[test]
+    fn pending_buffer_preserves_cross_type_arrival_order() {
+        // Interleave a request between notifications and make sure the
+        // request lands in its arrival slot relative to surrounding events
+        // on the consumer side, not batched after every notification.
+        let router = SessionRouter::new();
+        let guard = router.begin_pending_session_routing();
+
+        {
+            let mut state = router.state.lock();
+            state.route_notification("remote", make_notification("remote", "evt-0"));
+            state.route_request(make_request(1, "remote", "userInput.request"));
+            state.route_notification("remote", make_notification("remote", "evt-1"));
+        }
+
+        let sid = SessionId::from("remote");
+        let mut channels = router.register(&sid);
+        drop(guard);
+
+        // First notification flushes first, then the request lands in the
+        // request channel before the trailing notification is delivered.
+        let n0 = channels.notifications.try_recv().expect("first notif");
+        assert_eq!(n0.event.event_type, "evt-0");
+        let r = channels.requests.try_recv().expect("request");
+        assert_eq!(r.id, 1);
+        let n1 = channels.notifications.try_recv().expect("trailing notif");
+        assert_eq!(n1.event.event_type, "evt-1");
     }
 
     #[test]
