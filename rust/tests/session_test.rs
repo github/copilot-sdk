@@ -3741,7 +3741,7 @@ async fn create_session_errors_when_provider_required_but_missing() {
     // through Client::start; the unit-level behavior is covered by the
     // SessionError::SessionFsProviderRequired variant being constructible.
     // This test asserts the error type's display formatting is stable.
-    let err = github_copilot_sdk::SessionError::from(github_copilot_sdk::SessionErrorKind::SessionFsProviderRequired);
+    let err = github_copilot_sdk::SessionErrorKind::SessionFsProviderRequired;
     assert!(format!("{err}").contains("session_fs"));
 }
 

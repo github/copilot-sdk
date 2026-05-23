@@ -32,7 +32,7 @@ pub(crate) struct Custom<T: fmt::Debug> {
     pub(crate) error: Box<dyn std::error::Error + Send + Sync>,
 }
 
-// ── ProtocolErrorKind / ProtocolError ─────────────────────────────────────────
+// ── ProtocolErrorKind ─────────────────────────────────────────
 
 /// Specific protocol-level error kind in the JSON-RPC transport or CLI lifecycle.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,60 +101,7 @@ impl fmt::Display for ProtocolErrorKind {
     }
 }
 
-/// Errors in the JSON-RPC transport or CLI lifecycle.
-///
-/// Accessible via [`Error::kind`] when the kind is
-/// [`ErrorKind::Protocol`].
-#[derive(Debug)]
-pub struct ProtocolError {
-    repr: Repr<ProtocolErrorKind>,
-}
-
-impl ProtocolError {
-    /// The [`ProtocolErrorKind`] of this error.
-    pub fn kind(&self) -> &ProtocolErrorKind {
-        match &self.repr {
-            Repr::Simple(k)
-            | Repr::SimpleMessage(k, ..)
-            | Repr::Custom(Custom { kind: k, .. }) => k,
-        }
-    }
-
-    /// The message provided when this error was constructed, or `None`.
-    pub fn message(&self) -> Option<&str> {
-        match &self.repr {
-            Repr::SimpleMessage(_, m) => Some(m.borrow()),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for ProtocolError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.repr {
-            Repr::Simple(k) => write!(f, "{k}"),
-            Repr::SimpleMessage(_, m) => write!(f, "{m}"),
-            Repr::Custom(Custom { error, .. }) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl std::error::Error for ProtocolError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self.repr {
-            Repr::Custom(Custom { error, .. }) => Some(&**error),
-            _ => None,
-        }
-    }
-}
-
-impl From<ProtocolErrorKind> for ProtocolError {
-    fn from(kind: ProtocolErrorKind) -> Self {
-        Self { repr: Repr::Simple(kind) }
-    }
-}
-
-// ── SessionErrorKind / SessionError ───────────────────────────────────────────
+// ── SessionErrorKind ───────────────────────────────────────────
 
 /// Session-scoped error kind.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -228,61 +175,6 @@ impl fmt::Display for SessionErrorKind {
                 "CLI returned session ID {returned} after SDK registered {requested}"
             ),
         }
-    }
-}
-
-/// Session-scoped errors.
-///
-/// Accessible via [`Error::kind`] when the kind is [`ErrorKind::Session`].
-#[derive(Debug)]
-pub struct SessionError {
-    repr: Repr<SessionErrorKind>,
-}
-
-impl SessionError {
-    /// The [`SessionErrorKind`] of this error.
-    pub fn kind(&self) -> &SessionErrorKind {
-        match &self.repr {
-            Repr::Simple(k)
-            | Repr::SimpleMessage(k, ..)
-            | Repr::Custom(Custom { kind: k, .. }) => k,
-        }
-    }
-
-    /// The message provided when this error was constructed, or `None`.
-    pub fn message(&self) -> Option<&str> {
-        match &self.repr {
-            Repr::SimpleMessage(_, m) => Some(m.borrow()),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for SessionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let &SessionErrorKind::InvalidSessionFsConfig = self.kind() {
-            write!(f, "{}: ", SessionErrorKind::InvalidSessionFsConfig)?;
-        }
-        match &self.repr {
-            Repr::Simple(k) => write!(f, "{k}"),
-            Repr::SimpleMessage(_, m) => write!(f, "{m}"),
-            Repr::Custom(Custom { error, .. }) => write!(f, "{error}"),
-        }
-    }
-}
-
-impl std::error::Error for SessionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self.repr {
-            Repr::Custom(Custom { error, .. }) => Some(&**error),
-            _ => None,
-        }
-    }
-}
-
-impl From<SessionErrorKind> for SessionError {
-    fn from(kind: SessionErrorKind) -> Self {
-        Self { repr: Repr::Simple(kind) }
     }
 }
 
