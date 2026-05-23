@@ -71,6 +71,7 @@ export type {
     ExitPlanModeHandler,
     ExitPlanModeRequest,
     ExitPlanModeResult,
+    ExtensionInfo,
     ForegroundSessionInfo,
     GetAuthStatusResponse,
     GetStatusResponse,

@@ -17,8 +17,8 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, MessageOptions, RequestId, SessionConfig, SessionId, Tool,
-    ToolInvocation, ToolResult,
+    ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
+    SessionId, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
@@ -336,7 +336,8 @@ async fn create_session_sends_canvas_wire_fields() {
                     SessionConfig::default()
                         .with_canvases([test_canvas("counter")])
                         .with_request_canvas_renderer(true)
-                        .with_request_extensions(true),
+                        .with_request_extensions(true)
+                        .with_extension_info(ExtensionInfo::new("github-app", "counter-provider")),
                 )
                 .await
                 .unwrap()
@@ -352,6 +353,11 @@ async fn create_session_sends_canvas_wire_fields() {
     );
     assert_eq!(request["params"]["requestCanvasRenderer"], true);
     assert_eq!(request["params"]["requestExtensions"], true);
+    assert_eq!(request["params"]["extensionInfo"]["source"], "github-app");
+    assert_eq!(
+        request["params"]["extensionInfo"]["name"],
+        "counter-provider"
+    );
 
     let id = request["id"].as_u64().unwrap();
     let session_id = requested_session_id(&request).to_string();
@@ -2606,7 +2612,8 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
             let cfg = ResumeSessionConfig::new(SessionId::from("canvas-resume"))
                 .with_canvases([test_canvas("counter")])
                 .with_request_canvas_renderer(true)
-                .with_request_extensions(true);
+                .with_request_extensions(true)
+                .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"));
             client.resume_session(cfg).await.unwrap()
         }
     });
@@ -2616,6 +2623,11 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
     assert_eq!(request["params"]["canvases"][0]["id"], "counter");
     assert_eq!(request["params"]["requestCanvasRenderer"], true);
     assert_eq!(request["params"]["requestExtensions"], true);
+    assert_eq!(request["params"]["extensionInfo"]["source"], "github-app");
+    assert_eq!(
+        request["params"]["extensionInfo"]["name"],
+        "counter-provider"
+    );
     assert!(request["params"].get("openCanvasInstances").is_none());
 
     let id = request["id"].as_u64().unwrap();

@@ -47,6 +47,7 @@ describe("CopilotClient", () => {
             canvases: [canvas],
             requestCanvasRenderer: true,
             requestExtensions: true,
+            extensionInfo: { source: "github-app", name: "counter-provider" },
         });
 
         const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
@@ -60,6 +61,10 @@ describe("CopilotClient", () => {
         ]);
         expect(payload.requestCanvasRenderer).toBe(true);
         expect(payload.requestExtensions).toBe(true);
+        expect(payload.extensionInfo).toEqual({
+            source: "github-app",
+            name: "counter-provider",
+        });
     });
 
     it("forwards canvas declarations in session.resume", async () => {
@@ -85,12 +90,17 @@ describe("CopilotClient", () => {
             canvases: [canvas],
             requestCanvasRenderer: true,
             requestExtensions: true,
+            extensionInfo: { source: "github-app", name: "counter-provider" },
         });
 
         const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
         expect(payload.canvases).toEqual([expect.objectContaining({ id: "counter" })]);
         expect(payload.requestCanvasRenderer).toBe(true);
         expect(payload.requestExtensions).toBe(true);
+        expect(payload.extensionInfo).toEqual({
+            source: "github-app",
+            name: "counter-provider",
+        });
         expect(payload.openCanvasInstances).toBeUndefined();
     });
 

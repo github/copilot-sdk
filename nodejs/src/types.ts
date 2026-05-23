@@ -1413,6 +1413,16 @@ export interface InfiniteSessionConfig {
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 /**
+ * Stable extension identity for session participants that provide canvases.
+ */
+export interface ExtensionInfo {
+    /** Extension namespace/source, e.g. "github-app". */
+    source: string;
+    /** Stable provider name within the source namespace. */
+    name: string;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -1489,6 +1499,13 @@ export interface SessionConfigBase {
      * stay clean.
      */
     requestExtensions?: boolean;
+
+    /**
+     * Stable extension identity for canvas providers on this connection. When
+     * set, the runtime uses `${source}:${name}` as the agent-facing extension
+     * id instead of a reconnect-specific connection id.
+     */
+    extensionInfo?: ExtensionInfo;
 
     /**
      * Slash commands registered for this session.
