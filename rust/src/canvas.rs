@@ -548,14 +548,20 @@ impl CanvasBuilder {
     }
 
     /// Finalize into a [`Canvas`].
-    pub fn build(self) -> Canvas {
-        let handler = self
-            .handler
-            .expect("Canvas::builder().handler(...) must be called before build()");
-        Canvas {
+    ///
+    /// Returns an error if no handler was attached.
+    pub fn build(self) -> CanvasResult<Canvas> {
+        let Some(handler) = self.handler else {
+            return Err(CanvasError::new(
+                "canvas_builder_missing_handler",
+                "Canvas::builder().handler(...) must be called before build()",
+            ));
+        };
+
+        Ok(Canvas {
             declaration: self.declaration,
             handler,
-        }
+        })
     }
 }
 
@@ -629,7 +635,12 @@ pub async fn dispatch_canvas_open(
             host: params.host,
         })
         .await?;
-    Ok(serde_json::to_value(response).unwrap_or(Value::Null))
+    serde_json::to_value(response).map_err(|error| {
+        CanvasError::new(
+            "canvas_open_response_serialization_failed",
+            format!("failed to serialize canvas.open response: {error}"),
+        )
+    })
 }
 
 /// Resolve a direct `canvas.focus`, `canvas.reload`, or `canvas.close` request.
@@ -743,7 +754,8 @@ mod tests {
     async fn dispatch_routes_canvas_open() {
         let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo"))
             .handler(Arc::new(EchoHandler))
-            .build();
+            .build()
+            .unwrap();
         let registry = build_registry(&[canvas]);
         let params = CanvasProviderRequestParams {
             session_id: SessionId::from("s1"),
@@ -765,7 +777,8 @@ mod tests {
     async fn dispatch_routes_custom_action() {
         let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo"))
             .handler(Arc::new(EchoHandler))
-            .build();
+            .build()
+            .unwrap();
         let registry = build_registry(&[canvas]);
 
         let result = dispatch_canvas_action(
@@ -804,5 +817,14 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(err.code, "canvas_not_found");
+    }
+
+    #[test]
+    fn builder_requires_handler() {
+        let err = Canvas::builder(CanvasDeclaration::new("echo", "Echo"))
+            .build()
+            .unwrap_err();
+
+        assert_eq!(err.code, "canvas_builder_missing_handler");
     }
 }

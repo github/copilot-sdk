@@ -55,6 +55,7 @@ fn test_canvas(id: &str) -> Canvas {
     )
     .handler(Arc::new(TestCanvasHandler))
     .build()
+    .unwrap()
 }
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {

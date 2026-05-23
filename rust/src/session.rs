@@ -638,9 +638,9 @@ impl Drop for Session {
 
 /// Canvas host sub-API for a [`Session`].
 ///
-/// Acquired via [`Session::canvas`]. Methods route to `session.canvas.*`
-/// RPCs, except [`list_open`](Self::list_open), which returns the SDK's local
-/// snapshot from resume and calls made through this handle.
+/// Acquired via [`Session::canvas`]. Methods route to `session.canvas.*` RPCs.
+/// [`list_open`](Self::list_open) calls `session.canvas.listOpen` and refreshes
+/// the SDK's local snapshot with the host's response.
 pub struct SessionCanvas<'a> {
     session: &'a Session,
 }
@@ -651,7 +651,8 @@ impl<'a> SessionCanvas<'a> {
         self.call_session_only("session.canvas.discover").await
     }
 
-    /// Lists currently open canvas instances for the live session.
+    /// Lists currently open canvas instances for the live session and refreshes
+    /// the SDK's local snapshot.
     pub async fn list_open(&self) -> Result<CanvasListOpenResult, Error> {
         let result: CanvasListOpenResult =
             self.call_session_only("session.canvas.listOpen").await?;

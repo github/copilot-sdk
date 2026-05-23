@@ -133,6 +133,32 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
     });
 }
 
+function isCanvasProviderRequestParams(params: unknown): params is CanvasProviderRequestParams {
+    if (!params || typeof params !== "object") {
+        return false;
+    }
+
+    const request = params as {
+        sessionId?: unknown;
+        extensionId?: unknown;
+        canvasId?: unknown;
+        instanceId?: unknown;
+    };
+    return (
+        typeof request.sessionId === "string" &&
+        typeof request.extensionId === "string" &&
+        typeof request.canvasId === "string" &&
+        typeof request.instanceId === "string"
+    );
+}
+
+function isCanvasActionInvokeParams(params: unknown): params is CanvasActionInvokeParams {
+    return (
+        isCanvasProviderRequestParams(params) &&
+        typeof (params as { actionName?: unknown }).actionName === "string"
+    );
+}
+
 /**
  * Extract transform callbacks from a system message config and prepare the wire payload.
  * Function-valued actions are replaced with `{ action: "transform" }` for serialization,
@@ -1910,8 +1936,7 @@ export class CopilotClient {
         );
         this.connection.onRequest(
             "canvas.action.invoke",
-            async (params: CanvasActionInvokeParams) =>
-                this.handleCanvasProviderRequest(params.actionName, params)
+            async (params: CanvasActionInvokeParams) => this.handleCanvasActionInvokeRequest(params)
         );
 
         // Register client session API handlers.
@@ -2120,14 +2145,9 @@ export class CopilotClient {
 
     private async handleCanvasProviderRequest(
         actionName: string,
-        params: CanvasActionInvokeParams | CanvasProviderRequestParams
+        params: unknown
     ): Promise<unknown> {
-        if (
-            !params ||
-            typeof params.sessionId !== "string" ||
-            typeof params.canvasId !== "string" ||
-            typeof params.instanceId !== "string"
-        ) {
+        if (!isCanvasProviderRequestParams(params)) {
             throw new Error("Invalid canvas provider request payload");
         }
 
@@ -2142,5 +2162,13 @@ export class CopilotClient {
         }
 
         return dispatchCanvasProviderRequest(canvas, actionName, params);
+    }
+
+    private async handleCanvasActionInvokeRequest(params: unknown): Promise<unknown> {
+        if (!isCanvasActionInvokeParams(params)) {
+            throw new Error("Invalid canvas provider request payload");
+        }
+
+        return this.handleCanvasProviderRequest(params.actionName, params);
     }
 }

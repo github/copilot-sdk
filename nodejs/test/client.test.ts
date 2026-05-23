@@ -128,6 +128,44 @@ describe("CopilotClient", () => {
         expect(result).toEqual({ actionName: "increment", input: { amount: 1 } });
     });
 
+    it("rejects malformed direct canvas action payloads", async () => {
+        const client = new CopilotClient();
+
+        await expect((client as any).handleCanvasActionInvokeRequest(undefined)).rejects.toThrow(
+            "Invalid canvas provider request payload"
+        );
+        await expect(
+            (client as any).handleCanvasActionInvokeRequest({
+                sessionId: "session-1",
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+            })
+        ).rejects.toThrow("Invalid canvas provider request payload");
+    });
+
+    it("rejects direct canvas provider payloads without extension ids", async () => {
+        const onOpen = vi.fn(() => ({ url: "https://example.test/counter" }));
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            onOpen,
+        });
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerCanvases([canvas]);
+        const client = new CopilotClient();
+        (client as any).sessions.set(session.sessionId, session);
+
+        await expect(
+            (client as any).handleCanvasProviderRequest("canvas.open", {
+                sessionId: session.sessionId,
+                canvasId: "counter",
+                instanceId: "counter-1",
+            })
+        ).rejects.toThrow("Invalid canvas provider request payload");
+        expect(onOpen).not.toHaveBeenCalled();
+    });
+
     it("throws for unknown direct canvas dispatches", async () => {
         const session = new CopilotSession("session-1", {} as any);
         const client = new CopilotClient();
