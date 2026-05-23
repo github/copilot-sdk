@@ -157,6 +157,12 @@ impl SessionRouter {
                             guard.get(sid).map(|s| s.requests.clone())
                         };
                         if let Some(sender) = sender {
+                            tracing::debug!(
+                                session_id = sid,
+                                request_id = request.id,
+                                method = %request.method,
+                                "routing JSON-RPC request to registered session"
+                            );
                             let _ = sender.send(request);
                         } else {
                             warn!(
