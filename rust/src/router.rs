@@ -353,9 +353,10 @@ impl SessionRouter {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::jsonrpc::JsonRpcRequest;
-    use serde_json::json;
 
     fn make_notification(session_id: &str, kind: &str) -> SessionEventNotification {
         let value = json!({
@@ -473,9 +474,10 @@ mod tests {
 
     #[tokio::test]
     async fn pending_request_overflow_emits_jsonrpc_error_response() {
-        use crate::jsonrpc::{JsonRpcClient, error_codes};
         use tokio::io::AsyncReadExt;
         use tokio::sync::{broadcast, mpsc};
+
+        use crate::jsonrpc::{JsonRpcClient, error_codes};
 
         // Stand up a real JsonRpcClient over a duplex pair so we can read
         // back the bytes the WriterHandle pushes onto the wire.
@@ -494,10 +496,11 @@ mod tests {
             .lock()
             .route_request(make_request(evicted_id, "remote", "userInput.request"));
         for i in 0..PENDING_SESSION_BUFFER_LIMIT {
-            router
-                .state
-                .lock()
-                .route_request(make_request(i as u64, "remote", "userInput.request"));
+            router.state.lock().route_request(make_request(
+                i as u64,
+                "remote",
+                "userInput.request",
+            ));
         }
 
         // Drain the wire and find an error response with the evicted id.
