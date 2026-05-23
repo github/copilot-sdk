@@ -91,8 +91,8 @@ async fn rejected_when_version_out_of_range() {
     let (res, version) = verify_with_result(serde_json::json!({ "protocolVersion": 1 })).await;
     let err = res.unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Protocol(github_copilot_sdk::ProtocolError::VersionMismatch {
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Protocol(github_copilot_sdk::ProtocolErrorKind::VersionMismatch {
             server: 1,
             ..
         })

@@ -23,9 +23,10 @@
 //!
 //! Each subscriber maintains its own internal queue. If a consumer cannot
 //! keep up, the oldest events are dropped and the next call yields
-//! [`Lagged`] reporting how many events were skipped. Slow subscribers do
-//! not block the producer.
+//! [`Lagged`](crate::subscription::Lagged) reporting how many events were skipped.
+//! Slow subscribers do not block the producer.
 
+use std::fmt;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -34,6 +35,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::{Stream, StreamExt as _};
 
+use crate::{Custom, Repr};
 use crate::types::{SessionEvent, SessionLifecycleEvent};
 
 /// The subscription fell behind the producer.
@@ -43,9 +45,8 @@ use crate::types::{SessionEvent, SessionLifecycleEvent};
 /// after this error, starting from the next live event — callers who care
 /// about lag should match on it and decide whether to resync, re-fetch, or
 /// log and continue.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
-#[error("subscription lagged behind by {0} events")]
-pub struct Lagged(u64);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Lagged(pub(crate) u64);
 
 impl Lagged {
     /// Number of events skipped before this consumer could read them.
@@ -54,19 +55,82 @@ impl Lagged {
     }
 }
 
-/// Error returned by [`EventSubscription::recv`] and
-/// [`LifecycleSubscription::recv`].
-#[derive(Debug, thiserror::Error)]
+impl fmt::Display for Lagged {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "subscription lagged behind by {} events", self.0)
+    }
+}
+
+impl std::error::Error for Lagged {}
+
+/// Error kind for subscription receive operations.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum RecvError {
+pub enum RecvErrorKind {
     /// The producer is gone — the session has shut down or the client has
     /// stopped. No further events will be delivered.
-    #[error("subscription closed")]
     Closed,
 
     /// The subscriber fell behind. See [`Lagged`].
-    #[error(transparent)]
-    Lagged(#[from] Lagged),
+    Lagged(Lagged),
+}
+
+impl fmt::Display for RecvErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RecvErrorKind::Closed => write!(f, "subscription closed"),
+            RecvErrorKind::Lagged(l) => write!(f, "{l}"),
+        }
+    }
+}
+
+/// Error returned by [`crate::subscription::EventSubscription::recv`] and
+/// [`crate::subscription::LifecycleSubscription::recv`].
+#[derive(Debug)]
+pub struct RecvError {
+    repr: Repr<RecvErrorKind>,
+}
+
+impl RecvError {
+    /// The [`RecvErrorKind`] of this error.
+    pub fn kind(&self) -> &RecvErrorKind {
+        match &self.repr {
+            Repr::Simple(k)
+            | Repr::SimpleMessage(k, ..)
+            | Repr::Custom(Custom { kind: k, .. }) => k,
+        }
+    }
+}
+
+impl fmt::Display for RecvError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.repr {
+            Repr::Simple(k) => write!(f, "{k}"),
+            Repr::SimpleMessage(_, m) => write!(f, "{m}"),
+            Repr::Custom(Custom { error, .. }) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for RecvError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.repr {
+            Repr::Custom(Custom { error, .. }) => Some(&**error),
+            _ => None,
+        }
+    }
+}
+
+impl From<RecvErrorKind> for RecvError {
+    fn from(kind: RecvErrorKind) -> Self {
+        Self { repr: Repr::Simple(kind) }
+    }
+}
+
+impl From<Lagged> for RecvError {
+    fn from(lagged: Lagged) -> Self {
+        Self::from(RecvErrorKind::Lagged(lagged))
+    }
 }
 
 macro_rules! define_subscription {
@@ -92,9 +156,9 @@ macro_rules! define_subscription {
             /// Returns:
             ///
             /// - `Ok(event)` for the next delivered event.
-            /// - `Err(`[`RecvError::Lagged`]`)` if the subscriber fell behind;
+            /// - `Err(`[`RecvErrorKind::Lagged`]`)` if the subscriber fell behind;
             ///   call `recv` again to continue from the next live event.
-            /// - `Err(`[`RecvError::Closed`]`)` once the producer is gone.
+            /// - `Err(`[`RecvErrorKind::Closed`]`)` once the producer is gone.
             ///
             /// # Cancel safety
             ///
@@ -107,9 +171,9 @@ macro_rules! define_subscription {
                 match self.inner.next().await {
                     Some(Ok(event)) => Ok(event),
                     Some(Err(BroadcastStreamRecvError::Lagged(n))) => {
-                        Err(RecvError::Lagged(Lagged(n)))
+                        Err(Lagged(n).into())
                     }
-                    None => Err(RecvError::Closed),
+                    None => Err(RecvErrorKind::Closed.into()),
                 }
             }
         }
@@ -184,7 +248,7 @@ mod tests {
 
         assert_eq!(sub.recv().await.unwrap().id, "a");
         assert_eq!(sub.recv().await.unwrap().id, "b");
-        assert!(matches!(sub.recv().await, Err(RecvError::Closed)));
+        assert!(matches!(sub.recv().await.unwrap_err().kind(), RecvErrorKind::Closed));
     }
 
     #[tokio::test]
@@ -194,10 +258,11 @@ mod tests {
         for id in ["a", "b", "c", "d"] {
             tx.send(make_event(id)).unwrap();
         }
-        match sub.recv().await {
-            Err(RecvError::Lagged(l)) => assert_eq!(l.skipped(), 2),
-            other => panic!("expected Lagged, got {other:?}"),
-        }
+        let err = sub.recv().await.expect_err("expected a Lagged error");
+        let RecvErrorKind::Lagged(l) = err.kind() else {
+            panic!("expected Lagged, got {:?}", err.kind());
+        };
+        assert_eq!(l.skipped(), 2);
         // Subscription continues with the live tail.
         assert_eq!(sub.recv().await.unwrap().id, "c");
         assert_eq!(sub.recv().await.unwrap().id, "d");

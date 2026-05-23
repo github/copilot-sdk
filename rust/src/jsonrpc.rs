@@ -11,7 +11,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{Instrument, debug, error, warn};
 
-use crate::{Error, ProtocolError};
+use crate::{Error, ErrorKind, ProtocolErrorKind};
 
 /// A JSON-RPC 2.0 request message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -352,15 +352,15 @@ impl JsonRpcClient {
 
             if let Some(value) = trimmed.strip_prefix(CONTENT_LENGTH_HEADER) {
                 content_length = Some(value.trim().parse::<usize>().map_err(|_| {
-                    Error::Protocol(ProtocolError::InvalidContentLength(
+                    Error::from(ErrorKind::Protocol(ProtocolErrorKind::InvalidContentLength(
                         value.trim().to_string(),
-                    ))
+                    )))
                 })?);
             }
         }
 
         let Some(length) = content_length else {
-            return Err(Error::Protocol(ProtocolError::MissingContentLength));
+            return Err(ErrorKind::Protocol(ProtocolErrorKind::MissingContentLength).into());
         };
 
         let mut body = vec![0u8; length];
@@ -420,7 +420,7 @@ impl JsonRpcClient {
         let response = match rx.await {
             Ok(response) => response,
             Err(_) => {
-                let error = Error::Protocol(ProtocolError::RequestCancelled);
+                let error = ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled).into();
                 warn!(
                     elapsed_ms = request_start.elapsed().as_millis(),
                     method = %method,
@@ -475,7 +475,7 @@ impl JsonRpcClient {
         self.write_tx
             .send(WriteCommand { frame, ack: ack_tx })
             .map_err(|_| {
-                Error::Io(std::io::Error::new(
+                Error::from(std::io::Error::new(
                     std::io::ErrorKind::BrokenPipe,
                     "writer actor has shut down",
                 ))
@@ -483,8 +483,8 @@ impl JsonRpcClient {
 
         match ack_rx.await {
             Ok(Ok(())) => Ok(()),
-            Ok(Err(e)) => Err(Error::Io(e)),
-            Err(_) => Err(Error::Io(std::io::Error::new(
+            Ok(Err(e)) => Err(Error::from(e)),
+            Err(_) => Err(Error::from(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,
                 "writer actor dropped ack without responding",
             ))),

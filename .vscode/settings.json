@@ -14,6 +14,9 @@
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
   "python.testing.pytestArgs": ["python"],
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.features": "all",
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
