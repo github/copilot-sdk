@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Identifies the target session.
+ * Optional compaction parameters.
  *
  * @since 1.0.0
  */

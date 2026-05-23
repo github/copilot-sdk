@@ -31,6 +31,8 @@ public final class SessionModelApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionModelGetCurrentResult> getCurrent() {
@@ -42,12 +44,29 @@ public final class SessionModelApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionModelSwitchToResult> switchTo(SessionModelSwitchToParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.model.switchTo", _p, SessionModelSwitchToResult.class);
+    }
+
+    /**
+     * Reasoning effort level to apply to the currently selected model.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionModelSetReasoningEffortResult> setReasoningEffort(SessionModelSetReasoningEffortParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.model.setReasoningEffort", _p, SessionModelSetReasoningEffortResult.class);
     }
 
 }

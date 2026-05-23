@@ -22,14 +22,14 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ShutdownModelMetricUsage(
     /** Total input tokens consumed across all requests to this model */
-    @JsonProperty("inputTokens") Double inputTokens,
+    @JsonProperty("inputTokens") Long inputTokens,
     /** Total output tokens produced across all requests to this model */
-    @JsonProperty("outputTokens") Double outputTokens,
+    @JsonProperty("outputTokens") Long outputTokens,
     /** Total tokens read from prompt cache across all requests */
-    @JsonProperty("cacheReadTokens") Double cacheReadTokens,
+    @JsonProperty("cacheReadTokens") Long cacheReadTokens,
     /** Total tokens written to prompt cache across all requests */
-    @JsonProperty("cacheWriteTokens") Double cacheWriteTokens,
+    @JsonProperty("cacheWriteTokens") Long cacheWriteTokens,
     /** Total reasoning tokens produced across all requests to this model */
-    @JsonProperty("reasoningTokens") Double reasoningTokens
+    @JsonProperty("reasoningTokens") Long reasoningTokens
 ) {
 }

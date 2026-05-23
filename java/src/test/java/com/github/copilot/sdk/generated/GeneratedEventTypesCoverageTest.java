@@ -45,7 +45,7 @@ public class GeneratedEventTypesCoverageTest {
         assertInstanceOf(AssistantStreamingDeltaEvent.class, event);
         assertEquals("assistant.streaming_delta", event.getType());
         var typed = (AssistantStreamingDeltaEvent) event;
-        assertEquals(1024.0, typed.getData().totalResponseSizeBytes());
+        assertEquals((Long) 1024L, typed.getData().totalResponseSizeBytes());
     }
 
     // ── CapabilitiesChangedEvent ───────────────────────────────────────────

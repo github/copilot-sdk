@@ -10,6 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -33,9 +34,11 @@ public record InstructionsSources(
     @JsonProperty("type") InstructionsSourcesType type,
     /** Where this source lives — used for UI grouping */
     @JsonProperty("location") InstructionsSourcesLocation location,
-    /** Glob pattern from frontmatter — when set, this instruction applies only to matching files */
-    @JsonProperty("applyTo") String applyTo,
+    /** Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files */
+    @JsonProperty("applyTo") List<String> applyTo,
     /** Short description (body after frontmatter) for use in instruction tables */
-    @JsonProperty("description") String description
+    @JsonProperty("description") String description,
+    /** When true, this source starts disabled and must be toggled on by the user */
+    @JsonProperty("defaultDisabled") Boolean defaultDisabled
 ) {
 }

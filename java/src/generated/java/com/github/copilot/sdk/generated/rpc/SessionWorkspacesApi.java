@@ -31,6 +31,8 @@ public final class SessionWorkspacesApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionWorkspacesGetWorkspaceResult> getWorkspace() {
@@ -39,6 +41,8 @@ public final class SessionWorkspacesApi {
 
     /**
      * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionWorkspacesListFilesResult> listFiles() {
@@ -50,6 +54,8 @@ public final class SessionWorkspacesApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionWorkspacesReadFileResult> readFile(SessionWorkspacesReadFileParams params) {
@@ -63,12 +69,54 @@ public final class SessionWorkspacesApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<Void> createFile(SessionWorkspacesCreateFileParams params) {
         com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
         _p.put("sessionId", this.sessionId);
         return caller.invoke("session.workspaces.createFile", _p, Void.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionWorkspacesListCheckpointsResult> listCheckpoints() {
+        return caller.invoke("session.workspaces.listCheckpoints", java.util.Map.of("sessionId", this.sessionId), SessionWorkspacesListCheckpointsResult.class);
+    }
+
+    /**
+     * Checkpoint number to read.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionWorkspacesReadCheckpointResult> readCheckpoint(SessionWorkspacesReadCheckpointParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.readCheckpoint", _p, SessionWorkspacesReadCheckpointResult.class);
+    }
+
+    /**
+     * Pasted content to save as a UTF-8 file in the session workspace.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionWorkspacesSaveLargePasteResult> saveLargePaste(SessionWorkspacesSaveLargePasteParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.saveLargePaste", _p, SessionWorkspacesSaveLargePasteResult.class);
     }
 
 }

@@ -40,6 +40,16 @@ public final class SessionSkillsApi {
     }
 
     /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionSkillsGetInvokedResult> getInvoked() {
+        return caller.invoke("session.skills.getInvoked", java.util.Map.of("sessionId", this.sessionId), SessionSkillsGetInvokedResult.class);
+    }
+
+    /**
      * Name of the skill to enable for the session.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
@@ -77,6 +87,16 @@ public final class SessionSkillsApi {
      */
     public CompletableFuture<SessionSkillsReloadResult> reload() {
         return caller.invoke("session.skills.reload", java.util.Map.of("sessionId", this.sessionId), SessionSkillsReloadResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> ensureLoaded() {
+        return caller.invoke("session.skills.ensureLoaded", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
 }

@@ -83,4 +83,59 @@ public final class SessionMcpApi {
         return caller.invoke("session.mcp.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
     }
 
+    /**
+     * Identifiers and raw MCP CreateMessageRequest params used to run a sampling inference.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpExecuteSamplingResult> executeSampling(SessionMcpExecuteSamplingParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.executeSampling", _p, SessionMcpExecuteSamplingResult.class);
+    }
+
+    /**
+     * The requestId previously passed to executeSampling that should be cancelled.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpCancelSamplingExecutionResult> cancelSamplingExecution(SessionMcpCancelSamplingExecutionParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.cancelSamplingExecution", _p, SessionMcpCancelSamplingExecutionResult.class);
+    }
+
+    /**
+     * Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpSetEnvValueModeResult> setEnvValueMode(SessionMcpSetEnvValueModeParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.setEnvValueMode", _p, SessionMcpSetEnvValueModeResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpRemoveGitHubResult> removeGitHub() {
+        return caller.invoke("session.mcp.removeGitHub", java.util.Map.of("sessionId", this.sessionId), SessionMcpRemoveGitHubResult.class);
+    }
+
 }

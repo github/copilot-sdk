@@ -27,7 +27,7 @@ public record UsageMetricsModelMetric(
     /** Token usage metrics for this model */
     @JsonProperty("usage") UsageMetricsModelMetricUsage usage,
     /** Accumulated nano-AI units cost for this model */
-    @JsonProperty("totalNanoAiu") Long totalNanoAiu,
+    @JsonProperty("totalNanoAiu") Double totalNanoAiu,
     /** Token count details per type */
     @JsonProperty("tokenDetails") Map<String, UsageMetricsModelMetricTokenDetail> tokenDetails
 ) {

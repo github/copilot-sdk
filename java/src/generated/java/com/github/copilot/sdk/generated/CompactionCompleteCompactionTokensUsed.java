@@ -22,17 +22,17 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CompactionCompleteCompactionTokensUsed(
     /** Input tokens consumed by the compaction LLM call */
-    @JsonProperty("inputTokens") Double inputTokens,
+    @JsonProperty("inputTokens") Long inputTokens,
     /** Output tokens produced by the compaction LLM call */
-    @JsonProperty("outputTokens") Double outputTokens,
+    @JsonProperty("outputTokens") Long outputTokens,
     /** Cached input tokens reused in the compaction LLM call */
-    @JsonProperty("cacheReadTokens") Double cacheReadTokens,
+    @JsonProperty("cacheReadTokens") Long cacheReadTokens,
     /** Tokens written to prompt cache in the compaction LLM call */
-    @JsonProperty("cacheWriteTokens") Double cacheWriteTokens,
+    @JsonProperty("cacheWriteTokens") Long cacheWriteTokens,
     /** Per-request cost and usage data from the CAPI copilot_usage response field */
     @JsonProperty("copilotUsage") CompactionCompleteCompactionTokensUsedCopilotUsage copilotUsage,
     /** Duration of the compaction LLM call in milliseconds */
-    @JsonProperty("duration") Double duration,
+    @JsonProperty("duration") Long duration,
     /** Model identifier used for the compaction LLM call */
     @JsonProperty("model") String model
 ) {

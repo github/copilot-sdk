@@ -47,9 +47,9 @@ public final class SessionShutdownEvent extends SessionEvent {
         /** Session-wide per-token-type accumulated token counts */
         @JsonProperty("tokenDetails") Map<String, ShutdownTokenDetail> tokenDetails,
         /** Cumulative time spent in API calls during the session, in milliseconds */
-        @JsonProperty("totalApiDurationMs") Double totalApiDurationMs,
+        @JsonProperty("totalApiDurationMs") Long totalApiDurationMs,
         /** Unix timestamp (milliseconds) when the session started */
-        @JsonProperty("sessionStartTime") Double sessionStartTime,
+        @JsonProperty("sessionStartTime") Long sessionStartTime,
         /** Aggregate code change metrics for the session */
         @JsonProperty("codeChanges") ShutdownCodeChanges codeChanges,
         /** Per-model usage breakdown, keyed by model identifier */
@@ -57,13 +57,13 @@ public final class SessionShutdownEvent extends SessionEvent {
         /** Model that was selected at the time of shutdown */
         @JsonProperty("currentModel") String currentModel,
         /** Total tokens in context window at shutdown */
-        @JsonProperty("currentTokens") Double currentTokens,
+        @JsonProperty("currentTokens") Long currentTokens,
         /** System message token count at shutdown */
-        @JsonProperty("systemTokens") Double systemTokens,
+        @JsonProperty("systemTokens") Long systemTokens,
         /** Non-system message token count at shutdown */
-        @JsonProperty("conversationTokens") Double conversationTokens,
+        @JsonProperty("conversationTokens") Long conversationTokens,
         /** Tool definitions token count at shutdown */
-        @JsonProperty("toolDefinitionsTokens") Double toolDefinitionsTokens
+        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens
     ) {
     }
 }

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Message text, optional severity level, persistence flag, and optional follow-up URL.
+ * Message text, optional severity level, persistence flag, optional follow-up URL, and optional tip.
  *
  * @since 1.0.0
  */
@@ -27,9 +27,13 @@ public record SessionLogParams(
     @JsonProperty("message") String message,
     /** Log severity level. Determines how the message is displayed in the timeline. Defaults to "info". */
     @JsonProperty("level") SessionLogLevel level,
+    /** Domain category for this log entry (e.g., "mcp", "subscription", "policy", "model"). Maps to `infoType`/`warningType`/`errorType` on the emitted event. Defaults to "notification". */
+    @JsonProperty("type") String type,
     /** When true, the message is transient and not persisted to the session event log on disk */
     @JsonProperty("ephemeral") Boolean ephemeral,
     /** Optional URL the user can open in their browser for more details */
-    @JsonProperty("url") String url
+    @JsonProperty("url") String url,
+    /** Optional actionable tip displayed alongside the message. Only honored on `level: "info"`. */
+    @JsonProperty("tip") String tip
 ) {
 }

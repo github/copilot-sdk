@@ -46,11 +46,11 @@ public final class SubagentFailedEvent extends SessionEvent {
         /** Model used by the sub-agent (if any model calls succeeded before failure) */
         @JsonProperty("model") String model,
         /** Total number of tool calls made before the sub-agent failed */
-        @JsonProperty("totalToolCalls") Double totalToolCalls,
+        @JsonProperty("totalToolCalls") Long totalToolCalls,
         /** Total tokens (input + output) consumed before the sub-agent failed */
-        @JsonProperty("totalTokens") Double totalTokens,
+        @JsonProperty("totalTokens") Long totalTokens,
         /** Wall-clock duration of the sub-agent execution in milliseconds */
-        @JsonProperty("durationMs") Double durationMs
+        @JsonProperty("durationMs") Long durationMs
     ) {
     }
 }

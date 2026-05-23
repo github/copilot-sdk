@@ -32,6 +32,8 @@ public record Skill(
     /** Whether the skill is currently enabled */
     @JsonProperty("enabled") Boolean enabled,
     /** Absolute path to the skill file */
-    @JsonProperty("path") String path
+    @JsonProperty("path") String path,
+    /** Name of the plugin that provides the skill, when source is 'plugin' */
+    @JsonProperty("pluginName") String pluginName
 ) {
 }

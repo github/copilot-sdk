@@ -21,7 +21,9 @@ public enum InstructionsSourcesLocation {
     /** The {@code repository} variant. */
     REPOSITORY("repository"),
     /** The {@code working-directory} variant. */
-    WORKING_DIRECTORY("working-directory");
+    WORKING_DIRECTORY("working-directory"),
+    /** The {@code plugin} variant. */
+    PLUGIN("plugin");
 
     private final String value;
     InstructionsSourcesLocation(String value) { this.value = value; }

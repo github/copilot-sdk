@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * The currently selected model for the session.
+ * The currently selected model and reasoning effort for the session.
  *
  * @since 1.0.0
  */
@@ -22,6 +22,8 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionModelGetCurrentResult(
     /** Currently active model identifier */
-    @JsonProperty("modelId") String modelId
+    @JsonProperty("modelId") String modelId,
+    /** Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot. */
+    @JsonProperty("reasoningEffort") String reasoningEffort
 ) {
 }

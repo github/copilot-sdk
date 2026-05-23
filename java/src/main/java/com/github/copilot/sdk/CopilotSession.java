@@ -81,6 +81,7 @@ import com.github.copilot.sdk.json.PermissionRequest;
 import com.github.copilot.sdk.json.PermissionRequestResult;
 import com.github.copilot.sdk.json.PermissionRequestResultKind;
 import com.github.copilot.sdk.json.PostToolUseHookInput;
+import com.github.copilot.sdk.json.PreMcpToolCallHookInput;
 import com.github.copilot.sdk.json.PreToolUseHookInput;
 import com.github.copilot.sdk.json.SendMessageRequest;
 import com.github.copilot.sdk.json.SendMessageResponse;
@@ -1547,6 +1548,13 @@ public final class CopilotSession implements AutoCloseable {
                                 .thenApply(output -> (Object) output);
                     }
                     break;
+                case "preMcpToolCall" :
+                    if (hooks.getOnPreMcpToolCall() != null) {
+                        PreMcpToolCallHookInput mcpInput = MAPPER.treeToValue(input, PreMcpToolCallHookInput.class);
+                        return hooks.getOnPreMcpToolCall().handle(mcpInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
                 case "postToolUse" :
                     if (hooks.getOnPostToolUse() != null) {
                         PostToolUseHookInput postInput = MAPPER.treeToValue(input, PostToolUseHookInput.class);
@@ -1774,7 +1782,8 @@ public final class CopilotSession implements AutoCloseable {
                 rpcLevel = SessionLogLevel.INFO;
             }
         }
-        return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, ephemeral, url)).thenApply(r -> null);
+        return getRpc().log(new SessionLogParams(sessionId, message, rpcLevel, null, ephemeral, url, null))
+                .thenApply(r -> null);
     }
 
     /**

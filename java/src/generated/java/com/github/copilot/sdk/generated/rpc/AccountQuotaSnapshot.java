@@ -32,9 +32,9 @@ public record AccountQuotaSnapshot(
     @JsonProperty("usageAllowedWithExhaustedQuota") Boolean usageAllowedWithExhaustedQuota,
     /** Percentage of entitlement remaining */
     @JsonProperty("remainingPercentage") Double remainingPercentage,
-    /** Number of overage requests made this period */
+    /** Number of additional usage requests made this period */
     @JsonProperty("overage") Double overage,
-    /** Whether overage is allowed when quota is exhausted */
+    /** Whether additional usage is allowed when quota is exhausted */
     @JsonProperty("overageAllowedWithExhaustedQuota") Boolean overageAllowedWithExhaustedQuota,
     /** Date when the quota resets (ISO 8601 string) */
     @JsonProperty("resetDate") OffsetDateTime resetDate

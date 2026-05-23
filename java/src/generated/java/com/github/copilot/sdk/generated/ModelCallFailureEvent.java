@@ -46,7 +46,7 @@ public final class ModelCallFailureEvent extends SessionEvent {
         /** HTTP status code from the failed request */
         @JsonProperty("statusCode") Long statusCode,
         /** Duration of the failed API call in milliseconds */
-        @JsonProperty("durationMs") Double durationMs,
+        @JsonProperty("durationMs") Long durationMs,
         /** Where the failed model call originated */
         @JsonProperty("source") ModelCallFailureSource source,
         /** Raw provider/runtime error message for restricted telemetry */

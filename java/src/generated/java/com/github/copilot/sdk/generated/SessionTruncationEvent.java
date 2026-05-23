@@ -36,19 +36,19 @@ public final class SessionTruncationEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionTruncationEventData(
         /** Maximum token count for the model's context window */
-        @JsonProperty("tokenLimit") Double tokenLimit,
+        @JsonProperty("tokenLimit") Long tokenLimit,
         /** Total tokens in conversation messages before truncation */
-        @JsonProperty("preTruncationTokensInMessages") Double preTruncationTokensInMessages,
+        @JsonProperty("preTruncationTokensInMessages") Long preTruncationTokensInMessages,
         /** Number of conversation messages before truncation */
-        @JsonProperty("preTruncationMessagesLength") Double preTruncationMessagesLength,
+        @JsonProperty("preTruncationMessagesLength") Long preTruncationMessagesLength,
         /** Total tokens in conversation messages after truncation */
-        @JsonProperty("postTruncationTokensInMessages") Double postTruncationTokensInMessages,
+        @JsonProperty("postTruncationTokensInMessages") Long postTruncationTokensInMessages,
         /** Number of conversation messages after truncation */
-        @JsonProperty("postTruncationMessagesLength") Double postTruncationMessagesLength,
+        @JsonProperty("postTruncationMessagesLength") Long postTruncationMessagesLength,
         /** Number of tokens removed by truncation */
-        @JsonProperty("tokensRemovedDuringTruncation") Double tokensRemovedDuringTruncation,
+        @JsonProperty("tokensRemovedDuringTruncation") Long tokensRemovedDuringTruncation,
         /** Number of messages removed by truncation */
-        @JsonProperty("messagesRemovedDuringTruncation") Double messagesRemovedDuringTruncation,
+        @JsonProperty("messagesRemovedDuringTruncation") Long messagesRemovedDuringTruncation,
         /** Identifier of the component that performed truncation (e.g., "BasicTruncator") */
         @JsonProperty("performedBy") String performedBy
     ) {

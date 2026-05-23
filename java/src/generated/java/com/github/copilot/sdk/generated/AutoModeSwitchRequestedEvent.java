@@ -40,7 +40,7 @@ public final class AutoModeSwitchRequestedEvent extends SessionEvent {
         /** The rate limit error code that triggered this request */
         @JsonProperty("errorCode") String errorCode,
         /** Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt. */
-        @JsonProperty("retryAfterSeconds") Double retryAfterSeconds
+        @JsonProperty("retryAfterSeconds") Long retryAfterSeconds
     ) {
     }
 }

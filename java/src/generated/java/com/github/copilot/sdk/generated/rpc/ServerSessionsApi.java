@@ -45,4 +45,174 @@ public final class ServerSessionsApi {
         return caller.invoke("sessions.connect", java.util.Map.of(), SessionsConnectResult.class);
     }
 
+    /**
+     * Optional metadata-load limit and context filter applied to the returned sessions.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsListResult> list() {
+        return caller.invoke("sessions.list", java.util.Map.of(), SessionsListResult.class);
+    }
+
+    /**
+     * GitHub task ID to look up.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsFindByTaskIdResult> findByTaskId(SessionsFindByTaskIdParams params) {
+        return caller.invoke("sessions.findByTaskId", params, SessionsFindByTaskIdResult.class);
+    }
+
+    /**
+     * UUID prefix to resolve to a unique session ID.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsFindByPrefixResult> findByPrefix(SessionsFindByPrefixParams params) {
+        return caller.invoke("sessions.findByPrefix", params, SessionsFindByPrefixResult.class);
+    }
+
+    /**
+     * Optional working-directory context used to score session relevance.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsGetLastForContextResult> getLastForContext(SessionsGetLastForContextParams params) {
+        return caller.invoke("sessions.getLastForContext", params, SessionsGetLastForContextResult.class);
+    }
+
+    /**
+     * Session ID whose event-log file path to compute.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsGetEventFilePathResult> getEventFilePath() {
+        return caller.invoke("sessions.getEventFilePath", java.util.Map.of(), SessionsGetEventFilePathResult.class);
+    }
+
+    /**
+     * Map of sessionId -> on-disk size in bytes for each session's workspace directory.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsGetSizesResult> getSizes() {
+        return caller.invoke("sessions.getSizes", java.util.Map.of(), SessionsGetSizesResult.class);
+    }
+
+    /**
+     * Session IDs to test for live in-use locks.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsCheckInUseResult> checkInUse(SessionsCheckInUseParams params) {
+        return caller.invoke("sessions.checkInUse", params, SessionsCheckInUseResult.class);
+    }
+
+    /**
+     * Session ID to look up the persisted remote-steerable flag for.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsGetPersistedRemoteSteerableResult> getPersistedRemoteSteerable() {
+        return caller.invoke("sessions.getPersistedRemoteSteerable", java.util.Map.of(), SessionsGetPersistedRemoteSteerableResult.class);
+    }
+
+    /**
+     * Session ID to close.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> close() {
+        return caller.invoke("sessions.close", java.util.Map.of(), Void.class);
+    }
+
+    /**
+     * Session IDs to close, deactivate, and delete from disk.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsBulkDeleteResult> bulkDelete(SessionsBulkDeleteParams params) {
+        return caller.invoke("sessions.bulkDelete", params, SessionsBulkDeleteResult.class);
+    }
+
+    /**
+     * Age threshold and optional flags controlling which old sessions are pruned (or simulated when dryRun is true).
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsPruneOldResult> pruneOld(SessionsPruneOldParams params) {
+        return caller.invoke("sessions.pruneOld", params, SessionsPruneOldResult.class);
+    }
+
+    /**
+     * Session ID whose pending events should be flushed to disk.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> save() {
+        return caller.invoke("sessions.save", java.util.Map.of(), Void.class);
+    }
+
+    /**
+     * Session ID whose in-use lock should be released.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> releaseLock() {
+        return caller.invoke("sessions.releaseLock", java.util.Map.of(), Void.class);
+    }
+
+    /**
+     * Session metadata records to enrich with summary and context information.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsEnrichMetadataResult> enrichMetadata(SessionsEnrichMetadataParams params) {
+        return caller.invoke("sessions.enrichMetadata", params, SessionsEnrichMetadataResult.class);
+    }
+
+    /**
+     * Active session ID and an optional flag for deferring repo-level hooks until folder trust.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> reloadPluginHooks(SessionsReloadPluginHooksParams params) {
+        return caller.invoke("sessions.reloadPluginHooks", params, Void.class);
+    }
+
+    /**
+     * Active session ID whose deferred repo-level hooks should be loaded.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionsLoadDeferredRepoHooksResult> loadDeferredRepoHooks() {
+        return caller.invoke("sessions.loadDeferredRepoHooks", java.util.Map.of(), SessionsLoadDeferredRepoHooksResult.class);
+    }
+
+    /**
+     * Manager-wide additional plugins to register; replaces any previously-configured set.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> setAdditionalPlugins(SessionsSetAdditionalPluginsParams params) {
+        return caller.invoke("sessions.setAdditionalPlugins", params, Void.class);
+    }
+
 }

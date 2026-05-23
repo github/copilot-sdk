@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Compaction outcome with the number of tokens and messages removed and the resulting context window breakdown.
+ * Compaction outcome with the number of tokens and messages removed, summary text, and the resulting context window breakdown.
  *
  * @since 1.0.0
  */
@@ -27,6 +27,8 @@ public record SessionHistoryCompactResult(
     @JsonProperty("tokensRemoved") Long tokensRemoved,
     /** Number of messages removed during compaction */
     @JsonProperty("messagesRemoved") Long messagesRemoved,
+    /** Summary text produced by compaction. Omitted when compaction did not produce a summary (e.g. failure path). */
+    @JsonProperty("summaryContent") String summaryContent,
     /** Post-compaction context window usage breakdown */
     @JsonProperty("contextWindow") HistoryCompactContextWindow contextWindow
 ) {
