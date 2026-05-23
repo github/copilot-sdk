@@ -32,7 +32,7 @@ describe("CopilotClient", () => {
             id: "counter",
             displayName: "Counter",
             description: "A counter canvas",
-            agentActions: [{ name: "increment", description: "Increment the counter" }],
+            actions: [{ name: "increment", description: "Increment the counter" }],
             open: () => ({ url: "https://example.test/counter" }),
         });
         const spy = vi
@@ -56,7 +56,7 @@ describe("CopilotClient", () => {
                 id: "counter",
                 displayName: "Counter",
                 description: "A counter canvas",
-                agentActions: [{ name: "increment", description: "Increment the counter" }],
+                actions: [{ name: "increment", description: "Increment the counter" }],
             }),
         ]);
         expect(payload.requestCanvasRenderer).toBe(true);

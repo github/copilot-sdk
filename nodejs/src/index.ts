@@ -24,7 +24,6 @@ export {
     type CanvasOpenResponse,
     type CanvasOptions,
     type CanvasToolDefinition,
-    type CanvasToolbarItemDeclaration,
 } from "./canvas.js";
 export {
     defineTool,

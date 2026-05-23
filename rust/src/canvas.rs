@@ -77,10 +77,7 @@ pub struct CanvasDeclaration {
     pub input_schema: Option<Value>,
     /// Agent-callable actions this canvas exposes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent_actions: Option<Vec<CanvasAgentActionDeclaration>>,
-    /// User-facing toolbar buttons rendered by the host canvas chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub toolbar: Option<Vec<CanvasToolbarItemDeclaration>>,
+    pub actions: Option<Vec<CanvasAgentActionDeclaration>>,
 }
 
 impl CanvasDeclaration {
@@ -95,8 +92,7 @@ impl CanvasDeclaration {
             display_name: display_name.into(),
             description: description.into(),
             input_schema: None,
-            agent_actions: None,
-            toolbar: None,
+            actions: None,
         }
     }
 
@@ -121,21 +117,6 @@ pub struct CanvasAgentActionDeclaration {
     pub input_schema: Option<Value>,
 }
 
-/// A single toolbar button contributed by a canvas.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasToolbarItemDeclaration {
-    /// Stable id used by the host to key the button.
-    pub id: String,
-    /// User-visible label.
-    pub label: String,
-    /// Action name dispatched when the toolbar item is activated.
-    pub action_name: String,
-    /// Optional fixed input payload passed verbatim to the action handler.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input: Option<Value>,
-}
-
 /// Response returned from [`CanvasHandler::on_open`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -149,9 +130,6 @@ pub struct CanvasOpenResponse {
     /// Provider-supplied status text shown in host chrome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    /// Toolbar items for host-rendered chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub toolbar: Option<Vec<CanvasToolbarItemDeclaration>>,
     /// Tools available to the canvas instance.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<CanvasToolDefinition>>,
@@ -181,9 +159,6 @@ pub struct OpenCanvasInstance {
     /// URL for web-rendered canvases.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Toolbar items for host-rendered chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub toolbar: Option<Vec<CanvasToolbarItemDeclaration>>,
     /// Tools available to the canvas instance.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<CanvasToolDefinition>>,
@@ -211,7 +186,6 @@ impl OpenCanvasInstance {
             title: None,
             status: None,
             url: None,
-            toolbar: None,
             tools: None,
             input: None,
             reopen: false,
@@ -290,10 +264,7 @@ pub struct DiscoveredCanvas {
     pub input_schema: Option<Value>,
     /// Actions the agent or host may invoke on an open instance.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent_actions: Option<Vec<CanvasAgentActionDeclaration>>,
-    /// Host-rendered toolbar contribution.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub toolbar: Option<Vec<CanvasToolbarItemDeclaration>>,
+    pub actions: Option<Vec<CanvasAgentActionDeclaration>>,
 }
 
 /// Result returned by [`SessionCanvas::list_open`](crate::session::SessionCanvas::list_open).
@@ -319,26 +290,10 @@ pub struct CanvasOpenRequest {
     pub input: Option<Value>,
 }
 
-/// Request parameters for `session.canvas.focus`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasFocusRequest {
-    /// Open canvas instance identifier.
-    pub instance_id: String,
-}
-
 /// Request parameters for `session.canvas.close`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasCloseRequest {
-    /// Open canvas instance identifier.
-    pub instance_id: String,
-}
-
-/// Request parameters for `session.canvas.reload`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasReloadRequest {
     /// Open canvas instance identifier.
     pub instance_id: String,
 }
@@ -419,7 +374,7 @@ pub struct CanvasActionContext {
     pub host: Option<CanvasHostContext>,
 }
 
-/// Context handed to canvas lifecycle hooks.
+/// Context handed to a canvas's close lifecycle hook.
 #[derive(Debug, Clone)]
 pub struct CanvasLifecycleContext {
     /// Session owning the canvas instance.
@@ -477,18 +432,8 @@ pub trait CanvasHandler: Send + Sync {
         Err(CanvasError::no_handler())
     }
 
-    /// Canvas was brought to the foreground.
-    async fn on_focus(&self, _ctx: CanvasLifecycleContext) -> CanvasResult<()> {
-        Ok(())
-    }
-
     /// Canvas was closed by the user or agent.
     async fn on_close(&self, _ctx: CanvasLifecycleContext) -> CanvasResult<()> {
-        Ok(())
-    }
-
-    /// Host requested a reload.
-    async fn on_reload(&self, _ctx: CanvasLifecycleContext) -> CanvasResult<()> {
         Ok(())
     }
 }
@@ -644,10 +589,9 @@ pub async fn dispatch_canvas_open(
     })
 }
 
-/// Resolve a direct `canvas.focus`, `canvas.reload`, or `canvas.close` request.
-pub async fn dispatch_canvas_lifecycle(
+/// Resolve a direct `canvas.close` request.
+pub async fn dispatch_canvas_close(
     registry: &CanvasRegistry,
-    method: &str,
     params: CanvasProviderRequestParams,
 ) -> CanvasResult<Value> {
     let handler = canvas_handler(registry, &params.canvas_id)?;
@@ -658,17 +602,7 @@ pub async fn dispatch_canvas_lifecycle(
         instance_id: params.instance_id,
         host: params.host,
     };
-    match method {
-        "canvas.focus" => handler.on_focus(ctx).await?,
-        "canvas.reload" => handler.on_reload(ctx).await?,
-        "canvas.close" => handler.on_close(ctx).await?,
-        _ => {
-            return Err(CanvasError::new(
-                "unsupported_method",
-                format!("unsupported canvas lifecycle method: {method}"),
-            ));
-        }
-    }
+    handler.on_close(ctx).await?;
     Ok(Value::Null)
 }
 
@@ -718,7 +652,6 @@ mod tests {
                 url: Some(format!("https://example.test/{}", ctx.canvas_id)),
                 title: Some("Echo".to_string()),
                 status: Some("ready".to_string()),
-                toolbar: None,
                 tools: None,
             })
         }
@@ -735,12 +668,11 @@ mod tests {
             display_name: "Counter".to_string(),
             description: "Count things".to_string(),
             input_schema: None,
-            agent_actions: Some(vec![CanvasAgentActionDeclaration {
+            actions: Some(vec![CanvasAgentActionDeclaration {
                 name: "increment".to_string(),
                 description: Some("bump".to_string()),
                 input_schema: None,
             }]),
-            toolbar: None,
         };
 
         let value = serde_json::to_value(&decl).unwrap();
@@ -748,7 +680,9 @@ mod tests {
         assert_eq!(value["id"], "counter");
         assert_eq!(value["displayName"], "Counter");
         assert_eq!(value["description"], "Count things");
-        assert_eq!(value["agentActions"][0]["name"], "increment");
+        assert_eq!(value["actions"][0]["name"], "increment");
+        assert!(value.get("agentActions").is_none());
+        assert!(value.get("toolbar").is_none());
     }
 
     #[tokio::test]

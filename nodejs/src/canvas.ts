@@ -7,9 +7,10 @@
  * `joinSession({ canvases: [createCanvas({...})] })`.
  *
  * The runtime sends provider callbacks directly as `canvas.open`,
- * `canvas.focus`, `canvas.reload`, `canvas.close`, and
- * `canvas.action.invoke` JSON-RPC requests. The SDK routes those requests by
- * `canvasId` to the in-process handlers bound by `createCanvas`.
+ * `canvas.close`, and `canvas.action.invoke` JSON-RPC requests. The SDK
+ * routes those requests by `canvasId` to the in-process handlers bound by
+ * `createCanvas`. Re-opening with an existing `instanceId` is how the host
+ * focuses an existing panel; reload is a renderer-only concern.
  */
 
 /** JSON Schema object used for canvas inputs and canvas-scoped tools. */
@@ -26,8 +27,7 @@ export interface CanvasToolDefinition {
     defer?: "auto" | "never";
 }
 
-/**
- * A single agent-callable action contributed by a canvas. Names MUST NOT
+/** A single agent-callable action contributed by a canvas. Names MUST NOT
  * start with `canvas.` - that prefix is reserved for lifecycle verbs.
  */
 export interface CanvasAgentActionDeclaration {
@@ -37,18 +37,6 @@ export interface CanvasAgentActionDeclaration {
     description?: string;
     /** Optional JSON Schema for the action's `input` payload. */
     inputSchema?: CanvasJsonSchema;
-}
-
-/** A single toolbar button contributed by a canvas. */
-export interface CanvasToolbarItemDeclaration {
-    /** Stable id used by the host to key the button. */
-    id: string;
-    /** User-visible label. */
-    label: string;
-    /** The `agentActions[].name` to dispatch when clicked. */
-    actionName: string;
-    /** Optional fixed input payload passed verbatim to the action handler. */
-    input?: unknown;
 }
 
 /**
@@ -65,9 +53,7 @@ export interface CanvasDeclaration {
     /** Optional JSON Schema for the `input` payload accepted by `canvas.open`. */
     inputSchema?: CanvasJsonSchema;
     /** Agent-invocable actions exposed via `invoke_canvas_action`. */
-    agentActions?: CanvasAgentActionDeclaration[];
-    /** Static toolbar items rendered as host chrome. */
-    toolbar?: CanvasToolbarItemDeclaration[];
+    actions?: CanvasAgentActionDeclaration[];
 }
 
 /** Response returned from `open`. */
@@ -78,8 +64,6 @@ export interface CanvasOpenResponse {
     title?: string;
     /** Provider-supplied status text shown in host chrome. */
     status?: string;
-    /** Toolbar items for host-rendered chrome. */
-    toolbar?: CanvasToolbarItemDeclaration[];
     /** Tools available to the canvas instance. */
     tools?: CanvasToolDefinition[];
 }
@@ -157,16 +141,14 @@ export interface CanvasOptions {
     description: string;
     /** @see CanvasDeclaration.inputSchema */
     inputSchema?: CanvasJsonSchema;
-    /** @see CanvasDeclaration.agentActions */
-    agentActions?: CanvasAgentActionDeclaration[];
-    /** @see CanvasDeclaration.toolbar */
-    toolbar?: CanvasToolbarItemDeclaration[];
+    /** @see CanvasDeclaration.actions */
+    actions?: CanvasAgentActionDeclaration[];
 
     /** Required. Open a new canvas instance. */
     open: (ctx: CanvasOpenContext) => Promise<CanvasOpenResponse> | CanvasOpenResponse;
 
     /**
-     * Optional. Handle a non-lifecycle action declared in `agentActions`.
+     * Optional. Handle a non-lifecycle action declared in `actions`.
      * If omitted, dispatched actions return `canvas_action_no_handler`.
      */
     onAction?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
@@ -185,8 +167,7 @@ export class Canvas {
             displayName: options.displayName,
             description: options.description,
             inputSchema: options.inputSchema,
-            agentActions: options.agentActions,
-            toolbar: options.toolbar,
+            actions: options.actions,
         };
         this.open = options.open;
         this.onAction = options.onAction;
@@ -221,7 +202,7 @@ export interface CanvasActionInvokeParams extends CanvasProviderRequestParams {
  */
 export async function dispatchCanvasProviderRequest(
     canvas: Canvas,
-    actionName: "canvas.open" | "canvas.focus" | "canvas.close" | "canvas.reload" | string,
+    actionName: "canvas.open" | "canvas.close" | string,
     params: CanvasActionInvokeParams | CanvasProviderRequestParams
 ): Promise<unknown> {
     switch (actionName) {
@@ -236,9 +217,7 @@ export async function dispatchCanvasProviderRequest(
             });
             return result ?? {};
         }
-        case "canvas.focus":
-        case "canvas.close":
-        case "canvas.reload": {
+        case "canvas.close": {
             return undefined;
         }
         default: {

@@ -13,9 +13,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
 use crate::canvas::{
-    CanvasCloseRequest, CanvasDiscoverResult, CanvasFocusRequest, CanvasInvokeActionRequest,
-    CanvasInvokeActionResult, CanvasInvokeParams, CanvasListOpenResult, CanvasOpenRequest,
-    CanvasProviderRequestParams, CanvasRegistry, CanvasReloadRequest, OpenCanvasInstance,
+    CanvasCloseRequest, CanvasDiscoverResult, CanvasInvokeActionRequest, CanvasInvokeActionResult,
+    CanvasInvokeParams, CanvasListOpenResult, CanvasOpenRequest, CanvasProviderRequestParams,
+    CanvasRegistry, OpenCanvasInstance,
 };
 use crate::generated::api_types::{LogRequest, ModelSwitchToRequest};
 use crate::generated::session_events::{
@@ -662,6 +662,10 @@ impl<'a> SessionCanvas<'a> {
     }
 
     /// Opens a canvas instance for the given extension/canvas pair.
+    ///
+    /// Re-opening with an existing `instance_id` is the host-facing way to
+    /// focus a panel: the runtime re-emits `session.canvas.opened` with
+    /// `reopen: true` rather than dispatching a separate focus call.
     pub async fn open(&self, request: CanvasOpenRequest) -> Result<OpenCanvasInstance, Error> {
         let result: OpenCanvasInstance = self.call("session.canvas.open", &request).await?;
 
@@ -670,16 +674,6 @@ impl<'a> SessionCanvas<'a> {
         open_canvases.push(result.clone());
 
         Ok(result)
-    }
-
-    /// Focuses a previously opened canvas instance.
-    pub async fn focus(&self, request: CanvasFocusRequest) -> Result<(), Error> {
-        self.call_unit("session.canvas.focus", &request).await
-    }
-
-    /// Reloads a previously opened canvas instance.
-    pub async fn reload(&self, request: CanvasReloadRequest) -> Result<(), Error> {
-        self.call_unit("session.canvas.reload", &request).await
     }
 
     /// Closes a previously opened canvas instance.
@@ -1876,12 +1870,11 @@ async fn handle_request(
             send_canvas_dispatch_response(client, request.id, result).await;
         }
 
-        method @ ("canvas.focus" | "canvas.reload" | "canvas.close") => {
+        "canvas.close" => {
             tracing::debug!(
                 session_id = %sid,
                 request_id = request.id,
-                method = method,
-                "handling canvas lifecycle provider request"
+                "handling canvas.close provider request"
             );
             let Some(params) =
                 parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
@@ -1889,8 +1882,7 @@ async fn handle_request(
             else {
                 return;
             };
-            let result =
-                crate::canvas::dispatch_canvas_lifecycle(canvas_registry, method, params).await;
+            let result = crate::canvas::dispatch_canvas_close(canvas_registry, params).await;
             send_canvas_dispatch_response(client, request.id, result).await;
         }
 

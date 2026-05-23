@@ -1925,12 +1925,6 @@ export class CopilotClient {
         this.connection.onRequest("canvas.open", async (params: CanvasProviderRequestParams) =>
             this.handleCanvasProviderRequest("canvas.open", params)
         );
-        this.connection.onRequest("canvas.focus", async (params: CanvasProviderRequestParams) =>
-            this.handleCanvasProviderRequest("canvas.focus", params)
-        );
-        this.connection.onRequest("canvas.reload", async (params: CanvasProviderRequestParams) =>
-            this.handleCanvasProviderRequest("canvas.reload", params)
-        );
         this.connection.onRequest("canvas.close", async (params: CanvasProviderRequestParams) =>
             this.handleCanvasProviderRequest("canvas.close", params)
         );
