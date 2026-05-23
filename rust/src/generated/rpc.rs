@@ -2444,6 +2444,13 @@ pub struct SessionRpcMcp<'a> {
 }
 
 impl<'a> SessionRpcMcp<'a> {
+    /// `session.mcp.apps.*` sub-namespace.
+    pub fn apps(&self) -> SessionRpcMcpApps<'a> {
+        SessionRpcMcpApps {
+            session: self.session,
+        }
+    }
+
     /// `session.mcp.oauth.*` sub-namespace.
     pub fn oauth(&self) -> SessionRpcMcpOauth<'a> {
         SessionRpcMcpOauth {
@@ -2672,6 +2679,209 @@ impl<'a> SessionRpcMcp<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_MCP_REMOVEGITHUB, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.mcp.apps.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcMcpApps<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcMcpApps<'a> {
+    /// Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.
+    ///
+    /// Wire method: `session.mcp.apps.readResource`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server and resource URI to fetch.
+    ///
+    /// # Returns
+    ///
+    /// Resource contents returned by the MCP server.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn read_resource(
+        &self,
+        params: McpAppsReadResourceRequest,
+    ) -> Result<McpAppsReadResourceResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_APPS_READRESOURCE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// List tools that an MCP App view is allowed to call (SEP-1865 visibility filter). Returns tools whose `_meta.ui.visibility` is unset (default `["model","app"]`) or includes `"app"`.
+    ///
+    /// Wire method: `session.mcp.apps.listTools`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server to list app-callable tools for.
+    ///
+    /// # Returns
+    ///
+    /// App-callable tools from the named MCP server.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_tools(
+        &self,
+        params: McpAppsListToolsRequest,
+    ) -> Result<McpAppsListToolsResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_LISTTOOLS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.
+    ///
+    /// Wire method: `session.mcp.apps.callTool`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server, tool name, and arguments to invoke from an MCP App view.
+    ///
+    /// # Returns
+    ///
+    /// Standard MCP CallToolResult
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn call_tool(
+        &self,
+        params: McpAppsCallToolRequest,
+    ) -> Result<SessionMcpAppsCallToolResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_CALLTOOL, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.
+    ///
+    /// Wire method: `session.mcp.apps.setHostContext`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Host context to advertise to MCP App guests.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn set_host_context(
+        &self,
+        params: McpAppsSetHostContextRequest,
+    ) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_APPS_SETHOSTCONTEXT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Read the current host context advertised to MCP App guests.
+    ///
+    /// Wire method: `session.mcp.apps.getHostContext`.
+    ///
+    /// # Returns
+    ///
+    /// Current host context advertised to MCP App guests.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_host_context(&self) -> Result<McpAppsHostContext, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_MCP_APPS_GETHOSTCONTEXT,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Diagnose MCP Apps wiring for a specific MCP server. Reports the session capability, feature-flag state, advertised extension, and how many tools have `_meta.ui` populated.
+    ///
+    /// Wire method: `session.mcp.apps.diagnose`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - MCP server to diagnose MCP Apps wiring for.
+    ///
+    /// # Returns
+    ///
+    /// Diagnostic snapshot of MCP Apps wiring for the named server.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn diagnose(
+        &self,
+        params: McpAppsDiagnoseRequest,
+    ) -> Result<McpAppsDiagnoseResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MCP_APPS_DIAGNOSE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

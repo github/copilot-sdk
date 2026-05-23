@@ -66,6 +66,26 @@ internal sealed class ConnectRequest
     public string? Token { get; set; }
 }
 
+/// <summary>Long context tier pricing (available for models with extended context windows).</summary>
+public sealed class ModelBillingTokenPricesLongContext
+{
+    /// <summary>AI Credits cost per billing batch of cached tokens.</summary>
+    [JsonPropertyName("cachePrice")]
+    public double? CachePrice { get; set; }
+
+    /// <summary>Maximum context window tokens for the long context tier.</summary>
+    [JsonPropertyName("contextMax")]
+    public long? ContextMax { get; set; }
+
+    /// <summary>AI Credits cost per billing batch of input tokens.</summary>
+    [JsonPropertyName("inputPrice")]
+    public double? InputPrice { get; set; }
+
+    /// <summary>AI Credits cost per billing batch of output tokens.</summary>
+    [JsonPropertyName("outputPrice")]
+    public double? OutputPrice { get; set; }
+}
+
 /// <summary>Token-level pricing information for this model.</summary>
 public sealed class ModelBillingTokenPrices
 {
@@ -73,17 +93,25 @@ public sealed class ModelBillingTokenPrices
     [JsonPropertyName("batchSize")]
     public long? BatchSize { get; set; }
 
-    /// <summary>Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD).</summary>
+    /// <summary>AI Credits cost per billing batch of cached tokens.</summary>
     [JsonPropertyName("cachePrice")]
-    public long? CachePrice { get; set; }
+    public double? CachePrice { get; set; }
 
-    /// <summary>Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD).</summary>
+    /// <summary>Maximum context window tokens for the default tier.</summary>
+    [JsonPropertyName("contextMax")]
+    public long? ContextMax { get; set; }
+
+    /// <summary>AI Credits cost per billing batch of input tokens.</summary>
     [JsonPropertyName("inputPrice")]
-    public long? InputPrice { get; set; }
+    public double? InputPrice { get; set; }
 
-    /// <summary>Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD).</summary>
+    /// <summary>Long context tier pricing (available for models with extended context windows).</summary>
+    [JsonPropertyName("longContext")]
+    public ModelBillingTokenPricesLongContext? LongContext { get; set; }
+
+    /// <summary>AI Credits cost per billing batch of output tokens.</summary>
     [JsonPropertyName("outputPrice")]
-    public long? OutputPrice { get; set; }
+    public double? OutputPrice { get; set; }
 }
 
 /// <summary>Billing information.</summary>
@@ -352,7 +380,7 @@ public sealed class DiscoveredMcpServer
     [JsonPropertyName("source")]
     public McpServerSource Source { get; set; }
 
-    /// <summary>Server transport type: stdio, http, sse, or memory.</summary>
+    /// <summary>Server transport type: stdio, http, sse (deprecated), or memory.</summary>
     [JsonPropertyName("type")]
     public DiscoveredMcpServerType? Type { get; set; }
 }
@@ -3585,6 +3613,287 @@ internal sealed class McpOauthLoginRequest
     public bool? ForceReauth { get; set; }
 
     /// <summary>Name of the remote MCP server to authenticate.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Schema for the `McpAppsResourceContent` type.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsResourceContent
+{
+    /// <summary>Resource-level metadata (CSP, permissions, etc.).</summary>
+    [JsonPropertyName("_meta")]
+    public IDictionary<string, JsonElement>? _meta { get; set; }
+
+    /// <summary>Base64-encoded binary content.</summary>
+    [JsonPropertyName("blob")]
+    public string? Blob { get; set; }
+
+    /// <summary>MIME type of the content.</summary>
+    [JsonPropertyName("mimeType")]
+    public string? MimeType { get; set; }
+
+    /// <summary>Text content (e.g. HTML).</summary>
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    /// <summary>The resource URI (typically ui://...).</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>Resource contents returned by the MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsReadResourceResult
+{
+    /// <summary>Resource contents returned by the server.</summary>
+    [JsonPropertyName("contents")]
+    public IList<McpAppsResourceContent> Contents { get => field ??= []; set; }
+}
+
+/// <summary>MCP server and resource URI to fetch.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpAppsReadResourceRequest
+{
+    /// <summary>Name of the MCP server hosting the resource.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Resource URI (typically ui://...).</summary>
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = string.Empty;
+}
+
+/// <summary>App-callable tools from the named MCP server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsListToolsResult
+{
+    /// <summary>App-callable tools from the server.</summary>
+    [JsonPropertyName("tools")]
+    public IList<IDictionary<string, JsonElement>> Tools { get => field ??= []; set; }
+}
+
+/// <summary>MCP server to list app-callable tools for.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpAppsListToolsRequest
+{
+    /// <summary>**Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("originServerName")]
+    public string OriginServerName { get; set; } = string.Empty;
+
+    /// <summary>MCP server hosting the app.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>MCP server, tool name, and arguments to invoke from an MCP App view.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpAppsCallToolRequest
+{
+    /// <summary>Tool arguments.</summary>
+    [JsonPropertyName("arguments")]
+    public IDictionary<string, JsonElement>? Arguments { get; set; }
+
+    /// <summary>**Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("originServerName")]
+    public string OriginServerName { get; set; } = string.Empty;
+
+    /// <summary>MCP server hosting the tool.</summary>
+    [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("serverName")]
+    public string ServerName { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>MCP tool name.</summary>
+    [JsonPropertyName("toolName")]
+    public string ToolName { get; set; } = string.Empty;
+}
+
+/// <summary>Host context advertised to MCP App guests.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsSetHostContextDetails
+{
+    /// <summary>Display modes the host supports.</summary>
+    [JsonPropertyName("availableDisplayModes")]
+    public IList<McpAppsSetHostContextDetailsAvailableDisplayMode>? AvailableDisplayModes { get; set; }
+
+    /// <summary>Current display mode (SEP-1865).</summary>
+    [JsonPropertyName("displayMode")]
+    public McpAppsSetHostContextDetailsDisplayMode? DisplayMode { get; set; }
+
+    /// <summary>BCP-47 locale, e.g. 'en-US'.</summary>
+    [JsonPropertyName("locale")]
+    public string? Locale { get; set; }
+
+    /// <summary>Platform type for responsive design.</summary>
+    [JsonPropertyName("platform")]
+    public McpAppsSetHostContextDetailsPlatform? Platform { get; set; }
+
+    /// <summary>UI theme preference per SEP-1865.</summary>
+    [JsonPropertyName("theme")]
+    public McpAppsSetHostContextDetailsTheme? Theme { get; set; }
+
+    /// <summary>IANA timezone, e.g. 'America/New_York'.</summary>
+    [JsonPropertyName("timeZone")]
+    public string? TimeZone { get; set; }
+
+    /// <summary>Host application identifier.</summary>
+    [JsonPropertyName("userAgent")]
+    public string? UserAgent { get; set; }
+}
+
+/// <summary>Host context to advertise to MCP App guests.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpAppsSetHostContextRequest
+{
+    /// <summary>Host context advertised to MCP App guests.</summary>
+    [JsonPropertyName("context")]
+    public McpAppsSetHostContextDetails Context { get => field ??= new(); set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Current host context.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsHostContextDetails
+{
+    /// <summary>Display modes the host supports.</summary>
+    [JsonPropertyName("availableDisplayModes")]
+    public IList<McpAppsHostContextDetailsAvailableDisplayMode>? AvailableDisplayModes { get; set; }
+
+    /// <summary>Current display mode (SEP-1865).</summary>
+    [JsonPropertyName("displayMode")]
+    public McpAppsHostContextDetailsDisplayMode? DisplayMode { get; set; }
+
+    /// <summary>BCP-47 locale, e.g. 'en-US'.</summary>
+    [JsonPropertyName("locale")]
+    public string? Locale { get; set; }
+
+    /// <summary>Platform type for responsive design.</summary>
+    [JsonPropertyName("platform")]
+    public McpAppsHostContextDetailsPlatform? Platform { get; set; }
+
+    /// <summary>UI theme preference per SEP-1865.</summary>
+    [JsonPropertyName("theme")]
+    public McpAppsHostContextDetailsTheme? Theme { get; set; }
+
+    /// <summary>IANA timezone, e.g. 'America/New_York'.</summary>
+    [JsonPropertyName("timeZone")]
+    public string? TimeZone { get; set; }
+
+    /// <summary>Host application identifier.</summary>
+    [JsonPropertyName("userAgent")]
+    public string? UserAgent { get; set; }
+}
+
+/// <summary>Current host context advertised to MCP App guests.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsHostContext
+{
+    /// <summary>Current host context.</summary>
+    [JsonPropertyName("context")]
+    public McpAppsHostContextDetails Context { get => field ??= new(); set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionMcpAppsGetHostContextRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Capability negotiation snapshot.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsDiagnoseCapability
+{
+    /// <summary>Whether the runtime advertises `extensions.io.modelcontextprotocol/ui` to MCP servers.</summary>
+    [JsonPropertyName("advertised")]
+    public bool Advertised { get; set; }
+
+    /// <summary>Whether the MCP_APPS feature flag (or COPILOT_MCP_APPS env override) is on.</summary>
+    [JsonPropertyName("featureFlagEnabled")]
+    public bool FeatureFlagEnabled { get; set; }
+
+    /// <summary>Whether the session has the `mcp-apps` capability.</summary>
+    [JsonPropertyName("sessionHasMcpApps")]
+    public bool SessionHasMcpApps { get; set; }
+}
+
+/// <summary>What the server returned for this session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsDiagnoseServer
+{
+    /// <summary>Whether the named server is currently connected.</summary>
+    [JsonPropertyName("connected")]
+    public bool Connected { get; set; }
+
+    /// <summary>Up to 5 tool names with `_meta.ui` for quick inspection.</summary>
+    [JsonPropertyName("sampleToolNames")]
+    public IList<string> SampleToolNames { get => field ??= []; set; }
+
+    /// <summary>Total tools returned by the server's tools/list.</summary>
+    [JsonPropertyName("toolCount")]
+    public double ToolCount { get; set; }
+
+    /// <summary>Tools whose `_meta.ui` is populated (resourceUri and/or visibility set).</summary>
+    [JsonPropertyName("toolsWithUiMeta")]
+    public double ToolsWithUiMeta { get; set; }
+}
+
+/// <summary>Diagnostic snapshot of MCP Apps wiring for the named server.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsDiagnoseResult
+{
+    /// <summary>Capability negotiation snapshot.</summary>
+    [JsonPropertyName("capability")]
+    public McpAppsDiagnoseCapability Capability { get => field ??= new(); set; }
+
+    /// <summary>What the server returned for this session.</summary>
+    [JsonPropertyName("server")]
+    public McpAppsDiagnoseServer Server { get => field ??= new(); set; }
+}
+
+/// <summary>MCP server to diagnose MCP Apps wiring for.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class McpAppsDiagnoseRequest
+{
+    /// <summary>MCP server to probe.</summary>
     [RegularExpression("^[^\\x00-\\x1f/\\x7f-\\x9f}]+(?:\\/[^\\x00-\\x1f/\\x7f-\\x9f}]+)*$")]
     [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
     [MinLength(1)]
@@ -7385,7 +7694,7 @@ public readonly struct ModelPolicyState : IEquatable<ModelPolicyState>
 }
 
 
-/// <summary>Server transport type: stdio, http, sse, or memory.</summary>
+/// <summary>Server transport type: stdio, http, sse (deprecated), or memory.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerType>
@@ -7410,7 +7719,7 @@ public readonly struct DiscoveredMcpServerType : IEquatable<DiscoveredMcpServerT
     /// <summary>Server communicates over streamable HTTP.</summary>
     public static DiscoveredMcpServerType Http { get; } = new("http");
 
-    /// <summary>Server communicates over Server-Sent Events.</summary>
+    /// <summary>Server communicates over Server-Sent Events (deprecated).</summary>
     public static DiscoveredMcpServerType Sse { get; } = new("sse");
 
     /// <summary>Server is backed by an in-memory runtime implementation.</summary>
@@ -8590,6 +8899,528 @@ public readonly struct McpSetEnvValueModeDetails : IEquatable<McpSetEnvValueMode
         public override void Write(Utf8JsonWriter writer, McpSetEnvValueModeDetails value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpSetEnvValueModeDetails));
+        }
+    }
+}
+
+
+/// <summary>Allowed values for the `McpAppsSetHostContextDetailsAvailableDisplayMode` enumeration.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsSetHostContextDetailsAvailableDisplayMode : IEquatable<McpAppsSetHostContextDetailsAvailableDisplayMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsSetHostContextDetailsAvailableDisplayMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsSetHostContextDetailsAvailableDisplayMode"/>.</param>
+    [JsonConstructor]
+    public McpAppsSetHostContextDetailsAvailableDisplayMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsSetHostContextDetailsAvailableDisplayMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Rendered inline within the host conversation surface.</summary>
+    public static McpAppsSetHostContextDetailsAvailableDisplayMode Inline { get; } = new("inline");
+
+    /// <summary>Rendered as a fullscreen overlay.</summary>
+    public static McpAppsSetHostContextDetailsAvailableDisplayMode Fullscreen { get; } = new("fullscreen");
+
+    /// <summary>Rendered as a picture-in-picture floating panel.</summary>
+    public static McpAppsSetHostContextDetailsAvailableDisplayMode Pip { get; } = new("pip");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsAvailableDisplayMode"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsSetHostContextDetailsAvailableDisplayMode left, McpAppsSetHostContextDetailsAvailableDisplayMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsAvailableDisplayMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsSetHostContextDetailsAvailableDisplayMode left, McpAppsSetHostContextDetailsAvailableDisplayMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsSetHostContextDetailsAvailableDisplayMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsSetHostContextDetailsAvailableDisplayMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsSetHostContextDetailsAvailableDisplayMode}"/> for serializing <see cref="McpAppsSetHostContextDetailsAvailableDisplayMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsSetHostContextDetailsAvailableDisplayMode>
+    {
+        /// <inheritdoc />
+        public override McpAppsSetHostContextDetailsAvailableDisplayMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsSetHostContextDetailsAvailableDisplayMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsSetHostContextDetailsAvailableDisplayMode));
+        }
+    }
+}
+
+
+/// <summary>Current display mode (SEP-1865).</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsSetHostContextDetailsDisplayMode : IEquatable<McpAppsSetHostContextDetailsDisplayMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsSetHostContextDetailsDisplayMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsSetHostContextDetailsDisplayMode"/>.</param>
+    [JsonConstructor]
+    public McpAppsSetHostContextDetailsDisplayMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsSetHostContextDetailsDisplayMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Rendered inline within the host conversation surface.</summary>
+    public static McpAppsSetHostContextDetailsDisplayMode Inline { get; } = new("inline");
+
+    /// <summary>Rendered as a fullscreen overlay.</summary>
+    public static McpAppsSetHostContextDetailsDisplayMode Fullscreen { get; } = new("fullscreen");
+
+    /// <summary>Rendered as a picture-in-picture floating panel.</summary>
+    public static McpAppsSetHostContextDetailsDisplayMode Pip { get; } = new("pip");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsDisplayMode"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsSetHostContextDetailsDisplayMode left, McpAppsSetHostContextDetailsDisplayMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsDisplayMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsSetHostContextDetailsDisplayMode left, McpAppsSetHostContextDetailsDisplayMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsSetHostContextDetailsDisplayMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsSetHostContextDetailsDisplayMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsSetHostContextDetailsDisplayMode}"/> for serializing <see cref="McpAppsSetHostContextDetailsDisplayMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsSetHostContextDetailsDisplayMode>
+    {
+        /// <inheritdoc />
+        public override McpAppsSetHostContextDetailsDisplayMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsSetHostContextDetailsDisplayMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsSetHostContextDetailsDisplayMode));
+        }
+    }
+}
+
+
+/// <summary>Platform type for responsive design.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsSetHostContextDetailsPlatform : IEquatable<McpAppsSetHostContextDetailsPlatform>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsSetHostContextDetailsPlatform"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsSetHostContextDetailsPlatform"/>.</param>
+    [JsonConstructor]
+    public McpAppsSetHostContextDetailsPlatform(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsSetHostContextDetailsPlatform"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Host runs in a web browser.</summary>
+    public static McpAppsSetHostContextDetailsPlatform Web { get; } = new("web");
+
+    /// <summary>Host runs as a desktop application.</summary>
+    public static McpAppsSetHostContextDetailsPlatform Desktop { get; } = new("desktop");
+
+    /// <summary>Host runs on a mobile device.</summary>
+    public static McpAppsSetHostContextDetailsPlatform Mobile { get; } = new("mobile");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsPlatform"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsSetHostContextDetailsPlatform left, McpAppsSetHostContextDetailsPlatform right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsPlatform"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsSetHostContextDetailsPlatform left, McpAppsSetHostContextDetailsPlatform right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsSetHostContextDetailsPlatform other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsSetHostContextDetailsPlatform other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsSetHostContextDetailsPlatform}"/> for serializing <see cref="McpAppsSetHostContextDetailsPlatform"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsSetHostContextDetailsPlatform>
+    {
+        /// <inheritdoc />
+        public override McpAppsSetHostContextDetailsPlatform Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsSetHostContextDetailsPlatform value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsSetHostContextDetailsPlatform));
+        }
+    }
+}
+
+
+/// <summary>UI theme preference per SEP-1865.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsSetHostContextDetailsTheme : IEquatable<McpAppsSetHostContextDetailsTheme>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsSetHostContextDetailsTheme"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsSetHostContextDetailsTheme"/>.</param>
+    [JsonConstructor]
+    public McpAppsSetHostContextDetailsTheme(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsSetHostContextDetailsTheme"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Light UI theme.</summary>
+    public static McpAppsSetHostContextDetailsTheme Light { get; } = new("light");
+
+    /// <summary>Dark UI theme.</summary>
+    public static McpAppsSetHostContextDetailsTheme Dark { get; } = new("dark");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsTheme"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsSetHostContextDetailsTheme left, McpAppsSetHostContextDetailsTheme right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsSetHostContextDetailsTheme"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsSetHostContextDetailsTheme left, McpAppsSetHostContextDetailsTheme right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsSetHostContextDetailsTheme other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsSetHostContextDetailsTheme other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsSetHostContextDetailsTheme}"/> for serializing <see cref="McpAppsSetHostContextDetailsTheme"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsSetHostContextDetailsTheme>
+    {
+        /// <inheritdoc />
+        public override McpAppsSetHostContextDetailsTheme Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsSetHostContextDetailsTheme value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsSetHostContextDetailsTheme));
+        }
+    }
+}
+
+
+/// <summary>Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsHostContextDetailsAvailableDisplayMode : IEquatable<McpAppsHostContextDetailsAvailableDisplayMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsHostContextDetailsAvailableDisplayMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsHostContextDetailsAvailableDisplayMode"/>.</param>
+    [JsonConstructor]
+    public McpAppsHostContextDetailsAvailableDisplayMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsHostContextDetailsAvailableDisplayMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Rendered inline within the host conversation surface.</summary>
+    public static McpAppsHostContextDetailsAvailableDisplayMode Inline { get; } = new("inline");
+
+    /// <summary>Rendered as a fullscreen overlay.</summary>
+    public static McpAppsHostContextDetailsAvailableDisplayMode Fullscreen { get; } = new("fullscreen");
+
+    /// <summary>Rendered as a picture-in-picture floating panel.</summary>
+    public static McpAppsHostContextDetailsAvailableDisplayMode Pip { get; } = new("pip");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsAvailableDisplayMode"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsHostContextDetailsAvailableDisplayMode left, McpAppsHostContextDetailsAvailableDisplayMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsAvailableDisplayMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsHostContextDetailsAvailableDisplayMode left, McpAppsHostContextDetailsAvailableDisplayMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsHostContextDetailsAvailableDisplayMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsHostContextDetailsAvailableDisplayMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsHostContextDetailsAvailableDisplayMode}"/> for serializing <see cref="McpAppsHostContextDetailsAvailableDisplayMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsHostContextDetailsAvailableDisplayMode>
+    {
+        /// <inheritdoc />
+        public override McpAppsHostContextDetailsAvailableDisplayMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsHostContextDetailsAvailableDisplayMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsHostContextDetailsAvailableDisplayMode));
+        }
+    }
+}
+
+
+/// <summary>Current display mode (SEP-1865).</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsHostContextDetailsDisplayMode : IEquatable<McpAppsHostContextDetailsDisplayMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsHostContextDetailsDisplayMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsHostContextDetailsDisplayMode"/>.</param>
+    [JsonConstructor]
+    public McpAppsHostContextDetailsDisplayMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsHostContextDetailsDisplayMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Rendered inline within the host conversation surface.</summary>
+    public static McpAppsHostContextDetailsDisplayMode Inline { get; } = new("inline");
+
+    /// <summary>Rendered as a fullscreen overlay.</summary>
+    public static McpAppsHostContextDetailsDisplayMode Fullscreen { get; } = new("fullscreen");
+
+    /// <summary>Rendered as a picture-in-picture floating panel.</summary>
+    public static McpAppsHostContextDetailsDisplayMode Pip { get; } = new("pip");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsDisplayMode"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsHostContextDetailsDisplayMode left, McpAppsHostContextDetailsDisplayMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsDisplayMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsHostContextDetailsDisplayMode left, McpAppsHostContextDetailsDisplayMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsHostContextDetailsDisplayMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsHostContextDetailsDisplayMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsHostContextDetailsDisplayMode}"/> for serializing <see cref="McpAppsHostContextDetailsDisplayMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsHostContextDetailsDisplayMode>
+    {
+        /// <inheritdoc />
+        public override McpAppsHostContextDetailsDisplayMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsHostContextDetailsDisplayMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsHostContextDetailsDisplayMode));
+        }
+    }
+}
+
+
+/// <summary>Platform type for responsive design.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsHostContextDetailsPlatform : IEquatable<McpAppsHostContextDetailsPlatform>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsHostContextDetailsPlatform"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsHostContextDetailsPlatform"/>.</param>
+    [JsonConstructor]
+    public McpAppsHostContextDetailsPlatform(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsHostContextDetailsPlatform"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Host runs in a web browser.</summary>
+    public static McpAppsHostContextDetailsPlatform Web { get; } = new("web");
+
+    /// <summary>Host runs as a desktop application.</summary>
+    public static McpAppsHostContextDetailsPlatform Desktop { get; } = new("desktop");
+
+    /// <summary>Host runs on a mobile device.</summary>
+    public static McpAppsHostContextDetailsPlatform Mobile { get; } = new("mobile");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsPlatform"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsHostContextDetailsPlatform left, McpAppsHostContextDetailsPlatform right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsPlatform"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsHostContextDetailsPlatform left, McpAppsHostContextDetailsPlatform right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsHostContextDetailsPlatform other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsHostContextDetailsPlatform other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsHostContextDetailsPlatform}"/> for serializing <see cref="McpAppsHostContextDetailsPlatform"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsHostContextDetailsPlatform>
+    {
+        /// <inheritdoc />
+        public override McpAppsHostContextDetailsPlatform Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsHostContextDetailsPlatform value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsHostContextDetailsPlatform));
+        }
+    }
+}
+
+
+/// <summary>UI theme preference per SEP-1865.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpAppsHostContextDetailsTheme : IEquatable<McpAppsHostContextDetailsTheme>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpAppsHostContextDetailsTheme"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpAppsHostContextDetailsTheme"/>.</param>
+    [JsonConstructor]
+    public McpAppsHostContextDetailsTheme(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpAppsHostContextDetailsTheme"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Light UI theme.</summary>
+    public static McpAppsHostContextDetailsTheme Light { get; } = new("light");
+
+    /// <summary>Dark UI theme.</summary>
+    public static McpAppsHostContextDetailsTheme Dark { get; } = new("dark");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsTheme"/> instances are equivalent.</summary>
+    public static bool operator ==(McpAppsHostContextDetailsTheme left, McpAppsHostContextDetailsTheme right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpAppsHostContextDetailsTheme"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpAppsHostContextDetailsTheme left, McpAppsHostContextDetailsTheme right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpAppsHostContextDetailsTheme other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpAppsHostContextDetailsTheme other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpAppsHostContextDetailsTheme}"/> for serializing <see cref="McpAppsHostContextDetailsTheme"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpAppsHostContextDetailsTheme>
+    {
+        /// <inheritdoc />
+        public override McpAppsHostContextDetailsTheme Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpAppsHostContextDetailsTheme value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpAppsHostContextDetailsTheme));
         }
     }
 }
@@ -11768,6 +12599,12 @@ public sealed class McpApi
         field ??
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
+
+    /// <summary>Apps APIs.</summary>
+    public McpAppsApi Apps =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
 }
 
 /// <summary>Provides session-scoped McpOauth APIs.</summary>
@@ -11795,6 +12632,102 @@ public sealed class McpOauthApi
 
         var request = new McpOauthLoginRequest { SessionId = _session.SessionId, ServerName = serverName, ForceReauth = forceReauth, ClientName = clientName, CallbackSuccessMessage = callbackSuccessMessage };
         return await CopilotClient.InvokeRpcAsync<McpOauthLoginResult>(_session.Rpc, "session.mcp.oauth.login", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped McpApps APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class McpAppsApi
+{
+    private readonly CopilotSession _session;
+
+    internal McpAppsApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Fetch an MCP resource (typically a `ui://` MCP App bundle, per SEP-1865) from a connected server. Requires the `mcp-apps` session capability.</summary>
+    /// <param name="serverName">Name of the MCP server hosting the resource.</param>
+    /// <param name="uri">Resource URI (typically ui://...).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Resource contents returned by the MCP server.</returns>
+    public async Task<McpAppsReadResourceResult> ReadResourceAsync(string serverName, string uri, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(uri);
+        _session.ThrowIfDisposed();
+
+        var request = new McpAppsReadResourceRequest { SessionId = _session.SessionId, ServerName = serverName, Uri = uri };
+        return await CopilotClient.InvokeRpcAsync<McpAppsReadResourceResult>(_session.Rpc, "session.mcp.apps.readResource", [request], cancellationToken);
+    }
+
+    /// <summary>List tools that an MCP App view is allowed to call (SEP-1865 visibility filter). Returns tools whose `_meta.ui.visibility` is unset (default `["model","app"]`) or includes `"app"`.</summary>
+    /// <param name="serverName">MCP server hosting the app.</param>
+    /// <param name="originServerName">**Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>App-callable tools from the named MCP server.</returns>
+    public async Task<McpAppsListToolsResult> ListToolsAsync(string serverName, string originServerName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(originServerName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpAppsListToolsRequest { SessionId = _session.SessionId, ServerName = serverName, OriginServerName = originServerName };
+        return await CopilotClient.InvokeRpcAsync<McpAppsListToolsResult>(_session.Rpc, "session.mcp.apps.listTools", [request], cancellationToken);
+    }
+
+    /// <summary>Call an MCP tool from an MCP App view (SEP-1865). Enforces the visibility check that prevents an app iframe from invoking model-only tools. Returns the standard MCP `CallToolResult`.</summary>
+    /// <param name="serverName">MCP server hosting the tool.</param>
+    /// <param name="toolName">MCP tool name.</param>
+    /// <param name="originServerName">**Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.</param>
+    /// <param name="arguments">Tool arguments.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Standard MCP CallToolResult.</returns>
+    public async Task<IDictionary<string, JsonElement>> CallToolAsync(string serverName, string toolName, string originServerName, IDictionary<string, JsonElement>? arguments = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        ArgumentNullException.ThrowIfNull(toolName);
+        ArgumentNullException.ThrowIfNull(originServerName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpAppsCallToolRequest { SessionId = _session.SessionId, ServerName = serverName, ToolName = toolName, OriginServerName = originServerName, Arguments = arguments };
+        return await CopilotClient.InvokeRpcAsync<IDictionary<string, JsonElement>>(_session.Rpc, "session.mcp.apps.callTool", [request], cancellationToken);
+    }
+
+    /// <summary>Replace the host context returned to MCP App guests on `ui/initialize`. Hosts use this to advertise theme, locale, or other metadata to the guest UI.</summary>
+    /// <param name="context">Host context advertised to MCP App guests.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task SetHostContextAsync(McpAppsSetHostContextDetails context, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        _session.ThrowIfDisposed();
+
+        var request = new McpAppsSetHostContextRequest { SessionId = _session.SessionId, Context = context };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.mcp.apps.setHostContext", [request], cancellationToken);
+    }
+
+    /// <summary>Read the current host context advertised to MCP App guests.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current host context advertised to MCP App guests.</returns>
+    public async Task<McpAppsHostContext> GetHostContextAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionMcpAppsGetHostContextRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<McpAppsHostContext>(_session.Rpc, "session.mcp.apps.getHostContext", [request], cancellationToken);
+    }
+
+    /// <summary>Diagnose MCP Apps wiring for a specific MCP server. Reports the session capability, feature-flag state, advertised extension, and how many tools have `_meta.ui` populated.</summary>
+    /// <param name="serverName">MCP server to probe.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Diagnostic snapshot of MCP Apps wiring for the named server.</returns>
+    public async Task<McpAppsDiagnoseResult> DiagnoseAsync(string serverName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(serverName);
+        _session.ThrowIfDisposed();
+
+        var request = new McpAppsDiagnoseRequest { SessionId = _session.SessionId, ServerName = serverName };
+        return await CopilotClient.InvokeRpcAsync<McpAppsDiagnoseResult>(_session.Rpc, "session.mcp.apps.diagnose", [request], cancellationToken);
     }
 }
 
@@ -13228,6 +14161,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteData), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteData")]
+[JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteError), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteError")]
+[JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteEvent), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteToolMeta), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteToolMeta")]
+[JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteToolMetaUI), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteToolMetaUI")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedData), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthCompletedEvent), TypeInfoPropertyName = "SessionEventsMcpOauthCompletedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredData), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredData")]
@@ -13235,6 +14173,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.McpOauthRequiredStaticClientConfig), TypeInfoPropertyName = "SessionEventsMcpOauthRequiredStaticClientConfig")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerSource), TypeInfoPropertyName = "SessionEventsMcpServerSource")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServerStatus), TypeInfoPropertyName = "SessionEventsMcpServerStatus")]
+[JsonSerializable(typeof(GitHub.Copilot.McpServerTransport), TypeInfoPropertyName = "SessionEventsMcpServerTransport")]
 [JsonSerializable(typeof(GitHub.Copilot.McpServersLoadedServer), TypeInfoPropertyName = "SessionEventsMcpServersLoadedServer")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureData), TypeInfoPropertyName = "SessionEventsModelCallFailureData")]
 [JsonSerializable(typeof(GitHub.Copilot.ModelCallFailureEvent), TypeInfoPropertyName = "SessionEventsModelCallFailureEvent")]
@@ -13292,6 +14231,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ShutdownType), TypeInfoPropertyName = "SessionEventsShutdownType")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillInvokedData), TypeInfoPropertyName = "SessionEventsSkillInvokedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillInvokedEvent), TypeInfoPropertyName = "SessionEventsSkillInvokedEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.SkillInvokedTrigger), TypeInfoPropertyName = "SessionEventsSkillInvokedTrigger")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillSource), TypeInfoPropertyName = "SessionEventsSkillSource")]
 [JsonSerializable(typeof(GitHub.Copilot.SkillsLoadedSkill), TypeInfoPropertyName = "SessionEventsSkillsLoadedSkill")]
 [JsonSerializable(typeof(GitHub.Copilot.SubagentCompletedData), TypeInfoPropertyName = "SessionEventsSubagentCompletedData")]
@@ -13332,6 +14272,19 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteError), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteError")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteEvent), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteResult), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteResult")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescription), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescription")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMeta), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMeta")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMetaUI), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMetaUI")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteToolDescriptionMetaUIVisibility), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteToolDescriptionMetaUIVisibility")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResource), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResource")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMeta), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMeta")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUI), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUI")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUICsp), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUICsp")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUIPermissions), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUIPermissions")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUIPermissionsCamera), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUIPermissionsCamera")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation")]
+[JsonSerializable(typeof(GitHub.Copilot.ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone), TypeInfoPropertyName = "SessionEventsToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionPartialResultEvent), TypeInfoPropertyName = "SessionEventsToolExecutionPartialResultEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressData), TypeInfoPropertyName = "SessionEventsToolExecutionProgressData")]
 [JsonSerializable(typeof(GitHub.Copilot.ToolExecutionProgressEvent), TypeInfoPropertyName = "SessionEventsToolExecutionProgressEvent")]
@@ -13437,6 +14390,20 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(LogRequest))]
 [JsonSerializable(typeof(LogResult))]
 [JsonSerializable(typeof(LspInitializeRequest))]
+[JsonSerializable(typeof(McpAppsCallToolRequest))]
+[JsonSerializable(typeof(McpAppsDiagnoseCapability))]
+[JsonSerializable(typeof(McpAppsDiagnoseRequest))]
+[JsonSerializable(typeof(McpAppsDiagnoseResult))]
+[JsonSerializable(typeof(McpAppsDiagnoseServer))]
+[JsonSerializable(typeof(McpAppsHostContext))]
+[JsonSerializable(typeof(McpAppsHostContextDetails))]
+[JsonSerializable(typeof(McpAppsListToolsRequest))]
+[JsonSerializable(typeof(McpAppsListToolsResult))]
+[JsonSerializable(typeof(McpAppsReadResourceRequest))]
+[JsonSerializable(typeof(McpAppsReadResourceResult))]
+[JsonSerializable(typeof(McpAppsResourceContent))]
+[JsonSerializable(typeof(McpAppsSetHostContextDetails))]
+[JsonSerializable(typeof(McpAppsSetHostContextRequest))]
 [JsonSerializable(typeof(McpCancelSamplingExecutionParams))]
 [JsonSerializable(typeof(McpCancelSamplingExecutionResult))]
 [JsonSerializable(typeof(McpConfigAddRequest))]
@@ -13476,6 +14443,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(Model))]
 [JsonSerializable(typeof(ModelBilling))]
 [JsonSerializable(typeof(ModelBillingTokenPrices))]
+[JsonSerializable(typeof(ModelBillingTokenPricesLongContext))]
 [JsonSerializable(typeof(ModelCapabilities))]
 [JsonSerializable(typeof(ModelCapabilitiesLimits))]
 [JsonSerializable(typeof(ModelCapabilitiesLimitsVision))]
@@ -13618,6 +14586,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionList))]
 [JsonSerializable(typeof(SessionListFilter))]
 [JsonSerializable(typeof(SessionLoadDeferredRepoHooksResult))]
+[JsonSerializable(typeof(SessionMcpAppsGetHostContextRequest))]
 [JsonSerializable(typeof(SessionMcpListRequest))]
 [JsonSerializable(typeof(SessionMcpReloadRequest))]
 [JsonSerializable(typeof(SessionMcpRemoveGitHubRequest))]
