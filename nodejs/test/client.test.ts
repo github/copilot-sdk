@@ -31,7 +31,20 @@ describe("CopilotClient", () => {
         );
     });
 
-    it("forwards cloud options in session.create request", async () => {
+    it("createSession rejects cloud config", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        await expect(
+            client.createSession({
+                onPermissionRequest: approveAll,
+                cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+            })
+        ).rejects.toThrow(/createCloudSession/);
+    });
+
+    it("createCloudSession sends session.create with cloud and without sessionId", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
@@ -39,21 +52,165 @@ describe("CopilotClient", () => {
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
             .mockResolvedValue({ sessionId: "cloud-session" });
-        await client.createSession({
+        const session = await client.createCloudSession({
             onPermissionRequest: approveAll,
             cloud: {
                 repository: { owner: "github", name: "copilot-sdk", branch: "main" },
             },
         });
 
-        expect(spy).toHaveBeenCalledWith(
-            "session.create",
-            expect.objectContaining({
-                cloud: {
-                    repository: { owner: "github", name: "copilot-sdk", branch: "main" },
-                },
-            })
+        expect(session.sessionId).toBe("cloud-session");
+        const call = spy.mock.calls.find(([m]) => m === "session.create");
+        expect(call).toBeDefined();
+        const payload = call![1] as Record<string, unknown>;
+        expect(payload.cloud).toEqual({
+            repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+        });
+        // sessionId must be omitted: the runtime assigns it on the cloud path.
+        expect("sessionId" in payload).toBe(false);
+    });
+
+    it("createCloudSession rejects caller-provided sessionId", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        await expect(
+            client.createCloudSession({
+                onPermissionRequest: approveAll,
+                sessionId: "caller-id",
+                cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+            } as never)
+        ).rejects.toThrow(/sessionId/);
+    });
+
+    it("createCloudSession rejects caller-provided provider", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        await expect(
+            client.createCloudSession({
+                onPermissionRequest: approveAll,
+                provider: { baseUrl: "https://example.com", apiKey: "k" } as never,
+                cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+            } as never)
+        ).rejects.toThrow(/provider/);
+    });
+
+    it("createCloudSession requires cloud option", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        await expect(
+            client.createCloudSession({ onPermissionRequest: approveAll } as never)
+        ).rejects.toThrow(/cloud/);
+    });
+
+    it("createCloudSession buffers early session.event notifications until registration", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        // Capture the assigned event handler so we can fire one before the
+        // sendRequest promise resolves.
+        let dispatchEvent:
+            | ((event: { type: string; data: Record<string, unknown> }) => void)
+            | undefined;
+        let resolveCreate: ((value: unknown) => void) | undefined;
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            (method: unknown) => {
+                if (method !== "session.create") {
+                    return Promise.resolve({});
+                }
+                return new Promise((resolve) => {
+                    resolveCreate = resolve;
+                });
+            }
         );
+
+        const events: Array<{ type: string }> = [];
+        const sessionPromise = client.createCloudSession({
+            onPermissionRequest: approveAll,
+            cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+            onEvent: (e) => {
+                events.push(e as { type: string });
+                dispatchEvent = undefined;
+            },
+        });
+
+        // Yield so createCloudSession reaches the in-flight sendRequest.
+        await new Promise<void>((r) => setImmediate(r));
+
+        // Simulate the runtime pushing an early session.event addressed to
+        // the not-yet-registered cloud session id.
+        (
+            client as unknown as {
+                handleSessionEventNotification: (n: unknown) => void;
+            }
+        ).handleSessionEventNotification({
+            sessionId: "cloud-session",
+            event: { type: "user.message", data: { text: "hi" } },
+        });
+
+        // Events should be buffered, not yet delivered.
+        expect(events).toEqual([]);
+
+        // Now resolve the create response.
+        resolveCreate!({ sessionId: "cloud-session" });
+        await sessionPromise;
+
+        expect(events).toEqual([{ type: "user.message", data: { text: "hi" } }]);
+        // suppress unused-variable lint
+        void dispatchEvent;
+    });
+
+    it("createCloudSession parks inbound requests until registration", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        let resolveCreate: ((value: unknown) => void) | undefined;
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            (method: unknown) => {
+                if (method !== "session.create") {
+                    return Promise.resolve({});
+                }
+                return new Promise((resolve) => {
+                    resolveCreate = resolve;
+                });
+            }
+        );
+
+        const sessionPromise = client.createCloudSession({
+            onPermissionRequest: approveAll,
+            cloud: { repository: { owner: "github", name: "copilot-sdk" } },
+            onUserInputRequest: async () => ({ answer: "yes", wasFreeform: false }),
+        });
+
+        // Yield so createCloudSession reaches the in-flight sendRequest.
+        await new Promise<void>((r) => setImmediate(r));
+
+        // Simulate an inbound userInput.request for the not-yet-registered
+        // session id arriving during the in-flight session.create.
+        const parked = (
+            client as unknown as {
+                handleUserInputRequest: (p: {
+                    sessionId: string;
+                    question: string;
+                }) => Promise<{ answer: string; wasFreeform: boolean }>;
+            }
+        ).handleUserInputRequest({
+            sessionId: "cloud-session",
+            question: "ok?",
+        });
+
+        // Resolve the create response so the session gets registered.
+        resolveCreate!({ sessionId: "cloud-session" });
+        await sessionPromise;
+
+        await expect(parked).resolves.toEqual({ answer: "yes", wasFreeform: false });
     });
 
     it("forwards clientName in session.resume request", async () => {

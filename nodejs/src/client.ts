@@ -249,6 +249,30 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
+    /**
+     * Refcount of in-flight cloud `session.create` calls. While >0, the
+     * notification/request handlers buffer messages addressed to session
+     * ids that are not yet registered, so events the runtime emits between
+     * `session.create` and its response are not lost.
+     */
+    private pendingRoutingCount: number = 0;
+    /** Buffered `session.event` payloads keyed by runtime-assigned sessionId. */
+    private pendingSessionEvents: Map<string, SessionEvent[]> = new Map();
+    /**
+     * Waiters parked by request handlers when the addressed session id is
+     * not yet registered but pending routing is active. Resolved when the
+     * session is registered; rejected when pending mode ends without
+     * registration so the JSON-RPC request surfaces a clear error.
+     */
+    private pendingSessionWaiters: Map<
+        string,
+        Array<{ resolve: (s: CopilotSession) => void; reject: (e: Error) => void }>
+    > = new Map();
+    /**
+     * Upper bound on buffered notifications per pending session id. Cloud
+     * handshakes are short; drop-oldest above this is acceptable.
+     */
+    private static readonly PENDING_SESSION_BUFFER_LIMIT = 128;
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -788,6 +812,11 @@ export class CopilotClient {
      * ```
      */
     async createSession(config: SessionConfig): Promise<CopilotSession> {
+        if (config.cloud) {
+            throw new Error(
+                "CopilotClient.createSession does not support cloud sessions; use createCloudSession instead."
+            );
+        }
         if (!this.connection) {
             await this.start();
         }
@@ -897,6 +926,243 @@ export class CopilotClient {
         }
 
         return session;
+    }
+
+    /**
+     * Creates a Mission Control–backed cloud session.
+     *
+     * The runtime owns the session ID for cloud sessions: do **not** set
+     * `sessionId` or `provider` on the config (the SDK rejects both). The
+     * SDK omits `sessionId` from the `session.create` request and registers
+     * the resulting session under the id the runtime returns.
+     *
+     * Any `session.event` notifications or inbound JSON-RPC requests that
+     * arrive between sending `session.create` and receiving its response are
+     * buffered (bounded, drop-oldest) and replayed once the returned id is
+     * registered, so early events aren't lost.
+     *
+     * **Known limitation:** inbound `sessionFs.*` requests (the generated
+     * client-session API handlers) are not pending-buffered today. In practice
+     * the runtime does not initiate `sessionFs.*` calls before the
+     * `session.create` response, so this is theoretical; if needed, the
+     * generated `registerClientSessionApiHandlers` shim can be updated to
+     * support async session resolution.
+     *
+     * @example
+     * ```typescript
+     * const session = await client.createCloudSession({
+     *     onPermissionRequest: approveAll,
+     *     cloud: { repository: { owner: "github", name: "copilot-sdk", branch: "main" } },
+     * });
+     * console.log(session.sessionId);
+     * ```
+     */
+    async createCloudSession(config: SessionConfig): Promise<CopilotSession> {
+        if (!config.cloud) {
+            throw new Error("CopilotClient.createCloudSession requires config.cloud to be set.");
+        }
+        if (config.sessionId !== undefined) {
+            throw new Error(
+                "CopilotClient.createCloudSession does not support a caller-provided sessionId; the runtime assigns one."
+            );
+        }
+        if (config.provider !== undefined) {
+            throw new Error(
+                "CopilotClient.createCloudSession does not support config.provider; cloud sessions use the runtime's provider."
+            );
+        }
+        if (!this.connection) {
+            await this.start();
+        }
+
+        const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
+            config.systemMessage
+        );
+
+        const guard = this.beginPendingSessionRouting();
+
+        let response: {
+            sessionId?: unknown;
+            workspacePath?: string;
+            capabilities?: { ui?: { elicitation?: boolean } };
+        };
+        try {
+            response = (await this.connection!.sendRequest("session.create", {
+                ...(await getTraceContext(this.onGetTraceContext)),
+                model: config.model,
+                // sessionId intentionally omitted: the runtime assigns the id for cloud sessions.
+                clientName: config.clientName,
+                reasoningEffort: config.reasoningEffort,
+                tools: config.tools?.map((tool) => ({
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: toJsonSchema(tool.parameters),
+                    overridesBuiltInTool: tool.overridesBuiltInTool,
+                    skipPermission: tool.skipPermission,
+                })),
+                commands: config.commands?.map((cmd) => ({
+                    name: cmd.name,
+                    description: cmd.description,
+                })),
+                systemMessage: wireSystemMessage,
+                availableTools: config.availableTools,
+                excludedTools: config.excludedTools,
+                enableSessionTelemetry: config.enableSessionTelemetry,
+                modelCapabilities: config.modelCapabilities,
+                requestPermission: !!config.onPermissionRequest,
+                requestUserInput: !!config.onUserInputRequest,
+                requestElicitation: !!config.onElicitationRequest,
+                requestExitPlanMode: !!config.onExitPlanModeRequest,
+                requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
+                hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
+                workingDirectory: config.workingDirectory,
+                streaming: config.streaming,
+                includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
+                mcpServers: toWireMcpServers(config.mcpServers),
+                envValueMode: "direct",
+                customAgents: toWireCustomAgents(config.customAgents),
+                defaultAgent: config.defaultAgent,
+                agent: config.agent,
+                configDir: config.configDir,
+                enableConfigDiscovery: config.enableConfigDiscovery,
+                skillDirectories: config.skillDirectories,
+                instructionDirectories: config.instructionDirectories,
+                disabledSkills: config.disabledSkills,
+                infiniteSessions: config.infiniteSessions,
+                gitHubToken: config.gitHubToken,
+                remoteSession: config.remoteSession,
+                cloud: config.cloud,
+            })) as {
+                sessionId?: unknown;
+                workspacePath?: string;
+                capabilities?: { ui?: { elicitation?: boolean } };
+            };
+        } catch (e) {
+            guard.dispose();
+            throw e;
+        }
+
+        if (!response || typeof response !== "object" || typeof response.sessionId !== "string") {
+            // No id to issue session.destroy against; release the guard and surface the error.
+            // Any runtime session created on the other side may leak.
+
+            console.warn(
+                "Cloud session.create response missing sessionId; runtime session may leak."
+            );
+            guard.dispose();
+            throw new Error(
+                "Cloud session.create response did not include a sessionId; cannot register session."
+            );
+        }
+
+        const sessionId = response.sessionId;
+        const session = new CopilotSession(
+            sessionId,
+            this.connection!,
+            undefined,
+            this.onGetTraceContext
+        );
+        session.registerTools(config.tools);
+        session.registerCommands(config.commands);
+        session.registerPermissionHandler(config.onPermissionRequest);
+        if (config.onUserInputRequest) {
+            session.registerUserInputHandler(config.onUserInputRequest);
+        }
+        if (config.onElicitationRequest) {
+            session.registerElicitationHandler(config.onElicitationRequest);
+        }
+        if (config.onExitPlanModeRequest) {
+            session.registerExitPlanModeHandler(config.onExitPlanModeRequest);
+        }
+        if (config.onAutoModeSwitchRequest) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
+        }
+        if (config.hooks) {
+            session.registerHooks(config.hooks);
+        }
+        if (transformCallbacks) {
+            session.registerTransformCallbacks(transformCallbacks);
+        }
+        if (config.onEvent) {
+            session.on(config.onEvent);
+        }
+        try {
+            this.sessions.set(sessionId, session);
+            this.setupSessionFs(session, config);
+            session["_workspacePath"] = response.workspacePath;
+            session.setCapabilities(response.capabilities);
+
+            // Drain anything that arrived during the in-flight session.create
+            // into the freshly-registered session before releasing the guard.
+            this.flushPendingForSession(sessionId, session);
+        } catch (e) {
+            // Roll back partial registration so a failed post-response setup
+            // (e.g. setupSessionFs throwing because sessionFs is misconfigured)
+            // doesn't leave a half-wired session in this.sessions.
+            this.sessions.delete(sessionId);
+            guard.dispose();
+            throw e;
+        }
+        guard.dispose();
+
+        return session;
+    }
+
+    /**
+     * Enter pending-routing mode. While the returned guard is undisposed,
+     * notifications and inbound requests addressed to session ids that are
+     * not yet registered are buffered (up to
+     * {@link CopilotClient.PENDING_SESSION_BUFFER_LIMIT} per id, drop-oldest)
+     * and replayed on registration. When the last guard is disposed, any
+     * still-buffered messages are dropped and parked request waiters are
+     * rejected so the calling JSON-RPC requests don't hang forever.
+     */
+    private beginPendingSessionRouting(): { dispose: () => void } {
+        this.pendingRoutingCount++;
+        let disposed = false;
+        return {
+            dispose: () => {
+                if (disposed) return;
+                disposed = true;
+                this.pendingRoutingCount--;
+                if (this.pendingRoutingCount === 0) {
+                    this.pendingSessionEvents.clear();
+                    for (const waiters of this.pendingSessionWaiters.values()) {
+                        for (const w of waiters) {
+                            w.reject(
+                                new Error(
+                                    "Cloud session.create completed without registering this sessionId; request dropped"
+                                )
+                            );
+                        }
+                    }
+                    this.pendingSessionWaiters.clear();
+                }
+            },
+        };
+    }
+
+    /**
+     * Drain buffered events and pending request waiters for `sessionId` into
+     * the freshly-registered session. Called from {@link createCloudSession}
+     * after the session is in `this.sessions` and before the pending guard
+     * is released.
+     */
+    private flushPendingForSession(sessionId: string, session: CopilotSession): void {
+        const events = this.pendingSessionEvents.get(sessionId);
+        if (events) {
+            this.pendingSessionEvents.delete(sessionId);
+            for (const event of events) {
+                session._dispatchEvent(event);
+            }
+        }
+        const waiters = this.pendingSessionWaiters.get(sessionId);
+        if (waiters) {
+            this.pendingSessionWaiters.delete(sessionId);
+            for (const w of waiters) {
+                w.resolve(session);
+            }
+        }
     }
 
     /**
@@ -1908,9 +2174,27 @@ export class CopilotClient {
             return;
         }
 
-        const session = this.sessions.get((notification as { sessionId: string }).sessionId);
+        const sessionId = (notification as { sessionId: string }).sessionId;
+        const event = (notification as { event: SessionEvent }).event;
+        const session = this.sessions.get(sessionId);
         if (session) {
-            session._dispatchEvent((notification as { event: SessionEvent }).event);
+            session._dispatchEvent(event);
+            return;
+        }
+        if (this.pendingRoutingCount > 0) {
+            let buf = this.pendingSessionEvents.get(sessionId);
+            if (!buf) {
+                buf = [];
+                this.pendingSessionEvents.set(sessionId, buf);
+            }
+            if (buf.length >= CopilotClient.PENDING_SESSION_BUFFER_LIMIT) {
+                buf.shift();
+
+                console.warn(
+                    `pending session notification buffer full for ${sessionId}; dropping oldest`
+                );
+            }
+            buf.push(event);
         }
     }
 
@@ -1969,6 +2253,30 @@ export class CopilotClient {
         }
     }
 
+    /**
+     * Look up the session for an inbound request. If the session is not yet
+     * registered but a cloud `session.create` is in flight (pending routing
+     * mode is active), park the request until the session is registered or
+     * pending mode ends. Otherwise throw immediately.
+     */
+    private resolveSession(sessionId: string): Promise<CopilotSession> {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+            return Promise.resolve(session);
+        }
+        if (this.pendingRoutingCount > 0) {
+            return new Promise<CopilotSession>((resolve, reject) => {
+                let waiters = this.pendingSessionWaiters.get(sessionId);
+                if (!waiters) {
+                    waiters = [];
+                    this.pendingSessionWaiters.set(sessionId, waiters);
+                }
+                waiters.push({ resolve, reject });
+            });
+        }
+        return Promise.reject(new Error(`Session not found: ${sessionId}`));
+    }
+
     private async handleUserInputRequest(params: {
         sessionId: string;
         question: string;
@@ -1983,10 +2291,7 @@ export class CopilotClient {
             throw new Error("Invalid user input request payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
+        const session = await this.resolveSession(params.sessionId);
 
         const result = await session._handleUserInputRequest({
             question: params.question,
@@ -2009,10 +2314,7 @@ export class CopilotClient {
             throw new Error("Invalid exit plan mode request payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
+        const session = await this.resolveSession(params.sessionId);
 
         return await session._handleExitPlanModeRequest({
             summary: params.summary,
@@ -2029,10 +2331,7 @@ export class CopilotClient {
             throw new Error("Invalid auto mode switch request payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
+        const session = await this.resolveSession(params.sessionId);
 
         const response = await session._handleAutoModeSwitchRequest({
             errorCode: params.errorCode,
@@ -2054,10 +2353,7 @@ export class CopilotClient {
             throw new Error("Invalid hooks invoke payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
+        const session = await this.resolveSession(params.sessionId);
 
         const output = await session._handleHooksInvoke(params.hookType, params.input);
         return { output };
@@ -2076,10 +2372,7 @@ export class CopilotClient {
             throw new Error("Invalid systemMessage.transform payload");
         }
 
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Session not found: ${params.sessionId}`);
-        }
+        const session = await this.resolveSession(params.sessionId);
 
         return await session._handleSystemMessageTransform(params.sections);
     }

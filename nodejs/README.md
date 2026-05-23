@@ -127,6 +127,24 @@ Create a new conversation session.
 
 Resume an existing session. Returns the session with `workspacePath` populated if infinite sessions were enabled.
 
+##### `createCloudSession(config: SessionConfig): Promise<CopilotSession>`
+
+Create a Mission Control–backed cloud session. The runtime owns the session ID for cloud sessions: do **not** set `sessionId` or `provider` on the config (the SDK rejects both). The SDK omits `sessionId` from the `session.create` request and registers the resulting session under the id the runtime returns.
+
+Any `session.event` notifications or inbound JSON-RPC requests that arrive between sending `session.create` and receiving its response are buffered (bounded, drop-oldest) and replayed once the returned id is registered, so early events aren't lost.
+
+`config.cloud` is required. Passing `cloud` to `createSession` instead throws — use this method.
+
+```typescript
+const session = await client.createCloudSession({
+    onPermissionRequest: approveAll,
+    cloud: {
+        repository: { owner: "github", name: "copilot-sdk", branch: "main" },
+    },
+});
+console.log("cloud session id:", session.sessionId);
+```
+
 ##### `ping(message?: string): Promise<{ message: string; timestamp: string }>`
 
 Ping the server to check connectivity.
