@@ -20,7 +20,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record CreateSessionResponse(@JsonProperty("sessionId") String sessionId,
-        @JsonProperty("workspacePath") String workspacePath,
-        @JsonProperty("remoteUrl") String remoteUrl,
+        @JsonProperty("workspacePath") String workspacePath, @JsonProperty("remoteUrl") String remoteUrl,
         @JsonProperty("capabilities") SessionCapabilities capabilities) {
 }
