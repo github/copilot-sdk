@@ -1,8 +1,5 @@
 //! Canvas declarations, provider callbacks, and host-side canvas RPC types.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -194,7 +191,7 @@ impl OpenCanvasInstance {
     }
 }
 
-/// Result returned by [`SessionCanvas::discover`](crate::session::SessionCanvas::discover).
+/// Result returned by the `session.canvas.discover` RPC.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasDiscoverResult {
@@ -225,7 +222,7 @@ pub struct DiscoveredCanvas {
     pub actions: Option<Vec<CanvasAgentActionDeclaration>>,
 }
 
-/// Result returned by [`SessionCanvas::list_open`](crate::session::SessionCanvas::list_open).
+/// Result returned by the `session.canvas.listOpen` RPC.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasListOpenResult {
@@ -379,7 +376,17 @@ impl CanvasError {
 /// Result alias for canvas handler methods.
 pub type CanvasResult<T> = Result<T, CanvasError>;
 
-/// Per-canvas handler implementing provider-side canvas lifecycle callbacks.
+/// Provider-side canvas lifecycle handler.
+///
+/// A session installs a single [`CanvasHandler`] (via
+/// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
+/// The handler receives every inbound `canvas.open` / `canvas.close` /
+/// `canvas.action.invoke` JSON-RPC request the runtime issues for this
+/// session and decides — typically by inspecting [`CanvasOpenContext::canvas_id`]
+/// — which application-side canvas should handle the call.
+///
+/// The SDK does not maintain a per-canvas registry; multiplexing across
+/// declared canvases is the implementor's responsibility.
 #[async_trait]
 pub trait CanvasHandler: Send + Sync {
     /// Open a new canvas instance.
@@ -396,107 +403,16 @@ pub trait CanvasHandler: Send + Sync {
     }
 }
 
-/// A registered canvas: declarative metadata plus an in-process handler.
-#[derive(Clone)]
-pub struct Canvas {
-    declaration: CanvasDeclaration,
-    handler: Arc<dyn CanvasHandler>,
-}
-
-impl Canvas {
-    /// Begin building a canvas from its declarative metadata.
-    pub fn builder(declaration: CanvasDeclaration) -> CanvasBuilder {
-        CanvasBuilder {
-            declaration,
-            handler: None,
-        }
-    }
-
-    /// Borrow the declarative metadata serialized onto the wire.
-    pub fn declaration(&self) -> &CanvasDeclaration {
-        &self.declaration
-    }
-
-    /// Clone the in-process handler for dispatch.
-    pub fn handler(&self) -> Arc<dyn CanvasHandler> {
-        self.handler.clone()
-    }
-}
-
-impl Serialize for Canvas {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.declaration.serialize(serializer)
-    }
-}
-
-impl std::fmt::Debug for Canvas {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Canvas")
-            .field("declaration", &self.declaration)
-            .field("handler", &"<dyn CanvasHandler>")
-            .finish()
-    }
-}
-
-/// Builder for [`Canvas`].
-pub struct CanvasBuilder {
-    declaration: CanvasDeclaration,
-    handler: Option<Arc<dyn CanvasHandler>>,
-}
-
-impl CanvasBuilder {
-    /// Attach the per-canvas handler.
-    pub fn handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
-        self.handler = Some(handler);
-        self
-    }
-
-    /// Finalize into a [`Canvas`].
-    ///
-    /// Returns an error if no handler was attached.
-    pub fn build(self) -> CanvasResult<Canvas> {
-        let Some(handler) = self.handler else {
-            return Err(CanvasError::new(
-                "canvas_builder_missing_handler",
-                "Canvas::builder().handler(...) must be called before build()",
-            ));
-        };
-
-        Ok(Canvas {
-            declaration: self.declaration,
-            handler,
-        })
-    }
-}
-
-/// Per-session canvas registry, keyed by canvas id.
-pub type CanvasRegistry = HashMap<String, Arc<dyn CanvasHandler>>;
-
-/// Build a [`CanvasRegistry`] from a session's declared canvases.
-pub fn build_registry(canvases: &[Canvas]) -> CanvasRegistry {
-    let mut map = CanvasRegistry::new();
-    for canvas in canvases {
-        map.insert(canvas.declaration.id.clone(), canvas.handler.clone());
-    }
-    map
-}
-
 /// Common fields sent by direct `canvas.*` provider callbacks.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CanvasProviderRequestParams {
-    /// Session that requested the canvas operation.
+pub(crate) struct CanvasProviderRequestParams {
     pub session_id: SessionId,
-    /// Owning provider identifier.
     pub extension_id: String,
-    /// Provider-local canvas identifier.
     pub canvas_id: String,
-    /// Open canvas instance identifier.
     pub instance_id: String,
-    /// Optional provider input payload.
     #[serde(default)]
     pub input: Value,
-    /// Host capabilities supplied by the runtime.
     #[serde(default)]
     pub host: Option<CanvasHostContext>,
 }
@@ -504,95 +420,53 @@ pub struct CanvasProviderRequestParams {
 /// Wire-level params for `canvas.action.invoke`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CanvasInvokeParams {
-    /// Session that requested the canvas operation.
+pub(crate) struct CanvasInvokeParams {
     pub session_id: SessionId,
-    /// Owning provider identifier.
     pub extension_id: String,
-    /// Provider-local canvas identifier.
     pub canvas_id: String,
-    /// Open canvas instance identifier.
     pub instance_id: String,
-    /// Custom action name.
     pub action_name: String,
-    /// Optional provider input payload.
     #[serde(default)]
     pub input: Value,
-    /// Host capabilities supplied by the runtime.
     #[serde(default)]
     pub host: Option<CanvasHostContext>,
 }
 
-/// Resolve a direct `canvas.open` request against a registry.
-pub async fn dispatch_canvas_open(
-    registry: &CanvasRegistry,
-    params: CanvasProviderRequestParams,
-) -> CanvasResult<Value> {
-    let handler = canvas_handler(registry, &params.canvas_id)?;
-    let response = handler
-        .on_open(CanvasOpenContext {
-            session_id: params.session_id,
-            extension_id: params.extension_id,
-            canvas_id: params.canvas_id,
-            instance_id: params.instance_id,
-            input: params.input,
-            host: params.host,
-        })
-        .await?;
-    serde_json::to_value(response).map_err(|error| {
-        CanvasError::new(
-            "canvas_open_response_serialization_failed",
-            format!("failed to serialize canvas.open response: {error}"),
-        )
-    })
+impl CanvasProviderRequestParams {
+    pub(crate) fn into_open_context(self) -> CanvasOpenContext {
+        CanvasOpenContext {
+            session_id: self.session_id,
+            extension_id: self.extension_id,
+            canvas_id: self.canvas_id,
+            instance_id: self.instance_id,
+            input: self.input,
+            host: self.host,
+        }
+    }
+
+    pub(crate) fn into_lifecycle_context(self) -> CanvasLifecycleContext {
+        CanvasLifecycleContext {
+            session_id: self.session_id,
+            extension_id: self.extension_id,
+            canvas_id: self.canvas_id,
+            instance_id: self.instance_id,
+            host: self.host,
+        }
+    }
 }
 
-/// Resolve a direct `canvas.close` request.
-pub async fn dispatch_canvas_close(
-    registry: &CanvasRegistry,
-    params: CanvasProviderRequestParams,
-) -> CanvasResult<Value> {
-    let handler = canvas_handler(registry, &params.canvas_id)?;
-    let ctx = CanvasLifecycleContext {
-        session_id: params.session_id,
-        extension_id: params.extension_id,
-        canvas_id: params.canvas_id,
-        instance_id: params.instance_id,
-        host: params.host,
-    };
-    handler.on_close(ctx).await?;
-    Ok(Value::Null)
-}
-
-/// Resolve a direct `canvas.action.invoke` request against a registry.
-pub async fn dispatch_canvas_action(
-    registry: &CanvasRegistry,
-    params: CanvasInvokeParams,
-) -> CanvasResult<Value> {
-    let handler = canvas_handler(registry, &params.canvas_id)?;
-    handler
-        .on_action(CanvasActionContext {
-            session_id: params.session_id,
-            extension_id: params.extension_id,
-            canvas_id: params.canvas_id,
-            instance_id: params.instance_id,
-            action_name: params.action_name,
-            input: params.input,
-            host: params.host,
-        })
-        .await
-}
-
-fn canvas_handler(
-    registry: &CanvasRegistry,
-    canvas_id: &str,
-) -> CanvasResult<Arc<dyn CanvasHandler>> {
-    registry.get(canvas_id).cloned().ok_or_else(|| {
-        CanvasError::new(
-            "canvas_not_found",
-            format!("No canvas registered with id '{canvas_id}'"),
-        )
-    })
+impl CanvasInvokeParams {
+    pub(crate) fn into_action_context(self) -> CanvasActionContext {
+        CanvasActionContext {
+            session_id: self.session_id,
+            extension_id: self.extension_id,
+            canvas_id: self.canvas_id,
+            instance_id: self.instance_id,
+            action_name: self.action_name,
+            input: self.input,
+            host: self.host,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -641,39 +515,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dispatch_routes_canvas_open() {
-        let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo", "Echo values"))
-            .handler(Arc::new(EchoHandler))
-            .build()
+    async fn handler_on_open_returns_response() {
+        let handler = EchoHandler;
+        let response = handler
+            .on_open(CanvasOpenContext {
+                session_id: SessionId::from("s1"),
+                extension_id: "project:echo".to_string(),
+                canvas_id: "echo".to_string(),
+                instance_id: "echo-1".to_string(),
+                input: json!({ "x": 1 }),
+                host: None,
+            })
+            .await
             .unwrap();
-        let registry = build_registry(&[canvas]);
-        let params = CanvasProviderRequestParams {
-            session_id: SessionId::from("s1"),
-            extension_id: "project:echo".to_string(),
-            canvas_id: "echo".to_string(),
-            instance_id: "echo-1".to_string(),
-            input: json!({ "x": 1 }),
-            host: None,
-        };
 
-        let result = dispatch_canvas_open(&registry, params).await.unwrap();
-
-        assert_eq!(result["url"], "https://example.test/echo");
-        assert_eq!(result["title"], "Echo");
-        assert_eq!(result["status"], "ready");
+        assert_eq!(response.url.as_deref(), Some("https://example.test/echo"));
+        assert_eq!(response.title.as_deref(), Some("Echo"));
+        assert_eq!(response.status.as_deref(), Some("ready"));
     }
 
     #[tokio::test]
-    async fn dispatch_routes_custom_action() {
-        let canvas = Canvas::builder(CanvasDeclaration::new("echo", "Echo", "Echo values"))
-            .handler(Arc::new(EchoHandler))
-            .build()
-            .unwrap();
-        let registry = build_registry(&[canvas]);
-
-        let result = dispatch_canvas_action(
-            &registry,
-            CanvasInvokeParams {
+    async fn handler_on_action_returns_value() {
+        let handler = EchoHandler;
+        let result = handler
+            .on_action(CanvasActionContext {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:echo".to_string(),
                 canvas_id: "echo".to_string(),
@@ -681,40 +546,41 @@ mod tests {
                 action_name: "shout".to_string(),
                 input: json!("hi"),
                 host: None,
-            },
-        )
-        .await
-        .unwrap();
+            })
+            .await
+            .unwrap();
 
         assert_eq!(result["echoed"], "shout");
         assert_eq!(result["input"], "hi");
     }
 
     #[tokio::test]
-    async fn dispatch_unknown_canvas_errors() {
-        let err = dispatch_canvas_open(
-            &CanvasRegistry::new(),
-            CanvasProviderRequestParams {
+    async fn default_on_action_returns_no_handler_error() {
+        struct OpenOnly;
+        #[async_trait]
+        impl CanvasHandler for OpenOnly {
+            async fn on_open(&self, _ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
+                Ok(CanvasOpenResponse {
+                    url: None,
+                    title: None,
+                    status: None,
+                })
+            }
+        }
+
+        let err = OpenOnly
+            .on_action(CanvasActionContext {
                 session_id: SessionId::from("s1"),
-                extension_id: "project:missing".to_string(),
-                canvas_id: "missing".to_string(),
-                instance_id: "missing-1".to_string(),
+                extension_id: "project:open-only".to_string(),
+                canvas_id: "x".to_string(),
+                instance_id: "x-1".to_string(),
+                action_name: "anything".to_string(),
                 input: Value::Null,
                 host: None,
-            },
-        )
-        .await
-        .unwrap_err();
-
-        assert_eq!(err.code, "canvas_not_found");
-    }
-
-    #[test]
-    fn builder_requires_handler() {
-        let err = Canvas::builder(CanvasDeclaration::new("echo", "Echo", "Echo values"))
-            .build()
+            })
+            .await
             .unwrap_err();
 
-        assert_eq!(err.code, "canvas_builder_missing_handler");
+        assert_eq!(err.code, "canvas_action_no_handler");
     }
 }

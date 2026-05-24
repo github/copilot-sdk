@@ -12,9 +12,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::canvas::{
-    Canvas, CanvasDeclaration, CanvasRegistry, OpenCanvasInstance, build_registry,
-};
+use crate::canvas::{CanvasDeclaration, CanvasHandler, OpenCanvasInstance};
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
     UserInputHandler,
@@ -1112,7 +1110,12 @@ pub struct SessionConfig {
     /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
-    pub canvases: Option<Vec<Canvas>>,
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    /// Provider-side canvas lifecycle handler. The SDK routes inbound
+    /// `canvas.open` / `canvas.close` / `canvas.action.invoke` requests to
+    /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
+    /// to install one.
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     /// Request canvas renderer tools for this connection.
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
@@ -1243,6 +1246,10 @@ impl std::fmt::Debug for SessionConfig {
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
+            .field(
+                "canvas_handler",
+                &self.canvas_handler.as_ref().map(|_| "<set>"),
+            )
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
             .field("extension_info", &self.extension_info)
@@ -1326,6 +1333,7 @@ impl Default for SessionConfig {
             system_message: None,
             tools: None,
             canvases: None,
+            canvas_handler: None,
             request_canvas_renderer: None,
             request_extensions: None,
             extension_info: None,
@@ -1379,7 +1387,7 @@ pub(crate) struct SessionConfigRuntime {
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
-    pub canvas_registry: CanvasRegistry,
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
@@ -1430,15 +1438,8 @@ impl SessionConfig {
                 })
                 .collect()
         });
-        let wire_canvases: Option<Vec<CanvasDeclaration>> = self
-            .canvases
-            .as_deref()
-            .map(|canvases| canvases.iter().map(|c| c.declaration().clone()).collect());
-        let canvas_registry = self
-            .canvases
-            .as_deref()
-            .map(build_registry)
-            .unwrap_or_default();
+        let wire_canvases = self.canvases.clone();
+        let canvas_handler = self.canvas_handler.clone();
 
         let wire = crate::wire::SessionCreateWire {
             session_id,
@@ -1492,7 +1493,7 @@ impl SessionConfig {
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
-            canvas_registry,
+            canvas_handler,
             session_fs_provider: self.session_fs_provider,
             commands: self.commands,
         };
@@ -1643,9 +1644,18 @@ impl SessionConfig {
         self
     }
 
-    /// Set canvas declarations and provider handlers for this connection.
-    pub fn with_canvases<I: IntoIterator<Item = Canvas>>(mut self, canvases: I) -> Self {
+    /// Set canvas declarations for this connection. The runtime advertises
+    /// these to the agent; install a [`CanvasHandler`] via
+    /// [`with_canvas_handler`](Self::with_canvas_handler) to receive the
+    /// resulting provider callbacks.
+    pub fn with_canvases<I: IntoIterator<Item = CanvasDeclaration>>(mut self, canvases: I) -> Self {
         self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Install the provider-side [`CanvasHandler`] for this session.
+    pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
+        self.canvas_handler = Some(handler);
         self
     }
 
@@ -1852,7 +1862,10 @@ pub struct ResumeSessionConfig {
     /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
     /// Canvas declarations this connection provides to the runtime.
-    pub canvases: Option<Vec<Canvas>>,
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    /// Provider-side canvas lifecycle handler. See
+    /// [`SessionConfig::canvas_handler`].
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     /// Open canvas instances the caller knows were open before this resume.
     pub open_canvases: Option<Vec<OpenCanvasInstance>>,
     /// Request canvas renderer tools for this connection.
@@ -1963,6 +1976,10 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
             .field("canvases", &self.canvases)
+            .field(
+                "canvas_handler",
+                &self.canvas_handler.as_ref().map(|_| "<set>"),
+            )
             .field("open_canvases", &self.open_canvases)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
@@ -2073,15 +2090,8 @@ impl ResumeSessionConfig {
                 })
                 .collect()
         });
-        let wire_canvases: Option<Vec<CanvasDeclaration>> = self
-            .canvases
-            .as_deref()
-            .map(|canvases| canvases.iter().map(|c| c.declaration().clone()).collect());
-        let canvas_registry = self
-            .canvases
-            .as_deref()
-            .map(build_registry)
-            .unwrap_or_default();
+        let wire_canvases = self.canvases.clone();
+        let canvas_handler = self.canvas_handler.clone();
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -2136,7 +2146,7 @@ impl ResumeSessionConfig {
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
-            canvas_registry,
+            canvas_handler,
             session_fs_provider: self.session_fs_provider,
             commands: self.commands,
         };
@@ -2157,6 +2167,7 @@ impl ResumeSessionConfig {
             system_message: None,
             tools: None,
             canvases: None,
+            canvas_handler: None,
             open_canvases: None,
             request_canvas_renderer: None,
             request_extensions: None,
@@ -2315,9 +2326,15 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Re-supply canvas declarations and provider handlers on resume.
-    pub fn with_canvases<I: IntoIterator<Item = Canvas>>(mut self, canvases: I) -> Self {
+    /// Re-supply canvas declarations on resume.
+    pub fn with_canvases<I: IntoIterator<Item = CanvasDeclaration>>(mut self, canvases: I) -> Self {
         self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Install the provider-side [`CanvasHandler`] for the resumed session.
+    pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
+        self.canvas_handler = Some(handler);
         self
     }
 

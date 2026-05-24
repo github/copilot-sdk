@@ -7,9 +7,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use github_copilot_sdk::canvas::{
-    Canvas, CanvasActionContext, CanvasCloseRequest, CanvasDeclaration, CanvasHandler,
-    CanvasInstanceAvailability, CanvasInvokeActionRequest, CanvasOpenContext, CanvasOpenRequest,
-    CanvasOpenResponse, CanvasResult, OpenCanvasInstance,
+    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasInstanceAvailability,
+    CanvasOpenContext, CanvasOpenResponse, CanvasResult, OpenCanvasInstance,
 };
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
@@ -47,15 +46,12 @@ impl CanvasHandler for TestCanvasHandler {
     }
 }
 
-fn test_canvas(id: &str) -> Canvas {
-    Canvas::builder(CanvasDeclaration::new(
-        id,
-        "Test Canvas",
-        "Test canvas description",
-    ))
-    .handler(Arc::new(TestCanvasHandler))
-    .build()
-    .unwrap()
+fn test_canvas(id: &str) -> CanvasDeclaration {
+    CanvasDeclaration::new(id, "Test Canvas", "Test canvas description")
+}
+
+fn test_canvas_handler() -> Arc<dyn CanvasHandler> {
+    Arc::new(TestCanvasHandler)
 }
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
@@ -374,8 +370,11 @@ async fn create_session_sends_canvas_wire_fields() {
 
 #[tokio::test]
 async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
-    let (session, mut server) =
-        create_session_pair_with_config(|cfg| cfg.with_canvases([test_canvas("counter")])).await;
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_canvases([test_canvas("counter")])
+            .with_canvas_handler(test_canvas_handler())
+    })
+    .await;
 
     server
         .send_request(
@@ -396,121 +395,6 @@ async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
     assert_eq!(response["id"], 42);
     assert_eq!(response["result"]["actionName"], "increment");
     assert_eq!(response["result"]["input"]["amount"], 1);
-}
-
-#[tokio::test]
-async fn session_canvas_host_api_sends_requests_and_tracks_open_instances() {
-    let (session, mut server) = create_session_pair().await;
-
-    let open_handle = tokio::spawn({
-        async move {
-            let opened = session
-                .canvas()
-                .open(CanvasOpenRequest {
-                    extension_id: "project:counter".to_string(),
-                    canvas_id: "counter".to_string(),
-                    instance_id: "counter-1".to_string(),
-                    input: Some(serde_json::json!({ "seed": 1 })),
-                })
-                .await
-                .unwrap();
-            let listed = session.canvas().list_open().await.unwrap();
-            let invoked = session
-                .canvas()
-                .invoke_action(CanvasInvokeActionRequest {
-                    instance_id: opened.instance_id.clone(),
-                    action_name: "increment".to_string(),
-                    input: Some(serde_json::json!({ "amount": 1 })),
-                })
-                .await
-                .unwrap();
-            session
-                .canvas()
-                .close(CanvasCloseRequest {
-                    instance_id: opened.instance_id.clone(),
-                })
-                .await
-                .unwrap();
-            let listed_after_close = session.canvas().list_open().await.unwrap();
-            (opened, listed, invoked, listed_after_close)
-        }
-    });
-
-    let open_request = server.read_request().await;
-    assert_eq!(open_request["method"], "session.canvas.open");
-    assert_eq!(open_request["params"]["sessionId"], server.session_id);
-    assert_eq!(open_request["params"]["extensionId"], "project:counter");
-    assert_eq!(open_request["params"]["canvasId"], "counter");
-    assert_eq!(open_request["params"]["instanceId"], "counter-1");
-    assert_eq!(open_request["params"]["input"]["seed"], 1);
-    server
-        .respond(
-            &open_request,
-            serde_json::json!({
-                "instanceId": "counter-1",
-                "extensionId": "project:counter",
-                "canvasId": "counter",
-                "url": "https://example.test/counter",
-                "reopen": false,
-                "availability": "ready"
-            }),
-        )
-        .await;
-
-    let list_request = server.read_request().await;
-    assert_eq!(list_request["method"], "session.canvas.listOpen");
-    server
-        .respond(
-            &list_request,
-            serde_json::json!({
-                "openCanvases": [{
-                    "instanceId": "counter-1",
-                    "extensionId": "project:counter",
-                    "canvasId": "counter",
-                    "url": "https://example.test/counter",
-                    "reopen": false,
-                    "availability": "ready"
-                }]
-            }),
-        )
-        .await;
-
-    let invoke_request = server.read_request().await;
-    assert_eq!(invoke_request["method"], "session.canvas.invokeAction");
-    assert_eq!(invoke_request["params"]["instanceId"], "counter-1");
-    assert_eq!(invoke_request["params"]["actionName"], "increment");
-    assert_eq!(invoke_request["params"]["input"]["amount"], 1);
-    server
-        .respond(
-            &invoke_request,
-            serde_json::json!({ "result": { "count": 2 } }),
-        )
-        .await;
-
-    let close_request = server.read_request().await;
-    assert_eq!(close_request["method"], "session.canvas.close");
-    assert_eq!(close_request["params"]["instanceId"], "counter-1");
-    server.respond(&close_request, serde_json::json!({})).await;
-
-    let list_after_close_request = server.read_request().await;
-    assert_eq!(
-        list_after_close_request["method"],
-        "session.canvas.listOpen"
-    );
-    server
-        .respond(
-            &list_after_close_request,
-            serde_json::json!({ "openCanvases": [] }),
-        )
-        .await;
-
-    let (opened, listed, invoked, listed_after_close) =
-        timeout(TIMEOUT, open_handle).await.unwrap().unwrap();
-    assert_eq!(opened.instance_id, "counter-1");
-    assert_eq!(listed.open_canvases.len(), 1);
-    assert_eq!(listed.open_canvases[0].instance_id, "counter-1");
-    assert_eq!(invoked.result.unwrap()["count"], 2);
-    assert!(listed_after_close.open_canvases.is_empty());
 }
 
 #[tokio::test]
