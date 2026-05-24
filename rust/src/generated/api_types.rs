@@ -142,6 +142,8 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_READCHECKPOINT: &str = "session.workspaces.readCheckpoint";
     /// `session.workspaces.saveLargePaste`
     pub const SESSION_WORKSPACES_SAVELARGEPASTE: &str = "session.workspaces.saveLargePaste";
+    /// `session.workspaces.diff`
+    pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
     /// `session.instructions.getSources`
     pub const SESSION_INSTRUCTIONS_GETSOURCES: &str = "session.instructions.getSources";
     /// `session.fleet.start`
@@ -8645,6 +8647,55 @@ pub struct UserAuthInfo {
     pub r#type: UserAuthInfoType,
 }
 
+/// A single changed file and its unified diff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDiffFileChange {
+    /// Type of change represented by this file diff.
+    pub change_type: WorkspaceDiffFileChangeType,
+    /// Unified diff content for the file. Empty when the diff was truncated.
+    pub diff: String,
+    /// Whether the diff content was omitted because it exceeded the per-file size limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_truncated: Option<bool>,
+    /// Original file path for renamed files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>,
+    /// Path to the changed file, relative to the workspace root.
+    pub path: String,
+}
+
+/// Workspace diff result for the requested mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDiffResult {
+    /// Default branch used for a branch diff, when branch mode was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_branch: Option<String>,
+    /// Changed files and their unified diffs.
+    pub changes: Vec<WorkspaceDiffFileChange>,
+    /// Whether a requested branch diff fell back to unstaged changes because branch diff failed.
+    pub is_fallback: bool,
+    /// Effective mode used for the returned changes.
+    pub mode: WorkspaceDiffMode,
+    /// Diff mode requested by the client.
+    pub requested_mode: WorkspaceDiffMode,
+}
+
 /// Schema for the `WorkspacesCheckpoints` type.
 ///
 /// <div class="warning">
@@ -8679,6 +8730,21 @@ pub struct WorkspacesCreateFileRequest {
     pub content: String,
     /// Relative path within the workspace files directory
     pub path: String,
+}
+
+/// Parameters for computing a workspace diff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesDiffRequest {
+    /// Diff mode requested by the client.
+    pub mode: WorkspaceDiffMode,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -9657,6 +9723,30 @@ pub struct SessionWorkspacesSaveLargePasteResultSaved {
 pub struct SessionWorkspacesSaveLargePasteResult {
     /// Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions)
     pub saved: Option<SessionWorkspacesSaveLargePasteResultSaved>,
+}
+
+/// Workspace diff result for the requested mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspacesDiffResult {
+    /// Default branch used for a branch diff, when branch mode was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_branch: Option<String>,
+    /// Changed files and their unified diffs.
+    pub changes: Vec<WorkspaceDiffFileChange>,
+    /// Whether a requested branch diff fell back to unstaged changes because branch diff failed.
+    pub is_fallback: bool,
+    /// Effective mode used for the returned changes.
+    pub mode: WorkspaceDiffMode,
+    /// Diff mode requested by the client.
+    pub requested_mode: WorkspaceDiffMode,
 }
 
 /// Identifies the target session.
@@ -13922,6 +14012,56 @@ pub enum UserAuthInfoType {
     #[serde(rename = "user")]
     #[default]
     User,
+}
+
+/// Type of change represented by this file diff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceDiffFileChangeType {
+    /// The file was added.
+    #[serde(rename = "added")]
+    Added,
+    /// The file was modified.
+    #[serde(rename = "modified")]
+    Modified,
+    /// The file was deleted.
+    #[serde(rename = "deleted")]
+    Deleted,
+    /// The file was renamed.
+    #[serde(rename = "renamed")]
+    Renamed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Diff mode requested by the client.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceDiffMode {
+    /// Return staged, unstaged, and untracked working tree changes.
+    #[serde(rename = "unstaged")]
+    Unstaged,
+    /// Return changes compared with the default branch.
+    #[serde(rename = "branch")]
+    Branch,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.

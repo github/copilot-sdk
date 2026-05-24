@@ -2749,6 +2749,69 @@ internal sealed class WorkspacesSaveLargePasteRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>A single changed file and its unified diff.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class WorkspaceDiffFileChange
+{
+    /// <summary>Type of change represented by this file diff.</summary>
+    [JsonPropertyName("changeType")]
+    public WorkspaceDiffFileChangeType ChangeType { get; set; }
+
+    /// <summary>Unified diff content for the file. Empty when the diff was truncated.</summary>
+    [JsonPropertyName("diff")]
+    public string Diff { get; set; } = string.Empty;
+
+    /// <summary>Whether the diff content was omitted because it exceeded the per-file size limit.</summary>
+    [JsonPropertyName("isTruncated")]
+    public bool? IsTruncated { get; set; }
+
+    /// <summary>Original file path for renamed files.</summary>
+    [JsonPropertyName("oldPath")]
+    public string? OldPath { get; set; }
+
+    /// <summary>Path to the changed file, relative to the workspace root.</summary>
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>Workspace diff result for the requested mode.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class WorkspaceDiffResult
+{
+    /// <summary>Default branch used for a branch diff, when branch mode was requested.</summary>
+    [JsonPropertyName("baseBranch")]
+    public string? BaseBranch { get; set; }
+
+    /// <summary>Changed files and their unified diffs.</summary>
+    [JsonPropertyName("changes")]
+    public IList<WorkspaceDiffFileChange> Changes { get => field ??= []; set; }
+
+    /// <summary>Whether a requested branch diff fell back to unstaged changes because branch diff failed.</summary>
+    [JsonPropertyName("isFallback")]
+    public bool IsFallback { get; set; }
+
+    /// <summary>Effective mode used for the returned changes.</summary>
+    [JsonPropertyName("mode")]
+    public WorkspaceDiffMode Mode { get; set; }
+
+    /// <summary>Diff mode requested by the client.</summary>
+    [JsonPropertyName("requestedMode")]
+    public WorkspaceDiffMode RequestedMode { get; set; }
+}
+
+/// <summary>Parameters for computing a workspace diff.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class WorkspacesDiffRequest
+{
+    /// <summary>Diff mode requested by the client.</summary>
+    [JsonPropertyName("mode")]
+    public WorkspaceDiffMode Mode { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Schema for the `InstructionsSources` type.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class InstructionsSources
@@ -8619,6 +8682,138 @@ public readonly struct WorkspacesWorkspaceDetailsHostType : IEquatable<Workspace
 }
 
 
+/// <summary>Type of change represented by this file diff.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkspaceDiffFileChangeType : IEquatable<WorkspaceDiffFileChangeType>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkspaceDiffFileChangeType"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspaceDiffFileChangeType"/>.</param>
+    [JsonConstructor]
+    public WorkspaceDiffFileChangeType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkspaceDiffFileChangeType"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The file was added.</summary>
+    public static WorkspaceDiffFileChangeType Added { get; } = new("added");
+
+    /// <summary>The file was modified.</summary>
+    public static WorkspaceDiffFileChangeType Modified { get; } = new("modified");
+
+    /// <summary>The file was deleted.</summary>
+    public static WorkspaceDiffFileChangeType Deleted { get; } = new("deleted");
+
+    /// <summary>The file was renamed.</summary>
+    public static WorkspaceDiffFileChangeType Renamed { get; } = new("renamed");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspaceDiffFileChangeType"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspaceDiffFileChangeType left, WorkspaceDiffFileChangeType right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspaceDiffFileChangeType"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspaceDiffFileChangeType left, WorkspaceDiffFileChangeType right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkspaceDiffFileChangeType other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspaceDiffFileChangeType other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkspaceDiffFileChangeType}"/> for serializing <see cref="WorkspaceDiffFileChangeType"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkspaceDiffFileChangeType>
+    {
+        /// <inheritdoc />
+        public override WorkspaceDiffFileChangeType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkspaceDiffFileChangeType value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceDiffFileChangeType));
+        }
+    }
+}
+
+
+/// <summary>Diff mode requested by the client.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct WorkspaceDiffMode : IEquatable<WorkspaceDiffMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="WorkspaceDiffMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="WorkspaceDiffMode"/>.</param>
+    [JsonConstructor]
+    public WorkspaceDiffMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="WorkspaceDiffMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Return staged, unstaged, and untracked working tree changes.</summary>
+    public static WorkspaceDiffMode Unstaged { get; } = new("unstaged");
+
+    /// <summary>Return changes compared with the default branch.</summary>
+    public static WorkspaceDiffMode Branch { get; } = new("branch");
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspaceDiffMode"/> instances are equivalent.</summary>
+    public static bool operator ==(WorkspaceDiffMode left, WorkspaceDiffMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="WorkspaceDiffMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(WorkspaceDiffMode left, WorkspaceDiffMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is WorkspaceDiffMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(WorkspaceDiffMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{WorkspaceDiffMode}"/> for serializing <see cref="WorkspaceDiffMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<WorkspaceDiffMode>
+    {
+        /// <inheritdoc />
+        public override WorkspaceDiffMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, WorkspaceDiffMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(WorkspaceDiffMode));
+        }
+    }
+}
+
+
 /// <summary>Where this source lives — used for UI grouping.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -12482,6 +12677,18 @@ public sealed class WorkspacesApi
         var request = new WorkspacesSaveLargePasteRequest { SessionId = _session.SessionId, Content = content };
         return await CopilotClient.InvokeRpcAsync<WorkspacesSaveLargePasteResult>(_session.Rpc, "session.workspaces.saveLargePaste", [request], cancellationToken);
     }
+
+    /// <summary>Computes a diff for the session workspace.</summary>
+    /// <param name="mode">Diff mode requested by the client.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Workspace diff result for the requested mode.</returns>
+    public async Task<WorkspaceDiffResult> DiffAsync(WorkspaceDiffMode mode, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new WorkspacesDiffRequest { SessionId = _session.SessionId, Mode = mode };
+        return await CopilotClient.InvokeRpcAsync<WorkspaceDiffResult>(_session.Rpc, "session.workspaces.diff", [request], cancellationToken);
+    }
 }
 
 /// <summary>Provides session-scoped Instructions APIs.</summary>
@@ -15087,8 +15294,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(UsageMetricsModelMetricTokenDetail))]
 [JsonSerializable(typeof(UsageMetricsModelMetricUsage))]
 [JsonSerializable(typeof(UsageMetricsTokenDetail))]
+[JsonSerializable(typeof(WorkspaceDiffFileChange))]
+[JsonSerializable(typeof(WorkspaceDiffResult))]
 [JsonSerializable(typeof(WorkspacesCheckpoints))]
 [JsonSerializable(typeof(WorkspacesCreateFileRequest))]
+[JsonSerializable(typeof(WorkspacesDiffRequest))]
 [JsonSerializable(typeof(WorkspacesGetWorkspaceResult))]
 [JsonSerializable(typeof(WorkspacesGetWorkspaceResultWorkspace))]
 [JsonSerializable(typeof(WorkspacesListCheckpointsResult))]
