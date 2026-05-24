@@ -75,6 +75,10 @@ type Session struct {
 	commandHandlersMu     sync.RWMutex
 	elicitationHandler    ElicitationHandler
 	elicitationMu         sync.RWMutex
+	canvasHandler         CanvasHandler
+	canvasMu              sync.RWMutex
+	openCanvases          []rpc.OpenCanvasInstance
+	openCanvasesMu        sync.RWMutex
 	capabilities          SessionCapabilities
 	capabilitiesMu        sync.RWMutex
 
@@ -92,6 +96,38 @@ type Session struct {
 // Returns empty string if infinite sessions are disabled.
 func (s *Session) WorkspacePath() string {
 	return s.workspacePath
+}
+
+// OpenCanvases returns the open-canvas snapshot last reported by the runtime
+// (currently populated from the session.resume response). The returned slice
+// is a copy and is safe to mutate by the caller.
+func (s *Session) OpenCanvases() []rpc.OpenCanvasInstance {
+	s.openCanvasesMu.RLock()
+	defer s.openCanvasesMu.RUnlock()
+	if len(s.openCanvases) == 0 {
+		return nil
+	}
+	out := make([]rpc.OpenCanvasInstance, len(s.openCanvases))
+	copy(out, s.openCanvases)
+	return out
+}
+
+func (s *Session) setOpenCanvases(canvases []rpc.OpenCanvasInstance) {
+	s.openCanvasesMu.Lock()
+	defer s.openCanvasesMu.Unlock()
+	s.openCanvases = canvases
+}
+
+func (s *Session) registerCanvasHandler(handler CanvasHandler) {
+	s.canvasMu.Lock()
+	defer s.canvasMu.Unlock()
+	s.canvasHandler = handler
+}
+
+func (s *Session) getCanvasHandler() CanvasHandler {
+	s.canvasMu.RLock()
+	defer s.canvasMu.RUnlock()
+	return s.canvasHandler
 }
 
 // newSession creates a new session wrapper with the given session ID and client.
