@@ -12,7 +12,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::canvas::{CanvasDeclaration, CanvasHandler, OpenCanvasInstance};
+use crate::canvas::{CanvasDeclaration, CanvasHandler};
+use crate::generated::api_types::OpenCanvasInstance;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
     UserInputHandler,

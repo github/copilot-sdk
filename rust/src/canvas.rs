@@ -5,26 +5,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::generated::api_types::CanvasAction;
 use crate::types::SessionId;
 
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
 pub type CanvasJsonSchema = serde_json::Map<String, Value>;
 
-/// Runtime-controlled routing state for an open canvas instance.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum CanvasInstanceAvailability {
-    /// The owning provider is currently connected and routing calls will be dispatched normally.
-    Ready,
-    /// The owning provider is not currently connected; routing calls fail with
-    /// `canvas_provider_unavailable` until the agent re-issues `open_canvas` or
-    /// the provider reconnects.
-    Stale,
-}
-
 /// Declarative metadata for a single canvas, sent over the wire on
 /// `session.create` / `session.resume`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CanvasDeclaration {
@@ -39,7 +28,7 @@ pub struct CanvasDeclaration {
     pub input_schema: Option<Value>,
     /// Agent-callable actions this canvas exposes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub actions: Option<Vec<CanvasAgentActionDeclaration>>,
+    pub actions: Option<Vec<CanvasAction>>,
 }
 
 impl CanvasDeclaration {
@@ -65,20 +54,6 @@ impl CanvasDeclaration {
     }
 }
 
-/// A single agent-callable action contributed by a canvas.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasAgentActionDeclaration {
-    /// Action identifier, unique within the canvas.
-    pub name: String,
-    /// Description shown to the model when picking an action.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Optional JSON Schema for the action's `input` payload.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<Value>,
-}
-
 /// Response returned from [`CanvasHandler::on_open`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -92,187 +67,6 @@ pub struct CanvasOpenResponse {
     /// Provider-supplied status text shown in host chrome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-}
-
-/// Open canvas instance returned by `session.canvas.open`,
-/// `session.canvas.listOpen`, and `session.resume`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[non_exhaustive]
-pub struct OpenCanvasInstance {
-    /// Stable caller-supplied canvas instance identifier.
-    pub instance_id: String,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Owning extension display name, when available.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extension_name: Option<String>,
-    /// Provider-local canvas identifier.
-    pub canvas_id: String,
-    /// Rendered title.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Provider-supplied status text.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
-    /// URL for web-rendered canvases.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    /// Input supplied when the instance was opened.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input: Option<Value>,
-    /// Whether this snapshot came from an idempotent reopen.
-    pub reopen: bool,
-    /// Runtime-controlled routing state for this instance.
-    pub availability: CanvasInstanceAvailability,
-}
-
-impl OpenCanvasInstance {
-    /// Construct an open canvas instance snapshot with the required fields set.
-    pub fn new(
-        instance_id: impl Into<String>,
-        extension_id: impl Into<String>,
-        canvas_id: impl Into<String>,
-    ) -> Self {
-        Self {
-            instance_id: instance_id.into(),
-            extension_id: extension_id.into(),
-            extension_name: None,
-            canvas_id: canvas_id.into(),
-            title: None,
-            status: None,
-            url: None,
-            input: None,
-            reopen: false,
-            availability: CanvasInstanceAvailability::Stale,
-        }
-    }
-
-    /// Set the owning extension display name.
-    pub fn with_extension_name(mut self, extension_name: impl Into<String>) -> Self {
-        self.extension_name = Some(extension_name.into());
-        self
-    }
-
-    /// Set the rendered title.
-    pub fn with_title(mut self, title: impl Into<String>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-
-    /// Set the provider-supplied status text.
-    pub fn with_status(mut self, status: impl Into<String>) -> Self {
-        self.status = Some(status.into());
-        self
-    }
-
-    /// Set the URL for web-rendered canvases.
-    pub fn with_url(mut self, url: impl Into<String>) -> Self {
-        self.url = Some(url.into());
-        self
-    }
-
-    /// Set the input supplied when the instance was opened.
-    pub fn with_input(mut self, input: Value) -> Self {
-        self.input = Some(input);
-        self
-    }
-
-    /// Set whether this snapshot came from an idempotent reopen.
-    pub fn with_reopen(mut self, reopen: bool) -> Self {
-        self.reopen = reopen;
-        self
-    }
-
-    /// Set the runtime-controlled routing availability.
-    pub fn with_availability(mut self, availability: CanvasInstanceAvailability) -> Self {
-        self.availability = availability;
-        self
-    }
-}
-
-/// Result returned by the `session.canvas.discover` RPC.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasDiscoverResult {
-    /// Declared canvases available in this session.
-    pub canvases: Vec<DiscoveredCanvas>,
-}
-
-/// Canvas available in the current session.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct DiscoveredCanvas {
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Owning extension display name, when available.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extension_name: Option<String>,
-    /// Provider-local canvas identifier.
-    pub canvas_id: String,
-    /// Human-readable canvas name.
-    pub display_name: String,
-    /// Short, single-sentence description shown to the agent in canvas catalogs.
-    pub description: String,
-    /// JSON Schema for canvas open input.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input_schema: Option<Value>,
-    /// Actions the agent or host may invoke on an open instance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub actions: Option<Vec<CanvasAgentActionDeclaration>>,
-}
-
-/// Result returned by the `session.canvas.listOpen` RPC.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasListOpenResult {
-    /// Currently open canvas instances.
-    pub open_canvases: Vec<OpenCanvasInstance>,
-}
-
-/// Request parameters for `session.canvas.open`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasOpenRequest {
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Provider-local canvas identifier.
-    pub canvas_id: String,
-    /// Caller-supplied stable instance identifier.
-    pub instance_id: String,
-    /// Optional opaque payload forwarded to the canvas provider.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input: Option<Value>,
-}
-
-/// Request parameters for `session.canvas.close`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasCloseRequest {
-    /// Open canvas instance identifier.
-    pub instance_id: String,
-}
-
-/// Request parameters for `session.canvas.invokeAction`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasInvokeActionRequest {
-    /// Open canvas instance identifier.
-    pub instance_id: String,
-    /// Action name to invoke.
-    pub action_name: String,
-    /// Optional input forwarded to the extension's action handler.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub input: Option<Value>,
-}
-
-/// Result returned from `session.canvas.invokeAction`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasInvokeActionResult {
-    /// Provider-supplied action result.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub result: Option<Value>,
 }
 
 /// Host capabilities passed to canvas provider callbacks.
@@ -499,7 +293,7 @@ mod tests {
             display_name: "Counter".to_string(),
             description: "Count things".to_string(),
             input_schema: None,
-            actions: Some(vec![CanvasAgentActionDeclaration {
+            actions: Some(vec![CanvasAction {
                 name: "increment".to_string(),
                 description: Some("bump".to_string()),
                 input_schema: None,

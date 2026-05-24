@@ -11,10 +11,8 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
-use crate::canvas::{
-    CanvasHandler, CanvasInvokeParams, CanvasProviderRequestParams, OpenCanvasInstance,
-};
-use crate::generated::api_types::{LogRequest, ModelSwitchToRequest};
+use crate::canvas::{CanvasHandler, CanvasInvokeParams, CanvasProviderRequestParams};
+use crate::generated::api_types::{LogRequest, ModelSwitchToRequest, OpenCanvasInstance};
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
     SessionEventType,

@@ -18,8 +18,10 @@ use std::path::PathBuf;
 
 use serde::Serialize;
 
-use crate::canvas::{CanvasDeclaration, OpenCanvasInstance};
-use crate::generated::api_types::{ModelCapabilitiesOverride, RemoteSessionMode};
+use crate::canvas::CanvasDeclaration;
+use crate::generated::api_types::{
+    ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
+};
 use crate::types::{
     CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
     InfiniteSessionConfig, McpServerConfig, ProviderConfig, SessionId, SystemMessageConfig, Tool,

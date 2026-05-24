@@ -7,9 +7,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use github_copilot_sdk::canvas::{
-    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasInstanceAvailability,
-    CanvasOpenContext, CanvasOpenResponse, CanvasResult, OpenCanvasInstance,
+    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasOpenContext, CanvasOpenResponse,
+    CanvasResult,
 };
+use github_copilot_sdk::generated::api_types::{CanvasInstanceAvailability, OpenCanvasInstance};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
@@ -2512,17 +2513,18 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
                 .with_request_canvas_renderer(true)
                 .with_request_extensions(true)
                 .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"))
-                .with_open_canvases([OpenCanvasInstance::new(
-                    "counter-1",
-                    "github-app:counter-provider",
-                    "counter",
-                )
-                .with_extension_name("Counter Provider")
-                .with_title("Counter")
-                .with_status("ready")
-                .with_url("https://example.test/counter")
-                .with_input(serde_json::json!({ "seed": 1 }))
-                .with_availability(CanvasInstanceAvailability::Stale)]);
+                .with_open_canvases([OpenCanvasInstance {
+                    instance_id: "counter-1".to_string(),
+                    extension_id: "github-app:counter-provider".to_string(),
+                    extension_name: Some("Counter Provider".to_string()),
+                    canvas_id: "counter".to_string(),
+                    title: Some("Counter".to_string()),
+                    status: Some("ready".to_string()),
+                    url: Some("https://example.test/counter".to_string()),
+                    input: Some(serde_json::json!({ "seed": 1 })),
+                    reopen: false,
+                    availability: CanvasInstanceAvailability::Stale,
+                }]);
             client.resume_session(cfg).await.unwrap()
         }
     });
