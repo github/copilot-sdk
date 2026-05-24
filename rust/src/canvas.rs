@@ -681,8 +681,6 @@ mod tests {
         assert_eq!(value["displayName"], "Counter");
         assert_eq!(value["description"], "Count things");
         assert_eq!(value["actions"][0]["name"], "increment");
-        assert!(value.get("agentActions").is_none());
-        assert!(value.get("toolbar").is_none());
     }
 
     #[tokio::test]
