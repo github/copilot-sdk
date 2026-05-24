@@ -12,6 +12,7 @@ import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import type { ClientSessionApiHandlers } from "./generated/rpc.js";
 import type { Canvas } from "./canvas.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
@@ -113,6 +114,7 @@ export class CopilotSession {
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
+    private openCanvasInstances: OpenCanvasInstance[] = [];
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -772,6 +774,26 @@ export class CopilotSession {
      */
     setCapabilities(capabilities?: SessionCapabilities): void {
         this._capabilities = capabilities ?? {};
+    }
+
+    /**
+     * Snapshot of canvas instances that were already open when the session was
+     * resumed. Populated from the `session.resume` response; empty for freshly
+     * created sessions. Returns a defensive copy — mutating the returned array
+     * has no effect on the session.
+     */
+    get openCanvases(): OpenCanvasInstance[] {
+        return [...this.openCanvasInstances];
+    }
+
+    /**
+     * Sets the open-canvas snapshot for this session.
+     *
+     * @param instances - The `openCanvases` array from the `session.resume` response.
+     * @internal This method is typically called internally when resuming a session.
+     */
+    setOpenCanvases(instances: OpenCanvasInstance[]): void {
+        this.openCanvasInstances = [...instances];
     }
 
     private assertElicitation(): void {

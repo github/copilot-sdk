@@ -12,6 +12,7 @@ import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -1737,6 +1738,12 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * @default false
      */
     continuePendingWork?: boolean;
+    /**
+     * Snapshot of canvases that were already open when the session was suspended.
+     * When provided on resume, the runtime can rehydrate canvas state so consumers
+     * do not need to re-open canvases that were active before the previous shutdown.
+     */
+    openCanvases?: OpenCanvasInstance[];
 }
 
 /**

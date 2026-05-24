@@ -849,6 +849,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
+	req.OpenCanvases = config.OpenCanvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
 	req.ExtensionInfo = config.ExtensionInfo

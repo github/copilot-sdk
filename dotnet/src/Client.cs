@@ -789,7 +789,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
-                ExtensionInfo: config.ExtensionInfo);
+                ExtensionInfo: config.ExtensionInfo,
+                OpenCanvases: config.OpenCanvases);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1998,7 +1999,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,
         bool? RequestExtensions = null,
-        ExtensionInfo? ExtensionInfo = null);
+        ExtensionInfo? ExtensionInfo = null,
+        IList<OpenCanvasInstance>? OpenCanvases = null);
 #pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(

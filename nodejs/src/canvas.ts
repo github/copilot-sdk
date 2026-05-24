@@ -168,7 +168,14 @@ export interface CanvasOptions {
     onClose?: (ctx: CanvasLifecycleContext) => Promise<void> | void;
 }
 
-/** A registered canvas: declarative metadata + in-process handler closures. */
+/** A registered canvas: declarative metadata + in-process handler closures.
+ *
+ * Node intentionally uses a per-canvas factory pattern (mirroring
+ * {@link https://github.com/github/copilot-sdk | `DefineTool`}'s co-location
+ * ergonomics) where other SDKs (Rust, Python, Go, .NET) expose a single
+ * `CanvasHandler` per session that switches on `canvasId`. Both shapes target
+ * the same JSON-RPC wire protocol; the divergence is API ergonomics only.
+ */
 export class Canvas {
     readonly declaration: CanvasDeclaration;
     readonly open: NonNullable<CanvasOptions["open"]>;
@@ -199,7 +206,13 @@ export class Canvas {
     }
 }
 
-/** Create a canvas declaration with bound in-process handlers. */
+/** Create a canvas declaration with bound in-process handlers.
+ *
+ * Node intentionally uses this per-canvas factory pattern (mirroring
+ * `DefineTool`'s co-location ergonomics) where other SDKs (Rust, Python, Go,
+ * .NET) expose a single `CanvasHandler` per session that switches on
+ * `canvasId`. Both shapes target the same JSON-RPC wire protocol.
+ */
 export function createCanvas(options: CanvasOptions): Canvas {
     return new Canvas(options);
 }

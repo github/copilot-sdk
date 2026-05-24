@@ -265,4 +265,55 @@ func TestResumeSessionResponse_OpenCanvasesParse(t *testing.T) {
 	}
 }
 
+func TestResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
+	req := resumeSessionRequest{
+		SessionID: "s1",
+		OpenCanvases: []rpc.OpenCanvasInstance{
+			{
+				Availability: "ready",
+				CanvasID:     "echo",
+				ExtensionID:  "project:echo",
+				InstanceID:   "echo-1",
+				Reopen:       false,
+			},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	raw, ok := decoded["openCanvases"].([]any)
+	if !ok || len(raw) != 1 {
+		t.Fatalf("expected openCanvases array of length 1, got %v", decoded["openCanvases"])
+	}
+	first, _ := raw[0].(map[string]any)
+	if first["canvasId"] != "echo" {
+		t.Fatalf("expected canvasId=echo, got %v", first["canvasId"])
+	}
+	if first["instanceId"] != "echo-1" {
+		t.Fatalf("expected instanceId=echo-1, got %v", first["instanceId"])
+	}
+
+	// Omitted when nil
+	empty := resumeSessionRequest{SessionID: "s1"}
+	emptyData, err := json.Marshal(empty)
+	if err != nil {
+		t.Fatalf("marshal empty failed: %v", err)
+	}
+	var emptyDecoded map[string]any
+	if err := json.Unmarshal(emptyData, &emptyDecoded); err != nil {
+		t.Fatalf("unmarshal empty failed: %v", err)
+	}
+	if _, present := emptyDecoded["openCanvases"]; present {
+		t.Fatalf("openCanvases should be omitted when nil")
+	}
+}
+
 func strPtr(s string) *string { return &s }

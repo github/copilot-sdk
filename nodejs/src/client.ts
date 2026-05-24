@@ -31,6 +31,7 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
 import {
     type CanvasActionInvokeParams,
     type CanvasProviderRequestParams,
@@ -1060,15 +1061,18 @@ export class CopilotClient {
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
+                openCanvases: config.openCanvases,
             });
 
-            const { workspacePath, capabilities } = response as {
+            const { workspacePath, capabilities, openCanvases } = response as {
                 sessionId: string;
                 workspacePath?: string;
                 capabilities?: SessionCapabilities;
+                openCanvases?: OpenCanvasInstance[];
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
+            session.setOpenCanvases(openCanvases ?? []);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;

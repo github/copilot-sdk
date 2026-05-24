@@ -1193,6 +1193,10 @@ type ResumeSessionConfig struct {
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.resume`. See SessionConfig.Canvases.
 	Canvases []CanvasDeclaration
+	// OpenCanvases declares canvas instances the caller knows were open before
+	// this resume so the runtime can re-attach them. Sent over the wire on
+	// `session.resume` as `openCanvases`.
+	OpenCanvases []rpc.OpenCanvasInstance
 	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
@@ -1485,6 +1489,7 @@ type resumeSessionRequest struct {
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
 	Canvases                       []CanvasDeclaration            `json:"canvases,omitempty"`
+	OpenCanvases                   []rpc.OpenCanvasInstance       `json:"openCanvases,omitempty"`
 	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
 	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`

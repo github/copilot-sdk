@@ -2510,6 +2510,7 @@ public sealed class ResumeSessionConfig : SessionConfigBase
 
         SuppressResumeEvent = other.SuppressResumeEvent;
         ContinuePendingWork = other.ContinuePendingWork;
+        OpenCanvases = other.OpenCanvases is not null ? [.. other.OpenCanvases] : null;
     }
 
     /// <summary>
@@ -2531,6 +2532,16 @@ public sealed class ResumeSessionConfig : SessionConfigBase
     /// </para>
     /// </summary>
     public bool? ContinuePendingWork { get; set; }
+
+#pragma warning disable GHCP001
+    /// <summary>
+    /// Snapshot of canvases that were already open when the session was suspended.
+    /// When provided on resume, the runtime can rehydrate canvas state so consumers
+    /// do not need to re-open canvases that were active before the previous shutdown.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IList<OpenCanvasInstance>? OpenCanvases { get; set; }
+#pragma warning restore GHCP001
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="ResumeSessionConfig"/> instance.
