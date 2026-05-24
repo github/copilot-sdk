@@ -115,7 +115,7 @@ pub struct CanvasActionContext {
     pub canvas_id: String,
     /// Instance id targeted by the action.
     pub instance_id: String,
-    /// Action name from [`CanvasAgentActionDeclaration::name`].
+    /// Action name from [`crate::generated::api_types::CanvasAction::name`].
     pub action_name: String,
     /// Validated input payload.
     pub input: Value,
