@@ -5868,4 +5868,34 @@ impl<'a> SessionRpcWorkspaces<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Computes a diff for the session workspace.
+    ///
+    /// Wire method: `session.workspaces.diff`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Parameters for computing a workspace diff.
+    ///
+    /// # Returns
+    ///
+    /// Workspace diff result for the requested mode.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn diff(&self, params: WorkspacesDiffRequest) -> Result<WorkspaceDiffResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_WORKSPACES_DIFF, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }

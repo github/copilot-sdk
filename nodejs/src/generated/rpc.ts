@@ -1150,6 +1150,34 @@ export type UIExitPlanModeAction =
   /** Exit plan mode and continue in autopilot mode with parallel subagent execution. */
   | "autopilot_fleet";
 /**
+ * Type of change represented by this file diff.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspaceDiffFileChangeType".
+ */
+/** @experimental */
+export type WorkspaceDiffFileChangeType =
+  /** The file was added. */
+  | "added"
+  /** The file was modified. */
+  | "modified"
+  /** The file was deleted. */
+  | "deleted"
+  /** The file was renamed. */
+  | "renamed";
+/**
+ * Diff mode requested by the client.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspaceDiffMode".
+ */
+/** @experimental */
+export type WorkspaceDiffMode =
+  /** Return staged, unstaged, and untracked working tree changes. */
+  | "unstaged"
+  /** Return changes compared with the default branch. */
+  | "branch";
+/**
  * Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9184,6 +9212,55 @@ export interface UsageMetricsModelMetricTokenDetail {
   tokenCount: number;
 }
 /**
+ * A single changed file and its unified diff.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspaceDiffFileChange".
+ */
+/** @experimental */
+export interface WorkspaceDiffFileChange {
+  /**
+   * Path to the changed file, relative to the workspace root.
+   */
+  path: string;
+  /**
+   * Unified diff content for the file. Empty when the diff was truncated.
+   */
+  diff: string;
+  changeType: WorkspaceDiffFileChangeType;
+  /**
+   * Original file path for renamed files.
+   */
+  oldPath?: string;
+  /**
+   * Whether the diff content was omitted because it exceeded the per-file size limit.
+   */
+  isTruncated?: boolean;
+}
+/**
+ * Workspace diff result for the requested mode.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspaceDiffResult".
+ */
+/** @experimental */
+export interface WorkspaceDiffResult {
+  requestedMode: WorkspaceDiffMode;
+  mode: WorkspaceDiffMode;
+  /**
+   * Changed files and their unified diffs.
+   */
+  changes: WorkspaceDiffFileChange[];
+  /**
+   * Default branch used for a branch diff, when branch mode was requested.
+   */
+  baseBranch?: string;
+  /**
+   * Whether a requested branch diff fell back to unstaged changes because branch diff failed.
+   */
+  isFallback: boolean;
+}
+/**
  * Schema for the `WorkspacesCheckpoints` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9220,6 +9297,16 @@ export interface WorkspacesCreateFileRequest {
    * File content to write as a UTF-8 string
    */
   content: string;
+}
+/**
+ * Parameters for computing a workspace diff.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "WorkspacesDiffRequest".
+ */
+/** @experimental */
+export interface WorkspacesDiffRequest {
+  mode: WorkspaceDiffMode;
 }
 /**
  * Current workspace metadata for the session, including its absolute filesystem path when available.
@@ -9983,6 +10070,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             saveLargePaste: async (params: WorkspacesSaveLargePasteRequest): Promise<WorkspacesSaveLargePasteResult> =>
                 connection.sendRequest("session.workspaces.saveLargePaste", { sessionId, ...params }),
+            /**
+             * Computes a diff for the session workspace.
+             *
+             * @param params Parameters for computing a workspace diff.
+             *
+             * @returns Workspace diff result for the requested mode.
+             */
+            diff: async (params: WorkspacesDiffRequest): Promise<WorkspaceDiffResult> =>
+                connection.sendRequest("session.workspaces.diff", { sessionId, ...params }),
         },
         /** @experimental */
         instructions: {

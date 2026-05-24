@@ -6031,6 +6031,38 @@ func (UserToolSessionApprovalWrite) Kind() UserToolSessionApprovalKind {
 	return UserToolSessionApprovalKindWrite
 }
 
+// A single changed file and its unified diff.
+// Experimental: WorkspaceDiffFileChange is part of an experimental API and may change or be
+// removed.
+type WorkspaceDiffFileChange struct {
+	// Type of change represented by this file diff.
+	ChangeType WorkspaceDiffFileChangeType `json:"changeType"`
+	// Unified diff content for the file. Empty when the diff was truncated.
+	Diff string `json:"diff"`
+	// Whether the diff content was omitted because it exceeded the per-file size limit.
+	IsTruncated *bool `json:"isTruncated,omitempty"`
+	// Original file path for renamed files.
+	OldPath *string `json:"oldPath,omitempty"`
+	// Path to the changed file, relative to the workspace root.
+	Path string `json:"path"`
+}
+
+// Workspace diff result for the requested mode.
+// Experimental: WorkspaceDiffResult is part of an experimental API and may change or be
+// removed.
+type WorkspaceDiffResult struct {
+	// Default branch used for a branch diff, when branch mode was requested.
+	BaseBranch *string `json:"baseBranch,omitempty"`
+	// Changed files and their unified diffs.
+	Changes []WorkspaceDiffFileChange `json:"changes"`
+	// Whether a requested branch diff fell back to unstaged changes because branch diff failed.
+	IsFallback bool `json:"isFallback"`
+	// Effective mode used for the returned changes.
+	Mode WorkspaceDiffMode `json:"mode"`
+	// Diff mode requested by the client.
+	RequestedMode WorkspaceDiffMode `json:"requestedMode"`
+}
+
 // Schema for the `WorkspacesCheckpoints` type.
 // Experimental: WorkspacesCheckpoints is part of an experimental API and may change or be
 // removed.
@@ -6051,6 +6083,14 @@ type WorkspacesCreateFileRequest struct {
 	Content string `json:"content"`
 	// Relative path within the workspace files directory
 	Path string `json:"path"`
+}
+
+// Parameters for computing a workspace diff.
+// Experimental: WorkspacesDiffRequest is part of an experimental API and may change or be
+// removed.
+type WorkspacesDiffRequest struct {
+	// Diff mode requested by the client.
+	Mode WorkspaceDiffMode `json:"mode"`
 }
 
 // Current workspace metadata for the session, including its absolute filesystem path when
@@ -7302,6 +7342,34 @@ const (
 	UserToolSessionApprovalKindMemory                    UserToolSessionApprovalKind = "memory"
 	UserToolSessionApprovalKindRead                      UserToolSessionApprovalKind = "read"
 	UserToolSessionApprovalKindWrite                     UserToolSessionApprovalKind = "write"
+)
+
+// Type of change represented by this file diff.
+// Experimental: WorkspaceDiffFileChangeType is part of an experimental API and may change
+// or be removed.
+type WorkspaceDiffFileChangeType string
+
+const (
+	// The file was added.
+	WorkspaceDiffFileChangeTypeAdded WorkspaceDiffFileChangeType = "added"
+	// The file was deleted.
+	WorkspaceDiffFileChangeTypeDeleted WorkspaceDiffFileChangeType = "deleted"
+	// The file was modified.
+	WorkspaceDiffFileChangeTypeModified WorkspaceDiffFileChangeType = "modified"
+	// The file was renamed.
+	WorkspaceDiffFileChangeTypeRenamed WorkspaceDiffFileChangeType = "renamed"
+)
+
+// Diff mode requested by the client.
+// Experimental: WorkspaceDiffMode is part of an experimental API and may change or be
+// removed.
+type WorkspaceDiffMode string
+
+const (
+	// Return changes compared with the default branch.
+	WorkspaceDiffModeBranch WorkspaceDiffMode = "branch"
+	// Return staged, unstaged, and untracked working tree changes.
+	WorkspaceDiffModeUnstaged WorkspaceDiffMode = "unstaged"
 )
 
 // Repository host type, if known
@@ -11278,6 +11346,29 @@ func (a *WorkspacesApi) CreateFile(ctx context.Context, params *WorkspacesCreate
 		return nil, err
 	}
 	var result SessionWorkspacesCreateFileResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Diff computes a diff for the session workspace.
+//
+// RPC method: session.workspaces.diff.
+//
+// Parameters: Parameters for computing a workspace diff.
+//
+// Returns: Workspace diff result for the requested mode.
+func (a *WorkspacesApi) Diff(ctx context.Context, params *WorkspacesDiffRequest) (*WorkspaceDiffResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["mode"] = params.Mode
+	}
+	raw, err := a.client.Request("session.workspaces.diff", req)
+	if err != nil {
+		return nil, err
+	}
+	var result WorkspaceDiffResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
