@@ -858,6 +858,7 @@ export class CopilotClient {
                 excludedTools: config.excludedTools,
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
+                includeCurrentDatetime: config.includeCurrentDatetime,
                 modelCapabilities: config.modelCapabilities,
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
@@ -980,6 +981,7 @@ export class CopilotClient {
                 availableTools: config.availableTools,
                 excludedTools: config.excludedTools,
                 enableSessionTelemetry: config.enableSessionTelemetry,
+                includeCurrentDatetime: config.includeCurrentDatetime,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,

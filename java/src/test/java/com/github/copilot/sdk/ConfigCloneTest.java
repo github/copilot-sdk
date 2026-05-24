@@ -216,6 +216,25 @@ class ConfigCloneTest {
     }
 
     @Test
+    void sessionConfigIncludeCurrentDatetimeCopied() {
+        SessionConfig original = new SessionConfig();
+        original.setIncludeCurrentDatetime(false);
+
+        SessionConfig cloned = original.clone();
+
+        assertFalse(cloned.getIncludeCurrentDatetime().orElse(true));
+    }
+
+    @Test
+    void sessionConfigIncludeCurrentDatetimeDefaultIsNull() {
+        SessionConfig original = new SessionConfig();
+
+        SessionConfig cloned = original.clone();
+
+        assertTrue(cloned.getIncludeCurrentDatetime().isEmpty());
+    }
+
+    @Test
     void resumeSessionConfigEnableSessionTelemetryCopied() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setEnableSessionTelemetry(false);
@@ -232,6 +251,25 @@ class ConfigCloneTest {
         ResumeSessionConfig cloned = original.clone();
 
         assertTrue(cloned.getEnableSessionTelemetry().isEmpty());
+    }
+
+    @Test
+    void resumeSessionConfigIncludeCurrentDatetimeCopied() {
+        ResumeSessionConfig original = new ResumeSessionConfig();
+        original.setIncludeCurrentDatetime(false);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertFalse(cloned.getIncludeCurrentDatetime().orElse(true));
+    }
+
+    @Test
+    void resumeSessionConfigIncludeCurrentDatetimeDefaultIsNull() {
+        ResumeSessionConfig original = new ResumeSessionConfig();
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertTrue(cloned.getIncludeCurrentDatetime().isEmpty());
     }
 
     @Test

@@ -104,6 +104,20 @@ public class SessionRequestBuilderTest {
         assertNull(request.getEnableSessionTelemetry());
     }
 
+    @Test
+    void testBuildCreateRequestForwardsIncludeCurrentDatetimeWhenFalse() {
+        var config = new SessionConfig().setIncludeCurrentDatetime(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertFalse(request.getIncludeCurrentDatetime());
+    }
+
+    @Test
+    void testBuildCreateRequestOmitsIncludeCurrentDatetimeWhenNotSet() {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertNull(request.getIncludeCurrentDatetime());
+    }
+
     // =========================================================================
     // buildResumeRequest
     // =========================================================================
@@ -129,6 +143,20 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig();
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
         assertNull(request.getEnableSessionTelemetry());
+    }
+
+    @Test
+    void testBuildResumeRequestForwardsIncludeCurrentDatetimeWhenFalse() {
+        var config = new ResumeSessionConfig().setIncludeCurrentDatetime(false);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertFalse(request.getIncludeCurrentDatetime());
+    }
+
+    @Test
+    void testBuildResumeRequestOmitsIncludeCurrentDatetimeWhenNotSet() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-1", config);
+        assertNull(request.getIncludeCurrentDatetime());
     }
 
     @Test
@@ -538,6 +566,48 @@ public class SessionRequestBuilderTest {
         var mapper = JsonRpcClient.getObjectMapper();
         var json = mapper.writeValueAsString(request);
         assertFalse(json.contains("enableSessionTelemetry"), "enableSessionTelemetry should be omitted when null");
+    }
+
+    // =========================================================================
+    // includeCurrentDatetime serialization
+    // =========================================================================
+
+    @Test
+    void testCreateRequestSerializesIncludeCurrentDatetimeWhenFalse() throws Exception {
+        var config = new SessionConfig().setIncludeCurrentDatetime(false);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertTrue(json.contains("\"includeCurrentDatetime\":false"),
+                "includeCurrentDatetime should be serialized when set to false");
+    }
+
+    @Test
+    void testCreateRequestOmitsIncludeCurrentDatetimeWhenNull() throws Exception {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertFalse(json.contains("includeCurrentDatetime"), "includeCurrentDatetime should be omitted when null");
+    }
+
+    @Test
+    void testResumeRequestSerializesIncludeCurrentDatetimeWhenFalse() throws Exception {
+        var config = new ResumeSessionConfig().setIncludeCurrentDatetime(false);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-dt", config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertTrue(json.contains("\"includeCurrentDatetime\":false"),
+                "includeCurrentDatetime should be serialized when set to false");
+    }
+
+    @Test
+    void testResumeRequestOmitsIncludeCurrentDatetimeWhenNull() throws Exception {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-dt", config);
+        var mapper = JsonRpcClient.getObjectMapper();
+        var json = mapper.writeValueAsString(request);
+        assertFalse(json.contains("includeCurrentDatetime"), "includeCurrentDatetime should be omitted when null");
     }
 
     // =========================================================================

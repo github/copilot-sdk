@@ -64,6 +64,16 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
+    void sessionConfig_clearIncludeCurrentDatetime() {
+        var cfg = new SessionConfig();
+        cfg.setIncludeCurrentDatetime(false);
+        assertTrue(cfg.getIncludeCurrentDatetime().isPresent());
+
+        cfg.clearIncludeCurrentDatetime();
+        assertTrue(cfg.getIncludeCurrentDatetime().isEmpty());
+    }
+
+    @Test
     void sessionConfig_clearEnableConfigDiscovery() {
         var cfg = new SessionConfig();
         cfg.setEnableConfigDiscovery(false);
@@ -93,6 +103,16 @@ class OptionalApiAndJacksonTest {
 
         cfg.clearEnableSessionTelemetry();
         assertTrue(cfg.getEnableSessionTelemetry().isEmpty());
+    }
+
+    @Test
+    void resumeSessionConfig_clearIncludeCurrentDatetime() {
+        var cfg = new ResumeSessionConfig();
+        cfg.setIncludeCurrentDatetime(false);
+        assertTrue(cfg.getIncludeCurrentDatetime().isPresent());
+
+        cfg.clearIncludeCurrentDatetime();
+        assertTrue(cfg.getIncludeCurrentDatetime().isEmpty());
     }
 
     @Test
@@ -333,6 +353,18 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
+    void sessionConfig_includeCurrentDatetimeValue() {
+        var cfg = new SessionConfig();
+        assertTrue(cfg.getIncludeCurrentDatetime().isEmpty());
+
+        cfg.setIncludeCurrentDatetime(true);
+        assertTrue(cfg.getIncludeCurrentDatetime().get());
+
+        cfg.setIncludeCurrentDatetime(false);
+        assertFalse(cfg.getIncludeCurrentDatetime().get());
+    }
+
+    @Test
     void sessionConfig_enableConfigDiscoveryValue() {
         var cfg = new SessionConfig();
         assertTrue(cfg.getEnableConfigDiscovery().isEmpty());
@@ -363,6 +395,18 @@ class OptionalApiAndJacksonTest {
 
         cfg.setEnableSessionTelemetry(false);
         assertFalse(cfg.getEnableSessionTelemetry().get());
+    }
+
+    @Test
+    void resumeSessionConfig_includeCurrentDatetimeValue() {
+        var cfg = new ResumeSessionConfig();
+        assertTrue(cfg.getIncludeCurrentDatetime().isEmpty());
+
+        cfg.setIncludeCurrentDatetime(true);
+        assertTrue(cfg.getIncludeCurrentDatetime().get());
+
+        cfg.setIncludeCurrentDatetime(false);
+        assertFalse(cfg.getIncludeCurrentDatetime().get());
     }
 
     @Test

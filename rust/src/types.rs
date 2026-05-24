@@ -1160,6 +1160,10 @@ pub struct SessionConfig {
     /// only non-streaming sub-agent events and `subagent.*` lifecycle events
     /// are delivered. Defaults to true on the CLI.
     pub include_sub_agent_streaming_events: Option<bool>,
+    /// Include the current local datetime in model-facing user messages.
+    /// When false, suppresses the injected `<current_datetime>` tag.
+    /// Defaults to true on the CLI when unset.
+    pub include_current_datetime: Option<bool>,
     /// Slash commands registered for this session. When the CLI has a TUI,
     /// each command appears as `/name` for the user to invoke and the
     /// associated [`CommandHandler`] is called when executed.
@@ -1238,6 +1242,7 @@ impl std::fmt::Debug for SessionConfig {
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
             )
+            .field("include_current_datetime", &self.include_current_datetime)
             .field("commands", &self.commands)
             .field(
                 "session_fs_provider",
@@ -1311,6 +1316,7 @@ impl Default for SessionConfig {
             remote_session: None,
             cloud: None,
             include_sub_agent_streaming_events: None,
+            include_current_datetime: None,
             commands: None,
             session_fs_provider: None,
             permission_handler: None,
@@ -1426,6 +1432,7 @@ impl SessionConfig {
             remote_session: self.remote_session,
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            include_current_datetime: self.include_current_datetime,
             commands: wire_commands,
         };
 
@@ -1734,6 +1741,13 @@ impl SessionConfig {
         self
     }
 
+    /// Include the current local datetime in model-facing user messages.
+    /// Defaults to true on the CLI when unset.
+    pub fn with_include_current_datetime(mut self, include: bool) -> Self {
+        self.include_current_datetime = Some(include);
+        self
+    }
+
     /// Set per-session remote behavior.
     pub fn with_remote_session(
         mut self,
@@ -1822,6 +1836,9 @@ pub struct ResumeSessionConfig {
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Forward sub-agent streaming events to this connection on resume.
     pub include_sub_agent_streaming_events: Option<bool>,
+    /// Include the current local datetime in model-facing user messages on resume.
+    /// Defaults to true on the CLI when unset.
+    pub include_current_datetime: Option<bool>,
     /// Slash commands registered for this session on resume. See
     /// [`SessionConfig::commands`] — commands are not persisted server-side,
     /// so the resume payload re-supplies the registration.
@@ -1900,6 +1917,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
                 "include_sub_agent_streaming_events",
                 &self.include_sub_agent_streaming_events,
             )
+            .field("include_current_datetime", &self.include_current_datetime)
             .field("commands", &self.commands)
             .field(
                 "session_fs_provider",
@@ -2014,6 +2032,7 @@ impl ResumeSessionConfig {
             github_token: self.github_token,
             remote_session: self.remote_session,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
+            include_current_datetime: self.include_current_datetime,
             commands: wire_commands,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
@@ -2068,6 +2087,7 @@ impl ResumeSessionConfig {
             github_token: None,
             remote_session: None,
             include_sub_agent_streaming_events: None,
+            include_current_datetime: None,
             commands: None,
             session_fs_provider: None,
             suppress_resume_event: None,
@@ -2339,6 +2359,13 @@ impl ResumeSessionConfig {
     /// Forward sub-agent streaming events to this connection on resume.
     pub fn with_include_sub_agent_streaming_events(mut self, include: bool) -> Self {
         self.include_sub_agent_streaming_events = Some(include);
+        self
+    }
+
+    /// Include the current local datetime in model-facing user messages on resume.
+    /// Defaults to true on the CLI when unset.
+    pub fn with_include_current_datetime(mut self, include: bool) -> Self {
+        self.include_current_datetime = Some(include);
         self
     }
 
@@ -3593,6 +3620,7 @@ mod tests {
         cfg.working_directory = Some(PathBuf::from("/tmp/work"));
         cfg.github_token = Some("ghs_secret".to_string());
         cfg.include_sub_agent_streaming_events = Some(false);
+        cfg.include_current_datetime = Some(false);
         cfg.enable_session_telemetry = Some(false);
         cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::Export);
         cfg.cloud = Some(CloudSessionOptions::with_repository(
@@ -3608,6 +3636,7 @@ mod tests {
         assert_eq!(wire_json["workingDirectory"], "/tmp/work");
         assert_eq!(wire_json["gitHubToken"], "ghs_secret");
         assert_eq!(wire_json["includeSubAgentStreamingEvents"], false);
+        assert_eq!(wire_json["includeCurrentDatetime"], false);
         assert_eq!(wire_json["enableSessionTelemetry"], false);
         assert_eq!(wire_json["remoteSession"], "export");
         assert_eq!(wire_json["cloud"]["repository"]["owner"], "github");
@@ -3620,6 +3649,7 @@ mod tests {
             .expect("default has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("gitHubToken").is_none());
+        assert!(empty_json.get("includeCurrentDatetime").is_none());
         assert!(empty_json.get("enableSessionTelemetry").is_none());
         assert!(empty_json.get("remoteSession").is_none());
         assert!(empty_json.get("cloud").is_none());
@@ -3634,6 +3664,7 @@ mod tests {
         cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
         cfg.github_token = Some("ghs_secret".to_string());
         cfg.include_sub_agent_streaming_events = Some(true);
+        cfg.include_current_datetime = Some(true);
         cfg.enable_session_telemetry = Some(false);
         cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::On);
 
@@ -3644,6 +3675,7 @@ mod tests {
         assert_eq!(wire_json["configDir"], "/tmp/cfg");
         assert_eq!(wire_json["gitHubToken"], "ghs_secret");
         assert_eq!(wire_json["includeSubAgentStreamingEvents"], true);
+        assert_eq!(wire_json["includeCurrentDatetime"], true);
         assert_eq!(wire_json["enableSessionTelemetry"], false);
         assert_eq!(wire_json["remoteSession"], "on");
 
@@ -3653,6 +3685,7 @@ mod tests {
             .expect("default resume has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("remoteSession").is_none());
+        assert!(empty_json.get("includeCurrentDatetime").is_none());
     }
 
     #[test]
@@ -3677,7 +3710,8 @@ mod tests {
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
-            .with_include_sub_agent_streaming_events(false);
+            .with_include_sub_agent_streaming_events(false)
+            .with_include_current_datetime(false);
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
         assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
@@ -3709,6 +3743,7 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
+        assert_eq!(cfg.include_current_datetime, Some(false));
     }
 
     #[test]
@@ -3731,6 +3766,7 @@ mod tests {
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
+            .with_include_current_datetime(true)
             .with_suppress_resume_event(true)
             .with_continue_pending_work(true);
 
@@ -3762,6 +3798,7 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
+        assert_eq!(cfg.include_current_datetime, Some(true));
         assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
     }

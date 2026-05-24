@@ -48,6 +48,7 @@ public class SessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean includeCurrentDatetime;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
@@ -331,6 +332,46 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the current local datetime is included in model-facing user
+     * messages.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to include the
+     *         current datetime or {@code false} to suppress it, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getIncludeCurrentDatetime() {
+        return Optional.ofNullable(includeCurrentDatetime);
+    }
+
+    /**
+     * Sets whether to include the current local datetime in model-facing user
+     * messages.
+     * <p>
+     * When {@code false}, suppresses the injected {@code <current_datetime>} tag.
+     * Default: {@code true}.
+     *
+     * @param includeCurrentDatetime
+     *            {@code true} to include the current datetime, {@code false} to
+     *            suppress it, or {@code null} to use the runtime default
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setIncludeCurrentDatetime(Boolean includeCurrentDatetime) {
+        this.includeCurrentDatetime = includeCurrentDatetime;
+        return this;
+    }
+
+    /**
+     * Clears the includeCurrentDatetime setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearIncludeCurrentDatetime() {
+        this.includeCurrentDatetime = null;
         return this;
     }
 
@@ -1033,6 +1074,7 @@ public class SessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.includeCurrentDatetime = this.includeCurrentDatetime;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;

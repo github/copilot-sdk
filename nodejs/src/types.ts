@@ -1504,6 +1504,13 @@ export interface SessionConfigBase {
     enableSessionTelemetry?: boolean;
 
     /**
+     * Include the current local datetime in model-facing user messages.
+     * When `false`, suppresses the injected `<current_datetime>` tag.
+     * Defaults to `true` for backwards compatibility.
+     */
+    includeCurrentDatetime?: boolean;
+
+    /**
      * Optional handler for permission requests from the server.
      * When omitted, permission requests are surfaced as events and left pending for
      * the consumer to resolve via the pending permission RPC.

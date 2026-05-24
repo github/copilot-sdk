@@ -46,6 +46,7 @@ public class ResumeSessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean includeCurrentDatetime;
     private String reasoningEffort;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
@@ -276,6 +277,46 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the current local datetime is included in model-facing user
+     * messages.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to include the
+     *         current datetime or {@code false} to suppress it, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getIncludeCurrentDatetime() {
+        return Optional.ofNullable(includeCurrentDatetime);
+    }
+
+    /**
+     * Sets whether to include the current local datetime in model-facing user
+     * messages.
+     * <p>
+     * When {@code false}, suppresses the injected {@code <current_datetime>} tag.
+     * Default: {@code true}.
+     *
+     * @param includeCurrentDatetime
+     *            {@code true} to include the current datetime, {@code false} to
+     *            suppress it, or {@code null} to use the runtime default
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setIncludeCurrentDatetime(Boolean includeCurrentDatetime) {
+        this.includeCurrentDatetime = includeCurrentDatetime;
+        return this;
+    }
+
+    /**
+     * Clears the includeCurrentDatetime setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearIncludeCurrentDatetime() {
+        this.includeCurrentDatetime = null;
         return this;
     }
 
@@ -937,6 +978,7 @@ public class ResumeSessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.includeCurrentDatetime = this.includeCurrentDatetime;
         copy.reasoningEffort = this.reasoningEffort;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;

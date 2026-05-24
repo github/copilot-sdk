@@ -2214,6 +2214,7 @@ public abstract class SessionConfigBase
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        IncludeCurrentDatetime = other.IncludeCurrentDatetime;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
@@ -2291,6 +2292,12 @@ public abstract class SessionConfigBase
     /// OpenTelemetry export for observability.
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
+
+    /// <summary>
+    /// When false, suppresses current_datetime injection in the model-facing user message.
+    /// Defaults to true (datetime is included) when null.
+    /// </summary>
+    public bool? IncludeCurrentDatetime { get; set; }
 
     /// <summary>Handler for permission requests from the server.</summary>
     public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }

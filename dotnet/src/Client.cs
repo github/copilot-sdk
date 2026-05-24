@@ -618,7 +618,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 GitHubToken: config.GitHubToken,
                 RemoteSession: config.RemoteSession,
                 Cloud: config.Cloud,
-                InstructionDirectories: config.InstructionDirectories);
+                InstructionDirectories: config.InstructionDirectories,
+                IncludeCurrentDatetime: config.IncludeCurrentDatetime);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<CreateSessionResponse>(
@@ -778,7 +779,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 GitHubToken: config.GitHubToken,
                 RemoteSession: config.RemoteSession,
                 ContinuePendingWork: config.ContinuePendingWork,
-                InstructionDirectories: config.InstructionDirectories);
+                InstructionDirectories: config.InstructionDirectories,
+                IncludeCurrentDatetime: config.IncludeCurrentDatetime);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -1866,7 +1868,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? GitHubToken = null,
         RemoteSessionMode? RemoteSession = null,
         CloudSessionOptions? Cloud = null,
-        IList<string>? InstructionDirectories = null);
+        IList<string>? InstructionDirectories = null,
+        bool? IncludeCurrentDatetime = null);
 
     internal record ToolDefinition(
         string Name,
@@ -1928,7 +1931,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? GitHubToken = null,
         RemoteSessionMode? RemoteSession = null,
         bool? ContinuePendingWork = null,
-        IList<string>? InstructionDirectories = null);
+        IList<string>? InstructionDirectories = null,
+        bool? IncludeCurrentDatetime = null);
 
     internal record ResumeSessionResponse(
         string SessionId,

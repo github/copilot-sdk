@@ -870,6 +870,10 @@ type SessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// IncludeCurrentDatetime includes the current local datetime in model-facing user messages.
+	// When false, suppresses the injected <current_datetime> tag. When nil, defaults
+	// to true for backwards compatibility.
+	IncludeCurrentDatetime *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1084,6 +1088,10 @@ type ResumeSessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// IncludeCurrentDatetime includes the current local datetime in model-facing user messages.
+	// When false, suppresses the injected <current_datetime> tag. When nil, defaults
+	// to true for backwards compatibility.
+	IncludeCurrentDatetime *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1374,6 +1382,7 @@ type createSessionRequest struct {
 	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
 	Provider                       *ProviderConfig                `json:"provider,omitempty"`
 	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
+	IncludeCurrentDatetime         *bool                          `json:"includeCurrentDatetime,omitempty"`
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
@@ -1428,6 +1437,7 @@ type resumeSessionRequest struct {
 	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
 	Provider                       *ProviderConfig                `json:"provider,omitempty"`
 	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
+	IncludeCurrentDatetime         *bool                          `json:"includeCurrentDatetime,omitempty"`
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`

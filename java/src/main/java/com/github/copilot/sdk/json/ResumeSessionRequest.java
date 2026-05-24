@@ -56,6 +56,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("enableSessionTelemetry")
     private Boolean enableSessionTelemetry;
 
+    @JsonProperty("includeCurrentDatetime")
+    private Boolean includeCurrentDatetime;
+
     @JsonProperty("requestPermission")
     private Boolean requestPermission;
 
@@ -243,6 +246,25 @@ public final class ResumeSessionRequest {
      */
     public void clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+    }
+
+    /** Gets include current datetime flag. @return the flag */
+    public Boolean getIncludeCurrentDatetime() {
+        return includeCurrentDatetime;
+    }
+
+    /**
+     * Sets include current datetime flag. @param includeCurrentDatetime the flag
+     */
+    public void setIncludeCurrentDatetime(Boolean includeCurrentDatetime) {
+        this.includeCurrentDatetime = includeCurrentDatetime;
+    }
+
+    /**
+     * Clears the includeCurrentDatetime setting, reverting to the default behavior.
+     */
+    public void clearIncludeCurrentDatetime() {
+        this.includeCurrentDatetime = null;
     }
 
     /** Gets request permission flag. @return the flag */

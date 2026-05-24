@@ -1544,6 +1544,7 @@ class CopilotClient:
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
         cloud: CloudSessionOptions | None = None,
+        include_current_datetime: bool | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1610,6 +1611,9 @@ class CopilotClient:
                 session. Optionally associates repository metadata with the
                 cloud session.
             on_event: Callback for session events.
+            include_current_datetime: When False, suppresses the injected
+                ``<current_datetime>`` tag in model-facing user messages.
+                Defaults to True when omitted (datetime is injected).
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1723,6 +1727,9 @@ class CopilotClient:
 
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
+
+        if include_current_datetime is not None:
+            payload["includeCurrentDatetime"] = include_current_datetime
 
         # Add model capabilities override if provided
         if model_capabilities:
@@ -1919,6 +1926,7 @@ class CopilotClient:
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
         continue_pending_work: bool | None = None,
+        include_current_datetime: bool | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -1986,6 +1994,9 @@ class CopilotClient:
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
                 treats pending work as interrupted on resume.
+            include_current_datetime: When False, suppresses the injected
+                ``<current_datetime>`` tag in model-facing user messages.
+                Defaults to True when omitted (datetime is injected).
 
         Returns:
             A :class:`CopilotSession` instance for the resumed session.
@@ -2048,6 +2059,8 @@ class CopilotClient:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
         if enable_session_telemetry is not None:
             payload["enableSessionTelemetry"] = enable_session_telemetry
+        if include_current_datetime is not None:
+            payload["includeCurrentDatetime"] = include_current_datetime
         if model_capabilities:
             payload["modelCapabilities"] = _capabilities_to_dict(model_capabilities)
         if streaming is not None:
