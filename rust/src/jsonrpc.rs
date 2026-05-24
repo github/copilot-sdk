@@ -306,11 +306,6 @@ impl JsonRpcClient {
                         let _ = notification_tx.send(notification);
                     }
                     JsonRpcMessage::Request(request) => {
-                        debug!(
-                            request_id = request.id,
-                            method = %request.method,
-                            "received JSON-RPC request from runtime"
-                        );
                         if request_tx.send(request).is_err() {
                             warn!("failed to forward JSON-RPC request, channel closed");
                         }
