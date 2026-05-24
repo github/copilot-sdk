@@ -204,6 +204,34 @@ public class SerializationTests
     }
 
     [Fact]
+    public void ResumeSessionRequest_CanSerializeOpenCanvases_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var instances = new List<OpenCanvasInstance>
+        {
+            new()
+            {
+                CanvasId = "canvas-id",
+                ExtensionId = "ext-id",
+                InstanceId = "instance-1",
+                Availability = CanvasInstanceAvailability.Ready,
+            },
+        };
+        var request = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("OpenCanvases", instances));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        var openCanvases = root.GetProperty("openCanvases");
+        Assert.Equal(1, openCanvases.GetArrayLength());
+        Assert.Equal("canvas-id", openCanvases[0].GetProperty("canvasId").GetString());
+    }
+
+    [Fact]
     public void ResumeSessionRequest_CanSerializeModeRequestFlags_WithSdkOptions()
     {
         var options = GetSerializerOptions();

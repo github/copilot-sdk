@@ -36,8 +36,18 @@ from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context
+from .canvas import (
+    CanvasDeclaration,
+    CanvasError,
+    CanvasHandler,
+    ExtensionInfo,
+    _action_context_from_params,
+    _lifecycle_context_from_params,
+    _open_context_from_params,
+)
 from .generated.rpc import (
     ClientSessionApiHandlers,
+    OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
     _ConnectRequest,
@@ -1544,6 +1554,11 @@ class CopilotClient:
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
         cloud: CloudSessionOptions | None = None,
+        canvases: list[CanvasDeclaration] | None = None,
+        request_canvas_renderer: bool | None = None,
+        request_extensions: bool | None = None,
+        extension_info: ExtensionInfo | None = None,
+        canvas_handler: CanvasHandler | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1782,6 +1797,15 @@ class CopilotClient:
                 ]
             payload["infiniteSessions"] = wire_config
 
+        if canvases:
+            payload["canvases"] = [c.to_dict() for c in canvases]
+        if request_canvas_renderer is not None:
+            payload["requestCanvasRenderer"] = request_canvas_renderer
+        if request_extensions is not None:
+            payload["requestExtensions"] = request_extensions
+        if extension_info is not None:
+            payload["extensionInfo"] = extension_info.to_dict()
+
         if not self._client:
             raise RuntimeError("Client not connected")
 
@@ -1825,6 +1849,8 @@ class CopilotClient:
             session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
         if on_auto_mode_switch_request:
             session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+        if canvas_handler is not None:
+            session._register_canvas_handler(canvas_handler)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1919,6 +1945,12 @@ class CopilotClient:
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
         continue_pending_work: bool | None = None,
+        canvases: list[CanvasDeclaration] | None = None,
+        request_canvas_renderer: bool | None = None,
+        request_extensions: bool | None = None,
+        extension_info: ExtensionInfo | None = None,
+        canvas_handler: CanvasHandler | None = None,
+        open_canvases: list[OpenCanvasInstance] | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2135,6 +2167,17 @@ class CopilotClient:
                 ]
             payload["infiniteSessions"] = wire_config
 
+        if canvases:
+            payload["canvases"] = [c.to_dict() for c in canvases]
+        if open_canvases:
+            payload["openCanvases"] = [inst.to_dict() for inst in open_canvases]
+        if request_canvas_renderer is not None:
+            payload["requestCanvasRenderer"] = request_canvas_renderer
+        if request_extensions is not None:
+            payload["requestExtensions"] = request_extensions
+        if extension_info is not None:
+            payload["extensionInfo"] = extension_info.to_dict()
+
         if not self._client:
             raise RuntimeError("Client not connected")
 
@@ -2175,6 +2218,8 @@ class CopilotClient:
             session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
         if on_auto_mode_switch_request:
             session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+        if canvas_handler is not None:
+            session._register_canvas_handler(canvas_handler)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -2207,6 +2252,11 @@ class CopilotClient:
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
+            open_canvases_raw = response.get("openCanvases")
+            if isinstance(open_canvases_raw, list):
+                session._set_open_canvases(
+                    [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
+                )
         except BaseException as exc:
             with self._sessions_lock:
                 self._sessions.pop(session_id, None)
@@ -2988,6 +3038,18 @@ class CopilotClient:
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
         )
+        self._client.set_request_handler(
+            "canvas.open",
+            self._canvas_request_handler(self._handle_canvas_open),
+        )
+        self._client.set_request_handler(
+            "canvas.close",
+            self._canvas_request_handler(self._handle_canvas_close),
+        )
+        self._client.set_request_handler(
+            "canvas.action.invoke",
+            self._canvas_request_handler(self._handle_canvas_action_invoke),
+        )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
 
         # Start listening for messages
@@ -3106,6 +3168,18 @@ class CopilotClient:
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
+        )
+        self._client.set_request_handler(
+            "canvas.open",
+            self._canvas_request_handler(self._handle_canvas_open),
+        )
+        self._client.set_request_handler(
+            "canvas.close",
+            self._canvas_request_handler(self._handle_canvas_close),
+        )
+        self._client.set_request_handler(
+            "canvas.action.invoke",
+            self._canvas_request_handler(self._handle_canvas_action_invoke),
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
 
@@ -3236,3 +3310,113 @@ class CopilotClient:
             raise ValueError(f"unknown session {session_id}")
 
         return await session._handle_system_message_transform(sections)
+
+    def _resolve_canvas_handler(self, session_id: str) -> CanvasHandler:
+        """Look up the canvas handler for ``session_id`` or raise CanvasError."""
+        with self._sessions_lock:
+            session = self._sessions.get(session_id)
+        if session is None:
+            raise CanvasError(
+                "canvas_handler_unset",
+                f"No session registered for {session_id}; cannot dispatch canvas RPC.",
+            )
+        handler = session._get_canvas_handler()
+        if handler is None:
+            raise CanvasError.handler_unset()
+        return handler
+
+    async def _handle_canvas_open(self, params: dict) -> dict:
+        """Handle an inbound ``canvas.open`` request from the CLI runtime."""
+        try:
+            session_id = params["sessionId"]
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", "canvas.open params missing sessionId"
+            ) from exc
+        handler = self._resolve_canvas_handler(session_id)
+        try:
+            ctx = _open_context_from_params(params)
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", f"canvas.open params missing field: {exc.args[0]}"
+            ) from exc
+        try:
+            response = await handler.on_open(ctx)
+        except CanvasError:
+            raise
+        except Exception as exc:
+            raise CanvasError(
+                "canvas_open_handler_failed",
+                f"canvas.open handler raised: {exc}",
+            ) from exc
+        return response.to_dict()
+
+    async def _handle_canvas_close(self, params: dict) -> None:
+        """Handle an inbound ``canvas.close`` request from the CLI runtime."""
+        try:
+            session_id = params["sessionId"]
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", "canvas.close params missing sessionId"
+            ) from exc
+        handler = self._resolve_canvas_handler(session_id)
+        try:
+            ctx = _lifecycle_context_from_params(params)
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", f"canvas.close params missing field: {exc.args[0]}"
+            ) from exc
+        try:
+            await handler.on_close(ctx)
+        except CanvasError:
+            raise
+        except Exception as exc:
+            raise CanvasError(
+                "canvas_close_handler_failed",
+                f"canvas.close handler raised: {exc}",
+            ) from exc
+        return None
+
+    async def _handle_canvas_action_invoke(self, params: dict) -> Any:
+        """Handle an inbound ``canvas.action.invoke`` request from the CLI runtime."""
+        try:
+            session_id = params["sessionId"]
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request",
+                "canvas.action.invoke params missing sessionId",
+            ) from exc
+        handler = self._resolve_canvas_handler(session_id)
+        try:
+            ctx = _action_context_from_params(params)
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request",
+                f"canvas.action.invoke params missing field: {exc.args[0]}",
+            ) from exc
+        try:
+            return await handler.on_action(ctx)
+        except CanvasError:
+            raise
+        except Exception as exc:
+            raise CanvasError(
+                "canvas_action_handler_failed",
+                f"canvas.action.invoke handler raised: {exc}",
+            ) from exc
+
+    @staticmethod
+    def _canvas_request_handler(
+        coro: Callable[[dict], Awaitable[Any]],
+    ) -> Callable[[dict], Awaitable[Any]]:
+        """Wrap a canvas RPC coroutine so ``CanvasError`` becomes a JSON-RPC error
+        with the structured envelope in the error's ``data`` field, matching the
+        Rust SDK wire shape.
+        """
+
+        async def wrapper(params: dict) -> Any:
+            try:
+                return await coro(params)
+            except CanvasError as err:
+                raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+
+        return wrapper

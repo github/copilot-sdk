@@ -567,6 +567,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.On<SessionEvent>(config.OnEvent);
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
+        session.SetCanvasHandler(config.CanvasHandler);
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -618,7 +619,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 GitHubToken: config.GitHubToken,
                 RemoteSession: config.RemoteSession,
                 Cloud: config.Cloud,
-                InstructionDirectories: config.InstructionDirectories);
+                InstructionDirectories: config.InstructionDirectories,
+                Canvases: config.Canvases,
+                RequestCanvasRenderer: config.RequestCanvasRenderer,
+                RequestExtensions: config.RequestExtensions,
+                ExtensionInfo: config.ExtensionInfo);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<CreateSessionResponse>(
@@ -630,6 +635,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
+            session.SetOpenCanvases(response.OpenCanvases);
         }
         catch (Exception ex)
         {
@@ -726,6 +732,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             session.On<SessionEvent>(config.OnEvent);
         }
         ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
+        session.SetCanvasHandler(config.CanvasHandler);
         RegisterSession(session);
         session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
@@ -778,7 +785,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 GitHubToken: config.GitHubToken,
                 RemoteSession: config.RemoteSession,
                 ContinuePendingWork: config.ContinuePendingWork,
-                InstructionDirectories: config.InstructionDirectories);
+                InstructionDirectories: config.InstructionDirectories,
+                Canvases: config.Canvases,
+                RequestCanvasRenderer: config.RequestCanvasRenderer,
+                RequestExtensions: config.RequestExtensions,
+                ExtensionInfo: config.ExtensionInfo,
+                OpenCanvases: config.OpenCanvases);
 
             var rpcTimestamp = Stopwatch.GetTimestamp();
             var response = await InvokeRpcAsync<ResumeSessionResponse>(
@@ -790,6 +802,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
+            session.SetOpenCanvases(response.OpenCanvases);
         }
         catch (Exception ex)
         {
@@ -1612,6 +1625,9 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
         rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
+        rpc.SetLocalRpcMethod("canvas.open", handler.OnCanvasOpen);
+        rpc.SetLocalRpcMethod("canvas.close", handler.OnCanvasClose);
+        rpc.SetLocalRpcMethod("canvas.action.invoke", handler.OnCanvasInvokeAction);
         ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
         {
             var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
@@ -1804,6 +1820,47 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
             return await session.HandleSystemMessageTransformAsync(sections);
         }
+
+#pragma warning disable GHCP001
+        public ValueTask<CanvasOpenResponse> OnCanvasOpen(
+            string sessionId,
+            string extensionId,
+            string canvasId,
+            string instanceId,
+            JsonElement? input = null,
+            CanvasHostContext? host = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return session.HandleCanvasOpenAsync(
+                extensionId, canvasId, instanceId, input ?? default, host);
+        }
+
+        public async ValueTask OnCanvasClose(
+            string sessionId,
+            string extensionId,
+            string canvasId,
+            string instanceId,
+            JsonElement? input = null,
+            CanvasHostContext? host = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            await session.HandleCanvasCloseAsync(extensionId, canvasId, instanceId, host);
+        }
+
+        public ValueTask<JsonElement> OnCanvasInvokeAction(
+            string sessionId,
+            string extensionId,
+            string canvasId,
+            string instanceId,
+            string actionName,
+            JsonElement? input = null,
+            CanvasHostContext? host = null)
+        {
+            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
+            return session.HandleCanvasActionAsync(
+                extensionId, canvasId, instanceId, actionName, input ?? default, host);
+        }
+#pragma warning restore GHCP001
     }
 
     private class Connection(
@@ -1866,7 +1923,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? GitHubToken = null,
         RemoteSessionMode? RemoteSession = null,
         CloudSessionOptions? Cloud = null,
-        IList<string>? InstructionDirectories = null);
+        IList<string>? InstructionDirectories = null,
+#pragma warning disable GHCP001
+        IList<CanvasDeclaration>? Canvases = null,
+        bool? RequestCanvasRenderer = null,
+        bool? RequestExtensions = null,
+        ExtensionInfo? ExtensionInfo = null);
+#pragma warning restore GHCP001
 
     internal record ToolDefinition(
         string Name,
@@ -1888,7 +1951,10 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     internal record CreateSessionResponse(
         string SessionId,
         string? WorkspacePath,
-        SessionCapabilities? Capabilities = null);
+        SessionCapabilities? Capabilities = null,
+#pragma warning disable GHCP001
+        IList<OpenCanvasInstance>? OpenCanvases = null);
+#pragma warning restore GHCP001
 
     internal record ResumeSessionRequest(
         string SessionId,
@@ -1928,12 +1994,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? GitHubToken = null,
         RemoteSessionMode? RemoteSession = null,
         bool? ContinuePendingWork = null,
-        IList<string>? InstructionDirectories = null);
+        IList<string>? InstructionDirectories = null,
+#pragma warning disable GHCP001
+        IList<CanvasDeclaration>? Canvases = null,
+        bool? RequestCanvasRenderer = null,
+        bool? RequestExtensions = null,
+        ExtensionInfo? ExtensionInfo = null,
+        IList<OpenCanvasInstance>? OpenCanvases = null);
+#pragma warning restore GHCP001
 
     internal record ResumeSessionResponse(
         string SessionId,
         string? WorkspacePath,
-        SessionCapabilities? Capabilities = null);
+        SessionCapabilities? Capabilities = null,
+#pragma warning disable GHCP001
+        IList<OpenCanvasInstance>? OpenCanvases = null);
+#pragma warning restore GHCP001
 
     internal record CommandWireDefinition(
         string Name,

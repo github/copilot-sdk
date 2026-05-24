@@ -7,6 +7,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -75,6 +76,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private Dictionary<string, Func<string, Task<string>>>? _transformCallbacks;
     private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
 
+#pragma warning disable GHCP001
+    private volatile ICanvasHandler? _canvasHandler;
+    private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
+#pragma warning restore GHCP001
+
     private int _isDisposed;
 
     /// <summary>
@@ -120,6 +126,19 @@ public sealed partial class CopilotSession : IAsyncDisposable
         get => field ?? Interlocked.CompareExchange(ref field, new(), null) ?? field;
         private set;
     }
+
+#pragma warning disable GHCP001
+    /// <summary>
+    /// Canvas instances currently known to be open for this session.
+    /// </summary>
+    /// <remarks>
+    /// Populated from the most recent <c>session.create</c> / <c>session.resume</c>
+    /// response. This snapshot is not refreshed automatically when canvases open or
+    /// close after the session is established.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public IReadOnlyList<OpenCanvasInstance> OpenCanvases => _openCanvases;
+#pragma warning restore GHCP001
 
     /// <summary>
     /// Gets the UI API for eliciting information from the user during this session.
@@ -860,6 +879,125 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         Capabilities = capabilities ?? new SessionCapabilities();
     }
+
+#pragma warning disable GHCP001
+    internal void SetOpenCanvases(IList<OpenCanvasInstance>? canvases)
+    {
+        _openCanvases = canvases is { Count: > 0 }
+            ? new List<OpenCanvasInstance>(canvases).AsReadOnly()
+            : Array.Empty<OpenCanvasInstance>();
+    }
+
+    internal void SetCanvasHandler(ICanvasHandler? handler)
+    {
+        _canvasHandler = handler;
+    }
+
+    internal async ValueTask<CanvasOpenResponse> HandleCanvasOpenAsync(
+        string extensionId,
+        string canvasId,
+        string instanceId,
+        JsonElement input,
+        CanvasHostContext? host)
+    {
+        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
+        var ctx = new CanvasOpenContext
+        {
+            SessionId = SessionId,
+            ExtensionId = extensionId,
+            CanvasId = canvasId,
+            InstanceId = instanceId,
+            Input = input,
+            Host = host,
+        };
+        try
+        {
+            return await handler.OnOpenAsync(ctx, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (CanvasError ce)
+        {
+            throw CanvasErrorHelpers.ToRpcException(ce);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw CanvasErrorHelpers.HandlerError(ex.Message);
+        }
+    }
+
+    internal async ValueTask HandleCanvasCloseAsync(
+        string extensionId,
+        string canvasId,
+        string instanceId,
+        CanvasHostContext? host)
+    {
+        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
+        var ctx = new CanvasLifecycleContext
+        {
+            SessionId = SessionId,
+            ExtensionId = extensionId,
+            CanvasId = canvasId,
+            InstanceId = instanceId,
+            Host = host,
+        };
+        try
+        {
+            await handler.OnCloseAsync(ctx, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (CanvasError ce)
+        {
+            throw CanvasErrorHelpers.ToRpcException(ce);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw CanvasErrorHelpers.HandlerError(ex.Message);
+        }
+    }
+
+    internal async ValueTask<JsonElement> HandleCanvasActionAsync(
+        string extensionId,
+        string canvasId,
+        string instanceId,
+        string actionName,
+        JsonElement input,
+        CanvasHostContext? host)
+    {
+        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
+        var ctx = new CanvasActionContext
+        {
+            SessionId = SessionId,
+            ExtensionId = extensionId,
+            CanvasId = canvasId,
+            InstanceId = instanceId,
+            ActionName = actionName,
+            Input = input,
+            Host = host,
+        };
+        try
+        {
+            var result = await handler.OnActionAsync(ctx, CancellationToken.None).ConfigureAwait(false);
+            return SerializeActionResult(result);
+        }
+        catch (CanvasError ce)
+        {
+            throw CanvasErrorHelpers.ToRpcException(ce);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw CanvasErrorHelpers.HandlerError(ex.Message);
+        }
+    }
+
+    private static JsonElement SerializeActionResult(object? value)
+    {
+        var element = CopilotClient.ToJsonElementForWire(value);
+        if (element.HasValue)
+        {
+            return element.Value;
+        }
+        using var doc = JsonDocument.Parse("null");
+        return doc.RootElement.Clone();
+    }
+#pragma warning restore GHCP001
 
     /// <summary>
     /// Dispatches a command.execute event to the registered handler and

@@ -6,13 +6,31 @@ import { CopilotClient } from "./client.js";
 import type { CopilotSession } from "./session.js";
 import {
     defaultJoinSessionPermissionHandler,
+    type ExtensionInfo,
     type PermissionHandler,
     type ResumeSessionConfig,
 } from "./types.js";
 
+export {
+    Canvas,
+    CanvasError,
+    createCanvas,
+    type CanvasAction,
+    type CanvasActionContext,
+    type CanvasDeclaration,
+    type CanvasHostContext,
+    type CanvasJsonSchema,
+    type CanvasLifecycleContext,
+    type CanvasOpenContext,
+    type CanvasOpenResponse,
+    type CanvasOptions,
+} from "./canvas.js";
+
 export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
     onPermissionRequest?: PermissionHandler;
 };
+
+export type { ExtensionInfo };
 
 /**
  * Joins the current foreground session.

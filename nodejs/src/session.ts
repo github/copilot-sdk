@@ -11,6 +11,8 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
 import type { ClientSessionApiHandlers } from "./generated/rpc.js";
+import type { Canvas } from "./canvas.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     CommandHandler,
@@ -100,6 +102,7 @@ export class CopilotSession {
     private typedEventHandlers: Map<SessionEventType, Set<(event: SessionEvent) => void>> =
         new Map();
     private toolHandlers: Map<string, ToolHandler> = new Map();
+    private canvases: Map<string, Canvas> = new Map();
     private commandHandlers: Map<string, CommandHandler> = new Map();
     private permissionHandler?: PermissionHandler;
     private userInputHandler?: UserInputHandler;
@@ -111,6 +114,7 @@ export class CopilotSession {
     private _rpc: ReturnType<typeof createSessionRpc> | null = null;
     private traceContextProvider?: TraceContextProvider;
     private _capabilities: SessionCapabilities = {};
+    private openCanvasInstances: OpenCanvasInstance[] = [];
 
     /** @internal Client session API handlers, populated by CopilotClient during create/resume. */
     clientSessionApis: ClientSessionApiHandlers = {};
@@ -636,6 +640,33 @@ export class CopilotSession {
     }
 
     /**
+     * Registers canvas declarations and handlers for this session.
+     *
+     * @param canvases - Canvases created via `createCanvas`, or undefined to clear all canvases
+     * @internal Called by the SDK when creating/resuming a session with `canvases`.
+     */
+    registerCanvases(canvases?: Canvas[]): void {
+        this.canvases.clear();
+        if (!canvases) {
+            return;
+        }
+        for (const canvas of canvases) {
+            this.canvases.set(canvas.declaration.id, canvas);
+        }
+    }
+
+    /**
+     * Retrieves a registered canvas by id.
+     *
+     * @param canvasId - The id of the canvas to retrieve
+     * @returns The registered Canvas if found, or undefined
+     * @internal Used by the SDK's direct `canvas.*` dispatcher.
+     */
+    getCanvas(canvasId: string): Canvas | undefined {
+        return this.canvases.get(canvasId);
+    }
+
+    /**
      * Registers command handlers for this session.
      *
      * @param commands - An array of command definitions with handlers, or undefined to clear
@@ -743,6 +774,26 @@ export class CopilotSession {
      */
     setCapabilities(capabilities?: SessionCapabilities): void {
         this._capabilities = capabilities ?? {};
+    }
+
+    /**
+     * Snapshot of canvas instances that were already open when the session was
+     * resumed. Populated from the `session.resume` response; empty for freshly
+     * created sessions. Returns a defensive copy — mutating the returned array
+     * has no effect on the session.
+     */
+    get openCanvases(): OpenCanvasInstance[] {
+        return [...this.openCanvasInstances];
+    }
+
+    /**
+     * Sets the open-canvas snapshot for this session.
+     *
+     * @param instances - The `openCanvases` array from the `session.resume` response.
+     * @internal This method is typically called internally when resuming a session.
+     */
+    setOpenCanvases(instances: OpenCanvasInstance[]): void {
+        this.openCanvasInstances = [...instances];
     }
 
     private assertElicitation(): void {

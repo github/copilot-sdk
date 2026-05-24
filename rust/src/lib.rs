@@ -3,6 +3,8 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+/// Canvas declarations, provider callbacks, and host-side canvas RPC types.
+pub mod canvas;
 /// Bundled CLI binary extraction and caching.
 pub(crate) mod embeddedcli;
 /// Event handler traits for session lifecycle.
