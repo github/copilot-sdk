@@ -2218,6 +2218,13 @@ public abstract class SessionConfigBase
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
+#pragma warning disable GHCP001
+        Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
+        RequestCanvasRenderer = other.RequestCanvasRenderer;
+        RequestExtensions = other.RequestExtensions;
+        ExtensionInfo = other.ExtensionInfo;
+        CanvasHandler = other.CanvasHandler;
+#pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
@@ -2400,6 +2407,47 @@ public abstract class SessionConfigBase
     /// </list>
     /// </summary>
     public RemoteSessionMode? RemoteSession { get; set; }
+
+#pragma warning disable GHCP001
+    /// <summary>
+    /// Canvas declarations advertised by this connection. The runtime forwards
+    /// these to the agent and routes inbound <c>canvas.*</c> requests for any
+    /// declared canvas to <see cref="CanvasHandler"/>.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public IList<CanvasDeclaration>? Canvases { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, asks the host to expose canvas renderer tools
+    /// for this session. The host typically grants this only to trusted clients.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? RequestCanvasRenderer { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, asks the host to expose extension-discovery
+    /// tools for this session. The host typically grants this only to trusted clients.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? RequestExtensions { get; set; }
+
+    /// <summary>
+    /// Stable extension identity for canvas/tool providers on this connection.
+    /// Required when <see cref="Canvases"/> is set so the runtime can attribute
+    /// declared canvases back to this provider.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public ExtensionInfo? ExtensionInfo { get; set; }
+
+    /// <summary>
+    /// Provider-side canvas lifecycle handler. The SDK routes inbound
+    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
+    /// requests to this handler.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonIgnore]
+    public ICanvasHandler? CanvasHandler { get; set; }
+#pragma warning restore GHCP001
 }
 
 /// <summary>
@@ -3029,4 +3077,11 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(object))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(string[]))]
+#pragma warning disable GHCP001
+[JsonSerializable(typeof(CanvasDeclaration))]
+[JsonSerializable(typeof(CanvasOpenResponse))]
+[JsonSerializable(typeof(CanvasHostContext))]
+[JsonSerializable(typeof(CanvasHostCapabilities))]
+[JsonSerializable(typeof(ExtensionInfo))]
+#pragma warning restore GHCP001
 internal partial class TypesJsonContext : JsonSerializerContext;
