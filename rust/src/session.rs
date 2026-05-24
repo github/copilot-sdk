@@ -1855,11 +1855,6 @@ async fn handle_request(
 
     match request.method.as_str() {
         "canvas.open" => {
-            tracing::debug!(
-                session_id = %sid,
-                request_id = request.id,
-                "handling canvas.open provider request"
-            );
             let Some(params) =
                 parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
                     .await
@@ -1871,11 +1866,6 @@ async fn handle_request(
         }
 
         "canvas.close" => {
-            tracing::debug!(
-                session_id = %sid,
-                request_id = request.id,
-                "handling canvas.close provider request"
-            );
             let Some(params) =
                 parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
                     .await
@@ -1887,11 +1877,6 @@ async fn handle_request(
         }
 
         "canvas.action.invoke" => {
-            tracing::debug!(
-                session_id = %sid,
-                request_id = request.id,
-                "handling canvas.action.invoke provider request"
-            );
             let Some(params) =
                 parse_request_params::<CanvasInvokeParams>(client, request.id, &request).await
             else {
@@ -2187,21 +2172,12 @@ async fn send_canvas_dispatch_response(
             }),
         },
     };
-    match client.send_response(&response).await {
-        Ok(()) => {
-            tracing::debug!(
-                request_id = id,
-                success = response.error.is_none(),
-                "sent canvas provider response"
-            );
-        }
-        Err(error) => {
-            warn!(
-                request_id = id,
-                error = %error,
-                "failed to send canvas provider response"
-            );
-        }
+    if let Err(error) = client.send_response(&response).await {
+        warn!(
+            request_id = id,
+            error = %error,
+            "failed to send canvas provider response"
+        );
     }
 }
 
