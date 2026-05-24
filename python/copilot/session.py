@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
+from .canvas import CanvasHandler, OpenCanvasInstance
 from .generated.rpc import (
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
@@ -1023,6 +1024,10 @@ class CopilotSession:
         self._elicitation_handler_lock = threading.Lock()
         self._capabilities: SessionCapabilities = {}
         self._client_session_apis = ClientSessionApiHandlers()
+        self._canvas_handler: CanvasHandler | None = None
+        self._canvas_handler_lock = threading.Lock()
+        self._open_canvases: list[OpenCanvasInstance] = []
+        self._open_canvases_lock = threading.Lock()
         self._rpc: SessionRpc | None = None
         self._destroyed = False
 
@@ -1738,6 +1743,29 @@ class CopilotSession:
         """Register the auto-mode-switch handler for this session."""
         with self._auto_mode_switch_handler_lock:
             self._auto_mode_switch_handler = handler
+
+    def _register_canvas_handler(self, handler: CanvasHandler | None) -> None:
+        """Register the canvas handler for this session."""
+        with self._canvas_handler_lock:
+            self._canvas_handler = handler
+
+    def _get_canvas_handler(self) -> CanvasHandler | None:
+        with self._canvas_handler_lock:
+            return self._canvas_handler
+
+    def _set_open_canvases(self, instances: list[OpenCanvasInstance]) -> None:
+        with self._open_canvases_lock:
+            self._open_canvases = list(instances)
+
+    @property
+    def open_canvases(self) -> list[OpenCanvasInstance]:
+        """Open canvas instances reported by the most recent ``session.resume``.
+
+        Returns an empty list for sessions created via ``session.create`` or
+        when the server did not include any open canvases on resume.
+        """
+        with self._open_canvases_lock:
+            return list(self._open_canvases)
 
     def _set_capabilities(self, capabilities: SessionCapabilities | None) -> None:
         """Set the host capabilities for this session.
