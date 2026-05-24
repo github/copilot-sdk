@@ -17,7 +17,6 @@ export {
     createCanvas,
     type CanvasAction,
     type CanvasActionContext,
-    type CanvasAgentActionDeclaration,
     type CanvasDeclaration,
     type CanvasHostContext,
     type CanvasJsonSchema,

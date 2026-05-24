@@ -28,27 +28,21 @@ export interface CanvasToolDefinition {
 }
 
 /**
- * A single agent-callable action contributed by a canvas, as serialized over
- * the wire. Names MUST NOT start with `canvas.` — that prefix is reserved for
+ * A single agent-callable action contributed by a canvas. The metadata
+ * (`name`, `description`, `inputSchema`) is serialized over the wire on
+ * `session.create` / `session.resume`; the `handler` closure is stripped
+ * before the declaration is sent and dispatched in-process by the SDK.
+ *
+ * Names MUST NOT start with `canvas.` — that prefix is reserved for
  * lifecycle verbs.
  */
-export interface CanvasAgentActionDeclaration {
+export interface CanvasAction {
     /** Action identifier, unique within the canvas. */
     name: string;
     /** Description shown to the model when picking an action. */
     description?: string;
     /** Optional JSON Schema for the action's `input` payload. */
     inputSchema?: CanvasJsonSchema;
-}
-
-/**
- * Authoring shape for an action passed to {@link createCanvas}. Extends the
- * wire {@link CanvasAgentActionDeclaration} with an optional `handler`
- * closure; the handler is stripped before the declaration is sent on the
- * wire so only the action's `name`, `description`, and `inputSchema` reach
- * the runtime.
- */
-export interface CanvasAction extends CanvasAgentActionDeclaration {
     /** Required per-action dispatch handler. */
     handler: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
 }
@@ -67,7 +61,7 @@ export interface CanvasDeclaration {
     /** Optional JSON Schema for the `input` payload accepted by `canvas.open`. */
     inputSchema?: CanvasJsonSchema;
     /** Agent-invocable actions exposed via `invoke_canvas_action`. */
-    actions?: CanvasAgentActionDeclaration[];
+    actions?: Omit<CanvasAction, "handler">[];
 }
 
 /** Response returned from `open`. */
@@ -115,7 +109,7 @@ export interface CanvasActionContext {
     canvasId: string;
     /** Instance id targeted by the action. */
     instanceId: string;
-    /** Action name from `CanvasAgentActionDeclaration.name`. */
+    /** Action name from `CanvasAction.name`. */
     actionName: string;
     /** Validated `input` payload, shaped by the action's `inputSchema`. */
     input: unknown;
@@ -198,7 +192,7 @@ export class Canvas {
     /** @internal */
     constructor(options: CanvasOptions) {
         const actionHandlers = new Map<string, CanvasAction["handler"]>();
-        const wireActions: CanvasAgentActionDeclaration[] | undefined = options.actions?.map(
+        const wireActions: Omit<CanvasAction, "handler">[] | undefined = options.actions?.map(
             ({ handler, ...wire }) => {
                 actionHandlers.set(wire.name, handler);
                 return wire;
