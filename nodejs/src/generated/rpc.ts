@@ -65,6 +65,18 @@ export type AuthInfoType =
   /** Authentication from a Copilot API token. */
   | "copilot-api-token";
 /**
+ * Runtime-controlled routing state for an open canvas instance.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasInstanceAvailability".
+ */
+/** @experimental */
+export type CanvasInstanceAvailability =
+  /** The owning provider is currently connected and routing calls will be dispatched normally. */
+  | "ready"
+  /** The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects. */
+  | "stale";
+/**
  * Coarse command category for grouping and behavior: runtime built-in, skill-backed command, or SDK/client-owned command
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1693,6 +1705,220 @@ export interface GhCliAuthInfo {
    */
   token: string;
   copilotUser?: CopilotUserResponse;
+}
+/**
+ * Declared canvases available in this session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvaList".
+ */
+/** @experimental */
+export interface CanvaList {
+  /**
+   * Declared canvases available in this session
+   */
+  canvases: DiscoveredCanvas[];
+}
+/**
+ * Canvas available in the current session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "DiscoveredCanvas".
+ */
+/** @experimental */
+export interface DiscoveredCanvas {
+  /**
+   * Human-readable canvas name
+   */
+  displayName: string;
+  /**
+   * Short, single-sentence description shown to the agent in canvas catalogs.
+   */
+  description: string;
+  inputSchema?: CanvasJsonSchema;
+  /**
+   * Actions the agent or host may invoke on an open instance
+   */
+  actions?: CanvasAction[];
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+}
+/**
+ * JSON Schema for canvas open input
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasJsonSchema".
+ */
+/** @experimental */
+export interface CanvasJsonSchema {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Canvas action that the agent or host can invoke. To discover the input schema for a particular action, call the list_canvas_capabilities tool.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasAction".
+ */
+/** @experimental */
+export interface CanvasAction {
+  /**
+   * Action name exposed by the canvas provider
+   */
+  name: string;
+  /**
+   * Description of the action
+   */
+  description?: string;
+  inputSchema?: CanvasJsonSchema;
+}
+/**
+ * Canvas close parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasCloseRequest".
+ */
+/** @experimental */
+export interface CanvasCloseRequest {
+  /**
+   * Open canvas instance identifier
+   */
+  instanceId: string;
+}
+/**
+ * Canvas action invocation parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasInvokeActionRequest".
+ */
+/** @experimental */
+export interface CanvasInvokeActionRequest {
+  /**
+   * Open canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Action name to invoke
+   */
+  actionName: string;
+  /**
+   * Action input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Canvas action invocation result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasInvokeActionResult".
+ */
+/** @experimental */
+export interface CanvasInvokeActionResult {
+  /**
+   * Provider-supplied action result
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Live open-canvas snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasListOpenResult".
+ */
+/** @experimental */
+export interface CanvasListOpenResult {
+  /**
+   * Currently open canvas instances
+   */
+  openCanvases: OpenCanvasInstance[];
+}
+/**
+ * Open canvas instance snapshot.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OpenCanvasInstance".
+ */
+/** @experimental */
+export interface OpenCanvasInstance {
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Rendered title
+   */
+  title?: string;
+  /**
+   * Provider-supplied status text
+   */
+  status?: string;
+  /**
+   * URL for web-rendered canvases
+   */
+  url?: string;
+  /**
+   * Input supplied when the instance was opened
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Whether this snapshot came from an idempotent reopen
+   */
+  reopen: boolean;
+  availability: CanvasInstanceAvailability;
+}
+/**
+ * Canvas open parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasOpenRequest".
+ */
+/** @experimental */
+export interface CanvasOpenRequest {
+  /**
+   * Owning provider identifier. Optional when the canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId.
+   */
+  extensionId?: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Caller-supplied stable instance identifier
+   */
+  instanceId: string;
+  /**
+   * Canvas open input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
 }
 /**
  * Slash commands available in the session, after applying any include/exclude filters.
@@ -9564,6 +9790,48 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             setCredentials: async (params: SessionSetCredentialsParams): Promise<SessionSetCredentialsResult> =>
                 connection.sendRequest("session.auth.setCredentials", { sessionId, ...params }),
+        },
+        /** @experimental */
+        canvas: {
+            /**
+             * Lists canvases declared for the session.
+             *
+             * @returns Declared canvases available in this session.
+             */
+            list: async (): Promise<CanvaList> =>
+                connection.sendRequest("session.canvas.list", { sessionId }),
+            /**
+             * Lists currently open canvas instances for the live session.
+             *
+             * @returns Live open-canvas snapshot.
+             */
+            listOpen: async (): Promise<CanvasListOpenResult> =>
+                connection.sendRequest("session.canvas.listOpen", { sessionId }),
+            /**
+             * Opens or focuses a canvas instance.
+             *
+             * @param params Canvas open parameters.
+             *
+             * @returns Open canvas instance snapshot.
+             */
+            open: async (params: CanvasOpenRequest): Promise<OpenCanvasInstance> =>
+                connection.sendRequest("session.canvas.open", { sessionId, ...params }),
+            /**
+             * Closes an open canvas instance.
+             *
+             * @param params Canvas close parameters.
+             */
+            close: async (params: CanvasCloseRequest): Promise<void> =>
+                connection.sendRequest("session.canvas.close", { sessionId, ...params }),
+            /**
+             * Invokes an action on an open canvas instance.
+             *
+             * @param params Canvas action invocation parameters.
+             *
+             * @returns Canvas action invocation result.
+             */
+            invokeAction: async (params: CanvasInvokeActionRequest): Promise<CanvasInvokeActionResult> =>
+                connection.sendRequest("session.canvas.invokeAction", { sessionId, ...params }),
         },
         /** @experimental */
         model: {

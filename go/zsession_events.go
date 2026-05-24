@@ -28,6 +28,9 @@ type (
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
+	CanvasOpenedAvailability                                       = rpc.CanvasOpenedAvailability
+	CanvasRegistryChangedCanvase                                   = rpc.CanvasRegistryChangedCanvase
+	CanvasRegistryChangedCanvaseAction                             = rpc.CanvasRegistryChangedCanvaseAction
 	CapabilitiesChangedData                                        = rpc.CapabilitiesChangedData
 	CapabilitiesChangedUI                                          = rpc.CapabilitiesChangedUI
 	CommandCompletedData                                           = rpc.CommandCompletedData
@@ -138,6 +141,8 @@ type (
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
+	SessionCanvasOpenedData                                        = rpc.SessionCanvasOpenedData
+	SessionCanvasRegistryChangedData                               = rpc.SessionCanvasRegistryChangedData
 	SessionCompactionCompleteData                                  = rpc.SessionCompactionCompleteData
 	SessionCompactionStartData                                     = rpc.SessionCompactionStartData
 	SessionContextChangedData                                      = rpc.SessionContextChangedData
@@ -282,6 +287,8 @@ const (
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
+	CanvasOpenedAvailabilityReady                                      = rpc.CanvasOpenedAvailabilityReady
+	CanvasOpenedAvailabilityStale                                      = rpc.CanvasOpenedAvailabilityStale
 	ElicitationCompletedActionAccept                                   = rpc.ElicitationCompletedActionAccept
 	ElicitationCompletedActionCancel                                   = rpc.ElicitationCompletedActionCancel
 	ElicitationCompletedActionDecline                                  = rpc.ElicitationCompletedActionDecline
@@ -397,6 +404,8 @@ const (
 	SessionEventTypeSamplingCompleted                                  = rpc.SessionEventTypeSamplingCompleted
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
+	SessionEventTypeSessionCanvasOpened                                = rpc.SessionEventTypeSessionCanvasOpened
+	SessionEventTypeSessionCanvasRegistryChanged                       = rpc.SessionEventTypeSessionCanvasRegistryChanged
 	SessionEventTypeSessionCompactionComplete                          = rpc.SessionEventTypeSessionCompactionComplete
 	SessionEventTypeSessionCompactionStart                             = rpc.SessionEventTypeSessionCompactionStart
 	SessionEventTypeSessionContextChanged                              = rpc.SessionEventTypeSessionContextChanged

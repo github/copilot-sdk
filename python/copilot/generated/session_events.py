@@ -202,6 +202,8 @@ class SessionEventType(Enum):
     SESSION_MCP_SERVERS_LOADED = "session.mcp_servers_loaded"
     SESSION_MCP_SERVER_STATUS_CHANGED = "session.mcp_server_status_changed"
     SESSION_EXTENSIONS_LOADED = "session.extensions_loaded"
+    SESSION_CANVAS_OPENED = "session.canvas.opened"
+    SESSION_CANVAS_REGISTRY_CHANGED = "session.canvas.registry_changed"
     MCP_APP_TOOL_CALL_COMPLETE = "mcp_app.tool_call_complete"
     UNKNOWN = "unknown"
 
@@ -902,6 +904,81 @@ class AutoModeSwitchRequestedData:
 
 
 @dataclass
+class CanvasRegistryChangedCanvase:
+    "Schema for the `CanvasRegistryChangedCanvase` type."
+    canvas_id: str
+    description: str
+    display_name: str
+    extension_id: str
+    actions: list[CanvasRegistryChangedCanvaseAction] | None = None
+    extension_name: str | None = None
+    input_schema: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CanvasRegistryChangedCanvase":
+        assert isinstance(obj, dict)
+        canvas_id = from_str(obj.get("canvasId"))
+        description = from_str(obj.get("description"))
+        display_name = from_str(obj.get("displayName"))
+        extension_id = from_str(obj.get("extensionId"))
+        actions = from_union([from_none, lambda x: from_list(CanvasRegistryChangedCanvaseAction.from_dict, x)], obj.get("actions"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        input_schema = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("inputSchema"))
+        return CanvasRegistryChangedCanvase(
+            canvas_id=canvas_id,
+            description=description,
+            display_name=display_name,
+            extension_id=extension_id,
+            actions=actions,
+            extension_name=extension_name,
+            input_schema=input_schema,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvasId"] = from_str(self.canvas_id)
+        result["description"] = from_str(self.description)
+        result["displayName"] = from_str(self.display_name)
+        result["extensionId"] = from_str(self.extension_id)
+        if self.actions is not None:
+            result["actions"] = from_union([from_none, lambda x: from_list(lambda x: to_class(CanvasRegistryChangedCanvaseAction, x), x)], self.actions)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.input_schema is not None:
+            result["inputSchema"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.input_schema)
+        return result
+
+
+@dataclass
+class CanvasRegistryChangedCanvaseAction:
+    "Schema for the `CanvasRegistryChangedCanvaseAction` type."
+    name: str
+    description: str | None = None
+    input_schema: dict[str, Any] | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "CanvasRegistryChangedCanvaseAction":
+        assert isinstance(obj, dict)
+        name = from_str(obj.get("name"))
+        description = from_union([from_none, from_str], obj.get("description"))
+        input_schema = from_union([from_none, lambda x: from_dict(lambda x: x, x)], obj.get("inputSchema"))
+        return CanvasRegistryChangedCanvaseAction(
+            name=name,
+            description=description,
+            input_schema=input_schema,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["name"] = from_str(self.name)
+        if self.description is not None:
+            result["description"] = from_union([from_none, from_str], self.description)
+        if self.input_schema is not None:
+            result["inputSchema"] = from_union([from_none, lambda x: from_dict(lambda x: x, x)], self.input_schema)
+        return result
+
+
+@dataclass
 class CapabilitiesChangedData:
     "Session capability change notification"
     ui: CapabilitiesChangedUI | None = None
@@ -924,21 +1001,26 @@ class CapabilitiesChangedData:
 @dataclass
 class CapabilitiesChangedUI:
     "UI capability changes"
+    canvases: bool | None = None
     elicitation: bool | None = None
     mcp_apps: bool | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "CapabilitiesChangedUI":
         assert isinstance(obj, dict)
+        canvases = from_union([from_none, from_bool], obj.get("canvases"))
         elicitation = from_union([from_none, from_bool], obj.get("elicitation"))
         mcp_apps = from_union([from_none, from_bool], obj.get("mcpApps"))
         return CapabilitiesChangedUI(
+            canvases=canvases,
             elicitation=elicitation,
             mcp_apps=mcp_apps,
         )
 
     def to_dict(self) -> dict:
         result: dict = {}
+        if self.canvases is not None:
+            result["canvases"] = from_union([from_none, from_bool], self.canvases)
         if self.elicitation is not None:
             result["elicitation"] = from_union([from_none, from_bool], self.elicitation)
         if self.mcp_apps is not None:
@@ -3143,6 +3225,85 @@ class SessionBackgroundTasksChangedData:
 
     def to_dict(self) -> dict:
         return {}
+
+
+@dataclass
+class SessionCanvasOpenedData:
+    "Schema for the `CanvasOpenedData` type."
+    availability: CanvasOpenedAvailability
+    canvas_id: str
+    extension_id: str
+    instance_id: str
+    reopen: bool
+    extension_name: str | None = None
+    input: Any = None
+    status: str | None = None
+    title: str | None = None
+    url: str | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasOpenedData":
+        assert isinstance(obj, dict)
+        availability = parse_enum(CanvasOpenedAvailability, obj.get("availability"))
+        canvas_id = from_str(obj.get("canvasId"))
+        extension_id = from_str(obj.get("extensionId"))
+        instance_id = from_str(obj.get("instanceId"))
+        reopen = from_bool(obj.get("reopen"))
+        extension_name = from_union([from_none, from_str], obj.get("extensionName"))
+        input = obj.get("input")
+        status = from_union([from_none, from_str], obj.get("status"))
+        title = from_union([from_none, from_str], obj.get("title"))
+        url = from_union([from_none, from_str], obj.get("url"))
+        return SessionCanvasOpenedData(
+            availability=availability,
+            canvas_id=canvas_id,
+            extension_id=extension_id,
+            instance_id=instance_id,
+            reopen=reopen,
+            extension_name=extension_name,
+            input=input,
+            status=status,
+            title=title,
+            url=url,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["availability"] = to_enum(CanvasOpenedAvailability, self.availability)
+        result["canvasId"] = from_str(self.canvas_id)
+        result["extensionId"] = from_str(self.extension_id)
+        result["instanceId"] = from_str(self.instance_id)
+        result["reopen"] = from_bool(self.reopen)
+        if self.extension_name is not None:
+            result["extensionName"] = from_union([from_none, from_str], self.extension_name)
+        if self.input is not None:
+            result["input"] = self.input
+        if self.status is not None:
+            result["status"] = from_union([from_none, from_str], self.status)
+        if self.title is not None:
+            result["title"] = from_union([from_none, from_str], self.title)
+        if self.url is not None:
+            result["url"] = from_union([from_none, from_str], self.url)
+        return result
+
+
+@dataclass
+class SessionCanvasRegistryChangedData:
+    "Schema for the `CanvasRegistryChangedData` type."
+    canvases: list[CanvasRegistryChangedCanvase]
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionCanvasRegistryChangedData":
+        assert isinstance(obj, dict)
+        canvases = from_list(CanvasRegistryChangedCanvase.from_dict, obj.get("canvases"))
+        return SessionCanvasRegistryChangedData(
+            canvases=canvases,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["canvases"] = from_list(lambda x: to_class(CanvasRegistryChangedCanvase, x), self.canvases)
+        return result
 
 
 @dataclass
@@ -6475,6 +6636,14 @@ class AutoModeSwitchResponse(Enum):
     NO = "no"
 
 
+class CanvasOpenedAvailability(Enum):
+    "Runtime-controlled routing state for the instance. \"ready\" when the provider connection is live; \"stale\" when the provider has gone away and the instance is awaiting rebinding."
+    # Provider connection is live; actions can be invoked.
+    READY = "ready"
+    # Provider has gone away; the instance is awaiting rebinding.
+    STALE = "stale"
+
+
 class ElicitationCompletedAction(Enum):
     "The user action: \"accept\" (submitted form), \"decline\" (explicitly refused), or \"cancel\" (dismissed)"
     # The user submitted the requested form.
@@ -6752,7 +6921,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -6859,6 +7028,8 @@ class SessionEvent:
             case SessionEventType.SESSION_MCP_SERVERS_LOADED: data = SessionMcpServersLoadedData.from_dict(data_obj)
             case SessionEventType.SESSION_MCP_SERVER_STATUS_CHANGED: data = SessionMcpServerStatusChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_EXTENSIONS_LOADED: data = SessionExtensionsLoadedData.from_dict(data_obj)
+            case SessionEventType.SESSION_CANVAS_OPENED: data = SessionCanvasOpenedData.from_dict(data_obj)
+            case SessionEventType.SESSION_CANVAS_REGISTRY_CHANGED: data = SessionCanvasRegistryChangedData.from_dict(data_obj)
             case SessionEventType.MCP_APP_TOOL_CALL_COMPLETE: data = McpAppToolCallCompleteData.from_dict(data_obj)
             case _: data = RawSessionEventData.from_dict(data_obj)
         return SessionEvent(

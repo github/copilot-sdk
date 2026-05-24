@@ -89,6 +89,8 @@ const (
 	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
 	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
 	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionCanvasOpened           SessionEventType = "session.canvas.opened"
+	SessionEventTypeSessionCanvasRegistryChanged  SessionEventType = "session.canvas.registry_changed"
 	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
@@ -872,6 +874,44 @@ func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionBackgroundTasksChanged
 }
 
+// Schema for the `CanvasOpenedData` type.
+type SessionCanvasOpenedData struct {
+	// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+	Availability CanvasOpenedAvailability `json:"availability"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// Input supplied when the instance was opened
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Whether this notification represents an idempotent reopen
+	Reopen bool `json:"reopen"`
+	// Provider-supplied status text
+	Status *string `json:"status,omitempty"`
+	// Rendered title
+	Title *string `json:"title,omitempty"`
+	// URL for web-rendered canvases
+	URL *string `json:"url,omitempty"`
+}
+
+func (*SessionCanvasOpenedData) sessionEventData()      {}
+func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
+
+// Schema for the `CanvasRegistryChangedData` type.
+type SessionCanvasRegistryChangedData struct {
+	// Canvas declarations currently available
+	Canvases []CanvasRegistryChangedCanvase `json:"canvases"`
+}
+
+func (*SessionCanvasRegistryChangedData) sessionEventData() {}
+func (*SessionCanvasRegistryChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRegistryChanged
+}
+
 // Schema for the `CustomAgentsUpdatedData` type.
 type SessionCustomAgentsUpdatedData struct {
 	// Array of loaded custom agent metadata
@@ -1567,8 +1607,38 @@ type AssistantUsageQuotaSnapshot struct {
 	UsedRequests int64 `json:"usedRequests"`
 }
 
+// Schema for the `CanvasRegistryChangedCanvase` type.
+type CanvasRegistryChangedCanvase struct {
+	// Actions the agent or host may invoke
+	Actions []CanvasRegistryChangedCanvaseAction `json:"actions,omitempty"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Short, single-sentence description shown to the agent in canvas catalogs.
+	Description string `json:"description"`
+	// Human-readable canvas name
+	DisplayName string `json:"displayName"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// JSON Schema for canvas open input
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
+}
+
+// Schema for the `CanvasRegistryChangedCanvaseAction` type.
+type CanvasRegistryChangedCanvaseAction struct {
+	// Action description
+	Description *string `json:"description,omitempty"`
+	// JSON Schema for action input
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
+	// Action name
+	Name string `json:"name"`
+}
+
 // UI capability changes
 type CapabilitiesChangedUI struct {
+	// Whether canvas rendering is now supported
+	Canvases *bool `json:"canvases,omitempty"`
 	// Whether elicitation is now supported
 	Elicitation *bool `json:"elicitation,omitempty"`
 	// Whether MCP Apps (SEP-1865) UI passthrough is now supported
@@ -2911,6 +2981,16 @@ const (
 	AutoModeSwitchResponseYes AutoModeSwitchResponse = "yes"
 	// Switch models now and keep using the replacement automatically.
 	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
+)
+
+// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+type CanvasOpenedAvailability string
+
+const (
+	// Provider connection is live; actions can be invoked.
+	CanvasOpenedAvailabilityReady CanvasOpenedAvailability = "ready"
+	// Provider has gone away; the instance is awaiting rebinding.
+	CanvasOpenedAvailabilityStale CanvasOpenedAvailability = "stale"
 )
 
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)

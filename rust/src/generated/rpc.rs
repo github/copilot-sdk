@@ -1137,6 +1137,13 @@ impl<'a> SessionRpc<'a> {
         }
     }
 
+    /// `session.canvas.*` sub-namespace.
+    pub fn canvas(&self) -> SessionRpcCanvas<'a> {
+        SessionRpcCanvas {
+            session: self.session,
+        }
+    }
+
     /// `session.commands.*` sub-namespace.
     pub fn commands(&self) -> SessionRpcCommands<'a> {
         SessionRpcCommands {
@@ -1659,6 +1666,153 @@ impl<'a> SessionRpcAuth<'a> {
             .session
             .client()
             .call(rpc_methods::SESSION_AUTH_SETCREDENTIALS, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `session.canvas.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcCanvas<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCanvas<'a> {
+    /// Lists canvases declared for the session.
+    ///
+    /// Wire method: `session.canvas.list`.
+    ///
+    /// # Returns
+    ///
+    /// Declared canvases available in this session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(&self) -> Result<CanvaList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists currently open canvas instances for the live session.
+    ///
+    /// Wire method: `session.canvas.listOpen`.
+    ///
+    /// # Returns
+    ///
+    /// Live open-canvas snapshot.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_open(&self) -> Result<CanvasListOpenResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_LISTOPEN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Opens or focuses a canvas instance.
+    ///
+    /// Wire method: `session.canvas.open`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Canvas open parameters.
+    ///
+    /// # Returns
+    ///
+    /// Open canvas instance snapshot.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn open(&self, params: CanvasOpenRequest) -> Result<OpenCanvasInstance, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_OPEN, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Closes an open canvas instance.
+    ///
+    /// Wire method: `session.canvas.close`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Canvas close parameters.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn close(&self, params: CanvasCloseRequest) -> Result<(), Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_CLOSE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Invokes an action on an open canvas instance.
+    ///
+    /// Wire method: `session.canvas.invokeAction`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Canvas action invocation parameters.
+    ///
+    /// # Returns
+    ///
+    /// Canvas action invocation result.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn invoke_action(
+        &self,
+        params: CanvasInvokeActionRequest,
+    ) -> Result<CanvasInvokeActionResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_CANVAS_INVOKEACTION, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

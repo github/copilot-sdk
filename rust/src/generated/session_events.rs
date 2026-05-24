@@ -171,6 +171,10 @@ pub enum SessionEventType {
     SessionMcpServerStatusChanged,
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded,
+    #[serde(rename = "session.canvas.opened")]
+    SessionCanvasOpened,
+    #[serde(rename = "session.canvas.registry_changed")]
+    SessionCanvasRegistryChanged,
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete,
     /// Unknown event type for forward compatibility.
@@ -347,6 +351,10 @@ pub enum SessionEventData {
     SessionMcpServerStatusChanged(SessionMcpServerStatusChangedData),
     #[serde(rename = "session.extensions_loaded")]
     SessionExtensionsLoaded(SessionExtensionsLoadedData),
+    #[serde(rename = "session.canvas.opened")]
+    SessionCanvasOpened(SessionCanvasOpenedData),
+    #[serde(rename = "session.canvas.registry_changed")]
+    SessionCanvasRegistryChanged(SessionCanvasRegistryChangedData),
     #[serde(rename = "mcp_app.tool_call_complete")]
     McpAppToolCallComplete(McpAppToolCallCompleteData),
 }
@@ -2925,6 +2933,9 @@ pub struct CommandsChangedData {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilitiesChangedUI {
+    /// Whether canvas rendering is now supported
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
     /// Whether elicitation is now supported
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
@@ -3119,6 +3130,82 @@ pub struct ExtensionsLoadedExtension {
 pub struct SessionExtensionsLoadedData {
     /// Array of discovered extensions and their status
     pub extensions: Vec<ExtensionsLoadedExtension>,
+}
+
+/// Session event "session.canvas.opened".
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasOpenedData {
+    /// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+    pub availability: CanvasOpenedAvailability,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Whether this notification represents an idempotent reopen
+    pub reopen: bool,
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Schema for the `CanvasRegistryChangedCanvaseAction` type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasRegistryChangedCanvaseAction {
+    /// Action description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// JSON Schema for action input
+    #[serde(default)]
+    pub input_schema: HashMap<String, serde_json::Value>,
+    /// Action name
+    pub name: String,
+}
+
+/// Schema for the `CanvasRegistryChangedCanvase` type.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasRegistryChangedCanvase {
+    /// Actions the agent or host may invoke
+    #[serde(default)]
+    pub actions: Vec<CanvasRegistryChangedCanvaseAction>,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Short, single-sentence description shown to the agent in canvas catalogs.
+    pub description: String,
+    /// Human-readable canvas name
+    pub display_name: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// JSON Schema for canvas open input
+    #[serde(default)]
+    pub input_schema: HashMap<String, serde_json::Value>,
+}
+
+/// Session event "session.canvas.registry_changed".
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasRegistryChangedData {
+    /// Canvas declarations currently available
+    pub canvases: Vec<CanvasRegistryChangedCanvase>,
 }
 
 /// Set when the underlying tools/call threw an error before returning a CallToolResult
@@ -4161,6 +4248,21 @@ pub enum ExtensionsLoadedExtensionStatus {
     /// The extension process is starting.
     #[serde(rename = "starting")]
     Starting,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CanvasOpenedAvailability {
+    /// Provider connection is live; actions can be invoked.
+    #[serde(rename = "ready")]
+    Ready,
+    /// Provider has gone away; the instance is awaiting rebinding.
+    #[serde(rename = "stale")]
+    Stale,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

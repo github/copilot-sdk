@@ -285,6 +285,81 @@ func (UserAuthInfo) Type() AuthInfoType {
 	return AuthInfoTypeUser
 }
 
+// Declared canvases available in this session.
+// Experimental: CanvaList is part of an experimental API and may change or be removed.
+type CanvaList struct {
+	// Declared canvases available in this session
+	Canvases []DiscoveredCanvas `json:"canvases"`
+}
+
+// Canvas action that the agent or host can invoke. To discover the input schema for a
+// particular action, call the list_canvas_capabilities tool.
+// Experimental: CanvasAction is part of an experimental API and may change or be removed.
+type CanvasAction struct {
+	// Description of the action
+	Description *string `json:"description,omitempty"`
+	// JSON Schema for the action input
+	InputSchema any `json:"inputSchema,omitempty"`
+	// Action name exposed by the canvas provider
+	Name string `json:"name"`
+}
+
+// Canvas close parameters.
+// Experimental: CanvasCloseRequest is part of an experimental API and may change or be
+// removed.
+type CanvasCloseRequest struct {
+	// Open canvas instance identifier
+	InstanceID string `json:"instanceId"`
+}
+
+// Canvas action invocation parameters.
+// Experimental: CanvasInvokeActionRequest is part of an experimental API and may change or
+// be removed.
+type CanvasInvokeActionRequest struct {
+	// Action name to invoke
+	ActionName string `json:"actionName"`
+	// Action input
+	Input any `json:"input,omitempty"`
+	// Open canvas instance identifier
+	InstanceID string `json:"instanceId"`
+}
+
+// Canvas action invocation result.
+// Experimental: CanvasInvokeActionResult is part of an experimental API and may change or
+// be removed.
+type CanvasInvokeActionResult struct {
+	// Provider-supplied action result
+	Result any `json:"result,omitempty"`
+}
+
+// JSON Schema for canvas open input
+// Experimental: CanvasJSONSchema is part of an experimental API and may change or be
+// removed.
+type CanvasJSONSchema any
+
+// Live open-canvas snapshot.
+// Experimental: CanvasListOpenResult is part of an experimental API and may change or be
+// removed.
+type CanvasListOpenResult struct {
+	// Currently open canvas instances
+	OpenCanvases []OpenCanvasInstance `json:"openCanvases"`
+}
+
+// Canvas open parameters.
+// Experimental: CanvasOpenRequest is part of an experimental API and may change or be
+// removed.
+type CanvasOpenRequest struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier. Optional when the canvasId is unique across providers;
+	// required to disambiguate when multiple providers register the same canvasId.
+	ExtensionID *string `json:"extensionId,omitempty"`
+	// Canvas open input
+	Input any `json:"input,omitempty"`
+	// Caller-supplied stable instance identifier
+	InstanceID string `json:"instanceId"`
+}
+
 // Slash commands available in the session, after applying any include/exclude filters.
 // Experimental: CommandList is part of an experimental API and may change or be removed.
 type CommandList struct {
@@ -541,6 +616,26 @@ type CurrentModel struct {
 	// `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the
 	// two values are reported as a snapshot.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
+}
+
+// Canvas available in the current session.
+// Experimental: DiscoveredCanvas is part of an experimental API and may change or be
+// removed.
+type DiscoveredCanvas struct {
+	// Actions the agent or host may invoke on an open instance
+	Actions []CanvasAction `json:"actions,omitempty"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Short, single-sentence description shown to the agent in canvas catalogs.
+	Description string `json:"description"`
+	// Human-readable canvas name
+	DisplayName string `json:"displayName"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// JSON Schema for canvas open input
+	InputSchema any `json:"inputSchema,omitempty"`
 }
 
 // Schema for the `DiscoveredMcpServer` type.
@@ -2077,6 +2172,32 @@ type NameSetAutoResult struct {
 type NameSetRequest struct {
 	// New session name (1–100 characters, trimmed of leading/trailing whitespace)
 	Name string `json:"name"`
+}
+
+// Open canvas instance snapshot.
+// Experimental: OpenCanvasInstance is part of an experimental API and may change or be
+// removed.
+type OpenCanvasInstance struct {
+	// Runtime-controlled routing state for an open canvas instance.
+	Availability CanvasInstanceAvailability `json:"availability"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// Input supplied when the instance was opened
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Whether this snapshot came from an idempotent reopen
+	Reopen bool `json:"reopen"`
+	// Provider-supplied status text
+	Status *string `json:"status,omitempty"`
+	// Rendered title
+	Title *string `json:"title,omitempty"`
+	// URL for web-rendered canvases
+	URL *string `json:"url,omitempty"`
 }
 
 // Schema for the `PendingPermissionRequest` type.
@@ -3664,6 +3785,11 @@ type SessionBulkDeleteResult struct {
 	// whose deletion failed are omitted from this map (failures are logged on the server but
 	// not surfaced per-id; check the map for absent IDs to detect them).
 	FreedBytes map[string]int64 `json:"freedBytes"`
+}
+
+// Experimental: SessionCanvasCloseResult is part of an experimental API and may change or
+// be removed.
+type SessionCanvasCloseResult struct {
 }
 
 // Schema for the `SessionContext` type.
@@ -6103,6 +6229,20 @@ const (
 	AuthInfoTypeUser            AuthInfoType = "user"
 )
 
+// Runtime-controlled routing state for an open canvas instance.
+// Experimental: CanvasInstanceAvailability is part of an experimental API and may change or
+// be removed.
+type CanvasInstanceAvailability string
+
+const (
+	// The owning provider is currently connected and routing calls will be dispatched normally.
+	CanvasInstanceAvailabilityReady CanvasInstanceAvailability = "ready"
+	// The owning provider is not currently connected. Routing calls fail with
+	// canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a
+	// fresh canvas.open) or the provider reconnects.
+	CanvasInstanceAvailabilityStale CanvasInstanceAvailability = "stale"
+)
+
 // Neutral SDK discriminator for the connected remote session kind.
 // Experimental: ConnectedRemoteSessionMetadataKind is part of an experimental API and may
 // change or be removed.
@@ -8101,6 +8241,123 @@ func (a *AuthApi) SetCredentials(ctx context.Context, params *SessionSetCredenti
 		return nil, err
 	}
 	var result SessionSetCredentialsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: CanvasApi contains experimental APIs that may change or be removed.
+type CanvasApi sessionApi
+
+// Closes an open canvas instance.
+//
+// RPC method: session.canvas.close.
+//
+// Parameters: Canvas close parameters.
+func (a *CanvasApi) Close(ctx context.Context, params *CanvasCloseRequest) (*SessionCanvasCloseResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["instanceId"] = params.InstanceID
+	}
+	raw, err := a.client.Request("session.canvas.close", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionCanvasCloseResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// InvokeAction invokes an action on an open canvas instance.
+//
+// RPC method: session.canvas.invokeAction.
+//
+// Parameters: Canvas action invocation parameters.
+//
+// Returns: Canvas action invocation result.
+func (a *CanvasApi) InvokeAction(ctx context.Context, params *CanvasInvokeActionRequest) (*CanvasInvokeActionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["actionName"] = params.ActionName
+		if params.Input != nil {
+			req["input"] = params.Input
+		}
+		req["instanceId"] = params.InstanceID
+	}
+	raw, err := a.client.Request("session.canvas.invokeAction", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CanvasInvokeActionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Lists canvases declared for the session.
+//
+// RPC method: session.canvas.list.
+//
+// Returns: Declared canvases available in this session.
+func (a *CanvasApi) List(ctx context.Context) (*CanvaList, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.canvas.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CanvaList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// ListOpen lists currently open canvas instances for the live session.
+//
+// RPC method: session.canvas.listOpen.
+//
+// Returns: Live open-canvas snapshot.
+func (a *CanvasApi) ListOpen(ctx context.Context) (*CanvasListOpenResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.canvas.listOpen", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CanvasListOpenResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Opens or focuses a canvas instance.
+//
+// RPC method: session.canvas.open.
+//
+// Parameters: Canvas open parameters.
+//
+// Returns: Open canvas instance snapshot.
+func (a *CanvasApi) Open(ctx context.Context, params *CanvasOpenRequest) (*OpenCanvasInstance, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["canvasId"] = params.CanvasID
+		if params.ExtensionID != nil {
+			req["extensionId"] = *params.ExtensionID
+		}
+		if params.Input != nil {
+			req["input"] = params.Input
+		}
+		req["instanceId"] = params.InstanceID
+	}
+	raw, err := a.client.Request("session.canvas.open", req)
+	if err != nil {
+		return nil, err
+	}
+	var result OpenCanvasInstance
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}
@@ -11160,6 +11417,7 @@ type SessionRpc struct {
 
 	Agent        *AgentApi
 	Auth         *AuthApi
+	Canvas       *CanvasApi
 	Commands     *CommandsApi
 	EventLog     *EventLogApi
 	Extensions   *ExtensionsApi
@@ -11369,6 +11627,7 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	r.common = sessionApi{client: client, sessionID: sessionID}
 	r.Agent = (*AgentApi)(&r.common)
 	r.Auth = (*AuthApi)(&r.common)
+	r.Canvas = (*CanvasApi)(&r.common)
 	r.Commands = (*CommandsApi)(&r.common)
 	r.EventLog = (*EventLogApi)(&r.common)
 	r.Extensions = (*ExtensionsApi)(&r.common)
