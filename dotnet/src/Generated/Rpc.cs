@@ -2036,6 +2036,207 @@ internal sealed class SessionSetCredentialsParams
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Canvas action that the agent or host can invoke. To discover the input schema for a particular action, call the list_canvas_capabilities tool.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasAction
+{
+    /// <summary>Description of the action.</summary>
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>JSON Schema for the action input.</summary>
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; set; }
+
+    /// <summary>Action name exposed by the canvas provider.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>Canvas available in the current session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class DiscoveredCanvas
+{
+    /// <summary>Actions the agent or host may invoke on an open instance.</summary>
+    [JsonPropertyName("actions")]
+    public IList<CanvasAction>? Actions { get; set; }
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public string CanvasId { get; set; } = string.Empty;
+
+    /// <summary>Short, single-sentence description shown to the agent in canvas catalogs.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Human-readable canvas name.</summary>
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public string ExtensionId { get; set; } = string.Empty;
+
+    /// <summary>Owning extension display name, when available.</summary>
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>JSON Schema for canvas open input.</summary>
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; set; }
+}
+
+/// <summary>Declared canvases available in this session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasList
+{
+    /// <summary>Declared canvases available in this session.</summary>
+    [JsonPropertyName("canvases")]
+    public IList<DiscoveredCanvas> Canvases { get => field ??= []; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionCanvasListRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Open canvas instance snapshot.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class OpenCanvasInstance
+{
+    /// <summary>Runtime-controlled routing state for an open canvas instance.</summary>
+    [JsonPropertyName("availability")]
+    public CanvasInstanceAvailability Availability { get; set; }
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public string CanvasId { get; set; } = string.Empty;
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public string ExtensionId { get; set; } = string.Empty;
+
+    /// <summary>Owning extension display name, when available.</summary>
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>Input supplied when the instance was opened.</summary>
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Stable caller-supplied canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Whether this snapshot came from an idempotent reopen.</summary>
+    [JsonPropertyName("reopen")]
+    public bool Reopen { get; set; }
+
+    /// <summary>Provider-supplied status text.</summary>
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    /// <summary>Rendered title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>URL for web-rendered canvases.</summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+/// <summary>Live open-canvas snapshot.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasListOpenResult
+{
+    /// <summary>Currently open canvas instances.</summary>
+    [JsonPropertyName("openCanvases")]
+    public IList<OpenCanvasInstance> OpenCanvases { get => field ??= []; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionCanvasListOpenRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Canvas open parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CanvasOpenRequest
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public string CanvasId { get; set; } = string.Empty;
+
+    /// <summary>Owning provider identifier. Optional when the canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId.</summary>
+    [JsonPropertyName("extensionId")]
+    public string? ExtensionId { get; set; }
+
+    /// <summary>Canvas open input.</summary>
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Caller-supplied stable instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Canvas close parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CanvasCloseRequest
+{
+    /// <summary>Open canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Canvas action invocation result.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasInvokeActionResult
+{
+    /// <summary>Provider-supplied action result.</summary>
+    [JsonPropertyName("result")]
+    public JsonElement? Result { get; set; }
+}
+
+/// <summary>Canvas action invocation parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class CanvasInvokeActionRequest
+{
+    /// <summary>Action name to invoke.</summary>
+    [JsonPropertyName("actionName")]
+    public string ActionName { get; set; } = string.Empty;
+
+    /// <summary>Action input.</summary>
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Open canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>The currently selected model and reasoning effort for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CurrentModel
@@ -8292,6 +8493,69 @@ public readonly struct AuthInfoType : IEquatable<AuthInfoType>
 }
 
 
+/// <summary>Runtime-controlled routing state for an open canvas instance.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CanvasInstanceAvailability : IEquatable<CanvasInstanceAvailability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CanvasInstanceAvailability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CanvasInstanceAvailability"/>.</param>
+    [JsonConstructor]
+    public CanvasInstanceAvailability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CanvasInstanceAvailability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The owning provider is currently connected and routing calls will be dispatched normally.</summary>
+    public static CanvasInstanceAvailability Ready { get; } = new("ready");
+
+    /// <summary>The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects.</summary>
+    public static CanvasInstanceAvailability Stale { get; } = new("stale");
+
+    /// <summary>Returns a value indicating whether two <see cref="CanvasInstanceAvailability"/> instances are equivalent.</summary>
+    public static bool operator ==(CanvasInstanceAvailability left, CanvasInstanceAvailability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CanvasInstanceAvailability"/> instances are not equivalent.</summary>
+    public static bool operator !=(CanvasInstanceAvailability left, CanvasInstanceAvailability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CanvasInstanceAvailability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CanvasInstanceAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CanvasInstanceAvailability}"/> for serializing <see cref="CanvasInstanceAvailability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CanvasInstanceAvailability>
+    {
+        /// <inheritdoc />
+        public override CanvasInstanceAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CanvasInstanceAvailability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasInstanceAvailability));
+        }
+    }
+}
+
+
 /// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -11573,6 +11837,12 @@ public sealed class SessionRpc
         Interlocked.CompareExchange(ref field, new(_session), null) ??
         field;
 
+    /// <summary>Canvas APIs.</summary>
+    public CanvasApi Canvas =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+
     /// <summary>Model APIs.</summary>
     public ModelApi Model =>
         field ??
@@ -11856,6 +12126,85 @@ public sealed class AuthApi
 
         var request = new SessionSetCredentialsParams { SessionId = _session.SessionId, Credentials = credentials };
         return await CopilotClient.InvokeRpcAsync<SessionSetCredentialsResult>(_session.Rpc, "session.auth.setCredentials", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides session-scoped Canvas APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasApi
+{
+    private readonly CopilotSession _session;
+
+    internal CanvasApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
+    /// <summary>Lists canvases declared for the session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Declared canvases available in this session.</returns>
+    public async Task<CanvasList> ListAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionCanvasListRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<CanvasList>(_session.Rpc, "session.canvas.list", [request], cancellationToken);
+    }
+
+    /// <summary>Lists currently open canvas instances for the live session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Live open-canvas snapshot.</returns>
+    public async Task<CanvasListOpenResult> ListOpenAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionCanvasListOpenRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<CanvasListOpenResult>(_session.Rpc, "session.canvas.listOpen", [request], cancellationToken);
+    }
+
+    /// <summary>Opens or focuses a canvas instance.</summary>
+    /// <param name="canvasId">Provider-local canvas identifier.</param>
+    /// <param name="instanceId">Caller-supplied stable instance identifier.</param>
+    /// <param name="extensionId">Owning provider identifier. Optional when the canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId.</param>
+    /// <param name="input">Canvas open input.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Open canvas instance snapshot.</returns>
+    public async Task<OpenCanvasInstance> OpenAsync(string canvasId, string instanceId, string? extensionId = null, object? input = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(canvasId);
+        ArgumentNullException.ThrowIfNull(instanceId);
+        _session.ThrowIfDisposed();
+
+        var request = new CanvasOpenRequest { SessionId = _session.SessionId, CanvasId = canvasId, InstanceId = instanceId, ExtensionId = extensionId, Input = CopilotClient.ToJsonElementForWire(input) };
+        return await CopilotClient.InvokeRpcAsync<OpenCanvasInstance>(_session.Rpc, "session.canvas.open", [request], cancellationToken);
+    }
+
+    /// <summary>Closes an open canvas instance.</summary>
+    /// <param name="instanceId">Open canvas instance identifier.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task CloseAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instanceId);
+        _session.ThrowIfDisposed();
+
+        var request = new CanvasCloseRequest { SessionId = _session.SessionId, InstanceId = instanceId };
+        await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.close", [request], cancellationToken);
+    }
+
+    /// <summary>Invokes an action on an open canvas instance.</summary>
+    /// <param name="instanceId">Open canvas instance identifier.</param>
+    /// <param name="actionName">Action name to invoke.</param>
+    /// <param name="input">Action input.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canvas action invocation result.</returns>
+    public async Task<CanvasInvokeActionResult> InvokeActionAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instanceId);
+        ArgumentNullException.ThrowIfNull(actionName);
+        _session.ThrowIfDisposed();
+
+        var request = new CanvasInvokeActionRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
+        return await CopilotClient.InvokeRpcAsync<CanvasInvokeActionResult>(_session.Rpc, "session.canvas.invokeAction", [request], cancellationToken);
     }
 }
 
@@ -14118,6 +14467,9 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
+[JsonSerializable(typeof(GitHub.Copilot.CanvasOpenedAvailability), TypeInfoPropertyName = "SessionEventsCanvasOpenedAvailability")]
+[JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvas), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvas")]
+[JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvasAction), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvasAction")]
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedData), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedData")]
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedEvent), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.CapabilitiesChangedUI), TypeInfoPropertyName = "SessionEventsCapabilitiesChangedUI")]
@@ -14334,6 +14686,13 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
 [JsonSerializable(typeof(AuthInfo))]
+[JsonSerializable(typeof(CanvasAction))]
+[JsonSerializable(typeof(CanvasCloseRequest))]
+[JsonSerializable(typeof(CanvasInvokeActionRequest))]
+[JsonSerializable(typeof(CanvasInvokeActionResult))]
+[JsonSerializable(typeof(CanvasList))]
+[JsonSerializable(typeof(CanvasListOpenResult))]
+[JsonSerializable(typeof(CanvasOpenRequest))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]
@@ -14355,6 +14714,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshotsCompletions))]
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshotsPremiumInteractions))]
 [JsonSerializable(typeof(CurrentModel))]
+[JsonSerializable(typeof(DiscoveredCanvas))]
 [JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(EnqueueCommandParams))]
 [JsonSerializable(typeof(EnqueueCommandResult))]
@@ -14463,6 +14823,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(NameSetAutoRequest))]
 [JsonSerializable(typeof(NameSetAutoResult))]
 [JsonSerializable(typeof(NameSetRequest))]
+[JsonSerializable(typeof(OpenCanvasInstance))]
 [JsonSerializable(typeof(PendingPermissionRequest))]
 [JsonSerializable(typeof(PendingPermissionRequestList))]
 [JsonSerializable(typeof(PermissionDecision))]
@@ -14549,6 +14910,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionAuthGetStatusRequest))]
 [JsonSerializable(typeof(SessionAuthStatus))]
 [JsonSerializable(typeof(SessionBulkDeleteResult))]
+[JsonSerializable(typeof(SessionCanvasListOpenRequest))]
+[JsonSerializable(typeof(SessionCanvasListRequest))]
 [JsonSerializable(typeof(SessionContext))]
 [JsonSerializable(typeof(SessionEnrichMetadataResult))]
 [JsonSerializable(typeof(SessionEventLogTailRequest))]

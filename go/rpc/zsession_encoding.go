@@ -251,6 +251,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeSessionCanvasOpened:
+		var d SessionCanvasOpenedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCanvasRegistryChanged:
+		var d SessionCanvasRegistryChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeSessionCompactionComplete:
 		var d SessionCompactionCompleteData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {

@@ -88,6 +88,8 @@ export type SessionEvent =
   | McpServersLoadedEvent
   | McpServerStatusChangedEvent
   | ExtensionsLoadedEvent
+  | CanvasOpenedEvent
+  | CanvasRegistryChangedEvent
   | McpAppToolCallCompleteEvent;
 /**
  * Hosting platform type of the repository (github or ado)
@@ -502,6 +504,14 @@ export type ExtensionsLoadedExtensionStatus =
   | "failed"
   /** The extension process is starting. */
   | "starting";
+/**
+ * Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+ */
+export type CanvasOpenedAvailability =
+  /** Provider connection is live; actions can be invoked. */
+  | "ready"
+  /** Provider has gone away; the instance is awaiting rebinding. */
+  | "stale";
 
 /**
  * Session event "session.start". Session initialization metadata including context and configuration
@@ -6071,6 +6081,10 @@ export interface CapabilitiesChangedData {
  */
 export interface CapabilitiesChangedUI {
   /**
+   * Whether canvas rendering is now supported
+   */
+  canvases?: boolean;
+  /**
    * Whether elicitation is now supported
    */
   elicitation?: boolean;
@@ -6565,6 +6579,173 @@ export interface ExtensionsLoadedExtension {
   name: string;
   source: ExtensionsLoadedExtensionSource;
   status: ExtensionsLoadedExtensionStatus;
+}
+/**
+ * Session event "session.canvas.opened".
+ */
+export interface CanvasOpenedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasOpenedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.opened".
+   */
+  type: "session.canvas.opened";
+}
+/**
+ * Schema for the `CanvasOpenedData` type.
+ */
+export interface CanvasOpenedData {
+  availability: CanvasOpenedAvailability;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * Input supplied when the instance was opened
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Whether this notification represents an idempotent reopen
+   */
+  reopen: boolean;
+  /**
+   * Provider-supplied status text
+   */
+  status?: string;
+  /**
+   * Rendered title
+   */
+  title?: string;
+  /**
+   * URL for web-rendered canvases
+   */
+  url?: string;
+}
+/**
+ * Session event "session.canvas.registry_changed".
+ */
+export interface CanvasRegistryChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasRegistryChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.registry_changed".
+   */
+  type: "session.canvas.registry_changed";
+}
+/**
+ * Schema for the `CanvasRegistryChangedData` type.
+ */
+export interface CanvasRegistryChangedData {
+  /**
+   * Canvas declarations currently available
+   */
+  canvases: CanvasRegistryChangedCanvas[];
+}
+/**
+ * Schema for the `CanvasRegistryChangedCanvas` type.
+ */
+export interface CanvasRegistryChangedCanvas {
+  /**
+   * Actions the agent or host may invoke
+   */
+  actions?: CanvasRegistryChangedCanvasAction[];
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Short, single-sentence description shown to the agent in canvas catalogs.
+   */
+  description: string;
+  /**
+   * Human-readable canvas name
+   */
+  displayName: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * JSON Schema for canvas open input
+   */
+  inputSchema?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ */
+export interface CanvasRegistryChangedCanvasAction {
+  /**
+   * Action description
+   */
+  description?: string;
+  /**
+   * JSON Schema for action input
+   */
+  inputSchema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Action name
+   */
+  name: string;
 }
 /**
  * Session event "mcp_app.tool_call_complete". MCP App view called a tool on a connected MCP server (SEP-1865)

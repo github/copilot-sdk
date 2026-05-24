@@ -2776,8 +2776,22 @@ async function generateRpc(schemaPath?: string, sessionEventsSchema?: JSONSchema
     });
 
     let typesCode = qtResult.lines.join("\n");
-    // Fix dataclass field ordering
+    // Quicktype emits optional Any-typed fields without defaults; add them back.
     typesCode = typesCode.replace(/: Any$/gm, ": Any = None");
+    // The synthesized root RPC dataclass includes one required field per schema definition.
+    // Keep Any-typed definition fields required so later required fields don't trip dataclass
+    // ordering rules at import time.
+    typesCode = typesCode.replace(
+        /(@dataclass\r?\nclass RPC:\r?\n)([\s\S]*?)(\r?\n    @staticmethod)/,
+        (match, prefix: string, body: string, suffix: string) => {
+            let updatedBody = body;
+            for (const definitionName of Object.keys(allDefinitions)) {
+                const fieldName = toSnakeCase(definitionName);
+                updatedBody = updatedBody.replace(new RegExp(`^(    ${fieldName}: Any) = None$`, "m"), "$1");
+            }
+            return `${prefix}${updatedBody}${suffix}`;
+        }
+    );
     // Fix bare except: to use Exception (required by ruff/pylint)
     typesCode = typesCode.replace(/except:/g, "except Exception:");
     // Remove unnecessary pass when class has methods (quicktype generates pass for empty schemas)

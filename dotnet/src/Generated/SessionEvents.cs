@@ -60,6 +60,8 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
+[JsonDerivedType(typeof(SessionCanvasOpenedEvent), "session.canvas.opened")]
+[JsonDerivedType(typeof(SessionCanvasRegistryChangedEvent), "session.canvas.registry_changed")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
@@ -1199,6 +1201,32 @@ public sealed partial class SessionExtensionsLoadedEvent : SessionEvent
     /// <summary>The <c>session.extensions_loaded</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionExtensionsLoadedData Data { get; set; }
+}
+
+/// <summary>Schema for the `CanvasOpenedData` type.</summary>
+/// <remarks>Represents the <c>session.canvas.opened</c> event.</remarks>
+public sealed partial class SessionCanvasOpenedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.opened";
+
+    /// <summary>The <c>session.canvas.opened</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasOpenedData Data { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+/// <remarks>Represents the <c>session.canvas.registry_changed</c> event.</remarks>
+public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.registry_changed";
+
+    /// <summary>The <c>session.canvas.registry_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasRegistryChangedData Data { get; set; }
 }
 
 /// <summary>MCP App view called a tool on a connected MCP server (SEP-1865).</summary>
@@ -3166,6 +3194,63 @@ public sealed partial class SessionExtensionsLoadedData
     /// <summary>Array of discovered extensions and their status.</summary>
     [JsonPropertyName("extensions")]
     public required ExtensionsLoadedExtension[] Extensions { get; set; }
+}
+
+/// <summary>Schema for the `CanvasOpenedData` type.</summary>
+public sealed partial class SessionCanvasOpenedData
+{
+    /// <summary>Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.</summary>
+    [JsonPropertyName("availability")]
+    public required CanvasOpenedAvailability Availability { get; set; }
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Owning extension display name, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>Input supplied when the instance was opened.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Stable caller-supplied canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; set; }
+
+    /// <summary>Whether this notification represents an idempotent reopen.</summary>
+    [JsonPropertyName("reopen")]
+    public required bool Reopen { get; set; }
+
+    /// <summary>Provider-supplied status text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    /// <summary>Rendered title.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>URL for web-rendered canvases.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+public sealed partial class SessionCanvasRegistryChangedData
+{
+    /// <summary>Canvas declarations currently available.</summary>
+    [JsonPropertyName("canvases")]
+    public required CanvasRegistryChangedCanvas[] Canvases { get; set; }
 }
 
 /// <summary>MCP App view called a tool on a connected MCP server (SEP-1865).</summary>
@@ -5475,6 +5560,11 @@ public sealed partial class CommandsChangedCommand
 /// <remarks>Nested data type for <c>CapabilitiesChangedUI</c>.</remarks>
 public sealed partial class CapabilitiesChangedUI
 {
+    /// <summary>Whether canvas rendering is now supported.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canvases")]
+    public bool? Canvases { get; set; }
+
     /// <summary>Whether elicitation is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("elicitation")]
@@ -5611,6 +5701,63 @@ public sealed partial class ExtensionsLoadedExtension
     /// <summary>Current status: running, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
     public required ExtensionsLoadedExtensionStatus Status { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedCanvasAction` type.</summary>
+/// <remarks>Nested data type for <c>CanvasRegistryChangedCanvasAction</c>.</remarks>
+public sealed partial class CanvasRegistryChangedCanvasAction
+{
+    /// <summary>Action description.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>JSON Schema for action input.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; set; }
+
+    /// <summary>Action name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedCanvas` type.</summary>
+/// <remarks>Nested data type for <c>CanvasRegistryChangedCanvas</c>.</remarks>
+public sealed partial class CanvasRegistryChangedCanvas
+{
+    /// <summary>Actions the agent or host may invoke.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("actions")]
+    public CanvasRegistryChangedCanvasAction[]? Actions { get; set; }
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Short, single-sentence description shown to the agent in canvas catalogs.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Human-readable canvas name.</summary>
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Owning extension display name, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>JSON Schema for canvas open input.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; set; }
 }
 
 /// <summary>Set when the underlying tools/call threw an error before returning a CallToolResult.</summary>
@@ -7692,6 +7839,67 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     }
 }
 
+/// <summary>Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CanvasOpenedAvailability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CanvasOpenedAvailability"/>.</param>
+    [JsonConstructor]
+    public CanvasOpenedAvailability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CanvasOpenedAvailability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Provider connection is live; actions can be invoked.</summary>
+    public static CanvasOpenedAvailability Ready { get; } = new("ready");
+
+    /// <summary>Provider has gone away; the instance is awaiting rebinding.</summary>
+    public static CanvasOpenedAvailability Stale { get; } = new("stale");
+
+    /// <summary>Returns a value indicating whether two <see cref="CanvasOpenedAvailability"/> instances are equivalent.</summary>
+    public static bool operator ==(CanvasOpenedAvailability left, CanvasOpenedAvailability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CanvasOpenedAvailability"/> instances are not equivalent.</summary>
+    public static bool operator !=(CanvasOpenedAvailability left, CanvasOpenedAvailability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CanvasOpenedAvailability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CanvasOpenedAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CanvasOpenedAvailability}"/> for serializing <see cref="CanvasOpenedAvailability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CanvasOpenedAvailability>
+    {
+        /// <inheritdoc />
+        public override CanvasOpenedAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CanvasOpenedAvailability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasOpenedAvailability));
+        }
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -7727,6 +7935,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedEvent))]
+[JsonSerializable(typeof(CanvasRegistryChangedCanvas))]
+[JsonSerializable(typeof(CanvasRegistryChangedCanvasAction))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
@@ -7826,6 +8036,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SamplingRequestedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
+[JsonSerializable(typeof(SessionCanvasOpenedData))]
+[JsonSerializable(typeof(SessionCanvasOpenedEvent))]
+[JsonSerializable(typeof(SessionCanvasRegistryChangedData))]
+[JsonSerializable(typeof(SessionCanvasRegistryChangedEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
