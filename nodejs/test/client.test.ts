@@ -141,10 +141,7 @@ describe("CopilotClient", () => {
             displayName: "Counter",
             description: "A counter canvas",
             open: () => ({ url: "https://example.test/counter" }),
-            actions: [{ name: "reset" }],
         });
-        // `handler` is authoring-only; the wire declaration must omit it.
-        expect(canvas.declaration.actions).toEqual([{ name: "reset" }]);
 
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
@@ -152,12 +149,12 @@ describe("CopilotClient", () => {
         (client as any).sessions.set(session.sessionId, session);
 
         await expect(
-            (client as any).handleCanvasProviderRequest("reset", {
+            (client as any).handleCanvasProviderRequest("ghost", {
                 sessionId: session.sessionId,
                 extensionId: "project:counter",
                 canvasId: "counter",
                 instanceId: "counter-1",
-                actionName: "reset",
+                actionName: "ghost",
                 input: undefined,
             })
         ).rejects.toMatchObject({ code: "canvas_action_no_handler" });

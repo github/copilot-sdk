@@ -49,8 +49,8 @@ export interface CanvasAgentActionDeclaration {
  * the runtime.
  */
 export interface CanvasAction extends CanvasAgentActionDeclaration {
-    /** Optional per-action dispatch handler. */
-    handler?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
+    /** Required per-action dispatch handler. */
+    handler: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
 }
 
 /**
@@ -171,7 +171,7 @@ export interface CanvasOptions {
     inputSchema?: CanvasJsonSchema;
     /**
      * Agent-invocable actions exposed via `invoke_canvas_action`. Each action
-     * may carry its own optional `handler`; the action's wire metadata
+     * carries its own required `handler`; the action's wire metadata
      * (`name`, `description`, `inputSchema`) is what reaches the runtime.
      */
     actions?: CanvasAction[];
@@ -193,16 +193,14 @@ export class Canvas {
     readonly open: NonNullable<CanvasOptions["open"]>;
     readonly onClose?: CanvasOptions["onClose"];
     /** @internal */
-    readonly actionHandlers: Map<string, NonNullable<CanvasAction["handler"]>>;
+    readonly actionHandlers: Map<string, CanvasAction["handler"]>;
 
     /** @internal */
     constructor(options: CanvasOptions) {
-        const actionHandlers = new Map<string, NonNullable<CanvasAction["handler"]>>();
+        const actionHandlers = new Map<string, CanvasAction["handler"]>();
         const wireActions: CanvasAgentActionDeclaration[] | undefined = options.actions?.map(
             ({ handler, ...wire }) => {
-                if (handler) {
-                    actionHandlers.set(wire.name, handler);
-                }
+                actionHandlers.set(wire.name, handler);
                 return wire;
             }
         );
