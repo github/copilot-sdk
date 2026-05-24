@@ -14502,7 +14502,7 @@ class RPC:
     canvas_instance_availability: CanvasInstanceAvailability
     canvas_invoke_action_request: CanvasInvokeActionRequest
     canvas_invoke_action_result: CanvasInvokeActionResult
-    canvas_json_schema: Any = None
+    canvas_json_schema: Any
     canvas_list: CanvasList
     canvas_list_open_result: CanvasListOpenResult
     canvas_open_request: CanvasOpenRequest
