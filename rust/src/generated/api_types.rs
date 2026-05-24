@@ -96,6 +96,16 @@ pub mod rpc_methods {
     pub const SESSION_AUTH_GETSTATUS: &str = "session.auth.getStatus";
     /// `session.auth.setCredentials`
     pub const SESSION_AUTH_SETCREDENTIALS: &str = "session.auth.setCredentials";
+    /// `session.canvas.list`
+    pub const SESSION_CANVAS_LIST: &str = "session.canvas.list";
+    /// `session.canvas.listOpen`
+    pub const SESSION_CANVAS_LISTOPEN: &str = "session.canvas.listOpen";
+    /// `session.canvas.open`
+    pub const SESSION_CANVAS_OPEN: &str = "session.canvas.open";
+    /// `session.canvas.close`
+    pub const SESSION_CANVAS_CLOSE: &str = "session.canvas.close";
+    /// `session.canvas.invokeAction`
+    pub const SESSION_CANVAS_INVOKEACTION: &str = "session.canvas.invokeAction";
     /// `session.model.getCurrent`
     pub const SESSION_MODEL_GETCURRENT: &str = "session.model.getCurrent";
     /// `session.model.switchTo`
@@ -867,6 +877,199 @@ pub struct ApiKeyAuthInfo {
     pub host: String,
     /// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).
     pub r#type: ApiKeyAuthInfoType,
+}
+
+/// Canvas action that the agent or host can invoke. To discover the input schema for a particular action, call the list_canvas_capabilities tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasAction {
+    /// Description of the action
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// JSON Schema for the action input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+    /// Action name exposed by the canvas provider
+    pub name: String,
+}
+
+/// Canvas close parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasCloseRequest {
+    /// Open canvas instance identifier
+    pub instance_id: String,
+}
+
+/// Canvas action invocation parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasInvokeActionRequest {
+    /// Action name to invoke
+    pub action_name: String,
+    /// Action input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Open canvas instance identifier
+    pub instance_id: String,
+}
+
+/// Canvas action invocation result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasInvokeActionResult {
+    /// Provider-supplied action result
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
+/// Canvas available in the current session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredCanvas {
+    /// Actions the agent or host may invoke on an open instance
+    #[serde(default)]
+    pub actions: Vec<CanvasAction>,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Short, single-sentence description shown to the agent in canvas catalogs.
+    pub description: String,
+    /// Human-readable canvas name
+    pub display_name: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// JSON Schema for canvas open input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+}
+
+/// Declared canvases available in this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasList {
+    /// Declared canvases available in this session
+    pub canvases: Vec<DiscoveredCanvas>,
+}
+
+/// Open canvas instance snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenCanvasInstance {
+    /// Runtime-controlled routing state for an open canvas instance.
+    pub availability: CanvasInstanceAvailability,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Whether this snapshot came from an idempotent reopen
+    pub reopen: bool,
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Live open-canvas snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasListOpenResult {
+    /// Currently open canvas instances
+    pub open_canvases: Vec<OpenCanvasInstance>,
+}
+
+/// Canvas open parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasOpenRequest {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier. Optional when the canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
+    /// Canvas open input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Caller-supplied stable instance identifier
+    pub instance_id: String,
 }
 
 /// Optional unstructured input hint
@@ -8989,6 +9192,120 @@ pub struct SessionAuthSetCredentialsResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Declared canvases available in this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListResult {
+    /// Declared canvases available in this session
+    pub canvases: Vec<DiscoveredCanvas>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListOpenParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Live open-canvas snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListOpenResult {
+    /// Currently open canvas instances
+    pub open_canvases: Vec<OpenCanvasInstance>,
+}
+
+/// Open canvas instance snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasOpenResult {
+    /// Runtime-controlled routing state for an open canvas instance.
+    pub availability: CanvasInstanceAvailability,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Whether this snapshot came from an idempotent reopen
+    pub reopen: bool,
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Canvas action invocation result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasInvokeActionResult {
+    /// Provider-supplied action result
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionModelGetCurrentParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -11510,6 +11827,28 @@ pub enum AuthInfoType {
     /// Authentication from a Copilot API token.
     #[serde(rename = "copilot-api-token")]
     CopilotApiToken,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Runtime-controlled routing state for an open canvas instance.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CanvasInstanceAvailability {
+    /// The owning provider is currently connected and routing calls will be dispatched normally.
+    #[serde(rename = "ready")]
+    Ready,
+    /// The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects.
+    #[serde(rename = "stale")]
+    Stale,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
