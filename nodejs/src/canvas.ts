@@ -13,19 +13,8 @@
  * focuses an existing panel; reload is a renderer-only concern.
  */
 
-/** JSON Schema object used for canvas inputs and canvas-scoped tools. */
+/** JSON Schema object used for canvas inputs. */
 export type CanvasJsonSchema = Record<string, unknown>;
-
-/** Tool definition exposed to a canvas instance. */
-export interface CanvasToolDefinition {
-    name: string;
-    description: string;
-    title?: string;
-    parameters?: CanvasJsonSchema;
-    overridesBuiltInTool?: boolean;
-    skipPermission?: boolean;
-    defer?: "auto" | "never";
-}
 
 /**
  * A single agent-callable action contributed by a canvas. The metadata
@@ -72,8 +61,6 @@ export interface CanvasOpenResponse {
     title?: string;
     /** Provider-supplied status text shown in host chrome. */
     status?: string;
-    /** Tools available to the canvas instance. */
-    tools?: CanvasToolDefinition[];
 }
 
 /** Host capabilities passed to canvas callbacks. */

@@ -13,41 +13,6 @@ use crate::types::SessionId;
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
 pub type CanvasJsonSchema = serde_json::Map<String, Value>;
 
-/// Tool definition exposed to a canvas instance.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasToolDefinition {
-    /// Tool name.
-    pub name: String,
-    /// Tool description.
-    pub description: String,
-    /// Human-readable tool title.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// JSON Schema parameters for the tool.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<Value>,
-    /// Whether this tool overrides a built-in tool.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub overrides_built_in_tool: Option<bool>,
-    /// Whether this tool skips permission prompts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub skip_permission: Option<bool>,
-    /// Tool deferral behavior.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub defer: Option<CanvasToolDefinitionDefer>,
-}
-
-/// Tool deferral behavior for canvas-scoped tools.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum CanvasToolDefinitionDefer {
-    /// The tool may be deferred by the runtime.
-    Auto,
-    /// The tool is always included in the initial tool list.
-    Never,
-}
-
 /// Runtime-controlled routing state for an open canvas instance.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -130,9 +95,6 @@ pub struct CanvasOpenResponse {
     /// Provider-supplied status text shown in host chrome.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
-    /// Tools available to the canvas instance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<CanvasToolDefinition>>,
 }
 
 /// Open canvas instance returned by `session.canvas.open`,
@@ -159,9 +121,6 @@ pub struct OpenCanvasInstance {
     /// URL for web-rendered canvases.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Tools available to the canvas instance.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tools: Option<Vec<CanvasToolDefinition>>,
     /// Input supplied when the instance was opened.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input: Option<Value>,
@@ -186,7 +145,6 @@ impl OpenCanvasInstance {
             title: None,
             status: None,
             url: None,
-            tools: None,
             input: None,
             reopen: false,
             availability: CanvasInstanceAvailability::Stale,
@@ -652,7 +610,6 @@ mod tests {
                 url: Some(format!("https://example.test/{}", ctx.canvas_id)),
                 title: Some("Echo".to_string()),
                 status: Some("ready".to_string()),
-                tools: None,
             })
         }
 

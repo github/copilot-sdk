@@ -36,7 +36,6 @@ impl CanvasHandler for TestCanvasHandler {
             url: Some(format!("https://example.test/{}", ctx.canvas_id)),
             title: Some("Test Canvas".to_string()),
             status: Some("ready".to_string()),
-            tools: None,
         })
     }
 
