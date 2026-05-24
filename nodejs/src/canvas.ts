@@ -27,8 +27,9 @@ export interface CanvasToolDefinition {
     defer?: "auto" | "never";
 }
 
-/** A single agent-callable action contributed by a canvas, as serialized over
- * the wire. Names MUST NOT start with `canvas.` - that prefix is reserved for
+/**
+ * A single agent-callable action contributed by a canvas, as serialized over
+ * the wire. Names MUST NOT start with `canvas.` — that prefix is reserved for
  * lifecycle verbs.
  */
 export interface CanvasAgentActionDeclaration {
