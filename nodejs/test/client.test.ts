@@ -111,7 +111,12 @@ describe("CopilotClient", () => {
             displayName: "Counter",
             description: "A counter canvas",
             open: ({ instanceId }) => ({ url: `https://example.test/${instanceId}` }),
-            onAction: ({ actionName, input }) => ({ actionName, input }),
+            actions: [
+                {
+                    name: "increment",
+                    handler: ({ actionName, input }) => ({ actionName, input }),
+                },
+            ],
         });
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
@@ -130,47 +135,32 @@ describe("CopilotClient", () => {
         expect(result).toEqual({ actionName: "increment", input: { amount: 1 } });
     });
 
-    it("prefers per-action handlers over the top-level onAction fallback", async () => {
-        const perAction = vi.fn(({ input }) => ({ source: "per-action", input }));
-        const onAction = vi.fn(() => ({ source: "onAction" }));
+    it("returns canvas_action_no_handler when no per-action handler is registered", async () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
             description: "A counter canvas",
             open: () => ({ url: "https://example.test/counter" }),
-            actions: [{ name: "increment", handler: perAction }, { name: "reset" }],
-            onAction,
+            actions: [{ name: "reset" }],
         });
         // `handler` is authoring-only; the wire declaration must omit it.
-        expect(canvas.declaration.actions).toEqual([{ name: "increment" }, { name: "reset" }]);
+        expect(canvas.declaration.actions).toEqual([{ name: "reset" }]);
 
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
         const client = new CopilotClient();
         (client as any).sessions.set(session.sessionId, session);
 
-        const perActionResult = await (client as any).handleCanvasProviderRequest("increment", {
-            sessionId: session.sessionId,
-            extensionId: "project:counter",
-            canvasId: "counter",
-            instanceId: "counter-1",
-            actionName: "increment",
-            input: { amount: 2 },
-        });
-        expect(perActionResult).toEqual({ source: "per-action", input: { amount: 2 } });
-        expect(perAction).toHaveBeenCalledTimes(1);
-        expect(onAction).not.toHaveBeenCalled();
-
-        const fallbackResult = await (client as any).handleCanvasProviderRequest("reset", {
-            sessionId: session.sessionId,
-            extensionId: "project:counter",
-            canvasId: "counter",
-            instanceId: "counter-1",
-            actionName: "reset",
-            input: undefined,
-        });
-        expect(fallbackResult).toEqual({ source: "onAction" });
-        expect(onAction).toHaveBeenCalledTimes(1);
+        await expect(
+            (client as any).handleCanvasProviderRequest("reset", {
+                sessionId: session.sessionId,
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+                actionName: "reset",
+                input: undefined,
+            })
+        ).rejects.toMatchObject({ code: "canvas_action_no_handler" });
     });
 
     it("rejects malformed direct canvas action payloads", async () => {

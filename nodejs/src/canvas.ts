@@ -42,10 +42,10 @@ export interface CanvasAgentActionDeclaration {
 
 /**
  * Authoring shape for an action passed to {@link createCanvas}. Extends the
- * wire {@link CanvasAgentActionDeclaration} with an optional per-action
- * `handler`. When set, the handler is preferred over the top-level
- * {@link CanvasOptions.onAction} for matching `actionName` dispatches; it is
- * stripped before the declaration is sent on the wire.
+ * wire {@link CanvasAgentActionDeclaration} with an optional `handler`
+ * closure; the handler is stripped before the declaration is sent on the
+ * wire so only the action's `name`, `description`, and `inputSchema` reach
+ * the runtime.
  */
 export interface CanvasAction extends CanvasAgentActionDeclaration {
     /** Optional per-action dispatch handler. */
@@ -104,7 +104,7 @@ export interface CanvasOpenContext {
     host?: CanvasHostContext;
 }
 
-/** Context handed to a canvas's `onAction` handler. */
+/** Context handed to a canvas action handler. */
 export interface CanvasActionContext {
     /** Session that invoked the action. */
     sessionId: string;
@@ -146,7 +146,7 @@ export class CanvasError extends Error {
         this.name = "CanvasError";
     }
 
-    /** Default error when an action is declared but no `onAction` is wired. */
+    /** Default error when an action is declared but no `handler` is wired. */
     static noHandler(): CanvasError {
         return new CanvasError(
             "canvas_action_no_handler",
@@ -179,13 +179,6 @@ export interface CanvasOptions {
     open: (ctx: CanvasOpenContext) => Promise<CanvasOpenResponse> | CanvasOpenResponse;
 
     /**
-     * Optional. Fallback handler invoked when an action has no per-action
-     * `handler`. If neither is wired for the dispatched action, the SDK
-     * returns `canvas_action_no_handler`.
-     */
-    onAction?: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
-
-    /**
      * Optional. Notified when a canvas instance is closed by the user, the
      * agent, or the host. Fire-and-forget: the return value is ignored and
      * errors are logged but not surfaced to the runtime.
@@ -197,7 +190,6 @@ export interface CanvasOptions {
 export class Canvas {
     readonly declaration: CanvasDeclaration;
     readonly open: NonNullable<CanvasOptions["open"]>;
-    readonly onAction?: CanvasOptions["onAction"];
     readonly onClose?: CanvasOptions["onClose"];
     /** @internal */
     readonly actionHandlers: Map<string, NonNullable<CanvasAction["handler"]>>;
@@ -222,7 +214,6 @@ export class Canvas {
             actions: wireActions,
         };
         this.open = options.open;
-        this.onAction = options.onAction;
         this.onClose = options.onClose;
         this.actionHandlers = actionHandlers;
     }
@@ -284,7 +275,11 @@ export async function dispatchCanvasProviderRequest(
             return undefined;
         }
         default: {
-            const actionCtx: CanvasActionContext = {
+            const perAction = canvas.actionHandlers.get(actionName);
+            if (!perAction) {
+                throw CanvasError.noHandler();
+            }
+            return perAction({
                 sessionId: params.sessionId,
                 extensionId: params.extensionId,
                 canvasId: params.canvasId,
@@ -292,15 +287,7 @@ export async function dispatchCanvasProviderRequest(
                 actionName,
                 input: params.input,
                 host: params.host,
-            };
-            const perAction = canvas.actionHandlers.get(actionName);
-            if (perAction) {
-                return perAction(actionCtx);
-            }
-            if (canvas.onAction) {
-                return canvas.onAction(actionCtx);
-            }
-            throw CanvasError.noHandler();
+            });
         }
     }
 }
