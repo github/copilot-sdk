@@ -211,7 +211,8 @@ class TestHooksExtended:
         )
         try:
             response = await session.send_and_wait(
-                "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer."
+                "Call the view tool with path 'missing.txt'. "
+                "If it fails, use the hook guidance to answer."
             )
             assert not post_tool_use_inputs
             assert len(failure_inputs) == 1
