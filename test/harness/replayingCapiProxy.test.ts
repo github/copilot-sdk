@@ -324,6 +324,38 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
   });
 
+  test("normalizes task completion notification wording", async () => {
+    const unreadNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve unread results.',
+      "</system_notification>",
+    ].join("\n");
+    const fullNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve the full results.',
+      "</system_notification>",
+    ].join("\n");
+
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: unreadNotification,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(fullNotification);
+  });
+
   test("strips agent_instructions from user messages", async () => {
     const requestBody = JSON.stringify({
       messages: [
@@ -806,6 +838,60 @@ Always include PINEAPPLE_COCONUT_42.
           (JSON.parse(response2.body) as ChatCompletion).choices[0].message
             .content,
         ).toBe("I am fine!");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
+    test("matches cached task completion notification wording variants", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const unreadNotification = [
+        "<system_notification>",
+        'Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve unread results.',
+        "</system_notification>",
+      ].join("\n");
+
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: unreadNotification },
+              { role: "assistant", content: "Read agent completed." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: unreadNotification },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Read agent completed.");
       } finally {
         await proxy.stop();
       }

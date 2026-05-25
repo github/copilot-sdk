@@ -29,6 +29,7 @@ from copilot.generated.rpc import (
     UIElicitationResponseAction,
     UIHandlePendingElicitationRequest,
 )
+from copilot.generated.session_events import AssistantMessageData, SessionErrorData
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -211,6 +212,21 @@ class TestRpcTasksAndHandlers:
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
+        task_completion_notification = asyncio.get_running_loop().create_future()
+
+        def on_event(event):
+            if isinstance(event.data, AssistantMessageData) and "TASK_AGENT_DONE" in (
+                event.data.content or ""
+            ):
+                if not task_completion_notification.done():
+                    task_completion_notification.set_result(event)
+            elif isinstance(event.data, SessionErrorData):
+                if not task_completion_notification.done():
+                    task_completion_notification.set_exception(
+                        RuntimeError(event.data.message or "session error")
+                    )
+
+        unsubscribe = session.on(on_event)
         try:
             ready = await session.send_and_wait(
                 "Reply with TASK_AGENT_READY exactly.",
@@ -262,6 +278,7 @@ class TestRpcTasksAndHandlers:
             )
             assert found_task is not None, f"Task {task_id} disappeared before it completed"
             assert "TASK_AGENT_DONE" in (found_task.latest_response or found_task.result or "")
+            await asyncio.wait_for(task_completion_notification, timeout=30.0)
 
             if found_task.status == TaskInfoStatus.IDLE:
                 cancel = await session.rpc.tasks.cancel(TasksCancelRequest(id=task_id))
@@ -274,4 +291,5 @@ class TestRpcTasksAndHandlers:
             after_remove = await session.rpc.tasks.list()
             assert not any(t.id == task_id for t in (after_remove.tasks or []))
         finally:
+            unsubscribe()
             await session.disconnect()
