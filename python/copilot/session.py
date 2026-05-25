@@ -971,18 +971,32 @@ class _CanvasHandlerAdapter:
             return await self._handler.on_open(params)
         except CanvasError as err:
             raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+        except Exception as err:
+            raise _canvas_handler_error(err) from err
 
     async def close(self, params: CanvasProviderCloseRequest) -> None:
         try:
             await self._handler.on_close(params)
         except CanvasError as err:
             raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+        except Exception as err:
+            raise _canvas_handler_error(err) from err
 
     async def invoke_action(self, params: CanvasProviderInvokeActionRequest) -> Any:
         try:
             return await self._handler.on_action(params)
         except CanvasError as err:
             raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+        except Exception as err:
+            raise _canvas_handler_error(err) from err
+
+
+def _canvas_handler_error(err: Exception) -> JsonRpcError:
+    return JsonRpcError(
+        -32603,
+        str(err),
+        data={"code": "canvas_handler_error", "message": str(err)},
+    )
 
 
 class CopilotSession:
