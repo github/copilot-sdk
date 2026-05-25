@@ -18,7 +18,7 @@ conversations:
         content: Tool 'view' does not exist. Available tools that can be called are report_intent.
       - role: user
         content: |-
-          Tool "view" failed. Additional guidance from postToolUseFailure hook:
+          Tool "view" failed. Additional guidance from postToolUseFailure hooks:
           HOOK_FAILURE_GUIDANCE_APPLIED
       - role: assistant
         content: HOOK_FAILURE_GUIDANCE_APPLIED
