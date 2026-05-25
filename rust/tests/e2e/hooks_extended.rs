@@ -391,13 +391,15 @@ async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
                     .expect("send")
                     .expect("assistant message");
 
-                let input =                 recv_with_timeout(&mut failure_rx, "postToolUseFailure hook").await;
+                let input = recv_with_timeout(&mut failure_rx, "postToolUseFailure hook").await;
                 assert!(post_rx.try_recv().is_err());
                 assert_eq!(input.tool_name, "view");
                 assert!(input.error.contains("does not exist"));
-                assert!(input.tool_args["path"]
-                .as_str()
-                .is_some_and(|path| path.contains("missing.txt")));
+                assert!(
+                    input.tool_args["path"]
+                        .as_str()
+                        .is_some_and(|path| path.contains("missing.txt"))
+                );
                 assert!(input.timestamp > 0);
                 assert!(!input.working_directory.as_os_str().is_empty());
                 assert!(

@@ -353,9 +353,9 @@ cat nodejs/src/types.ts | grep -A 10 "export interface ExportSessionOptions"
 grep -E "^\s+async def [a-z]" python/copilot/client.py python/copilot/session.py
 
 # Key types
-cat python/copilot/types.py | grep -A 20 "class CopilotClientOptions"
-cat python/copilot/types.py | grep -A 30 "class SessionConfig"
-cat python/copilot/types.py | grep -A 15 "class SessionHooks"
+cat python/copilot/client.py | grep -A 20 "class _CopilotClientOptions"
+cat python/copilot/client.py | grep -A 80 "async def create_session"
+cat python/copilot/session.py | grep -A 15 "class SessionHooks"
 ```
 
 **Must match (snake_case):**
