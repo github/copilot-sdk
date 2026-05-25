@@ -938,12 +938,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
         }
 
-        public async Task<CanvasInvokeActionResult> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
+        public async Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
                 var result = await handler.OnActionAsync(request, cancellationToken).ConfigureAwait(false);
-                return new CanvasInvokeActionResult { Result = SerializeActionResult(result) };
+                return SerializeActionResult(result);
             }
             catch (CanvasError ce)
             {

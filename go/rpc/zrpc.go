@@ -11898,7 +11898,7 @@ type CanvasHandler interface {
 	// Parameters: Canvas action invocation parameters sent to the provider.
 	//
 	// Returns: Provider-supplied action result.
-	InvokeAction(request *CanvasProviderInvokeActionRequest) (*CanvasInvokeActionResult, error)
+	InvokeAction(request *CanvasProviderInvokeActionRequest) (any, error)
 	// Opens a canvas instance on the provider.
 	//
 	// RPC method: canvas.open.

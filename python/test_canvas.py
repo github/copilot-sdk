@@ -9,13 +9,9 @@ import pytest
 from copilot._jsonrpc import JsonRpcError
 from copilot.canvas import (
     CanvasAction,
-    CanvasActionContext,
     CanvasDeclaration,
     CanvasError,
     CanvasHandler,
-    CanvasLifecycleContext,
-    CanvasOpenContext,
-    CanvasOpenResponse,
     ExtensionInfo,
     OpenCanvasInstance,
 )
@@ -24,6 +20,7 @@ from copilot.generated.rpc import (
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
+    CanvasProviderOpenResult,
 )
 from copilot.session import CopilotSession
 
@@ -64,17 +61,11 @@ def test_extension_info_serializes():
 
 
 def test_canvas_open_response_drops_none_fields():
-    assert CanvasOpenResponse().to_dict() == {}
-    assert CanvasOpenResponse(url="https://x", status="ok").to_dict() == {
+    assert CanvasProviderOpenResult().to_dict() == {}
+    assert CanvasProviderOpenResult(url="https://x", status="ok").to_dict() == {
         "url": "https://x",
         "status": "ok",
     }
-
-
-def test_context_aliases_use_codegen_types():
-    assert CanvasOpenContext is CanvasProviderOpenRequest
-    assert CanvasActionContext is CanvasProviderInvokeActionRequest
-    assert CanvasLifecycleContext is CanvasProviderCloseRequest
 
 
 def test_canvas_error_envelope_and_factories():
@@ -92,11 +83,11 @@ def test_canvas_error_envelope_and_factories():
 
 async def test_default_canvas_handler_on_action_raises_no_handler():
     class StubHandler(CanvasHandler):
-        async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
-            return CanvasOpenResponse()
+        async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
+            return CanvasProviderOpenResult()
 
     handler = StubHandler()
-    ctx = CanvasActionContext(
+    ctx = CanvasProviderInvokeActionRequest(
         session_id="s",
         extension_id="e",
         canvas_id="c",
@@ -112,18 +103,18 @@ async def test_default_canvas_handler_on_action_raises_no_handler():
 async def test_register_canvas_handler_wires_generated_canvas_adapter():
     class Handler(CanvasHandler):
         def __init__(self) -> None:
-            self.open_calls: list[CanvasOpenContext] = []
-            self.close_calls: list[CanvasLifecycleContext] = []
-            self.action_calls: list[CanvasActionContext] = []
+            self.open_calls: list[CanvasProviderOpenRequest] = []
+            self.close_calls: list[CanvasProviderCloseRequest] = []
+            self.action_calls: list[CanvasProviderInvokeActionRequest] = []
 
-        async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
+        async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
             self.open_calls.append(ctx)
-            return CanvasOpenResponse(url="https://canvas.example", title="Hi", status="ready")
+            return CanvasProviderOpenResult(url="https://canvas.example", title="Hi", status="ready")
 
-        async def on_close(self, ctx: CanvasLifecycleContext) -> None:
+        async def on_close(self, ctx: CanvasProviderCloseRequest) -> None:
             self.close_calls.append(ctx)
 
-        async def on_action(self, ctx: CanvasActionContext) -> Any:
+        async def on_action(self, ctx: CanvasProviderInvokeActionRequest) -> Any:
             self.action_calls.append(ctx)
             return {"echo": ctx.input}
 
@@ -174,7 +165,7 @@ async def test_register_canvas_handler_wires_generated_canvas_adapter():
 
 async def test_canvas_adapter_translates_canvas_error_to_jsonrpc_error():
     class Handler(CanvasHandler):
-        async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
+        async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
             raise CanvasError("bad", "fail")
 
     session = CopilotSession("sess-1", client=None)

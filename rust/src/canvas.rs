@@ -53,24 +53,6 @@ impl CanvasDeclaration {
     }
 }
 
-/// Response returned from [`CanvasHandler::on_open`].
-pub type CanvasOpenResponse = crate::generated::api_types::CanvasProviderOpenResult;
-
-/// Host capabilities passed to canvas provider callbacks.
-pub use crate::generated::api_types::CanvasHostContext;
-
-/// Host capability details passed to canvas provider callbacks.
-pub use crate::generated::api_types::CanvasHostContextCapabilities as CanvasHostCapabilities;
-
-/// Context handed to [`CanvasHandler::on_open`].
-pub type CanvasOpenContext = crate::generated::api_types::CanvasProviderOpenRequest;
-
-/// Context handed to [`CanvasHandler::on_action`].
-pub type CanvasActionContext = crate::generated::api_types::CanvasProviderInvokeActionRequest;
-
-/// Context handed to a canvas's close lifecycle hook.
-pub type CanvasLifecycleContext = crate::generated::api_types::CanvasProviderCloseRequest;
-
 /// Structured error returned from canvas handlers.
 #[derive(Debug, Clone, Error, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -109,7 +91,8 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 /// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
 /// The handler receives every inbound `canvas.open` / `canvas.close` /
 /// `canvas.invokeAction` JSON-RPC request the runtime issues for this
-/// session and decides — typically by inspecting [`CanvasOpenContext::canvas_id`]
+/// session and decides — typically by inspecting
+/// [`CanvasProviderOpenRequest::canvas_id`](crate::generated::api_types::CanvasProviderOpenRequest::canvas_id)
 /// — which application-side canvas should handle the call.
 ///
 /// The SDK does not maintain a per-canvas registry; multiplexing across
@@ -117,15 +100,24 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 #[async_trait]
 pub trait CanvasHandler: Send + Sync {
     /// Open a new canvas instance.
-    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse>;
+    async fn on_open(
+        &self,
+        ctx: crate::generated::api_types::CanvasProviderOpenRequest,
+    ) -> CanvasResult<crate::generated::api_types::CanvasProviderOpenResult>;
 
     /// Handle a non-lifecycle action declared by the canvas.
-    async fn on_action(&self, _ctx: CanvasActionContext) -> CanvasResult<Value> {
+    async fn on_action(
+        &self,
+        _ctx: crate::generated::api_types::CanvasProviderInvokeActionRequest,
+    ) -> CanvasResult<Value> {
         Err(CanvasError::no_handler())
     }
 
     /// Canvas was closed by the user or agent.
-    async fn on_close(&self, _ctx: CanvasLifecycleContext) -> CanvasResult<()> {
+    async fn on_close(
+        &self,
+        _ctx: crate::generated::api_types::CanvasProviderCloseRequest,
+    ) -> CanvasResult<()> {
         Ok(())
     }
 }
@@ -135,21 +127,24 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::generated::api_types::{
+        CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
+    };
     use crate::types::SessionId;
 
     struct EchoHandler;
 
     #[async_trait]
     impl CanvasHandler for EchoHandler {
-        async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
-            Ok(CanvasOpenResponse {
+        async fn on_open(&self, ctx: CanvasProviderOpenRequest) -> CanvasResult<CanvasProviderOpenResult> {
+            Ok(CanvasProviderOpenResult {
                 url: Some(format!("https://example.test/{}", ctx.canvas_id)),
                 title: Some("Echo".to_string()),
                 status: Some("ready".to_string()),
             })
         }
 
-        async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+        async fn on_action(&self, ctx: CanvasProviderInvokeActionRequest) -> CanvasResult<Value> {
             Ok(json!({ "echoed": ctx.action_name, "input": ctx.input }))
         }
     }
@@ -180,7 +175,7 @@ mod tests {
     async fn handler_on_open_returns_response() {
         let handler = EchoHandler;
         let response = handler
-            .on_open(CanvasOpenContext {
+            .on_open(CanvasProviderOpenRequest {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:echo".to_string(),
                 canvas_id: "echo".to_string(),
@@ -200,7 +195,7 @@ mod tests {
     async fn handler_on_action_returns_value() {
         let handler = EchoHandler;
         let result = handler
-            .on_action(CanvasActionContext {
+            .on_action(CanvasProviderInvokeActionRequest {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:echo".to_string(),
                 canvas_id: "echo".to_string(),
@@ -221,8 +216,8 @@ mod tests {
         struct OpenOnly;
         #[async_trait]
         impl CanvasHandler for OpenOnly {
-            async fn on_open(&self, _ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
-                Ok(CanvasOpenResponse {
+            async fn on_open(&self, _ctx: CanvasProviderOpenRequest) -> CanvasResult<CanvasProviderOpenResult> {
+                Ok(CanvasProviderOpenResult {
                     url: None,
                     title: None,
                     status: None,
@@ -231,7 +226,7 @@ mod tests {
         }
 
         let err = OpenOnly
-            .on_action(CanvasActionContext {
+            .on_action(CanvasProviderInvokeActionRequest {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:open-only".to_string(),
                 canvas_id: "x".to_string(),

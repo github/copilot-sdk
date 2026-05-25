@@ -10,7 +10,7 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
-import type { ClientSessionApiHandlers } from "./generated/rpc.js";
+import type { ClientSessionApiHandlers, CanvasInvokeActionResult } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
@@ -679,7 +679,7 @@ export class CopilotSession {
                         "No handler implemented for this canvas action"
                     );
                 }
-                return (await handler(params)) as Record<string, unknown>;
+                return (await handler(params)) as CanvasInvokeActionResult;
             },
         };
     }

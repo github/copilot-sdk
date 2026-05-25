@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::canvas::{
-    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasLifecycleContext,
-    CanvasOpenContext, CanvasOpenResponse, CanvasResult,
+use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
+use github_copilot_sdk::generated::api_types::{
+    CanvasAction, CanvasProviderCloseRequest, CanvasProviderInvokeActionRequest,
+    CanvasProviderOpenRequest, CanvasProviderOpenResult,
 };
-use github_copilot_sdk::generated::api_types::CanvasAction;
 use github_copilot_sdk::types::ExtensionInfo;
 use parking_lot::Mutex;
 use serde_json::{Value, json};
@@ -13,9 +13,9 @@ use serde_json::{Value, json};
 use super::support::with_e2e_context;
 
 struct TestCanvasHandler {
-    open_calls: Mutex<Vec<CanvasOpenContext>>,
-    close_calls: Mutex<Vec<CanvasLifecycleContext>>,
-    action_calls: Mutex<Vec<CanvasActionContext>>,
+    open_calls: Mutex<Vec<CanvasProviderOpenRequest>>,
+    close_calls: Mutex<Vec<CanvasProviderCloseRequest>>,
+    action_calls: Mutex<Vec<CanvasProviderInvokeActionRequest>>,
 }
 
 impl TestCanvasHandler {
@@ -30,9 +30,9 @@ impl TestCanvasHandler {
 
 #[async_trait]
 impl CanvasHandler for TestCanvasHandler {
-    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
+    async fn on_open(&self, ctx: CanvasProviderOpenRequest) -> CanvasResult<CanvasProviderOpenResult> {
         self.open_calls.lock().push(ctx.clone());
-        Ok(CanvasOpenResponse {
+        Ok(CanvasProviderOpenResult {
             url: Some(format!(
                 "https://example.com/counter/{}",
                 ctx.instance_id
@@ -42,12 +42,12 @@ impl CanvasHandler for TestCanvasHandler {
         })
     }
 
-    async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+    async fn on_action(&self, ctx: CanvasProviderInvokeActionRequest) -> CanvasResult<Value> {
         self.action_calls.lock().push(ctx.clone());
         Ok(json!({ "newValue": 42 }))
     }
 
-    async fn on_close(&self, ctx: CanvasLifecycleContext) -> CanvasResult<()> {
+    async fn on_close(&self, ctx: CanvasProviderCloseRequest) -> CanvasResult<()> {
         self.close_calls.lock().push(ctx.clone());
         Ok(())
     }

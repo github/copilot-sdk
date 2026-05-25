@@ -6,14 +6,18 @@ import pytest
 
 from copilot import (
     CanvasAction,
-    CanvasActionContext,
     CanvasDeclaration,
     CanvasHandler,
-    CanvasLifecycleContext,
-    CanvasOpenContext,
-    CanvasOpenResponse,
 )
-from copilot.generated.rpc import CanvasCloseRequest, CanvasInvokeActionRequest, CanvasOpenRequest
+from copilot.generated.rpc import (
+    CanvasCloseRequest,
+    CanvasInvokeActionRequest,
+    CanvasOpenRequest,
+    CanvasProviderCloseRequest,
+    CanvasProviderInvokeActionRequest,
+    CanvasProviderOpenRequest,
+    CanvasProviderOpenResult,
+)
 from copilot.session import CopilotSession, PermissionHandler
 
 from .testharness import E2ETestContext
@@ -23,22 +27,22 @@ pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 class _CounterCanvasHandler(CanvasHandler):
     def __init__(self) -> None:
-        self.open_calls: list[CanvasOpenContext] = []
-        self.action_calls: list[CanvasActionContext] = []
-        self.close_calls: list[CanvasLifecycleContext] = []
+        self.open_calls: list[CanvasProviderOpenRequest] = []
+        self.action_calls: list[CanvasProviderInvokeActionRequest] = []
+        self.close_calls: list[CanvasProviderCloseRequest] = []
 
-    async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
+    async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
         self.open_calls.append(ctx)
-        return CanvasOpenResponse(
+        return CanvasProviderOpenResult(
             url="https://example.test/counter",
             title="Counter Canvas",
             status="ready",
         )
 
-    async def on_close(self, ctx: CanvasLifecycleContext) -> None:
+    async def on_close(self, ctx: CanvasProviderCloseRequest) -> None:
         self.close_calls.append(ctx)
 
-    async def on_action(self, ctx: CanvasActionContext) -> dict[str, int]:
+    async def on_action(self, ctx: CanvasProviderInvokeActionRequest) -> dict[str, int]:
         self.action_calls.append(ctx)
         return {"newValue": 42}
 

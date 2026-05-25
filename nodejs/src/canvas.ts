@@ -23,24 +23,6 @@ export type { CanvasJsonSchema, CanvasHostContext } from "./generated/rpc.js";
  * is how the host focuses an existing panel; reload is a renderer-only concern.
  */
 
-/*
- * Wire-contract types re-exported from codegen. These are the single source of
- * truth — the Zod schemas in copilot-agent-runtime drive the JSON Schema which
- * drives the codegen which produces these types.
- */
-
-/** Response returned from a canvas `open` handler. */
-export type CanvasOpenResponse = CanvasProviderOpenResult;
-
-/** Context handed to a canvas's `open` handler. */
-export type CanvasOpenContext = CanvasProviderOpenRequest;
-
-/** Context handed to a canvas action handler. */
-export type CanvasActionContext = CanvasProviderInvokeActionRequest;
-
-/** Context handed to a canvas's `onClose` handler. */
-export type CanvasLifecycleContext = CanvasProviderCloseRequest;
-
 /**
  * A single agent-callable action contributed by a canvas. The metadata
  * (`name`, `description`, `inputSchema`) is serialized over the wire on
@@ -58,7 +40,7 @@ export interface CanvasAction {
     /** Optional JSON Schema for the action's `input` payload. */
     inputSchema?: CanvasJsonSchema;
     /** Required per-action dispatch handler. */
-    handler: (ctx: CanvasActionContext) => Promise<unknown> | unknown;
+    handler: (ctx: CanvasProviderInvokeActionRequest) => Promise<unknown> | unknown;
 }
 
 /**
@@ -118,14 +100,14 @@ export interface CanvasOptions {
     actions?: CanvasAction[];
 
     /** Required. Open a new canvas instance. */
-    open: (ctx: CanvasOpenContext) => Promise<CanvasOpenResponse> | CanvasOpenResponse;
+    open: (ctx: CanvasProviderOpenRequest) => Promise<CanvasProviderOpenResult> | CanvasProviderOpenResult;
 
     /**
      * Optional. Notified when a canvas instance is closed by the user, the
      * agent, or the host. Fire-and-forget: the return value is ignored and
      * errors are logged but not surfaced to the runtime.
      */
-    onClose?: (ctx: CanvasLifecycleContext) => Promise<void> | void;
+    onClose?: (ctx: CanvasProviderCloseRequest) => Promise<void> | void;
 }
 
 /** A registered canvas: declarative metadata + in-process handler closures.

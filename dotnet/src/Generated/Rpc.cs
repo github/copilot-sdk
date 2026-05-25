@@ -14690,7 +14690,7 @@ public interface ICanvasHandler
     /// <param name="request">Canvas action invocation parameters sent to the provider.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Provider-supplied action result.</returns>
-    Task<CanvasInvokeActionResult> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
+    Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -14797,7 +14797,7 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
             await handler.CloseAsync(request, cancellationToken);
         }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("canvas.invokeAction", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<CanvasInvokeActionResult>>)(async (request, cancellationToken) =>
+        rpc.SetLocalRpcMethod("canvas.invokeAction", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).Canvas;
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");

@@ -69,7 +69,7 @@ func TestCanvasDeclaration_OmitsEmptyActions(t *testing.T) {
 
 func TestCanvasHandlerDefaults_OnAction_ReturnsNoHandler(t *testing.T) {
 	d := CanvasHandlerDefaults{}
-	_, err := d.OnAction(context.Background(), CanvasActionContext{})
+	_, err := d.OnAction(context.Background(), rpc.CanvasProviderInvokeActionRequest{})
 	if err == nil {
 		t.Fatalf("expected error from default OnAction")
 	}
@@ -84,7 +84,7 @@ func TestCanvasHandlerDefaults_OnAction_ReturnsNoHandler(t *testing.T) {
 
 func TestCanvasHandlerDefaults_OnClose_ReturnsNil(t *testing.T) {
 	d := CanvasHandlerDefaults{}
-	if err := d.OnClose(context.Background(), CanvasLifecycleContext{}); err != nil {
+	if err := d.OnClose(context.Background(), rpc.CanvasProviderCloseRequest{}); err != nil {
 		t.Fatalf("expected nil from default OnClose, got %v", err)
 	}
 }
@@ -98,27 +98,27 @@ func TestCanvasError_ErrorString(t *testing.T) {
 
 type recordingCanvasHandler struct {
 	CanvasHandlerDefaults
-	openCtx      *CanvasOpenContext
-	closeCtx     *CanvasLifecycleContext
-	actionCtx    *CanvasActionContext
-	openResult   CanvasOpenResponse
+	openCtx      *rpc.CanvasProviderOpenRequest
+	closeCtx     *rpc.CanvasProviderCloseRequest
+	actionCtx    *rpc.CanvasProviderInvokeActionRequest
+	openResult   rpc.CanvasProviderOpenResult
 	actionResult any
 	openErr      error
 	closeErr     error
 	actionErr    error
 }
 
-func (h *recordingCanvasHandler) OnOpen(ctx context.Context, c CanvasOpenContext) (CanvasOpenResponse, error) {
+func (h *recordingCanvasHandler) OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error) {
 	h.openCtx = &c
 	return h.openResult, h.openErr
 }
 
-func (h *recordingCanvasHandler) OnClose(ctx context.Context, c CanvasLifecycleContext) error {
+func (h *recordingCanvasHandler) OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error {
 	h.closeCtx = &c
 	return h.closeErr
 }
 
-func (h *recordingCanvasHandler) OnAction(ctx context.Context, c CanvasActionContext) (any, error) {
+func (h *recordingCanvasHandler) OnAction(ctx context.Context, c rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	h.actionCtx = &c
 	return h.actionResult, h.actionErr
 }
@@ -127,7 +127,7 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 	title := "Echo"
 	url := "https://example.test/echo"
 	handler := &recordingCanvasHandler{
-		openResult: CanvasOpenResponse{URL: &url, Title: &title},
+		openResult: rpc.CanvasProviderOpenResult{URL: &url, Title: &title},
 		actionResult: map[string]any{
 			"count": float64(2),
 		},
@@ -173,9 +173,9 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 	if handler.actionCtx.ActionName != "increment" {
 		t.Fatalf("unexpected action ctx: %+v", handler.actionCtx)
 	}
-	result, ok := actionResp.Result.(map[string]any)
+	result, ok := actionResp.(map[string]any)
 	if !ok || result["count"] != float64(2) {
-		t.Fatalf("unexpected action result: %#v", actionResp.Result)
+		t.Fatalf("unexpected action result: %#v", actionResp)
 	}
 
 	closeResp, err := session.clientSessionApis.Canvas.Close(&rpc.CanvasProviderCloseRequest{
@@ -187,8 +187,8 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected close error: %v", err)
 	}
-	if closeResp == nil {
-		t.Fatal("expected non-nil close response")
+	if closeResp != nil {
+		t.Fatal("expected nil close response")
 	}
 	if handler.closeCtx == nil || handler.closeCtx.CanvasID != "echo" {
 		t.Fatalf("unexpected close ctx: %+v", handler.closeCtx)
@@ -230,7 +230,7 @@ func TestCanvasRegisterClientSessionApiHandlers_RawJSONRoundTrip(t *testing.T) {
 	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
 	session := newTestCanvasSession("s1")
 	session.registerCanvasHandler(&recordingCanvasHandler{
-		openResult:   CanvasOpenResponse{Status: strPtr("ready")},
+		openResult:   rpc.CanvasProviderOpenResult{Status: strPtr("ready")},
 		actionResult: map[string]any{"count": float64(2)},
 	})
 	rpc.RegisterClientSessionApiHandlers(server, func(sessionID string) *rpc.ClientSessionApiHandlers {

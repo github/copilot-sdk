@@ -2,7 +2,7 @@
 //
 // This file mirrors rust/src/canvas.rs. The SDK does not maintain a per-canvas
 // registry; multiplexing across declared canvases is the CanvasHandler
-// implementor's responsibility (typically by switching on CanvasOpenContext.CanvasID).
+// implementor's responsibility (typically by switching on CanvasProviderOpenRequest.CanvasID).
 
 package copilot
 
@@ -27,23 +27,14 @@ type CanvasDeclaration struct {
 	Actions []rpc.CanvasAction `json:"actions,omitempty"`
 }
 
-// CanvasOpenResponse is the response returned from CanvasHandler.OnOpen.
-type CanvasOpenResponse = rpc.CanvasProviderOpenResult
-
-// CanvasHostContext carries host capability hints passed to canvas provider callbacks.
-type CanvasHostContext = rpc.CanvasHostContext
-
-// CanvasHostCapabilities describes host capability details passed to canvas provider callbacks.
-type CanvasHostCapabilities = rpc.CanvasHostContextCapabilities
-
-// CanvasOpenContext is the context handed to CanvasHandler.OnOpen.
-type CanvasOpenContext = rpc.CanvasProviderOpenRequest
-
-// CanvasActionContext is the context handed to CanvasHandler.OnAction.
-type CanvasActionContext = rpc.CanvasProviderInvokeActionRequest
-
-// CanvasLifecycleContext is the context handed to a canvas's close lifecycle hook.
-type CanvasLifecycleContext = rpc.CanvasProviderCloseRequest
+// ExtensionInfo carries stable extension identity for session participants
+// that provide canvases.
+type ExtensionInfo struct {
+	// Source is the extension namespace/source, e.g. "github-app".
+	Source string `json:"source"`
+	// Name is the extension identifier within that source, e.g. "my-app".
+	Name string `json:"name"`
+}
 
 // CanvasError is a structured error returned from canvas handlers.
 //
@@ -80,7 +71,7 @@ func CanvasErrorNoHandler() *CanvasError {
 // A session installs a single CanvasHandler (via SessionConfig.CanvasHandler).
 // The handler receives every inbound `canvas.open` / `canvas.close` /
 // `canvas.invokeAction` JSON-RPC request the runtime issues for this session
-// and decides — typically by inspecting CanvasOpenContext.CanvasID — which
+// and decides — typically by inspecting CanvasProviderOpenRequest.CanvasID — which
 // application-side canvas should handle the call.
 //
 // The SDK does not maintain a per-canvas registry; multiplexing across declared
@@ -89,9 +80,9 @@ func CanvasErrorNoHandler() *CanvasError {
 // Embed CanvasHandlerDefaults to inherit no-op defaults for OnClose and a
 // "no handler" error for OnAction.
 type CanvasHandler interface {
-	OnOpen(ctx context.Context, c CanvasOpenContext) (CanvasOpenResponse, error)
-	OnClose(ctx context.Context, c CanvasLifecycleContext) error
-	OnAction(ctx context.Context, c CanvasActionContext) (any, error)
+	OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error)
+	OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error
+	OnAction(ctx context.Context, c rpc.CanvasProviderInvokeActionRequest) (any, error)
 }
 
 // CanvasHandlerDefaults supplies default OnClose / OnAction implementations
@@ -102,15 +93,15 @@ type CanvasHandler interface {
 //	type myHandler struct {
 //	    copilot.CanvasHandlerDefaults
 //	}
-//	func (h *myHandler) OnOpen(ctx context.Context, c copilot.CanvasOpenContext) (copilot.CanvasOpenResponse, error) { ... }
+//	func (h *myHandler) OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error) { ... }
 type CanvasHandlerDefaults struct{}
 
 // OnClose returns nil by default.
-func (CanvasHandlerDefaults) OnClose(ctx context.Context, c CanvasLifecycleContext) error {
+func (CanvasHandlerDefaults) OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error {
 	return nil
 }
 
 // OnAction returns CanvasErrorNoHandler() by default.
-func (CanvasHandlerDefaults) OnAction(ctx context.Context, c CanvasActionContext) (any, error) {
+func (CanvasHandlerDefaults) OnAction(ctx context.Context, c rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	return nil, CanvasErrorNoHandler()
 }

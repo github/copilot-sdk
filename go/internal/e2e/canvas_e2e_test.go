@@ -138,7 +138,7 @@ type canvasActionCall struct {
 	Input      any
 }
 
-func (h *testCanvasHandler) OnOpen(ctx context.Context, req copilot.CanvasOpenContext) (copilot.CanvasOpenResponse, error) {
+func (h *testCanvasHandler) OnOpen(ctx context.Context, req rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -152,14 +152,14 @@ func (h *testCanvasHandler) OnOpen(ctx context.Context, req copilot.CanvasOpenCo
 	})
 	h.counts[req.InstanceID] = numberField(req.Input, "startValue")
 
-	return copilot.CanvasOpenResponse{
+	return rpc.CanvasProviderOpenResult{
 		URL:    copilot.String("https://example.test/counter/" + req.InstanceID),
 		Title:  copilot.String("Counter"),
 		Status: copilot.String("ready"),
 	}, nil
 }
 
-func (h *testCanvasHandler) OnClose(ctx context.Context, req copilot.CanvasLifecycleContext) error {
+func (h *testCanvasHandler) OnClose(ctx context.Context, req rpc.CanvasProviderCloseRequest) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -171,7 +171,7 @@ func (h *testCanvasHandler) OnClose(ctx context.Context, req copilot.CanvasLifec
 	return nil
 }
 
-func (h *testCanvasHandler) OnAction(ctx context.Context, req copilot.CanvasActionContext) (any, error) {
+func (h *testCanvasHandler) OnAction(ctx context.Context, req rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 

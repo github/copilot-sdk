@@ -28,16 +28,12 @@ from .generated.rpc import (
 
 __all__ = [
     "CanvasAction",
-    "CanvasActionContext",
     "CanvasDeclaration",
     "CanvasError",
     "CanvasHandler",
     "CanvasHostContext",
     "CanvasHostContextCapabilities",
     "CanvasJsonSchema",
-    "CanvasLifecycleContext",
-    "CanvasOpenContext",
-    "CanvasOpenResponse",
     "ExtensionInfo",
     "OpenCanvasInstance",
 ]
@@ -92,12 +88,6 @@ class CanvasDeclaration:
         return result
 
 
-CanvasOpenResponse = CanvasProviderOpenResult
-CanvasOpenContext = CanvasProviderOpenRequest
-CanvasActionContext = CanvasProviderInvokeActionRequest
-CanvasLifecycleContext = CanvasProviderCloseRequest
-
-
 class CanvasError(Exception):
     """Structured error returned from canvas handlers."""
 
@@ -131,16 +121,16 @@ class CanvasHandler(ABC):
     """Provider-side canvas lifecycle handler."""
 
     @abstractmethod
-    async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
+    async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
         """Open a new canvas instance.
 
         May raise :class:`CanvasError` to surface a structured failure to
         the host.
         """
 
-    async def on_close(self, ctx: CanvasLifecycleContext) -> None:
+    async def on_close(self, ctx: CanvasProviderCloseRequest) -> None:
         """Canvas was closed by the user or agent. Default: no-op."""
 
-    async def on_action(self, ctx: CanvasActionContext) -> Any:
+    async def on_action(self, ctx: CanvasProviderInvokeActionRequest) -> Any:
         """Handle a non-lifecycle action declared by the canvas."""
         raise CanvasError.no_handler()

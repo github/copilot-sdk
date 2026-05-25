@@ -149,10 +149,10 @@ func (a *canvasClientSessionAdapter) Close(request *rpc.CanvasProviderCloseReque
 	if err := handler.OnClose(context.Background(), *request); err != nil {
 		return nil, canvasResultError(err)
 	}
-	return &rpc.CanvasCloseResult{}, nil
+	return nil, nil
 }
 
-func (a *canvasClientSessionAdapter) InvokeAction(request *rpc.CanvasProviderInvokeActionRequest) (*rpc.CanvasInvokeActionResult, error) {
+func (a *canvasClientSessionAdapter) InvokeAction(request *rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	if request == nil {
 		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing canvas action request"))
 	}
@@ -164,7 +164,7 @@ func (a *canvasClientSessionAdapter) InvokeAction(request *rpc.CanvasProviderInv
 	if actionErr != nil {
 		return nil, canvasResultError(actionErr)
 	}
-	return &rpc.CanvasInvokeActionResult{Result: result}, nil
+	return result, nil
 }
 
 func (a *canvasClientSessionAdapter) Open(request *rpc.CanvasProviderOpenRequest) (*rpc.CanvasProviderOpenResult, error) {
