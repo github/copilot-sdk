@@ -154,9 +154,9 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 
 ### ⌛ Phase 05: Cross-Cutting Updates
 
-1. ⌛ Update monorepo `copilot-instructions.md` to include Java section. See https://github.com/github/copilot-sdk/issues/1390 .
-2. ⌛ Update monorepo `README.md` to list Java as a supported language. See https://github.com/github/awesome-copilot/pull/1811 
-3. Update `scenario-builds.yml` to include Java scenarios (if applicable).
+1. ✅ Update monorepo `copilot-instructions.md` to include Java section. See https://github.com/github/copilot-sdk/issues/1390 .
+2. ✅ Update monorepo `README.md` to list Java as a supported language. See https://github.com/github/awesome-copilot/pull/1811
+3. ⌛ Update `scenario-builds.yml` to include Java scenarios (if applicable).
 4. Update `docs-validation.yml` to include Java code snippets.
 5. Update `lsp.json` to add Java LSP config (optional).
 6. Add Java to `docs/` getting-started and feature pages.
