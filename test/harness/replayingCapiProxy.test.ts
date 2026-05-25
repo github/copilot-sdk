@@ -843,6 +843,60 @@ Always include PINEAPPLE_COCONUT_42.
       }
     });
 
+    test("matches cached task completion notification wording variants", async () => {
+      const cachePath = path.join(tempDir, "cache.yaml");
+      const unreadNotification = [
+        "<system_notification>",
+        'Agent "read-file" (explore) has completed successfully. Use read_agent with agent_id "read-file" to retrieve unread results.',
+        "</system_notification>",
+      ].join("\n");
+
+      const cacheContent = yaml.stringify({
+        models: ["test-model"],
+        conversations: [
+          {
+            messages: [
+              { role: "system", content: "${system}" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: unreadNotification },
+              { role: "assistant", content: "Read agent completed." },
+            ],
+          },
+        ],
+      } satisfies NormalizedData);
+      await writeFile(cachePath, cacheContent);
+
+      const proxy = new ReplayingCapiProxy(
+        "http://localhost:9999",
+        cachePath,
+        workDir,
+      );
+      const proxyUrl = await proxy.start();
+
+      try {
+        const response = await makeRequest(proxyUrl, "/chat/completions", {
+          body: {
+            model: "test-model",
+            messages: [
+              { role: "system", content: "Be helpful" },
+              { role: "user", content: "Hello" },
+              { role: "assistant", content: "Hi!" },
+              { role: "user", content: unreadNotification },
+            ],
+          },
+        });
+
+        expect(response.status).toBe(200);
+        expect(
+          (JSON.parse(response.body) as ChatCompletion).choices[0].message
+            .content,
+        ).toBe("Read agent completed.");
+      } finally {
+        await proxy.stop();
+      }
+    });
+
     test("matches parallel tool results regardless of arrival order", async () => {
       const cachePath = path.join(tempDir, "cache.yaml");
       const cacheContent = yaml.stringify({

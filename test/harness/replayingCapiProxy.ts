@@ -130,6 +130,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       const content = await readFile(this.state.filePath, "utf-8");
       this.state.storedData = yaml.parse(content) as NormalizedData;
       normalizeToolResultOrder(this.state.storedData.conversations);
+      normalizeStoredUserMessages(this.state.storedData.conversations);
     }
   }
 
@@ -1034,10 +1035,7 @@ function transformOpenAIRequestMessage(
 
 function normalizeUserMessage(content: string): string {
   return normalizeSkillContextFrontmatter(content)
-    .replace(
-      /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g,
-      'Use read_agent with agent_id "$1" to retrieve the full results.',
-    )
+    .replace(taskCompletionNotificationPattern, taskCompletionNotificationReplacement)
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1047,6 +1045,24 @@ function normalizeUserMessage(content: string): string {
       "${compaction_prompt}",
     )
     .trim();
+}
+
+const taskCompletionNotificationPattern =
+  /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g;
+const taskCompletionNotificationReplacement =
+  'Use read_agent with agent_id "$1" to retrieve the full results.';
+
+function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
+  for (const conversation of conversations) {
+    for (const message of conversation.messages) {
+      if (message.role === "user" && typeof message.content === "string") {
+        message.content = message.content.replace(
+          taskCompletionNotificationPattern,
+          taskCompletionNotificationReplacement,
+        );
+      }
+    }
+  }
 }
 
 function normalizeSkillContextFrontmatter(content: string): string {
