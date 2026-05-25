@@ -4,14 +4,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex as ParkingLotMutex;
-use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
-use crate::canvas::{CanvasHandler, CanvasInvokeParams, CanvasProviderRequestParams};
+use crate::canvas::CanvasHandler;
 use crate::generated::api_types::{LogRequest, ModelSwitchToRequest, OpenCanvasInstance};
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
@@ -1735,39 +1734,12 @@ async fn handle_request(
         return;
     }
 
+    if request.method.starts_with("canvas.") {
+        crate::canvas_dispatch::dispatch(client, canvas_handler, request).await;
+        return;
+    }
+
     match request.method.as_str() {
-        "canvas.open" => {
-            let Some(params) =
-                parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
-                    .await
-            else {
-                return;
-            };
-            let result = dispatch_canvas_open(canvas_handler, params).await;
-            send_canvas_dispatch_response(client, request.id, result).await;
-        }
-
-        "canvas.close" => {
-            let Some(params) =
-                parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
-                    .await
-            else {
-                return;
-            };
-            let result = dispatch_canvas_close(canvas_handler, params).await;
-            send_canvas_dispatch_response(client, request.id, result).await;
-        }
-
-        "canvas.action.invoke" => {
-            let Some(params) =
-                parse_request_params::<CanvasInvokeParams>(client, request.id, &request).await
-            else {
-                return;
-            };
-            let result = dispatch_canvas_action(canvas_handler, params).await;
-            send_canvas_dispatch_response(client, request.id, result).await;
-        }
-
         "hooks.invoke" => {
             let params = request.params.as_ref();
             let hook_type = params
@@ -1998,112 +1970,6 @@ async fn handle_request(
             .await;
         }
     }
-}
-
-async fn parse_request_params<T>(
-    client: &Client,
-    id: u64,
-    request: &crate::JsonRpcRequest,
-) -> Option<T>
-where
-    T: DeserializeOwned,
-{
-    let params = request
-        .params
-        .as_ref()
-        .cloned()
-        .unwrap_or(Value::Object(serde_json::Map::new()));
-    match serde_json::from_value(params) {
-        Ok(params) => Some(params),
-        Err(error) => {
-            let _ = send_error_response(
-                client,
-                id,
-                error_codes::INVALID_PARAMS,
-                &format!("invalid params: {error}"),
-            )
-            .await;
-            None
-        }
-    }
-}
-
-async fn send_canvas_dispatch_response(
-    client: &Client,
-    id: u64,
-    result: crate::canvas::CanvasResult<Value>,
-) {
-    let response = match result {
-        Ok(value) => JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id,
-            result: Some(value),
-            error: None,
-        },
-        Err(error) => JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id,
-            result: None,
-            error: Some(crate::JsonRpcError {
-                code: error_codes::INTERNAL_ERROR,
-                message: error.message.clone(),
-                data: Some(serde_json::json!({
-                    "code": error.code,
-                    "message": error.message,
-                })),
-            }),
-        },
-    };
-    if let Err(error) = client.send_response(&response).await {
-        warn!(
-            request_id = id,
-            error = %error,
-            "failed to send canvas provider response"
-        );
-    }
-}
-
-fn canvas_handler_or_err(
-    handler: Option<&Arc<dyn CanvasHandler>>,
-) -> crate::canvas::CanvasResult<&Arc<dyn CanvasHandler>> {
-    handler.ok_or_else(|| {
-        crate::canvas::CanvasError::new(
-            "canvas_handler_unset",
-            "No CanvasHandler installed on this session; \
-             call SessionConfig::with_canvas_handler before creating the session.",
-        )
-    })
-}
-
-async fn dispatch_canvas_open(
-    handler: Option<&Arc<dyn CanvasHandler>>,
-    params: CanvasProviderRequestParams,
-) -> crate::canvas::CanvasResult<Value> {
-    let handler = canvas_handler_or_err(handler)?;
-    let response = handler.on_open(params.into_open_context()).await?;
-    serde_json::to_value(response).map_err(|error| {
-        crate::canvas::CanvasError::new(
-            "canvas_open_response_serialization_failed",
-            format!("failed to serialize canvas.open response: {error}"),
-        )
-    })
-}
-
-async fn dispatch_canvas_close(
-    handler: Option<&Arc<dyn CanvasHandler>>,
-    params: CanvasProviderRequestParams,
-) -> crate::canvas::CanvasResult<Value> {
-    let handler = canvas_handler_or_err(handler)?;
-    handler.on_close(params.into_lifecycle_context()).await?;
-    Ok(Value::Null)
-}
-
-async fn dispatch_canvas_action(
-    handler: Option<&Arc<dyn CanvasHandler>>,
-    params: CanvasInvokeParams,
-) -> crate::canvas::CanvasResult<Value> {
-    let handler = canvas_handler_or_err(handler)?;
-    handler.on_action(params.into_action_context()).await
 }
 
 async fn send_error_response(

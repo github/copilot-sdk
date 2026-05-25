@@ -10,7 +10,8 @@ use super::session_events::{
     AbortReason, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule,
     ReasoningSummary, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval,
 };
-use crate::types::{RequestId, SessionEvent, SessionId};
+use crate::types::SessionEvent;
+use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
@@ -402,6 +403,12 @@ pub mod rpc_methods {
     pub const SESSIONFS_SQLITEQUERY: &str = "sessionFs.sqliteQuery";
     /// `sessionFs.sqliteExists`
     pub const SESSIONFS_SQLITEEXISTS: &str = "sessionFs.sqliteExists";
+    /// `canvas.open`
+    pub const CANVAS_OPEN: &str = "canvas.open";
+    /// `canvas.close`
+    pub const CANVAS_CLOSE: &str = "canvas.close";
+    /// `canvas.invokeAction`
+    pub const CANVAS_INVOKEACTION: &str = "canvas.invokeAction";
 }
 
 /// Parameters for aborting the current turn
@@ -917,6 +924,24 @@ pub struct CanvasCloseRequest {
     pub instance_id: String,
 }
 
+/// Host capabilities
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasHostContextCapabilities {
+    /// Whether canvas rendering is supported
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
+}
+
+/// Host context supplied by the runtime.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasHostContext {
+    /// Host capabilities
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<CanvasHostContextCapabilities>,
+}
+
 /// Canvas action invocation parameters.
 ///
 /// <div class="warning">
@@ -1072,6 +1097,80 @@ pub struct CanvasOpenRequest {
     pub input: Option<serde_json::Value>,
     /// Caller-supplied stable instance identifier
     pub instance_id: String,
+}
+
+/// Canvas close parameters sent to the provider.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasProviderCloseRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Canvas instance identifier
+    pub instance_id: String,
+    /// Host context supplied by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<CanvasHostContext>,
+}
+
+/// Canvas action invocation parameters sent to the provider.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasProviderInvokeActionRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Canvas instance identifier
+    pub instance_id: String,
+    /// Action name to invoke
+    pub action_name: String,
+    /// Action input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Host context supplied by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<CanvasHostContext>,
+}
+
+/// Canvas open parameters sent to the provider.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasProviderOpenRequest {
+    /// Target session identifier
+    pub session_id: SessionId,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Canvas open input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Host context supplied by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<CanvasHostContext>,
+}
+
+/// Canvas open result returned by the provider.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasProviderOpenResult {
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Provider-supplied title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// Optional unstructured input hint
@@ -11812,6 +11911,21 @@ pub struct SessionScheduleStopResult {
 pub struct SessionFsSqliteExistsParams {
     /// Target session identifier
     pub session_id: SessionId,
+}
+
+/// Canvas open result returned by the provider.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasOpenResult {
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Provider-supplied title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 /// MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.

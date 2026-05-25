@@ -380,7 +380,7 @@ async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
     server
         .send_request(
             42,
-            "canvas.action.invoke",
+            "canvas.invokeAction",
             serde_json::json!({
                 "sessionId": session.id(),
                 "extensionId": "project:counter",

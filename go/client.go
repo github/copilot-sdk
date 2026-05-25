@@ -629,7 +629,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Canvases = config.Canvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
-	req.ExtensionInfo = config.ExtensionInfo
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -852,7 +851,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.OpenCanvases = config.OpenCanvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
-	req.ExtensionInfo = config.ExtensionInfo
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -1762,9 +1760,6 @@ func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
-	c.client.SetRequestHandler("canvas.open", jsonrpc2.RequestHandlerFor(c.handleCanvasOpen))
-	c.client.SetRequestHandler("canvas.close", jsonrpc2.RequestHandlerFor(c.handleCanvasClose))
-	c.client.SetRequestHandler("canvas.action.invoke", jsonrpc2.RequestHandlerFor(c.handleCanvasActionInvoke))
 	rpc.RegisterClientSessionApiHandlers(c.client, func(sessionID string) *rpc.ClientSessionApiHandlers {
 		c.sessionsMux.Lock()
 		defer c.sessionsMux.Unlock()
@@ -1912,90 +1907,4 @@ func (c *Client) handleSystemMessageTransform(req systemMessageTransformRequest)
 		return systemMessageTransformResponse{}, &jsonrpc2.Error{Code: -32603, Message: err.Error()}
 	}
 	return resp, nil
-}
-
-// canvasJSONRPCError converts a CanvasError into the structured JSON-RPC error
-// envelope used by all canvas.* dispatch responses.
-func canvasJSONRPCError(cerr *CanvasError) *jsonrpc2.Error {
-	data, _ := json.Marshal(map[string]string{
-		"code":    cerr.Code,
-		"message": cerr.Message,
-	})
-	return &jsonrpc2.Error{
-		Code:    -32603,
-		Message: cerr.Message,
-		Data:    data,
-	}
-}
-
-// resolveCanvasSession looks up a session and its installed CanvasHandler,
-// returning the canvas_handler_unset error envelope if either is missing.
-func (c *Client) resolveCanvasSession(sessionID string) (*Session, CanvasHandler, *jsonrpc2.Error) {
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[sessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, nil, canvasJSONRPCError(NewCanvasError(
-			"canvas_handler_unset",
-			fmt.Sprintf("unknown session %s", sessionID),
-		))
-	}
-	handler := session.getCanvasHandler()
-	if handler == nil {
-		return session, nil, canvasJSONRPCError(NewCanvasError(
-			"canvas_handler_unset",
-			"No CanvasHandler installed on this session; install one via SessionConfig.CanvasHandler before creating the session.",
-		))
-	}
-	return session, handler, nil
-}
-
-// canvasResultError normalizes any error returned from a CanvasHandler method
-// into the structured JSON-RPC error envelope.
-func canvasResultError(err error) *jsonrpc2.Error {
-	if err == nil {
-		return nil
-	}
-	if cerr, ok := err.(*CanvasError); ok {
-		return canvasJSONRPCError(cerr)
-	}
-	return canvasJSONRPCError(NewCanvasError("canvas_handler_error", err.Error()))
-}
-
-// handleCanvasOpen dispatches an inbound canvas.open request to the session's CanvasHandler.
-func (c *Client) handleCanvasOpen(params canvasProviderRequestParams) (CanvasOpenResponse, *jsonrpc2.Error) {
-	_, handler, rpcErr := c.resolveCanvasSession(params.SessionID)
-	if rpcErr != nil {
-		return CanvasOpenResponse{}, rpcErr
-	}
-	resp, err := handler.OnOpen(context.Background(), params.toOpenContext())
-	if err != nil {
-		return CanvasOpenResponse{}, canvasResultError(err)
-	}
-	return resp, nil
-}
-
-// handleCanvasClose dispatches an inbound canvas.close request to the session's CanvasHandler.
-func (c *Client) handleCanvasClose(params canvasProviderRequestParams) (any, *jsonrpc2.Error) {
-	_, handler, rpcErr := c.resolveCanvasSession(params.SessionID)
-	if rpcErr != nil {
-		return nil, rpcErr
-	}
-	if err := handler.OnClose(context.Background(), params.toLifecycleContext()); err != nil {
-		return nil, canvasResultError(err)
-	}
-	return nil, nil
-}
-
-// handleCanvasActionInvoke dispatches an inbound canvas.action.invoke request to the session's CanvasHandler.
-func (c *Client) handleCanvasActionInvoke(params canvasInvokeParams) (any, *jsonrpc2.Error) {
-	_, handler, rpcErr := c.resolveCanvasSession(params.SessionID)
-	if rpcErr != nil {
-		return nil, rpcErr
-	}
-	result, err := handler.OnAction(context.Background(), params.toActionContext())
-	if err != nil {
-		return nil, canvasResultError(err)
-	}
-	return result, nil
 }

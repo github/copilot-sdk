@@ -7760,6 +7760,122 @@ public sealed class SessionFsSqliteExistsRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
+/// <summary>Canvas open result returned by the provider.</summary>
+public sealed class CanvasProviderOpenResult
+{
+    /// <summary>Provider-supplied status text.</summary>
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    /// <summary>Provider-supplied title.</summary>
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>URL for web-rendered canvases.</summary>
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+/// <summary>Host capabilities.</summary>
+public sealed class CanvasHostContextCapabilities
+{
+    /// <summary>Whether canvas rendering is supported.</summary>
+    [JsonPropertyName("canvases")]
+    public bool? Canvases { get; set; }
+}
+
+/// <summary>Host context supplied by the runtime.</summary>
+public sealed class CanvasHostContext
+{
+    /// <summary>Host capabilities.</summary>
+    [JsonPropertyName("capabilities")]
+    public CanvasHostContextCapabilities? Capabilities { get; set; }
+}
+
+/// <summary>Canvas open parameters sent to the provider.</summary>
+public sealed class CanvasProviderOpenRequest
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public string CanvasId { get; set; } = string.Empty;
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public string ExtensionId { get; set; } = string.Empty;
+
+    /// <summary>Host context supplied by the runtime.</summary>
+    [JsonPropertyName("host")]
+    public CanvasHostContext? Host { get; set; }
+
+    /// <summary>Canvas open input.</summary>
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Stable caller-supplied canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Canvas close parameters sent to the provider.</summary>
+public sealed class CanvasProviderCloseRequest
+{
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public string CanvasId { get; set; } = string.Empty;
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public string ExtensionId { get; set; } = string.Empty;
+
+    /// <summary>Host context supplied by the runtime.</summary>
+    [JsonPropertyName("host")]
+    public CanvasHostContext? Host { get; set; }
+
+    /// <summary>Canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Canvas action invocation parameters sent to the provider.</summary>
+public sealed class CanvasProviderInvokeActionRequest
+{
+    /// <summary>Action name to invoke.</summary>
+    [JsonPropertyName("actionName")]
+    public string ActionName { get; set; } = string.Empty;
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public string CanvasId { get; set; } = string.Empty;
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public string ExtensionId { get; set; } = string.Empty;
+
+    /// <summary>Host context supplied by the runtime.</summary>
+    [JsonPropertyName("host")]
+    public CanvasHostContext? Host { get; set; }
+
+    /// <summary>Action input.</summary>
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Model capability category for grouping in the model picker.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -14541,11 +14657,33 @@ public interface ISessionFsHandler
     Task<SessionFsSqliteExistsResult> SqliteExistsAsync(SessionFsSqliteExistsRequest request, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Handles `canvas` client session API methods.</summary>
+public interface ICanvasHandler
+{
+    /// <summary>Opens a canvas instance on the provider.</summary>
+    /// <param name="request">Canvas open parameters sent to the provider.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Canvas open result returned by the provider.</returns>
+    Task<CanvasProviderOpenResult> OpenAsync(CanvasProviderOpenRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Closes a canvas instance on the provider.</summary>
+    /// <param name="request">Canvas close parameters sent to the provider.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    Task CloseAsync(CanvasProviderCloseRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Invokes an action on an open canvas instance via the provider.</summary>
+    /// <param name="request">Canvas action invocation parameters sent to the provider.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Provider-supplied action result.</returns>
+    Task<CanvasInvokeActionResult> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Provides all client session API handler groups for a session.</summary>
 public sealed class ClientSessionApiHandlers
 {
     /// <summary>Optional handler for SessionFs client session API methods.</summary>
     public ISessionFsHandler? SessionFs { get; set; }
+
+    /// <summary>Optional handler for Canvas client session API methods.</summary>
+    public ICanvasHandler? Canvas { get; set; }
 }
 
 /// <summary>Registers client session API handlers on a JSON-RPC connection.</summary>
@@ -14629,6 +14767,24 @@ internal static class ClientSessionApiRegistration
             var handler = getHandlers(request.SessionId).SessionFs;
             if (handler is null) throw new InvalidOperationException($"No sessionFs handler registered for session: {request.SessionId}");
             return await handler.SqliteExistsAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("canvas.open", (Func<CanvasProviderOpenRequest, CancellationToken, ValueTask<CanvasProviderOpenResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).Canvas;
+            if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
+            return await handler.OpenAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("canvas.close", (Func<CanvasProviderCloseRequest, CancellationToken, ValueTask>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).Canvas;
+            if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
+            await handler.CloseAsync(request, cancellationToken);
+        }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("canvas.invokeAction", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<CanvasInvokeActionResult>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).Canvas;
+            if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
+            return await handler.InvokeActionAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -14895,11 +15051,17 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(CanvasAction))]
 [JsonSerializable(typeof(CanvasCloseRequest))]
+[JsonSerializable(typeof(CanvasHostContext))]
+[JsonSerializable(typeof(CanvasHostContextCapabilities))]
 [JsonSerializable(typeof(CanvasInvokeActionRequest))]
 [JsonSerializable(typeof(CanvasInvokeActionResult))]
 [JsonSerializable(typeof(CanvasList))]
 [JsonSerializable(typeof(CanvasListOpenResult))]
 [JsonSerializable(typeof(CanvasOpenRequest))]
+[JsonSerializable(typeof(CanvasProviderCloseRequest))]
+[JsonSerializable(typeof(CanvasProviderInvokeActionRequest))]
+[JsonSerializable(typeof(CanvasProviderOpenRequest))]
+[JsonSerializable(typeof(CanvasProviderOpenResult))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]

@@ -1625,9 +1625,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         rpc.SetLocalRpcMethod("autoModeSwitch.request", handler.OnAutoModeSwitchRequest);
         rpc.SetLocalRpcMethod("hooks.invoke", handler.OnHooksInvoke);
         rpc.SetLocalRpcMethod("systemMessage.transform", handler.OnSystemMessageTransform);
-        rpc.SetLocalRpcMethod("canvas.open", handler.OnCanvasOpen);
-        rpc.SetLocalRpcMethod("canvas.close", handler.OnCanvasClose);
-        rpc.SetLocalRpcMethod("canvas.action.invoke", handler.OnCanvasInvokeAction);
         ClientSessionApiRegistration.RegisterClientSessionApiHandlers(rpc, sessionId =>
         {
             var session = GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
@@ -1821,46 +1818,6 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             return await session.HandleSystemMessageTransformAsync(sections);
         }
 
-#pragma warning disable GHCP001
-        public ValueTask<CanvasOpenResponse> OnCanvasOpen(
-            string sessionId,
-            string extensionId,
-            string canvasId,
-            string instanceId,
-            JsonElement? input = null,
-            CanvasHostContext? host = null)
-        {
-            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            return session.HandleCanvasOpenAsync(
-                extensionId, canvasId, instanceId, input ?? default, host);
-        }
-
-        public async ValueTask OnCanvasClose(
-            string sessionId,
-            string extensionId,
-            string canvasId,
-            string instanceId,
-            JsonElement? input = null,
-            CanvasHostContext? host = null)
-        {
-            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            await session.HandleCanvasCloseAsync(extensionId, canvasId, instanceId, host);
-        }
-
-        public ValueTask<JsonElement> OnCanvasInvokeAction(
-            string sessionId,
-            string extensionId,
-            string canvasId,
-            string instanceId,
-            string actionName,
-            JsonElement? input = null,
-            CanvasHostContext? host = null)
-        {
-            var session = client.GetSession(sessionId) ?? throw new ArgumentException($"Unknown session {sessionId}");
-            return session.HandleCanvasActionAsync(
-                extensionId, canvasId, instanceId, actionName, input ?? default, host);
-        }
-#pragma warning restore GHCP001
     }
 
     private class Connection(

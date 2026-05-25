@@ -305,6 +305,21 @@ type CanvasCloseRequest struct {
 	InstanceID string `json:"instanceId"`
 }
 
+type CanvasCloseResult struct {
+}
+
+// Host context supplied by the runtime.
+type CanvasHostContext struct {
+	// Host capabilities
+	Capabilities *CanvasHostContextCapabilities `json:"capabilities,omitempty"`
+}
+
+// Host capabilities
+type CanvasHostContextCapabilities struct {
+	// Whether canvas rendering is supported
+	Canvases *bool `json:"canvases,omitempty"`
+}
+
 // Canvas action invocation parameters.
 // Experimental: CanvasInvokeActionRequest is part of an experimental API and may change or
 // be removed.
@@ -358,6 +373,64 @@ type CanvasOpenRequest struct {
 	Input any `json:"input,omitempty"`
 	// Caller-supplied stable instance identifier
 	InstanceID string `json:"instanceId"`
+}
+
+// Canvas close parameters sent to the provider.
+type CanvasProviderCloseRequest struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Host context supplied by the runtime.
+	Host *CanvasHostContext `json:"host,omitempty"`
+	// Canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Canvas action invocation parameters sent to the provider.
+type CanvasProviderInvokeActionRequest struct {
+	// Action name to invoke
+	ActionName string `json:"actionName"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Host context supplied by the runtime.
+	Host *CanvasHostContext `json:"host,omitempty"`
+	// Action input
+	Input any `json:"input,omitempty"`
+	// Canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Canvas open parameters sent to the provider.
+type CanvasProviderOpenRequest struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Host context supplied by the runtime.
+	Host *CanvasHostContext `json:"host,omitempty"`
+	// Canvas open input
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Canvas open result returned by the provider.
+type CanvasProviderOpenResult struct {
+	// Provider-supplied status text
+	Status *string `json:"status,omitempty"`
+	// Provider-supplied title
+	Title *string `json:"title,omitempty"`
+	// URL for web-rendered canvases
+	URL *string `json:"url,omitempty"`
 }
 
 // Slash commands available in the session, after applying any include/exclude filters.
@@ -11749,6 +11822,31 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	return r
 }
 
+type CanvasHandler interface {
+	// Closes a canvas instance on the provider.
+	//
+	// RPC method: canvas.close.
+	//
+	// Parameters: Canvas close parameters sent to the provider.
+	Close(request *CanvasProviderCloseRequest) (*CanvasCloseResult, error)
+	// InvokeAction invokes an action on an open canvas instance via the provider.
+	//
+	// RPC method: canvas.invokeAction.
+	//
+	// Parameters: Canvas action invocation parameters sent to the provider.
+	//
+	// Returns: Provider-supplied action result.
+	InvokeAction(request *CanvasProviderInvokeActionRequest) (*CanvasInvokeActionResult, error)
+	// Opens a canvas instance on the provider.
+	//
+	// RPC method: canvas.open.
+	//
+	// Parameters: Canvas open parameters sent to the provider.
+	//
+	// Returns: Canvas open result returned by the provider.
+	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
+}
+
 type SessionFsHandler interface {
 	// AppendFile appends content to a file in the client-provided session filesystem.
 	//
@@ -11866,6 +11964,7 @@ type SessionFsHandler interface {
 
 // ClientSessionApiHandlers provides all client session API handler groups for a session.
 type ClientSessionApiHandlers struct {
+	Canvas    CanvasHandler
 	SessionFs SessionFsHandler
 }
 
@@ -11883,6 +11982,67 @@ func clientSessionHandlerError(err error) *jsonrpc2.Error {
 // RegisterClientSessionApiHandlers registers handlers for server-to-client session API
 // calls.
 func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {
+	client.SetRequestHandler("canvas.close", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request CanvasProviderCloseRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Canvas == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Canvas.Close(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("canvas.invokeAction", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request CanvasProviderInvokeActionRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Canvas == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Canvas.InvokeAction(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		var payload any
+		if result != nil {
+			payload = result.Result
+		}
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("canvas.open", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request CanvasProviderOpenRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Canvas == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Canvas.Open(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
 	client.SetRequestHandler("sessionFs.appendFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFsAppendFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {

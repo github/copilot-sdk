@@ -6,7 +6,6 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::generated::api_types::CanvasAction;
-use crate::types::SessionId;
 
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
 pub type CanvasJsonSchema = serde_json::Map<String, Value>;
@@ -55,88 +54,22 @@ impl CanvasDeclaration {
 }
 
 /// Response returned from [`CanvasHandler::on_open`].
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasOpenResponse {
-    /// URL the host should render. Optional for canvases with no visual surface.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    /// Provider-supplied title shown in host chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Provider-supplied status text shown in host chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
-}
+pub type CanvasOpenResponse = crate::generated::api_types::CanvasProviderOpenResult;
 
 /// Host capabilities passed to canvas provider callbacks.
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasHostContext {
-    /// Host capability details.
-    #[serde(default)]
-    pub capabilities: CanvasHostCapabilities,
-}
+pub use crate::generated::api_types::CanvasHostContext;
 
 /// Host capability details passed to canvas provider callbacks.
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasHostCapabilities {
-    /// Whether the host supports canvas rendering.
-    #[serde(default)]
-    pub canvases: bool,
-}
+pub use crate::generated::api_types::CanvasHostContextCapabilities as CanvasHostCapabilities;
 
 /// Context handed to [`CanvasHandler::on_open`].
-#[derive(Debug, Clone)]
-pub struct CanvasOpenContext {
-    /// Session that requested the canvas.
-    pub session_id: SessionId,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Canvas id from the declaring [`CanvasDeclaration`].
-    pub canvas_id: String,
-    /// Stable instance id supplied by the runtime.
-    pub instance_id: String,
-    /// Validated input payload.
-    pub input: Value,
-    /// Host capabilities supplied by the runtime.
-    pub host: Option<CanvasHostContext>,
-}
+pub type CanvasOpenContext = crate::generated::api_types::CanvasProviderOpenRequest;
 
 /// Context handed to [`CanvasHandler::on_action`].
-#[derive(Debug, Clone)]
-pub struct CanvasActionContext {
-    /// Session that invoked the action.
-    pub session_id: SessionId,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Canvas id targeted by the action.
-    pub canvas_id: String,
-    /// Instance id targeted by the action.
-    pub instance_id: String,
-    /// Action name from [`crate::generated::api_types::CanvasAction::name`].
-    pub action_name: String,
-    /// Validated input payload.
-    pub input: Value,
-    /// Host capabilities supplied by the runtime.
-    pub host: Option<CanvasHostContext>,
-}
+pub type CanvasActionContext = crate::generated::api_types::CanvasProviderInvokeActionRequest;
 
 /// Context handed to a canvas's close lifecycle hook.
-#[derive(Debug, Clone)]
-pub struct CanvasLifecycleContext {
-    /// Session owning the canvas instance.
-    pub session_id: SessionId,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Canvas id from the declaring [`CanvasDeclaration`].
-    pub canvas_id: String,
-    /// Instance id this lifecycle event applies to.
-    pub instance_id: String,
-    /// Host capabilities supplied by the runtime.
-    pub host: Option<CanvasHostContext>,
-}
+pub type CanvasLifecycleContext = crate::generated::api_types::CanvasProviderCloseRequest;
 
 /// Structured error returned from canvas handlers.
 #[derive(Debug, Clone, Error, Serialize, Deserialize, PartialEq, Eq)]
@@ -175,7 +108,7 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 /// A session installs a single [`CanvasHandler`] (via
 /// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
 /// The handler receives every inbound `canvas.open` / `canvas.close` /
-/// `canvas.action.invoke` JSON-RPC request the runtime issues for this
+/// `canvas.invokeAction` JSON-RPC request the runtime issues for this
 /// session and decides — typically by inspecting [`CanvasOpenContext::canvas_id`]
 /// — which application-side canvas should handle the call.
 ///
@@ -197,77 +130,12 @@ pub trait CanvasHandler: Send + Sync {
     }
 }
 
-/// Common fields sent by direct `canvas.*` provider callbacks.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct CanvasProviderRequestParams {
-    pub session_id: SessionId,
-    pub extension_id: String,
-    pub canvas_id: String,
-    pub instance_id: String,
-    #[serde(default)]
-    pub input: Value,
-    #[serde(default)]
-    pub host: Option<CanvasHostContext>,
-}
-
-/// Wire-level params for `canvas.action.invoke`.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct CanvasInvokeParams {
-    pub session_id: SessionId,
-    pub extension_id: String,
-    pub canvas_id: String,
-    pub instance_id: String,
-    pub action_name: String,
-    #[serde(default)]
-    pub input: Value,
-    #[serde(default)]
-    pub host: Option<CanvasHostContext>,
-}
-
-impl CanvasProviderRequestParams {
-    pub(crate) fn into_open_context(self) -> CanvasOpenContext {
-        CanvasOpenContext {
-            session_id: self.session_id,
-            extension_id: self.extension_id,
-            canvas_id: self.canvas_id,
-            instance_id: self.instance_id,
-            input: self.input,
-            host: self.host,
-        }
-    }
-
-    pub(crate) fn into_lifecycle_context(self) -> CanvasLifecycleContext {
-        CanvasLifecycleContext {
-            session_id: self.session_id,
-            extension_id: self.extension_id,
-            canvas_id: self.canvas_id,
-            instance_id: self.instance_id,
-            host: self.host,
-        }
-    }
-}
-
-impl CanvasInvokeParams {
-    pub(crate) fn into_action_context(self) -> CanvasActionContext {
-        CanvasActionContext {
-            session_id: self.session_id,
-            extension_id: self.extension_id,
-            canvas_id: self.canvas_id,
-            instance_id: self.instance_id,
-            action_name: self.action_name,
-            input: self.input,
-            host: self.host,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::types::SessionId;
 
     struct EchoHandler;
 
@@ -317,7 +185,7 @@ mod tests {
                 extension_id: "project:echo".to_string(),
                 canvas_id: "echo".to_string(),
                 instance_id: "echo-1".to_string(),
-                input: json!({ "x": 1 }),
+                input: Some(json!({ "x": 1 })),
                 host: None,
             })
             .await
@@ -338,7 +206,7 @@ mod tests {
                 canvas_id: "echo".to_string(),
                 instance_id: "inst-1".to_string(),
                 action_name: "shout".to_string(),
-                input: json!("hi"),
+                input: Some(json!("hi")),
                 host: None,
             })
             .await
@@ -369,7 +237,7 @@ mod tests {
                 canvas_id: "x".to_string(),
                 instance_id: "x-1".to_string(),
                 action_name: "anything".to_string(),
-                input: Value::Null,
+                input: Some(Value::Null),
                 host: None,
             })
             .await

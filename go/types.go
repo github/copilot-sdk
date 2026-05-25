@@ -936,12 +936,10 @@ type SessionConfig struct {
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
 	RequestExtensions *bool
-	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
+	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.invokeAction
 	// requests for this session. The SDK does not maintain a per-canvas registry;
 	// the handler must dispatch on CanvasOpenContext.CanvasID itself.
 	CanvasHandler CanvasHandler `json:"-"`
-	// ExtensionInfo identifies the stable extension providing this session's canvases.
-	ExtensionInfo *ExtensionInfo
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -1203,8 +1201,6 @@ type ResumeSessionConfig struct {
 	RequestExtensions *bool
 	// CanvasHandler receives inbound canvas.* requests for this session. See SessionConfig.CanvasHandler.
 	CanvasHandler CanvasHandler `json:"-"`
-	// ExtensionInfo identifies the stable extension providing this session's canvases.
-	ExtensionInfo *ExtensionInfo
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1432,7 +1428,6 @@ type createSessionRequest struct {
 	Canvases                       []CanvasDeclaration            `json:"canvases,omitempty"`
 	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
-	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
@@ -1492,7 +1487,6 @@ type resumeSessionRequest struct {
 	OpenCanvases                   []rpc.OpenCanvasInstance       `json:"openCanvases,omitempty"`
 	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
-	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }

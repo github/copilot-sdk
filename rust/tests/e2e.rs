@@ -7,6 +7,8 @@ mod abort;
 mod ask_user;
 #[path = "e2e/builtin_tools.rs"]
 mod builtin_tools;
+#[path = "e2e/canvas.rs"]
+mod canvas;
 #[path = "e2e/client.rs"]
 mod client;
 #[path = "e2e/client_api.rs"]

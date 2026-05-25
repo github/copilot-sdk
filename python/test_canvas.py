@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import threading
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -14,15 +13,19 @@ from copilot.canvas import (
     CanvasDeclaration,
     CanvasError,
     CanvasHandler,
+    CanvasLifecycleContext,
     CanvasOpenContext,
     CanvasOpenResponse,
     ExtensionInfo,
     OpenCanvasInstance,
-    _action_context_from_params,
-    _lifecycle_context_from_params,
-    _open_context_from_params,
 )
-from copilot.client import CopilotClient
+from copilot.generated.rpc import (
+    CanvasInstanceAvailability,
+    CanvasProviderCloseRequest,
+    CanvasProviderInvokeActionRequest,
+    CanvasProviderOpenRequest,
+)
+from copilot.session import CopilotSession
 
 
 def test_canvas_declaration_serializes_camelcase_and_drops_optional():
@@ -68,6 +71,12 @@ def test_canvas_open_response_drops_none_fields():
     }
 
 
+def test_context_aliases_use_codegen_types():
+    assert CanvasOpenContext is CanvasProviderOpenRequest
+    assert CanvasActionContext is CanvasProviderInvokeActionRequest
+    assert CanvasLifecycleContext is CanvasProviderCloseRequest
+
+
 def test_canvas_error_envelope_and_factories():
     err = CanvasError("oops", "something broke")
     assert err.code == "oops"
@@ -100,143 +109,99 @@ async def test_default_canvas_handler_on_action_raises_no_handler():
     assert excinfo.value.code == "canvas_action_no_handler"
 
 
-def test_context_helpers_parse_params():
-    base = {
-        "sessionId": "s",
-        "extensionId": "e",
-        "canvasId": "c",
-        "instanceId": "i",
-        "input": {"foo": 1},
-        "host": {"capabilities": {"canvases": True}},
-    }
-    open_ctx = _open_context_from_params(base)
-    assert open_ctx.session_id == "s"
-    assert open_ctx.canvas_id == "c"
-    assert open_ctx.input == {"foo": 1}
-    assert open_ctx.host is not None and open_ctx.host.capabilities.canvases is True
-
-    close_ctx = _lifecycle_context_from_params(base)
-    assert close_ctx.canvas_id == "c"
-    assert close_ctx.instance_id == "i"
-
-    action_ctx = _action_context_from_params({**base, "actionName": "refresh"})
-    assert action_ctx.action_name == "refresh"
-
-
-class _StubSession:
-    """Minimal CopilotSession stand-in for the inbound dispatch tests."""
-
-    def __init__(self, handler: CanvasHandler | None) -> None:
-        self._handler = handler
-        self._open_canvases: list[OpenCanvasInstance] = []
-        self._open_canvases_lock = threading.Lock()
-
-    def _get_canvas_handler(self) -> CanvasHandler | None:
-        return self._handler
-
-    def _set_open_canvases(self, instances: list[OpenCanvasInstance]) -> None:
-        with self._open_canvases_lock:
-            self._open_canvases = list(instances)
-
-    @property
-    def open_canvases(self) -> list[OpenCanvasInstance]:
-        with self._open_canvases_lock:
-            return list(self._open_canvases)
-
-
-def _make_client_with_session(session_id: str, session: Any) -> CopilotClient:
-    """Construct a CopilotClient skeleton sufficient for testing the inbound
-    canvas dispatch helpers without actually launching the CLI."""
-    client = CopilotClient.__new__(CopilotClient)
-    client._sessions = {session_id: session}
-    client._sessions_lock = threading.Lock()
-    return client
-
-
-async def test_handle_canvas_open_dispatches_to_handler():
+async def test_register_canvas_handler_wires_generated_canvas_adapter():
     class Handler(CanvasHandler):
         def __init__(self) -> None:
-            self.received: CanvasOpenContext | None = None
+            self.open_calls: list[CanvasOpenContext] = []
+            self.close_calls: list[CanvasLifecycleContext] = []
+            self.action_calls: list[CanvasActionContext] = []
 
         async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
-            self.received = ctx
-            return CanvasOpenResponse(url="https://canvas.example", title="Hi")
+            self.open_calls.append(ctx)
+            return CanvasOpenResponse(url="https://canvas.example", title="Hi", status="ready")
+
+        async def on_close(self, ctx: CanvasLifecycleContext) -> None:
+            self.close_calls.append(ctx)
 
         async def on_action(self, ctx: CanvasActionContext) -> Any:
+            self.action_calls.append(ctx)
             return {"echo": ctx.input}
 
+    session = CopilotSession("sess-1", client=None)
     handler = Handler()
-    session = _StubSession(handler)
-    client = _make_client_with_session("sess-1", session)
+    session._register_canvas_handler(handler)
 
-    result = await client._handle_canvas_open(
-        {
-            "sessionId": "sess-1",
-            "extensionId": "ext",
-            "canvasId": "c",
-            "instanceId": "i",
-            "input": {"q": 1},
-        }
+    adapter = session._client_session_apis.canvas
+    assert adapter is not None
+    assert session._get_canvas_handler() is handler
+
+    open_request = CanvasProviderOpenRequest(
+        canvas_id="c",
+        extension_id="ext",
+        instance_id="i",
+        session_id="sess-1",
+        input={"q": 1},
     )
-    assert result == {"url": "https://canvas.example", "title": "Hi"}
-    assert handler.received is not None
-    assert handler.received.canvas_id == "c"
+    open_result = await adapter.open(open_request)
+    assert open_result.to_dict() == {
+        "url": "https://canvas.example",
+        "title": "Hi",
+        "status": "ready",
+    }
+    assert handler.open_calls == [open_request]
+
+    close_request = CanvasProviderCloseRequest(
+        canvas_id="c",
+        extension_id="ext",
+        instance_id="i",
+        session_id="sess-1",
+    )
+    await adapter.close(close_request)
+    assert handler.close_calls == [close_request]
+
+    action_request = CanvasProviderInvokeActionRequest(
+        action_name="refresh",
+        canvas_id="c",
+        extension_id="ext",
+        instance_id="i",
+        session_id="sess-1",
+        input={"value": 1},
+    )
+    action_result = await adapter.invoke_action(action_request)
+    assert action_result == {"echo": {"value": 1}}
+    assert handler.action_calls == [action_request]
 
 
-async def test_handle_canvas_open_raises_when_handler_unset():
-    session = _StubSession(handler=None)
-    client = _make_client_with_session("sess-1", session)
-
-    with pytest.raises(CanvasError) as excinfo:
-        await client._handle_canvas_open(
-            {
-                "sessionId": "sess-1",
-                "extensionId": "ext",
-                "canvasId": "c",
-                "instanceId": "i",
-            }
-        )
-    assert excinfo.value.code == "canvas_handler_unset"
-
-
-async def test_handle_canvas_action_returns_arbitrary_value():
+async def test_canvas_adapter_translates_canvas_error_to_jsonrpc_error():
     class Handler(CanvasHandler):
         async def on_open(self, ctx: CanvasOpenContext) -> CanvasOpenResponse:
-            return CanvasOpenResponse()
+            raise CanvasError("bad", "fail")
 
-        async def on_action(self, ctx: CanvasActionContext) -> Any:
-            return [1, 2, 3]
+    session = CopilotSession("sess-1", client=None)
+    session._register_canvas_handler(Handler())
 
-    client = _make_client_with_session("sess-1", _StubSession(Handler()))
-    result = await client._handle_canvas_action_invoke(
-        {
-            "sessionId": "sess-1",
-            "extensionId": "ext",
-            "canvasId": "c",
-            "instanceId": "i",
-            "actionName": "do",
-        }
-    )
-    assert result == [1, 2, 3]
-
-
-async def test_canvas_request_handler_translates_canvas_error():
-    err = CanvasError("bad", "fail")
-
-    async def coro(params: dict) -> Any:
-        raise err
-
-    wrapped = CopilotClient._canvas_request_handler(coro)
+    adapter = cast(Any, session._client_session_apis.canvas)
     with pytest.raises(JsonRpcError) as excinfo:
-        await wrapped({})
+        await adapter.open(
+            CanvasProviderOpenRequest(
+                canvas_id="c",
+                extension_id="ext",
+                instance_id="i",
+                session_id="sess-1",
+            )
+        )
     assert excinfo.value.code == -32603
     assert excinfo.value.message == "fail"
     assert excinfo.value.data == {"code": "bad", "message": "fail"}
 
 
-def test_set_open_canvases_round_trip():
-    from copilot.generated.rpc import CanvasInstanceAvailability
+def test_register_canvas_handler_can_clear_generated_handler():
+    session = CopilotSession("sess-1", client=None)
+    session._register_canvas_handler(None)
+    assert session._client_session_apis.canvas is None
 
+
+def test_set_open_canvases_round_trip():
     inst = OpenCanvasInstance(
         availability=CanvasInstanceAvailability.READY,
         canvas_id="c",
@@ -244,6 +209,6 @@ def test_set_open_canvases_round_trip():
         instance_id="i",
         reopen=False,
     )
-    session = _StubSession(handler=None)
+    session = CopilotSession("sess-1", client=None)
     session._set_open_canvases([inst])
     assert session.open_canvases == [inst]

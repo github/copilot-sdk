@@ -77,7 +77,6 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
 
 #pragma warning disable GHCP001
-    private volatile ICanvasHandler? _canvasHandler;
     private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
 #pragma warning restore GHCP001
 
@@ -890,101 +889,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     internal void SetCanvasHandler(ICanvasHandler? handler)
     {
-        _canvasHandler = handler;
-    }
-
-    internal async ValueTask<CanvasOpenResponse> HandleCanvasOpenAsync(
-        string extensionId,
-        string canvasId,
-        string instanceId,
-        JsonElement input,
-        CanvasHostContext? host)
-    {
-        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
-        var ctx = new CanvasOpenContext
-        {
-            SessionId = SessionId,
-            ExtensionId = extensionId,
-            CanvasId = canvasId,
-            InstanceId = instanceId,
-            Input = input,
-            Host = host,
-        };
-        try
-        {
-            return await handler.OnOpenAsync(ctx, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (CanvasError ce)
-        {
-            throw CanvasErrorHelpers.ToRpcException(ce);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw CanvasErrorHelpers.HandlerError(ex.Message);
-        }
-    }
-
-    internal async ValueTask HandleCanvasCloseAsync(
-        string extensionId,
-        string canvasId,
-        string instanceId,
-        CanvasHostContext? host)
-    {
-        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
-        var ctx = new CanvasLifecycleContext
-        {
-            SessionId = SessionId,
-            ExtensionId = extensionId,
-            CanvasId = canvasId,
-            InstanceId = instanceId,
-            Host = host,
-        };
-        try
-        {
-            await handler.OnCloseAsync(ctx, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (CanvasError ce)
-        {
-            throw CanvasErrorHelpers.ToRpcException(ce);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw CanvasErrorHelpers.HandlerError(ex.Message);
-        }
-    }
-
-    internal async ValueTask<JsonElement> HandleCanvasActionAsync(
-        string extensionId,
-        string canvasId,
-        string instanceId,
-        string actionName,
-        JsonElement input,
-        CanvasHostContext? host)
-    {
-        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
-        var ctx = new CanvasActionContext
-        {
-            SessionId = SessionId,
-            ExtensionId = extensionId,
-            CanvasId = canvasId,
-            InstanceId = instanceId,
-            ActionName = actionName,
-            Input = input,
-            Host = host,
-        };
-        try
-        {
-            var result = await handler.OnActionAsync(ctx, CancellationToken.None).ConfigureAwait(false);
-            return SerializeActionResult(result);
-        }
-        catch (CanvasError ce)
-        {
-            throw CanvasErrorHelpers.ToRpcException(ce);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            throw CanvasErrorHelpers.HandlerError(ex.Message);
-        }
+        ClientSessionApis.Canvas = handler is null ? null : new CanvasHandlerAdapter(handler);
     }
 
     private static JsonElement SerializeActionResult(object? value)
@@ -998,6 +903,58 @@ public sealed partial class CopilotSession : IAsyncDisposable
         return doc.RootElement.Clone();
     }
 #pragma warning restore GHCP001
+
+    private sealed class CanvasHandlerAdapter(ICanvasHandler handler) : Rpc.ICanvasHandler
+    {
+        public async Task<CanvasProviderOpenResult> OpenAsync(CanvasProviderOpenRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                return await handler.OnOpenAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (CanvasError ce)
+            {
+                throw CanvasErrorHelpers.ToRpcException(ce);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw CanvasErrorHelpers.HandlerError(ex.Message);
+            }
+        }
+
+        public async Task CloseAsync(CanvasProviderCloseRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await handler.OnCloseAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+            catch (CanvasError ce)
+            {
+                throw CanvasErrorHelpers.ToRpcException(ce);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw CanvasErrorHelpers.HandlerError(ex.Message);
+            }
+        }
+
+        public async Task<CanvasInvokeActionResult> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var result = await handler.OnActionAsync(request, cancellationToken).ConfigureAwait(false);
+                return new CanvasInvokeActionResult { Result = SerializeActionResult(result) };
+            }
+            catch (CanvasError ce)
+            {
+                throw CanvasErrorHelpers.ToRpcException(ce);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw CanvasErrorHelpers.HandlerError(ex.Message);
+            }
+        }
+    }
 
     /// <summary>
     /// Dispatches a command.execute event to the registered handler and

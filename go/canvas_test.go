@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
@@ -95,12 +96,16 @@ func TestCanvasError_ErrorString(t *testing.T) {
 	}
 }
 
-// recordingCanvasHandler captures calls for assertion.
 type recordingCanvasHandler struct {
 	CanvasHandlerDefaults
-	openCtx    *CanvasOpenContext
-	openResult CanvasOpenResponse
-	openErr    error
+	openCtx      *CanvasOpenContext
+	closeCtx     *CanvasLifecycleContext
+	actionCtx    *CanvasActionContext
+	openResult   CanvasOpenResponse
+	actionResult any
+	openErr      error
+	closeErr     error
+	actionErr    error
 }
 
 func (h *recordingCanvasHandler) OnOpen(ctx context.Context, c CanvasOpenContext) (CanvasOpenResponse, error) {
@@ -108,130 +113,198 @@ func (h *recordingCanvasHandler) OnOpen(ctx context.Context, c CanvasOpenContext
 	return h.openResult, h.openErr
 }
 
-func TestClient_HandleCanvasOpen_DispatchesToHandler(t *testing.T) {
+func (h *recordingCanvasHandler) OnClose(ctx context.Context, c CanvasLifecycleContext) error {
+	h.closeCtx = &c
+	return h.closeErr
+}
+
+func (h *recordingCanvasHandler) OnAction(ctx context.Context, c CanvasActionContext) (any, error) {
+	h.actionCtx = &c
+	return h.actionResult, h.actionErr
+}
+
+func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 	title := "Echo"
 	url := "https://example.test/echo"
 	handler := &recordingCanvasHandler{
 		openResult: CanvasOpenResponse{URL: &url, Title: &title},
+		actionResult: map[string]any{
+			"count": float64(2),
+		},
 	}
 
-	session := &Session{SessionID: "s1"}
+	session := newTestCanvasSession("s1")
 	session.registerCanvasHandler(handler)
 
-	c := &Client{sessions: map[string]*Session{"s1": session}}
-
-	params := canvasProviderRequestParams{
+	openResp, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{
 		SessionID:   "s1",
 		ExtensionID: "project:echo",
 		CanvasID:    "echo",
 		InstanceID:  "echo-1",
 		Input:       map[string]any{"x": float64(1)},
-	}
-	resp, rpcErr := c.handleCanvasOpen(params)
-	if rpcErr != nil {
-		t.Fatalf("unexpected rpc error: %+v", rpcErr)
+	})
+	if err != nil {
+		t.Fatalf("unexpected open error: %v", err)
 	}
 	if handler.openCtx == nil {
 		t.Fatalf("handler.OnOpen was not called")
 	}
 	if handler.openCtx.CanvasID != "echo" || handler.openCtx.InstanceID != "echo-1" {
-		t.Fatalf("unexpected ctx: %+v", handler.openCtx)
+		t.Fatalf("unexpected open ctx: %+v", handler.openCtx)
 	}
-	if resp.URL == nil || *resp.URL != url {
-		t.Fatalf("response URL not propagated: %+v", resp)
+	if openResp.URL == nil || *openResp.URL != url {
+		t.Fatalf("response URL not propagated: %+v", openResp)
+	}
+
+	actionResp, err := session.clientSessionApis.Canvas.InvokeAction(&rpc.CanvasProviderInvokeActionRequest{
+		SessionID:   "s1",
+		ExtensionID: "project:echo",
+		CanvasID:    "echo",
+		InstanceID:  "echo-1",
+		ActionName:  "increment",
+		Input:       map[string]any{"amount": float64(1)},
+	})
+	if err != nil {
+		t.Fatalf("unexpected action error: %v", err)
+	}
+	if handler.actionCtx == nil {
+		t.Fatalf("handler.OnAction was not called")
+	}
+	if handler.actionCtx.ActionName != "increment" {
+		t.Fatalf("unexpected action ctx: %+v", handler.actionCtx)
+	}
+	result, ok := actionResp.Result.(map[string]any)
+	if !ok || result["count"] != float64(2) {
+		t.Fatalf("unexpected action result: %#v", actionResp.Result)
+	}
+
+	closeResp, err := session.clientSessionApis.Canvas.Close(&rpc.CanvasProviderCloseRequest{
+		SessionID:   "s1",
+		ExtensionID: "project:echo",
+		CanvasID:    "echo",
+		InstanceID:  "echo-1",
+	})
+	if err != nil {
+		t.Fatalf("unexpected close error: %v", err)
+	}
+	if closeResp == nil {
+		t.Fatal("expected non-nil close response")
+	}
+	if handler.closeCtx == nil || handler.closeCtx.CanvasID != "echo" {
+		t.Fatalf("unexpected close ctx: %+v", handler.closeCtx)
 	}
 }
 
-func TestClient_HandleCanvasOpen_NoHandler_ReturnsUnsetError(t *testing.T) {
-	session := &Session{SessionID: "s1"}
-	c := &Client{sessions: map[string]*Session{"s1": session}}
+func TestCanvasAdapter_NoHandler_ReturnsUnsetError(t *testing.T) {
+	session := newTestCanvasSession("s1")
 
-	_, rpcErr := c.handleCanvasOpen(canvasProviderRequestParams{SessionID: "s1"})
-	if rpcErr == nil {
-		t.Fatalf("expected error when no canvas handler installed")
-	}
-	if rpcErr.Code != -32603 {
-		t.Fatalf("expected internal-error code, got %d", rpcErr.Code)
-	}
-	var data map[string]string
-	if err := json.Unmarshal(rpcErr.Data, &data); err != nil {
-		t.Fatalf("invalid error data: %v", err)
-	}
-	if data["code"] != "canvas_handler_unset" {
-		t.Fatalf("expected code=canvas_handler_unset, got %q", data["code"])
-	}
+	_, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
+	assertCanvasJSONRPCError(t, err, "canvas_handler_unset", "")
 }
 
-func TestClient_HandleCanvasOpen_HandlerCanvasError_Wired(t *testing.T) {
-	handler := &recordingCanvasHandler{
+func TestCanvasAdapter_HandlerCanvasError_Wired(t *testing.T) {
+	session := newTestCanvasSession("s1")
+	session.registerCanvasHandler(&recordingCanvasHandler{
 		openErr: NewCanvasError("permission_denied", "nope"),
-	}
-	session := &Session{SessionID: "s1"}
-	session.registerCanvasHandler(handler)
-	c := &Client{sessions: map[string]*Session{"s1": session}}
+	})
 
-	_, rpcErr := c.handleCanvasOpen(canvasProviderRequestParams{SessionID: "s1"})
-	if rpcErr == nil {
-		t.Fatalf("expected error")
-	}
-	var data map[string]string
-	_ = json.Unmarshal(rpcErr.Data, &data)
-	if data["code"] != "permission_denied" {
-		t.Fatalf("expected propagated code, got %q", data["code"])
-	}
+	_, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
+	assertCanvasJSONRPCError(t, err, "permission_denied", "nope")
 }
 
-func TestClient_HandleCanvasOpen_HandlerGenericError_WrappedAsCanvasHandlerError(t *testing.T) {
-	handler := &recordingCanvasHandler{openErr: errors.New("boom")}
-	session := &Session{SessionID: "s1"}
-	session.registerCanvasHandler(handler)
-	c := &Client{sessions: map[string]*Session{"s1": session}}
+func TestCanvasAdapter_HandlerGenericError_WrappedAsCanvasHandlerError(t *testing.T) {
+	session := newTestCanvasSession("s1")
+	session.registerCanvasHandler(&recordingCanvasHandler{
+		openErr: errors.New("boom"),
+	})
 
-	_, rpcErr := c.handleCanvasOpen(canvasProviderRequestParams{SessionID: "s1"})
-	if rpcErr == nil {
-		t.Fatalf("expected error")
-	}
-	var data map[string]string
-	_ = json.Unmarshal(rpcErr.Data, &data)
-	if data["code"] != "canvas_handler_error" {
-		t.Fatalf("expected code=canvas_handler_error, got %q", data["code"])
-	}
-	if data["message"] != "boom" {
-		t.Fatalf("expected message=boom, got %q", data["message"])
-	}
+	_, err := session.clientSessionApis.Canvas.Open(&rpc.CanvasProviderOpenRequest{SessionID: "s1"})
+	assertCanvasJSONRPCError(t, err, "canvas_handler_error", "boom")
 }
 
-// Ensure the JSON-RPC inbound parsing wires through RequestHandlerFor correctly.
-func TestClient_HandleCanvasOpen_RawJSONRoundTrip(t *testing.T) {
-	handler := &recordingCanvasHandler{
-		openResult: CanvasOpenResponse{Status: strPtr("ready")},
-	}
-	session := &Session{SessionID: "s1"}
-	session.registerCanvasHandler(handler)
-	c := &Client{sessions: map[string]*Session{"s1": session}}
+func TestCanvasRegisterClientSessionApiHandlers_RawJSONRoundTrip(t *testing.T) {
+	clientToServerReader, clientToServerWriter := io.Pipe()
+	serverToClientReader, serverToClientWriter := io.Pipe()
 
-	rpcHandler := jsonrpc2.RequestHandlerFor(c.handleCanvasOpen)
-	raw := []byte(`{"sessionId":"s1","extensionId":"ext","canvasId":"echo","instanceId":"i1","input":{"k":"v"},"host":{"capabilities":{"canvases":true}}}`)
-	out, rpcErr := rpcHandler(raw)
-	if rpcErr != nil {
-		t.Fatalf("unexpected rpc error: %v", rpcErr)
+	requester := jsonrpc2.NewClient(clientToServerWriter, serverToClientReader)
+	server := jsonrpc2.NewClient(serverToClientWriter, clientToServerReader)
+	session := newTestCanvasSession("s1")
+	session.registerCanvasHandler(&recordingCanvasHandler{
+		openResult:   CanvasOpenResponse{Status: strPtr("ready")},
+		actionResult: map[string]any{"count": float64(2)},
+	})
+	rpc.RegisterClientSessionApiHandlers(server, func(sessionID string) *rpc.ClientSessionApiHandlers {
+		if sessionID == "s1" {
+			return session.clientSessionApis
+		}
+		return nil
+	})
+
+	requester.Start()
+	server.Start()
+	t.Cleanup(func() {
+		requester.Stop()
+		server.Stop()
+		_ = clientToServerWriter.Close()
+		_ = clientToServerReader.Close()
+		_ = serverToClientWriter.Close()
+		_ = serverToClientReader.Close()
+	})
+
+	raw, err := requester.Request("canvas.open", map[string]any{
+		"sessionId":   "s1",
+		"extensionId": "ext",
+		"canvasId":    "echo",
+		"instanceId":  "i1",
+		"input":       map[string]any{"k": "v"},
+		"host": map[string]any{
+			"capabilities": map[string]any{
+				"canvases": true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected rpc error: %v", err)
 	}
+
+	handler := session.getCanvasHandler().(*recordingCanvasHandler)
 	if handler.openCtx == nil {
 		t.Fatalf("handler not invoked")
 	}
-	if handler.openCtx.Host == nil || !handler.openCtx.Host.Capabilities.Canvases {
+	if handler.openCtx.Host == nil || handler.openCtx.Host.Capabilities == nil ||
+		handler.openCtx.Host.Capabilities.Canvases == nil || !*handler.openCtx.Host.Capabilities.Canvases {
 		t.Fatalf("host capabilities not parsed: %+v", handler.openCtx.Host)
 	}
+
 	var decoded map[string]any
-	if err := json.Unmarshal(out, &decoded); err != nil {
+	if err := json.Unmarshal(raw, &decoded); err != nil {
 		t.Fatalf("bad output JSON: %v", err)
 	}
 	if decoded["status"] != "ready" {
 		t.Fatalf("expected status=ready, got %v", decoded["status"])
 	}
+
+	actionRaw, err := requester.Request("canvas.invokeAction", map[string]any{
+		"sessionId":   "s1",
+		"extensionId": "ext",
+		"canvasId":    "echo",
+		"instanceId":  "i1",
+		"actionName":  "increment",
+		"input":       map[string]any{"amount": float64(2)},
+	})
+	if err != nil {
+		t.Fatalf("unexpected action rpc error: %v", err)
+	}
+	var actionDecoded map[string]any
+	if err := json.Unmarshal(actionRaw, &actionDecoded); err != nil {
+		t.Fatalf("bad action output JSON: %v", err)
+	}
+	if actionDecoded["count"] != float64(2) {
+		t.Fatalf("expected raw provider result, got %v", actionDecoded)
+	}
 }
 
-func TestResumeSessionResponse_OpenCanvasesParse(t *testing.T) {
+func TestCanvasResumeSessionResponse_OpenCanvasesParse(t *testing.T) {
 	raw := []byte(`{
 		"sessionId": "s1",
 		"workspacePath": "/tmp/ws",
@@ -265,7 +338,7 @@ func TestResumeSessionResponse_OpenCanvasesParse(t *testing.T) {
 	}
 }
 
-func TestResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
+func TestCanvasResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
 	req := resumeSessionRequest{
 		SessionID: "s1",
 		OpenCanvases: []rpc.OpenCanvasInstance{
@@ -301,7 +374,6 @@ func TestResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
 		t.Fatalf("expected instanceId=echo-1, got %v", first["instanceId"])
 	}
 
-	// Omitted when nil
 	empty := resumeSessionRequest{SessionID: "s1"}
 	emptyData, err := json.Marshal(empty)
 	if err != nil {
@@ -314,6 +386,41 @@ func TestResumeSessionRequest_OpenCanvasesWireShape(t *testing.T) {
 	if _, present := emptyDecoded["openCanvases"]; present {
 		t.Fatalf("openCanvases should be omitted when nil")
 	}
+}
+
+func assertCanvasJSONRPCError(t *testing.T, err error, wantCode, wantMessage string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	rpcErr, ok := err.(*jsonrpc2.Error)
+	if !ok {
+		t.Fatalf("expected *jsonrpc2.Error, got %T", err)
+	}
+	if rpcErr.Code != -32603 {
+		t.Fatalf("expected internal-error code, got %d", rpcErr.Code)
+	}
+
+	var data map[string]string
+	if err := json.Unmarshal(rpcErr.Data, &data); err != nil {
+		t.Fatalf("invalid error data: %v", err)
+	}
+	if data["code"] != wantCode {
+		t.Fatalf("expected code=%s, got %q", wantCode, data["code"])
+	}
+	if wantMessage != "" && data["message"] != wantMessage {
+		t.Fatalf("expected message=%q, got %q", wantMessage, data["message"])
+	}
+}
+
+func newTestCanvasSession(sessionID string) *Session {
+	session := &Session{
+		SessionID:         sessionID,
+		clientSessionApis: &rpc.ClientSessionApiHandlers{},
+	}
+	session.clientSessionApis.Canvas = newCanvasClientSessionAdapter(session)
+	return session
 }
 
 func strPtr(s string) *string { return &s }

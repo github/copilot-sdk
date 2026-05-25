@@ -25,8 +25,15 @@ from typing import TYPE_CHECKING, Any, Literal, NotRequired, Required, TypedDict
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcError, ProcessExitedError
 from ._telemetry import get_trace_context, trace_context
-from .canvas import CanvasHandler, OpenCanvasInstance
+from .canvas import CanvasError, CanvasHandler, OpenCanvasInstance
 from .generated.rpc import (
+    CanvasHandler as RpcCanvasHandler,
+)
+from .generated.rpc import (
+    CanvasProviderCloseRequest,
+    CanvasProviderInvokeActionRequest,
+    CanvasProviderOpenRequest,
+    CanvasProviderOpenResult,
     ClientSessionApiHandlers,
     CommandsHandlePendingCommandRequest,
     ExternalToolTextResultForLlm,
@@ -955,6 +962,29 @@ class ProviderConfig(TypedDict, total=False):
 SessionEventHandler = Callable[[SessionEvent], None]
 
 
+class _CanvasHandlerAdapter:
+    def __init__(self, handler: CanvasHandler) -> None:
+        self._handler = handler
+
+    async def open(self, params: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
+        try:
+            return await self._handler.on_open(params)
+        except CanvasError as err:
+            raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+
+    async def close(self, params: CanvasProviderCloseRequest) -> None:
+        try:
+            await self._handler.on_close(params)
+        except CanvasError as err:
+            raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+
+    async def invoke_action(self, params: CanvasProviderInvokeActionRequest) -> Any:
+        try:
+            return await self._handler.on_action(params)
+        except CanvasError as err:
+            raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+
+
 class CopilotSession:
     """
     Represents a single conversation session with the Copilot CLI.
@@ -1748,6 +1778,11 @@ class CopilotSession:
         """Register the canvas handler for this session."""
         with self._canvas_handler_lock:
             self._canvas_handler = handler
+            self._client_session_apis.canvas = (
+                cast(RpcCanvasHandler, _CanvasHandlerAdapter(handler))
+                if handler is not None
+                else None
+            )
 
     def _get_canvas_handler(self) -> CanvasHandler | None:
         with self._canvas_handler_lock:
