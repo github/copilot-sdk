@@ -925,6 +925,13 @@ pub struct CanvasCloseRequest {
 }
 
 /// Host capabilities
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasHostContextCapabilities {
@@ -934,6 +941,13 @@ pub struct CanvasHostContextCapabilities {
 }
 
 /// Host context supplied by the runtime.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasHostContext {
@@ -1100,6 +1114,13 @@ pub struct CanvasOpenRequest {
 }
 
 /// Canvas close parameters sent to the provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasProviderCloseRequest {
@@ -1117,6 +1138,13 @@ pub struct CanvasProviderCloseRequest {
 }
 
 /// Canvas action invocation parameters sent to the provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasProviderInvokeActionRequest {
@@ -1139,6 +1167,13 @@ pub struct CanvasProviderInvokeActionRequest {
 }
 
 /// Canvas open parameters sent to the provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasProviderOpenRequest {
@@ -1159,6 +1194,13 @@ pub struct CanvasProviderOpenRequest {
 }
 
 /// Canvas open result returned by the provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasProviderOpenResult {
@@ -5992,6 +6034,13 @@ pub struct SessionEnrichMetadataResult {
 }
 
 /// File path, content to append, and optional mode for the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsAppendFileRequest {
@@ -6007,6 +6056,13 @@ pub struct SessionFsAppendFileRequest {
 }
 
 /// Describes a filesystem error.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsError {
@@ -6018,6 +6074,13 @@ pub struct SessionFsError {
 }
 
 /// Path to test for existence in the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsExistsRequest {
@@ -6028,6 +6091,13 @@ pub struct SessionFsExistsRequest {
 }
 
 /// Indicates whether the requested path exists in the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsExistsResult {
@@ -6036,6 +6106,13 @@ pub struct SessionFsExistsResult {
 }
 
 /// Directory path to create in the client-provided session filesystem, with options for recursive creation and POSIX mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsMkdirRequest {
@@ -6052,6 +6129,13 @@ pub struct SessionFsMkdirRequest {
 }
 
 /// Directory path whose entries should be listed from the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirRequest {
@@ -6062,6 +6146,13 @@ pub struct SessionFsReaddirRequest {
 }
 
 /// Names of entries in the requested directory, or a filesystem error if the read failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirResult {
@@ -6073,6 +6164,13 @@ pub struct SessionFsReaddirResult {
 }
 
 /// Schema for the `SessionFsReaddirWithTypesEntry` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirWithTypesEntry {
@@ -6083,6 +6181,13 @@ pub struct SessionFsReaddirWithTypesEntry {
 }
 
 /// Directory path whose entries (with type information) should be listed from the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirWithTypesRequest {
@@ -6093,6 +6198,13 @@ pub struct SessionFsReaddirWithTypesRequest {
 }
 
 /// Entries in the requested directory paired with file/directory type information, or a filesystem error if the read failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReaddirWithTypesResult {
@@ -6104,6 +6216,13 @@ pub struct SessionFsReaddirWithTypesResult {
 }
 
 /// Path of the file to read from the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReadFileRequest {
@@ -6114,6 +6233,13 @@ pub struct SessionFsReadFileRequest {
 }
 
 /// File content as a UTF-8 string, or a filesystem error if the read failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsReadFileResult {
@@ -6125,6 +6251,13 @@ pub struct SessionFsReadFileResult {
 }
 
 /// Source and destination paths for renaming or moving an entry in the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsRenameRequest {
@@ -6137,6 +6270,13 @@ pub struct SessionFsRenameRequest {
 }
 
 /// Path to remove from the client-provided session filesystem, with options for recursive removal and force.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsRmRequest {
@@ -6185,6 +6325,13 @@ pub struct SessionFsSetProviderResult {
 }
 
 /// Indicates whether the per-session SQLite database already exists.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSqliteExistsResult {
@@ -6193,6 +6340,13 @@ pub struct SessionFsSqliteExistsResult {
 }
 
 /// SQL query, query type, and optional bind parameters for executing a SQLite query against the per-session database.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSqliteQueryRequest {
@@ -6208,6 +6362,13 @@ pub struct SessionFsSqliteQueryRequest {
 }
 
 /// Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSqliteQueryResult {
@@ -6226,6 +6387,13 @@ pub struct SessionFsSqliteQueryResult {
 }
 
 /// Path whose metadata should be returned from the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsStatRequest {
@@ -6236,6 +6404,13 @@ pub struct SessionFsStatRequest {
 }
 
 /// Filesystem metadata for the requested path, or a filesystem error if the stat failed.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsStatResult {
@@ -6255,6 +6430,13 @@ pub struct SessionFsStatResult {
 }
 
 /// File path, content to write, and optional mode for the client-provided session filesystem.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsWriteFileRequest {
@@ -11906,6 +12088,13 @@ pub struct SessionScheduleStopResult {
 }
 
 /// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionFsSqliteExistsParams {
@@ -11914,6 +12103,13 @@ pub struct SessionFsSqliteExistsParams {
 }
 
 /// Canvas open result returned by the provider.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasOpenResult {
@@ -13636,6 +13832,13 @@ pub enum SessionContextHostType {
 }
 
 /// Error classification
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsErrorCode {
     /// The requested path does not exist.
@@ -13649,6 +13852,13 @@ pub enum SessionFsErrorCode {
 }
 
 /// Entry type
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsReaddirWithTypesEntryType {
     /// The entry is a file.
@@ -13679,6 +13889,13 @@ pub enum SessionFsSetProviderConventions {
 }
 
 /// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SessionFsSqliteQueryType {
     /// Execute DDL or multi-statement SQL without returning rows.

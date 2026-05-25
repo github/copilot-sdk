@@ -7449,6 +7449,7 @@ internal sealed class ScheduleStopRequest
 }
 
 /// <summary>Describes a filesystem error.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsError
 {
     /// <summary>Error classification.</summary>
@@ -7461,6 +7462,7 @@ public sealed class SessionFsError
 }
 
 /// <summary>File content as a UTF-8 string, or a filesystem error if the read failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReadFileResult
 {
     /// <summary>File content as UTF-8 string.</summary>
@@ -7525,6 +7527,7 @@ public sealed class SessionFsAppendFileRequest
 }
 
 /// <summary>Indicates whether the requested path exists in the client-provided session filesystem.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsExistsResult
 {
     /// <summary>Whether the path exists.</summary>
@@ -7545,6 +7548,7 @@ public sealed class SessionFsExistsRequest
 }
 
 /// <summary>Filesystem metadata for the requested path, or a filesystem error if the stat failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsStatResult
 {
     /// <summary>ISO 8601 timestamp of creation.</summary>
@@ -7605,6 +7609,7 @@ public sealed class SessionFsMkdirRequest
 }
 
 /// <summary>Names of entries in the requested directory, or a filesystem error if the read failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReaddirResult
 {
     /// <summary>Entry names in the directory.</summary>
@@ -7629,6 +7634,7 @@ public sealed class SessionFsReaddirRequest
 }
 
 /// <summary>Schema for the `SessionFsReaddirWithTypesEntry` type.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReaddirWithTypesEntry
 {
     /// <summary>Entry name.</summary>
@@ -7641,6 +7647,7 @@ public sealed class SessionFsReaddirWithTypesEntry
 }
 
 /// <summary>Entries in the requested directory paired with file/directory type information, or a filesystem error if the read failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsReaddirWithTypesResult
 {
     /// <summary>Directory entries with type information.</summary>
@@ -7701,6 +7708,7 @@ public sealed class SessionFsRenameRequest
 }
 
 /// <summary>Query results including rows, columns, and rows affected, or a filesystem error if execution failed.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSqliteQueryResult
 {
     /// <summary>Column names from the result set.</summary>
@@ -7745,6 +7753,7 @@ public sealed class SessionFsSqliteQueryRequest
 }
 
 /// <summary>Indicates whether the per-session SQLite database already exists.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class SessionFsSqliteExistsResult
 {
     /// <summary>Whether the session database already exists.</summary>
@@ -7761,6 +7770,7 @@ public sealed class SessionFsSqliteExistsRequest
 }
 
 /// <summary>Canvas open result returned by the provider.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CanvasProviderOpenResult
 {
     /// <summary>Provider-supplied status text.</summary>
@@ -7777,6 +7787,7 @@ public sealed class CanvasProviderOpenResult
 }
 
 /// <summary>Host capabilities.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CanvasHostContextCapabilities
 {
     /// <summary>Whether canvas rendering is supported.</summary>
@@ -7785,6 +7796,7 @@ public sealed class CanvasHostContextCapabilities
 }
 
 /// <summary>Host context supplied by the runtime.</summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CanvasHostContext
 {
     /// <summary>Host capabilities.</summary>
@@ -11358,6 +11370,7 @@ public readonly struct RemoteSessionMode : IEquatable<RemoteSessionMode>
 
 
 /// <summary>Error classification.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
@@ -11420,6 +11433,7 @@ public readonly struct SessionFsErrorCode : IEquatable<SessionFsErrorCode>
 
 
 /// <summary>Entry type.</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFsReaddirWithTypesEntryType>
@@ -11482,6 +11496,7 @@ public readonly struct SessionFsReaddirWithTypesEntryType : IEquatable<SessionFs
 
 
 /// <summary>How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected).</summary>
+[Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct SessionFsSqliteQueryType : IEquatable<SessionFsSqliteQueryType>
@@ -14593,6 +14608,7 @@ public sealed class ScheduleApi
 }
 
 /// <summary>Handles `sessionFs` client session API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
 public interface ISessionFsHandler
 {
     /// <summary>Reads a file from the client-provided session filesystem.</summary>
@@ -14658,6 +14674,7 @@ public interface ISessionFsHandler
 }
 
 /// <summary>Handles `canvas` client session API methods.</summary>
+[Experimental(Diagnostics.Experimental)]
 public interface ICanvasHandler
 {
     /// <summary>Opens a canvas instance on the provider.</summary>
