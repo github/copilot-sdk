@@ -1034,6 +1034,10 @@ function transformOpenAIRequestMessage(
 
 function normalizeUserMessage(content: string): string {
   return normalizeSkillContextFrontmatter(content)
+    .replace(
+      /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g,
+      'Use read_agent with agent_id "$1" to retrieve the full results.',
+    )
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")

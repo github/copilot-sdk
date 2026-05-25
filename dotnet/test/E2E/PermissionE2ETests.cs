@@ -226,24 +226,46 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Handle_Permission_Handler_Errors_Gracefully()
     {
+        var permissionRequestReceived =
+            new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                // Simulate an error in the handler
+                permissionRequestReceived.TrySetResult(request);
                 throw new InvalidOperationException("Handler error");
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        try
         {
-            Prompt = "Run 'echo test'. If you can't, say 'failed'."
-        });
+            var exchanges = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions
+                {
+                    Prompt = "Run 'echo test'. If you can't, say 'failed'."
+                },
+                minimumCount: 2);
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+            var permissionRequest = await permissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.IsType<PermissionRequestShell>(permissionRequest);
 
-        // Should handle the error and deny permission
-        Assert.Matches("fail|cannot|unable|permission", message?.Data.Content?.ToLowerInvariant() ?? string.Empty);
+            var toolResultMessage = exchanges
+                .SelectMany(exchange => exchange.Request.Messages)
+                .LastOrDefault(message =>
+                    message.Role == "tool" &&
+                    message.StringContent?.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(toolResultMessage);
+            Assert.Contains(
+                "could not request permission",
+                toolResultMessage.StringContent ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]

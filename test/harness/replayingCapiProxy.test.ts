@@ -324,6 +324,38 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
   });
 
+  test("normalizes task completion notification wording", async () => {
+    const unreadNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve unread results.',
+      "</system_notification>",
+    ].join("\n");
+    const fullNotification = [
+      "<system_notification>",
+      'Agent "sdk-background-agent" (general-purpose) has completed successfully. Use read_agent with agent_id "sdk-background-agent" to retrieve the full results.',
+      "</system_notification>",
+    ].join("\n");
+
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: unreadNotification,
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Done" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(fullNotification);
+  });
+
   test("strips agent_instructions from user messages", async () => {
     const requestBody = JSON.stringify({
       messages: [
