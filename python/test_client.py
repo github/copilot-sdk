@@ -1069,7 +1069,14 @@ class TestPostToolUseFailureHookDispatch:
 
         result = await session._handle_hooks_invoke(
             "postToolUseFailure",
-            {"sessionId": "sess-x", "timestamp": 0, "cwd": "/", "toolName": "t", "toolArgs": None, "error": "e"},
+            {
+                "sessionId": "sess-x",
+                "timestamp": 0,
+                "cwd": "/",
+                "toolName": "t",
+                "toolArgs": None,
+                "error": "e",
+            },
         )
         assert result is None
 
@@ -1086,6 +1093,13 @@ class TestPostToolUseFailureHookDispatch:
 
         result = await session._handle_hooks_invoke(
             "postToolUseFailure",
-            {"sessionId": "sess-x", "timestamp": 0, "cwd": "/", "toolName": "t", "toolArgs": None, "error": "e"},
+            {
+                "sessionId": "sess-x",
+                "timestamp": 0,
+                "cwd": "/",
+                "toolName": "t",
+                "toolArgs": None,
+                "error": "e",
+            },
         )
         assert result == {"additionalContext": "sync-ok"}
