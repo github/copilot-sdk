@@ -236,22 +236,38 @@ class TestPermissions:
 
     async def test_should_handle_permission_handler_errors_gracefully(self, ctx: E2ETestContext):
         """Test that permission handler errors are handled gracefully"""
+        permission_request_received = asyncio.get_running_loop().create_future()
 
         def on_permission_request(
             request: PermissionRequest, invocation: dict
         ) -> PermissionRequestResult:
+            if not permission_request_received.done():
+                permission_request_received.set_result(request)
             raise RuntimeError("Handler error")
 
         session = await ctx.client.create_session(on_permission_request=on_permission_request)
+        try:
+            await session.send("Run 'echo test'. If you can't, say 'failed'.")
 
-        message = await session.send_and_wait("Run 'echo test'. If you can't, say 'failed'.")
+            permission_request = await asyncio.wait_for(
+                permission_request_received,
+                timeout=30,
+            )
+            assert permission_request.kind == "shell"
 
-        # Should handle the error and deny permission
-        assert message is not None
-        content_lower = message.data.content.lower()
-        assert any(word in content_lower for word in ["fail", "cannot", "unable", "permission"])
+            exchanges = await ctx.wait_for_exchanges(2, timeout=60)
+            tool_messages = [
+                message
+                for exchange in exchanges
+                for message in exchange["request"]["messages"]
+                if message.get("role") == "tool"
+                and "Permission denied" in str(message.get("content", ""))
+            ]
 
-        await session.disconnect()
+            assert tool_messages
+            assert "could not request permission" in tool_messages[-1]["content"]
+        finally:
+            await session.disconnect()
 
     async def test_should_receive_toolcallid_in_permission_requests(self, ctx: E2ETestContext):
         """Test that toolCallId is included in permission requests"""
