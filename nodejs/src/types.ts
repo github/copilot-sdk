@@ -1110,6 +1110,51 @@ export type PostToolUseHandler = (
 ) => Promise<PostToolUseHookOutput | void> | PostToolUseHookOutput | void;
 
 /**
+ * Input for post-tool-use-failure hook.
+ *
+ * Dispatched after a tool execution whose `resultType` is `"failure"`.
+ * The input differs from {@link PostToolUseHookInput}: the host CLI does not
+ * forward the full `ToolResultObject` to failure hooks — only `error`, the
+ * stringified failure message extracted from the tool's result, is provided.
+ */
+export interface PostToolUseFailureHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+    /**
+     * Failure message from the tool's result (the `error` field of the
+     * underlying `ToolResultObject`, falling back to its text/log fields).
+     */
+    error: string;
+}
+
+/**
+ * Output for post-tool-use-failure hook.
+ *
+ * Only `additionalContext` is consumed by the host CLI — it is appended as
+ * hidden guidance to the model alongside the failed tool result. Other fields
+ * such as `modifiedResult` or `suppressOutput` are not honored for failure
+ * hooks (see {@link PostToolUseHookOutput} for the success-only hook).
+ */
+export interface PostToolUseFailureHookOutput {
+    additionalContext?: string;
+}
+
+/**
+ * Handler for post-tool-use-failure hook.
+ *
+ * Fires after a tool execution whose result was `"failure"`. `onPostToolUse`
+ * only fires for successful results, so register this handler to observe or
+ * react to failed tool outcomes.
+ *
+ * Note: `"rejected"`, `"denied"`, and `"timeout"` results do not currently
+ * trigger this hook either — only `"failure"` does.
+ */
+export type PostToolUseFailureHandler = (
+    input: PostToolUseFailureHookInput,
+    invocation: { sessionId: string }
+) => Promise<PostToolUseFailureHookOutput | void> | PostToolUseFailureHookOutput | void;
+
+/**
  * Input for user-prompt-submitted hook
  */
 export interface UserPromptSubmittedHookInput extends BaseHookInput {
@@ -1225,9 +1270,21 @@ export interface SessionHooks {
     onPreMcpToolCall?: PreMcpToolCallHandler;
 
     /**
-     * Called after a tool is executed
+     * Called after a tool is executed with a successful result.
+     *
+     * For failed tool executions, register {@link onPostToolUseFailure} instead;
+     * this handler does not fire for non-success results.
      */
     onPostToolUse?: PostToolUseHandler;
+
+    /**
+     * Called after a tool execution whose result was `"failure"`.
+     *
+     * Register this handler alongside {@link onPostToolUse} to observe failed
+     * tool calls — `onPostToolUse` only fires for successful results, so
+     * without this hook failed tool calls are invisible to extensions.
+     */
+    onPostToolUseFailure?: PostToolUseFailureHandler;
 
     /**
      * Called when the user submits a prompt

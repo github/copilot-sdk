@@ -1,0 +1,24 @@
+models:
+  - claude-sonnet-4.5
+conversations:
+  - messages:
+      - role: system
+        content: ${system}
+      - role: user
+        content: Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.
+      - role: assistant
+        tool_calls:
+          - id: toolcall_0
+            type: function
+            function:
+              name: view
+              arguments: '{"path":"${workdir}/missing.txt"}'
+      - role: tool
+        tool_call_id: toolcall_0
+        content: Tool 'view' does not exist. Available tools that can be called are report_intent.
+      - role: user
+        content: |-
+          Tool "view" failed. Additional guidance from postToolUseFailure hook:
+          HOOK_FAILURE_GUIDANCE_APPLIED
+      - role: assistant
+        content: HOOK_FAILURE_GUIDANCE_APPLIED

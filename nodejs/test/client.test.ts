@@ -1728,4 +1728,177 @@ describe("CopilotClient", () => {
             expect((client as any).options.sessionIdleTimeoutSeconds).toBe(600);
         });
     });
+
+    describe("hooks dispatcher", () => {
+        // Direct unit tests for CopilotSession._handleHooksInvoke. The hook
+        // dispatch logic maps the CLI-emitted hook type (string) to the
+        // corresponding SessionHooks handler. These tests guard against
+        // regressions like the one fixed for postToolUseFailure (issue #1220).
+
+        it("dispatches postToolUseFailure to onPostToolUseFailure handler", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUseFailure: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { additionalContext: "failure observed" };
+                    },
+                },
+            });
+
+            const failureInput = {
+                toolName: "failing-tool",
+                toolArgs: { foo: "bar" },
+                error: "exit 1",
+                timestamp: 1234,
+                cwd: "/tmp",
+            };
+            const expectedInput = {
+                toolName: "failing-tool",
+                toolArgs: { foo: "bar" },
+                error: "exit 1",
+                timestamp: new Date(1234),
+                workingDirectory: "/tmp",
+            };
+            const result = await (session as any)._handleHooksInvoke(
+                "postToolUseFailure",
+                failureInput
+            );
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual(expectedInput);
+            expect(received[0].invocation.sessionId).toBe(session.sessionId);
+            expect(result).toEqual({ additionalContext: "failure observed" });
+        });
+
+        it("does not fall back to onPostToolUse for postToolUseFailure events", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const postUseCalls: string[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    // Only onPostToolUse registered; postToolUseFailure events
+                    // must not be routed here.
+                    onPostToolUse: async (input) => {
+                        postUseCalls.push(input.toolName);
+                    },
+                },
+            });
+
+            const result = await (session as any)._handleHooksInvoke("postToolUseFailure", {
+                toolName: "failing-tool",
+                toolArgs: {},
+                error: "boom",
+                timestamp: 0,
+                cwd: "/tmp",
+            });
+
+            expect(postUseCalls).toHaveLength(0);
+            expect(result).toBeUndefined();
+        });
+
+        it("dispatches postToolUse and postToolUseFailure to their respective handlers", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const postCalls: string[] = [];
+            const failureCalls: string[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUse: async (input) => {
+                        postCalls.push(input.toolName);
+                    },
+                    onPostToolUseFailure: async (input) => {
+                        failureCalls.push(input.toolName);
+                    },
+                },
+            });
+
+            await (session as any)._handleHooksInvoke("postToolUse", {
+                toolName: "success-tool",
+                toolArgs: {},
+                toolResult: {
+                    textResultForLlm: "ok",
+                    resultType: "success" as const,
+                },
+                timestamp: 0,
+                cwd: "/tmp",
+            });
+            await (session as any)._handleHooksInvoke("postToolUseFailure", {
+                toolName: "fail-tool",
+                toolArgs: {},
+                error: "bad",
+                timestamp: 0,
+                cwd: "/tmp",
+            });
+
+            expect(postCalls).toEqual(["success-tool"]);
+            expect(failureCalls).toEqual(["fail-tool"]);
+        });
+
+        it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
+            // Validates the full JSON-RPC entry point used by the CLI:
+            // CopilotClient.handleHooksInvoke({sessionId, hookType, input})
+            // → CopilotSession._handleHooksInvoke(hookType, input)
+            // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
+            //
+            // This guards the wire-format contract that the bundled Copilot
+            // CLI relies on: the hookType string "postToolUseFailure" and the
+            // input shape `{toolName, toolArgs, error, timestamp, cwd}`.
+            // The SDK maps that to public `{..., timestamp: Date, workingDirectory}`.
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUseFailure: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { additionalContext: "context from failure hook" };
+                    },
+                },
+            });
+
+            const failureInput = {
+                toolName: "shell",
+                toolArgs: { command: "false" },
+                error: "exit 1",
+                timestamp: 1700000000000,
+                cwd: "/tmp",
+            };
+
+            const response = await (client as any).handleHooksInvoke({
+                sessionId: session.sessionId,
+                hookType: "postToolUseFailure",
+                input: failureInput,
+            });
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual({
+                toolName: "shell",
+                toolArgs: { command: "false" },
+                error: "exit 1",
+                timestamp: new Date(1700000000000),
+                workingDirectory: "/tmp",
+            });
+            expect(received[0].invocation.sessionId).toBe(session.sessionId);
+            // The CLI only consumes output.additionalContext; the SDK returns
+            // it wrapped in `{ output }` per the JSON-RPC contract.
+            expect(response).toEqual({
+                output: { additionalContext: "context from failure hook" },
+            });
+        });
+    });
 });

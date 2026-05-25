@@ -4,6 +4,7 @@ CopilotClient Unit Tests
 This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.py instead.
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -1020,3 +1021,71 @@ class TestCustomAgentWireFormat:
         }
         wire = client._convert_custom_agent_to_wire_format(agent)
         assert "model" not in wire
+
+
+class TestPostToolUseFailureHookDispatch:
+    """Unit tests for the postToolUseFailure handler dispatch."""
+
+    @pytest.mark.asyncio
+    async def test_dispatches_to_on_post_tool_use_failure(self):
+        from copilot.session import CopilotSession, SessionHooks
+
+        captured: dict = {}
+
+        async def on_failure(input_data, invocation):
+            captured["input"] = input_data
+            captured["invocation"] = invocation
+            return {"additionalContext": f"saw {input_data['toolName']}: {input_data['error']}"}
+
+        session = CopilotSession.__new__(CopilotSession)
+        CopilotSession.__init__(session, "sess-123", client=None)
+        session._hooks = SessionHooks(on_post_tool_use_failure=on_failure)  # type: ignore[typeddict-item]
+
+        result = await session._handle_hooks_invoke(
+            "postToolUseFailure",
+            {
+                "sessionId": "sess-x",
+                "timestamp": 1700000000,
+                "cwd": "/work",
+                "toolName": "tool-x",
+                "toolArgs": {"foo": "bar"},
+                "error": "boom",
+            },
+        )
+        assert result == {"additionalContext": "saw tool-x: boom"}
+        assert captured["input"]["toolName"] == "tool-x"
+        assert captured["input"]["workingDirectory"] == "/work"
+        assert captured["input"]["timestamp"] == datetime.fromtimestamp(1700000000 / 1000, tz=UTC)
+        assert captured["invocation"] == {"session_id": "sess-123"}
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_handler_registered(self):
+        from copilot.session import CopilotSession, SessionHooks
+
+        session = CopilotSession.__new__(CopilotSession)
+        CopilotSession.__init__(session, "sess-x", client=None)
+        # Hooks registered, but no postToolUseFailure handler -> dispatch returns None.
+        session._hooks = SessionHooks(on_post_tool_use=lambda i, v: None)  # type: ignore[typeddict-item]
+
+        result = await session._handle_hooks_invoke(
+            "postToolUseFailure",
+            {"sessionId": "sess-x", "timestamp": 0, "cwd": "/", "toolName": "t", "toolArgs": None, "error": "e"},
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_sync_handler_works(self):
+        from copilot.session import CopilotSession, SessionHooks
+
+        def on_failure(input_data, invocation):
+            return {"additionalContext": "sync-ok"}
+
+        session = CopilotSession.__new__(CopilotSession)
+        CopilotSession.__init__(session, "sess-y", client=None)
+        session._hooks = SessionHooks(on_post_tool_use_failure=on_failure)  # type: ignore[typeddict-item]
+
+        result = await session._handle_hooks_invoke(
+            "postToolUseFailure",
+            {"sessionId": "sess-x", "timestamp": 0, "cwd": "/", "toolName": "t", "toolArgs": None, "error": "e"},
+        )
+        assert result == {"additionalContext": "sync-ok"}

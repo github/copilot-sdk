@@ -3,9 +3,10 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::hooks::{
-    ErrorOccurredInput, ErrorOccurredOutput, HookContext, PostToolUseInput, PostToolUseOutput,
-    PreToolUseInput, PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks,
-    SessionStartInput, SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
+    ErrorOccurredInput, ErrorOccurredOutput, HookContext, PostToolUseFailureInput,
+    PostToolUseFailureOutput, PostToolUseInput, PostToolUseOutput, PreToolUseInput,
+    PreToolUseOutput, SessionEndInput, SessionEndOutput, SessionHooks, SessionStartInput,
+    SessionStartOutput, UserPromptSubmittedInput, UserPromptSubmittedOutput,
 };
 use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
@@ -360,6 +361,57 @@ async fn should_allow_posttooluse_to_return_modifiedresult() {
     .await;
 }
 
+#[tokio::test]
+async fn should_invoke_posttoolusefailure_hook_for_failed_tool_result() {
+    with_e2e_context(
+        "hooks_extended",
+        "should_invoke_posttoolusefailure_hook_for_failed_tool_result",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (failure_tx, mut failure_rx) = mpsc::unbounded_channel();
+                let (post_tx, mut post_rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_available_tools(["report_intent"])
+                            .with_hooks(Arc::new(RecordingHooks::post_tool_failure(
+                                failure_tx, post_tx,
+                            ))),
+                    )
+                    .await
+                    .expect("create session");
+
+                let answer = session
+                    .send_and_wait(
+                        "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.",
+                    )
+                    .await
+                    .expect("send")
+                    .expect("assistant message");
+
+                let input =                 recv_with_timeout(&mut failure_rx, "postToolUseFailure hook").await;
+                assert!(post_rx.try_recv().is_err());
+                assert_eq!(input.tool_name, "view");
+                assert!(input.error.contains("does not exist"));
+                assert!(input.tool_args["path"]
+                .as_str()
+                .is_some_and(|path| path.contains("missing.txt")));
+                assert!(input.timestamp > 0);
+                assert!(!input.working_directory.as_os_str().is_empty());
+                assert!(
+                    assistant_message_content(&answer).contains("HOOK_FAILURE_GUIDANCE_APPLIED")
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
 #[derive(Default)]
 struct RecordingHooks {
     session_start: Option<mpsc::UnboundedSender<SessionStartInput>>,
@@ -372,6 +424,7 @@ struct RecordingHooks {
     error_output: Option<ErrorOccurredOutput>,
     pre_tool: Option<mpsc::UnboundedSender<PreToolUseInput>>,
     post_tool: Option<mpsc::UnboundedSender<PostToolUseInput>>,
+    post_tool_failure: Option<mpsc::UnboundedSender<PostToolUseFailureInput>>,
 }
 
 impl RecordingHooks {
@@ -429,6 +482,17 @@ impl RecordingHooks {
     fn post_tool(tx: mpsc::UnboundedSender<PostToolUseInput>) -> Self {
         Self {
             post_tool: Some(tx),
+            ..Self::default()
+        }
+    }
+
+    fn post_tool_failure(
+        failure_tx: mpsc::UnboundedSender<PostToolUseFailureInput>,
+        post_tx: mpsc::UnboundedSender<PostToolUseInput>,
+    ) -> Self {
+        Self {
+            post_tool: Some(post_tx),
+            post_tool_failure: Some(failure_tx),
             ..Self::default()
         }
     }
@@ -532,6 +596,20 @@ impl SessionHooks for RecordingHooks {
             let _ = tx.send(input);
         }
         output
+    }
+
+    async fn on_post_tool_use_failure(
+        &self,
+        input: PostToolUseFailureInput,
+        ctx: HookContext,
+    ) -> Option<PostToolUseFailureOutput> {
+        assert!(!ctx.session_id.as_str().is_empty());
+        if let Some(tx) = &self.post_tool_failure {
+            let _ = tx.send(input);
+        }
+        Some(PostToolUseFailureOutput {
+            additional_context: Some("HOOK_FAILURE_GUIDANCE_APPLIED".to_string()),
+        })
     }
 }
 

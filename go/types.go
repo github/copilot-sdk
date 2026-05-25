@@ -446,6 +446,55 @@ type PostToolUseHookOutput struct {
 // PostToolUseHandler handles post-tool-use hook invocations
 type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocation) (*PostToolUseHookOutput, error)
 
+// PostToolUseFailureHookInput is the input for a post-tool-use-failure hook.
+//
+// Fires after a tool execution whose result was "failure". The CLI extracts
+// the failure message from the tool result and passes it as the Error field
+// (rather than passing the full result object).
+type PostToolUseFailureHookInput struct {
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ToolName         string    `json:"toolName"`
+	ToolArgs         any       `json:"toolArgs"`
+	// Error is the failure message from the tool's result.
+	Error string `json:"error"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PostToolUseFailureHookInput) MarshalJSON() ([]byte, error) {
+	type alias PostToolUseFailureHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PostToolUseFailureHookInput) UnmarshalJSON(data []byte) error {
+	type alias PostToolUseFailureHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
+}
+
+// PostToolUseFailureHookOutput is the output for a post-tool-use-failure hook.
+//
+// Only AdditionalContext is consumed by the host CLI — it is appended as
+// hidden guidance to the model alongside the failed tool result.
+type PostToolUseFailureHookOutput struct {
+	AdditionalContext string `json:"additionalContext,omitempty"`
+}
+
+// PostToolUseFailureHandler handles post-tool-use-failure hook invocations.
+type PostToolUseFailureHandler func(input PostToolUseFailureHookInput, invocation HookInvocation) (*PostToolUseFailureHookOutput, error)
+
 // UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
 type UserPromptSubmittedHookInput struct {
 	SessionID        string    `json:"sessionId"`
@@ -667,6 +716,7 @@ type HookInvocation struct {
 type SessionHooks struct {
 	OnPreToolUse          PreToolUseHandler
 	OnPostToolUse         PostToolUseHandler
+	OnPostToolUseFailure  PostToolUseFailureHandler
 	OnUserPromptSubmitted UserPromptSubmittedHandler
 	OnSessionStart        SessionStartHandler
 	OnSessionEnd          SessionEndHandler

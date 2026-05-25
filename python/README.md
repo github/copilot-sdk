@@ -696,6 +696,15 @@ async def on_post_tool_use(input, invocation):
         "additionalContext": "Post-execution notes",
     }
 
+async def on_post_tool_use_failure(input, invocation):
+    # Fires when a tool's result was a failure. `on_post_tool_use` only fires
+    # on success, so register this handler to observe failed tool calls. The
+    # CLI extracts the failure message and passes it as the `error` field.
+    print(f"Tool {input['toolName']} failed: {input['error']}")
+    return {
+        "additionalContext": f"Retry guidance for {input['toolName']}",
+    }
+
 async def on_user_prompt_submitted(input, invocation):
     print(f"User prompt: {input['prompt']}")
     return {
@@ -723,6 +732,7 @@ async with await client.create_session(
     hooks={
         "on_pre_tool_use": on_pre_tool_use,
         "on_post_tool_use": on_post_tool_use,
+        "on_post_tool_use_failure": on_post_tool_use_failure,
         "on_user_prompt_submitted": on_user_prompt_submitted,
         "on_session_start": on_session_start,
         "on_session_end": on_session_end,
@@ -735,7 +745,8 @@ async with await client.create_session(
 **Available hooks:**
 
 - `on_pre_tool_use` - Intercept tool calls before execution. Can allow/deny or modify arguments.
-- `on_post_tool_use` - Process tool results after execution. Can modify results or add context.
+- `on_post_tool_use` - Process tool results after successful execution. Can modify results or add context.
+- `on_post_tool_use_failure` - Observe failed tool executions and inject extra context to guide the model's next step.
 - `on_user_prompt_submitted` - Intercept user prompts. Can modify the prompt before processing.
 - `on_session_start` - Run logic when a session starts or resumes.
 - `on_session_end` - Cleanup or logging when session ends.
