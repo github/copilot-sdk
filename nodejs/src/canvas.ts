@@ -11,9 +11,18 @@
  * routes those requests by `canvasId` to the in-process handlers bound by
  * `createCanvas`. Re-opening with an existing `instanceId` is how the host
  * focuses an existing panel; reload is a renderer-only concern.
+ *
+ * **Experimental.** All exports in this module are part of an experimental
+ * wire-protocol surface and may change or be removed in future SDK or CLI
+ * releases.
  */
 
-/** JSON Schema object used for canvas inputs. */
+/**
+ * JSON Schema object used for canvas inputs.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
 export type CanvasJsonSchema = Record<string, unknown>;
 
 /**
@@ -24,6 +33,9 @@ export type CanvasJsonSchema = Record<string, unknown>;
  *
  * Names MUST NOT start with `canvas.` — that prefix is reserved for
  * lifecycle verbs.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
  */
 export interface CanvasAction {
     /** Action identifier, unique within the canvas. */
@@ -39,6 +51,9 @@ export interface CanvasAction {
 /**
  * Declarative metadata for a single canvas, serialized over the wire on
  * `session.create` / `session.resume`.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
  */
 export interface CanvasDeclaration {
     /** Canvas id, unique within the declaring connection. */
@@ -53,7 +68,12 @@ export interface CanvasDeclaration {
     actions?: Omit<CanvasAction, "handler">[];
 }
 
-/** Response returned from `open`. */
+/**
+ * Response returned from `open`.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
 export interface CanvasOpenResponse {
     /** URL the host should render. Optional for native canvases. */
     url?: string;
@@ -63,14 +83,33 @@ export interface CanvasOpenResponse {
     status?: string;
 }
 
-/** Host capabilities passed to canvas callbacks. */
-export interface CanvasHostContext {
-    capabilities?: {
-        canvases?: boolean;
-    };
+/**
+ * Host capability flags carried by {@link CanvasHostContext.capabilities}.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
+export interface CanvasHostCapabilities {
+    /** Whether the host supports canvas rendering. */
+    canvases?: boolean;
 }
 
-/** Context handed to a canvas's `open` handler. */
+/**
+ * Host capabilities passed to canvas callbacks.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
+export interface CanvasHostContext {
+    capabilities?: CanvasHostCapabilities;
+}
+
+/**
+ * Context handed to a canvas's `open` handler.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
 export interface CanvasOpenContext {
     /** Session that requested the canvas. */
     sessionId: string;
@@ -86,7 +125,12 @@ export interface CanvasOpenContext {
     host?: CanvasHostContext;
 }
 
-/** Context handed to a canvas action handler. */
+/**
+ * Context handed to a canvas action handler.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
 export interface CanvasActionContext {
     /** Session that invoked the action. */
     sessionId: string;
@@ -104,7 +148,12 @@ export interface CanvasActionContext {
     host?: CanvasHostContext;
 }
 
-/** Context handed to a canvas's `onClose` handler. */
+/**
+ * Context handed to a canvas's `onClose` handler.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
 export interface CanvasLifecycleContext {
     /** Session owning the canvas instance. */
     sessionId: string;
@@ -118,7 +167,12 @@ export interface CanvasLifecycleContext {
     host?: CanvasHostContext;
 }
 
-/** Structured error returned from canvas handlers. */
+/**
+ * Structured error returned from canvas handlers.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
+ */
 export class CanvasError extends Error {
     constructor(
         public readonly code: string,
@@ -140,6 +194,9 @@ export class CanvasError extends Error {
 /**
  * Options accepted by {@link createCanvas}. Combines the declarative
  * {@link CanvasDeclaration} fields with the in-process handler closures.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
  */
 export interface CanvasOptions {
     /** @see CanvasDeclaration.id */
@@ -175,6 +232,9 @@ export interface CanvasOptions {
  * ergonomics) where other SDKs (Rust, Python, Go, .NET) expose a single
  * `CanvasHandler` per session that switches on `canvasId`. Both shapes target
  * the same JSON-RPC wire protocol; the divergence is API ergonomics only.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
  */
 export class Canvas {
     readonly declaration: CanvasDeclaration;
@@ -212,6 +272,9 @@ export class Canvas {
  * `DefineTool`'s co-location ergonomics) where other SDKs (Rust, Python, Go,
  * .NET) expose a single `CanvasHandler` per session that switches on
  * `canvasId`. Both shapes target the same JSON-RPC wire protocol.
+ *
+ * @experimental Part of an experimental wire-protocol surface; may change or
+ * be removed in future SDK or CLI releases.
  */
 export function createCanvas(options: CanvasOptions): Canvas {
     return new Canvas(options);

@@ -7,6 +7,12 @@ canvases. The SDK forwards every such request to a single user-supplied
 :class:`CanvasHandler`; multiplexing across multiple declared canvases is
 the implementor's responsibility (e.g. by switching on
 :attr:`CanvasOpenContext.canvas_id`).
+
+.. note::
+
+    **Experimental.** All exports in this module are part of an experimental
+    wire-protocol surface and may change or be removed in future SDK or CLI
+    releases.
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ __all__ = [
 ]
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class ExtensionInfo:
     """Stable extension identity for session participants that provide canvases.
@@ -50,6 +57,7 @@ class ExtensionInfo:
         return {"source": self.source, "name": self.name}
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasDeclaration:
     """Declarative metadata for a single canvas, sent on
@@ -84,6 +92,7 @@ class CanvasDeclaration:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasOpenResponse:
     """Response returned from :meth:`CanvasHandler.on_open`."""
@@ -108,6 +117,7 @@ class CanvasOpenResponse:
         return result
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasHostCapabilities:
     """Host capability details passed to canvas provider callbacks."""
@@ -122,6 +132,7 @@ class CanvasHostCapabilities:
         return CanvasHostCapabilities(canvases=bool(obj.get("canvases", False)))
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasHostContext:
     """Host capabilities passed to canvas provider callbacks."""
@@ -138,6 +149,7 @@ class CanvasHostContext:
         )
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasOpenContext:
     """Context handed to :meth:`CanvasHandler.on_open`."""
@@ -161,6 +173,7 @@ class CanvasOpenContext:
     """Host capabilities supplied by the runtime."""
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasActionContext:
     """Context handed to :meth:`CanvasHandler.on_action`."""
@@ -187,6 +200,7 @@ class CanvasActionContext:
     """Host capabilities supplied by the runtime."""
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 @dataclass
 class CanvasLifecycleContext:
     """Context handed to a canvas's close lifecycle hook."""
@@ -207,6 +221,7 @@ class CanvasLifecycleContext:
     """Host capabilities supplied by the runtime."""
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class CanvasError(Exception):
     """Structured error returned from canvas handlers.
 
@@ -241,6 +256,7 @@ class CanvasError(Exception):
         )
 
 
+# Experimental: this type is part of an experimental API and may change or be removed.
 class CanvasHandler(ABC):
     """Provider-side canvas lifecycle handler.
 

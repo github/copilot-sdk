@@ -14,6 +14,8 @@ import (
 
 // CanvasDeclaration is the declarative metadata for a single canvas, sent over
 // the wire on `session.create` / `session.resume`.
+//
+// Experimental: CanvasDeclaration is part of an experimental API and may change or be removed.
 type CanvasDeclaration struct {
 	// ID is the canvas identifier, unique within the declaring connection.
 	ID string `json:"id"`
@@ -28,6 +30,8 @@ type CanvasDeclaration struct {
 }
 
 // CanvasOpenResponse is the response returned from CanvasHandler.OnOpen.
+//
+// Experimental: CanvasOpenResponse is part of an experimental API and may change or be removed.
 type CanvasOpenResponse struct {
 	// URL the host should render. Optional for canvases with no visual surface.
 	URL *string `json:"url,omitempty"`
@@ -38,18 +42,24 @@ type CanvasOpenResponse struct {
 }
 
 // CanvasHostContext carries host capability hints passed to canvas provider callbacks.
+//
+// Experimental: CanvasHostContext is part of an experimental API and may change or be removed.
 type CanvasHostContext struct {
 	// Capabilities describes host feature support relevant to canvases.
 	Capabilities CanvasHostCapabilities `json:"capabilities"`
 }
 
 // CanvasHostCapabilities describes host capability details passed to canvas provider callbacks.
+//
+// Experimental: CanvasHostCapabilities is part of an experimental API and may change or be removed.
 type CanvasHostCapabilities struct {
 	// Canvases indicates whether the host supports canvas rendering.
 	Canvases bool `json:"canvases"`
 }
 
 // CanvasOpenContext is the context handed to CanvasHandler.OnOpen.
+//
+// Experimental: CanvasOpenContext is part of an experimental API and may change or be removed.
 type CanvasOpenContext struct {
 	// SessionID is the session that requested the canvas.
 	SessionID string
@@ -66,6 +76,8 @@ type CanvasOpenContext struct {
 }
 
 // CanvasActionContext is the context handed to CanvasHandler.OnAction.
+//
+// Experimental: CanvasActionContext is part of an experimental API and may change or be removed.
 type CanvasActionContext struct {
 	// SessionID is the session that invoked the action.
 	SessionID string
@@ -84,6 +96,8 @@ type CanvasActionContext struct {
 }
 
 // CanvasLifecycleContext is the context handed to a canvas's close lifecycle hook.
+//
+// Experimental: CanvasLifecycleContext is part of an experimental API and may change or be removed.
 type CanvasLifecycleContext struct {
 	// SessionID is the session owning the canvas instance.
 	SessionID string
@@ -102,6 +116,8 @@ type CanvasLifecycleContext struct {
 // Wire envelope:
 //
 //	{ "code": "<code>", "message": "<message>" }
+//
+// Experimental: CanvasError is part of an experimental API and may change or be removed.
 type CanvasError struct {
 	// Code is the machine-readable error code.
 	Code string `json:"code"`
@@ -115,11 +131,15 @@ func (e *CanvasError) Error() string {
 }
 
 // NewCanvasError constructs a new error envelope with the given code and message.
+//
+// Experimental: NewCanvasError is part of an experimental API and may change or be removed.
 func NewCanvasError(code, message string) *CanvasError {
 	return &CanvasError{Code: code, Message: message}
 }
 
 // CanvasErrorNoHandler is the default error returned when a custom action has no handler.
+//
+// Experimental: CanvasErrorNoHandler is part of an experimental API and may change or be removed.
 func CanvasErrorNoHandler() *CanvasError {
 	return NewCanvasError(
 		"canvas_action_no_handler",
@@ -140,6 +160,8 @@ func CanvasErrorNoHandler() *CanvasError {
 //
 // Embed CanvasHandlerDefaults to inherit no-op defaults for OnClose and a
 // "no handler" error for OnAction.
+//
+// Experimental: CanvasHandler is part of an experimental API and may change or be removed.
 type CanvasHandler interface {
 	OnOpen(ctx context.Context, c CanvasOpenContext) (CanvasOpenResponse, error)
 	OnClose(ctx context.Context, c CanvasLifecycleContext) error
@@ -155,6 +177,8 @@ type CanvasHandler interface {
 //	    copilot.CanvasHandlerDefaults
 //	}
 //	func (h *myHandler) OnOpen(ctx context.Context, c copilot.CanvasOpenContext) (copilot.CanvasOpenResponse, error) { ... }
+//
+// Experimental: CanvasHandlerDefaults is part of an experimental API and may change or be removed.
 type CanvasHandlerDefaults struct{}
 
 // OnClose returns nil by default.
@@ -224,6 +248,8 @@ func (p *canvasInvokeParams) toActionContext() CanvasActionContext {
 
 // ExtensionInfo carries stable extension identity for session participants
 // that provide canvases.
+//
+// Experimental: ExtensionInfo is part of an experimental API and may change or be removed.
 type ExtensionInfo struct {
 	// Source is the extension namespace/source, e.g. "github-app".
 	Source string `json:"source"`

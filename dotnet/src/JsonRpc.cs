@@ -486,6 +486,13 @@ internal sealed partial class JsonRpc : IDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // `InvokeHandlerAsync` dispatches handlers via reflection
+                // (`Delegate.DynamicInvoke` / `MethodInfo.Invoke`), which wraps
+                // any exception thrown inside the user-supplied handler in a
+                // `TargetInvocationException`. Unwrap so we surface the original
+                // failure (e.g. `LocalRpcInvocationException`, `CanvasException`)
+                // to the JSON-RPC error response instead of the reflection
+                // wrapper.
                 var actual = ex is TargetInvocationException tie && tie.InnerException != null ? tie.InnerException : ex;
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {

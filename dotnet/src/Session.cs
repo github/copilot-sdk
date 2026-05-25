@@ -914,7 +914,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             return await handler.OnOpenAsync(ctx, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (CanvasError ce)
+        catch (CanvasException ce)
         {
             throw CanvasErrorHelpers.ToRpcException(ce);
         }
@@ -943,7 +943,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             await handler.OnCloseAsync(ctx, CancellationToken.None).ConfigureAwait(false);
         }
-        catch (CanvasError ce)
+        catch (CanvasException ce)
         {
             throw CanvasErrorHelpers.ToRpcException(ce);
         }
@@ -977,7 +977,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             var result = await handler.OnActionAsync(ctx, CancellationToken.None).ConfigureAwait(false);
             return SerializeActionResult(result);
         }
-        catch (CanvasError ce)
+        catch (CanvasException ce)
         {
             throw CanvasErrorHelpers.ToRpcException(ce);
         }
@@ -987,15 +987,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
         }
     }
 
+    // Cached JsonElement representing the JSON literal `null`. Hoisted because
+    // canvas action handlers frequently return null/void, and parsing "null"
+    // on every call would allocate a fresh JsonDocument.
+    private static readonly JsonElement NullJsonElement = JsonSerializer.SerializeToElement<object?>(null, TypesJsonContext.Default.Object);
+
     private static JsonElement SerializeActionResult(object? value)
     {
         var element = CopilotClient.ToJsonElementForWire(value);
-        if (element.HasValue)
-        {
-            return element.Value;
-        }
-        using var doc = JsonDocument.Parse("null");
-        return doc.RootElement.Clone();
+        return element ?? NullJsonElement;
     }
 #pragma warning restore GHCP001
 

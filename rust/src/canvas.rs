@@ -9,11 +9,25 @@ use crate::generated::api_types::CanvasAction;
 use crate::types::SessionId;
 
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type CanvasJsonSchema = serde_json::Map<String, Value>;
 
 /// Declarative metadata for a single canvas, sent over the wire on
 /// `session.create` / `session.resume`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CanvasDeclaration {
@@ -55,6 +69,13 @@ impl CanvasDeclaration {
 }
 
 /// Response returned from [`CanvasHandler::on_open`].
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasOpenResponse {
@@ -70,6 +91,13 @@ pub struct CanvasOpenResponse {
 }
 
 /// Host capabilities passed to canvas provider callbacks.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasHostContext {
@@ -79,6 +107,13 @@ pub struct CanvasHostContext {
 }
 
 /// Host capability details passed to canvas provider callbacks.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasHostCapabilities {
@@ -88,7 +123,14 @@ pub struct CanvasHostCapabilities {
 }
 
 /// Context handed to [`CanvasHandler::on_open`].
-#[derive(Debug, Clone)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default)]
 pub struct CanvasOpenContext {
     /// Session that requested the canvas.
     pub session_id: SessionId,
@@ -105,7 +147,14 @@ pub struct CanvasOpenContext {
 }
 
 /// Context handed to [`CanvasHandler::on_action`].
-#[derive(Debug, Clone)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default)]
 pub struct CanvasActionContext {
     /// Session that invoked the action.
     pub session_id: SessionId,
@@ -124,7 +173,14 @@ pub struct CanvasActionContext {
 }
 
 /// Context handed to a canvas's close lifecycle hook.
-#[derive(Debug, Clone)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default)]
 pub struct CanvasLifecycleContext {
     /// Session owning the canvas instance.
     pub session_id: SessionId,
@@ -139,6 +195,13 @@ pub struct CanvasLifecycleContext {
 }
 
 /// Structured error returned from canvas handlers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Error, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 #[error("{code}: {message}")]
@@ -168,6 +231,13 @@ impl CanvasError {
 }
 
 /// Result alias for canvas handler methods.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type CanvasResult<T> = Result<T, CanvasError>;
 
 /// Provider-side canvas lifecycle handler.
@@ -181,6 +251,13 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 ///
 /// The SDK does not maintain a per-canvas registry; multiplexing across
 /// declared canvases is the implementor's responsibility.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This trait is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[async_trait]
 pub trait CanvasHandler: Send + Sync {
     /// Open a new canvas instance.

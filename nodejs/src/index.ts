@@ -18,6 +18,7 @@ export {
     type CanvasAction,
     type CanvasActionContext,
     type CanvasDeclaration,
+    type CanvasHostCapabilities,
     type CanvasHostContext,
     type CanvasJsonSchema,
     type CanvasLifecycleContext,
