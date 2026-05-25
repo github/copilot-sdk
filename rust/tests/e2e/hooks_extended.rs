@@ -608,10 +608,11 @@ impl SessionHooks for RecordingHooks {
         assert!(!ctx.session_id.as_str().is_empty());
         if let Some(tx) = &self.post_tool_failure {
             let _ = tx.send(input);
+            return Some(PostToolUseFailureOutput {
+                additional_context: Some("HOOK_FAILURE_GUIDANCE_APPLIED".to_string()),
+            });
         }
-        Some(PostToolUseFailureOutput {
-            additional_context: Some("HOOK_FAILURE_GUIDANCE_APPLIED".to_string()),
-        })
+        None
     }
 }
 
