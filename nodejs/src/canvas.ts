@@ -2,19 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type {
+    CanvasJsonSchema,
+    CanvasProviderCloseRequest,
+    CanvasProviderInvokeActionRequest,
+    CanvasProviderOpenRequest,
+    CanvasProviderOpenResult,
+} from "./generated/rpc.js";
+
+export type { CanvasJsonSchema, CanvasHostContext } from "./generated/rpc.js";
+
 /**
  * Extension-owned canvases declared via
  * `joinSession({ canvases: [createCanvas({...})] })`.
  *
- * The runtime sends provider callbacks directly as `canvas.open`,
- * `canvas.close`, and `canvas.action.invoke` JSON-RPC requests. The SDK
- * routes those requests by `canvasId` to the in-process handlers bound by
- * `createCanvas`. Re-opening with an existing `instanceId` is how the host
- * focuses an existing panel; reload is a renderer-only concern.
+ * The runtime sends provider callbacks as `canvas.open`, `canvas.close`, and
+ * `canvas.invokeAction` JSON-RPC requests via the codegen client session API
+ * pipeline. The SDK routes those requests by `canvasId` to the in-process
+ * handlers bound by `createCanvas`. Re-opening with an existing `instanceId`
+ * is how the host focuses an existing panel; reload is a renderer-only concern.
  */
 
-/** JSON Schema object used for canvas inputs. */
-export type CanvasJsonSchema = Record<string, unknown>;
+/*
+ * Wire-contract types re-exported from codegen. These are the single source of
+ * truth — the Zod schemas in copilot-agent-runtime drive the JSON Schema which
+ * drives the codegen which produces these types.
+ */
+
+/** Response returned from a canvas `open` handler. */
+export type CanvasOpenResponse = CanvasProviderOpenResult;
+
+/** Context handed to a canvas's `open` handler. */
+export type CanvasOpenContext = CanvasProviderOpenRequest;
+
+/** Context handed to a canvas action handler. */
+export type CanvasActionContext = CanvasProviderInvokeActionRequest;
+
+/** Context handed to a canvas's `onClose` handler. */
+export type CanvasLifecycleContext = CanvasProviderCloseRequest;
 
 /**
  * A single agent-callable action contributed by a canvas. The metadata
@@ -51,71 +76,6 @@ export interface CanvasDeclaration {
     inputSchema?: CanvasJsonSchema;
     /** Agent-invocable actions exposed via `invoke_canvas_action`. */
     actions?: Omit<CanvasAction, "handler">[];
-}
-
-/** Response returned from `open`. */
-export interface CanvasOpenResponse {
-    /** URL the host should render. Optional for native canvases. */
-    url?: string;
-    /** Provider-supplied title shown in host chrome. */
-    title?: string;
-    /** Provider-supplied status text shown in host chrome. */
-    status?: string;
-}
-
-/** Host capabilities passed to canvas callbacks. */
-export interface CanvasHostContext {
-    capabilities?: {
-        canvases?: boolean;
-    };
-}
-
-/** Context handed to a canvas's `open` handler. */
-export interface CanvasOpenContext {
-    /** Session that requested the canvas. */
-    sessionId: string;
-    /** Extension id that owns the canvas. */
-    extensionId: string;
-    /** Canvas id (matches the declaring `CanvasDeclaration.id`). */
-    canvasId: string;
-    /** Stable instance id supplied by the runtime. */
-    instanceId: string;
-    /** Validated `input` payload, shaped by `CanvasDeclaration.inputSchema`. */
-    input: unknown;
-    /** Host capabilities supplied by the runtime. */
-    host?: CanvasHostContext;
-}
-
-/** Context handed to a canvas action handler. */
-export interface CanvasActionContext {
-    /** Session that invoked the action. */
-    sessionId: string;
-    /** Extension id that owns the canvas. */
-    extensionId: string;
-    /** Canvas id targeted by the action. */
-    canvasId: string;
-    /** Instance id targeted by the action. */
-    instanceId: string;
-    /** Action name from `CanvasAction.name`. */
-    actionName: string;
-    /** Validated `input` payload, shaped by the action's `inputSchema`. */
-    input: unknown;
-    /** Host capabilities supplied by the runtime. */
-    host?: CanvasHostContext;
-}
-
-/** Context handed to a canvas's `onClose` handler. */
-export interface CanvasLifecycleContext {
-    /** Session owning the canvas instance. */
-    sessionId: string;
-    /** Extension id that owns the canvas. */
-    extensionId: string;
-    /** Canvas id (matches the declaring `CanvasDeclaration.id`). */
-    canvasId: string;
-    /** Instance id this lifecycle event applies to. */
-    instanceId: string;
-    /** Host capabilities supplied by the runtime. */
-    host?: CanvasHostContext;
 }
 
 /** Structured error returned from canvas handlers. */
@@ -217,70 +177,3 @@ export function createCanvas(options: CanvasOptions): Canvas {
     return new Canvas(options);
 }
 
-/** @internal */
-export interface CanvasProviderRequestParams {
-    sessionId: string;
-    extensionId: string;
-    canvasId: string;
-    instanceId: string;
-    input?: unknown;
-    host?: CanvasHostContext;
-}
-
-/** @internal */
-export interface CanvasActionInvokeParams extends CanvasProviderRequestParams {
-    actionName: string;
-}
-
-/**
- * Dispatch a direct `canvas.*` provider request to the matching {@link Canvas}
- * handler.
- *
- * @internal
- */
-export async function dispatchCanvasProviderRequest(
-    canvas: Canvas,
-    actionName: "canvas.open" | "canvas.close" | string,
-    params: CanvasActionInvokeParams | CanvasProviderRequestParams
-): Promise<unknown> {
-    switch (actionName) {
-        case "canvas.open": {
-            const result = await canvas.open({
-                sessionId: params.sessionId,
-                extensionId: params.extensionId,
-                canvasId: params.canvasId,
-                instanceId: params.instanceId,
-                input: params.input,
-                host: params.host,
-            });
-            return result ?? {};
-        }
-        case "canvas.close": {
-            if (canvas.onClose) {
-                await canvas.onClose({
-                    sessionId: params.sessionId,
-                    extensionId: params.extensionId,
-                    canvasId: params.canvasId,
-                    instanceId: params.instanceId,
-                    host: params.host,
-                });
-            }
-            return undefined;
-        }
-        default: {
-            const perAction = canvas.actionHandlers.get(actionName);
-            if (!perAction) {
-                throw CanvasError.noHandler();
-            }
-            return perAction({
-                sessionId: params.sessionId,
-                extensionId: params.extensionId,
-                canvasId: params.canvasId,
-                instanceId: params.instanceId,
-                actionName,
-                input: params.input,
-                host: params.host,
-            });
-        }
-    }
-}

@@ -1776,6 +1776,27 @@ export interface CanvasCloseRequest {
   instanceId: string;
 }
 /**
+ * Host context supplied by the runtime.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasHostContext".
+ */
+export interface CanvasHostContext {
+  capabilities?: CanvasHostContextCapabilities;
+}
+/**
+ * Host capabilities
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasHostContextCapabilities".
+ */
+export interface CanvasHostContextCapabilities {
+  /**
+   * Whether canvas rendering is supported
+   */
+  canvases?: boolean;
+}
+/**
  * Canvas action invocation parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1799,19 +1820,14 @@ export interface CanvasInvokeActionRequest {
   };
 }
 /**
- * Canvas action invocation result.
+ * Provider-supplied action result.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CanvasInvokeActionResult".
  */
 /** @experimental */
 export interface CanvasInvokeActionResult {
-  /**
-   * Provider-supplied action result
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
+  [k: string]: unknown | undefined;
 }
 /**
  * Declared canvases available in this session.
@@ -1947,6 +1963,117 @@ export interface CanvasOpenRequest {
   input?: {
     [k: string]: unknown | undefined;
   };
+}
+/**
+ * Canvas close parameters sent to the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderCloseRequest".
+ */
+export interface CanvasProviderCloseRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Canvas instance identifier
+   */
+  instanceId: string;
+  host?: CanvasHostContext;
+}
+/**
+ * Canvas action invocation parameters sent to the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderInvokeActionRequest".
+ */
+export interface CanvasProviderInvokeActionRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Action name to invoke
+   */
+  actionName: string;
+  /**
+   * Action input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  host?: CanvasHostContext;
+}
+/**
+ * Canvas open parameters sent to the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderOpenRequest".
+ */
+export interface CanvasProviderOpenRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Canvas open input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  host?: CanvasHostContext;
+}
+/**
+ * Canvas open result returned by the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderOpenResult".
+ */
+export interface CanvasProviderOpenResult {
+  /**
+   * URL for web-rendered canvases
+   */
+  url?: string;
+  /**
+   * Provider-supplied title
+   */
+  title?: string;
+  /**
+   * Provider-supplied status text
+   */
+  status?: string;
 }
 /**
  * Slash commands available in the session, after applying any include/exclude filters.
@@ -11147,9 +11274,36 @@ export interface SessionFsHandler {
     sqliteExists(params: SessionFsSqliteExistsRequest): Promise<SessionFsSqliteExistsResult>;
 }
 
+/** Handler for `canvas` client session API methods. */
+export interface CanvasHandler {
+    /**
+     * Opens a canvas instance on the provider.
+     *
+     * @param params Canvas open parameters sent to the provider.
+     *
+     * @returns Canvas open result returned by the provider.
+     */
+    open(params: CanvasProviderOpenRequest): Promise<CanvasProviderOpenResult>;
+    /**
+     * Closes a canvas instance on the provider.
+     *
+     * @param params Canvas close parameters sent to the provider.
+     */
+    close(params: CanvasProviderCloseRequest): Promise<void>;
+    /**
+     * Invokes an action on an open canvas instance via the provider.
+     *
+     * @param params Canvas action invocation parameters sent to the provider.
+     *
+     * @returns Provider-supplied action result.
+     */
+    invokeAction(params: CanvasProviderInvokeActionRequest): Promise<CanvasInvokeActionResult>;
+}
+
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     sessionFs?: SessionFsHandler;
+    canvas?: CanvasHandler;
 }
 
 /**
@@ -11221,5 +11375,20 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.sqliteExists(params);
+    });
+    connection.onRequest("canvas.open", async (params: CanvasProviderOpenRequest) => {
+        const handler = getHandlers(params.sessionId).canvas;
+        if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
+        return handler.open(params);
+    });
+    connection.onRequest("canvas.close", async (params: CanvasProviderCloseRequest) => {
+        const handler = getHandlers(params.sessionId).canvas;
+        if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
+        return handler.close(params);
+    });
+    connection.onRequest("canvas.invokeAction", async (params: CanvasProviderInvokeActionRequest) => {
+        const handler = getHandlers(params.sessionId).canvas;
+        if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
+        return handler.invokeAction(params);
     });
 }

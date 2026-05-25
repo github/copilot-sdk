@@ -105,7 +105,7 @@ describe("CopilotClient", () => {
         expect(payload.openCanvasInstances).toBeUndefined();
     });
 
-    it("routes direct canvas action requests to registered canvases", async () => {
+    it("routes canvas.invokeAction to registered canvas action handlers via clientSessionApis", async () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
@@ -120,10 +120,8 @@ describe("CopilotClient", () => {
         });
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
-        const client = new CopilotClient();
-        (client as any).sessions.set(session.sessionId, session);
 
-        const result = await (client as any).handleCanvasProviderRequest("increment", {
+        const result = await session.clientSessionApis.canvas!.invokeAction({
             sessionId: session.sessionId,
             extensionId: "project:counter",
             canvasId: "counter",
@@ -145,11 +143,9 @@ describe("CopilotClient", () => {
 
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
-        const client = new CopilotClient();
-        (client as any).sessions.set(session.sessionId, session);
 
         await expect(
-            (client as any).handleCanvasProviderRequest("ghost", {
+            session.clientSessionApis.canvas!.invokeAction({
                 sessionId: session.sessionId,
                 extensionId: "project:counter",
                 canvasId: "counter",
@@ -160,52 +156,18 @@ describe("CopilotClient", () => {
         ).rejects.toMatchObject({ code: "canvas_action_no_handler" });
     });
 
-    it("rejects malformed direct canvas action payloads", async () => {
-        const client = new CopilotClient();
-
-        await expect((client as any).handleCanvasActionInvokeRequest(undefined)).rejects.toThrow(
-            "Invalid canvas provider request payload"
-        );
-        await expect(
-            (client as any).handleCanvasActionInvokeRequest({
-                sessionId: "session-1",
-                extensionId: "project:counter",
-                canvasId: "counter",
-                instanceId: "counter-1",
-            })
-        ).rejects.toThrow("Invalid canvas provider request payload");
-    });
-
-    it("rejects direct canvas provider payloads without extension ids", async () => {
-        const open = vi.fn(() => ({ url: "https://example.test/counter" }));
+    it("throws for unknown canvasId in canvas.open via clientSessionApis", async () => {
+        const session = new CopilotSession("session-1", {} as any);
         const canvas = createCanvas({
-            id: "counter",
-            displayName: "Counter",
-            description: "A counter canvas",
-            open,
+            id: "other",
+            displayName: "Other",
+            description: "Some other canvas",
+            open: () => ({ url: "https://example.test/other" }),
         });
-        const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
-        const client = new CopilotClient();
-        (client as any).sessions.set(session.sessionId, session);
 
         await expect(
-            (client as any).handleCanvasProviderRequest("canvas.open", {
-                sessionId: session.sessionId,
-                canvasId: "counter",
-                instanceId: "counter-1",
-            })
-        ).rejects.toThrow("Invalid canvas provider request payload");
-        expect(open).not.toHaveBeenCalled();
-    });
-
-    it("throws for unknown direct canvas dispatches", async () => {
-        const session = new CopilotSession("session-1", {} as any);
-        const client = new CopilotClient();
-        (client as any).sessions.set(session.sessionId, session);
-
-        await expect(
-            (client as any).handleCanvasProviderRequest("canvas.open", {
+            session.clientSessionApis.canvas!.open({
                 sessionId: session.sessionId,
                 extensionId: "project:missing",
                 canvasId: "missing",
