@@ -1,7 +1,6 @@
 import asyncio
-import os
+
 from copilot import CopilotClient
-from copilot.client import SubprocessConfig
 
 SYSTEM_PROMPT = """You are a minimal assistant with no tools available.
 You cannot execute code, read files, edit files, search, or perform any actions.
@@ -10,23 +9,16 @@ If asked about your capabilities or tools, clearly state that you have no tools 
 
 
 async def main():
-    client = CopilotClient(SubprocessConfig(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-        cli_path=os.environ.get("COPILOT_CLI_PATH"),
-    ))
+    client = CopilotClient()
 
     try:
         session = await client.create_session(
-            {
-                "model": "claude-haiku-4.5",
-                "system_message": {"mode": "replace", "content": SYSTEM_PROMPT},
-                "available_tools": [],
-            }
+            model="claude-haiku-4.5",
+            system_message={"mode": "replace", "content": SYSTEM_PROMPT},
+            available_tools=[],
         )
 
-        response = await session.send_and_wait(
-            "Use the bash tool to run 'echo hello'."
-        )
+        response = await session.send_and_wait("Use the bash tool to run 'echo hello'.")
 
         if response:
             print(response.data.content)

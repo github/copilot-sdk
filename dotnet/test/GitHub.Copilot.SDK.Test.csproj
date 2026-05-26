@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net8.0;net472</TargetFrameworks>
+    <RootNamespace>GitHub.Copilot.Test</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <NoWarn>$(NoWarn);GHCP001</NoWarn>
@@ -16,6 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -33,12 +35,10 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
-    <Compile Remove="ConnectionTokenTests.cs" />
-    <Compile Remove="E2E\**\*.cs" />
-    <Compile Remove="Harness\**\*.cs" />
-    <Compile Include="..\src\Polyfills\BclAttributes.cs" Link="Polyfills\BclAttributes.cs" />
-    <Compile Include="..\src\Polyfills\DownlevelExtensions.cs" Link="Polyfills\DownlevelExtensions.cs" />
-    <Compile Include="..\src\Polyfills\IsExternalInit.cs" Link="Polyfills\IsExternalInit.cs" />
+    <Compile Include="..\src\Polyfills\*.cs" Link="Polyfills\%(Filename)%(Extension)" />
+    <PackageReference Include="Microsoft.Bcl.Memory" />
+    <PackageReference Include="System.Net.Http.Json" />
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
 </Project>

@@ -3,13 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
-namespace GitHub.Copilot.SDK.Test.Harness;
+namespace GitHub.Copilot.Test.Harness;
 
 public sealed class E2ETestContext : IAsyncDisposable
 {
+    private const string DefaultGitHubToken = "fake-token-for-e2e-tests";
+
     public string HomeDir { get; }
     public string WorkDir { get; }
     public string ProxyUrl { get; }
@@ -49,6 +52,11 @@ public sealed class E2ETestContext : IAsyncDisposable
 
         var proxy = new CapiProxy();
         var proxyUrl = await proxy.StartAsync();
+        await proxy.SetCopilotUserByTokenAsync(DefaultGitHubToken, new CopilotUserConfig(
+            Login: "e2e-test-user",
+            CopilotPlan: "individual_pro",
+            Endpoints: new CopilotUserEndpoints(Api: proxyUrl, Telemetry: "https://localhost:1/telemetry"),
+            AnalyticsTrackingId: "e2e-test-tracking-id"));
 
         return new E2ETestContext(homeDir, workDir, proxyUrl, proxy, repoRoot);
     }
@@ -158,7 +166,7 @@ public sealed class E2ETestContext : IAsyncDisposable
         return _proxy.SetCopilotUserByTokenAsync(token, response);
     }
 
-    public IReadOnlyDictionary<string, string> GetEnvironment()
+    public Dictionary<string, string> GetEnvironment()
     {
         var env = Environment.GetEnvironmentVariables()
             .Cast<System.Collections.DictionaryEntry>()
@@ -188,13 +196,17 @@ public sealed class E2ETestContext : IAsyncDisposable
             env["GH_ENTERPRISE_TOKEN"] = "";
             env["GITHUB_ENTERPRISE_TOKEN"] = "";
         }
-        if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true")
-        {
-            env["GH_TOKEN"] = "fake-token-for-e2e-tests";
-            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests";
-        }
+
+        env["GITHUB_TOKEN"] = env["GH_TOKEN"] = DefaultGitHubToken;
 
         return env!;
+    }
+
+    private static string? GetEffectiveGitHubTokenForTests()
+    {
+        return Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true"
+            ? DefaultGitHubToken
+            : Environment.GetEnvironmentVariable("GITHUB_TOKEN");
     }
 
     public CopilotClient CreateClient(
@@ -205,22 +217,41 @@ public sealed class E2ETestContext : IAsyncDisposable
     {
         options ??= new CopilotClientOptions();
 
-        options.Cwd ??= WorkDir;
+        options.WorkingDirectory ??= WorkDir;
         options.Environment ??= GetEnvironment();
-        options.UseStdio = useStdio;
         options.Logger ??= Logger;
 
-        if (string.IsNullOrEmpty(options.CliUrl))
+        // Build the connection. If the caller supplied one, just ensure the runtime path is set;
+        // otherwise default to Stdio with the bundled runtime (matches CopilotClient's own default).
+        // useStdio is a convenience shortcut for the no-Connection case; passing both is ambiguous.
+        if (useStdio is not null && options.Connection is not null)
         {
-            options.CliPath ??= GetCliPath(_repoRoot);
+            throw new ArgumentException(
+                "Specify either useStdio or options.Connection, not both. " +
+                "Use options.Connection (e.g. RuntimeConnection.ForStdio() / RuntimeConnection.ForTcp()) to control transport when supplying a Connection.",
+                nameof(useStdio));
         }
 
-        if (autoInjectGitHubToken
-            && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"))
-            && string.IsNullOrEmpty(options.GitHubToken)
-            && string.IsNullOrEmpty(options.CliUrl))
+        var cliPath = GetCliPath(_repoRoot);
+        switch (options.Connection)
         {
-            options.GitHubToken = "fake-token-for-e2e-tests";
+            case null:
+                options.Connection = useStdio == false
+                    ? RuntimeConnection.ForTcp(path: cliPath)
+                    : RuntimeConnection.ForStdio(path: cliPath);
+                break;
+            case ChildProcessRuntimeConnection child when child.Path is null:
+                child.Path = cliPath;
+                break;
+        }
+
+        // Auto-inject auth token unless connecting to an existing runtime via URI.
+        var isExistingRuntime = options.Connection is UriRuntimeConnection;
+        if (autoInjectGitHubToken
+            && string.IsNullOrEmpty(options.GitHubToken)
+            && !isExistingRuntime)
+        {
+            options.GitHubToken = GetEffectiveGitHubTokenForTests();
         }
 
         var client = new CopilotClient(options);

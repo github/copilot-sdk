@@ -142,7 +142,7 @@ func main() {
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -372,8 +372,8 @@ const client = new CopilotClient({
 from copilot import CopilotClient
 from copilot.client import ModelInfo, ModelCapabilities, ModelSupports, ModelLimits
 
-client = CopilotClient({
-    "on_list_models": lambda: [
+client = CopilotClient(
+    on_list_models=lambda: [
         ModelInfo(
             id="my-custom-model",
             name="My Custom Model",
@@ -383,7 +383,7 @@ client = CopilotClient({
             ),
         )
     ],
-})
+)
 ```
 
 </details>
@@ -424,7 +424,7 @@ func main() {
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var client = new CopilotClient(new CopilotClientOptions
 {

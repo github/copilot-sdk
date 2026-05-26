@@ -3,9 +3,22 @@ import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { approveAll } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { retry } from "./harness/sdkTestHelper.js";
 
 describe("Session Configuration", async () => {
     const { copilotClient: client, workDir, openAiEndpoint } = await createSdkTestContext();
+
+    async function waitForExchanges(minimumCount = 1) {
+        await retry(
+            `capture ${minimumCount} chat completion request(s)`,
+            async () => {
+                const exchanges = await openAiEndpoint.getExchanges();
+                expect(exchanges.length).toBeGreaterThanOrEqual(minimumCount);
+            },
+            1_200
+        );
+        return openAiEndpoint.getExchanges();
+    }
 
     it("should use workingDirectory for tool execution", async () => {
         const subDir = join(workDir, "subproject");
@@ -428,13 +441,14 @@ describe("Session Configuration", async () => {
             availableTools: ["view"],
         });
 
-        await session2.sendAndWait({ prompt: "What is 1+1?" });
+        try {
+            await session2.send({ prompt: "What is 1+1?" });
 
-        const exchanges = await openAiEndpoint.getExchanges();
-        expect(exchanges.length).toBeGreaterThan(0);
-        const toolNames = getToolNames(exchanges[exchanges.length - 1]);
-        expect(toolNames).toEqual(["view"]);
-
-        await session2.disconnect();
+            const exchanges = await waitForExchanges();
+            const toolNames = getToolNames(exchanges[exchanges.length - 1]);
+            expect(toolNames).toEqual(["view"]);
+        } finally {
+            await session2.disconnect();
+        }
     });
 });

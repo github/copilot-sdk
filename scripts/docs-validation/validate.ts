@@ -286,7 +286,7 @@ async function validateCSharp(): Promise<ValidationResult[]> {
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <NoWarn>CS8019;CS0168;CS0219</NoWarn>
+    <NoWarn>CS8019;CS0168;CS0219;GHCP001</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="${path.join(ROOT_DIR, "dotnet/src/GitHub.Copilot.SDK.csproj")}" />

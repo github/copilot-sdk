@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "per-session-auth", output)
 {
@@ -20,9 +20,33 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
         {
             ["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl,
         };
-        // Disable the harness's auto-injected fake GITHUB_TOKEN so the per-session
-        // auth tests can validate session-scoped tokens (including the no-token case).
+        // Disable the harness's auto-injected client token so the per-session
+        // auth tests validate only session-scoped tokens.
         return Ctx.CreateClient(options: new CopilotClientOptions { Environment = env }, autoInjectGitHubToken: false);
+    }
+
+    private CopilotClient CreateNoAuthTestClient()
+    {
+        var env = WithoutAuthEnv(Ctx.GetEnvironment());
+        env["COPILOT_DEBUG_GITHUB_API_URL"] = Ctx.ProxyUrl;
+
+        return Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Environment = env,
+            UseLoggedInUser = false,
+        }, autoInjectGitHubToken: false);
+    }
+
+    private static Dictionary<string, string> WithoutAuthEnv(Dictionary<string, string> env)
+    {
+        var result = new Dictionary<string, string>(env)
+        {
+            ["COPILOT_SDK_AUTH_TOKEN"] = "",
+            ["GH_TOKEN"] = "",
+            ["GITHUB_TOKEN"] = "",
+        };
+
+        return result;
     }
 
     private async Task SetupCopilotUsersAsync()
@@ -91,15 +115,15 @@ public class PerSessionAuthE2ETests(E2ETestFixture fixture, ITestOutputHelper ou
     [Fact]
     public async Task ShouldBeUnauthenticatedWithoutToken()
     {
-        await using var session = await AuthClient.CreateSessionAsync(new SessionConfig
+        var noAuthClient = CreateNoAuthTestClient();
+
+        await using var session = await noAuthClient.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
         var status = await session.Rpc.Auth.GetStatusAsync();
         // Without a per-session GitHub token, there is no per-session identity.
-        // In CI the process-level fake token may still authenticate globally,
-        // so we check Login rather than IsAuthenticated.
         Assert.True(string.IsNullOrEmpty(status.Login), $"Expected no per-session login without token, got {status.Login}");
     }
 

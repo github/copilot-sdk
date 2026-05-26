@@ -7,7 +7,7 @@ Demonstrates sending **file attachments** alongside a prompt using the Copilot S
 1. Creates a session with a custom system prompt in `replace` mode
 2. Resolves the path to `sample-data.txt` (a small text file in the scenario root)
 3. Sends: _"What languages are listed in the attached file?"_ with the file as an attachment
-4. Prints the response — which should list TypeScript, Python, and Go
+4. Prints the response — which should list TypeScript, Python, Go, C#, and Rust
 
 ## Attachment Format
 
@@ -51,7 +51,7 @@ The `sample-data.txt` file contains basic project metadata used as the attachmen
 Project: Copilot SDK Samples
 Version: 1.0.0
 Description: Minimal buildable samples demonstrating the Copilot SDK
-Languages: TypeScript, Python, Go
+Languages: TypeScript, Python, Go, C#, Rust
 ```
 
 ## Run

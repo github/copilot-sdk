@@ -14,9 +14,9 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel, Field
 
-from copilot import CopilotClient, define_tool
-from copilot.client import ExternalServerConfig, SubprocessConfig
-from copilot.session import PermissionHandler, PermissionRequestResult
+from copilot import CopilotClient, RuntimeConnection, define_tool
+from copilot.generated.rpc import PermissionDecisionApproveOnce, PermissionDecisionReject
+from copilot.session import PermissionHandler, PermissionNoResult
 from copilot.tools import ToolInvocation
 
 from .testharness import get_final_assistant_message
@@ -53,14 +53,12 @@ class MultiClientContext:
 
         # Client 1 uses TCP mode so a second client can connect to the same server
         self._client1 = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
-                cwd=self.work_dir,
-                env=self.get_env(),
-                use_stdio=False,
-                github_token=github_token,
-                tcp_connection_token="py-tcp-shared-test-token",
-            )
+            connection=RuntimeConnection.for_tcp(
+                path=self.cli_path, connection_token="py-tcp-shared-test-token"
+            ),
+            working_directory=self.work_dir,
+            env=self.get_env(),
+            github_token=github_token,
         )
 
         # Trigger connection by creating and disconnecting an init session
@@ -70,12 +68,12 @@ class MultiClientContext:
         await init_session.disconnect()
 
         # Read the actual port from client 1 and create client 2
-        actual_port = self._client1.actual_port
+        actual_port = self._client1.runtime_port
         assert actual_port is not None, "Client 1 should have an actual port after connecting"
 
         self._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 
@@ -204,7 +202,7 @@ class TestMultiClientBroadcast:
             on_permission_request=PermissionHandler.approve_all, tools=[magic_number]
         )
 
-        # Client 2 resumes with NO tools — should not overwrite client 1's tools
+        # Client 2 resumes with NO tools â€” should not overwrite client 1's tools
         session2 = await mctx.client2.resume_session(
             session1.session_id, on_permission_request=PermissionHandler.approve_all
         )
@@ -242,16 +240,14 @@ class TestMultiClientBroadcast:
         # Client 1 creates a session and manually approves permission requests
         session1 = await mctx.client1.create_session(
             on_permission_request=lambda request, invocation: (
-                permission_requests.append(request) or PermissionRequestResult(kind="approve-once")
+                permission_requests.append(request) or PermissionDecisionApproveOnce()
             ),
         )
 
         # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="no-result"
-            ),
+            on_permission_request=lambda request, invocation: PermissionNoResult(),
         )
 
         client1_events = []
@@ -279,7 +275,7 @@ class TestMultiClientBroadcast:
         assert len(c1_perm_completed) > 0
         assert len(c2_perm_completed) > 0
         for event in c1_perm_completed + c2_perm_completed:
-            assert event.data.result.kind.value == "approved"
+            assert event.data.result.kind == "approved"
 
         await session2.disconnect()
 
@@ -289,17 +285,13 @@ class TestMultiClientBroadcast:
         """One client rejects a permission request and both see the result."""
         # Client 1 creates a session and denies all permission requests
         session1 = await mctx.client1.create_session(
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="reject"
-            ),
+            on_permission_request=lambda request, invocation: PermissionDecisionReject(),
         )
 
         # Client 2 observes the permission request but leaves the decision to client 1.
         session2 = await mctx.client2.resume_session(
             session1.session_id,
-            on_permission_request=lambda request, invocation: PermissionRequestResult(
-                kind="no-result"
-            ),
+            on_permission_request=lambda request, invocation: PermissionNoResult(),
         )
 
         client1_events = []
@@ -332,7 +324,7 @@ class TestMultiClientBroadcast:
         assert len(c1_perm_completed) > 0
         assert len(c2_perm_completed) > 0
         for event in c1_perm_completed + c2_perm_completed:
-            assert event.data.result.kind.value == "denied-interactively-by-user"
+            assert event.data.result.kind == "denied-interactively-by-user"
 
         await session2.disconnect()
 
@@ -431,10 +423,10 @@ class TestMultiClientBroadcast:
         await asyncio.sleep(0.5)
 
         # Recreate client2 for future tests (but don't rejoin the session)
-        actual_port = mctx.client1.actual_port
+        actual_port = mctx.client1.runtime_port
         mctx._client2 = CopilotClient(
-            ExternalServerConfig(
-                url=f"localhost:{actual_port}", tcp_connection_token="py-tcp-shared-test-token"
+            connection=RuntimeConnection.for_uri(
+                f"localhost:{actual_port}", connection_token="py-tcp-shared-test-token"
             )
         )
 

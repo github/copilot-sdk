@@ -1,4 +1,4 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "claude-haiku-4.5";
@@ -10,10 +10,7 @@ if (string.IsNullOrEmpty(apiKey))
     return 1;
 }
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

@@ -1,10 +1,7 @@
 import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     // 1. Create a session

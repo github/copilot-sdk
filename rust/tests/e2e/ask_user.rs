@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{SessionHandler, UserInputResponse};
+use github_copilot_sdk::handler::{
+    PermissionHandler, PermissionResult, UserInputHandler, UserInputResponse,
+};
 use github_copilot_sdk::{RequestId, SessionConfig, SessionId};
 use tokio::sync::mpsc;
 
@@ -19,14 +21,16 @@ async fn should_invoke_user_input_handler_when_model_uses_ask_user_tool() {
                 ctx.set_default_copilot_user();
                 let (request_tx, mut request_rx) = mpsc::unbounded_channel();
                 let client = ctx.start_client().await;
+                let handler = Arc::new(RecordingUserInputHandler {
+                    request_tx,
+                    answer: UserInputAnswer::FirstChoiceOrFreeform("freeform answer"),
+                });
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingUserInputHandler {
-                                request_tx,
-                                answer: UserInputAnswer::FirstChoiceOrFreeform("freeform answer"),
-                            })),
+                            .with_user_input_handler(handler.clone() as Arc<dyn UserInputHandler>)
+                            .with_permission_handler(handler as Arc<dyn PermissionHandler>),
                     )
                     .await
                     .expect("create session");
@@ -61,14 +65,16 @@ async fn should_receive_choices_in_user_input_request() {
                 ctx.set_default_copilot_user();
                 let (request_tx, mut request_rx) = mpsc::unbounded_channel();
                 let client = ctx.start_client().await;
+                let handler = Arc::new(RecordingUserInputHandler {
+                    request_tx,
+                    answer: UserInputAnswer::FirstChoiceOrFreeform("default"),
+                });
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingUserInputHandler {
-                                request_tx,
-                                answer: UserInputAnswer::FirstChoiceOrFreeform("default"),
-                            })),
+                            .with_user_input_handler(handler.clone() as Arc<dyn UserInputHandler>)
+                            .with_permission_handler(handler as Arc<dyn PermissionHandler>),
                     )
                     .await
                     .expect("create session");
@@ -106,14 +112,16 @@ async fn should_handle_freeform_user_input_response() {
                     "This is my custom freeform answer that was not in the choices";
                 let (request_tx, mut request_rx) = mpsc::unbounded_channel();
                 let client = ctx.start_client().await;
+                let handler = Arc::new(RecordingUserInputHandler {
+                    request_tx,
+                    answer: UserInputAnswer::Freeform(freeform_answer),
+                });
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingUserInputHandler {
-                                request_tx,
-                                answer: UserInputAnswer::Freeform(freeform_answer),
-                            })),
+                            .with_user_input_handler(handler.clone() as Arc<dyn UserInputHandler>)
+                            .with_permission_handler(handler as Arc<dyn PermissionHandler>),
                     )
                     .await
                     .expect("create session");
@@ -157,8 +165,8 @@ enum UserInputAnswer {
 }
 
 #[async_trait]
-impl SessionHandler for RecordingUserInputHandler {
-    async fn on_user_input(
+impl UserInputHandler for RecordingUserInputHandler {
+    async fn handle(
         &self,
         session_id: SessionId,
         question: String,
@@ -183,13 +191,16 @@ impl SessionHandler for RecordingUserInputHandler {
             was_freeform,
         })
     }
+}
 
-    async fn on_permission_request(
+#[async_trait]
+impl PermissionHandler for RecordingUserInputHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
         _data: github_copilot_sdk::PermissionRequestData,
-    ) -> github_copilot_sdk::handler::PermissionResult {
-        github_copilot_sdk::handler::PermissionResult::Approved
+    ) -> PermissionResult {
+        PermissionResult::approve_once()
     }
 }

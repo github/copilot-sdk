@@ -3,10 +3,7 @@ import { CopilotClient } from "@github/copilot-sdk";
 const PIRATE_PROMPT = `You are a pirate. Always respond in pirate speak. Say 'Arrr!' in every response. Use nautical terms and pirate slang throughout.`;
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({

@@ -1,12 +1,9 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 var hookLog = new List<string>();
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 
@@ -16,7 +13,7 @@ try
     {
         Model = "claude-haiku-4.5",
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+            Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce()),
         Hooks = new SessionHooks
         {
             OnSessionStart = (input, invocation) =>

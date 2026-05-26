@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
@@ -54,6 +53,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		if usageEvent == nil {
 			t.Fatalf("Expected at least one assistant.usage event; events=%v", eventFidelityTypes(snapshot))
+			return
 		}
 		if usageEvent.Model == "" {
 			t.Errorf("Expected assistant.usage event to have a non-empty model field, got %#v", usageEvent)
@@ -110,6 +110,7 @@ func TestEventFidelityE2E(t *testing.T) {
 
 		if usageInfo == nil {
 			t.Fatalf("Expected at least one session.usage_info event; events=%v", eventFidelityTypes(snapshot))
+			return
 		}
 		if usageInfo.CurrentTokens <= 0 {
 			t.Errorf("Expected session.usage_info.currentTokens > 0, got %v", usageInfo.CurrentTokens)
@@ -133,34 +134,40 @@ func TestEventFidelityE2E(t *testing.T) {
 		}
 		t.Cleanup(func() { _ = session.Disconnect() })
 
-		pendingModified := make(chan *copilot.SessionEvent, 1)
+		var mu sync.Mutex
+		var events []copilot.SessionEvent
 		session.On(func(event copilot.SessionEvent) {
-			if _, ok := event.Data.(*copilot.PendingMessagesModifiedData); ok {
-				select {
-				case pendingModified <- &event:
-				default:
-				}
-			}
+			mu.Lock()
+			events = append(events, event)
+			mu.Unlock()
 		})
 
-		if _, err := session.Send(t.Context(), copilot.MessageOptions{
+		// SendAndWait collects everything in one round trip and matches the
+		// pattern of every other test in this file (and the Rust E2E equivalent),
+		// avoiding the split fire-and-forget + helper pattern that previously
+		// made this test prone to flakes.
+		answer, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "What is 9+9? Reply with just the number.",
-		}); err != nil {
-			t.Fatalf("Send failed: %v", err)
-		}
-
-		select {
-		case evt := <-pendingModified:
-			if evt == nil {
-				t.Error("Expected a non-nil pending_messages.modified event")
-			}
-		case <-time.After(60 * time.Second):
-			t.Fatal("Timed out waiting for pending_messages.modified event")
-		}
-
-		answer, err := testharness.GetFinalAssistantMessage(t.Context(), session)
+		})
 		if err != nil {
-			t.Fatalf("Failed to get final assistant message: %v", err)
+			t.Fatalf("SendAndWait failed: %v", err)
+		}
+
+		snapshot := snapshotEventFidelityEvents(&mu, &events)
+
+		var pendingEvent *copilot.SessionEvent
+		for i := range snapshot {
+			if _, ok := snapshot[i].Data.(*copilot.PendingMessagesModifiedData); ok {
+				pendingEvent = &snapshot[i]
+				break
+			}
+		}
+		if pendingEvent == nil {
+			t.Error("Expected to observe a pending_messages.modified event")
+		}
+
+		if answer == nil {
+			t.Fatal("Expected SendAndWait to return an assistant message")
 		}
 		if ad, ok := answer.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(ad.Content, "18") {
 			t.Errorf("Expected answer to contain '18', got %v", answer.Data)
@@ -188,9 +195,9 @@ func TestEventFidelityE2E(t *testing.T) {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 
 		types := make([]copilot.SessionEventType, 0, len(messages))
@@ -223,19 +230,19 @@ func TestEventFidelityE2E(t *testing.T) {
 		}
 
 		if sessionStartIdx < 0 {
-			t.Fatalf("Expected session.start event in GetMessages; types=%v", types)
+			t.Fatalf("Expected session.start event in GetEvents; types=%v", types)
 		}
 		if userMsgIdx < 0 {
-			t.Fatalf("Expected user.message event in GetMessages; types=%v", types)
+			t.Fatalf("Expected user.message event in GetEvents; types=%v", types)
 		}
 		if toolStartIdx < 0 {
-			t.Fatalf("Expected tool.execution_start event in GetMessages; types=%v", types)
+			t.Fatalf("Expected tool.execution_start event in GetEvents; types=%v", types)
 		}
 		if toolCompleteIdx < 0 {
-			t.Fatalf("Expected tool.execution_complete event in GetMessages; types=%v", types)
+			t.Fatalf("Expected tool.execution_complete event in GetEvents; types=%v", types)
 		}
 		if assistantMsgIdx < 0 {
-			t.Fatalf("Expected assistant.message event in GetMessages; types=%v", types)
+			t.Fatalf("Expected assistant.message event in GetEvents; types=%v", types)
 		}
 
 		if sessionStartIdx >= userMsgIdx {
@@ -460,6 +467,7 @@ func TestEventFidelityE2E(t *testing.T) {
 		assistantEvent := firstAssistantMessageEventFidelityData(snapshot)
 		if assistantEvent == nil {
 			t.Fatalf("Expected at least one assistant.message event; events=%v", eventFidelityTypes(snapshot))
+			return
 		}
 		if assistantEvent.MessageID == "" {
 			t.Fatalf("Expected assistant.message messageId, got %#v", assistantEvent)

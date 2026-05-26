@@ -13,6 +13,7 @@
 import { execFile } from "child_process";
 import fs from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
 import { promisify } from "util";
 import type { JSONSchema7, JSONSchema7Definition } from "json-schema";
 import {
@@ -23,25 +24,32 @@ import {
 	type RpcMethod,
 	collectDefinitionCollections,
 	collectDefinitions,
+	collectExperimentalOnlyRpcReferencedDefinitionNames,
 	collectReachableDefinitionNames,
+	collectRpcMethodReferencedDefinitionNames,
 	findSharedSchemaDefinitions,
 	getApiSchemaPath,
+	getEnumValueDescriptions,
 	getNullableInner,
 	getRpcSchemaTypeName,
 	getSessionEventsSchemaPath,
+	isIntegerSchemaBoundedToInt32,
 	isObjectSchema,
 	isRpcMethod,
 	isSchemaDeprecated,
 	isSchemaExperimental,
+	isSchemaInternal,
 	isVoidSchema,
 	parseExternalSchemaRef,
 	postProcessSchema,
+	propagateInternalVisibility,
 	refTypeName,
 	resolveObjectSchema,
 	resolveRef,
 	resolveSchema,
 	rewriteSharedDefinitionReferences,
 	stripBooleanLiterals,
+	type EnumValueDescriptions,
 } from "./utils.js";
 
 const execFileAsync = promisify(execFile);
@@ -187,6 +195,8 @@ function safeRustFieldName(name: string): string {
 interface RustCodegenCtx {
 	/** Accumulated struct definitions. */
 	structs: string[];
+	/** Accumulated type alias definitions. */
+	typeAliases: string[];
 	/** Accumulated enum definitions. */
 	enums: string[];
 	/** Track generated type names to avoid duplicates. */
@@ -199,6 +209,8 @@ interface RustCodegenCtx {
 	 * so the property propagates transitively.
 	 */
 	nonDefaultableTypes: Set<string>;
+	/** Generated type names reached only through experimental RPC methods. */
+	experimentalTypeNames: Set<string>;
 	/** Schema definitions for $ref resolution. */
 	definitions?: DefinitionCollections;
 	/** When set, only these const-valued properties are accepted as union discriminators. */
@@ -352,7 +364,7 @@ function tryEmitRustUnion(
 			lines.push(`/// ${line}`);
 		}
 	}
-	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
+	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(enumName));
 	lines.push("#[derive(Debug, Clone, Serialize, Deserialize)]");
 	lines.push("#[serde(untagged)]");
 	lines.push(`pub enum ${enumName} {`);
@@ -395,13 +407,17 @@ function makeCtx(
 		unionDiscriminatorProperties?: Set<string> | null;
 		allowUntaggedUnions?: boolean;
 		allowedUnionTypeNames?: Iterable<string>;
+		experimentalTypeNames?: Iterable<string>;
+		nonDefaultableTypes?: Iterable<string>;
 	} = {},
 ): RustCodegenCtx {
 	return {
 		structs: [],
+		typeAliases: [],
 		enums: [],
 		generatedNames: new Set(),
-		nonDefaultableTypes: new Set(),
+		nonDefaultableTypes: new Set(options.nonDefaultableTypes ?? []),
+		experimentalTypeNames: new Set(options.experimentalTypeNames ?? []),
 		definitions,
 		unionDiscriminatorProperties:
 			options.unionDiscriminatorProperties === null
@@ -441,6 +457,87 @@ function pushRustDoc(lines: string[], text: string | undefined, indent = ""): vo
 			lines.push(`${indent}/// ${paragraph.trim()}`);
 		}
 	}
+}
+
+function isRustMapSchema(schema: JSONSchema7): boolean {
+	const hasProperties =
+		!!schema.properties && Object.keys(schema.properties).length > 0;
+	return (
+		(schema.type === "object" || schema.additionalProperties !== undefined) &&
+		!hasProperties &&
+		schema.additionalProperties !== undefined &&
+		schema.additionalProperties !== false
+	);
+}
+
+function rustMapValueType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	const additionalProperties = schema.additionalProperties;
+	if (
+		additionalProperties &&
+		typeof additionalProperties === "object" &&
+		Object.keys(additionalProperties as Record<string, unknown>).length > 0
+	) {
+		const valueSchema = additionalProperties as JSONSchema7;
+		if (valueSchema.type === "object" && valueSchema.properties) {
+			const valueName = (valueSchema.title as string) || `${parentTypeName}Value`;
+			emitRustStruct(valueName, valueSchema, ctx);
+			return valueName;
+		}
+		return resolveRustType(valueSchema, parentTypeName, "value", true, ctx);
+	}
+	return "serde_json::Value";
+}
+
+function rustMapType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	return `HashMap<String, ${rustMapValueType(schema, parentTypeName, ctx)}>`;
+}
+
+function emitRustTypeAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	aliasType: string,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	ctx.generatedNames.add(typeName);
+
+	const lines: string[] = [];
+	pushRustDoc(lines, description || schema.description);
+	pushRustExperimentalDocs(
+		lines,
+		isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(typeName),
+	);
+	if (isSchemaDeprecated(schema)) {
+		lines.push(...rustDeprecatedAttributes());
+	}
+	const aliasVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
+	lines.push(`${aliasVis} type ${typeName} = ${aliasType};`);
+	ctx.typeAliases.push(lines.join("\n"));
+}
+
+function emitRustMapAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	emitRustTypeAlias(
+		typeName,
+		schema,
+		rustMapType(schema, typeName, ctx),
+		ctx,
+		description,
+	);
 }
 
 function rustRpcResultDescription(
@@ -516,6 +613,7 @@ function resolveRustType(
 					resolved.enum as string[],
 					ctx,
 					resolved.description,
+					getEnumValueDescriptions(resolved),
 					isSchemaExperimental(resolved),
 				);
 				return wrapOption(typeName, isRequired);
@@ -618,6 +716,7 @@ function resolveRustType(
 			propSchema.enum as string[],
 			ctx,
 			propSchema.description,
+			getEnumValueDescriptions(propSchema),
 			isSchemaExperimental(propSchema),
 		);
 		return wrapOption(enumName, isRequired);
@@ -663,7 +762,12 @@ function resolveRustType(
 		return wrapOption("String", isRequired);
 	}
 	if (schemaType === "number") return wrapOption("f64", isRequired);
-	if (schemaType === "integer") return wrapOption("i64", isRequired);
+	if (schemaType === "integer") {
+		return wrapOption(
+			isIntegerSchemaBoundedToInt32(propSchema) ? "i32" : "i64",
+			isRequired,
+		);
+	}
 	if (schemaType === "boolean") return wrapOption("bool", isRequired);
 
 	// Array
@@ -692,28 +796,8 @@ function resolveRustType(
 			emitRustStruct(structName, propSchema, ctx);
 			return wrapOption(structName, isRequired);
 		}
-		if (propSchema.additionalProperties) {
-			if (
-				typeof propSchema.additionalProperties === "object" &&
-				Object.keys(propSchema.additionalProperties as Record<string, unknown>)
-					.length > 0
-			) {
-				const ap = propSchema.additionalProperties as JSONSchema7;
-				if (ap.type === "object" && ap.properties) {
-					const valueName = (ap.title as string) || `${nestedName}Value`;
-					emitRustStruct(valueName, ap, ctx);
-					return wrapOption(`HashMap<String, ${valueName}>`, isRequired);
-				}
-				const valueType = resolveRustType(
-					ap,
-					parentTypeName,
-					`${jsonPropName}Value`,
-					true,
-					ctx,
-				);
-				return wrapOption(`HashMap<String, ${valueType}>`, isRequired);
-			}
-			return wrapOption("HashMap<String, serde_json::Value>", isRequired);
+		if (isRustMapSchema(propSchema)) {
+			return wrapOption(rustMapType(propSchema, nestedName, ctx), isRequired);
 		}
 		return wrapOption("serde_json::Value", isRequired);
 	}
@@ -754,10 +838,11 @@ function emitRustStruct(
 			lines.push(`/// ${line}`);
 		}
 	}
-	pushRustExperimentalDocs(lines, isSchemaExperimental(schema));
+	pushRustExperimentalDocs(lines, isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(typeName));
 	if (isSchemaDeprecated(schema)) {
 		lines.push(...rustDeprecatedAttributes());
 	}
+	const structVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
 
 	// Resolve field types up-front so we can decide whether `Default` can be
 	// derived. A required field whose bare type is non-default-able (e.g. an
@@ -792,13 +877,18 @@ function emitRustStruct(
 		lines.push("#[derive(Debug, Clone, Default, Serialize, Deserialize)]");
 	}
 	lines.push(`#[serde(rename_all = "camelCase")]`);
-	lines.push(`pub struct ${typeName} {`);
+	lines.push(`${structVis} struct ${typeName} {`);
 
 	for (const { propName, prop, isReq, rustField, rustType } of fields) {
 		if (prop.description) {
 			for (const line of prop.description.split(/\r?\n/)) {
 				lines.push(`    /// ${line}`);
 			}
+		}
+		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
+		const propIsInternal = isSchemaInternal(prop);
+		if (propIsInternal) {
+			lines.push(`    #[doc(hidden)]`);
 		}
 		if (isSchemaDeprecated(prop)) {
 			lines.push(...rustDeprecatedAttributes("    "));
@@ -828,7 +918,7 @@ function emitRustStruct(
 			lines.push(`    #[serde(rename = "${propName}")]`);
 		}
 
-		lines.push(`    pub ${rustField}: ${rustType},`);
+		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
 	}
 
 	lines.push("}");
@@ -842,6 +932,7 @@ function emitRustStringEnum(
 	values: string[],
 	ctx: RustCodegenCtx,
 	description?: string,
+	enumValueDescriptions?: EnumValueDescriptions,
 	experimental = false,
 ): void {
 	if (ctx.generatedNames.has(enumName)) return;
@@ -853,7 +944,7 @@ function emitRustStringEnum(
 			lines.push(`/// ${line}`);
 		}
 	}
-	pushRustExperimentalDocs(lines, experimental);
+	pushRustExperimentalDocs(lines, experimental || ctx.experimentalTypeNames.has(enumName));
 	lines.push(
 		"#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]",
 	);
@@ -868,6 +959,7 @@ function emitRustStringEnum(
 			"Value",
 			reservedVariantNames,
 		);
+		pushRustDoc(lines, enumValueDescriptions?.[value], "    ");
 		if (variantName !== value) {
 			lines.push(`    #[serde(rename = "${value}")]`);
 		}
@@ -983,7 +1075,7 @@ function extractEventVariants(schema: JSONSchema7): EventVariant[] {
 		.filter((v) => !EXCLUDED_EVENT_TYPES.has(v.typeName));
 }
 
-function generateSessionEventsCode(schema: JSONSchema7): string {
+export function generateSessionEventsCode(schema: JSONSchema7): string {
 	const variants = extractEventVariants(schema);
 	const ctx = makeCtx(
 		collectDefinitionCollections(schema as Record<string, unknown>),
@@ -1125,6 +1217,12 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 		out.push("");
 	}
 
+	// Supporting type aliases
+	for (const block of ctx.typeAliases) {
+		out.push(block);
+		out.push("");
+	}
+
 	// Supporting enums
 	for (const block of ctx.enums) {
 		out.push(block);
@@ -1132,6 +1230,16 @@ function generateSessionEventsCode(schema: JSONSchema7): string {
 	}
 
 	return out.join("\n");
+}
+
+function collectNonDefaultableRustTypeNames(code: string): Set<string> {
+	const names = new Set<string>();
+	const pattern =
+		/#\[derive\(Debug, Clone, Serialize, Deserialize\)\](?:\r?\n#\[serde\([^\n]+\)\])*\r?\npub (?:struct|enum) (\w+)/g;
+	for (const match of code.matchAll(pattern)) {
+		names.add(match[1]);
+	}
+	return names;
 }
 
 // ── API types generation ────────────────────────────────────────────────────
@@ -1248,17 +1356,103 @@ function isNullableParamsSchema(
 	return !!resolved && !!getNullableInner(resolved);
 }
 
-function generateApiTypesCode(apiSchema: ApiSchema): string {
+function generateApiTypesCode(
+	apiSchema: ApiSchema,
+	nonDefaultableTypes: Iterable<string> = [],
+): string {
 	const definitions = collectDefinitions(apiSchema as Record<string, unknown>);
 	const defCollections = collectDefinitionCollections(
 		apiSchema as Record<string, unknown>,
 	);
-	const ctx = makeCtx(defCollections);
+	const ctx = makeCtx(defCollections, { nonDefaultableTypes });
+
+	// Collect all RPC methods before emitting shared definitions so method stability
+	// can propagate to referenced data types.
+	const methodEntries: { method: RpcMethod; isSession: boolean }[] = [];
+	for (const { group, isSession } of [
+		{ group: apiSchema.server, isSession: false },
+		{ group: apiSchema.session, isSession: true },
+		{ group: apiSchema.clientSession, isSession: false },
+	]) {
+		if (group) {
+			methodEntries.push(
+				...collectRpcMethods(group as Record<string, unknown>).map((method) => ({
+					method,
+					isSession,
+				})),
+			);
+		}
+	}
+	const allMethods = methodEntries.map(({ method }) => method);
+	const inlineMethodParamSchemas = new Map<string, JSONSchema7>();
+	const sortedNames = (names: Iterable<string> | undefined): string[] =>
+		[...(names ?? [])].sort();
+	const schemaPropertyNames = (schema: JSONSchema7): string[] =>
+		sortedNames(Object.keys(schema.properties ?? {}));
+	const shouldPreferMethodParamSchema = (
+		typeName: string,
+		paramsSchema: JSONSchema7,
+	): boolean => {
+		const definition = definitions[typeName];
+		if (typeof definition !== "object" || definition === null) return false;
+		const definitionSchema = asGeneratedObjectSchema(
+			definition as JSONSchema7,
+			defCollections,
+		);
+		if (!definitionSchema) return false;
+
+		return (
+			JSON.stringify(schemaPropertyNames(paramsSchema)) !==
+				JSON.stringify(schemaPropertyNames(definitionSchema)) ||
+			JSON.stringify(sortedNames(paramsSchema.required)) !==
+				JSON.stringify(sortedNames(definitionSchema.required))
+		);
+	};
+	for (const { method, isSession } of methodEntries) {
+		const params = method.params as (JSONSchema7 & { $ref?: string }) | undefined;
+		if (!params || typeof params.$ref === "string") continue;
+		const paramsSchema = getMethodParamsObjectSchema(
+			method,
+			defCollections,
+			isSession,
+		);
+		const paramsName = rustParamsTypeName(method, defCollections);
+		if (paramsSchema && shouldPreferMethodParamSchema(paramsName, paramsSchema)) {
+			inlineMethodParamSchemas.set(paramsName, paramsSchema);
+		}
+	}
+	for (const name of collectExperimentalOnlyRpcReferencedDefinitionNames(allMethods, defCollections)) {
+		ctx.experimentalTypeNames.add(toPascalCase(name));
+	}
+	const nonExperimentalReferencedTypes = new Set(
+		[...collectRpcMethodReferencedDefinitionNames(
+			allMethods.filter((method) => method.stability !== "experimental"),
+			defCollections,
+		)].map((name) => toPascalCase(name)),
+	);
+	for (const { method, isSession } of methodEntries) {
+		if (method.stability !== "experimental") continue;
+		const paramsSchema =
+			getMethodParamsObjectSchema(method, defCollections, isSession) ??
+			(isSession && method.params ? asGeneratedObjectSchema(method.params, defCollections) : undefined);
+		if (paramsSchema) {
+			const paramsName = rustParamsTypeName(method, defCollections);
+			if (!nonExperimentalReferencedTypes.has(paramsName)) {
+				ctx.experimentalTypeNames.add(paramsName);
+			}
+		}
+		if (method.result && !isVoidSchema(method.result)) {
+			const resultName = rustResultTypeName(method, ctx);
+			if (!nonExperimentalReferencedTypes.has(resultName)) {
+				ctx.experimentalTypeNames.add(resultName);
+			}
+		}
+	}
 
 	// Generate shared definitions (structs & enums)
 	for (const [name, def] of Object.entries(definitions)) {
 		if (typeof def !== "object" || def === null) continue;
-		const schema = def as JSONSchema7;
+		const schema = inlineMethodParamSchemas.get(name) ?? (def as JSONSchema7);
 
 		if (schema.enum && Array.isArray(schema.enum)) {
 			emitRustStringEnum(
@@ -1266,8 +1460,11 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 				schema.enum as string[],
 				ctx,
 				schema.description,
+				getEnumValueDescriptions(schema),
 				isSchemaExperimental(schema),
 			);
+		} else if (isRustMapSchema(schema)) {
+			emitRustMapAlias(name, schema, ctx, schema.description);
 		} else if (asGeneratedObjectSchema(schema, defCollections)) {
 			emitRustStruct(
 				name,
@@ -1287,24 +1484,6 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 			}
 		}
 	}
-
-	// Collect all RPC methods and generate request/response types
-	const methodEntries: { method: RpcMethod; isSession: boolean }[] = [];
-	for (const { group, isSession } of [
-		{ group: apiSchema.server, isSession: false },
-		{ group: apiSchema.session, isSession: true },
-		{ group: apiSchema.clientSession, isSession: false },
-	]) {
-		if (group) {
-			methodEntries.push(
-				...collectRpcMethods(group as Record<string, unknown>).map((method) => ({
-					method,
-					isSession,
-				})),
-			);
-		}
-	}
-	const allMethods = methodEntries.map(({ method }) => method);
 
 	// RPC method name constants
 	const methodConstLines: string[] = [];
@@ -1346,6 +1525,8 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 			if (resolved) {
 				if (resolved.enum && Array.isArray(resolved.enum)) {
 					// Already generated from definitions
+				} else if (isRustMapSchema(resolved)) {
+					emitRustMapAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isObjectSchema(resolved)) {
 					emitRustStruct(resultName, resolved, ctx, resolved.description);
 				}
@@ -1383,9 +1564,6 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 	)) {
 		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
 	}
-	if (externalImports.size > 0) {
-		out.push("");
-	}
 	out.push("use crate::types::{RequestId, SessionId};");
 	out.push("");
 
@@ -1395,6 +1573,11 @@ function generateApiTypesCode(apiSchema: ApiSchema): string {
 
 	// Shared definition types first, then RPC types
 	for (const block of ctx.structs) {
+		out.push(block);
+		out.push("");
+	}
+
+	for (const block of ctx.typeAliases) {
 		out.push(block);
 		out.push("");
 	}
@@ -1685,17 +1868,18 @@ function emitNamespaceMethod(
 	};
 
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
+	const fnVis = method.visibility === "internal" ? "pub(crate)" : "pub";
 
 	if (hasParams && paramsInfo.optional) {
 		out.push(...buildDocs(false));
 		out.push(
-			`    pub async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
+			`    ${fnVis} async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, false, resultIsVoid);
 		out.push("");
 		out.push(...buildDocs(true));
 		out.push(
-			`    pub async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
+			`    ${fnVis} async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, true, resultIsVoid);
 		out.push("");
@@ -1704,7 +1888,7 @@ function emitNamespaceMethod(
 
 	out.push(...buildDocs(hasParams));
 	out.push(
-		`    pub async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
+		`    ${fnVis} async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
 	);
 	pushNamespaceMethodBody(out, constName, isSession, hasParams, resultIsVoid);
 	out.push("");
@@ -1751,6 +1935,43 @@ function generateRpcCode(apiSchema: ApiSchema): string {
 	out.push("#![allow(clippy::too_many_arguments)]");
 	out.push("");
 	out.push("use super::api_types::{rpc_methods, *};");
+	const externalTypeRefs = new Map<string, Set<string>>();
+	const recordExternalTypeRef = (ref: string | undefined): void => {
+		if (!ref) return;
+		const externalRef = parseExternalSchemaRef(ref);
+		if (!externalRef) return;
+		let typeNames = externalTypeRefs.get(externalRef.schemaFile);
+		if (!typeNames) {
+			typeNames = new Set<string>();
+			externalTypeRefs.set(externalRef.schemaFile, typeNames);
+		}
+		typeNames.add(externalRef.definitionName);
+	};
+	for (const method of [...serverMethods, ...sessionMethods]) {
+		recordExternalTypeRef(method.params?.$ref);
+		recordExternalTypeRef(method.result?.$ref);
+		recordExternalTypeRef(getNullableInner(method.result)?.$ref);
+	}
+	const externalImports = new Map<string, Set<string>>();
+	for (const [schemaFile, typeNames] of externalTypeRefs) {
+		const defaultModule = EXTERNAL_SCHEMA_RUST_MODULE[schemaFile];
+		const typeModules = EXTERNAL_SCHEMA_RUST_TYPE_MODULE[schemaFile] ?? {};
+		for (const typeName of typeNames) {
+			const module = typeModules[typeName] ?? defaultModule;
+			if (!module) continue;
+			let names = externalImports.get(module);
+			if (!names) {
+				names = new Set<string>();
+				externalImports.set(module, names);
+			}
+			names.add(typeName);
+		}
+	}
+	for (const [module, typeNames] of [...externalImports].sort(([left], [right]) =>
+		left.localeCompare(right),
+	)) {
+		out.push(`use ${module}::{${[...typeNames].sort().join(", ")}};`);
+	}
 	out.push("use crate::session::Session;");
 	out.push("use crate::{Client, Error};");
 	out.push("");
@@ -1855,11 +2076,15 @@ async function generate(): Promise<void> {
 		await fs.readFile(apiSchemaPath, "utf-8"),
 	) as ApiSchema;
 
-	const sessionEventsSchema = postProcessSchema(
-		stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+	const sessionEventsSchema = propagateInternalVisibility(
+		postProcessSchema(
+			stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+		),
 	);
-	const apiSchema = postProcessSchema(
-		stripBooleanLiterals(apiRaw) as JSONSchema7,
+	const apiSchema = propagateInternalVisibility(
+		postProcessSchema(
+			stripBooleanLiterals(apiRaw) as JSONSchema7,
+		),
 	) as unknown as ApiSchema;
 
 	// Ensure output directory exists
@@ -1892,7 +2117,10 @@ async function generate(): Promise<void> {
 
 	// Generate API types
 	console.log("Generating api_types.rs...");
-	const apiTypesCode = generateApiTypesCode(apiSchemaForGeneration);
+	const apiTypesCode = generateApiTypesCode(
+		apiSchemaForGeneration,
+		collectNonDefaultableRustTypeNames(sessionEventsCode),
+	);
 	const apiTypesPath = path.join(GENERATED_DIR, "api_types.rs");
 	await fs.writeFile(apiTypesPath, apiTypesCode, "utf-8");
 	await rustfmt(apiTypesPath);
@@ -1914,7 +2142,11 @@ async function generate(): Promise<void> {
 	console.log(`Done! Generated files in ${GENERATED_DIR}`);
 }
 
-generate().catch((err) => {
-	console.error("Code generation failed:", err);
-	process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+	generate().catch((err) => {
+		console.error("Code generation failed:", err);
+		process.exit(1);
+	});
+}

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 var cliUrl = Environment.GetEnvironmentVariable("CLI_URL")
@@ -21,7 +21,7 @@ app.MapPost("/chat", async (HttpContext ctx) =>
         return;
     }
 
-    using var client = new CopilotClient(new CopilotClientOptions { CliUrl = cliUrl });
+    using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl) });
     await client.StartAsync();
 
     try

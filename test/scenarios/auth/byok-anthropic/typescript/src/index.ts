@@ -9,9 +9,7 @@ async function main() {
     process.exit(1);
   }
 
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({

@@ -1,4 +1,4 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
 var apiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
@@ -11,10 +11,7 @@ if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
     return 1;
 }
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

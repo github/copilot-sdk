@@ -9,6 +9,8 @@ import pytest
 from copilot.generated.session_events import (
     AutoModeSwitchCompletedData,
     AutoModeSwitchRequestedData,
+    AutoModeSwitchResponse,
+    ExitPlanModeAction,
     ExitPlanModeCompletedData,
     ExitPlanModeRequestedData,
     SessionIdleData,
@@ -33,7 +35,7 @@ AUTO_MODE_PROMPT = "Explain that auto mode recovered from a rate limit in one sh
 async def mode_ctx(ctx: E2ETestContext):
     """Configure per-token user responses for mode-handler tests."""
     proxy_url = ctx.proxy_url
-    ctx.client._config.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
+    ctx.client._options.env["COPILOT_DEBUG_GITHUB_API_URL"] = proxy_url
 
     await ctx.set_copilot_user_by_token(
         MODE_HANDLER_TOKEN,
@@ -73,7 +75,7 @@ class TestModeHandlers:
     ):
         exit_plan_mode_requests = []
 
-        async def on_exit_plan_mode(request, invocation):
+        async def on_exit_plan_mode_request(request, invocation):
             exit_plan_mode_requests.append(request)
             assert invocation["session_id"] == session.session_id
             return {
@@ -85,7 +87,7 @@ class TestModeHandlers:
         session = await mode_ctx.client.create_session(
             github_token=MODE_HANDLER_TOKEN,
             on_permission_request=PermissionHandler.approve_all,
-            on_exit_plan_mode=on_exit_plan_mode,
+            on_exit_plan_mode_request=on_exit_plan_mode_request,
         )
 
         try:
@@ -104,7 +106,7 @@ class TestModeHandlers:
                     lambda event: (
                         isinstance(event.data, ExitPlanModeCompletedData)
                         and event.data.approved is True
-                        and event.data.selected_action == "interactive"
+                        and event.data.selected_action == ExitPlanModeAction.INTERACTIVE
                     ),
                 )
             )
@@ -126,7 +128,7 @@ class TestModeHandlers:
 
             completed = await completed_event
             assert completed.data.approved is True
-            assert completed.data.selected_action == "interactive"
+            assert completed.data.selected_action == ExitPlanModeAction.INTERACTIVE
             assert completed.data.feedback == "Approved by the Python E2E test"
             assert response is not None
         finally:
@@ -137,7 +139,7 @@ class TestModeHandlers:
     ):
         auto_mode_switch_requests = []
 
-        async def on_auto_mode_switch(request, invocation):
+        async def on_auto_mode_switch_request(request, invocation):
             auto_mode_switch_requests.append(request)
             assert invocation["session_id"] == session.session_id
             return "yes"
@@ -145,7 +147,7 @@ class TestModeHandlers:
         session = await mode_ctx.client.create_session(
             github_token=MODE_HANDLER_TOKEN,
             on_permission_request=PermissionHandler.approve_all,
-            on_auto_mode_switch=on_auto_mode_switch,
+            on_auto_mode_switch_request=on_auto_mode_switch_request,
         )
 
         try:
@@ -164,7 +166,7 @@ class TestModeHandlers:
                     session,
                     lambda event: (
                         isinstance(event.data, AutoModeSwitchCompletedData)
-                        and event.data.response == "yes"
+                        and event.data.response == AutoModeSwitchResponse.YES
                     ),
                 )
             )
@@ -192,7 +194,7 @@ class TestModeHandlers:
             assert requested.data.retry_after_seconds == 1
 
             completed = await completed_event
-            assert completed.data.response == "yes"
+            assert completed.data.response == AutoModeSwitchResponse.YES
 
             model_change = await model_change_event
             assert model_change.data.cause == "rate_limit_auto_switch"

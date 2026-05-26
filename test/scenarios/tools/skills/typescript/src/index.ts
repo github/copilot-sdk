@@ -5,10 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const skillsDir = path.resolve(__dirname, "../../sample-skills");
@@ -16,7 +13,7 @@ async function main() {
     const session = await client.createSession({
       model: "claude-haiku-4.5",
       skillDirectories: [skillsDir],
-      onPermissionRequest: async () => ({ kind: "approved" as const }),
+      onPermissionRequest: async () => ({ kind: "approve-once" as const }),
       hooks: {
         onPreToolUse: async () => ({ permissionDecision: "allow" as const }),
       },

@@ -1,6 +1,6 @@
 # SDK E2E Scenario Tests
 
-End-to-end scenario tests for the Copilot SDK. Each scenario demonstrates a specific SDK capability with implementations in TypeScript, Python, and Go.
+End-to-end scenario tests for the Copilot SDK. Each scenario demonstrates a specific SDK capability with implementations in TypeScript, Python, Go, C#, and Rust.
 
 ## Structure
 
@@ -35,4 +35,4 @@ COPILOT_CLI_PATH=/path/to/copilot GITHUB_TOKEN=$(gh auth token) bash <category>/
 
 - **Copilot CLI** — set `COPILOT_CLI_PATH`
 - **GitHub token** — set `GITHUB_TOKEN` or use `gh auth login`
-- **Node.js 20+**, **Python 3.10+**, **Go 1.24+** (per language)
+- **Node.js 20+**, **Python 3.11+**, **Go 1.24+**, **.NET 8+**, **Rust 1.94+** (per language)

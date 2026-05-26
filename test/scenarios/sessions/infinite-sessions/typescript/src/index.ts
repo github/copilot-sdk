@@ -1,10 +1,7 @@
 import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -12,11 +9,12 @@ async function main() {
       availableTools: [],
       systemMessage: {
         mode: "replace",
-        content: "You are a helpful assistant. Answer concisely in one sentence.",
+        content:
+          "You are a helpful assistant. Answer concisely in one sentence.",
       },
       infiniteSessions: {
         enabled: true,
-        backgroundCompactionThreshold: 0.80,
+        backgroundCompactionThreshold: 0.8,
         bufferExhaustionThreshold: 0.95,
       },
     });
@@ -35,7 +33,9 @@ async function main() {
       }
     }
 
-    console.log("Infinite sessions test complete — all messages processed successfully");
+    console.log(
+      "Infinite sessions test complete — all messages processed successfully",
+    );
 
     await session.disconnect();
   } finally {

@@ -30,7 +30,8 @@ pub struct PreToolUseInput {
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
-    pub cwd: PathBuf,
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
     /// Name of the tool about to execute.
     pub tool_name: String,
     /// Arguments passed to the tool.
@@ -58,6 +59,45 @@ pub struct PreToolUseOutput {
     pub suppress_output: Option<bool>,
 }
 
+/// Input for the `preMcpToolCall` hook — received before an MCP tool call is dispatched.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreMcpToolCallInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp (ms).
+    pub timestamp: i64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Name of the MCP server being called.
+    pub server_name: String,
+    /// Name of the MCP tool being called.
+    pub tool_name: String,
+    /// Arguments for the MCP tool call.
+    pub arguments: Value,
+    /// Tool call ID, if available.
+    #[serde(default)]
+    pub tool_call_id: Option<String>,
+    /// MCP request metadata.
+    #[serde(default, rename = "_meta")]
+    pub meta: Option<Value>,
+}
+
+/// Output for the `preMcpToolCall` hook.
+///
+/// `meta_to_use` has tri-state semantics:
+/// - `None`: field is absent in JSON, meaning preserve existing `_meta`
+/// - `Some(Value::Null)`: serialized as JSON `null`, meaning omit `_meta`
+/// - `Some(Value::Object(...))`: serialized as JSON object, meaning replace `_meta`
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreMcpToolCallOutput {
+    /// Hook-controlled metadata for the outgoing MCP request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta_to_use: Option<Value>,
+}
+
 /// Input for the `postToolUse` hook — received after a tool executes.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,7 +107,8 @@ pub struct PostToolUseInput {
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
-    pub cwd: PathBuf,
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
     /// Name of the tool that executed.
     pub tool_name: String,
     /// Arguments that were passed to the tool.
@@ -91,6 +132,43 @@ pub struct PostToolUseOutput {
     pub suppress_output: Option<bool>,
 }
 
+/// Input for the `postToolUseFailure` hook — received after a tool execution
+/// whose result was `"failure"`.
+///
+/// `postToolUse` only fires for successful tool executions. Register a handler
+/// for `postToolUseFailure` to observe failed tool calls. The CLI extracts the
+/// failure message from the tool result and passes it as the `error` field
+/// (rather than passing the full result object).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostToolUseFailureInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp (ms).
+    pub timestamp: i64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Name of the tool that failed.
+    pub tool_name: String,
+    /// Arguments that were passed to the tool.
+    pub tool_args: Value,
+    /// Failure message extracted from the tool's result.
+    pub error: String,
+}
+
+/// Output for the `postToolUseFailure` hook.
+///
+/// Only `additional_context` is consumed by the host CLI — it is appended as
+/// hidden guidance to the model alongside the failed tool result.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostToolUseFailureOutput {
+    /// Extra context appended to the failed tool result for the agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_context: Option<String>,
+}
+
 /// Input for the `userPromptSubmitted` hook — received when the user sends a message.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,7 +178,8 @@ pub struct UserPromptSubmittedInput {
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
-    pub cwd: PathBuf,
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
     /// The user's message text.
     pub prompt: String,
 }
@@ -129,7 +208,8 @@ pub struct SessionStartInput {
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
-    pub cwd: PathBuf,
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
     /// How the session was started: `"startup"`, `"resume"`, or `"new"`.
     pub source: String,
     /// The first user message, if any.
@@ -158,7 +238,8 @@ pub struct SessionEndInput {
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
-    pub cwd: PathBuf,
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
     /// Why the session ended: `"complete"`, `"error"`, `"abort"`, `"timeout"`, `"user_exit"`.
     pub reason: String,
     /// The last assistant message.
@@ -193,7 +274,8 @@ pub struct ErrorOccurredInput {
     /// Unix timestamp (ms).
     pub timestamp: i64,
     /// Working directory.
-    pub cwd: PathBuf,
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
     /// The error message.
     pub error: String,
     /// Context where the error occurred: `"model_call"`, `"tool_execution"`, `"system"`, `"user_input"`.
@@ -235,10 +317,26 @@ pub enum HookEvent {
         /// Session context.
         ctx: HookContext,
     },
+    /// Fired before an MCP tool call is dispatched.
+    PreMcpToolCall {
+        /// Typed input data.
+        input: PreMcpToolCallInput,
+        /// Session context.
+        ctx: HookContext,
+    },
     /// Fired after a tool executes.
     PostToolUse {
         /// Typed input data.
         input: PostToolUseInput,
+        /// Session context.
+        ctx: HookContext,
+    },
+    /// Fired after a tool execution whose result was `"failure"`.
+    /// [`HookEvent::PostToolUse`] only fires on success, so observe this
+    /// variant to react to failed tool calls.
+    PostToolUseFailure {
+        /// Typed input data.
+        input: PostToolUseFailureInput,
         /// Session context.
         ctx: HookContext,
     },
@@ -283,8 +381,12 @@ pub enum HookOutput {
     None,
     /// Response for a pre-tool-use hook.
     PreToolUse(PreToolUseOutput),
+    /// Response for a pre-MCP-tool-call hook.
+    PreMcpToolCall(PreMcpToolCallOutput),
     /// Response for a post-tool-use hook.
     PostToolUse(PostToolUseOutput),
+    /// Response for a post-tool-use-failure hook.
+    PostToolUseFailure(PostToolUseFailureOutput),
     /// Response for a user-prompt-submitted hook.
     UserPromptSubmitted(UserPromptSubmittedOutput),
     /// Response for a session-start hook.
@@ -300,7 +402,9 @@ impl HookOutput {
         match self {
             Self::None => "None",
             Self::PreToolUse(_) => "PreToolUse",
+            Self::PreMcpToolCall(_) => "PreMcpToolCall",
             Self::PostToolUse(_) => "PostToolUse",
+            Self::PostToolUseFailure(_) => "PostToolUseFailure",
             Self::UserPromptSubmitted(_) => "UserPromptSubmitted",
             Self::SessionStart(_) => "SessionStart",
             Self::SessionEnd(_) => "SessionEnd",
@@ -338,10 +442,20 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .await
                 .map(HookOutput::PreToolUse)
                 .unwrap_or(HookOutput::None),
+            HookEvent::PreMcpToolCall { input, ctx } => self
+                .on_pre_mcp_tool_call(input, ctx)
+                .await
+                .map(HookOutput::PreMcpToolCall)
+                .unwrap_or(HookOutput::None),
             HookEvent::PostToolUse { input, ctx } => self
                 .on_post_tool_use(input, ctx)
                 .await
                 .map(HookOutput::PostToolUse)
+                .unwrap_or(HookOutput::None),
+            HookEvent::PostToolUseFailure { input, ctx } => self
+                .on_post_tool_use_failure(input, ctx)
+                .await
+                .map(HookOutput::PostToolUseFailure)
                 .unwrap_or(HookOutput::None),
             HookEvent::UserPromptSubmitted { input, ctx } => self
                 .on_user_prompt_submitted(input, ctx)
@@ -376,6 +490,16 @@ pub trait SessionHooks: Send + Sync + 'static {
         None
     }
 
+    /// Called before an MCP tool call is dispatched. Return `Some(output)` to
+    /// modify or remove request metadata, or `None` (default) to pass through unchanged.
+    async fn on_pre_mcp_tool_call(
+        &self,
+        _input: PreMcpToolCallInput,
+        _ctx: HookContext,
+    ) -> Option<PreMcpToolCallOutput> {
+        None
+    }
+
     /// Called after a tool executes. Return `Some(output)` to inject
     /// additional context or signal post-processing decisions; `None`
     /// (default) means no follow-up.
@@ -384,6 +508,18 @@ pub trait SessionHooks: Send + Sync + 'static {
         _input: PostToolUseInput,
         _ctx: HookContext,
     ) -> Option<PostToolUseOutput> {
+        None
+    }
+
+    /// Called after a tool execution whose result was `"failure"`. The
+    /// success-only [`on_post_tool_use`](Self::on_post_tool_use) hook does
+    /// not fire for these outcomes, so override this method to observe or
+    /// inject extra context after failed tool calls.
+    async fn on_post_tool_use_failure(
+        &self,
+        _input: PostToolUseFailureInput,
+        _ctx: HookContext,
+    ) -> Option<PostToolUseFailureOutput> {
         None
     }
 
@@ -449,9 +585,17 @@ pub(crate) async fn dispatch_hook(
             let input: PreToolUseInput = serde_json::from_value(raw_input)?;
             HookEvent::PreToolUse { input, ctx }
         }
+        "preMcpToolCall" => {
+            let input: PreMcpToolCallInput = serde_json::from_value(raw_input)?;
+            HookEvent::PreMcpToolCall { input, ctx }
+        }
         "postToolUse" => {
             let input: PostToolUseInput = serde_json::from_value(raw_input)?;
             HookEvent::PostToolUse { input, ctx }
+        }
+        "postToolUseFailure" => {
+            let input: PostToolUseFailureInput = serde_json::from_value(raw_input)?;
+            HookEvent::PostToolUseFailure { input, ctx }
         }
         "userPromptSubmitted" => {
             let input: UserPromptSubmittedInput = serde_json::from_value(raw_input)?;
@@ -495,7 +639,9 @@ pub(crate) async fn dispatch_hook(
     let output_value = match (hook_type, &output) {
         (_, HookOutput::None) => None,
         ("preToolUse", HookOutput::PreToolUse(o)) => Some(serde_json::to_value(o)?),
+        ("preMcpToolCall", HookOutput::PreMcpToolCall(o)) => Some(serde_json::to_value(o)?),
         ("postToolUse", HookOutput::PostToolUse(o)) => Some(serde_json::to_value(o)?),
+        ("postToolUseFailure", HookOutput::PostToolUseFailure(o)) => Some(serde_json::to_value(o)?),
         ("userPromptSubmitted", HookOutput::UserPromptSubmitted(o)) => {
             Some(serde_json::to_value(o)?)
         }
@@ -673,6 +819,101 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result["output"], serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn dispatch_post_tool_use_failure_default() {
+        // No handler override — should return an empty output object.
+        let hooks = TestHooks;
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "toolName": "some_tool",
+            "toolArgs": {"key": "value"},
+            "error": "boom"
+        });
+        let result = dispatch_hook(
+            &hooks,
+            &SessionId::new("sess-1"),
+            "postToolUseFailure",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["output"], serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn dispatch_post_tool_use_failure_returns_additional_context() {
+        struct FailureHooks;
+        #[async_trait]
+        impl SessionHooks for FailureHooks {
+            async fn on_post_tool_use_failure(
+                &self,
+                input: PostToolUseFailureInput,
+                _ctx: HookContext,
+            ) -> Option<PostToolUseFailureOutput> {
+                assert_eq!(input.session_id, "sess-1");
+                assert_eq!(input.tool_name, "some_tool");
+                assert_eq!(input.error, "boom");
+                assert_eq!(input.working_directory, PathBuf::from("/tmp"));
+                Some(PostToolUseFailureOutput {
+                    additional_context: Some(format!(
+                        "tool {} failed: {}",
+                        input.tool_name, input.error
+                    )),
+                })
+            }
+        }
+
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "toolName": "some_tool",
+            "toolArgs": {},
+            "error": "boom"
+        });
+        let result = dispatch_hook(
+            &FailureHooks,
+            &SessionId::new("sess-1"),
+            "postToolUseFailure",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result["output"]["additionalContext"],
+            "tool some_tool failed: boom"
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_post_tool_use_failure_invalid_input_errors() {
+        // Missing required `error` field — dispatcher should surface the
+        // deserialization error rather than dispatching with empty input.
+        let hooks = TestHooks;
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "toolName": "some_tool",
+            "toolArgs": {}
+        });
+        let err = dispatch_hook(
+            &hooks,
+            &SessionId::new("sess-1"),
+            "postToolUseFailure",
+            input,
+        )
+        .await
+        .unwrap_err();
+        let msg = err.to_string().to_ascii_lowercase();
+        assert!(
+            msg.contains("error") || msg.contains("missing field"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[tokio::test]

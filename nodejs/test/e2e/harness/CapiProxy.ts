@@ -6,6 +6,7 @@ import {
     CopilotUserResponse,
     ParsedHttpExchange,
 } from "../../../../test/harness/replayingCapiProxy";
+import { isCI } from "./sdkTestContext";
 
 const HARNESS_SERVER_PATH = resolve(__dirname, "../../../../test/harness/server.ts");
 const NO_PROXY = "127.0.0.1,localhost,::1";
@@ -92,9 +93,13 @@ export class CapiProxy {
             CURL_CA_BUNDLE: this.startupInfo.caFilePath,
             GIT_SSL_CAINFO: this.startupInfo.caFilePath,
             GH_TOKEN: "",
-            GITHUB_TOKEN: "",
             GH_ENTERPRISE_TOKEN: "",
             GITHUB_ENTERPRISE_TOKEN: "",
+
+            // In CI we never want it to make real network requests, so there should be no need for auth
+            // But when running locally you have to be able to generate snapshots and that does require real auth,
+            // so you should set GH_TOKEN and we need to pass it through into the test app.
+            ...(isCI ? { GITHUB_TOKEN: "" } : undefined),
         };
     }
 

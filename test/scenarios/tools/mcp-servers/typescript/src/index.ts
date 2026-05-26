@@ -1,10 +1,7 @@
 import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     // MCP server config — demonstrates the configuration pattern.
@@ -15,7 +12,9 @@ async function main() {
       mcpServers["example"] = {
         type: "stdio",
         command: process.env.MCP_SERVER_CMD,
-        args: process.env.MCP_SERVER_ARGS ? process.env.MCP_SERVER_ARGS.split(" ") : [],
+        args: process.env.MCP_SERVER_ARGS
+          ? process.env.MCP_SERVER_ARGS.split(" ")
+          : [],
       };
     }
 
@@ -38,9 +37,13 @@ async function main() {
     }
 
     if (Object.keys(mcpServers).length > 0) {
-      console.log("\nMCP servers configured: " + Object.keys(mcpServers).join(", "));
+      console.log(
+        "\nMCP servers configured: " + Object.keys(mcpServers).join(", "),
+      );
     } else {
-      console.log("\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)");
+      console.log(
+        "\nNo MCP servers configured (set MCP_SERVER_CMD to test with a real server)",
+      );
     }
 
     await session.disconnect();

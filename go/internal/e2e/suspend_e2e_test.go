@@ -9,6 +9,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 const suspendTimeout = 60 * time.Second
@@ -50,9 +51,7 @@ func TestSuspendE2E(t *testing.T) {
 		_, cliURL := startTcpServer(t, ctx)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.CLIUrl = cliURL
-			opts.CLIPath = ""
-			opts.TCPConnectionToken = sharedTcpToken
+			opts.Connection = copilot.UriConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -76,9 +75,7 @@ func TestSuspendE2E(t *testing.T) {
 		client1.ForceStop()
 
 		client2 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.CLIUrl = cliURL
-			opts.CLIPath = ""
-			opts.TCPConnectionToken = sharedTcpToken
+			opts.Connection = copilot.UriConnection{URL: cliURL, ConnectionToken: sharedTcpToken}
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 
@@ -112,7 +109,7 @@ func TestSuspendE2E(t *testing.T) {
 		}
 
 		permissionRequested := make(chan copilot.PermissionRequest, 1)
-		releasePermission := make(chan copilot.PermissionRequestResult, 1)
+		releasePermission := make(chan rpc.PermissionDecision, 1)
 		var toolInvoked atomic.Bool
 
 		tool := copilot.DefineTool("suspend_cancel_permission_tool", "Transforms a value (should not run when suspend cancels permission)",
@@ -123,7 +120,7 @@ func TestSuspendE2E(t *testing.T) {
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			Tools: []copilot.Tool{tool},
-			OnPermissionRequest: func(request copilot.PermissionRequest, _ copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(request copilot.PermissionRequest, _ copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				select {
 				case permissionRequested <- request:
 				default:
@@ -136,7 +133,7 @@ func TestSuspendE2E(t *testing.T) {
 		}
 		defer func() {
 			select {
-			case releasePermission <- copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindUserNotAvailable}:
+			case releasePermission <- &rpc.PermissionDecisionUserNotAvailable{}:
 			default:
 			}
 		}()

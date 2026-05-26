@@ -299,7 +299,7 @@ cargo run
 Create a new console project and add this to `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -467,7 +467,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -557,7 +557,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -568,7 +568,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -665,13 +665,12 @@ unsubscribeIdle();
 
 <!-- docs-validate: hidden -->
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 from copilot.generated.session_events import SessionEvent, SessionEventType
-from copilot.session import PermissionRequestResult
 
 client = CopilotClient()
 
-session = await client.create_session(on_permission_request=lambda req, inv: PermissionRequestResult(kind="approved"))
+session = await client.create_session(on_permission_request=lambda req, inv: PermissionDecisionApproveOnce())
 
 # Subscribe to all events
 unsubscribe = session.on(lambda event: print(f"Event: {event.type}"))
@@ -800,17 +799,17 @@ tokio::spawn(async move {
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class EventSubscriptionExample
 {
     public static void Example(CopilotSession session)
     {
         // Subscribe to all events
-        var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+        var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
         // Filter by event type using pattern matching
-        session.On(ev =>
+        session.On<SessionEvent>(ev =>
         {
             switch (ev)
             {
@@ -832,10 +831,10 @@ public static class EventSubscriptionExample
 
 ```csharp
 // Subscribe to all events
-var unsubscribe = session.On(ev => Console.WriteLine($"Event: {ev.Type}"));
+var unsubscribe = session.On<SessionEvent>(ev => Console.WriteLine($"Event: {ev.Type}"));
 
 // Filter by event type using pattern matching
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     switch (ev)
     {
@@ -1046,7 +1045,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 		Tools:     []copilot.Tool{getWeather},
 	})
 	if err != nil {
@@ -1159,7 +1158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
@@ -1190,7 +1189,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
     Tools = [getWeather],
 });
 
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -1482,7 +1481,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 		Tools:     []copilot.Tool{getWeather},
 	})
 	if err != nil {
@@ -1647,7 +1646,7 @@ cargo run
 Create a new console project and update `Program.cs`:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
@@ -1676,7 +1675,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 });
 
 // Listen for response chunks
-session.On(ev =>
+session.On<SessionEvent>(ev =>
 {
     if (ev is AssistantMessageDeltaEvent deltaEvent)
     {
@@ -1909,7 +1908,7 @@ const session = await client.createSession({
 });
 ```
 
-Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `last_instructions`.
+Available section IDs: `identity`, `tone`, `tool_efficiency`, `environment_context`, `code_change_rules`, `guidelines`, `safety`, `tool_instructions`, `custom_instructions`, `runtime_instructions`, `last_instructions`.
 
 Each override supports four actions: `replace`, `remove`, `append`, and `prepend`. Unknown section IDs are handled gracefully—content is appended to additional instructions and a warning is emitted; `remove` on unknown sections is silently ignored.
 
@@ -1968,12 +1967,10 @@ const session = await client.createSession({ onPermissionRequest: approveAll });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient({
-    "cli_url": "localhost:4321"
-})
+client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:4321"))
 await client.start()
 
 # Use the client normally
@@ -2001,7 +1998,7 @@ func main() {
 	ctx := context.Background()
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: "localhost:4321",
+		Connection: copilot.UriConnection{URL: "localhost:4321"},
 	})
 
 	if err := client.Start(ctx); err != nil {
@@ -2021,7 +2018,7 @@ func main() {
 import copilot "github.com/github/copilot-sdk/go"
 
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIUrl: "localhost:4321",
+    Connection: copilot.UriConnection{URL: "localhost:4321"},
 })
 
 if err := client.Start(ctx); err != nil {
@@ -2067,12 +2064,11 @@ let session = client
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 // Use the client normally
@@ -2106,7 +2102,7 @@ var session = client.createSession(
 
 </details>
 
-**Note:** When `cli_url` / `cliUrl` / `CLIUrl` is provided, or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
+**Note:** When `cli_url` / `cliUrl` / Go's `UriConnection` is provided, or Rust uses `Transport::External`, the SDK will not spawn or manage a CLI process - it will only connect to the existing server at the specified URL.
 
 ## Telemetry and observability
 
@@ -2139,9 +2135,9 @@ Optional peer dependency: `@opentelemetry/api`
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient, CopilotClientOptions
 
-client = CopilotClient(SubprocessConfig(
+client = CopilotClient(CopilotClientOptions(
     telemetry={
         "otlp_endpoint": "http://localhost:4318",
     },

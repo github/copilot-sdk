@@ -18,7 +18,7 @@ use github_copilot_sdk::handler::ApproveAllHandler;
 # async fn example() -> Result<(), github_copilot_sdk::Error> {
 let client = Client::start(ClientOptions::default()).await?;
 let session = client.create_session(
-    SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)),
+    SessionConfig::default().with_permission_handler(Arc::new(ApproveAllHandler)),
 ).await?;
 let _message_id = session.send("Hello!").await?;
 session.disconnect().await?;
@@ -50,10 +50,10 @@ The SDK manages the CLI process lifecycle: spawning, health-checking, and gracef
 let client = Client::start(options).await?;
 
 // Create a new session
-let session = client.create_session(config.with_handler(handler)).await?;
+let session = client.create_session(config.with_permission_handler(handler)).await?;
 
 // Resume an existing session
-let session = client.resume_session(config.with_handler(handler)).await?;
+let session = client.resume_session(config.with_permission_handler(handler)).await?;
 
 // Low-level RPC
 let result = client.call("method.name", Some(params)).await?;
@@ -68,21 +68,21 @@ client.stop().await?;
 
 **`ClientOptions`:**
 
-| Field | Type | Description |
-|---|---|---|
-| `program` | `CliProgram` | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit) |
-| `prefix_args` | `Vec<OsString>` | Args before `--server` (e.g. script path for node) |
-| `cwd` | `PathBuf` | Working directory for CLI process |
-| `env` | `Vec<(OsString, OsString)>` | Environment variables for CLI process |
-| `env_remove` | `Vec<OsString>` | Environment variables to remove |
-| `extra_args` | `Vec<String>` | Extra CLI flags |
-| `transport` | `Transport` | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
+| Field         | Type                        | Description                                                     |
+| ------------- | --------------------------- | --------------------------------------------------------------- |
+| `program`     | `CliProgram`                | `Resolve` (default: auto-detect) or `Path(PathBuf)` (explicit)  |
+| `prefix_args` | `Vec<OsString>`             | Args before `--server` (e.g. script path for node)              |
+| `cwd`         | `PathBuf`                   | Working directory for CLI process                               |
+| `env`         | `Vec<(OsString, OsString)>` | Environment variables for CLI process                           |
+| `env_remove`  | `Vec<OsString>`             | Environment variables to remove                                 |
+| `extra_args`  | `Vec<String>`               | Extra CLI flags                                                 |
+| `transport`   | `Transport`                 | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
 
-With the default `CliProgram::Resolve`, `Client::start()` automatically resolves the binary via `github_copilot_sdk::resolve::copilot_binary()` — checking `COPILOT_CLI_PATH`, the [embedded CLI](#embedded-cli), and then the system PATH. Use `CliProgram::Path(path)` to skip resolution.
+With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
 
 ### Session
 
-Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches events to the `SessionHandler`.
+Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
 
 ```rust,ignore
 use github_copilot_sdk::MessageOptions;
@@ -101,7 +101,7 @@ let _id = session
     .await?;
 
 // Message history
-let messages = session.get_messages().await?;
+let messages = session.get_events().await?;
 
 // Abort the current agent turn
 session.abort().await?;
@@ -176,74 +176,57 @@ New RPCs land in the namespace immediately as the schema regenerates;
 helpers are added on top only when an ergonomic story is worth the
 maintenance.
 
-### SessionHandler
+### Handler Traits
 
-Implement this trait to control how a session responds to CLI events. Two styles are supported:
+The SDK exposes five focused handler traits, one per CLI callback type. Implement only the traits you need and install each with the matching `SessionConfig` setter. Each trait has a single `async fn handle(...)` method:
 
-**1. Per-event methods (recommended).** Override only the callbacks you care about; every method has a safe default (permission → deny, user input → none, external tool → "no handler", elicitation → cancel, exit plan → default). This is the `serenity::EventHandler` pattern.
+| Trait                   | Setter                            | Purpose                                       |
+| ----------------------- | --------------------------------- | --------------------------------------------- |
+| `PermissionHandler`     | `with_permission_handler(...)`    | Approve/deny tool-use permission requests     |
+| `ElicitationHandler`    | `with_elicitation_handler(...)`   | Respond to structured elicitation prompts     |
+| `UserInputHandler`      | `with_user_input_handler(...)`    | Answer free-form / choice user-input prompts  |
+| `ExitPlanModeHandler`   | `with_exit_plan_mode_handler(...)`| Respond when the agent exits plan mode        |
+| `AutoModeSwitchHandler` | `with_auto_mode_switch_handler(...)`| Respond to automatic mode-switch proposals  |
+
+The CLI's `requestPermission` / `requestElicitation` / `requestUserInput` / etc. wire flags are derived automatically from which traits you've installed — clients that don't install a handler are silently skipped, letting another connected client handle the request.
 
 ```rust,ignore
+use std::sync::Arc;
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
 use github_copilot_sdk::types::{PermissionRequestData, RequestId, SessionId};
 
-struct MyHandler;
+struct MyPermissions;
 
 #[async_trait]
-impl SessionHandler for MyHandler {
-    async fn on_permission_request(
+impl PermissionHandler for MyPermissions {
+    async fn handle(
         &self,
         _sid: SessionId,
         _rid: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
         if data.extra.get("tool").and_then(|v| v.as_str()) == Some("view") {
-            PermissionResult::Approved
+            PermissionResult::approve_once()
         } else {
-            PermissionResult::Denied
+            PermissionResult::reject(None)
         }
     }
-
-    async fn on_session_event(&self, sid: SessionId, event: github_copilot_sdk::types::SessionEvent) {
-        println!("[{sid}] {}", event.event_type);
-    }
 }
+
+let config = SessionConfig::default().with_permission_handler(Arc::new(MyPermissions));
 ```
 
-**2. Single `on_event` method.** Override `on_event` directly and `match` on `HandlerEvent` — useful for logging middleware, custom routing, or when you want one exhaustive dispatch point.
+A single type can implement multiple handler traits — share one `Arc<Self>` across the setters by cloning:
 
 ```rust,ignore
-use github_copilot_sdk::handler::*;
-use async_trait::async_trait;
-
-#[async_trait]
-impl SessionHandler for MyRouter {
-    async fn on_event(&self, event: HandlerEvent) -> HandlerResponse {
-        match event {
-            HandlerEvent::SessionEvent { session_id, event } => {
-                println!("[{session_id}] {}", event.event_type);
-                HandlerResponse::Ok
-            }
-            HandlerEvent::PermissionRequest { .. } => {
-                HandlerResponse::Permission(PermissionResult::Approved)
-            }
-            HandlerEvent::UserInput { question, .. } => {
-                HandlerResponse::UserInput(Some(UserInputResponse {
-                    answer: prompt_user(&question),
-                    was_freeform: true,
-                }))
-            }
-            _ => HandlerResponse::Ok,
-        }
-    }
-}
+let h = Arc::new(MyHandler);
+let config = SessionConfig::default()
+    .with_permission_handler(h.clone())
+    .with_user_input_handler(h);
 ```
 
-The default `on_event` dispatches to the per-event methods, so overriding `on_event` short-circuits them entirely — pick one style per handler.
-
-Events are processed serially per session — blocking in a handler method pauses that session's event loop (which is correct, since the CLI is also waiting for the response). Other sessions are unaffected.
-
-> **Note:** Notification-triggered events (`PermissionRequest` via `permission.requested`, `ExternalTool` via `external_tool.requested`) are dispatched on spawned tasks and may run concurrently with the serial event loop. See the trait-level docs on `SessionHandler` for details.
+The built-in `ApproveAllHandler` and `DenyAllHandler` implement `PermissionHandler` for the common cases. To observe streamed session events (assistant messages, tool calls, etc.), call `session.subscribe()` — see [Streaming](#streaming) below.
 
 ### SessionConfig
 
@@ -254,10 +237,11 @@ let config = SessionConfig {
         content: Some("Always explain your reasoning.".into()),
         ..Default::default()
     }),
-    request_elicitation: Some(true),    // enable elicitation provider
     ..Default::default()
-};
-let session = client.create_session(config.with_handler(handler)).await?;
+}
+.with_elicitation_handler(Arc::new(my_elicitation_handler))
+.with_permission_handler(handler);
+let session = client.create_session(config).await?;
 ```
 
 ### Session Hooks
@@ -300,13 +284,13 @@ impl SessionHooks for MyHooks {
 let session = client
     .create_session(
         config
-            .with_handler(handler)
+            .with_permission_handler(handler)
             .with_hooks(Arc::new(MyHooks)),
     )
     .await?;
 ```
 
-**Hook events:** `PreToolUse`, `PostToolUse`, `UserPromptSubmitted`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. Return `HookOutput::None` for events you don't handle.
+**Hook events:** `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `UserPromptSubmitted`, `SessionStart`, `SessionEnd`, `ErrorOccurred`. Each carries typed input/output structs. `PostToolUse` only fires on success; override `on_post_tool_use_failure` to observe failed tool calls. Return `HookOutput::None` for events you don't handle.
 
 ### System Message Transforms
 
@@ -337,22 +321,23 @@ impl SystemMessageTransform for MyTransform {
 let session = client
     .create_session(
         config
-            .with_handler(handler)
-            .with_transform(Arc::new(MyTransform)),
+            .with_permission_handler(handler)
+            .with_system_message_transform(Arc::new(MyTransform)),
     )
     .await?;
 ```
 
 ### Tool Registration
 
-Define client-side tools as named types with `ToolHandler`, then route them with `ToolHandlerRouter`. Enable the `derive` feature for `schema_for::<T>()` — it generates JSON Schema from Rust types via `schemars`.
+Define client-side tools as named types implementing `ToolHandler` and attach
+them to `Tool` declarations via `Tool::with_handler`, then install via
+`SessionConfig::with_tools`. Enable the `derive` feature for `schema_for::<T>()`
+— it generates JSON Schema from Rust types via `schemars`.
 
 ```rust,ignore
 use std::sync::Arc;
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{
-    schema_for, tool_parameters, JsonSchema, ToolHandler, ToolHandlerRouter,
-};
+use github_copilot_sdk::tool::{schema_for, JsonSchema, ToolHandler};
 use github_copilot_sdk::{Error, SessionConfig, Tool, ToolInvocation, ToolResult};
 use serde::Deserialize;
 use async_trait::async_trait;
@@ -369,58 +354,48 @@ struct GetWeatherTool;
 
 #[async_trait]
 impl ToolHandler for GetWeatherTool {
-    fn tool(&self) -> Tool {
-        Tool {
-            name: "get_weather".to_string(),
-            namespaced_name: None,
-            description: "Get weather for a city".to_string(),
-            parameters: tool_parameters(schema_for::<GetWeatherParams>()),
-            instructions: None,
-        }
-    }
-
     async fn call(&self, inv: ToolInvocation) -> Result<ToolResult, Error> {
         let params: GetWeatherParams = serde_json::from_value(inv.arguments)?;
         Ok(ToolResult::Text(format!("Weather in {}: sunny", params.city)))
     }
 }
 
-// Build a router that dispatches tool calls by name
-let router = ToolHandlerRouter::new(
-    vec![Box::new(GetWeatherTool)],
-    Arc::new(ApproveAllHandler),
-);
+let tool = Tool::new("get_weather")
+    .with_description("Get weather for a city")
+    .with_parameters(schema_for::<GetWeatherParams>())
+    .with_handler(Arc::new(GetWeatherTool));
 
-let config = SessionConfig {
-    tools: Some(router.tools()),
-    ..Default::default()
-}
-.with_handler(Arc::new(router));
+let config = SessionConfig::default()
+    .with_permission_handler(Arc::new(ApproveAllHandler))
+    .with_tools(vec![tool]);
 let session = client.create_session(config).await?;
 ```
 
-Tools are named types (not closures) — visible in stack traces and navigable via "go to definition". The router implements `SessionHandler`, forwarding unrecognized tools and non-tool events to the inner handler.
+Tools are named types (not closures) — visible in stack traces and navigable via "go to definition". The SDK registers each tool's handler under its `Tool::name` and surfaces the same `Tool` definitions to the CLI automatically.
 
-For trivial tools that don't need a named type, [`define_tool`](crate::tool::define_tool) collapses the definition to a single expression:
+Tools without an attached handler (`Tool::with_handler` never called) are declaration-only: the SDK advertises them on the wire but doesn't dispatch invocations to anything. Useful when another connected client services the tool.
+
+For trivial tools that don't need a named type, the `define_tool` helper function (available with the `derive` feature) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
 
 ```rust,ignore
-use github_copilot_sdk::tool::{define_tool, JsonSchema, ToolHandlerRouter};
+use github_copilot_sdk::tool::{define_tool, JsonSchema};
 use github_copilot_sdk::ToolResult;
 use serde::Deserialize;
 
 #[derive(Deserialize, JsonSchema)]
 struct GetWeatherParams { city: String }
 
-let router = ToolHandlerRouter::new(
-    vec![define_tool(
-        "get_weather",
-        "Get weather for a city",
-        |_inv, params: GetWeatherParams| async move {
-            Ok(ToolResult::Text(format!("Sunny in {}", params.city)))
-        },
-    )],
-    Arc::new(ApproveAllHandler),
+let tool = define_tool(
+    "get_weather",
+    "Get weather for a city",
+    |_inv, params: GetWeatherParams| async move {
+        Ok(ToolResult::Text(format!("Sunny in {}", params.city)))
+    },
 );
+
+let config = SessionConfig::default()
+    .with_permission_handler(Arc::new(ApproveAllHandler))
+    .with_tools(vec![tool]);
 ```
 
 The closure receives the full [`ToolInvocation`](crate::types::ToolInvocation) alongside the deserialized parameters, so handlers that need `inv.session_id` or `inv.tool_call_id` for telemetry, streaming updates, or scoped lookups can use them directly. Use `_inv` when you don't need the metadata.
@@ -429,13 +404,12 @@ Reach for the `ToolHandler` trait directly when you need shared state across mul
 
 ### Permission Policies
 
-Set a permission policy directly on `SessionConfig` with the chainable builders. They wrap whatever handler you've installed (defaulting to `DenyAllHandler` if none) so only permission requests are intercepted; every other event flows through unchanged.
+Set a permission policy directly on `SessionConfig` with the chainable builders. They install a synthesized `PermissionHandler` so only permission requests are intercepted; every other event flows through unchanged.
 
 ```rust,ignore
 let session = client
     .create_session(
         SessionConfig::default()
-            .with_handler(Arc::new(my_handler))
             .approve_all_permissions(),
         // or .deny_all_permissions()
         // or .approve_permissions_if(|data| {
@@ -445,54 +419,86 @@ let session = client
     .await?;
 ```
 
-> Call the policy method **after** `with_handler` — `with_handler` overwrites the handler field, so `approve_all_permissions().with_handler(...)` discards the wrap.
+> The policy builders set the permission handler slot directly; they're equivalent to calling `with_permission_handler(...)` with the corresponding built-in (`ApproveAllHandler`, `DenyAllHandler`, or `permission::approve_if(...)`).
 
-For composing a policy onto a handler outside the builder chain (e.g. when wrapping a `ToolHandlerRouter` you've built elsewhere), the `permission` module exposes the same primitives as free functions:
+The `permission` module also exposes the policy primitives as standalone helpers for the rare case where you want to construct the handler value separately and install it via `with_permission_handler`:
 
 ```rust,ignore
 use github_copilot_sdk::permission;
 
-let router = ToolHandlerRouter::new(tools, Arc::new(MyHandler));
-let handler = permission::approve_all(Arc::new(router));
-// or permission::deny_all(...) / permission::approve_if(..., predicate)
+let handler = permission::approve_if(|data| {
+    data.extra.get("tool").and_then(|v| v.as_str()) != Some("shell")
+});
+// or permission::approve_all() / permission::deny_all()
 
-let session = client.create_session(config.with_handler(handler)).await?;
+let session = client
+    .create_session(config.with_permission_handler(handler))
+    .await?;
 ```
 
-### Capabilities & Elicitation
+### Elicitation
 
-The SDK negotiates capabilities with the CLI after session creation. Enable elicitation to let the agent present structured UI dialogs (forms, URL prompts) to the user.
+To opt your client into receiving `elicitation.requested` broadcasts, install an `ElicitationHandler` on the session config. The wire flag `requestElicitation` is derived from the presence of the handler; clients without one are silently skipped, allowing other connected clients on the same CLI to handle the request.
 
 ```rust,ignore
-let config = SessionConfig {
-    request_elicitation: Some(true),
-    ..Default::default()
-};
+use async_trait::async_trait;
+use github_copilot_sdk::handler::{ElicitationHandler, ElicitationResult};
+use github_copilot_sdk::types::{ElicitationRequest, RequestId, SessionId};
+
+struct MyElicitation;
+
+#[async_trait]
+impl ElicitationHandler for MyElicitation {
+    async fn handle(
+        &self,
+        _sid: SessionId,
+        _rid: RequestId,
+        _request: ElicitationRequest,
+    ) -> ElicitationResult {
+        ElicitationResult::cancel()
+    }
+}
+
+let config = SessionConfig::default()
+    .with_permission_handler(Arc::new(ApproveAllHandler))
+    .with_elicitation_handler(Arc::new(MyElicitation));
 ```
 
-The handler receives `HandlerEvent::ElicitationRequest` with a message, optional JSON Schema for form fields, and an optional mode. Known modes include `Form` and `Url`, but the mode may be absent or an unknown future value. Return `HandlerResponse::Elicitation(result)`.
+The handler receives a message, optional JSON Schema for form fields, and an optional mode. Known modes include `Form` and `Url`, but the mode may be absent or an unknown future value.
 
 ### User Input Requests
 
-Some sessions ask the user free-form questions (or multiple-choice prompts) outside the elicitation flow. Implement `SessionHandler::on_user_input` and the SDK will forward `userInput.request` callbacks:
+Some sessions ask the user free-form questions (or multiple-choice prompts) outside the elicitation flow. Install a `UserInputHandler` and the SDK will forward `userInput.request` callbacks:
 
 ```rust,ignore
-async fn on_user_input(
-    &self,
-    _session_id: SessionId,
-    question: String,
-    choices: Option<Vec<String>>,
-    _allow_freeform: Option<bool>,
-) -> Option<UserInputResponse> {
-    // Render `question` + `choices` to your UI, then:
-    Some(UserInputResponse {
-        answer: "Yes".to_string(),
-        was_freeform: false,
-    })
+use async_trait::async_trait;
+use github_copilot_sdk::handler::{UserInputHandler, UserInputResponse};
+use github_copilot_sdk::types::SessionId;
+
+struct MyUserInput;
+
+#[async_trait]
+impl UserInputHandler for MyUserInput {
+    async fn handle(
+        &self,
+        _sid: SessionId,
+        question: String,
+        _choices: Option<Vec<String>>,
+        _allow_freeform: Option<bool>,
+    ) -> Option<UserInputResponse> {
+        // Render `question` + `choices` to your UI, then:
+        Some(UserInputResponse {
+            answer: "Yes".to_string(),
+            was_freeform: false,
+        })
+    }
 }
+
+let config = SessionConfig::default()
+    .with_user_input_handler(Arc::new(MyUserInput));
 ```
 
-Return `None` to signal "no answer available" (the CLI falls back to its own prompt). Enable via `SessionConfig::request_user_input` (defaults to `Some(true)`).
+Return `None` to signal "no answer available" (the CLI falls back to its own prompt).
 
 ### Slash Commands
 
@@ -664,8 +670,9 @@ ergonomics the dynamically-typed SDKs don't.
   [`SessionConfig::with_session_fs_provider`]. The factory pattern doesn't
   cleanly express in Rust at the session-config call site — there is no
   `Session` value to thread in, and the SDK already prefers traits over
-  boxed closures for handler-shaped APIs (`SessionHandler`, `SessionHooks`,
-  `ToolHandler`).
+  boxed closures for handler-shaped APIs (`PermissionHandler`, `ToolHandler`,
+  `SessionHooks`,
+  `SystemMessageTransform`).
 
 ```rust,ignore
 use std::sync::Arc;
@@ -682,7 +689,7 @@ let client = Client::start(options).await?;
 let session = client
     .create_session(
         SessionConfig::default()
-            .with_handler(Arc::new(ApproveAllHandler))
+            .with_permission_handler(Arc::new(ApproveAllHandler))
             .with_session_fs_provider(Arc::new(MyProvider::new())),
     )
     .await?;
@@ -690,6 +697,15 @@ let session = client
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
 in-memory provider implementation.
+
+- **Canvas action dispatch is a single trait method, not per-action closures.**
+  The Node SDK binds an optional `handler` closure on each entry of a canvas's
+  `actions[]`. The Rust SDK exposes
+  [`CanvasHandler::on_action`](crate::canvas::CanvasHandler::on_action) and expects the implementor to match on
+  `ctx.action_name`. Same reasoning as `SessionFsProvider`: per-callback
+  `Box<dyn Fn>` fields fight `Send + Sync + 'static` and skip exhaustiveness
+  checks, and the SDK prefers trait + default-impl methods for handler-shaped
+  extension points.
 
 ### Rust-only API
 
@@ -705,9 +721,9 @@ none of them are scheduled for removal.
   identifier from an arbitrary `String` at compile time. Node/Python/Go
   use bare strings.
 - **Permission policy builders** — `permission::approve_all`,
-  `permission::deny_all`, and `permission::approve_if(handler, predicate)`
-  in `crate::permission` provide composable, no-handler-needed permission
-  shortcuts that wrap an existing `SessionHandler`. Other SDKs require a
+  `permission::deny_all`, and `permission::approve_if(predicate)`
+  in `crate::permission` provide composable, no-handler-needed
+  `PermissionHandler` shortcuts. Other SDKs require a
   full handler implementation for these patterns.
 - **`Client::from_streams`** — connect to a CLI server over arbitrary
   caller-supplied `AsyncRead` / `AsyncWrite`. Useful for testing,
@@ -723,44 +739,66 @@ none of them are scheduled for removal.
 
 ## Layout
 
-| File | Description |
-|---|---|
-| `lib.rs` | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error` |
-| `session.rs` | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session` |
+| File              | Description                                                                                                                |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`          | `Client`, `ClientOptions`, `CliProgram`, `Transport`, `Error`                                                              |
+| `session.rs`      | `Session` struct, event loop, `send`/`send_and_wait`, `Client::create_session`/`resume_session`                            |
 | `subscription.rs` | `EventSubscription` / `LifecycleSubscription` (`Stream`-able observer handles for `subscribe()` / `subscribe_lifecycle()`) |
-| `handler.rs` | `SessionHandler` trait, `HandlerEvent`/`HandlerResponse` enums, `ApproveAllHandler` |
-| `hooks.rs` | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs |
-| `transforms.rs` | `SystemMessageTransform` trait, section-level system message customization |
-| `tool.rs` | `ToolHandler` trait, `ToolHandlerRouter`, `schema_for::<T>()` (with `derive` feature) |
-| `types.rs` | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.) |
-| `resolve.rs` | Binary resolution (`copilot_binary`, `node_binary`, `extended_path`) |
-| `embeddedcli.rs` | Embedded CLI extraction (`embedded-cli` feature) |
-| `router.rs` | Internal per-session event demux |
-| `jsonrpc.rs` | Internal Content-Length framed JSON-RPC transport |
+| `handler.rs`      | `PermissionHandler`, `ElicitationHandler`, `UserInputHandler`, `ExitPlanModeHandler`, `AutoModeSwitchHandler` traits; `ApproveAllHandler`, `DenyAllHandler`           |
+| `hooks.rs`        | `SessionHooks` trait, `HookEvent`/`HookOutput` enums, typed hook inputs/outputs                                            |
+| `transforms.rs`   | `SystemMessageTransform` trait, section-level system message customization                                                 |
+| `tool.rs`         | `ToolHandler` trait, `define_tool`, `schema_for::<T>()` (with `derive` feature)                                            |
+| `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
+| `resolve.rs`      | Bundled-CLI resolution (`copilot_binary`)                                                                                  |
+| `embeddedcli.rs`  | Embedded CLI extraction (gated on the default `bundled-cli` feature)                                                       |
+| `router.rs`       | Internal per-session event demux                                                                                           |
+| `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
 ## Embedded CLI
 
-By default, `copilot_binary()` searches `COPILOT_CLI_PATH`, the system PATH, and common install locations. To **ship with a specific CLI version** embedded in the binary, set `COPILOT_CLI_VERSION` at build time:
+The SDK bundles the Copilot CLI binary inside the consumer's compiled crate by default. No env var setup, no separate install — just `cargo build` and you get a self-contained binary.
 
-```bash
-COPILOT_CLI_VERSION=1.0.15 cargo build
+To opt out (e.g. for binary-size-sensitive consumers, or environments that provide the CLI via PATH), set `default-features = false`:
+
+```toml
+github-copilot-sdk = { version = "0.1", default-features = false }
 ```
 
 ### How it works
 
-1. **Build time:** The SDK's `build.rs` detects `COPILOT_CLI_VERSION`, downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the archive's SHA-256 against the release's `SHA256SUMS.txt`, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`. No extra steps or tools needed — just the env var.
+1. **Pinned at publish time.** When the rust crate is published, a workflow step writes `bundled_cli_version.txt` (CLI version + per-platform SHA-256 hashes) into the crate from the in-effect `nodejs/package-lock.json` and the matching GitHub Release's `SHA256SUMS.txt`. This file is gitignored locally; it only exists in the published crate tarball.
 
-2. **Runtime:** On the first call to `github_copilot_sdk::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/github-copilot-sdk-{version}/copilot` (or `copilot.exe` on Windows), SHA-256 verified, and cached. Subsequent calls return the cached path.
+2. **Build time:** The SDK's `build.rs` resolves the version + per-platform SHA-256:
+   - `COPILOT_CLI_VERSION` env var (advanced override; fetches live `SHA256SUMS.txt`).
+   - Otherwise, `bundled_cli_version.txt` from the published crate.
+   - Otherwise (mono-repo contributor build), live read from `../nodejs/package-lock.json` + live fetch of `SHA256SUMS.txt`.
 
-3. **Dev builds:** Without the env var, `build.rs` does nothing. The binary is resolved from PATH as usual — zero friction.
+   It then downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the SHA-256, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`.
+
+3. **Runtime:** On the first call to `github_copilot_sdk::Client::start()`, the embedded archive is lazily extracted to the platform cache dir (`%LOCALAPPDATA%\github-copilot-sdk-{version}\` on Windows, `~/Library/Caches/github-copilot-sdk-{version}/` on macOS, `$XDG_CACHE_HOME/github-copilot-sdk-{version}/` (or `~/.cache/...`) on Linux). Subsequent runs reuse the extracted binary.
+
+### Overriding the extraction location
+
+Use [`ClientOptions::with_bundled_cli_extract_dir`] when you need to place the extracted binary somewhere other than the platform cache dir (CI runners with ephemeral homes, sandboxes that disallow cache paths, etc.):
+
+```rust,ignore
+use std::path::PathBuf;
+use github_copilot_sdk::{Client, ClientOptions};
+
+let options = ClientOptions::new()
+    .with_bundled_cli_extract_dir(PathBuf::from("/var/run/my-app/copilot"));
+let client = Client::start(options).await?;
+```
 
 ### Resolution priority
 
 `copilot_binary()` checks these sources in order:
 
-1. `COPILOT_CLI_PATH` environment variable
-2. Embedded CLI (build-time, via `COPILOT_CLI_VERSION`)
-3. System PATH + common install locations
+1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`
+2. `COPILOT_CLI_PATH` environment variable
+3. Embedded CLI (when the `bundled-cli` feature is enabled, which it is by default)
+
+There is no PATH scanning. If both 1+2 are unset and the SDK was built with `default-features = false`, `Client::start` returns `Error::BinaryNotFound`.
 
 ### Platforms
 
@@ -768,26 +806,21 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 
 ## Features
 
-No features are enabled by default — the bare SDK resolves the CLI from `COPILOT_CLI_PATH` or the system PATH without pulling in additional feature-gated dependencies.
-
-| Feature | Default | Description |
-|---|---|---|
-| `embedded-cli` | — | Build-time CLI embedding via `COPILOT_CLI_VERSION` (adds `sha2`, `zstd`). Enable when you need to ship a self-contained binary with a pinned CLI version. |
-| `derive` | — | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration). |
+| Feature        | Default | Description                                                                                                                                               |
+| -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `dirs`, `tar`+`flate2` (Linux/macOS), or `zip` (Windows). Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary or when always supplying the CLI via `CliProgram::Path` / `COPILOT_CLI_PATH`). |
+| `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
 
 ```toml
 # These examples use registry syntax for illustration; until the crate is
 # published, use a path or git dependency instead.
 
-# Minimal — resolve CLI from PATH
+# Default — bundles the Copilot CLI in your binary.
 github-copilot-sdk = "0.1"
 
-# Ship a pinned CLI version in your binary
-github-copilot-sdk = { version = "0.1", features = ["embedded-cli"] }
+# Opt out of bundling — resolve CLI from COPILOT_CLI_PATH or system PATH instead.
+github-copilot-sdk = { version = "0.1", default-features = false }
 
-# Derive JSON Schema for tool parameters
+# Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
-
-# Both
-github-copilot-sdk = { version = "0.1", features = ["embedded-cli", "derive"] }
 ```

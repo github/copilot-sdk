@@ -1,4 +1,4 @@
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 const string SystemPrompt = """
     You are a minimal assistant with no tools available.
@@ -7,11 +7,7 @@ const string SystemPrompt = """
     If asked about your capabilities or tools, clearly state that you have no tools available.
     """;
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
-    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 

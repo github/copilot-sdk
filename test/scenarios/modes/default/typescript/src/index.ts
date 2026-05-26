@@ -1,10 +1,7 @@
 import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -12,7 +9,8 @@ async function main() {
     });
 
     const response = await session.sendAndWait({
-      prompt: "Use the grep tool to search for the word 'SDK' in README.md and show the matching lines.",
+      prompt:
+        "Use the grep tool to search for the word 'SDK' in README.md and show the matching lines.",
     });
 
     if (response) {

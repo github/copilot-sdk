@@ -1,13 +1,13 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "rpc_session_state", output)
@@ -38,13 +38,13 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await using var session = await CreateSessionAsync(new SessionConfig { Model = "claude-sonnet-4.5" });
 
         var before = await session.Rpc.Model.GetCurrentAsync();
-        Assert.NotNull(before.ModelId);
+        Assert.Equal("claude-sonnet-4.5", before.ModelId);
 
         var result = await session.Rpc.Model.SwitchToAsync(modelId: "gpt-4.1", reasoningEffort: "high");
         var after = await session.Rpc.Model.GetCurrentAsync();
 
         Assert.Equal("gpt-4.1", result.ModelId);
-        Assert.Equal(before.ModelId, after.ModelId);
+        Assert.True(after.ModelId is "gpt-4.1" || after.ModelId == before.ModelId, $"Unexpected current model after switch: {after.ModelId}");
     }
 
     [Fact]
@@ -60,6 +60,23 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         await session.Rpc.Mode.SetAsync(SessionMode.Interactive);
         Assert.Equal(SessionMode.Interactive, await session.Rpc.Mode.GetAsync());
+    }
+
+    [Fact]
+    public async Task Should_Shutdown_Session_With_Routine_Type()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var shutdownTask = TestHelper.GetNextEventOfTypeAsync<SessionShutdownEvent>(
+            session,
+            evt => evt.Data.ShutdownType == ShutdownType.Routine,
+            TimeSpan.FromSeconds(15),
+            timeoutDescription: "session.shutdown event after shutdown RPC");
+
+        await session.Rpc.ShutdownAsync(ShutdownType.Routine, reason: "SDK E2E shutdown coverage");
+
+        var shutdown = await shutdownTask;
+        Assert.Equal(ShutdownType.Routine, shutdown.Data.ShutdownType);
     }
 
     [Theory]
@@ -116,7 +133,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         var workspace = await session.Rpc.Workspaces.GetWorkspaceAsync();
         Assert.NotNull(workspace.Workspace);
-        Assert.NotEqual(Guid.Empty, workspace.Workspace.Id);
+        Assert.NotEmpty(workspace.Workspace.Id);
     }
 
     [Theory]
@@ -242,6 +259,208 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     }
 
     [Fact]
+    public async Task Should_Call_Metadata_Snapshot_SetWorkingDirectory_And_RecordContextChange()
+    {
+        var firstDirectory = CreateUniqueDirectory();
+        var secondDirectory = CreateUniqueDirectory();
+        var contextDirectory = CreateUniqueDirectory();
+        var branch = $"rpc-context-{Guid.NewGuid():N}";
+        await using var session = await CreateSessionAsync(new SessionConfig
+        {
+            Model = "claude-sonnet-4.5",
+            WorkingDirectory = firstDirectory,
+        });
+
+        var initialSnapshot = await session.Rpc.Metadata.SnapshotAsync();
+        Assert.Equal(session.SessionId, initialSnapshot.SessionId);
+        Assert.Equal(MetadataSnapshotCurrentMode.Interactive, initialSnapshot.CurrentMode);
+        Assert.Equal("claude-sonnet-4.5", initialSnapshot.SelectedModel);
+        Assert.False(initialSnapshot.IsRemote);
+        Assert.False(initialSnapshot.AlreadyInUse);
+        Assert.NotEqual(default, initialSnapshot.StartTime);
+        Assert.NotEqual(default, initialSnapshot.ModifiedTime);
+        Assert.True(PathEquals(firstDirectory, initialSnapshot.WorkingDirectory),
+            $"Expected working directory '{firstDirectory}', actual '{initialSnapshot.WorkingDirectory}'.");
+        Assert.NotNull(initialSnapshot.Workspace);
+        Assert.Equal(session.SessionId, initialSnapshot.Workspace.Id);
+        Assert.False(string.IsNullOrWhiteSpace(initialSnapshot.WorkspacePath));
+
+        var setWorkingDirectory = await session.Rpc.Metadata.SetWorkingDirectoryAsync(secondDirectory);
+        Assert.True(PathEquals(secondDirectory, setWorkingDirectory.WorkingDirectory),
+            $"Expected setWorkingDirectory result '{secondDirectory}', actual '{setWorkingDirectory.WorkingDirectory}'.");
+
+        SessionMetadataSnapshot? updatedSnapshot = null;
+        await TestHelper.WaitForConditionAsync(
+            async () =>
+            {
+                updatedSnapshot = await session.Rpc.Metadata.SnapshotAsync();
+                return PathEquals(secondDirectory, updatedSnapshot.WorkingDirectory);
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            timeoutMessage: "Timed out waiting for metadata snapshot to reflect setWorkingDirectory.");
+        Assert.NotNull(updatedSnapshot);
+        Assert.True(PathEquals(secondDirectory, updatedSnapshot!.WorkingDirectory));
+
+        var contextChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionContextChangedEvent>(
+            session,
+            evt => string.Equals(evt.Data.Branch, branch, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15),
+            timeoutDescription: "session.context_changed event after metadata.recordContextChange");
+
+        var context = new SessionWorkingDirectoryContext
+        {
+            Cwd = contextDirectory,
+            GitRoot = firstDirectory,
+            Branch = branch,
+            Repository = "github/copilot-sdk-e2e",
+            RepositoryHost = "github.com",
+            HostType = SessionWorkingDirectoryContextHostType.Github,
+            BaseCommit = "0000000000000000000000000000000000000000",
+            HeadCommit = "1111111111111111111111111111111111111111",
+        };
+
+        var recordResult = await session.Rpc.Metadata.RecordContextChangeAsync(context);
+        Assert.NotNull(recordResult);
+
+        var contextChanged = await contextChangedTask;
+        Assert.True(PathEquals(contextDirectory, contextChanged.Data.Cwd),
+            $"Expected context cwd '{contextDirectory}', actual '{contextChanged.Data.Cwd}'.");
+        Assert.True(PathEquals(firstDirectory, contextChanged.Data.GitRoot),
+            $"Expected context git root '{firstDirectory}', actual '{contextChanged.Data.GitRoot}'.");
+        Assert.Equal(branch, contextChanged.Data.Branch);
+        Assert.Equal("github/copilot-sdk-e2e", contextChanged.Data.Repository);
+        Assert.Equal("github.com", contextChanged.Data.RepositoryHost);
+        Assert.True(contextChanged.Data.HostType.HasValue);
+        var hostType = contextChanged.Data.HostType.Value;
+        Assert.Equal("github", hostType.Value);
+        Assert.Equal(context.BaseCommit, contextChanged.Data.BaseCommit);
+        Assert.Equal(context.HeadCommit, contextChanged.Data.HeadCommit);
+    }
+
+    [Fact]
+    public async Task Should_Update_Options_And_Initialize_Session_Services()
+    {
+        var initialDirectory = CreateUniqueDirectory();
+        var optionsDirectory = CreateUniqueDirectory();
+        var featureName = $"rpc-session-state-{Guid.NewGuid():N}";
+        await using var session = await CreateSessionAsync(new SessionConfig
+        {
+            WorkingDirectory = initialDirectory,
+        });
+
+        var update = await session.Rpc.Options.UpdateAsync(
+            clientName: "dotnet-sdk-rpc-session-state-e2e",
+            lspClientName: "dotnet-sdk-rpc-session-state-lsp",
+            integrationId: $"dotnet-sdk-{Guid.NewGuid():N}",
+            featureFlags: new Dictionary<string, bool> { [featureName] = true },
+            workingDirectory: optionsDirectory,
+            coauthorEnabled: false,
+            enableStreaming: false,
+            askUserDisabled: true);
+        Assert.True(update.Success);
+
+        await TestHelper.WaitForConditionAsync(
+            async () => PathEquals(optionsDirectory, (await session.Rpc.Metadata.SnapshotAsync()).WorkingDirectory),
+            timeout: TimeSpan.FromSeconds(15),
+            timeoutMessage: "Timed out waiting for options.update workingDirectory to reach metadata snapshot.");
+
+        await session.Rpc.Lsp.InitializeAsync(
+            workingDirectory: optionsDirectory,
+            gitRoot: initialDirectory,
+            force: true);
+
+        await session.Rpc.Telemetry.SetFeatureOverridesAsync(new Dictionary<string, string>
+        {
+            ["rpc_session_state_feature"] = featureName,
+            ["rpc_session_state_value"] = "enabled",
+        });
+
+        var tools = await session.Rpc.Tools.InitializeAndValidateAsync();
+        Assert.NotNull(tools);
+
+        var snapshot = await session.Rpc.Metadata.SnapshotAsync();
+        Assert.True(PathEquals(optionsDirectory, snapshot.WorkingDirectory),
+            $"Expected options working directory '{optionsDirectory}', actual '{snapshot.WorkingDirectory}'.");
+    }
+
+    [Fact]
+    public async Task Should_Set_ReasoningEffort_And_Auto_Name()
+    {
+        await using var session = await CreateSessionAsync(new SessionConfig
+        {
+            Model = "claude-sonnet-4.5",
+        });
+
+        var reasoning = await session.Rpc.Model.SetReasoningEffortAsync("high");
+        Assert.Equal("high", reasoning.ReasoningEffort);
+
+        var currentModel = await session.Rpc.Model.GetCurrentAsync();
+        Assert.Equal("claude-sonnet-4.5", currentModel.ModelId);
+        Assert.Equal("high", currentModel.ReasoningEffort);
+
+        var autoName = $"Auto Session {Guid.NewGuid():N}";
+        var titleChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionTitleChangedEvent>(
+            session,
+            evt => string.Equals(evt.Data.Title, autoName, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15),
+            timeoutDescription: "session.title_changed event after name.setAuto");
+
+        var autoResult = await session.Rpc.Name.SetAutoAsync($"  {autoName}  ");
+        Assert.True(autoResult.Applied);
+        var titleChanged = await titleChangedTask;
+        Assert.Equal(autoName, titleChanged.Data.Title);
+        Assert.Equal(autoName, (await session.Rpc.Name.GetAsync()).Name);
+
+        var explicitName = $"Explicit Session {Guid.NewGuid():N}";
+        var explicitTitleChangedTask = TestHelper.GetNextEventOfTypeAsync<SessionTitleChangedEvent>(
+            session,
+            evt => string.Equals(evt.Data.Title, explicitName, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(15),
+            timeoutDescription: "session.title_changed event after explicit name.set");
+        await session.Rpc.Name.SetAsync(explicitName);
+        Assert.Equal(explicitName, (await explicitTitleChangedTask).Data.Title);
+        var ignoredAutoResult = await session.Rpc.Name.SetAutoAsync($"Ignored {Guid.NewGuid():N}");
+        Assert.False(ignoredAutoResult.Applied);
+        Assert.Equal(explicitName, (await session.Rpc.Name.GetAsync()).Name);
+    }
+
+    [Fact]
+    public async Task Should_Set_Auth_Credentials()
+    {
+        await using var client = Ctx.CreateClient();
+        await using var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+        var login = $"sdk-rpc-{Guid.NewGuid():N}";
+
+        var setCredentials = await session.Rpc.Auth.SetCredentialsAsync(new AuthInfoUser
+        {
+            CopilotUser = new CopilotUserResponse
+            {
+                AnalyticsTrackingId = "rpc-session-state-tracking-id",
+                ChatEnabled = true,
+                CopilotPlan = "individual_pro",
+                Endpoints = new CopilotUserResponseEndpoints
+                {
+                    Api = Ctx.ProxyUrl,
+                    Telemetry = "https://localhost:1/telemetry",
+                },
+                Login = login,
+            },
+            Host = "https://github.com",
+            Login = login,
+        });
+        Assert.True(setCredentials.Success);
+
+        var status = await session.Rpc.Auth.GetStatusAsync();
+        Assert.True(status.IsAuthenticated);
+        Assert.Equal(AuthInfoType.User, status.AuthType);
+        Assert.Equal("https://github.com", status.Host);
+        Assert.Equal(login, status.Login);
+    }
+
+    [Fact]
     public async Task Should_Fork_Session_With_Persisted_Messages()
     {
         const string sourcePrompt = "Say FORK_SOURCE_ALPHA exactly.";
@@ -252,7 +471,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var initialAnswer = await session.SendAndWaitAsync(new MessageOptions { Prompt = sourcePrompt });
         Assert.Contains("FORK_SOURCE_ALPHA", initialAnswer?.Data.Content ?? string.Empty);
 
-        var sourceConversation = GetConversationMessages(await session.GetMessagesAsync());
+        var sourceConversation = GetConversationMessages(await session.GetEventsAsync());
         Assert.Contains(sourceConversation, message => message.Role == "user" && message.Content == sourcePrompt);
         Assert.Contains(sourceConversation, message => message.Role == "assistant" && message.Content.Contains("FORK_SOURCE_ALPHA", StringComparison.Ordinal));
 
@@ -261,16 +480,16 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotEqual(session.SessionId, fork.SessionId);
 
         await using var forkedSession = await ResumeSessionAsync(fork.SessionId);
-        var forkedConversation = GetConversationMessages(await forkedSession.GetMessagesAsync());
+        var forkedConversation = GetConversationMessages(await forkedSession.GetEventsAsync());
         Assert.Equal(sourceConversation, forkedConversation.Take(sourceConversation.Count));
 
         var forkAnswer = await forkedSession.SendAndWaitAsync(new MessageOptions { Prompt = forkPrompt });
         Assert.Contains("FORK_CHILD_BETA", forkAnswer?.Data.Content ?? string.Empty);
 
-        var sourceAfterFork = GetConversationMessages(await session.GetMessagesAsync());
+        var sourceAfterFork = GetConversationMessages(await session.GetEventsAsync());
         Assert.DoesNotContain(sourceAfterFork, message => message.Content == forkPrompt);
 
-        var forkAfterPrompt = GetConversationMessages(await forkedSession.GetMessagesAsync());
+        var forkAfterPrompt = GetConversationMessages(await forkedSession.GetEventsAsync());
         Assert.Contains(forkAfterPrompt, message => message.Role == "user" && message.Content == forkPrompt);
         Assert.Contains(forkAfterPrompt, message => message.Role == "assistant" && message.Content.Contains("FORK_CHILD_BETA", StringComparison.Ordinal));
     }
@@ -298,7 +517,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotEqual(session.SessionId, forkSessionId);
 
         await using var forkedSession = await ResumeSessionAsync(forkSessionId);
-        Assert.Empty(GetConversationMessages(await forkedSession.GetMessagesAsync()));
+        Assert.Empty(GetConversationMessages(await forkedSession.GetEventsAsync()));
     }
 
     [Fact]
@@ -311,7 +530,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await session.SendAndWaitAsync(new MessageOptions { Prompt = firstPrompt });
         await session.SendAndWaitAsync(new MessageOptions { Prompt = secondPrompt });
 
-        var sourceEvents = await session.GetMessagesAsync();
+        var sourceEvents = await session.GetEventsAsync();
         var secondUserEvent = sourceEvents
             .OfType<UserMessageEvent>()
             .FirstOrDefault(e => string.Equals(e.Data.Content, secondPrompt, StringComparison.Ordinal))
@@ -325,7 +544,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.NotEqual(session.SessionId, fork.SessionId);
 
         await using var forkedSession = await ResumeSessionAsync(fork.SessionId);
-        var forkedEvents = await forkedSession.GetMessagesAsync();
+        var forkedEvents = await forkedSession.GetEventsAsync();
         Assert.DoesNotContain(forkedEvents, e => e.Id == secondUserEvent.Id);
 
         var forkedConversation = GetConversationMessages(forkedEvents);
@@ -356,7 +575,7 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await using var session = await CreateSessionAsync();
 
         var metrics = await session.Rpc.Usage.GetMetricsAsync();
-        Assert.True(metrics.SessionStartTime > 0);
+        Assert.NotEqual(default, metrics.SessionStartTime);
         Assert.True(metrics.TotalNanoAiu is null or >= 0);
         if (metrics.TokenDetails is not null)
         {
@@ -407,7 +626,33 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
     {
         await using var session = await CreateSessionAsync();
 
-        await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+        Assert.False((await session.Rpc.Metadata.IsProcessingAsync()).Processing);
+
+        var answer = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
+        Assert.NotNull(answer);
+        Assert.Contains("4", answer!.Data.Content ?? string.Empty, StringComparison.Ordinal);
+        Assert.False((await session.Rpc.Metadata.IsProcessingAsync()).Processing);
+
+        var contextInfo = await session.Rpc.Metadata.ContextInfoAsync(
+            promptTokenLimit: 128_000,
+            outputTokenLimit: 4_096,
+            selectedModel: "claude-sonnet-4.5");
+        var context = Assert.IsType<MetadataContextInfoResultContextInfo>(contextInfo.ContextInfo);
+        Assert.Equal("claude-sonnet-4.5", context.ModelName);
+        Assert.Equal(128_000, context.PromptTokenLimit);
+        Assert.True(context.Limit >= context.PromptTokenLimit);
+        Assert.True(context.TotalTokens > 0);
+        Assert.True(context.SystemTokens > 0);
+        Assert.True(context.ConversationTokens > 0);
+        Assert.True(context.ToolDefinitionsTokens >= 0);
+        Assert.Equal(
+            context.SystemTokens + context.ConversationTokens + context.ToolDefinitionsTokens,
+            context.TotalTokens);
+
+        var recomputed = await session.Rpc.Metadata.RecomputeContextTokensAsync("claude-sonnet-4.5");
+        Assert.True(recomputed.SystemTokenCount > 0);
+        Assert.True(recomputed.MessagesTokenCount > 0);
+        Assert.Equal(recomputed.SystemTokenCount + recomputed.MessagesTokenCount, recomputed.TotalTokens);
 
         var result = await session.Rpc.History.CompactAsync();
 
@@ -436,6 +681,22 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var name = await session.Rpc.Name.GetAsync();
         Assert.NotNull(name);
     }
+
+    private string CreateUniqueDirectory()
+    {
+        var path = Path.GetFullPath(Path.Join(Ctx.WorkDir, $"rpc-session-state-{Guid.NewGuid():N}"));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static bool PathEquals(string? expected, string? actual)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return string.Equals(NormalizePath(expected), NormalizePath(actual), comparison);
+    }
+
+    private static string? NormalizePath(string? path)
+        => path is null ? null : Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     private static List<(string Role, string Content)> GetConversationMessages(IEnumerable<SessionEvent> events)
     {

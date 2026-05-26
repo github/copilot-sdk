@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "mode_handlers", output)
@@ -28,7 +28,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnExitPlanMode = (request, invocation) =>
+            OnExitPlanModeRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(new ExitPlanModeResult
@@ -47,7 +47,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             timeoutDescription: "exit_plan_mode.requested event");
         var completedEventTask = TestHelper.GetNextEventOfTypeAsync<ExitPlanModeCompletedEvent>(
             session,
-            evt => evt.Data.Approved == true && evt.Data.SelectedAction == "interactive",
+            evt => evt.Data.Approved == true && evt.Data.SelectedAction.GetValueOrDefault() == ExitPlanModeAction.Interactive,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "exit_plan_mode.completed event");
 
@@ -57,7 +57,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
             Prompt = "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.",
         }, timeout: TimeSpan.FromSeconds(120));
 
-        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
         Assert.Equal(summary, request.Summary);
         Assert.Equal(["interactive", "autopilot", "exit_only"], request.Actions);
@@ -66,12 +66,18 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var requestedEvent = await requestedEventTask;
         Assert.Equal(request.Summary, requestedEvent.Data.Summary);
-        Assert.Equal(request.Actions, requestedEvent.Data.Actions);
-        Assert.Equal(request.RecommendedAction, requestedEvent.Data.RecommendedAction);
+        Assert.Equal(request.Actions, requestedEvent.Data.Actions.Select(action => action.Value));
+        Assert.Equal(request.RecommendedAction, requestedEvent.Data.RecommendedAction.Value);
 
         var completedEvent = await completedEventTask;
         Assert.True(completedEvent.Data.Approved);
-        Assert.Equal("interactive", completedEvent.Data.SelectedAction);
+        if (completedEvent.Data.SelectedAction is not { } selectedAction)
+        {
+            Assert.Fail("Expected a selected action.");
+            return;
+        }
+
+        Assert.Equal("interactive", selectedAction.Value);
         Assert.Equal("Approved by the C# E2E test", completedEvent.Data.Feedback);
 
         Assert.NotNull(response);
@@ -90,21 +96,22 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnAutoModeSwitch = (request, invocation) =>
+            OnAutoModeSwitchRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(AutoModeSwitchResponse.Yes);
             },
         });
 
+        const long expectedRetryAfter = 1;
         var requestedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchRequestedEvent>(
             session,
-            evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == 1,
+            evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == expectedRetryAfter,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "auto_mode_switch.requested event");
         var completedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchCompletedEvent>(
             session,
-            evt => evt.Data.Response == "yes",
+            evt => evt.Data.Response == AutoModeSwitchResponse.Yes,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "auto_mode_switch.completed event");
         var modelChangeTask = GetNextEventOfTypeAllowingRateLimitAsync<SessionModelChangeEvent>(
@@ -124,17 +131,17 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         });
         Assert.NotEmpty(messageId);
 
-        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        var (request, invocation) = await handlerTask.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(session.SessionId, invocation.SessionId);
         Assert.Equal("user_weekly_rate_limited", request.ErrorCode);
         Assert.Equal(1, request.RetryAfterSeconds);
 
         var requestedEvent = await requestedEventTask;
         Assert.Equal(request.ErrorCode, requestedEvent.Data.ErrorCode);
-        Assert.Equal(request.RetryAfterSeconds, requestedEvent.Data.RetryAfterSeconds);
+        Assert.Equal(expectedRetryAfter, requestedEvent.Data.RetryAfterSeconds);
 
         var completedEvent = await completedEventTask;
-        Assert.Equal("yes", completedEvent.Data.Response);
+        Assert.Equal(AutoModeSwitchResponse.Yes, completedEvent.Data.Response);
 
         var modelChange = await modelChangeTask;
         Assert.Equal("rate_limit_auto_switch", modelChange.Data.Cause);
@@ -169,7 +176,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30));
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

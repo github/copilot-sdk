@@ -3,15 +3,12 @@ import { CopilotClient } from "@github/copilot-sdk";
 async function main() {
   const inputLog: string[] = [];
 
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
       model: "claude-haiku-4.5",
-      onPermissionRequest: async () => ({ kind: "approved" as const }),
+      onPermissionRequest: async () => ({ kind: "approve-once" as const }),
       onUserInputRequest: async (request) => {
         inputLog.push(`question: ${request.question}`);
         return { answer: "Paris", wasFreeform: true };
@@ -22,7 +19,8 @@ async function main() {
     });
 
     const response = await session.sendAndWait({
-      prompt: "I want to learn about a city. Use the ask_user tool to ask me which city I'm interested in. Then tell me about that city.",
+      prompt:
+        "I want to learn about a city. Use the ask_user tool to ask me which city I'm interested in. Then tell me about that city.",
     });
 
     if (response) {

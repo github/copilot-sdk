@@ -1,40 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient, type ModelInfo } from "../src/index.js";
+import {
+    approveAll,
+    CopilotClient,
+    createCanvas,
+    RuntimeConnection,
+    type ModelInfo,
+} from "../src/index.js";
+import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
 // This file is for unit tests. Where relevant, prefer to add e2e tests in e2e/*.test.ts instead
 
 describe("CopilotClient", () => {
-    it("throws when createSession is called without onPermissionRequest", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        await expect((client as any).createSession({})).rejects.toThrow(
-            /onPermissionRequest.*is required/
-        );
-    });
-
-    it("throws when resumeSession is called without onPermissionRequest", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({ onPermissionRequest: approveAll });
-        await expect((client as any).resumeSession(session.sessionId, {})).rejects.toThrow(
-            /onPermissionRequest.*is required/
-        );
-    });
-
     it("does not respond to v3 permission requests when handler returns no-result", async () => {
-        const client = new CopilotClient();
-        await client.start();
-        onTestFinished(() => client.forceStop());
-
-        const session = await client.createSession({
-            onPermissionRequest: () => ({ kind: "no-result" }),
-        });
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerPermissionHandler(() => ({ kind: "no-result" }));
         const spy = vi.spyOn(session.rpc.permissions, "handlePendingPermissionRequest");
 
         await (session as any)._executePermissionAndRespond("request-1", { kind: "write" });
@@ -42,21 +23,157 @@ describe("CopilotClient", () => {
         expect(spy).not.toHaveBeenCalled();
     });
 
-    it("throws when a v2 permission handler returns no-result", async () => {
+    it("forwards canvas declarations and request flags in session.create", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const session = await client.createSession({
-            onPermissionRequest: () => ({ kind: "no-result" }),
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            actions: [{ name: "increment", description: "Increment the counter" }],
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            canvases: [canvas],
+            requestCanvasRenderer: true,
+            requestExtensions: true,
+            extensionInfo: { source: "github-app", name: "counter-provider" },
         });
 
+        const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
+        expect(payload.canvases).toEqual([
+            expect.objectContaining({
+                id: "counter",
+                displayName: "Counter",
+                description: "A counter canvas",
+                actions: [{ name: "increment", description: "Increment the counter" }],
+            }),
+        ]);
+        expect(payload.requestCanvasRenderer).toBe(true);
+        expect(payload.requestExtensions).toBe(true);
+        expect(payload.extensionInfo).toEqual({
+            source: "github-app",
+            name: "counter-provider",
+        });
+    });
+
+    it("forwards canvas declarations in session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            canvases: [canvas],
+            requestCanvasRenderer: true,
+            requestExtensions: true,
+            extensionInfo: { source: "github-app", name: "counter-provider" },
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload.canvases).toEqual([expect.objectContaining({ id: "counter" })]);
+        expect(payload.requestCanvasRenderer).toBe(true);
+        expect(payload.requestExtensions).toBe(true);
+        expect(payload.extensionInfo).toEqual({
+            source: "github-app",
+            name: "counter-provider",
+        });
+        expect(payload.openCanvasInstances).toBeUndefined();
+    });
+
+    it("routes canvas.invokeAction to registered canvas action handlers via clientSessionApis", async () => {
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: ({ instanceId }) => ({ url: `https://example.test/${instanceId}` }),
+            actions: [
+                {
+                    name: "increment",
+                    handler: ({ actionName, input }) => ({ actionName, input }),
+                },
+            ],
+        });
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerCanvases([canvas]);
+
+        const result = await session.clientSessionApis.canvas!.invokeAction({
+            sessionId: session.sessionId,
+            extensionId: "project:counter",
+            canvasId: "counter",
+            instanceId: "counter-1",
+            actionName: "increment",
+            input: { amount: 1 },
+        });
+
+        expect(result).toEqual({ actionName: "increment", input: { amount: 1 } });
+    });
+
+    it("returns canvas_action_no_handler when no per-action handler is registered", async () => {
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerCanvases([canvas]);
+
         await expect(
-            (client as any).handlePermissionRequestV2({
+            session.clientSessionApis.canvas!.invokeAction({
                 sessionId: session.sessionId,
-                permissionRequest: { kind: "write" },
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+                actionName: "ghost",
+                input: undefined,
             })
-        ).rejects.toThrow(/protocol v2 server/);
+        ).rejects.toMatchObject({ code: "canvas_action_no_handler" });
+    });
+
+    it("throws for unknown canvasId in canvas.open via clientSessionApis", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const canvas = createCanvas({
+            id: "other",
+            displayName: "Other",
+            description: "Some other canvas",
+            open: () => ({ url: "https://example.test/other" }),
+        });
+        session.registerCanvases([canvas]);
+
+        await expect(
+            session.clientSessionApis.canvas!.open({
+                sessionId: session.sessionId,
+                extensionId: "project:missing",
+                canvasId: "missing",
+                instanceId: "missing-1",
+            })
+        ).rejects.toThrow('No canvas registered with id "missing"');
     });
 
     it("forwards clientName in session.create request", async () => {
@@ -360,7 +477,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer provider-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxInputTokens: 100_000,
+                maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -399,7 +516,7 @@ describe("CopilotClient", () => {
                 headers: { Authorization: "Bearer resume-token" },
                 modelId: "gpt-4o",
                 wireModel: "my-finetune-v3",
-                maxInputTokens: 100_000,
+                maxPromptTokens: 100_000,
                 maxOutputTokens: 4096,
             },
         });
@@ -572,8 +689,8 @@ describe("CopilotClient", () => {
 
         await client.resumeSession(session.sessionId, {
             onPermissionRequest: approveAll,
-            onExitPlanMode: () => ({ approved: true }),
-            onAutoModeSwitch: () => "yes",
+            onExitPlanModeRequest: () => ({ approved: true }),
+            onAutoModeSwitchRequest: () => "yes",
         });
 
         expect(spy).toHaveBeenCalledWith(
@@ -641,45 +758,44 @@ describe("CopilotClient", () => {
     describe("URL parsing", () => {
         it("should parse port-only URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "8080",
+                connection: RuntimeConnection.forUri("8080"),
                 logLevel: "error",
             });
 
-            // Verify internal state
-            expect((client as any).actualPort).toBe(8080);
+            expect((client as any).runtimePort).toBe(8080);
             expect((client as any).actualHost).toBe("localhost");
             expect((client as any).isExternalServer).toBe(true);
         });
 
         it("should parse host:port URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "127.0.0.1:9000",
+                connection: RuntimeConnection.forUri("127.0.0.1:9000"),
                 logLevel: "error",
             });
 
-            expect((client as any).actualPort).toBe(9000);
+            expect((client as any).runtimePort).toBe(9000);
             expect((client as any).actualHost).toBe("127.0.0.1");
             expect((client as any).isExternalServer).toBe(true);
         });
 
         it("should parse http://host:port URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "http://localhost:7000",
+                connection: RuntimeConnection.forUri("http://localhost:7000"),
                 logLevel: "error",
             });
 
-            expect((client as any).actualPort).toBe(7000);
+            expect((client as any).runtimePort).toBe(7000);
             expect((client as any).actualHost).toBe("localhost");
             expect((client as any).isExternalServer).toBe(true);
         });
 
         it("should parse https://host:port URL format", () => {
             const client = new CopilotClient({
-                cliUrl: "https://example.com:443",
+                connection: RuntimeConnection.forUri("https://example.com:443"),
                 logLevel: "error",
             });
 
-            expect((client as any).actualPort).toBe(443);
+            expect((client as any).runtimePort).toBe(443);
             expect((client as any).actualHost).toBe("example.com");
             expect((client as any).isExternalServer).toBe(true);
         });
@@ -687,7 +803,7 @@ describe("CopilotClient", () => {
         it("should throw error for invalid URL format", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "invalid-url",
+                    connection: RuntimeConnection.forUri("invalid-url"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid cliUrl format/);
@@ -696,7 +812,7 @@ describe("CopilotClient", () => {
         it("should throw error for invalid port - too high", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:99999",
+                    connection: RuntimeConnection.forUri("localhost:99999"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid port in cliUrl/);
@@ -705,7 +821,7 @@ describe("CopilotClient", () => {
         it("should throw error for invalid port - zero", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:0",
+                    connection: RuntimeConnection.forUri("localhost:0"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid port in cliUrl/);
@@ -714,57 +830,28 @@ describe("CopilotClient", () => {
         it("should throw error for invalid port - negative", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:-1",
+                    connection: RuntimeConnection.forUri("localhost:-1"),
                     logLevel: "error",
                 });
             }).toThrow(/Invalid port in cliUrl/);
         });
 
-        it("should throw error when cliUrl is used with useStdio", () => {
-            expect(() => {
-                new CopilotClient({
-                    cliUrl: "localhost:8080",
-                    useStdio: true,
-                    logLevel: "error",
-                });
-            }).toThrow(/cliUrl is mutually exclusive/);
-        });
-
-        it("should throw error when cliUrl is used with cliPath", () => {
-            expect(() => {
-                new CopilotClient({
-                    cliUrl: "localhost:8080",
-                    cliPath: "/path/to/cli",
-                    logLevel: "error",
-                });
-            }).toThrow(/cliUrl is mutually exclusive/);
-        });
-
-        it("should set useStdio to false when cliUrl is provided", () => {
-            const client = new CopilotClient({
-                cliUrl: "8080",
-                logLevel: "error",
-            });
-
-            expect(client["options"].useStdio).toBe(false);
-        });
-
         it("should mark client as using external server", () => {
             const client = new CopilotClient({
-                cliUrl: "localhost:8080",
+                connection: RuntimeConnection.forUri("localhost:8080"),
                 logLevel: "error",
             });
 
             expect((client as any).isExternalServer).toBe(true);
         });
 
-        it("should not resolve cliPath when cliUrl is provided", () => {
+        it("should not resolve a CLI path when forUri is used", () => {
             const client = new CopilotClient({
-                cliUrl: "localhost:8080",
+                connection: RuntimeConnection.forUri("localhost:8080"),
                 logLevel: "error",
             });
 
-            expect(client["options"].cliPath).toBeUndefined();
+            expect((client as any).resolvedCliPath).toBeUndefined();
         });
     });
 
@@ -842,41 +929,45 @@ describe("CopilotClient", () => {
             expect((client as any).options.useLoggedInUser).toBe(false);
         });
 
-        it("should accept copilotHome option", () => {
+        it("should accept baseDirectory option", () => {
             const client = new CopilotClient({
-                copilotHome: "/custom/copilot/home",
+                baseDirectory: "/custom/copilot/home",
                 logLevel: "error",
             });
 
-            expect((client as any).options.copilotHome).toBe("/custom/copilot/home");
+            expect((client as any).options.baseDirectory).toBe("/custom/copilot/home");
         });
 
-        it("should leave copilotHome undefined when not provided", () => {
+        it("should leave baseDirectory undefined when not provided", () => {
             const client = new CopilotClient({
                 logLevel: "error",
             });
 
-            expect((client as any).options.copilotHome).toBeUndefined();
+            expect((client as any).options.baseDirectory).toBeUndefined();
         });
 
-        it("should throw error when gitHubToken is used with cliUrl", () => {
+        it("should throw error when gitHubToken is used with forUri", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:8080",
+                    connection: RuntimeConnection.forUri("localhost:8080"),
                     gitHubToken: "gho_test_token",
                     logLevel: "error",
                 });
-            }).toThrow(/gitHubToken and useLoggedInUser cannot be used with cliUrl/);
+            }).toThrow(
+                /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
+            );
         });
 
-        it("should throw error when useLoggedInUser is used with cliUrl", () => {
+        it("should throw error when useLoggedInUser is used with forUri", () => {
             expect(() => {
                 new CopilotClient({
-                    cliUrl: "localhost:8080",
+                    connection: RuntimeConnection.forUri("localhost:8080"),
                     useLoggedInUser: false,
                     logLevel: "error",
                 });
-            }).toThrow(/gitHubToken and useLoggedInUser cannot be used with cliUrl/);
+            }).toThrow(
+                /gitHubToken and useLoggedInUser cannot be used with RuntimeConnection.forUri/
+            );
         });
     });
 
@@ -1106,7 +1197,7 @@ describe("CopilotClient", () => {
             await client.start();
             onTestFinished(() => client.forceStop());
 
-            expect(client.getState()).toBe("connected");
+            expect((client as any).state).toBe("connected");
 
             // Kill the child process to simulate unexpected termination
             const proc = (client as any).cliProcess as import("node:child_process").ChildProcess;
@@ -1114,7 +1205,7 @@ describe("CopilotClient", () => {
 
             // Wait for the connection.onClose handler to fire
             await vi.waitFor(() => {
-                expect(client.getState()).toBe("disconnected");
+                expect((client as any).state).toBe("disconnected");
             });
         });
     });
@@ -1540,8 +1631,8 @@ describe("CopilotClient", () => {
 
             await client.createSession({
                 onPermissionRequest: approveAll,
-                onExitPlanMode: () => ({ approved: true }),
-                onAutoModeSwitch: () => "yes_always",
+                onExitPlanModeRequest: () => ({ approved: true }),
+                onAutoModeSwitchRequest: () => "yes_always",
             });
 
             const createCallWithHandlers = rpcSpy.mock.calls.find((c) => c[0] === "session.create");
@@ -1573,7 +1664,7 @@ describe("CopilotClient", () => {
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                onExitPlanMode: (request, invocation) => {
+                onExitPlanModeRequest: (request, invocation) => {
                     expect(invocation.sessionId).toBeDefined();
                     expect(request.summary).toBe("Review the plan");
                     expect(request.planContent).toBe("Plan body");
@@ -1585,7 +1676,7 @@ describe("CopilotClient", () => {
                         feedback: "Looks good",
                     };
                 },
-                onAutoModeSwitch: (request, invocation) => {
+                onAutoModeSwitchRequest: (request, invocation) => {
                     expect(invocation.sessionId).toBeDefined();
                     expect(request.errorCode).toBe("user_weekly_rate_limited");
                     expect(request.retryAfterSeconds).toBe(3600);
@@ -1665,6 +1756,179 @@ describe("CopilotClient", () => {
             });
 
             expect((client as any).options.sessionIdleTimeoutSeconds).toBe(600);
+        });
+    });
+
+    describe("hooks dispatcher", () => {
+        // Direct unit tests for CopilotSession._handleHooksInvoke. The hook
+        // dispatch logic maps the CLI-emitted hook type (string) to the
+        // corresponding SessionHooks handler. These tests guard against
+        // regressions like the one fixed for postToolUseFailure (issue #1220).
+
+        it("dispatches postToolUseFailure to onPostToolUseFailure handler", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUseFailure: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { additionalContext: "failure observed" };
+                    },
+                },
+            });
+
+            const failureInput = {
+                toolName: "failing-tool",
+                toolArgs: { foo: "bar" },
+                error: "exit 1",
+                timestamp: 1234,
+                cwd: "/tmp",
+            };
+            const expectedInput = {
+                toolName: "failing-tool",
+                toolArgs: { foo: "bar" },
+                error: "exit 1",
+                timestamp: new Date(1234),
+                workingDirectory: "/tmp",
+            };
+            const result = await (session as any)._handleHooksInvoke(
+                "postToolUseFailure",
+                failureInput
+            );
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual(expectedInput);
+            expect(received[0].invocation.sessionId).toBe(session.sessionId);
+            expect(result).toEqual({ additionalContext: "failure observed" });
+        });
+
+        it("does not fall back to onPostToolUse for postToolUseFailure events", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const postUseCalls: string[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    // Only onPostToolUse registered; postToolUseFailure events
+                    // must not be routed here.
+                    onPostToolUse: async (input) => {
+                        postUseCalls.push(input.toolName);
+                    },
+                },
+            });
+
+            const result = await (session as any)._handleHooksInvoke("postToolUseFailure", {
+                toolName: "failing-tool",
+                toolArgs: {},
+                error: "boom",
+                timestamp: 0,
+                cwd: "/tmp",
+            });
+
+            expect(postUseCalls).toHaveLength(0);
+            expect(result).toBeUndefined();
+        });
+
+        it("dispatches postToolUse and postToolUseFailure to their respective handlers", async () => {
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const postCalls: string[] = [];
+            const failureCalls: string[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUse: async (input) => {
+                        postCalls.push(input.toolName);
+                    },
+                    onPostToolUseFailure: async (input) => {
+                        failureCalls.push(input.toolName);
+                    },
+                },
+            });
+
+            await (session as any)._handleHooksInvoke("postToolUse", {
+                toolName: "success-tool",
+                toolArgs: {},
+                toolResult: {
+                    textResultForLlm: "ok",
+                    resultType: "success" as const,
+                },
+                timestamp: 0,
+                cwd: "/tmp",
+            });
+            await (session as any)._handleHooksInvoke("postToolUseFailure", {
+                toolName: "fail-tool",
+                toolArgs: {},
+                error: "bad",
+                timestamp: 0,
+                cwd: "/tmp",
+            });
+
+            expect(postCalls).toEqual(["success-tool"]);
+            expect(failureCalls).toEqual(["fail-tool"]);
+        });
+
+        it("routes hooks.invoke JSON-RPC requests to the SessionHooks handler", async () => {
+            // Validates the full JSON-RPC entry point used by the CLI:
+            // CopilotClient.handleHooksInvoke({sessionId, hookType, input})
+            // → CopilotSession._handleHooksInvoke(hookType, input)
+            // → SessionHooks.onPostToolUseFailure(normalizedInput, {sessionId})
+            //
+            // This guards the wire-format contract that the bundled Copilot
+            // CLI relies on: the hookType string "postToolUseFailure" and the
+            // input shape `{toolName, toolArgs, error, timestamp, cwd}`.
+            // The SDK maps that to public `{..., timestamp: Date, workingDirectory}`.
+            const client = new CopilotClient();
+            await client.start();
+            onTestFinished(() => client.forceStop());
+
+            const received: { input: any; invocation: any }[] = [];
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                hooks: {
+                    onPostToolUseFailure: async (input, invocation) => {
+                        received.push({ input, invocation });
+                        return { additionalContext: "context from failure hook" };
+                    },
+                },
+            });
+
+            const failureInput = {
+                toolName: "shell",
+                toolArgs: { command: "false" },
+                error: "exit 1",
+                timestamp: 1700000000000,
+                cwd: "/tmp",
+            };
+
+            const response = await (client as any).handleHooksInvoke({
+                sessionId: session.sessionId,
+                hookType: "postToolUseFailure",
+                input: failureInput,
+            });
+
+            expect(received).toHaveLength(1);
+            expect(received[0].input).toEqual({
+                toolName: "shell",
+                toolArgs: { command: "false" },
+                error: "exit 1",
+                timestamp: new Date(1700000000000),
+                workingDirectory: "/tmp",
+            });
+            expect(received[0].invocation.sessionId).toBe(session.sessionId);
+            // The CLI only consumes output.additionalContext; the SDK returns
+            // it wrapped in `{ output }` per the JSON-RPC contract.
+            expect(response).toEqual({
+                output: { additionalContext: "context from failure hook" },
+            });
         });
     });
 });

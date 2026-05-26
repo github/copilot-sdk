@@ -1,15 +1,20 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::{
-    CommandContext, CommandDefinition, CommandHandler, ResumeSessionConfig, SessionConfig,
-    SessionId,
+use github_copilot_sdk::generated::api_types::{
+    CommandsInvokeRequest, CommandsListRequest, CommandsRespondToQueuedCommandRequest,
+    EnqueueCommandParams, ExecuteCommandParams, RegisterEventInterestParams,
+    ReleaseEventInterestParams, SlashCommandInvocationResult, SlashCommandKind,
 };
+use github_copilot_sdk::generated::session_events::{CommandQueuedData, SessionEventType};
+use github_copilot_sdk::{CommandContext, CommandDefinition, CommandHandler, RequestId};
+use serde_json::json;
+use tokio::sync::mpsc;
 
-use super::support::{DEFAULT_TEST_TOKEN, assert_uuid_like, with_e2e_context};
+use super::support::{recv_with_timeout, wait_for_event, with_e2e_context};
 
 #[tokio::test]
-async fn session_with_commands_creates_successfully() {
+async fn session_commands_list_returns_builtins_and_respects_client_command_filter() {
     with_e2e_context(
         "commands",
         "session_with_commands_creates_successfully",
@@ -19,14 +24,56 @@ async fn session_with_commands_creates_successfully() {
                 let client = ctx.start_client().await;
                 let session = client
                     .create_session(ctx.approve_all_session_config().with_commands(vec![
-                            CommandDefinition::new("deploy", Arc::new(NoopCommandHandler))
-                                .with_description("Deploy the app"),
-                            CommandDefinition::new("rollback", Arc::new(NoopCommandHandler)),
-                        ]))
+                        CommandDefinition::new("rust-e2e-command", Arc::new(NoopCommandHandler))
+                            .with_description("Rust E2E command"),
+                    ]))
                     .await
                     .expect("create session");
 
-                assert_uuid_like(session.id());
+                let all = session
+                    .rpc()
+                    .commands()
+                    .list()
+                    .await
+                    .expect("list commands");
+                assert_command(&all.commands, "model", SlashCommandKind::Builtin);
+                assert_command(&all.commands, "compact", SlashCommandKind::Builtin);
+                assert_command(&all.commands, "context", SlashCommandKind::Builtin);
+                assert_command(&all.commands, "rust-e2e-command", SlashCommandKind::Client);
+
+                let no_builtins = session
+                    .rpc()
+                    .commands()
+                    .list_with_params(CommandsListRequest {
+                        include_builtins: Some(false),
+                        include_client_commands: Some(true),
+                        include_skills: Some(false),
+                    })
+                    .await
+                    .expect("list without builtins");
+                assert!(
+                    !no_builtins
+                        .commands
+                        .iter()
+                        .any(|command| command.kind == SlashCommandKind::Builtin)
+                );
+                assert_command(
+                    &no_builtins.commands,
+                    "rust-e2e-command",
+                    SlashCommandKind::Client,
+                );
+
+                let client_only_disabled = session
+                    .rpc()
+                    .commands()
+                    .list_with_params(CommandsListRequest {
+                        include_builtins: Some(false),
+                        include_client_commands: Some(false),
+                        include_skills: Some(false),
+                    })
+                    .await
+                    .expect("list with all dynamic sources disabled");
+                assert!(client_only_disabled.commands.is_empty());
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -37,50 +84,7 @@ async fn session_with_commands_creates_successfully() {
 }
 
 #[tokio::test]
-async fn session_with_commands_resumes_successfully() {
-    with_e2e_context(
-        "commands",
-        "session_with_commands_resumes_successfully",
-        |ctx| {
-            Box::pin(async move {
-                ctx.set_default_copilot_user();
-                let client = ctx.start_client().await;
-                let session = client
-                    .create_session(ctx.approve_all_session_config())
-                    .await
-                    .expect("create session");
-                let session_id = session.id().clone();
-                session.send_and_wait("Say OK.").await.expect("send");
-                session
-                    .disconnect()
-                    .await
-                    .expect("disconnect first session");
-
-                let resumed = client
-                    .resume_session(
-                        ResumeSessionConfig::new(session_id.clone())
-                            .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
-                            .with_commands(vec![
-                                CommandDefinition::new("deploy", Arc::new(NoopCommandHandler))
-                                    .with_description("Deploy"),
-                            ]),
-                    )
-                    .await
-                    .expect("resume session");
-
-                assert_eq!(*resumed.id(), session_id);
-
-                resumed.disconnect().await.expect("disconnect resumed");
-                client.stop().await.expect("stop client");
-            })
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn session_with_no_commands_creates_successfully() {
+async fn session_commands_invoke_known_builtin_returns_expected_result() {
     with_e2e_context(
         "commands",
         "session_with_no_commands_creates_successfully",
@@ -93,7 +97,27 @@ async fn session_with_no_commands_creates_successfully() {
                     .await
                     .expect("create session");
 
-                assert_uuid_like(session.id());
+                let result = session
+                    .rpc()
+                    .commands()
+                    .invoke(CommandsInvokeRequest {
+                        name: "context".to_string(),
+                        input: None,
+                    })
+                    .await
+                    .expect("invoke context");
+                match result {
+                    SlashCommandInvocationResult::Text(text) => {
+                        assert!(!text.text.trim().is_empty());
+                    }
+                    SlashCommandInvocationResult::SelectSubcommand(select) => {
+                        assert!(!select.options.is_empty());
+                    }
+                    SlashCommandInvocationResult::AgentPrompt(prompt) => {
+                        assert!(!prompt.prompt.trim().is_empty());
+                    }
+                    SlashCommandInvocationResult::Completed(_) => {}
+                }
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -104,55 +128,132 @@ async fn session_with_no_commands_creates_successfully() {
 }
 
 #[tokio::test]
-async fn command_definition_has_required_properties() {
-    let command = CommandDefinition::new("deploy", Arc::new(NoopCommandHandler))
-        .with_description("Deploy the app");
-    assert_eq!(command.name, "deploy");
-    assert_eq!(command.description.as_deref(), Some("Deploy the app"));
+async fn session_commands_execute_runs_registered_command_handler() {
+    with_e2e_context(
+        "commands",
+        "session_with_commands_creates_successfully",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config().with_commands(vec![
+                        CommandDefinition::new(
+                            "rust-execute",
+                            Arc::new(RecordingCommandHandler { tx }),
+                        )
+                        .with_description("Records command invocations"),
+                    ]))
+                    .await
+                    .expect("create session");
+
+                let result = session
+                    .rpc()
+                    .commands()
+                    .execute(ExecuteCommandParams {
+                        command_name: "rust-execute".to_string(),
+                        args: "alpha beta".to_string(),
+                    })
+                    .await
+                    .expect("execute command");
+                assert!(result.error.is_none());
+
+                let context = recv_with_timeout(&mut rx, "command context").await;
+                assert_eq!(context.session_id, session.id().clone());
+                assert_eq!(context.command_name, "rust-execute");
+                assert_eq!(context.command, "/rust-execute alpha beta");
+                assert_eq!(context.args, "alpha beta");
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
 }
 
 #[tokio::test]
-async fn command_definition_without_description_uses_none() {
-    let command = CommandDefinition::new("deploy", Arc::new(NoopCommandHandler));
+async fn session_commands_enqueue_and_respond_to_queued_command() {
+    with_e2e_context(
+        "commands",
+        "session_with_no_commands_creates_successfully",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+                let interest = session
+                    .rpc()
+                    .event_log()
+                    .register_interest(RegisterEventInterestParams {
+                        event_type: "command.queued".to_string(),
+                    })
+                    .await
+                    .expect("register command interest")
+                    .handle;
+                let queued_event = wait_for_event(session.subscribe(), "command queued", |event| {
+                    event.parsed_type() == SessionEventType::CommandQueued
+                });
 
-    assert_eq!(command.name, "deploy");
-    assert_eq!(command.description, None);
-}
+                let result = session
+                    .rpc()
+                    .commands()
+                    .enqueue(EnqueueCommandParams {
+                        command: "/help".to_string(),
+                    })
+                    .await
+                    .expect("enqueue command");
+                assert!(result.queued);
 
-#[tokio::test]
-async fn session_config_commands_are_cloned() {
-    let config = SessionConfig::default().with_commands(vec![CommandDefinition::new(
-        "deploy",
-        Arc::new(NoopCommandHandler),
-    )]);
+                let queued = queued_event
+                    .await
+                    .typed_data::<CommandQueuedData>()
+                    .expect("command queued data");
+                assert_eq!(queued.command, "/help");
+                let response = session
+                    .rpc()
+                    .commands()
+                    .respond_to_queued_command(CommandsRespondToQueuedCommandRequest {
+                        request_id: queued.request_id,
+                        result: json!({
+                            "handled": true,
+                            "stopProcessingQueue": true
+                        }),
+                    })
+                    .await
+                    .expect("respond to queued command");
+                assert!(response.success);
 
-    let mut clone = config.clone();
+                let missing = session
+                    .rpc()
+                    .commands()
+                    .respond_to_queued_command(CommandsRespondToQueuedCommandRequest {
+                        request_id: RequestId::from("missing-command-request"),
+                        result: json!({
+                            "handled": false,
+                            "stopProcessingQueue": false
+                        }),
+                    })
+                    .await
+                    .expect("respond to missing queued command");
+                assert!(!missing.success);
+                session
+                    .rpc()
+                    .event_log()
+                    .release_interest(ReleaseEventInterestParams { handle: interest })
+                    .await
+                    .expect("release command interest");
 
-    let clone_commands = clone.commands.as_mut().expect("cloned commands");
-    assert_eq!(clone_commands.len(), 1);
-    assert_eq!(clone_commands[0].name, "deploy");
-
-    clone_commands.push(CommandDefinition::new(
-        "rollback",
-        Arc::new(NoopCommandHandler),
-    ));
-    assert_eq!(
-        config.commands.as_ref().expect("original commands").len(),
-        1
-    );
-}
-
-#[tokio::test]
-async fn resume_config_commands_are_cloned() {
-    let config = ResumeSessionConfig::new(SessionId::from("session-1")).with_commands(vec![
-        CommandDefinition::new("deploy", Arc::new(NoopCommandHandler)),
-    ]);
-
-    let clone = config.clone();
-
-    let clone_commands = clone.commands.as_ref().expect("cloned commands");
-    assert_eq!(clone_commands.len(), 1);
-    assert_eq!(clone_commands[0].name, "deploy");
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
 }
 
 struct NoopCommandHandler;
@@ -162,4 +263,29 @@ impl CommandHandler for NoopCommandHandler {
     async fn on_command(&self, _ctx: CommandContext) -> Result<(), github_copilot_sdk::Error> {
         Ok(())
     }
+}
+
+struct RecordingCommandHandler {
+    tx: mpsc::UnboundedSender<CommandContext>,
+}
+
+#[async_trait]
+impl CommandHandler for RecordingCommandHandler {
+    async fn on_command(&self, ctx: CommandContext) -> Result<(), github_copilot_sdk::Error> {
+        self.tx.send(ctx).expect("record command context");
+        Ok(())
+    }
+}
+
+fn assert_command(
+    commands: &[github_copilot_sdk::generated::api_types::SlashCommandInfo],
+    name: &str,
+    kind: SlashCommandKind,
+) {
+    let command = commands
+        .iter()
+        .find(|command| command.name == name)
+        .unwrap_or_else(|| panic!("missing command {name}; actual commands: {commands:?}"));
+    assert_eq!(command.kind, kind);
+    assert!(!command.description.trim().is_empty());
 }

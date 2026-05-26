@@ -2,14 +2,13 @@
 
 import pytest
 
-from copilot import CopilotClient
+from copilot import CopilotClient, RuntimeConnection
 from copilot.client import (
     ModelCapabilities,
     ModelInfo,
     ModelLimits,
     ModelSupports,
     StopError,
-    SubprocessConfig,
 )
 from copilot.session import PermissionHandler
 
@@ -19,35 +18,31 @@ from .testharness import CLI_PATH
 class TestClient:
     @pytest.mark.asyncio
     async def test_should_start_and_connect_to_server_using_stdio(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
-            assert client.get_state() == "connected"
 
             pong = await client.ping("test message")
             assert pong.message == "pong: test message"
-            assert pong.timestamp >= 0
+            assert pong.timestamp is not None
 
             await client.stop()
-            assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
     async def test_should_start_and_connect_to_server_using_tcp(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=False))
+        client = CopilotClient(connection=RuntimeConnection.for_tcp(path=CLI_PATH))
 
         try:
             await client.start()
-            assert client.get_state() == "connected"
 
             pong = await client.ping("test message")
             assert pong.message == "pong: test message"
-            assert pong.timestamp >= 0
+            assert pong.timestamp is not None
 
             await client.stop()
-            assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
@@ -55,7 +50,7 @@ class TestClient:
     async def test_should_raise_exception_group_on_failed_cleanup(self):
         import asyncio
 
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.create_session(on_permission_request=PermissionHandler.approve_all)
@@ -72,22 +67,19 @@ class TestClient:
                 assert len(exc.exceptions) > 0
                 assert isinstance(exc.exceptions[0], StopError)
                 assert "Failed to disconnect session" in exc.exceptions[0].message
-            else:
-                assert client.get_state() == "disconnected"
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
     async def test_should_force_stop_without_cleanup(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         await client.create_session(on_permission_request=PermissionHandler.approve_all)
         await client.force_stop()
-        assert client.get_state() == "disconnected"
 
     @pytest.mark.asyncio
     async def test_should_get_status_with_version_and_protocol_info(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -95,9 +87,9 @@ class TestClient:
             status = await client.get_status()
             assert hasattr(status, "version")
             assert isinstance(status.version, str)
-            assert hasattr(status, "protocolVersion")
-            assert isinstance(status.protocolVersion, int)
-            assert status.protocolVersion >= 1
+            assert hasattr(status, "protocol_version")
+            assert isinstance(status.protocol_version, int)
+            assert status.protocol_version >= 1
 
             await client.stop()
         finally:
@@ -105,7 +97,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_get_auth_status(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -123,7 +115,7 @@ class TestClient:
 
     @pytest.mark.asyncio
     async def test_should_list_models_when_authenticated(self):
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -151,7 +143,7 @@ class TestClient:
     @pytest.mark.asyncio
     async def test_should_cache_models_list(self):
         """Test that list_models caches results to avoid rate limiting"""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -196,10 +188,8 @@ class TestClient:
     async def test_should_report_error_with_stderr_when_cli_fails_to_start(self):
         """Test that CLI startup errors include stderr output in the error message."""
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=CLI_PATH,
-                cli_args=["--nonexistent-flag-for-testing"],
-                use_stdio=True,
+            connection=RuntimeConnection.for_stdio(
+                path=CLI_PATH, args=["--nonexistent-flag-for-testing"]
             )
         )
 
@@ -231,7 +221,7 @@ class TestClient:
     @pytest.mark.asyncio
     async def test_should_not_throw_when_disposing_session_after_stopping_client(self):
         """Disconnecting a session after the client is stopped must not raise."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
@@ -248,39 +238,31 @@ class TestClient:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_should_throw_when_create_session_called_without_permission_handler(self):
-        """`create_session` requires an `on_permission_request` handler."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+    async def test_should_create_session_without_permission_handler(self):
+        """`create_session` allows omitting an `on_permission_request` handler."""
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
-            with pytest.raises((TypeError, ValueError)) as exc_info:
-                await client.create_session()  # type: ignore[call-arg]
+            session = await client.create_session()
 
-            message = str(exc_info.value)
-            # Accept either 'on_permission_request' missing-arg or runtime validation error.
-            assert "on_permission_request" in message or "permission" in message.lower(), (
-                f"Expected message to reference permission handler, got: {message}"
-            )
+            assert session.session_id
 
             await client.stop()
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_should_throw_when_resume_session_called_without_permission_handler(self):
-        """`resume_session` requires an `on_permission_request` handler."""
-        client = CopilotClient(SubprocessConfig(cli_path=CLI_PATH, use_stdio=True))
+    async def test_should_resume_session_without_permission_handler(self):
+        """`resume_session` allows omitting an `on_permission_request` handler."""
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
 
         try:
             await client.start()
-            with pytest.raises((TypeError, ValueError)) as exc_info:
-                await client.resume_session("some-session-id")  # type: ignore[call-arg]
+            session = await client.create_session()
+            resumed = await client.resume_session(session.session_id)
 
-            message = str(exc_info.value)
-            assert "on_permission_request" in message or "permission" in message.lower(), (
-                f"Expected message to reference permission handler, got: {message}"
-            )
+            assert resumed.session_id == session.session_id
 
             await client.stop()
         finally:
@@ -308,7 +290,7 @@ class TestClient:
             return custom_models
 
         client = CopilotClient(
-            SubprocessConfig(cli_path=CLI_PATH, use_stdio=True),
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
             on_list_models=on_list_models,
         )
 
@@ -346,7 +328,7 @@ class TestClient:
             return custom_models
 
         client = CopilotClient(
-            SubprocessConfig(cli_path=CLI_PATH, use_stdio=True),
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
             on_list_models=on_list_models,
         )
 

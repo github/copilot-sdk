@@ -49,8 +49,8 @@ func TestErrorResilienceE2E(t *testing.T) {
 
 		timeoutCtx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 		defer cancel()
-		if _, err := session.GetMessages(timeoutCtx); err == nil {
-			t.Fatal("Expected GetMessages on disconnected session to fail")
+		if _, err := session.GetEvents(timeoutCtx); err == nil {
+			t.Fatal("Expected GetEvents on disconnected session to fail")
 		}
 	})
 

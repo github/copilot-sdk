@@ -1,0 +1,29 @@
+#!/bin/sh
+#
+# Pre-commit hook that runs Spotless check on the Java SDK when Java source
+# files are staged. Only triggers if changes exist under java/src/.
+#
+# To install this hook, run from the repository root:
+#   git config core.hooksPath .githooks
+#
+
+# Only run Spotless if staged changes include Java source files under java/src/
+if ! git diff --cached --name-only | grep -q '^java/src/'; then
+    exit 0
+fi
+
+echo "Running Spotless check on java/ ..."
+
+# Run spotless check from the java directory
+(cd java && mvn spotless:check -q)
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Spotless check failed!"
+    echo "   Run 'cd java && mvn spotless:apply' to fix formatting issues."
+    echo ""
+    exit 1
+fi
+
+echo "✓ Spotless check passed"
+exit 0

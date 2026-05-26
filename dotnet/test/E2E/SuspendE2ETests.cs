@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// E2E coverage for the <c>session.suspend</c> RPC. Suspend is a graceful shutdown
@@ -50,12 +51,12 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     public async Task Should_Allow_Resume_And_Continue_Conversation_After_Suspend()
     {
         const string sharedToken = "suspend-shared-token";
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = sharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: sharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
         string sessionId;
-        await using (var client1 = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = sharedToken }))
+        await using (var client1 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: sharedToken) }))
         {
             var session1 = await client1.CreateSessionAsync(new SessionConfig
             {
@@ -76,7 +77,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         // A different client should be able to pick the session back up. The previous
         // turn was completed before suspend, so there is no pending work to continue.
-        await using var client2 = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = sharedToken });
+        await using var client2 = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: sharedToken) });
         var session2 = await client2.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
@@ -100,7 +101,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         // and the underlying tool function is never invoked because the cancelled
         // permission means the runtime never grants execution.
         var permissionHandlerEntered = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releasePermissionHandler = new TaskCompletionSource<PermissionRequestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releasePermissionHandler = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         var toolInvoked = false;
 
         var session = await CreateSessionAsync(new SessionConfig
@@ -142,10 +143,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         {
             // Defensive: release the dangling SDK-side handler task so it doesn't keep
             // a stray TaskCompletionSource alive after the test ends.
-            releasePermissionHandler.TrySetResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable,
-            });
+            releasePermissionHandler.TrySetResult(PermissionDecision.UserNotAvailable());
         }
 
         await session.DisposeAsync();
@@ -175,7 +173,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent ext && ext.Data.ToolName == "suspend_reject_external_tool")
             {
@@ -219,7 +217,7 @@ public class SuspendE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
     private static string GetCliUrl(CopilotClient client)
     {
-        var port = client.ActualPort
+        var port = client.RuntimePort
             ?? throw new InvalidOperationException("Expected the test server to be listening on a TCP port.");
         return $"localhost:{port}";
     }

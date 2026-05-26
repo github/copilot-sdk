@@ -1,8 +1,10 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 async function main() {
   const client = new CopilotClient({
-    cliUrl: process.env.COPILOT_CLI_URL || "localhost:3000",
+    connection: RuntimeConnection.forUri(
+      process.env.COPILOT_CLI_URL || "localhost:3000",
+    ),
   });
 
   try {
@@ -42,7 +44,9 @@ async function main() {
     await session2.disconnect();
     console.log("Session 2 disconnected");
 
-    console.log("\nReconnect test passed — both sessions completed successfully");
+    console.log(
+      "\nReconnect test passed — both sessions completed successfully",
+    );
   } finally {
     await client.stop();
   }

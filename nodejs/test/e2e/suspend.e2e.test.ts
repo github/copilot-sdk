@@ -4,7 +4,7 @@
 
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
-import { approveAll, CopilotClient, defineTool } from "../../src/index.js";
+import { approveAll, CopilotClient, defineTool, RuntimeConnection } from "../../src/index.js";
 import type { PermissionRequest, PermissionRequestResult, SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
@@ -63,24 +63,27 @@ describe("Suspend RPC", async () => {
 
     function createTcpServer(): CopilotClient {
         const server = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
-            useStdio: false,
-            tcpConnectionToken: SHARED_TOKEN,
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                connectionToken: SHARED_TOKEN,
+            }),
         });
         onTestFinishedForceStop(server);
         return server;
     }
 
     function createConnectingClient(cliUrl: string): CopilotClient {
-        const connectedClient = new CopilotClient({ cliUrl, tcpConnectionToken: SHARED_TOKEN });
+        const connectedClient = new CopilotClient({
+            connection: RuntimeConnection.forUri(cliUrl, { connectionToken: SHARED_TOKEN }),
+        });
         onTestFinishedForceStop(connectedClient);
         return connectedClient;
     }
 
     function getCliUrl(server: CopilotClient): string {
-        const port = (server as unknown as { actualPort: number | null }).actualPort;
+        const port = (server as unknown as { runtimePort: number | null }).runtimePort;
         if (!port) {
             throw new Error("Expected the test server to be listening on a TCP port.");
         }

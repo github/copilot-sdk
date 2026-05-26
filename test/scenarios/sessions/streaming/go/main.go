@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
@@ -22,7 +19,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "claude-haiku-4.5",
-		Streaming: true,
+		Streaming: copilot.Bool(true),
 	})
 	if err != nil {
 		log.Fatal(err)

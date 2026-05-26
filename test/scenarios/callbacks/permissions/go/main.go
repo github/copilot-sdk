@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -16,9 +16,7 @@ func main() {
 		permissionLogMu sync.Mutex
 	)
 
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {
@@ -28,7 +26,7 @@ func main() {
 
 	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model: "claude-haiku-4.5",
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			permissionLogMu.Lock()
 			permissionName := string(req.Kind())
 			switch request := req.(type) {
@@ -41,7 +39,7 @@ func main() {
 			}
 			permissionLog = append(permissionLog, fmt.Sprintf("approved:%s", permissionName))
 			permissionLogMu.Unlock()
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 		Hooks: &copilot.SessionHooks{
 			OnPreToolUse: func(input copilot.PreToolUseHookInput, inv copilot.HookInvocation) (*copilot.PreToolUseHookOutput, error) {

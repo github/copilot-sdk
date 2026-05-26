@@ -14,7 +14,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.Unicode;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 
 /// <summary>
 /// A lightweight JSON-RPC 2.0 implementation covering only the features used
@@ -440,7 +440,10 @@ internal sealed partial class JsonRpc : IDisposable
             var errorCode = errorProp.TryGetProperty("code", out var codeProp) && codeProp.ValueKind == JsonValueKind.Number
                 ? codeProp.GetInt32()
                 : 0;
-            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode));
+            var errorData = errorProp.TryGetProperty("data", out var dataProp)
+                ? dataProp
+                : (JsonElement?)null;
+            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode, errorData));
         }
         else if (message.TryGetProperty("result", out var resultProp))
         {
@@ -486,13 +489,21 @@ internal sealed partial class JsonRpc : IDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                var actual = ex is TargetInvocationException tie && tie.InnerException != null ? tie.InnerException : ex;
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
-                    _logger.LogDebug("Error handling JSON-RPC method {Method}: {Error}", methodName, ex.Message);
+                    _logger.LogDebug("Error handling JSON-RPC method {Method}: {Error}", methodName, actual.Message);
                 }
                 if (requestId.HasValue)
                 {
-                    await SendErrorResponseAsync(requestId.Value, ErrorCodeInternalError, ex.Message, cancellationToken).ConfigureAwait(false);
+                    if (actual is LocalRpcInvocationException lre)
+                    {
+                        await SendErrorResponseAsync(requestId.Value, lre.Code, lre.Message, lre.Data, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await SendErrorResponseAsync(requestId.Value, ErrorCodeInternalError, actual.Message, cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -718,13 +729,16 @@ internal sealed partial class JsonRpc : IDisposable
     }
 
     private async Task SendErrorResponseAsync(JsonElement id, int code, string message, CancellationToken cancellationToken)
+        => await SendErrorResponseAsync(id, code, message, data: null, cancellationToken).ConfigureAwait(false);
+
+    private async Task SendErrorResponseAsync(JsonElement id, int code, string message, JsonElement? data, CancellationToken cancellationToken)
     {
         try
         {
             await SendMessageAsync(new JsonRpcErrorResponse
             {
                 Id = id,
-                Error = new JsonRpcError { Code = code, Message = message },
+                Error = new JsonRpcError { Code = code, Message = message, Data = data },
             }, JsonRpcWireContext.Default.JsonRpcErrorResponse, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
@@ -852,6 +866,10 @@ internal sealed partial class JsonRpc : IDisposable
 
         [JsonPropertyName("message")]
         public string Message { get; set; } = string.Empty;
+
+        [JsonPropertyName("data")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public JsonElement? Data { get; set; }
     }
 
     private sealed class JsonRpcNotification
@@ -884,10 +902,29 @@ internal sealed class ConnectionLostException() : IOException("The JSON-RPC conn
 /// <summary>
 /// Thrown when the remote side returns a JSON-RPC error response.
 /// </summary>
-internal sealed class RemoteRpcException(string message, int errorCode, Exception? innerException = null) : Exception(message, innerException)
+internal sealed class RemoteRpcException(string message, int errorCode, JsonElement? errorData = null, Exception? innerException = null) : Exception(message, innerException)
 {
     /// <summary>JSON-RPC 2.0 reserved error code: requested method does not exist.</summary>
     public const int MethodNotFoundErrorCode = -32601;
 
     public int ErrorCode { get; } = errorCode;
+
+    public JsonElement? ErrorData { get; } = errorData.HasValue ? errorData.Value.Clone() : null;
+}
+
+/// <summary>
+/// Allows handler methods registered via <c>JsonRpcConnection.SetLocalRpcMethod</c>
+/// to surface a structured JSON-RPC error response (code, message, and optional
+/// <c>data</c> payload) instead of the default <c>ErrorCodeInternalError</c> envelope.
+/// </summary>
+internal sealed class LocalRpcInvocationException : Exception
+{
+    public LocalRpcInvocationException(int code, string message, JsonElement? data = null) : base(message)
+    {
+        Code = code;
+        Data = data;
+    }
+
+    public int Code { get; }
+    public new JsonElement? Data { get; }
 }

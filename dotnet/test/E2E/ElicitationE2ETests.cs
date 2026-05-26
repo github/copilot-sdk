@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
+using GitHub.Copilot.Rpc;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "elicitation", output)
@@ -56,7 +56,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
 
         ex = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
         {
-            await session.Ui.ElicitationAsync(new ElicitationParams
+            await session.Ui.ElicitAsync(new ElicitationParams
             {
                 Message = "Enter name",
                 RequestedSchema = new ElicitationSchema
@@ -199,7 +199,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
             },
         });
 
-        var result = await session.Ui.InputAsync("Enter value", new InputOptions
+        var result = await session.Ui.InputAsync("Enter value", new UiInputOptions
         {
             Title = "Value",
             Description = "A value to test",
@@ -246,9 +246,9 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
             },
         };
 
-        var accept = await session.Ui.ElicitationAsync(parameters);
-        var decline = await session.Ui.ElicitationAsync(parameters);
-        var cancel = await session.Ui.ElicitationAsync(parameters);
+        var accept = await session.Ui.ElicitAsync(parameters);
+        var decline = await session.Ui.ElicitAsync(parameters);
+        var cancel = await session.Ui.ElicitAsync(parameters);
 
         Assert.Equal(UIElicitationResponseAction.Accept, accept.Action);
         Assert.Equal("Mona", accept.Content!["name"].ToString());
@@ -333,7 +333,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
     [Fact]
     public void InputOptions_Has_All_Properties()
     {
-        var options = new InputOptions
+        var options = new UiInputOptions
         {
             Title = "Email Address",
             Description = "Enter your email",
@@ -381,7 +381,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
     [Fact]
     public async Task Session_Config_OnElicitationRequest_Is_Cloned()
     {
-        ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
+        Func<ElicitationContext, Task<ElicitationResult>> handler = _ => Task.FromResult(new ElicitationResult
         {
             Action = UIElicitationResponseAction.Cancel,
         });
@@ -400,7 +400,7 @@ public class ElicitationE2ETests(E2ETestFixture fixture, ITestOutputHelper outpu
     [Fact]
     public void Resume_Config_OnElicitationRequest_Is_Cloned()
     {
-        ElicitationHandler handler = _ => Task.FromResult(new ElicitationResult
+        Func<ElicitationContext, Task<ElicitationResult>> handler = _ => Task.FromResult(new ElicitationResult
         {
             Action = UIElicitationResponseAction.Cancel,
         });

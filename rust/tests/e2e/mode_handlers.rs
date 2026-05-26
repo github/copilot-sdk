@@ -2,10 +2,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use github_copilot_sdk::generated::session_events::{
-    AutoModeSwitchCompletedData, AutoModeSwitchRequestedData, ExitPlanModeCompletedData,
-    ExitPlanModeRequestedData, SessionEventType, SessionModelChangeData,
+    AutoModeSwitchCompletedData, AutoModeSwitchRequestedData,
+    AutoModeSwitchResponse as EventAutoModeSwitchResponse, ExitPlanModeAction,
+    ExitPlanModeCompletedData, ExitPlanModeRequestedData, SessionEventType, SessionModelChangeData,
 };
-use github_copilot_sdk::handler::{AutoModeSwitchResponse, ExitPlanModeResult, SessionHandler};
+use github_copilot_sdk::handler::{
+    AutoModeSwitchHandler, AutoModeSwitchResponse as HandlerAutoModeSwitchResponse,
+    ExitPlanModeHandler, ExitPlanModeResult,
+};
 use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -31,12 +35,8 @@ struct AutoModeHandler {
 }
 
 #[async_trait]
-impl SessionHandler for ModeHandler {
-    async fn on_exit_plan_mode(
-        &self,
-        session_id: SessionId,
-        data: ExitPlanModeData,
-    ) -> ExitPlanModeResult {
+impl ExitPlanModeHandler for ModeHandler {
+    async fn handle(&self, session_id: SessionId, data: ExitPlanModeData) -> ExitPlanModeResult {
         let _ = self.requests.send((session_id, data));
         ExitPlanModeResult {
             approved: true,
@@ -47,17 +47,17 @@ impl SessionHandler for ModeHandler {
 }
 
 #[async_trait]
-impl SessionHandler for AutoModeHandler {
-    async fn on_auto_mode_switch(
+impl AutoModeSwitchHandler for AutoModeHandler {
+    async fn handle(
         &self,
         session_id: SessionId,
         error_code: Option<String>,
         retry_after_seconds: Option<f64>,
-    ) -> AutoModeSwitchResponse {
+    ) -> HandlerAutoModeSwitchResponse {
         let _ = self
             .requests
             .send((session_id, error_code, retry_after_seconds));
-        AutoModeSwitchResponse::Yes
+        HandlerAutoModeSwitchResponse::Yes
     }
 }
 
@@ -75,7 +75,7 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(MODE_HANDLER_TOKEN)
-                            .with_handler(Arc::new(ModeHandler {
+                            .with_exit_plan_mode_handler(Arc::new(ModeHandler {
                                 requests: request_tx,
                             }))
                             .approve_all_permissions(),
@@ -102,7 +102,8 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                                 .typed_data::<ExitPlanModeCompletedData>()
                                 .is_some_and(|data| {
                                     data.approved == Some(true)
-                                        && data.selected_action.as_deref() == Some("interactive")
+                                        && data.selected_action
+                                            == Some(ExitPlanModeAction::Interactive)
                                 })
                     },
                 ));
@@ -144,10 +145,17 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     .typed_data::<ExitPlanModeRequestedData>()
                     .expect("typed requested event");
                 assert_eq!(requested_data.summary, request.summary);
-                assert_eq!(requested_data.actions, request.actions);
+                assert_eq!(
+                    requested_data.actions,
+                    [
+                        ExitPlanModeAction::Interactive,
+                        ExitPlanModeAction::Autopilot,
+                        ExitPlanModeAction::ExitOnly,
+                    ]
+                );
                 assert_eq!(
                     requested_data.recommended_action,
-                    request.recommended_action
+                    ExitPlanModeAction::Interactive
                 );
 
                 let completed = completed_event.await.expect("completed task");
@@ -156,8 +164,8 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     .expect("typed completed event");
                 assert_eq!(completed_data.approved, Some(true));
                 assert_eq!(
-                    completed_data.selected_action.as_deref(),
-                    Some("interactive")
+                    completed_data.selected_action,
+                    Some(ExitPlanModeAction::Interactive)
                 );
                 assert_eq!(
                     completed_data.feedback.as_deref(),
@@ -187,7 +195,7 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(MODE_HANDLER_TOKEN)
-                            .with_handler(Arc::new(AutoModeHandler {
+                            .with_auto_mode_switch_handler(Arc::new(AutoModeHandler {
                                 requests: request_tx,
                             }))
                             .approve_all_permissions(),
@@ -204,7 +212,7 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                                 .typed_data::<AutoModeSwitchRequestedData>()
                                 .is_some_and(|data| {
                                     data.error_code.as_deref() == Some("user_weekly_rate_limited")
-                                        && data.retry_after_seconds == Some(1.0)
+                                        && data.retry_after_seconds == Some(1)
                                 })
                     },
                 ));
@@ -215,7 +223,9 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                         event.parsed_type() == SessionEventType::AutoModeSwitchCompleted
                             && event
                                 .typed_data::<AutoModeSwitchCompletedData>()
-                                .is_some_and(|data| data.response == "yes")
+                                .is_some_and(|data| {
+                                    data.response == EventAutoModeSwitchResponse::Yes
+                                })
                     },
                 ));
                 let model_change_event =
@@ -252,13 +262,16 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                     .typed_data::<AutoModeSwitchRequestedData>()
                     .expect("typed requested event");
                 assert_eq!(requested_data.error_code, error_code);
-                assert_eq!(requested_data.retry_after_seconds, retry_after_seconds);
+                assert_eq!(
+                    requested_data.retry_after_seconds.map(|value| value as f64),
+                    retry_after_seconds
+                );
 
                 let completed = completed_event.await.expect("completed task");
                 let completed_data = completed
                     .typed_data::<AutoModeSwitchCompletedData>()
                     .expect("typed completed event");
-                assert_eq!(completed_data.response, "yes");
+                assert_eq!(completed_data.response, EventAutoModeSwitchResponse::Yes);
 
                 let model_change = model_change_event.await.expect("model change task");
                 let model_change_data = model_change

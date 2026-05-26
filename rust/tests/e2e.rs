@@ -7,6 +7,8 @@ mod abort;
 mod ask_user;
 #[path = "e2e/builtin_tools.rs"]
 mod builtin_tools;
+#[path = "e2e/canvas.rs"]
+mod canvas;
 #[path = "e2e/client.rs"]
 mod client;
 #[path = "e2e/client_api.rs"]
@@ -45,16 +47,26 @@ mod pending_work_resume;
 mod per_session_auth;
 #[path = "e2e/permissions.rs"]
 mod permissions;
+#[path = "e2e/pre_mcp_tool_call_hook.rs"]
+mod pre_mcp_tool_call_hook;
 #[path = "e2e/rpc_additional_edge_cases.rs"]
 mod rpc_additional_edge_cases;
 #[path = "e2e/rpc_agent.rs"]
 mod rpc_agent;
+#[path = "e2e/rpc_event_log.rs"]
+mod rpc_event_log;
 #[path = "e2e/rpc_event_side_effects.rs"]
 mod rpc_event_side_effects;
 #[path = "e2e/rpc_mcp_and_skills.rs"]
 mod rpc_mcp_and_skills;
 #[path = "e2e/rpc_mcp_config.rs"]
 mod rpc_mcp_config;
+#[path = "e2e/rpc_queue.rs"]
+mod rpc_queue;
+#[path = "e2e/rpc_remote.rs"]
+mod rpc_remote;
+#[path = "e2e/rpc_schedule.rs"]
+mod rpc_schedule;
 #[path = "e2e/rpc_server.rs"]
 mod rpc_server;
 #[path = "e2e/rpc_session_state.rs"]
@@ -65,12 +77,16 @@ mod rpc_shell_and_fleet;
 mod rpc_shell_edge_cases;
 #[path = "e2e/rpc_tasks_and_handlers.rs"]
 mod rpc_tasks_and_handlers;
+#[path = "e2e/rpc_workspace_checkpoints.rs"]
+mod rpc_workspace_checkpoints;
 #[path = "e2e/session.rs"]
 mod session;
 #[path = "e2e/session_config.rs"]
 mod session_config;
 #[path = "e2e/session_fs.rs"]
 mod session_fs;
+#[path = "e2e/session_fs_sqlite.rs"]
+mod session_fs_sqlite;
 #[path = "e2e/session_lifecycle.rs"]
 mod session_lifecycle;
 #[path = "e2e/skills.rs"]

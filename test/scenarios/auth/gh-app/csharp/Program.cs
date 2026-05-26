@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 // GitHub OAuth Device Flow
 var clientId = Environment.GetEnvironmentVariable("GITHUB_OAUTH_CLIENT_ID")
@@ -60,7 +60,6 @@ Console.WriteLine($"Authenticated as: {userResponse.GetProperty("login").GetStri
 // Step 4: Use the token with Copilot
 using var client = new CopilotClient(new CopilotClientOptions
 {
-    CliPath = Environment.GetEnvironmentVariable("COPILOT_CLI_PATH"),
     GitHubToken = accessToken,
 });
 

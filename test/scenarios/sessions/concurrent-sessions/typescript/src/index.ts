@@ -4,10 +4,7 @@ const PIRATE_PROMPT = `You are a pirate. Always say Arrr!`;
 const ROBOT_PROMPT = `You are a robot. Always say BEEP BOOP!`;
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const [session1, session2] = await Promise.all([

@@ -5,7 +5,7 @@
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SkillsE2ETests : E2ETestBase
 {
@@ -134,7 +134,7 @@ IMPORTANT: You MUST include the exact text ""{SkillMarker}"" somewhere in EVERY 
         var enabledSkills = await enabledSession.Rpc.Skills.ListAsync();
         var discoveredSkill = Assert.Single(enabledSkills.Skills, skill => string.Equals(skill.Name, skillName, StringComparison.Ordinal));
         Assert.True(discoveredSkill.Enabled);
-        Assert.Equal("project", discoveredSkill.Source);
+        Assert.Equal(SkillSource.Project, discoveredSkill.Source);
         Assert.EndsWith(Path.Join(skillName, "SKILL.md"), discoveredSkill.Path);
         await enabledSession.DisposeAsync();
     }

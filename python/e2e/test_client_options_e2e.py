@@ -1,14 +1,15 @@
 """
 E2E coverage for ``CopilotClient`` configuration options exposed via
-``SubprocessConfig`` and ``CopilotClient(..., auto_start=...)``.
+``CopilotClientOptions`` and ``RuntimeConnection``.
 
 Mirrors ``dotnet/test/ClientOptionsTests.cs``. The two CliUrl-conflict tests
 (``Should_Throw_When_GitHubToken_Used_With_CliUrl`` and
 ``Should_Throw_When_UseLoggedInUser_Used_With_CliUrl``) have no Python
-equivalent because Python's ``ExternalServerConfig`` does not accept
-``github_token`` / ``use_logged_in_user`` fields at all (so the conflict cannot
-be expressed in code), and the configurations are therefore intentionally
-omitted.
+equivalent because Python's ``RuntimeConnection.for_uri(...)`` does not accept
+``github_token`` / ``use_logged_in_user`` fields at all (those live on
+``CopilotClientOptions``, but a Uri-connected runtime ignores them), so the
+conflict cannot be expressed in code and the configurations are therefore
+intentionally omitted.
 """
 
 from __future__ import annotations
@@ -19,8 +20,7 @@ import socket
 
 import pytest
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.generated.rpc import PingRequest
 from copilot.session import PermissionHandler
 
@@ -29,17 +29,39 @@ from .testharness import E2ETestContext
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
-def _make_subprocess_config(ctx: E2ETestContext, **overrides) -> SubprocessConfig:
-    base = {
-        "cli_path": ctx.cli_path,
-        "cwd": ctx.work_dir,
+def _make_options(
+    ctx: E2ETestContext,
+    *,
+    use_tcp: bool = False,
+    port: int = 0,
+    connection_token: str | None = None,
+    cli_path: str | None = None,
+    cli_args: list[str] | None = None,
+    **overrides,
+) -> dict[str, object]:
+    """Build CopilotClient kwargs pre-populated for the test harness."""
+    if use_tcp:
+        connection: RuntimeConnection = RuntimeConnection.for_tcp(
+            port=port,
+            connection_token=connection_token,
+            path=cli_path if cli_path is not None else ctx.cli_path,
+            args=tuple(cli_args or []),
+        )
+    else:
+        connection = RuntimeConnection.for_stdio(
+            path=cli_path if cli_path is not None else ctx.cli_path,
+            args=tuple(cli_args or []),
+        )
+    base: dict[str, object] = {
+        "connection": connection,
+        "working_directory": ctx.work_dir,
         "env": ctx.get_env(),
         "github_token": (
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         ),
     }
     base.update(overrides)
-    return SubprocessConfig(**base)
+    return base
 
 
 def _get_available_port() -> int:
@@ -120,7 +142,7 @@ function handleMessage(message) {
     return;
   }
   if (message.method === "session.create") {
-    const sessionId = message.params?.sessionId ?? "fake-session";
+    const sessionId = message.params?.session_id ?? "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;
   }
@@ -142,39 +164,12 @@ def _assert_arg_value(args: list[str], name: str, expected_value: str) -> None:
 
 
 class TestClientOptions:
-    async def test_autostart_false_requires_explicit_start(self, ctx: E2ETestContext):
-        client = CopilotClient(_make_subprocess_config(ctx), auto_start=False)
-        try:
-            assert client.get_state() == "disconnected"
-
-            with pytest.raises(RuntimeError) as exc_info:
-                await client.create_session(
-                    on_permission_request=PermissionHandler.approve_all,
-                )
-            # Python raises "Client not connected" — equivalent intent to C#'s "StartAsync".
-            assert (
-                "not connected" in str(exc_info.value).lower()
-                or "start" in str(exc_info.value).lower()
-            )
-
-            await client.start()
-            assert client.get_state() == "connected"
-
-            session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all,
-            )
-            assert session.session_id
-            await session.disconnect()
-        finally:
-            await client.stop()
-
     async def test_should_listen_on_configured_tcp_port(self, ctx: E2ETestContext):
         port = _get_available_port()
-        client = CopilotClient(_make_subprocess_config(ctx, use_stdio=False, port=port))
+        client = CopilotClient(**_make_options(ctx, use_tcp=True, port=port))
         try:
             await client.start()
-            assert client.get_state() == "connected"
-            assert client.actual_port == port
+            assert client.runtime_port == port
 
             response = await client.rpc.ping(PingRequest(message="fixed-port"))
             assert "pong" in response.message
@@ -187,7 +182,7 @@ class TestClientOptions:
         with open(os.path.join(client_cwd, "marker.txt"), "w") as f:
             f.write("I am in the client cwd")
 
-        client = CopilotClient(_make_subprocess_config(ctx, cwd=client_cwd))
+        client = CopilotClient(**_make_options(ctx, working_directory=client_cwd))
         try:
             session = await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
@@ -212,10 +207,10 @@ class TestClientOptions:
             f.write(FAKE_STDIO_CLI_SCRIPT)
 
         client = CopilotClient(
-            _make_subprocess_config(
+            **_make_options(
                 ctx,
                 cli_path=cli_path,
-                copilot_home=copilot_home_from_option,
+                base_directory=copilot_home_from_option,
                 cli_args=["--capture-file", capture_path],
                 env={**ctx.get_env(), "COPILOT_HOME": copilot_home_from_env},
                 github_token="process-option-token",
@@ -230,7 +225,6 @@ class TestClientOptions:
                 },
                 use_logged_in_user=False,
             ),
-            auto_start=False,
         )
         try:
             await client.start()
@@ -278,51 +272,3 @@ class TestClientOptions:
                 await client.stop()
             except Exception:
                 await client.force_stop()
-
-
-# ---------------------------------------------------------------------------
-# Unit-style tests mirroring the property-only tests in
-# dotnet/test/ClientOptionsTests.cs. These exercise the SubprocessConfig
-# dataclass shape only — no client / proxy required.
-# ---------------------------------------------------------------------------
-
-
-class TestSubprocessConfigOptions:
-    """Mirrors the unit-style ClientOptions tests in the C# baseline."""
-
-    async def test_should_accept_github_token_option(self):
-        # Mirrors: Should_Accept_GitHubToken_Option
-        config = SubprocessConfig(github_token="gho_test_token")
-        assert config.github_token == "gho_test_token"
-
-    async def test_should_default_use_logged_in_user_to_none(self):
-        # Mirrors: Should_Default_UseLoggedInUser_To_Null
-        config = SubprocessConfig()
-        assert config.use_logged_in_user is None
-
-    async def test_should_allow_explicit_use_logged_in_user_false(self):
-        # Mirrors: Should_Allow_Explicit_UseLoggedInUser_False
-        config = SubprocessConfig(use_logged_in_user=False)
-        assert config.use_logged_in_user is False
-
-    async def test_should_allow_explicit_use_logged_in_user_true_with_github_token(self):
-        # Mirrors: Should_Allow_Explicit_UseLoggedInUser_True_With_GitHubToken
-        config = SubprocessConfig(github_token="gho_test_token", use_logged_in_user=True)
-        assert config.use_logged_in_user is True
-        assert config.github_token == "gho_test_token"
-
-    # NOTE: Should_Throw_When_GitHubToken_Used_With_CliUrl and
-    # Should_Throw_When_UseLoggedInUser_Used_With_CliUrl from the C# baseline
-    # do not apply to Python: ExternalServerConfig has no github_token /
-    # use_logged_in_user fields at all (they live only on SubprocessConfig),
-    # so the conflicting configuration is impossible to express.
-
-    async def test_should_default_session_idle_timeout_seconds_to_none(self):
-        # Mirrors: Should_Default_SessionIdleTimeoutSeconds_To_Null
-        config = SubprocessConfig()
-        assert config.session_idle_timeout_seconds is None
-
-    async def test_should_accept_session_idle_timeout_seconds_option(self):
-        # Mirrors: Should_Accept_SessionIdleTimeoutSeconds_Option
-        config = SubprocessConfig(session_idle_timeout_seconds=600)
-        assert config.session_idle_timeout_seconds == 600

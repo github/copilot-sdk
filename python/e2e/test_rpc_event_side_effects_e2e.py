@@ -69,8 +69,8 @@ class TestRpcEventSideEffects:
                 event = await asyncio.wait_for(changed_future, timeout=15.0)
 
                 assert isinstance(event.data, SessionModeChangedData)
-                assert event.data.new_mode == SessionMode.PLAN.value
-                assert event.data.previous_mode == SessionMode.INTERACTIVE.value
+                assert event.data.new_mode == SessionMode.PLAN
+                assert event.data.previous_mode == SessionMode.INTERACTIVE
             finally:
                 unsubscribe()
         finally:
@@ -215,7 +215,7 @@ class TestRpcEventSideEffects:
         try:
             await session.send_and_wait("Say SNAPSHOT_REWIND_TARGET exactly.", timeout=60.0)
 
-            events = await session.get_messages()
+            events = await session.get_events()
             user_msgs = [e for e in events if isinstance(e.data, UserMessageData)]
             assert len(user_msgs) >= 1
             first_user_event_id = str(user_msgs[0].id)
@@ -236,7 +236,7 @@ class TestRpcEventSideEffects:
                 assert evt.data.events_removed >= 1
                 assert evt.data.up_to_event_id.lower() == first_user_event_id.lower()
 
-                messages_after = await session.get_messages()
+                messages_after = await session.get_events()
                 assert not any(e.id == user_msgs[0].id for e in messages_after)
             except Exception as exc:
                 if "unhandled method" in str(exc).lower():
@@ -257,7 +257,7 @@ class TestRpcEventSideEffects:
         try:
             await session.send_and_wait("Say SNAPSHOT_REWIND_TARGET exactly.", timeout=60.0)
 
-            events = await session.get_messages()
+            events = await session.get_events()
             user_msgs = [e for e in events if isinstance(e.data, UserMessageData)]
             assert len(user_msgs) >= 1
             first_user_event_id = str(user_msgs[0].id)

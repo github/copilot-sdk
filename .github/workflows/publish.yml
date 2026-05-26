@@ -129,7 +129,9 @@ jobs:
         uses: actions/upload-artifact@v7.0.0
         with:
           name: dotnet-package
-          path: dotnet/artifacts/*.nupkg
+          path: |
+            dotnet/artifacts/*.nupkg
+            dotnet/artifacts/*.snupkg
       - name: NuGet login (OIDC)
         if: github.ref == 'refs/heads/main'
         uses: NuGet/login@v1
@@ -142,7 +144,9 @@ jobs:
           user: stevesanderson
       - name: Publish to NuGet
         if: github.ref == 'refs/heads/main'
-        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
+          dotnet nuget push ./artifacts/*.snupkg --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   publish-rust:
     name: Publish Rust SDK
@@ -163,6 +167,14 @@ jobs:
           workspaces: "rust"
       - name: Set version
         run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
+      - name: Snapshot CLI version + hashes for build.rs
+        run: bash scripts/snapshot-bundled-cli-version.sh
+      - name: Verify snapshot file exists
+        run: |
+          if [[ ! -f bundled_cli_version.txt ]]; then
+            echo "::error::bundled_cli_version.txt was not generated. The Snapshot step must run before packaging."
+            exit 1
+          fi
       - name: Package (dry run)
         run: cargo publish --dry-run --allow-dirty
       - name: Upload artifact

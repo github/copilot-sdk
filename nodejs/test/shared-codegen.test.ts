@@ -2,13 +2,80 @@ import type { JSONSchema7 } from "json-schema";
 import { describe, expect, it } from "vitest";
 
 import {
+    collectDefinitionCollections,
+    collectExperimentalOnlyRpcReferencedDefinitionNames,
     collectReachableDefinitionNames,
     findSharedSchemaDefinitions,
+    getEnumValueDescriptions,
     inlineExternalSchemaDefinitions,
+    isIntegerSchemaBoundedToInt32,
     rewriteSharedDefinitionReferences,
 } from "../../scripts/codegen/utils.ts";
 
 describe("shared schema definition codegen utilities", () => {
+    it("detects integer schemas bounded to the 32-bit signed range", () => {
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: -2147483648,
+                maximum: 2147483647,
+            })
+        ).toBe(true);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0,
+                maximum: 100,
+            })
+        ).toBe(true);
+        expect(isIntegerSchemaBoundedToInt32({ type: "integer", maximum: 100 })).toBe(false);
+        expect(isIntegerSchemaBoundedToInt32({ type: "integer", minimum: 0 })).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: -2147483649,
+                maximum: 100,
+            })
+        ).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0,
+                maximum: 2147483648,
+            })
+        ).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0.5,
+                maximum: 100,
+            })
+        ).toBe(false);
+        expect(
+            isIntegerSchemaBoundedToInt32({
+                type: "integer",
+                minimum: 0,
+                maximum: 100.5,
+            })
+        ).toBe(false);
+    });
+
+    it("extracts non-empty enum value descriptions from schema extensions", () => {
+        expect(
+            getEnumValueDescriptions({
+                type: "string",
+                enum: ["start", "stop"],
+                "x-enumDescriptions": {
+                    start: " Start the operation. ",
+                    stop: "",
+                    ignored: 42,
+                },
+            } as JSONSchema7)
+        ).toEqual({ start: "Start the operation." });
+
+        expect(getEnumValueDescriptions({ type: "string", enum: ["start"] })).toBeUndefined();
+    });
+
     it("rewrites reachable identical shared definitions without enum-only assumptions", () => {
         const sessionSchema: JSONSchema7 = {
             definitions: {
@@ -37,6 +104,10 @@ describe("shared schema definition codegen utilities", () => {
                     type: "string",
                     enum: ["concise", "detailed"],
                     description: "Reasoning summary mode used for model calls.",
+                    "x-enumDescriptions": {
+                        concise: "Use concise session reasoning summaries.",
+                        detailed: "Use detailed session reasoning summaries.",
+                    },
                 },
                 SharedPayload: {
                     type: "object",
@@ -76,6 +147,10 @@ describe("shared schema definition codegen utilities", () => {
                     type: "string",
                     enum: ["concise", "detailed"],
                     description: "Reasoning summary mode to request for supported model clients.",
+                    "x-enumDescriptions": {
+                        concise: "Request concise model reasoning summaries.",
+                        detailed: "Request detailed model reasoning summaries.",
+                    },
                 },
                 SharedPayload: {
                     type: "object",
@@ -256,5 +331,72 @@ describe("shared schema definition codegen utilities", () => {
         );
         expect(inlinedDefinitions.ShutdownType.enum).toEqual(["api"]);
         expect(inlinedDefinitions.SessionEventsShutdownType.enum).toEqual(["session"]);
+    });
+
+    it("collects only definitions referenced exclusively by experimental RPC methods", () => {
+        const apiSchema = {
+            definitions: {
+                ExperimentalLeaf: {
+                    type: "object",
+                    properties: {
+                        value: { type: "string" },
+                    },
+                },
+                ExperimentalResult: {
+                    type: "object",
+                    properties: {
+                        leaf: { $ref: "#/definitions/ExperimentalLeaf" },
+                    },
+                },
+                ExperimentalSharedResult: {
+                    type: "object",
+                    properties: {
+                        leaf: { $ref: "#/definitions/SharedLeaf" },
+                    },
+                },
+                SharedLeaf: {
+                    type: "object",
+                    properties: {
+                        value: { type: "string" },
+                    },
+                },
+                StableResult: {
+                    type: "object",
+                    properties: {
+                        leaf: { $ref: "#/definitions/SharedLeaf" },
+                    },
+                },
+            },
+            server: {
+                stable: {
+                    rpcMethod: "stable",
+                    params: null,
+                    result: { $ref: "#/definitions/StableResult" },
+                },
+                experimental: {
+                    rpcMethod: "experimental",
+                    params: null,
+                    result: { $ref: "#/definitions/ExperimentalResult" },
+                    stability: "experimental",
+                },
+                experimentalShared: {
+                    rpcMethod: "experimental.shared",
+                    params: null,
+                    result: { $ref: "#/definitions/ExperimentalSharedResult" },
+                    stability: "experimental",
+                },
+            },
+        };
+
+        const referenced = collectExperimentalOnlyRpcReferencedDefinitionNames(
+            Object.values(apiSchema.server),
+            collectDefinitionCollections(apiSchema as Record<string, unknown>)
+        );
+
+        expect([...referenced].sort()).toEqual([
+            "ExperimentalLeaf",
+            "ExperimentalResult",
+            "ExperimentalSharedResult",
+        ]);
     });
 });

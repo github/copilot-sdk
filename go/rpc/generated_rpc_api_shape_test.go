@@ -15,9 +15,9 @@ var (
 	_ ExternalToolResult      = ExternalToolStringResult("")
 	_ ExternalToolResult      = (*ExternalToolTextResultForLlm)(nil)
 	_ FilterMapping           = FilterMappingEnumMap{}
-	_ FilterMapping           = FilterMappingStringMarkdown
+	_ FilterMapping           = ContentFilterModeMarkdown
 	_ McpServerConfig         = (*McpServerConfigHTTP)(nil)
-	_ McpServerConfig         = (*McpServerConfigLocal)(nil)
+	_ McpServerConfig         = (*McpServerConfigStdio)(nil)
 	_ UIElicitationFieldValue = UIElicitationStringValue("")
 	_ UIElicitationFieldValue = UIElicitationStringArrayValue(nil)
 	_ UIElicitationFieldValue = UIElicitationBooleanValue(false)
@@ -32,14 +32,14 @@ func TestGeneratedRPCAPIShape(t *testing.T) {
 	assertStructFieldType(t, file, fileSet, "HandlePendingToolCallRequest", "Result", "ExternalToolResult")
 
 	assertInterfaceType(t, file, "FilterMapping")
-	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "FilterMappingEnumMap").Type, "map[string]FilterMappingValue")
+	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "FilterMappingEnumMap").Type, "map[string]ContentFilterMode")
 
 	assertInterfaceType(t, file, "McpServerConfig")
 	assertStructFieldType(t, file, fileSet, "McpConfigAddRequest", "Config", "McpServerConfig")
 	assertStructFieldType(t, file, fileSet, "McpConfigList", "Servers", "map[string]McpServerConfig")
 	assertStructFieldType(t, file, fileSet, "McpConfigUpdateRequest", "Config", "McpServerConfig")
 	assertStructFieldType(t, file, fileSet, "McpServerConfigHTTP", "FilterMapping", "FilterMapping")
-	assertStructFieldType(t, file, fileSet, "McpServerConfigLocal", "FilterMapping", "FilterMapping")
+	assertStructFieldType(t, file, fileSet, "McpServerConfigStdio", "FilterMapping", "FilterMapping")
 
 	assertInterfaceType(t, file, "UIElicitationFieldValue")
 	assertTypeExpr(t, fileSet, findTypeSpec(t, file, "UIElicitationStringArrayValue").Type, "[]string")

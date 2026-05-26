@@ -20,13 +20,13 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
     opts.transport = Transport::External {
         host: host.to_string(),
         port,
+        connection_token: None,
     };
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
     let client = Client::start(opts).await?;
 
     let mut config = SessionConfig::default();
     config.model = Some("claude-haiku-4.5".to_string());
-    let config = config.with_handler(Arc::new(ApproveAllHandler));
+    let config = config.with_permission_handler(Arc::new(ApproveAllHandler));
 
     let session = client.create_session(config).await?;
 
@@ -38,6 +38,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         }
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

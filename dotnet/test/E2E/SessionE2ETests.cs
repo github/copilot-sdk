@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "session", output)
 {
@@ -21,15 +21,14 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         Assert.NotEmpty(messages);
         var startEvent = Assert.IsType<SessionStartEvent>(messages[0]);
         Assert.Equal(session.SessionId, startEvent.Data.SessionId);
 
         await session.DisposeAsync();
 
-        var ex = await Assert.ThrowsAsync<IOException>(() => session.GetMessagesAsync());
-        Assert.Contains("not found", ex.Message, StringComparison.OrdinalIgnoreCase);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => session.GetEventsAsync());
     }
 
     [Fact]
@@ -102,10 +101,10 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    [SystemPromptSections.Tone] = new() { Action = SectionOverrideAction.Replace, Content = customTone },
-                    [SystemPromptSections.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
+                    [SystemMessageSection.Tone] = new() { Action = SectionOverrideAction.Replace, Content = customTone },
+                    [SystemMessageSection.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
                 },
                 Content = appendedContent
             }
@@ -131,16 +130,20 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             AvailableTools = ["view", "edit"]
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-
-        var toolNames = GetToolNames(traffic[0]);
-        Assert.Equal(2, toolNames.Count);
-        Assert.Contains("view", toolNames);
-        Assert.Contains("edit", toolNames);
+        try
+        {
+            var traffic = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions { Prompt = "What is 1+1?" });
+            var toolNames = GetToolNames(traffic[0]);
+            Assert.Equal(2, toolNames.Count);
+            Assert.Contains("view", toolNames);
+            Assert.Contains("edit", toolNames);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -151,16 +154,20 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ExcludedTools = ["view"]
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-
-        var toolNames = GetToolNames(traffic[0]);
-        Assert.DoesNotContain("view", toolNames);
-        Assert.Contains("edit", toolNames);
-        Assert.Contains("grep", toolNames);
+        try
+        {
+            var traffic = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions { Prompt = "What is 1+1?" });
+            var toolNames = GetToolNames(traffic[0]);
+            Assert.DoesNotContain("view", toolNames);
+            Assert.Contains("edit", toolNames);
+            Assert.Contains("grep", toolNames);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -181,14 +188,18 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             },
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        await TestHelper.GetFinalAssistantMessageAsync(session);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-
-        var toolNames = GetToolNames(traffic[0]);
-        Assert.DoesNotContain("secret_tool", toolNames);
+        try
+        {
+            var traffic = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions { Prompt = "What is 1+1?" });
+            var toolNames = GetToolNames(traffic[0]);
+            Assert.DoesNotContain("secret_tool", toolNames);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -212,27 +223,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
     }
 
     [Fact]
-    public async Task Should_Resume_A_Session_Using_The_Same_Client()
+    public async Task Should_Reject_Resuming_Active_Session_Using_The_Same_Client()
     {
         var session1 = await CreateSessionAsync();
         var sessionId = session1.SessionId;
 
-        await session1.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session1);
-        Assert.NotNull(answer);
-        Assert.Contains("2", answer!.Data.Content ?? string.Empty);
-
-        var session2 = await ResumeSessionAsync(sessionId);
-        Assert.Equal(sessionId, session2.SessionId);
-
-        var answer2 = await TestHelper.GetFinalAssistantMessageAsync(session2, alreadyIdle: true);
-        Assert.NotNull(answer2);
-        Assert.Contains("2", answer2!.Data.Content ?? string.Empty);
-
-        // Can continue the conversation statefully
-        var answer3 = await session2.SendAndWaitAsync(new MessageOptions { Prompt = "Now if you double that, what do you get?" });
-        Assert.NotNull(answer3);
-        Assert.Contains("4", answer3!.Data.Content ?? string.Empty);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+            {
+                OnPermissionRequest = PermissionHandler.ApproveAll,
+            }));
+        Assert.Contains(sessionId, exception.Message);
     }
 
     [Fact]
@@ -254,7 +255,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
         Assert.Equal(sessionId, session2.SessionId);
 
-        var messages = await session2.GetMessagesAsync();
+        var messages = await session2.GetEventsAsync();
         Assert.Contains(messages, m => m is UserMessageEvent);
         var resumeEvent = Assert.Single(messages.OfType<SessionResumeEvent>());
         Assert.True(resumeEvent.Data.ContinuePendingWork);
@@ -295,7 +296,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await sessionIdleTask;
 
         // The session should still be alive and usable after abort
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         Assert.NotEmpty(messages);
 
         // Verify an abort event exists in messages
@@ -335,7 +336,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var concurrentCount = 0;
         var maxConcurrent = 0;
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             // Track concurrent handler invocations to verify serial dispatch.
             var current = Interlocked.Increment(ref concurrentCount);
@@ -404,7 +405,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         });
         var events = new ConcurrentQueue<string>();
 
-        session.On(evt => events.Enqueue(evt.Type));
+        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
 
         // Use a slow command so we can verify SendAsync() returns before completion
         await session.SendAsync(new MessageOptions { Prompt = "Run 'sleep 2 && echo done'" });
@@ -426,7 +427,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync();
         var events = new ConcurrentQueue<string>();
 
-        session.On(evt => events.Enqueue(evt.Type));
+        session.On<SessionEvent>(evt => events.Enqueue(evt.Type));
 
         var response = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
 
@@ -461,7 +462,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         // Context may be present on sessions that have been persisted with workspace.yaml
         if (ourSession.Context != null)
         {
-            Assert.False(string.IsNullOrEmpty(ourSession.Context.Cwd), "Expected context.Cwd to be non-empty when context is present");
+            Assert.False(string.IsNullOrEmpty(ourSession.Context.WorkingDirectory), "Expected context.WorkingDirectory to be non-empty when context is present");
         }
     }
 
@@ -550,11 +551,17 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
 
         Assert.Matches(@"^[a-f0-9-]+$", session.SessionId);
 
-        // Session should work normally with custom config dir
-        await session.SendAsync(new MessageOptions { Prompt = "What is 1+1?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-        Assert.Contains("2", assistantMessage!.Data.Content);
+        try
+        {
+            // Session should work normally with custom config dir.
+            var assistantMessage = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 1+1?" });
+            Assert.NotNull(assistantMessage);
+            Assert.Contains("2", assistantMessage!.Data.Content);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -592,7 +599,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
         var eventsLock = new object();
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             lock (eventsLock)
             {
@@ -651,7 +658,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var eventCount = 0;
         var gotIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             eventCount++;
 
@@ -677,7 +684,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         var session = await CreateSessionAsync();
         var disposed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is UserMessageEvent)
             {
@@ -739,7 +746,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentFile>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("attached-file.txt", attachment.DisplayName);
         Assert.Equal(filePath, attachment.Path);
@@ -769,7 +776,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentDirectory>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("attached-directory", attachment.DisplayName);
         Assert.Equal(directoryPath, attachment.Path);
@@ -802,7 +809,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentSelection>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal("selected-file.cs", attachment.DisplayName);
         Assert.Equal(filePath, attachment.FilePath);
@@ -834,7 +841,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             ],
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         var attachment = Assert.IsType<UserMessageAttachmentGithubReference>(Assert.Single(userMessage.Data.Attachments!));
         Assert.Equal(1234, attachment.Number);
         Assert.Equal(UserMessageAttachmentGithubReferenceType.Issue, attachment.ReferenceType);
@@ -854,7 +861,7 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             Mode = "plan",
         });
 
-        var userMessage = (await session.GetMessagesAsync()).OfType<UserMessageEvent>().Last();
+        var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         Assert.Equal("Say mode ok.", userMessage.Data.Content);
         // The current runtime accepts the per-message mode option but does not echo it on user.message.
         Assert.Null(userMessage.Data.AgentMode);

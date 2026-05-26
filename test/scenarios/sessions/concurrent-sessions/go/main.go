@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"sync"
 
 	copilot "github.com/github/copilot-sdk/go"
@@ -14,9 +13,7 @@ const piratePrompt = `You are a pirate. Always say Arrr!`
 const robotPrompt = `You are a robot. Always say BEEP BOOP!`
 
 func main() {
-	client := copilot.NewClient(&copilot.ClientOptions{
-		GitHubToken: os.Getenv("GITHUB_TOKEN"),
-	})
+	client := copilot.NewClient(nil)
 
 	ctx := context.Background()
 	if err := client.Start(ctx); err != nil {

@@ -1,6 +1,7 @@
+use github_copilot_sdk::generated::SessionMode;
 use github_copilot_sdk::generated::api_types::{
     ModeSetRequest, NameSetRequest, PermissionsSetApproveAllRequest, PlanUpdateRequest,
-    SessionMode, ShellExecRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
+    ShellExecRequest, WorkspacesCreateFileRequest, WorkspacesReadFileRequest,
 };
 
 use super::support::{wait_for_condition, with_e2e_context};
@@ -337,7 +338,7 @@ async fn usage_get_metrics_on_fresh_session_returns_zero_tokens() {
                 assert_eq!(metrics.last_call_input_tokens, 0);
                 assert_eq!(metrics.last_call_output_tokens, 0);
                 assert_eq!(metrics.total_user_requests, 0);
-                assert!(metrics.session_start_time > 0);
+                assert!(!metrics.session_start_time.is_empty());
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -395,7 +396,10 @@ async fn permissions_set_approve_all_toggle_round_trips() {
                     session
                         .rpc()
                         .permissions()
-                        .set_approve_all(PermissionsSetApproveAllRequest { enabled: true })
+                        .set_approve_all(PermissionsSetApproveAllRequest {
+                            enabled: true,
+                            source: None,
+                        })
                         .await
                         .expect("enable approve all")
                         .success
@@ -404,7 +408,10 @@ async fn permissions_set_approve_all_toggle_round_trips() {
                     session
                         .rpc()
                         .permissions()
-                        .set_approve_all(PermissionsSetApproveAllRequest { enabled: true })
+                        .set_approve_all(PermissionsSetApproveAllRequest {
+                            enabled: true,
+                            source: None,
+                        })
                         .await
                         .expect("enable approve all again")
                         .success
@@ -413,7 +420,10 @@ async fn permissions_set_approve_all_toggle_round_trips() {
                     session
                         .rpc()
                         .permissions()
-                        .set_approve_all(PermissionsSetApproveAllRequest { enabled: false })
+                        .set_approve_all(PermissionsSetApproveAllRequest {
+                            enabled: false,
+                            source: None,
+                        })
                         .await
                         .expect("disable approve all")
                         .success

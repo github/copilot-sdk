@@ -6,7 +6,7 @@ Run the Copilot SDK in server-side applications—APIs, web backends, microservi
 
 ## How it works
 
-Instead of the SDK spawning a CLI child process, you run the CLI independently in **headless server mode**. Your backend connects to it over TCP using the `cliUrl` option.
+Instead of the SDK spawning a CLI child process, you run the CLI independently in **headless server mode**. Your backend connects to it over TCP using the `Connection` option (`UriConnection`).
 
 ```mermaid
 flowchart TB
@@ -144,10 +144,12 @@ res.json({ content: response?.data.content });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, ExternalServerConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient(ExternalServerConfig(url="localhost:4321"))
+client = CopilotClient(
+    connection=RuntimeConnection.for_uri("localhost:4321"),
+)
 await client.start()
 
 session = await client.create_session(on_permission_request=PermissionHandler.approve_all, model="gpt-4.1", session_id=f"user-{user_id}-{int(time.time())}")
@@ -177,7 +179,7 @@ func main() {
 	message := "Hello"
 
 	client := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl: "localhost:4321",
+		Connection: copilot.UriConnection{URL: "localhost:4321"},
 	})
 	client.Start(ctx)
 	defer client.Stop()
@@ -195,7 +197,7 @@ func main() {
 
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
-    CLIUrl:"localhost:4321",
+    Connection: copilot.UriConnection{URL: "localhost:4321"},
 })
 client.Start(ctx)
 defer client.Stop()
@@ -215,15 +217,14 @@ response, _ := session.SendAndWait(ctx, copilot.MessageOptions{Prompt: message})
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var userId = "user1";
 var message = "Hello";
 
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false,
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -240,8 +241,7 @@ var response = await session.SendAndWaitAsync(
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliUrl = "localhost:4321",
-    UseStdio = false,
+    Connection = RuntimeConnection.ForUri("localhost:4321"),
 });
 
 await using var session = await client.CreateSessionAsync(new SessionConfig

@@ -2,14 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
-using RpcPermissionDecisionApproveOnce = GitHub.Copilot.SDK.Rpc.PermissionDecisionApproveOnce;
+using RpcPermissionDecisionApproveOnce = GitHub.Copilot.Rpc.PermissionDecisionApproveOnce;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "pending_work_resume", output)
@@ -21,14 +23,14 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
     public async Task Should_Continue_Pending_Permission_Request_After_Resume()
     {
         var originalPermissionRequest = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseOriginalPermission = new TaskCompletionSource<PermissionRequestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseOriginalPermission = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         var resumedToolInvoked = false;
 
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
-        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var session1 = await suspendedClient.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(ResumePermissionTool, "resume_permission_tool")],
@@ -55,14 +57,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             await suspendedClient.ForceStopAsync();
 
-            await using var resumedTcpClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+            await using var resumedTcpClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await resumedTcpClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = true,
-                OnPermissionRequest = (_, _) => Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.NoResult
-                }),
+                OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(PermissionDecision.NoResult()),
                 Tools =
                 [
                     AIFunctionFactory.Create(
@@ -90,10 +89,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
         finally
         {
-            releaseOriginalPermission.TrySetResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable,
-            });
+            releaseOriginalPermission.TrySetResult(PermissionDecision.UserNotAvailable());
         }
 
         [Description("Transforms a value after permission is granted")]
@@ -107,11 +103,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var originalToolStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
-        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var session1 = await suspendedClient.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(BlockingExternalTool, "resume_external_tool")],
@@ -132,7 +128,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             Assert.Equal("beta", await originalToolStarted.Task.WaitAsync(PendingWorkTimeout));
             await suspendedClient.ForceStopAsync();
 
-            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = true,
@@ -141,7 +137,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             var toolResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
-                result: "EXTERNAL_RESUMED_BETA");
+                result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.True(toolResult.Success);
 
             var answer = await TestHelper.GetFinalAssistantMessageAsync(session2, PendingWorkTimeout);
@@ -171,11 +167,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var releaseOriginalTool = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var invocationCount = 0;
 
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
-        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var session1 = await suspendedClient.CreateSessionAsync(new SessionConfig
         {
             Tools = [AIFunctionFactory.Create(BlockingExternalTool, "resume_external_tool")],
@@ -197,7 +193,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             await suspendedClient.ForceStopAsync();
 
-            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = false,
@@ -210,7 +206,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             var resumedResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
-                result: "EXTERNAL_RESUMED_BETA");
+                result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.True(resumedResult.Success);
 
             // continuePendingWork=false may interrupt agent continuation before this response,
@@ -242,11 +238,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         var releaseOriginalToolA = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseOriginalToolB = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
-        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        using var suspendedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var session1 = await suspendedClient.CreateSessionAsync(new SessionConfig
         {
             Tools =
@@ -276,7 +272,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             await suspendedClient.ForceStopAsync();
 
-            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+            await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
             var session2 = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = true,
@@ -287,11 +283,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             var toolB = toolEvents["pending_lookup_b"];
             var resultB = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolB.Data.RequestId,
-                result: "PARALLEL_B_BETA");
+                result: JsonDocument.Parse("\"PARALLEL_B_BETA\"").RootElement.Clone());
             Assert.True(resultB.Success);
             var resultA = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolA.Data.RequestId,
-                result: "PARALLEL_A_ALPHA");
+                result: JsonDocument.Parse("\"PARALLEL_A_ALPHA\"").RootElement.Clone());
             Assert.True(resultA.Success);
 
             await session2.DisposeAsync();
@@ -321,12 +317,12 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
     [Fact]
     public async Task Should_Resume_Successfully_When_No_Pending_Work_Exists()
     {
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
         string sessionId;
-        await using (var firstClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken }))
+        await using (var firstClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) }))
         {
             var firstSession = await firstClient.CreateSessionAsync(new SessionConfig
             {
@@ -340,7 +336,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             await firstSession.DisposeAsync();
         }
 
-        await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var resumedSession = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             ContinuePendingWork = true,
@@ -359,12 +355,12 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
     [Fact]
     public async Task Should_Report_ContinuePendingWork_True_In_Resume_Event()
     {
-        await using var server = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions { TcpConnectionToken = SharedToken });
+        await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
         await server.StartAsync();
         var cliUrl = GetCliUrl(server);
 
         string sessionId;
-        await using (var firstClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken }))
+        await using (var firstClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) }))
         {
             var firstSession = await firstClient.CreateSessionAsync(new SessionConfig
             {
@@ -381,7 +377,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             await firstSession.DisposeAsync();
         }
 
-        await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { CliUrl = cliUrl, TcpConnectionToken = SharedToken });
+        await using var resumedClient = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForUri(cliUrl, connectionToken: SharedToken) });
         var resumedSession = await resumedClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             ContinuePendingWork = true,
@@ -420,7 +416,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(PendingWorkTimeout);
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent toolEvent && expected.Contains(toolEvent.Data.ToolName))
             {
@@ -444,14 +440,14 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
     private static string GetCliUrl(CopilotClient client)
     {
-        var port = client.ActualPort
+        var port = client.RuntimePort
             ?? throw new InvalidOperationException("Expected the test server to be listening on a TCP port.");
         return $"localhost:{port}";
     }
 
     private static async Task<SessionResumeEvent> GetSingleResumeEventAsync(CopilotSession session)
     {
-        var messages = await session.GetMessagesAsync();
+        var messages = await session.GetEventsAsync();
         return Assert.Single(messages.OfType<SessionResumeEvent>());
     }
 }

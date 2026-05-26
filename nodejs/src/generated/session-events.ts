@@ -87,35 +87,84 @@ export type SessionEvent =
   | CustomAgentsUpdatedEvent
   | McpServersLoadedEvent
   | McpServerStatusChangedEvent
-  | ExtensionsLoadedEvent;
+  | ExtensionsLoadedEvent
+  | CanvasOpenedEvent
+  | CanvasRegistryChangedEvent
+  | McpAppToolCallCompleteEvent;
 /**
  * Hosting platform type of the repository (github or ado)
  */
-export type WorkingDirectoryContextHostType = "github" | "ado";
+export type WorkingDirectoryContextHostType =
+  /** Repository is hosted on GitHub. */
+  | "github"
+  /** Repository is hosted on Azure DevOps. */
+  | "ado";
 /**
  * Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
  */
-export type ReasoningSummary = "none" | "concise" | "detailed";
+export type ReasoningSummary =
+  /** Do not request reasoning summaries from the model. */
+  | "none"
+  /** Request a concise summary of the model's reasoning. */
+  | "concise"
+  /** Request a detailed summary of the model's reasoning. */
+  | "detailed";
+/**
+ * The session mode the agent is operating in
+ */
+export type SessionMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot";
 /**
  * The type of operation performed on the plan file
  */
-export type PlanChangedOperation = "create" | "update" | "delete";
+export type PlanChangedOperation =
+  /** The plan file was created. */
+  | "create"
+  /** The plan file was updated. */
+  | "update"
+  /** The plan file was deleted. */
+  | "delete";
 /**
  * Whether the file was newly created or updated
  */
-export type WorkspaceFileChangedOperation = "create" | "update";
+export type WorkspaceFileChangedOperation =
+  /** The workspace file was created. */
+  | "create"
+  /** The workspace file was updated. */
+  | "update";
 /**
  * Origin type of the session being handed off
  */
-export type HandoffSourceType = "remote" | "local";
+export type HandoffSourceType =
+  /** The handoff originated from a remote session. */
+  | "remote"
+  /** The handoff originated from a local session. */
+  | "local";
 /**
  * Whether the session ended normally ("routine") or due to a crash/fatal error ("error")
  */
-export type ShutdownType = "routine" | "error";
+export type ShutdownType =
+  /** The session ended normally. */
+  | "routine"
+  /** The session ended because of a crash or fatal error. */
+  | "error";
 /**
  * The agent mode that was active when this message was sent
  */
-export type UserMessageAgentMode = "interactive" | "plan" | "autopilot" | "shell";
+export type UserMessageAgentMode =
+  /** The agent is responding interactively to the user. */
+  | "interactive"
+  /** The agent is preparing a plan before making changes. */
+  | "plan"
+  /** The agent is working autonomously toward task completion. */
+  | "autopilot"
+  /** The agent is in shell-focused UI mode. */
+  | "shell";
 /**
  * A user message attachment — a file, directory, code selection, blob, or GitHub reference
  */
@@ -128,23 +177,53 @@ export type UserMessageAttachment =
 /**
  * Type of GitHub reference
  */
-export type UserMessageAttachmentGithubReferenceType = "issue" | "pr" | "discussion";
+export type UserMessageAttachmentGithubReferenceType =
+  /** GitHub issue reference. */
+  | "issue"
+  /** GitHub pull request reference. */
+  | "pr"
+  /** GitHub discussion reference. */
+  | "discussion";
 /**
  * Tool call type: "function" for standard tool calls, "custom" for grammar-based tool calls. Defaults to "function" when absent.
  */
-export type AssistantMessageToolRequestType = "function" | "custom";
+export type AssistantMessageToolRequestType =
+  /** Standard function-style tool call. */
+  | "function"
+  /** Custom grammar-based tool call. */
+  | "custom";
 /**
  * API endpoint used for this model call, matching CAPI supported_endpoints vocabulary
  */
-export type AssistantUsageApiEndpoint = "/chat/completions" | "/v1/messages" | "/responses" | "ws:/responses";
+export type AssistantUsageApiEndpoint =
+  /** Chat Completions API endpoint. */
+  | "/chat/completions"
+  /** Anthropic Messages API endpoint. */
+  | "/v1/messages"
+  /** Responses API endpoint. */
+  | "/responses"
+  /** WebSocket Responses API endpoint. */
+  | "ws:/responses";
 /**
  * Where the failed model call originated
  */
-export type ModelCallFailureSource = "top_level" | "subagent" | "mcp_sampling";
+export type ModelCallFailureSource =
+  /** Model call from the top-level agent. */
+  | "top_level"
+  /** Model call from a sub-agent. */
+  | "subagent"
+  /** Model call from MCP sampling. */
+  | "mcp_sampling";
 /**
  * Finite reason code describing why the current turn was aborted
  */
-export type AbortReason = "user_initiated" | "remote_command" | "user_abort";
+export type AbortReason =
+  /** The local user requested the abort, for example by pressing Ctrl+C in the CLI. */
+  | "user_initiated"
+  /** A remote command requested the abort. */
+  | "remote_command"
+  /** An MCP server delivered a user.abort notification. */
+  | "user_abort";
 /**
  * A content block within a tool result, which may be text, terminal output, image, audio, or a resource
  */
@@ -158,15 +237,41 @@ export type ToolExecutionCompleteContent =
 /**
  * Theme variant this icon is intended for
  */
-export type ToolExecutionCompleteContentResourceLinkIconTheme = "light" | "dark";
+export type ToolExecutionCompleteContentResourceLinkIconTheme =
+  /** Icon intended for light themes. */
+  | "light"
+  /** Icon intended for dark themes. */
+  | "dark";
 /**
  * The embedded resource contents, either text or base64-encoded binary
  */
 export type ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | EmbeddedBlobResourceContents;
 /**
+ * Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration.
+ */
+export type ToolExecutionCompleteToolDescriptionMetaUIVisibility =
+  /** Tool is callable by the model (LLM tool surface) */
+  | "model"
+  /** Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool */
+  | "app";
+/**
+ * What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
+ */
+export type SkillInvokedTrigger =
+  /** Skill invocation requested explicitly by the user, such as via a slash command or UI affordance. */
+  | "user-invoked"
+  /** Skill invocation requested by the agent. */
+  | "agent-invoked"
+  /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
+  | "context-load";
+/**
  * Message role: "system" for system prompts, "developer" for developer-injected instructions
  */
-export type SystemMessageRole = "system" | "developer";
+export type SystemMessageRole =
+  /** System prompt message. */
+  | "system"
+  /** Developer instruction message. */
+  | "developer";
 /**
  * Structured metadata identifying what triggered this notification
  */
@@ -180,7 +285,11 @@ export type SystemNotification =
 /**
  * Whether the agent completed successfully or failed
  */
-export type SystemNotificationAgentCompletedStatus = "completed" | "failed";
+export type SystemNotificationAgentCompletedStatus =
+  /** The agent completed successfully. */
+  | "completed"
+  /** The agent failed. */
+  | "failed";
 /**
  * Details of the permission being requested
  */
@@ -198,11 +307,19 @@ export type PermissionRequest =
 /**
  * Whether this is a store or vote memory operation
  */
-export type PermissionRequestMemoryAction = "store" | "vote";
+export type PermissionRequestMemoryAction =
+  /** Store a new memory. */
+  | "store"
+  /** Vote on an existing memory. */
+  | "vote";
 /**
  * Vote direction (vote only)
  */
-export type PermissionRequestMemoryDirection = "upvote" | "downvote";
+export type PermissionRequestMemoryDirection =
+  /** Vote that the memory is useful or accurate. */
+  | "upvote"
+  /** Vote that the memory is incorrect or outdated. */
+  | "downvote";
 /**
  * Derived user-facing permission prompt details for UI consumers
  */
@@ -219,17 +336,15 @@ export type PermissionPromptRequest =
   | PermissionPromptRequestExtensionManagement
   | PermissionPromptRequestExtensionPermissionAccess;
 /**
- * Whether this is a store or vote memory operation
- */
-export type PermissionPromptRequestMemoryAction = "store" | "vote";
-/**
- * Vote direction (vote only)
- */
-export type PermissionPromptRequestMemoryDirection = "upvote" | "downvote";
-/**
  * Underlying permission kind that needs path approval
  */
-export type PermissionPromptRequestPathAccessKind = "read" | "shell" | "write";
+export type PermissionPromptRequestPathAccessKind =
+  /** Read access to a filesystem path. */
+  | "read"
+  /** Shell command access involving a filesystem path. */
+  | "shell"
+  /** Write access to a filesystem path. */
+  | "write";
 /**
  * The result of the permission request
  */
@@ -258,15 +373,25 @@ export type UserToolSessionApproval =
 /**
  * Elicitation mode; "form" for structured input, "url" for browser-based. Defaults to "form" when absent.
  */
-export type ElicitationRequestedMode = "form" | "url";
+export type ElicitationRequestedMode =
+  /** Structured form-based elicitation. */
+  | "form"
+  /** Browser URL-based elicitation. */
+  | "url";
 /**
  * The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
  */
-export type ElicitationCompletedAction = "accept" | "decline" | "cancel";
+export type ElicitationCompletedAction =
+  /** The user submitted the requested form. */
+  | "accept"
+  /** The user explicitly declined the request. */
+  | "decline"
+  /** The user dismissed the request. */
+  | "cancel";
 /**
  * Schema for the `ElicitationCompletedContent` type.
  */
-export type ElicitationCompletedContent = string | number | boolean | string[];
+export type ElicitationCompletedContent = (string | number | boolean | string[]) | undefined;
 /**
  * Source-defined JSON payload for the custom notification
  */
@@ -277,36 +402,116 @@ export type CustomNotificationPayload =
   | null
   | unknown[]
   | {
-      [k: string]: unknown;
+      [k: string]: unknown | undefined;
     };
+/**
+ * The user's auto-mode-switch choice
+ */
+export type AutoModeSwitchResponse =
+  /** Switch models for this request. */
+  | "yes"
+  /** Switch models now and keep using the replacement automatically. */
+  | "yes_always"
+  /** Do not switch models. */
+  | "no";
+/**
+ * Exit plan mode action
+ */
+export type ExitPlanModeAction =
+  /** Exit plan mode without starting implementation. */
+  | "exit_only"
+  /** Exit plan mode and continue in interactive mode. */
+  | "interactive"
+  /** Exit plan mode and continue autonomously. */
+  | "autopilot"
+  /** Exit plan mode and continue with parallel autonomous workers. */
+  | "autopilot_fleet";
+/**
+ * Source location type (e.g., project, personal-copilot, plugin, builtin)
+ */
+export type SkillSource =
+  /** Skill defined in the current project's skill directories. */
+  | "project"
+  /** Skill discovered from a parent directory in the current workspace tree. */
+  | "inherited"
+  /** Skill defined in the user's Copilot skill directory. */
+  | "personal-copilot"
+  /** Skill defined in the user's personal agents skill directory. */
+  | "personal-agents"
+  /** Skill provided by an installed plugin. */
+  | "plugin"
+  /** Skill loaded from a configured custom skill directory. */
+  | "custom"
+  /** Skill bundled with the runtime. */
+  | "builtin";
+/**
+ * Configuration source: user, workspace, plugin, or builtin
+ */
+export type McpServerSource =
+  /** Server configured in the user's global MCP configuration. */
+  | "user"
+  /** Server configured by the current workspace. */
+  | "workspace"
+  /** Server contributed by an installed plugin. */
+  | "plugin"
+  /** Server bundled with the runtime. */
+  | "builtin";
 /**
  * Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
  */
-export type McpServersLoadedServerStatus =
+export type McpServerStatus =
+  /** The server is connected and available. */
   | "connected"
+  /** The server failed to connect or initialize. */
   | "failed"
+  /** The server requires authentication before it can connect. */
   | "needs-auth"
+  /** The server connection is still being established. */
   | "pending"
+  /** The server is configured but disabled. */
   | "disabled"
+  /** The server is not configured for this session. */
   | "not_configured";
 /**
- * New connection status: connected, failed, needs-auth, pending, disabled, or not_configured
+ * Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
  */
-export type McpServerStatusChangedStatus =
-  | "connected"
-  | "failed"
-  | "needs-auth"
-  | "pending"
-  | "disabled"
-  | "not_configured";
+export type McpServerTransport =
+  /** Server communicates over stdio with a local child process. */
+  | "stdio"
+  /** Server communicates over streamable HTTP. */
+  | "http"
+  /** Server communicates over Server-Sent Events (deprecated). */
+  | "sse"
+  /** Server is backed by an in-memory runtime implementation. */
+  | "memory";
 /**
  * Discovery source
  */
-export type ExtensionsLoadedExtensionSource = "project" | "user";
+export type ExtensionsLoadedExtensionSource =
+  /** Extension discovered from the current project. */
+  | "project"
+  /** Extension discovered from the user's extension directory. */
+  | "user";
 /**
  * Current status: running, disabled, failed, or starting
  */
-export type ExtensionsLoadedExtensionStatus = "running" | "disabled" | "failed" | "starting";
+export type ExtensionsLoadedExtensionStatus =
+  /** The extension process is running. */
+  | "running"
+  /** The extension is installed but disabled. */
+  | "disabled"
+  /** The extension failed to start or crashed. */
+  | "failed"
+  /** The extension process is starting. */
+  | "starting";
+/**
+ * Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+ */
+export type CanvasOpenedAvailability =
+  /** Provider connection is live; actions can be invoked. */
+  | "ready"
+  /** Provider has gone away; the instance is awaiting rebinding. */
+  | "stale";
 
 /**
  * Session event "session.start". Session initialization metadata including context and configuration
@@ -360,7 +565,7 @@ export interface StartData {
    */
   producer: string;
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
@@ -467,7 +672,7 @@ export interface ResumeData {
    */
   eventCount: number;
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
@@ -581,6 +786,10 @@ export interface ErrorData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   providerCallId?: string;
+  /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
   /**
    * Error stack trace, when available
    */
@@ -903,6 +1112,14 @@ export interface ModelChangeData {
    */
   cause?: string;
   /**
+   * Context tier after the model change; null explicitly clears a previously selected tier
+   */
+  contextTier?: /** Default context tier with standard context window size. */
+    | "default"
+    /** Extended context tier with a larger context window. */
+    | "long_context"
+    | null;
+  /**
    * Newly selected model identifier
    */
   newModel: string;
@@ -955,14 +1172,8 @@ export interface ModeChangedEvent {
  * Agent mode change details including previous and new modes
  */
 export interface ModeChangedData {
-  /**
-   * Agent mode after the change (e.g., "interactive", "plan", "autopilot")
-   */
-  newMode: string;
-  /**
-   * Agent mode before the change (e.g., "interactive", "plan", "autopilot")
-   */
-  previousMode: string;
+  newMode: SessionMode;
+  previousMode: SessionMode;
 }
 /**
  * Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -1279,7 +1490,7 @@ export interface ShutdownData {
    * Per-model usage breakdown, keyed by model identifier
    */
   modelMetrics: {
-    [k: string]: ShutdownModelMetric;
+    [k: string]: ShutdownModelMetric | undefined;
   };
   /**
    * Unix timestamp (milliseconds) when the session started
@@ -1294,7 +1505,7 @@ export interface ShutdownData {
    * Session-wide per-token-type accumulated token counts
    */
   tokenDetails?: {
-    [k: string]: ShutdownTokenDetail;
+    [k: string]: ShutdownTokenDetail | undefined;
   };
   /**
    * Tool definitions token count at shutdown
@@ -1306,12 +1517,16 @@ export interface ShutdownData {
   totalApiDurationMs: number;
   /**
    * Session-wide accumulated nano-AI units cost
+   *
+   * @experimental
    */
   totalNanoAiu?: number;
   /**
    * Total number of premium API requests used during the session
+   *
+   * @internal
    */
-  totalPremiumRequests: number;
+  totalPremiumRequests?: number;
 }
 /**
  * Aggregate code change metrics for the session
@@ -1339,10 +1554,12 @@ export interface ShutdownModelMetric {
    * Token count details per type
    */
   tokenDetails?: {
-    [k: string]: ShutdownModelMetricTokenDetail;
+    [k: string]: ShutdownModelMetricTokenDetail | undefined;
   };
   /**
    * Accumulated nano-AI units cost for this model
+   *
+   * @experimental
    */
   totalNanoAiu?: number;
   usage: ShutdownModelMetricUsage;
@@ -1353,12 +1570,16 @@ export interface ShutdownModelMetric {
 export interface ShutdownModelMetricRequests {
   /**
    * Cumulative cost multiplier for requests to this model
+   *
+   * @experimental
    */
-  cost: number;
+  cost?: number;
   /**
    * Total number of API requests made to this model
+   *
+   * @experimental
    */
-  count: number;
+  count?: number;
 }
 /**
  * Schema for the `ShutdownModelMetricTokenDetail` type.
@@ -1591,6 +1812,10 @@ export interface CompactionCompleteData {
    */
   conversationTokens?: number;
   /**
+   * User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text.
+   */
+  customInstructions?: string;
+  /**
    * Error message if compaction failed
    */
   error?: string;
@@ -1614,6 +1839,10 @@ export interface CompactionCompleteData {
    * GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
    */
   requestId?: string;
+  /**
+   * Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
+   */
+  serviceRequestId?: string;
   /**
    * Whether compaction completed successfully
    */
@@ -1647,6 +1876,11 @@ export interface CompactionCompleteCompactionTokensUsed {
    * Tokens written to prompt cache in the compaction LLM call
    */
   cacheWriteTokens?: number;
+  /**
+   * Per-request cost and usage data from the CAPI copilot_usage response field
+   *
+   * @internal
+   */
   copilotUsage?: CompactionCompleteCompactionTokensUsedCopilotUsage;
   /**
    * Duration of the compaction LLM call in milliseconds
@@ -1668,6 +1902,7 @@ export interface CompactionCompleteCompactionTokensUsed {
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
  */
+/** @internal */
 export interface CompactionCompleteCompactionTokensUsedCopilotUsage {
   /**
    * Itemized token usage breakdown
@@ -1794,7 +2029,7 @@ export interface UserMessageData {
    */
   isAutopilotContinuation?: boolean;
   /**
-   * Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit
+   * Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
    */
   nativeDocumentPathFallbackPaths?: string[];
   /**
@@ -2241,10 +2476,14 @@ export interface AssistantMessageEvent {
 export interface AssistantMessageData {
   /**
    * Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+   *
+   * @experimental
    */
   anthropicAdvisorBlocks?: unknown[];
   /**
    * Anthropic advisor model ID used for this response, for timeline display on replay
+   *
+   * @experimental
    */
   anthropicAdvisorModel?: string;
   /**
@@ -2293,6 +2532,10 @@ export interface AssistantMessageData {
    */
   requestId?: string;
   /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
+  /**
    * Tool invocations requested by the assistant in this message
    */
   toolRequests?: AssistantMessageToolRequest[];
@@ -2309,7 +2552,7 @@ export interface AssistantMessageToolRequest {
    * Arguments to pass to the tool, format depends on the tool
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Resolved intention summary describing what this specific call does
@@ -2514,9 +2757,16 @@ export interface AssistantUsageData {
    * Number of tokens written to prompt cache
    */
   cacheWriteTokens?: number;
+  /**
+   * Per-request cost and usage data from the CAPI copilot_usage response field
+   *
+   * @internal
+   */
   copilotUsage?: AssistantUsageCopilotUsage;
   /**
    * Model multiplier cost for billing purposes
+   *
+   * @experimental
    */
   cost?: number;
   /**
@@ -2554,12 +2804,14 @@ export interface AssistantUsageData {
   providerCallId?: string;
   /**
    * Per-quota resource usage snapshots, keyed by quota identifier
+   *
+   * @internal
    */
   quotaSnapshots?: {
-    [k: string]: AssistantUsageQuotaSnapshot;
+    [k: string]: AssistantUsageQuotaSnapshot | undefined;
   };
   /**
-   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh")
+   * Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
    */
   reasoningEffort?: string;
   /**
@@ -2567,13 +2819,18 @@ export interface AssistantUsageData {
    */
   reasoningTokens?: number;
   /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
+  /**
    * Time to first token in milliseconds. Only available for streaming requests
    */
-  ttftMs?: number;
+  timeToFirstTokenMs?: number;
 }
 /**
  * Per-request cost and usage data from the CAPI copilot_usage response field
  */
+/** @internal */
 export interface AssistantUsageCopilotUsage {
   /**
    * Itemized token usage breakdown
@@ -2608,37 +2865,54 @@ export interface AssistantUsageCopilotUsageTokenDetail {
 /**
  * Schema for the `AssistantUsageQuotaSnapshot` type.
  */
+/** @internal */
 export interface AssistantUsageQuotaSnapshot {
   /**
    * Total requests allowed by the entitlement
+   *
+   * @internal
    */
   entitlementRequests: number;
   /**
    * Whether the user has an unlimited usage entitlement
+   *
+   * @internal
    */
   isUnlimitedEntitlement: boolean;
   /**
-   * Number of requests over the entitlement limit
+   * Number of additional usage requests made this period
+   *
+   * @internal
    */
   overage: number;
   /**
-   * Whether overage is allowed when quota is exhausted
+   * Whether additional usage is allowed when quota is exhausted
+   *
+   * @internal
    */
   overageAllowedWithExhaustedQuota: boolean;
   /**
-   * Percentage of quota remaining (0.0 to 1.0)
+   * Percentage of quota remaining (0 to 100)
+   *
+   * @internal
    */
   remainingPercentage: number;
   /**
    * Date when the quota resets
+   *
+   * @internal
    */
   resetDate?: string;
   /**
    * Whether usage is still permitted after quota exhaustion
+   *
+   * @internal
    */
   usageAllowedWithExhaustedQuota: boolean;
   /**
    * Number of requests already consumed
+   *
+   * @internal
    */
   usedRequests: number;
 }
@@ -2700,6 +2974,10 @@ export interface ModelCallFailureData {
    * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
    */
   providerCallId?: string;
+  /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
   source: ModelCallFailureSource;
   /**
    * HTTP status code from the failed request
@@ -2780,7 +3058,7 @@ export interface ToolUserRequestedData {
    * Arguments for the tool invocation
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Unique identifier for this tool call
@@ -2829,7 +3107,7 @@ export interface ToolExecutionStartData {
    * Arguments passed to the tool
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
@@ -2997,6 +3275,10 @@ export interface ToolExecutionCompleteData {
   parentToolCallId?: string;
   result?: ToolExecutionCompleteResult;
   /**
+   * Whether this tool execution ran inside a sandbox container
+   */
+  sandboxed?: boolean;
+  /**
    * Whether the tool execution completed successfully
    */
   success: boolean;
@@ -3004,11 +3286,12 @@ export interface ToolExecutionCompleteData {
    * Unique identifier for the completed tool call
    */
   toolCallId: string;
+  toolDescription?: ToolExecutionCompleteToolDescription;
   /**
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
   toolTelemetry?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -3044,6 +3327,7 @@ export interface ToolExecutionCompleteResult {
    * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
    */
   detailedContent?: string;
+  uiResource?: ToolExecutionCompleteUIResource;
 }
 /**
  * Plain text content block
@@ -3213,6 +3497,118 @@ export interface EmbeddedBlobResourceContents {
   uri: string;
 }
 /**
+ * MCP Apps UI resource content for rendering in a sandboxed iframe
+ */
+export interface ToolExecutionCompleteUIResource {
+  _meta?: ToolExecutionCompleteUIResourceMeta;
+  /**
+   * Base64-encoded HTML content
+   */
+  blob?: string;
+  /**
+   * MIME type of the content
+   */
+  mimeType: string;
+  /**
+   * HTML content as a string
+   */
+  text?: string;
+  /**
+   * The ui:// URI of the resource
+   */
+  uri: string;
+}
+/**
+ * Resource-level UI metadata (CSP, permissions, visual preferences)
+ */
+export interface ToolExecutionCompleteUIResourceMeta {
+  ui?: ToolExecutionCompleteUIResourceMetaUI;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUI {
+  csp?: ToolExecutionCompleteUIResourceMetaUICsp;
+  domain?: string;
+  permissions?: ToolExecutionCompleteUIResourceMetaUIPermissions;
+  prefersBorder?: boolean;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUICsp {
+  baseUriDomains?: string[];
+  connectDomains?: string[];
+  frameDomains?: string[];
+  resourceDomains?: string[];
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissions {
+  camera?: ToolExecutionCompleteUIResourceMetaUIPermissionsCamera;
+  clipboardWrite?: ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite;
+  geolocation?: ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation;
+  microphone?: ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Tool definition metadata, present for MCP tools with MCP Apps support
+ */
+export interface ToolExecutionCompleteToolDescription {
+  _meta?: ToolExecutionCompleteToolDescriptionMeta;
+  /**
+   * Tool description
+   */
+  description?: string;
+  /**
+   * Tool name
+   */
+  name: string;
+}
+/**
+ * MCP Apps metadata for UI resource association
+ */
+export interface ToolExecutionCompleteToolDescriptionMeta {
+  ui?: ToolExecutionCompleteToolDescriptionMetaUI;
+}
+/**
+ * Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+ */
+export interface ToolExecutionCompleteToolDescriptionMetaUI {
+  /**
+   * URI of the UI resource
+   */
+  resourceUri?: string;
+  /**
+   * Who can access this tool
+   */
+  visibility?: ToolExecutionCompleteToolDescriptionMetaUIVisibility[];
+}
+/**
  * Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
  */
 export interface SkillInvokedEvent {
@@ -3274,6 +3670,11 @@ export interface SkillInvokedData {
    * Version of the plugin this skill originated from, when applicable
    */
   pluginVersion?: string;
+  /**
+   * Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+   */
+  source?: string;
+  trigger?: SkillInvokedTrigger;
 }
 /**
  * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
@@ -3587,7 +3988,7 @@ export interface HookStartData {
    * Input data passed to the hook
    */
   input?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
 }
 /**
@@ -3637,7 +4038,7 @@ export interface HookEndData {
    * Output data produced by the hook
    */
   output?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Whether the hook completed successfully
@@ -3714,7 +4115,7 @@ export interface SystemMessageMetadata {
    * Template variables used when constructing the prompt
    */
   variables?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
 }
 /**
@@ -4066,7 +4467,7 @@ export interface PermissionRequestMcp {
    * Arguments to pass to the MCP tool
    */
   args?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Permission kind discriminator
@@ -4153,7 +4554,7 @@ export interface PermissionRequestCustomTool {
    * Arguments to pass to the custom tool
    */
   args?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Permission kind discriminator
@@ -4188,7 +4589,7 @@ export interface PermissionRequestHook {
    * Arguments of the tool call being gated
    */
   toolArgs?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Tool call ID that triggered this permission request
@@ -4379,12 +4780,12 @@ export interface PermissionPromptRequestUrl {
  * Memory operation permission prompt
  */
 export interface PermissionPromptRequestMemory {
-  action?: PermissionPromptRequestMemoryAction;
+  action?: PermissionRequestMemoryAction;
   /**
    * Source references for the stored fact (store only)
    */
   citations?: string;
-  direction?: PermissionPromptRequestMemoryDirection;
+  direction?: PermissionRequestMemoryDirection;
   /**
    * The fact being stored or voted on
    */
@@ -4414,7 +4815,7 @@ export interface PermissionPromptRequestCustomTool {
    * Arguments to pass to the custom tool
    */
   args?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Prompt kind discriminator
@@ -4467,7 +4868,7 @@ export interface PermissionPromptRequestHook {
    * Arguments of the tool call being gated
    */
   toolArgs?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Tool call ID that triggered this permission request
@@ -4724,7 +5125,7 @@ export interface PermissionDeniedByRules {
  */
 export interface PermissionRule {
   /**
-   * Optional rule argument matched against the request
+   * Argument value matched against the request, or null when the rule kind has no argument (e.g. 'read', 'write', 'memory').
    */
   argument: string | null;
   /**
@@ -4950,7 +5351,7 @@ export interface ElicitationRequestedData {
    * URL to open in the user's browser (url mode only)
    */
   url?: string;
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * JSON Schema describing the form fields to present to the user (form mode only)
@@ -4960,7 +5361,7 @@ export interface ElicitationRequestedSchema {
    * Form field definitions, keyed by field name
    */
   properties: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * List of required field names
@@ -5010,7 +5411,7 @@ export interface ElicitationCompletedData {
    * The submitted form data when action is 'accept'; keys match the requested schema fields
    */
   content?: {
-    [k: string]: ElicitationCompletedContent;
+    [k: string]: ElicitationCompletedContent | undefined;
   };
   /**
    * Request ID of the resolved elicitation request; clients should dismiss any UI for this request
@@ -5063,7 +5464,7 @@ export interface SamplingRequestedData {
    * Name of the MCP server that initiated the sampling request
    */
   serverName: string;
-  [k: string]: unknown;
+  [k: string]: unknown | undefined;
 }
 /**
  * Session event "sampling.completed". Sampling request completion notification signaling UI dismissal
@@ -5261,7 +5662,7 @@ export interface CustomNotificationData {
  * Optional source-defined string identifiers describing the payload subject
  */
 export interface CustomNotificationSubject {
-  [k: string]: string;
+  [k: string]: string | undefined;
 }
 /**
  * Session event "external_tool.requested". External tool invocation request for client-side tool execution
@@ -5301,7 +5702,7 @@ export interface ExternalToolRequestedData {
    * Arguments to pass to the external tool
    */
   arguments?: {
-    [k: string]: unknown;
+    [k: string]: unknown | undefined;
   };
   /**
    * Unique identifier for this request; used to respond via session.respondToExternalTool()
@@ -5585,10 +5986,7 @@ export interface AutoModeSwitchCompletedData {
    * Request ID of the resolved request; clients should dismiss any UI for this request
    */
   requestId: string;
-  /**
-   * The user's choice: 'yes', 'yes_always', or 'no'
-   */
-  response: string;
+  response: AutoModeSwitchResponse;
 }
 /**
  * Session event "commands.changed". SDK command registration change notification
@@ -5683,9 +6081,17 @@ export interface CapabilitiesChangedData {
  */
 export interface CapabilitiesChangedUI {
   /**
+   * Whether canvas rendering is now supported
+   */
+  canvases?: boolean;
+  /**
    * Whether elicitation is now supported
    */
   elicitation?: boolean;
+  /**
+   * Whether MCP Apps (SEP-1865) UI passthrough is now supported
+   */
+  mcpApps?: boolean;
 }
 /**
  * Session event "exit_plan_mode.requested". Plan approval request with plan content and available user actions
@@ -5722,17 +6128,14 @@ export interface ExitPlanModeRequestedEvent {
  */
 export interface ExitPlanModeRequestedData {
   /**
-   * Available actions the user can take (e.g., approve, edit, reject)
+   * Available actions the user can take
    */
-  actions: string[];
+  actions: ExitPlanModeAction[];
   /**
    * Full content of the plan file
    */
   planContent: string;
-  /**
-   * The recommended action for the user to take
-   */
-  recommendedAction: string;
+  recommendedAction: ExitPlanModeAction;
   /**
    * Unique identifier for this request; used to respond via session.respondToExitPlanMode()
    */
@@ -5792,10 +6195,7 @@ export interface ExitPlanModeCompletedData {
    * Request ID of the resolved exit plan mode request; clients should dismiss any UI for this request
    */
   requestId: string;
-  /**
-   * Which action the user selected (e.g. 'autopilot', 'interactive', 'exit_only')
-   */
-  selectedAction?: string;
+  selectedAction?: ExitPlanModeAction;
 }
 /**
  * Session event "session.tools_updated".
@@ -5929,10 +6329,7 @@ export interface SkillsLoadedSkill {
    * Absolute path to the skill file, if available
    */
   path?: string;
-  /**
-   * Source location type of the skill (e.g., project, personal, plugin)
-   */
-  source: string;
+  source: SkillSource;
   /**
    * Whether the skill can be invoked by the user as a slash command
    */
@@ -6074,10 +6471,16 @@ export interface McpServersLoadedServer {
    */
   name: string;
   /**
-   * Configuration source: user, workspace, plugin, or builtin
+   * Name of the plugin that supplied the effective MCP server config, only when source is plugin
    */
-  source?: string;
-  status: McpServersLoadedServerStatus;
+  pluginName?: string;
+  /**
+   * Version of the plugin that supplied the effective MCP server config, only when source is plugin
+   */
+  pluginVersion?: string;
+  source?: McpServerSource;
+  status: McpServerStatus;
+  transport?: McpServerTransport;
 }
 /**
  * Session event "session.mcp_server_status_changed".
@@ -6114,10 +6517,14 @@ export interface McpServerStatusChangedEvent {
  */
 export interface McpServerStatusChangedData {
   /**
+   * Error message if the server entered a failed state
+   */
+  error?: string;
+  /**
    * Name of the MCP server whose status changed
    */
   serverName: string;
-  status: McpServerStatusChangedStatus;
+  status: McpServerStatus;
 }
 /**
  * Session event "session.extensions_loaded".
@@ -6172,4 +6579,266 @@ export interface ExtensionsLoadedExtension {
   name: string;
   source: ExtensionsLoadedExtensionSource;
   status: ExtensionsLoadedExtensionStatus;
+}
+/**
+ * Session event "session.canvas.opened".
+ */
+export interface CanvasOpenedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasOpenedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.opened".
+   */
+  type: "session.canvas.opened";
+}
+/**
+ * Schema for the `CanvasOpenedData` type.
+ */
+export interface CanvasOpenedData {
+  availability: CanvasOpenedAvailability;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * Input supplied when the instance was opened
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Whether this notification represents an idempotent reopen
+   */
+  reopen: boolean;
+  /**
+   * Provider-supplied status text
+   */
+  status?: string;
+  /**
+   * Rendered title
+   */
+  title?: string;
+  /**
+   * URL for web-rendered canvases
+   */
+  url?: string;
+}
+/**
+ * Session event "session.canvas.registry_changed".
+ */
+export interface CanvasRegistryChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasRegistryChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.registry_changed".
+   */
+  type: "session.canvas.registry_changed";
+}
+/**
+ * Schema for the `CanvasRegistryChangedData` type.
+ */
+export interface CanvasRegistryChangedData {
+  /**
+   * Canvas declarations currently available
+   */
+  canvases: CanvasRegistryChangedCanvas[];
+}
+/**
+ * Schema for the `CanvasRegistryChangedCanvas` type.
+ */
+export interface CanvasRegistryChangedCanvas {
+  /**
+   * Actions the agent or host may invoke
+   */
+  actions?: CanvasRegistryChangedCanvasAction[];
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Short, single-sentence description shown to the agent in canvas catalogs.
+   */
+  description: string;
+  /**
+   * Human-readable canvas name
+   */
+  displayName: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * JSON Schema for canvas open input
+   */
+  inputSchema?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ */
+export interface CanvasRegistryChangedCanvasAction {
+  /**
+   * Action description
+   */
+  description?: string;
+  /**
+   * JSON Schema for action input
+   */
+  inputSchema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Action name
+   */
+  name: string;
+}
+/**
+ * Session event "mcp_app.tool_call_complete". MCP App view called a tool on a connected MCP server (SEP-1865)
+ */
+export interface McpAppToolCallCompleteEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpAppToolCallCompleteData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "mcp_app.tool_call_complete".
+   */
+  type: "mcp_app.tool_call_complete";
+}
+/**
+ * MCP App view called a tool on a connected MCP server (SEP-1865)
+ */
+export interface McpAppToolCallCompleteData {
+  /**
+   * Arguments passed to the tool by the app view, if any
+   */
+  arguments?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Wall-clock duration of the underlying tools/call in milliseconds
+   */
+  durationMs: number;
+  error?: McpAppToolCallCompleteError;
+  /**
+   * Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Name of the MCP server hosting the tool
+   */
+  serverName: string;
+  /**
+   * True when the call completed without throwing AND the MCP CallToolResult did not set isError
+   */
+  success: boolean;
+  toolMeta?: McpAppToolCallCompleteToolMeta;
+  /**
+   * MCP tool name that was invoked
+   */
+  toolName: string;
+}
+/**
+ * Set when the underlying tools/call threw an error before returning a CallToolResult
+ */
+export interface McpAppToolCallCompleteError {
+  /**
+   * Human-readable error message
+   */
+  message: string;
+}
+/**
+ * The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
+ */
+export interface McpAppToolCallCompleteToolMeta {
+  ui?: McpAppToolCallCompleteToolMetaUI;
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+ */
+export interface McpAppToolCallCompleteToolMetaUI {
+  /**
+   * `ui://` URI declared by the tool's `_meta.ui.resourceUri`
+   */
+  resourceUri?: string;
+  /**
+   * Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
+   */
+  visibility?: string[];
+  [k: string]: unknown | undefined;
 }

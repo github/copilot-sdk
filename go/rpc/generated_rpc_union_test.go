@@ -47,7 +47,7 @@ func TestExternalToolResultJSONUnion(t *testing.T) {
 }
 
 func TestFilterMappingJSONUnion(t *testing.T) {
-	var mapping FilterMapping = FilterMappingEnumMap{"secret": FilterMappingValueHiddenCharacters}
+	var mapping FilterMapping = FilterMappingEnumMap{"secret": ContentFilterModeHiddenCharacters}
 	raw, err := json.Marshal(mapping)
 	if err != nil {
 		t.Fatalf("marshal filter mapping map: %v", err)
@@ -61,11 +61,11 @@ func TestFilterMappingJSONUnion(t *testing.T) {
 		t.Fatalf("unmarshal filter mapping map: %v", err)
 	}
 	decodedMapValue, ok := decodedMap.(FilterMappingEnumMap)
-	if !ok || decodedMapValue["secret"] != FilterMappingValueHiddenCharacters {
+	if !ok || decodedMapValue["secret"] != ContentFilterModeHiddenCharacters {
 		t.Fatalf("unmarshal filter mapping map = %#v", decodedMap)
 	}
 
-	var enumValue FilterMapping = FilterMappingStringMarkdown
+	var enumValue FilterMapping = ContentFilterModeMarkdown
 	raw, err = json.Marshal(enumValue)
 	if err != nil {
 		t.Fatalf("marshal filter mapping enum: %v", err)
@@ -78,14 +78,14 @@ func TestFilterMappingJSONUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unmarshal filter mapping enum: %v", err)
 	}
-	decodedEnumValue, ok := decodedEnum.(FilterMappingString)
-	if !ok || decodedEnumValue != FilterMappingStringMarkdown {
+	decodedEnumValue, ok := decodedEnum.(ContentFilterMode)
+	if !ok || decodedEnumValue != ContentFilterModeMarkdown {
 		t.Fatalf("unmarshal filter mapping enum = %#v", decodedEnum)
 	}
 }
 
 func TestMcpServerConfigJSONUnion(t *testing.T) {
-	var localConfig McpServerConfig = &McpServerConfigLocal{
+	var localConfig McpServerConfig = &McpServerConfigStdio{
 		Args:    []string{"-v"},
 		Command: "node",
 	}
@@ -101,7 +101,7 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unmarshal local config: %v", err)
 	}
-	decodedLocalValue, ok := decodedLocal.(*McpServerConfigLocal)
+	decodedLocalValue, ok := decodedLocal.(*McpServerConfigStdio)
 	if !ok || decodedLocalValue.Command != "node" || len(decodedLocalValue.Args) != 1 || decodedLocalValue.Args[0] != "-v" {
 		t.Fatalf("unmarshal local config = %#v", decodedLocal)
 	}
@@ -130,6 +130,35 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 	}
 	if _, ok := decodedRaw.(*RawMcpServerConfigData); !ok {
 		t.Fatalf("unmarshal raw config = %T, want *RawMcpServerConfigData", decodedRaw)
+	}
+}
+
+func TestTaskProgressUnmarshalsTaskAgentProgressVariants(t *testing.T) {
+	agentProgress, err := unmarshalTaskProgress([]byte(`{"type":"agent","recentActivity":[],"latestIntent":"Summarizing"}`))
+	if err != nil {
+		t.Fatalf("unmarshal agent task progress: %v", err)
+	}
+	agentValue, ok := agentProgress.(*TaskAgentProgress)
+	if !ok {
+		t.Fatalf("agent task progress = %T, want *TaskAgentProgress", agentProgress)
+	}
+	if agentValue.LatestIntent == nil || *agentValue.LatestIntent != "Summarizing" {
+		t.Fatalf("agent latest intent = %v, want Summarizing", agentValue.LatestIntent)
+	}
+
+	shellProgress, err := unmarshalTaskProgress([]byte(`{"type":"shell","recentOutput":"building","pid":123}`))
+	if err != nil {
+		t.Fatalf("unmarshal shell task progress: %v", err)
+	}
+	shellValue, ok := shellProgress.(*TaskShellProgress)
+	if !ok {
+		t.Fatalf("shell task progress = %T, want *TaskShellProgress", shellProgress)
+	}
+	if shellValue.RecentOutput != "building" {
+		t.Fatalf("shell recent output = %q, want building", shellValue.RecentOutput)
+	}
+	if shellValue.Pid == nil || *shellValue.Pid != 123 {
+		t.Fatalf("shell pid = %v, want 123", shellValue.Pid)
 	}
 }
 

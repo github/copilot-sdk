@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { existsSync } from "fs";
+import { existsSync, appendFileSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import type {
   ChatCompletion,
@@ -55,6 +55,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
   private defaultToolResultNormalizers: ToolResultNormalizer[] = [
     { toolName: "*", normalizer: normalizeLargeOutputFilepaths },
     { toolName: "*", normalizer: normalizeGhAuthMessages },
+    { toolName: "read_agent", normalizer: normalizeReadAgentTimings },
   ];
 
   /**
@@ -129,6 +130,7 @@ export class ReplayingCapiProxy extends CapturingHttpProxy {
       const content = await readFile(this.state.filePath, "utf-8");
       this.state.storedData = yaml.parse(content) as NormalizedData;
       normalizeToolResultOrder(this.state.storedData.conversations);
+      normalizeStoredUserMessages(this.state.storedData.conversations);
     }
   }
 
@@ -1033,6 +1035,7 @@ function transformOpenAIRequestMessage(
 
 function normalizeUserMessage(content: string): string {
   return normalizeSkillContextFrontmatter(content)
+    .replace(taskCompletionNotificationPattern, taskCompletionNotificationReplacement)
     .replace(/<current_datetime>.*?<\/current_datetime>/g, "")
     .replace(/<reminder>[\s\S]*?<\/reminder>/g, "")
     .replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, "")
@@ -1042,6 +1045,24 @@ function normalizeUserMessage(content: string): string {
       "${compaction_prompt}",
     )
     .trim();
+}
+
+const taskCompletionNotificationPattern =
+  /Use read_agent with agent_id "([^"]+)" to retrieve unread results\./g;
+const taskCompletionNotificationReplacement =
+  'Use read_agent with agent_id "$1" to retrieve the full results.';
+
+function normalizeStoredUserMessages(conversations: NormalizedConversation[]) {
+  for (const conversation of conversations) {
+    for (const message of conversation.messages) {
+      if (message.role === "user" && typeof message.content === "string") {
+        message.content = message.content.replace(
+          taskCompletionNotificationPattern,
+          taskCompletionNotificationReplacement,
+        );
+      }
+    }
+  }
 }
 
 function normalizeSkillContextFrontmatter(content: string): string {
@@ -1119,6 +1140,12 @@ function normalizeGh401AuthMessages(result: string): string {
   }
 
   return changed ? normalizedLines.join("\n") : result;
+}
+
+function normalizeReadAgentTimings(result: string): string {
+  return result
+    .replace(/\belapsed: \d+(?:\.\d+)?s\b/g, "elapsed: 0s")
+    .replace(/\bduration: \d+(?:\.\d+)?s\b/g, "duration: 0s");
 }
 
 // Transforms a single OpenAI-style inbound response message into normalized form
@@ -1208,7 +1235,11 @@ function findAssistantIndexAfterPrefix(
   requestMessages: NormalizedMessage[],
   savedMessages: NormalizedMessage[],
 ): number | undefined {
+  const logFile = process.env.PROXY_DEBUG_LOG;
+  const log = (msg: string) => { if (logFile) try { appendFileSync(logFile, msg + "\n"); } catch {} };
+
   if (requestMessages.length >= savedMessages.length) {
+    log(`prefix check failed: request.length=${requestMessages.length} >= saved.length=${savedMessages.length}`);
     return undefined;
   }
 
@@ -1216,6 +1247,9 @@ function findAssistantIndexAfterPrefix(
     const reqMsg = JSON.stringify(requestMessages[i]);
     const savedMsg = JSON.stringify(savedMessages[i]);
     if (reqMsg !== savedMsg) {
+      log(`mismatch at index ${i}:`);
+      log(`  REQ:   ${reqMsg.substring(0, 1000)}`);
+      log(`  SAVED: ${savedMsg.substring(0, 1000)}`);
       return undefined;
     }
   }
@@ -1226,9 +1260,11 @@ function findAssistantIndexAfterPrefix(
     nextIndex < savedMessages.length &&
     savedMessages[nextIndex].role === "assistant"
   ) {
+    log(`MATCH found at index ${nextIndex}`);
     return nextIndex;
   }
 
+  log(`no assistant at nextIndex=${nextIndex}, saved.length=${savedMessages.length}`);
   return undefined;
 }
 

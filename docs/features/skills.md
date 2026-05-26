@@ -29,7 +29,7 @@ const session = await client.createSession({
         "./skills/code-review",
         "./skills/documentation",
     ],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 
 // Copilot now has access to skills in those directories
@@ -42,15 +42,14 @@ await session.sendAndWait({ prompt: "Review this code for security issues" });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient
-from copilot.session import PermissionRequestResult
+from copilot import CopilotClient, PermissionDecisionApproveOnce
 
 async def main():
     client = CopilotClient()
     await client.start()
 
     session = await client.create_session(
-        on_permission_request=lambda req, inv: {"kind": "approved"},
+        on_permission_request=lambda req, inv: PermissionDecisionApproveOnce(),
         model="gpt-4.1",
         skill_directories=[
             "./skills/code-review",
@@ -76,6 +75,7 @@ import (
     "context"
     "log"
     copilot "github.com/github/copilot-sdk/go"
+    "github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -92,8 +92,8 @@ func main() {
             "./skills/code-review",
             "./skills/documentation",
         },
-        OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-            return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+        OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+            return &rpc.PermissionDecisionApproveOnce{}, nil
         },
     })
     if err != nil {
@@ -116,7 +116,8 @@ func main() {
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig
@@ -128,7 +129,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
         "./skills/documentation",
     },
     OnPermissionRequest = (req, inv) =>
-        Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        Task.FromResult(PermissionDecision.ApproveOnce()),
 });
 
 // Copilot now has access to skills in those directories
@@ -212,6 +213,7 @@ package main
 import (
 	"context"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -221,8 +223,8 @@ func main() {
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		SkillDirectories: []string{"./skills"},
 		DisabledSkills:   []string{"experimental-feature", "deprecated-tool"},
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 	_ = session
@@ -244,7 +246,8 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 
 public static class SkillsExample
 {
@@ -257,7 +260,7 @@ public static class SkillsExample
             SkillDirectories = new List<string> { "./skills" },
             DisabledSkills = new List<string> { "experimental-feature", "deprecated-tool" },
             OnPermissionRequest = (req, inv) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+                Task.FromResult(PermissionDecision.ApproveOnce()),
         });
     }
 }
@@ -375,7 +378,7 @@ const session = await client.createSession({
         prompt: "Focus on OWASP Top 10 vulnerabilities",
         skills: ["security-scan", "dependency-check"],
     }],
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 > [!NOTE]
@@ -396,7 +399,7 @@ const session = await client.createSession({
             tools: ["*"],
         },
     },
-    onPermissionRequest: async () => ({ kind: "approved" }),
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
 });
 ```
 

@@ -5,7 +5,8 @@ import { z } from "zod";
 const virtualFs = new Map<string, string>();
 
 const createFile = defineTool("create_file", {
-  description: "Create or overwrite a file at the given path with the provided content",
+  description:
+    "Create or overwrite a file at the given path with the provided content",
   parameters: z.object({
     path: z.string().describe("File path"),
     content: z.string().describe("File content"),
@@ -38,12 +39,7 @@ const listFiles = defineTool("list_files", {
 });
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && {
-      cliPath: process.env.COPILOT_CLI_PATH,
-    }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -51,7 +47,7 @@ async function main() {
       // Remove all built-in tools — only our custom virtual FS tools are available
       availableTools: [],
       tools: [createFile, readFile, listFiles],
-      onPermissionRequest: async () => ({ kind: "approved" as const }),
+      onPermissionRequest: async () => ({ kind: "approve-once" as const }),
       hooks: {
         onPreToolUse: async () => ({ permissionDecision: "allow" as const }),
       },

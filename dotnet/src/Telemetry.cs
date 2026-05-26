@@ -4,7 +4,7 @@
 
 using System.Diagnostics;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 
 internal static class TelemetryHelpers
 {

@@ -7,6 +7,7 @@ import shutil
 
 import pytest
 
+from copilot.generated.rpc import SkillSource
 from copilot.session import CustomAgentConfig, PermissionHandler
 
 from .testharness import E2ETestContext
@@ -230,6 +231,6 @@ class TestSkillBehavior:
         assert len(discovered) == 1
         skill = discovered[0]
         assert skill.enabled is True
-        assert skill.source == "project"
+        assert skill.source == SkillSource.PROJECT
         assert skill.path.endswith(os.path.join(skill_name, "SKILL.md"))
         await enabled_session.disconnect()

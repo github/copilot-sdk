@@ -5,10 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-    githubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({
@@ -16,7 +13,8 @@ async function main() {
       availableTools: [],
       systemMessage: {
         mode: "replace",
-        content: "You are a helpful assistant. Answer questions about attached files concisely.",
+        content:
+          "You are a helpful assistant. Answer questions about attached files concisely.",
       },
     });
 

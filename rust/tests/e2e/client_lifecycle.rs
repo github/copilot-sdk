@@ -1,4 +1,4 @@
-use github_copilot_sdk::{ConnectionState, SessionLifecycleEventType};
+use github_copilot_sdk::SessionLifecycleEventType;
 use serde_json::json;
 
 use super::support::{wait_for_lifecycle_event, with_e2e_context};
@@ -105,11 +105,7 @@ async fn dispose_disconnects_client_and_disposes_rpc_surface_async() {
         |ctx| {
             Box::pin(async move {
                 let client = ctx.start_client().await;
-                assert_eq!(client.state(), ConnectionState::Connected);
-
                 client.stop().await.expect("stop client");
-
-                assert_eq!(client.state(), ConnectionState::Disconnected);
                 assert!(
                     client.call("rpc.ping", Some(json!({}))).await.is_err(),
                     "stopped client should reject RPC calls"
@@ -128,11 +124,7 @@ async fn dispose_disconnects_client_and_disposes_rpc_surface_drop() {
         |ctx| {
             Box::pin(async move {
                 let client = ctx.start_client().await;
-                assert_eq!(client.state(), ConnectionState::Connected);
-
                 client.force_stop();
-
-                assert_eq!(client.state(), ConnectionState::Disconnected);
                 assert!(
                     client.call("rpc.ping", Some(json!({}))).await.is_err(),
                     "force-stopped client should reject RPC calls"

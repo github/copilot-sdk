@@ -21,6 +21,7 @@ import errno
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from .generated.rpc import (
     SessionFSError,
@@ -31,7 +32,12 @@ from .generated.rpc import (
     SessionFSReaddirWithTypesEntry,
     SessionFSReaddirWithTypesResult,
     SessionFSReadFileResult,
+    SessionFSSqliteExistsResult,
+    SessionFSSqliteQueryType,
     SessionFSStatResult,
+)
+from .generated.rpc import (
+    SessionFSSqliteQueryResult as _GeneratedSqliteQueryResult,
 )
 
 
@@ -96,6 +102,53 @@ class SessionFsProvider(abc.ABC):
         """Rename / move a file or directory."""
 
 
+class SessionFsSqliteProvider(abc.ABC):
+    """Optional ABC for providers that support SQLite operations.
+
+    To add SQLite support, subclass *both* :class:`SessionFsProvider` and
+    :class:`SessionFsSqliteProvider`::
+
+        class MyProvider(SessionFsProvider, SessionFsSqliteProvider): ...
+
+    The adapter checks ``isinstance(provider, SessionFsSqliteProvider)`` at
+    runtime to decide whether SQLite calls should be dispatched.
+
+    Providers are already session-scoped (created per session by the factory),
+    so these methods do not take a ``session_id`` parameter.
+    """
+
+    @abc.abstractmethod
+    async def sqlite_query(
+        self,
+        query_type: SessionFSSqliteQueryType,
+        query: str,
+        params: dict[str, float | str | None] | None = None,
+    ) -> SessionFsSqliteQueryResult | None:
+        """Execute a SQLite query against the provider's per-session database.
+
+        Return ``None`` for exec-type queries (DDL / multi-statement) where
+        no result set is produced; the adapter will substitute an empty result.
+        """
+
+    @abc.abstractmethod
+    async def sqlite_exists(self) -> bool:
+        """Return whether the provider has a SQLite database for this session."""
+
+
+@dataclass
+class SessionFsSqliteQueryResult:
+    """Result of a SQLite query execution.
+
+    Same shape as the generated RPC type but without the ``error`` field,
+    since providers signal errors by raising exceptions.
+    """
+
+    columns: list[str]
+    rows: list[dict[str, Any]]
+    rows_affected: int
+    last_insert_rowid: int | None = None
+
+
 def create_session_fs_adapter(provider: SessionFsProvider) -> SessionFsHandler:
     """Wrap a :class:`SessionFsProvider` into a :class:`SessionFsHandler`.
 
@@ -111,38 +164,38 @@ class _SessionFsAdapter:
     def __init__(self, provider: SessionFsProvider) -> None:
         self._p = provider
 
-    async def read_file(self, params: object) -> SessionFSReadFileResult:
+    async def read_file(self, params: Any) -> SessionFSReadFileResult:
         try:
-            content = await self._p.read_file(params.path)  # type: ignore[attr-defined]
+            content = await self._p.read_file(params.path)
             return SessionFSReadFileResult.from_dict({"content": content})
         except Exception as exc:
             err = _to_session_fs_error(exc)
             return SessionFSReadFileResult.from_dict({"content": "", "error": err.to_dict()})
 
-    async def write_file(self, params: object) -> SessionFSError | None:
+    async def write_file(self, params: Any) -> SessionFSError | None:
         try:
-            await self._p.write_file(params.path, params.content, getattr(params, "mode", None))  # type: ignore[attr-defined]
+            await self._p.write_file(params.path, params.content, getattr(params, "mode", None))
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
 
-    async def append_file(self, params: object) -> SessionFSError | None:
+    async def append_file(self, params: Any) -> SessionFSError | None:
         try:
-            await self._p.append_file(params.path, params.content, getattr(params, "mode", None))  # type: ignore[attr-defined]
+            await self._p.append_file(params.path, params.content, getattr(params, "mode", None))
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
 
-    async def exists(self, params: object) -> SessionFSExistsResult:
+    async def exists(self, params: Any) -> SessionFSExistsResult:
         try:
-            result = await self._p.exists(params.path)  # type: ignore[attr-defined]
+            result = await self._p.exists(params.path)
             return SessionFSExistsResult.from_dict({"exists": result})
         except Exception:
             return SessionFSExistsResult.from_dict({"exists": False})
 
-    async def stat(self, params: object) -> SessionFSStatResult:
+    async def stat(self, params: Any) -> SessionFSStatResult:
         try:
-            info = await self._p.stat(params.path)  # type: ignore[attr-defined]
+            info = await self._p.stat(params.path)
             return SessionFSStatResult(
                 is_file=info.is_file,
                 is_directory=info.is_directory,
@@ -162,10 +215,10 @@ class _SessionFsAdapter:
                 error=err,
             )
 
-    async def mkdir(self, params: object) -> SessionFSError | None:
+    async def mkdir(self, params: Any) -> SessionFSError | None:
         try:
             await self._p.mkdir(
-                params.path,  # type: ignore[attr-defined]
+                params.path,
                 getattr(params, "recursive", False),
                 getattr(params, "mode", None),
             )
@@ -173,17 +226,17 @@ class _SessionFsAdapter:
         except Exception as exc:
             return _to_session_fs_error(exc)
 
-    async def readdir(self, params: object) -> SessionFSReaddirResult:
+    async def readdir(self, params: Any) -> SessionFSReaddirResult:
         try:
-            entries = await self._p.readdir(params.path)  # type: ignore[attr-defined]
+            entries = await self._p.readdir(params.path)
             return SessionFSReaddirResult.from_dict({"entries": entries})
         except Exception as exc:
             err = _to_session_fs_error(exc)
             return SessionFSReaddirResult.from_dict({"entries": [], "error": err.to_dict()})
 
-    async def readdir_with_types(self, params: object) -> SessionFSReaddirWithTypesResult:
+    async def readdir_with_types(self, params: Any) -> SessionFSReaddirWithTypesResult:
         try:
-            entries = await self._p.readdir_with_types(params.path)  # type: ignore[attr-defined]
+            entries = await self._p.readdir_with_types(params.path)
             return SessionFSReaddirWithTypesResult(entries=list(entries))
         except Exception as exc:
             err = _to_session_fs_error(exc)
@@ -191,10 +244,10 @@ class _SessionFsAdapter:
                 {"entries": [], "error": err.to_dict()}
             )
 
-    async def rm(self, params: object) -> SessionFSError | None:
+    async def rm(self, params: Any) -> SessionFSError | None:
         try:
             await self._p.rm(
-                params.path,  # type: ignore[attr-defined]
+                params.path,
                 getattr(params, "recursive", False),
                 getattr(params, "force", False),
             )
@@ -202,12 +255,53 @@ class _SessionFsAdapter:
         except Exception as exc:
             return _to_session_fs_error(exc)
 
-    async def rename(self, params: object) -> SessionFSError | None:
+    async def rename(self, params: Any) -> SessionFSError | None:
         try:
-            await self._p.rename(params.src, params.dest)  # type: ignore[attr-defined]
+            await self._p.rename(params.src, params.dest)
             return None
         except Exception as exc:
             return _to_session_fs_error(exc)
+
+    async def sqlite_query(self, params: Any) -> _GeneratedSqliteQueryResult:
+        # SQLite methods intentionally skip toSessionFsError wrapping — FS errno
+        # mapping (ENOENT) isn't meaningful for SQL errors and the JSON-RPC layer
+        # already handles uncaught exceptions.
+        if not isinstance(self._p, SessionFsSqliteProvider):
+            return _GeneratedSqliteQueryResult(
+                columns=[],
+                rows=[],
+                rows_affected=0,
+                error=SessionFSError(
+                    code=SessionFSErrorCode.UNKNOWN,
+                    message="SQLite is not supported by this SessionFs provider",
+                ),
+            )
+        result = await self._p.sqlite_query(
+            params.query_type,
+            params.query,
+            getattr(params, "params", None),
+        )
+        if result is None:
+            return _GeneratedSqliteQueryResult(
+                columns=[],
+                rows=[],
+                rows_affected=0,
+            )
+        return _GeneratedSqliteQueryResult(
+            columns=result.columns,
+            rows=result.rows,
+            rows_affected=result.rows_affected,
+            last_insert_rowid=result.last_insert_rowid,
+        )
+
+    async def sqlite_exists(self, params: Any) -> SessionFSSqliteExistsResult:
+        if not isinstance(self._p, SessionFsSqliteProvider):
+            return SessionFSSqliteExistsResult.from_dict({"exists": False})
+        try:
+            result = await self._p.sqlite_exists()
+            return SessionFSSqliteExistsResult.from_dict({"exists": result})
+        except Exception:
+            return SessionFSSqliteExistsResult.from_dict({"exists": False})
 
 
 def _to_session_fs_error(exc: Exception) -> SessionFSError:

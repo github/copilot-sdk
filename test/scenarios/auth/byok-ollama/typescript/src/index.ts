@@ -1,15 +1,14 @@
 import { CopilotClient } from "@github/copilot-sdk";
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
+const OLLAMA_BASE_URL =
+  process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.2:3b";
 
 const COMPACT_SYSTEM_PROMPT =
   "You are a compact local assistant. Keep answers short, concrete, and under 80 words.";
 
 async function main() {
-  const client = new CopilotClient({
-    ...(process.env.COPILOT_CLI_PATH && { cliPath: process.env.COPILOT_CLI_PATH }),
-  });
+  const client = new CopilotClient();
 
   try {
     const session = await client.createSession({

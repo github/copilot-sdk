@@ -4,16 +4,17 @@ Test context for E2E tests.
 Provides isolated directories and a replaying proxy for testing the SDK.
 """
 
+import asyncio
 import contextlib
 import os
 import re
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
-from copilot import CopilotClient
-from copilot.client import SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection
 
 from .proxy import CapiProxy
 
@@ -38,6 +39,7 @@ def get_cli_path_for_tests() -> str:
 
 CLI_PATH = get_cli_path_for_tests()
 SNAPSHOTS_DIR = Path(__file__).parents[3] / "test" / "snapshots"
+DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests"
 
 
 class E2ETestContext:
@@ -64,20 +66,28 @@ class E2ETestContext:
 
         self._proxy = CapiProxy()
         self.proxy_url = await self._proxy.start()
+        await self._proxy.set_copilot_user_by_token(
+            DEFAULT_GITHUB_TOKEN,
+            {
+                "login": "e2e-test-user",
+                "copilot_plan": "individual_pro",
+                "endpoints": {
+                    "api": self.proxy_url,
+                    "telemetry": "https://localhost:1/telemetry",
+                },
+                "analytics_tracking_id": "e2e-test-tracking-id",
+            },
+        )
 
         # Create the shared client (like Node.js/Go do)
-        # Use fake token in CI to allow cached responses without real auth
-        github_token = (
-            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
-        )
         self._client = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
-                cli_args=cli_args or [],
-                cwd=self.work_dir,
-                env=self.get_env(),
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_stdio(
+                path=self.cli_path,
+                args=tuple(cli_args or []),
+            ),
+            working_directory=self.work_dir,
+            env=self.get_env(),
+            github_token=DEFAULT_GITHUB_TOKEN,
         )
 
     async def teardown(self, test_failed: bool = False):
@@ -123,7 +133,9 @@ class E2ETestContext:
         # where files (e.g., SQLite session-store.db on Windows) may still be
         # held open by a background process during cleanup.
         for base_dir in (self.home_dir, self.work_dir):
-            for item in Path(base_dir).iterdir():
+            base_path = Path(base_dir)
+            base_path.mkdir(parents=True, exist_ok=True)
+            for item in base_path.iterdir():
                 if item.is_dir():
                     shutil.rmtree(item, ignore_errors=True)
                 else:
@@ -140,14 +152,14 @@ class E2ETestContext:
             {
                 "COPILOT_API_URL": self.proxy_url,
                 "COPILOT_HOME": self.home_dir,
+                "COPILOT_SDK_AUTH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "GH_CONFIG_DIR": self.home_dir,
+                "GH_TOKEN": DEFAULT_GITHUB_TOKEN,
                 "XDG_CONFIG_HOME": self.home_dir,
                 "XDG_STATE_HOME": self.home_dir,
+                "GITHUB_TOKEN": DEFAULT_GITHUB_TOKEN,
             }
         )
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            env["GH_TOKEN"] = "fake-token-for-e2e-tests"
-            env["GITHUB_TOKEN"] = "fake-token-for-e2e-tests"
         return env
 
     @property
@@ -168,3 +180,16 @@ class E2ETestContext:
         if not self._proxy:
             raise RuntimeError("Proxy not started")
         return await self._proxy.get_exchanges()
+
+    async def wait_for_exchanges(
+        self, minimum_count: int = 1, timeout: float = 120.0
+    ) -> list[dict[str, Any]]:
+        """Wait until the proxy has captured at least the requested exchanges."""
+        deadline = time.monotonic() + timeout
+        exchanges: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            exchanges = await self.get_exchanges()
+            if len(exchanges) >= minimum_count:
+                return exchanges
+            await asyncio.sleep(0.1)
+        raise TimeoutError(f"Timed out waiting for {minimum_count} chat completion request(s)")
