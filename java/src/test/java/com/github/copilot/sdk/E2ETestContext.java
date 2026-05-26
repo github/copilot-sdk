@@ -122,6 +122,13 @@ public class E2ETestContext implements AutoCloseable {
     }
 
     /**
+     * Gets the repository root for locating shared test assets.
+     */
+    public Path getRepoRoot() {
+        return repoRoot;
+    }
+
+    /**
      * Gets the proxy URL.
      */
     public String getProxyUrl() {
