@@ -5,6 +5,7 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Rpc = GitHub.Copilot.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -93,6 +94,64 @@ public class JsonRpcTests
         await Assert.ThrowsAnyAsync<ObjectDisposedException>(() => pending);
     }
 
+    [Fact]
+    public async Task JsonRpc_Routes_CanvasInvokeAction_LegacyAlias_To_Same_Handler()
+    {
+        using var pair = JsonRpcReflectionPair.Create(startServer: false);
+        var handler = new RecordingRpcCanvasHandler();
+        RegisterClientSessionApiHandlers(pair.Server, sessionId =>
+        {
+            Assert.Equal("session-1", sessionId);
+            return new Rpc.ClientSessionApiHandlers { Canvas = handler };
+        });
+
+        pair.Server.StartListening();
+        pair.StartListening();
+
+        var canonical = await InvokeCanvasActionAsync(pair.Client, "canvas.invokeAction");
+        var legacy = await InvokeCanvasActionAsync(pair.Client, "canvas.action.invoke");
+
+        Assert.Equal(1, canonical.Count);
+        Assert.Equal("increment", canonical.ActionName);
+        Assert.Equal(2, legacy.Count);
+        Assert.Equal("increment", legacy.ActionName);
+        Assert.Collection(handler.ActionRequests, AssertIncrementActionRequest, AssertIncrementActionRequest);
+    }
+
+    private static Task<CanvasActionAliasResponse> InvokeCanvasActionAsync(JsonRpcReflection rpc, string methodName) =>
+        rpc.InvokeAsync<CanvasActionAliasResponse>(
+            methodName,
+            [new Rpc.CanvasProviderInvokeActionRequest
+            {
+                SessionId = "session-1",
+                InstanceId = "canvas-1",
+                CanvasId = "canvas",
+                ExtensionId = "provider",
+                ActionName = "increment"
+            }]);
+
+    private static void AssertIncrementActionRequest(Rpc.CanvasProviderInvokeActionRequest request)
+    {
+        Assert.Equal("session-1", request.SessionId);
+        Assert.Equal("canvas-1", request.InstanceId);
+        Assert.Equal("canvas", request.CanvasId);
+        Assert.Equal("provider", request.ExtensionId);
+        Assert.Equal("increment", request.ActionName);
+    }
+
+    private static void RegisterClientSessionApiHandlers(
+        JsonRpcReflection rpc,
+        Func<string, Rpc.ClientSessionApiHandlers> getHandlers)
+    {
+        var registrationType = typeof(Rpc.ClientSessionApiHandlers).Assembly.GetType(
+            "GitHub.Copilot.Rpc.ClientSessionApiRegistration",
+            throwOnError: true)!;
+
+        registrationType
+            .GetMethod("RegisterClientSessionApiHandlers", BindingFlags.Public | BindingFlags.Static)!
+            .Invoke(null, [rpc.Instance, getHandlers]);
+    }
+
     private static int GetRemoteErrorCode(Exception exception)
     {
         var property = exception.GetType().GetProperty("ErrorCode", BindingFlags.Instance | BindingFlags.Public);
@@ -115,6 +174,38 @@ public class JsonRpcTests
     private sealed class SingleObjectResponse
     {
         public string Value { get; set; } = string.Empty;
+    }
+
+    private sealed class CanvasActionAliasResponse
+    {
+        public string ActionName { get; set; } = string.Empty;
+
+        public int Count { get; set; }
+    }
+
+    private sealed class RecordingRpcCanvasHandler : Rpc.ICanvasHandler
+    {
+        public List<Rpc.CanvasProviderInvokeActionRequest> ActionRequests { get; } = [];
+
+        public Task<Rpc.CanvasProviderOpenResult> OpenAsync(
+            Rpc.CanvasProviderOpenRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task CloseAsync(Rpc.CanvasProviderCloseRequest request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<object> InvokeActionAsync(
+            Rpc.CanvasProviderInvokeActionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            ActionRequests.Add(request);
+            return Task.FromResult<object>(new CanvasActionAliasResponse
+            {
+                ActionName = request.ActionName,
+                Count = ActionRequests.Count
+            });
+        }
     }
 
     private sealed class JsonRpcReflectionPair : IDisposable
@@ -178,6 +269,8 @@ public class JsonRpcTests
                 args: [stream, stream, SerializerOptions, null],
                 culture: null)!;
         }
+
+        public object Instance => _instance;
 
         public void StartListening() => JsonRpcType.GetMethod(nameof(StartListening))!.Invoke(_instance, null);
 
