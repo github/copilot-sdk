@@ -22,11 +22,11 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail(
     /** Number of tokens in this billing batch */
-    @JsonProperty("batchSize") Double batchSize,
+    @JsonProperty("batchSize") Long batchSize,
     /** Cost per batch of tokens */
-    @JsonProperty("costPerBatch") Double costPerBatch,
+    @JsonProperty("costPerBatch") Long costPerBatch,
     /** Total token count for this entry */
-    @JsonProperty("tokenCount") Double tokenCount,
+    @JsonProperty("tokenCount") Long tokenCount,
     /** Token category (e.g., "input", "output") */
     @JsonProperty("tokenType") String tokenType
 ) {

@@ -87,7 +87,10 @@ export type SessionEvent =
   | CustomAgentsUpdatedEvent
   | McpServersLoadedEvent
   | McpServerStatusChangedEvent
-  | ExtensionsLoadedEvent;
+  | ExtensionsLoadedEvent
+  | CanvasOpenedEvent
+  | CanvasRegistryChangedEvent
+  | McpAppToolCallCompleteEvent;
 /**
  * Hosting platform type of the repository (github or ado)
  */
@@ -243,6 +246,24 @@ export type ToolExecutionCompleteContentResourceLinkIconTheme =
  * The embedded resource contents, either text or base64-encoded binary
  */
 export type ToolExecutionCompleteContentResourceDetails = EmbeddedTextResourceContents | EmbeddedBlobResourceContents;
+/**
+ * Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration.
+ */
+export type ToolExecutionCompleteToolDescriptionMetaUIVisibility =
+  /** Tool is callable by the model (LLM tool surface) */
+  | "model"
+  /** Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool */
+  | "app";
+/**
+ * What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
+ */
+export type SkillInvokedTrigger =
+  /** Skill invocation requested explicitly by the user, such as via a slash command or UI affordance. */
+  | "user-invoked"
+  /** Skill invocation requested by the agent. */
+  | "agent-invoked"
+  /** Skill content loaded as part of another context, such as a configured custom agent or subagent. */
+  | "context-load";
 /**
  * Message role: "system" for system prompts, "developer" for developer-injected instructions
  */
@@ -452,6 +473,18 @@ export type McpServerStatus =
   /** The server is not configured for this session. */
   | "not_configured";
 /**
+ * Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
+ */
+export type McpServerTransport =
+  /** Server communicates over stdio with a local child process. */
+  | "stdio"
+  /** Server communicates over streamable HTTP. */
+  | "http"
+  /** Server communicates over Server-Sent Events (deprecated). */
+  | "sse"
+  /** Server is backed by an in-memory runtime implementation. */
+  | "memory";
+/**
  * Discovery source
  */
 export type ExtensionsLoadedExtensionSource =
@@ -471,6 +504,14 @@ export type ExtensionsLoadedExtensionStatus =
   | "failed"
   /** The extension process is starting. */
   | "starting";
+/**
+ * Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+ */
+export type CanvasOpenedAvailability =
+  /** Provider connection is live; actions can be invoked. */
+  | "ready"
+  /** Provider has gone away; the instance is awaiting rebinding. */
+  | "stale";
 
 /**
  * Session event "session.start". Session initialization metadata including context and configuration
@@ -745,6 +786,10 @@ export interface ErrorData {
    * GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
    */
   providerCallId?: string;
+  /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
   /**
    * Error stack trace, when available
    */
@@ -1066,6 +1111,14 @@ export interface ModelChangeData {
    * Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
    */
   cause?: string;
+  /**
+   * Context tier after the model change; null explicitly clears a previously selected tier
+   */
+  contextTier?: /** Default context tier with standard context window size. */
+    | "default"
+    /** Extended context tier with a larger context window. */
+    | "long_context"
+    | null;
   /**
    * Newly selected model identifier
    */
@@ -1787,6 +1840,10 @@ export interface CompactionCompleteData {
    */
   requestId?: string;
   /**
+   * Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
+   */
+  serviceRequestId?: string;
+  /**
    * Whether compaction completed successfully
    */
   success: boolean;
@@ -2475,6 +2532,10 @@ export interface AssistantMessageData {
    */
   requestId?: string;
   /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
+  /**
    * Tool invocations requested by the assistant in this message
    */
   toolRequests?: AssistantMessageToolRequest[];
@@ -2758,6 +2819,10 @@ export interface AssistantUsageData {
    */
   reasoningTokens?: number;
   /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
+  /**
    * Time to first token in milliseconds. Only available for streaming requests
    */
   timeToFirstTokenMs?: number;
@@ -2909,6 +2974,10 @@ export interface ModelCallFailureData {
    * GitHub request tracing ID (x-github-request-id header) for server-side log correlation
    */
   providerCallId?: string;
+  /**
+   * Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+   */
+  serviceRequestId?: string;
   source: ModelCallFailureSource;
   /**
    * HTTP status code from the failed request
@@ -3217,6 +3286,7 @@ export interface ToolExecutionCompleteData {
    * Unique identifier for the completed tool call
    */
   toolCallId: string;
+  toolDescription?: ToolExecutionCompleteToolDescription;
   /**
    * Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
    */
@@ -3257,6 +3327,7 @@ export interface ToolExecutionCompleteResult {
    * Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
    */
   detailedContent?: string;
+  uiResource?: ToolExecutionCompleteUIResource;
 }
 /**
  * Plain text content block
@@ -3426,6 +3497,118 @@ export interface EmbeddedBlobResourceContents {
   uri: string;
 }
 /**
+ * MCP Apps UI resource content for rendering in a sandboxed iframe
+ */
+export interface ToolExecutionCompleteUIResource {
+  _meta?: ToolExecutionCompleteUIResourceMeta;
+  /**
+   * Base64-encoded HTML content
+   */
+  blob?: string;
+  /**
+   * MIME type of the content
+   */
+  mimeType: string;
+  /**
+   * HTML content as a string
+   */
+  text?: string;
+  /**
+   * The ui:// URI of the resource
+   */
+  uri: string;
+}
+/**
+ * Resource-level UI metadata (CSP, permissions, visual preferences)
+ */
+export interface ToolExecutionCompleteUIResourceMeta {
+  ui?: ToolExecutionCompleteUIResourceMetaUI;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUI {
+  csp?: ToolExecutionCompleteUIResourceMetaUICsp;
+  domain?: string;
+  permissions?: ToolExecutionCompleteUIResourceMetaUIPermissions;
+  prefersBorder?: boolean;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUICsp {
+  baseUriDomains?: string[];
+  connectDomains?: string[];
+  frameDomains?: string[];
+  resourceDomains?: string[];
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissions {
+  camera?: ToolExecutionCompleteUIResourceMetaUIPermissionsCamera;
+  clipboardWrite?: ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite;
+  geolocation?: ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation;
+  microphone?: ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsCamera {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+ */
+export interface ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone {
+  [k: string]: unknown | undefined;
+}
+/**
+ * Tool definition metadata, present for MCP tools with MCP Apps support
+ */
+export interface ToolExecutionCompleteToolDescription {
+  _meta?: ToolExecutionCompleteToolDescriptionMeta;
+  /**
+   * Tool description
+   */
+  description?: string;
+  /**
+   * Tool name
+   */
+  name: string;
+}
+/**
+ * MCP Apps metadata for UI resource association
+ */
+export interface ToolExecutionCompleteToolDescriptionMeta {
+  ui?: ToolExecutionCompleteToolDescriptionMetaUI;
+}
+/**
+ * Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+ */
+export interface ToolExecutionCompleteToolDescriptionMetaUI {
+  /**
+   * URI of the UI resource
+   */
+  resourceUri?: string;
+  /**
+   * Who can access this tool
+   */
+  visibility?: ToolExecutionCompleteToolDescriptionMetaUIVisibility[];
+}
+/**
  * Session event "skill.invoked". Skill invocation details including content, allowed tools, and plugin metadata
  */
 export interface SkillInvokedEvent {
@@ -3487,6 +3670,11 @@ export interface SkillInvokedData {
    * Version of the plugin this skill originated from, when applicable
    */
   pluginVersion?: string;
+  /**
+   * Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+   */
+  source?: string;
+  trigger?: SkillInvokedTrigger;
 }
 /**
  * Session event "subagent.started". Sub-agent startup details including parent tool call and agent information
@@ -5893,9 +6081,17 @@ export interface CapabilitiesChangedData {
  */
 export interface CapabilitiesChangedUI {
   /**
+   * Whether canvas rendering is now supported
+   */
+  canvases?: boolean;
+  /**
    * Whether elicitation is now supported
    */
   elicitation?: boolean;
+  /**
+   * Whether MCP Apps (SEP-1865) UI passthrough is now supported
+   */
+  mcpApps?: boolean;
 }
 /**
  * Session event "exit_plan_mode.requested". Plan approval request with plan content and available user actions
@@ -6274,8 +6470,17 @@ export interface McpServersLoadedServer {
    * Server name (config key)
    */
   name: string;
+  /**
+   * Name of the plugin that supplied the effective MCP server config, only when source is plugin
+   */
+  pluginName?: string;
+  /**
+   * Version of the plugin that supplied the effective MCP server config, only when source is plugin
+   */
+  pluginVersion?: string;
   source?: McpServerSource;
   status: McpServerStatus;
+  transport?: McpServerTransport;
 }
 /**
  * Session event "session.mcp_server_status_changed".
@@ -6311,6 +6516,10 @@ export interface McpServerStatusChangedEvent {
  * Schema for the `McpServerStatusChangedData` type.
  */
 export interface McpServerStatusChangedData {
+  /**
+   * Error message if the server entered a failed state
+   */
+  error?: string;
   /**
    * Name of the MCP server whose status changed
    */
@@ -6370,4 +6579,266 @@ export interface ExtensionsLoadedExtension {
   name: string;
   source: ExtensionsLoadedExtensionSource;
   status: ExtensionsLoadedExtensionStatus;
+}
+/**
+ * Session event "session.canvas.opened".
+ */
+export interface CanvasOpenedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasOpenedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.opened".
+   */
+  type: "session.canvas.opened";
+}
+/**
+ * Schema for the `CanvasOpenedData` type.
+ */
+export interface CanvasOpenedData {
+  availability: CanvasOpenedAvailability;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * Input supplied when the instance was opened
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Whether this notification represents an idempotent reopen
+   */
+  reopen: boolean;
+  /**
+   * Provider-supplied status text
+   */
+  status?: string;
+  /**
+   * Rendered title
+   */
+  title?: string;
+  /**
+   * URL for web-rendered canvases
+   */
+  url?: string;
+}
+/**
+ * Session event "session.canvas.registry_changed".
+ */
+export interface CanvasRegistryChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: CanvasRegistryChangedData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.canvas.registry_changed".
+   */
+  type: "session.canvas.registry_changed";
+}
+/**
+ * Schema for the `CanvasRegistryChangedData` type.
+ */
+export interface CanvasRegistryChangedData {
+  /**
+   * Canvas declarations currently available
+   */
+  canvases: CanvasRegistryChangedCanvas[];
+}
+/**
+ * Schema for the `CanvasRegistryChangedCanvas` type.
+ */
+export interface CanvasRegistryChangedCanvas {
+  /**
+   * Actions the agent or host may invoke
+   */
+  actions?: CanvasRegistryChangedCanvasAction[];
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Short, single-sentence description shown to the agent in canvas catalogs.
+   */
+  description: string;
+  /**
+   * Human-readable canvas name
+   */
+  displayName: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Owning extension display name, when available
+   */
+  extensionName?: string;
+  /**
+   * JSON Schema for canvas open input
+   */
+  inputSchema?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Schema for the `CanvasRegistryChangedCanvasAction` type.
+ */
+export interface CanvasRegistryChangedCanvasAction {
+  /**
+   * Action description
+   */
+  description?: string;
+  /**
+   * JSON Schema for action input
+   */
+  inputSchema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Action name
+   */
+  name: string;
+}
+/**
+ * Session event "mcp_app.tool_call_complete". MCP App view called a tool on a connected MCP server (SEP-1865)
+ */
+export interface McpAppToolCallCompleteEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: McpAppToolCallCompleteData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "mcp_app.tool_call_complete".
+   */
+  type: "mcp_app.tool_call_complete";
+}
+/**
+ * MCP App view called a tool on a connected MCP server (SEP-1865)
+ */
+export interface McpAppToolCallCompleteData {
+  /**
+   * Arguments passed to the tool by the app view, if any
+   */
+  arguments?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Wall-clock duration of the underlying tools/call in milliseconds
+   */
+  durationMs: number;
+  error?: McpAppToolCallCompleteError;
+  /**
+   * Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
+   */
+  result?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Name of the MCP server hosting the tool
+   */
+  serverName: string;
+  /**
+   * True when the call completed without throwing AND the MCP CallToolResult did not set isError
+   */
+  success: boolean;
+  toolMeta?: McpAppToolCallCompleteToolMeta;
+  /**
+   * MCP tool name that was invoked
+   */
+  toolName: string;
+}
+/**
+ * Set when the underlying tools/call threw an error before returning a CallToolResult
+ */
+export interface McpAppToolCallCompleteError {
+  /**
+   * Human-readable error message
+   */
+  message: string;
+}
+/**
+ * The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
+ */
+export interface McpAppToolCallCompleteToolMeta {
+  ui?: McpAppToolCallCompleteToolMetaUI;
+  [k: string]: unknown | undefined;
+}
+/**
+ * Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+ */
+export interface McpAppToolCallCompleteToolMetaUI {
+  /**
+   * `ui://` URI declared by the tool's `_meta.ui.resourceUri`
+   */
+  resourceUri?: string;
+  /**
+   * Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
+   */
+  visibility?: string[];
+  [k: string]: unknown | undefined;
 }

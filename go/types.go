@@ -927,6 +927,21 @@ type SessionConfig struct {
 	// Cloud creates a remote session in the cloud instead of a local session.
 	// The optional repository is associated with the cloud session.
 	Cloud *CloudSessionOptions
+	// Canvases declares canvases this session provides. Sent over the wire on
+	// `session.create`. CanvasHandler must be set when this is non-empty (the
+	// SDK does not enforce this — declarations without a handler will surface
+	// canvas RPCs that return a canvas_handler_unset error envelope).
+	Canvases []CanvasDeclaration
+	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
+	RequestCanvasRenderer *bool
+	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	RequestExtensions *bool
+	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
+	// requests for this session. The SDK does not maintain a per-canvas registry;
+	// the handler must dispatch on CanvasOpenContext.CanvasID itself.
+	CanvasHandler CanvasHandler `json:"-"`
+	// ExtensionInfo identifies the stable extension providing this session's canvases.
+	ExtensionInfo *ExtensionInfo
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -1175,6 +1190,21 @@ type ResumeSessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// See SessionConfig.OnAutoModeSwitchRequest.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+	// Canvases declares canvases this session provides. Sent over the wire on
+	// `session.resume`. See SessionConfig.Canvases.
+	Canvases []CanvasDeclaration
+	// OpenCanvases declares canvas instances the caller knows were open before
+	// this resume so the runtime can re-attach them. Sent over the wire on
+	// `session.resume` as `openCanvases`.
+	OpenCanvases []rpc.OpenCanvasInstance
+	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
+	RequestCanvasRenderer *bool
+	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	RequestExtensions *bool
+	// CanvasHandler receives inbound canvas.* requests for this session. See SessionConfig.CanvasHandler.
+	CanvasHandler CanvasHandler `json:"-"`
+	// ExtensionInfo identifies the stable extension providing this session's canvases.
+	ExtensionInfo *ExtensionInfo
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1399,6 +1429,10 @@ type createSessionRequest struct {
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
 	Cloud                          *CloudSessionOptions           `json:"cloud,omitempty"`
+	Canvases                       []CanvasDeclaration            `json:"canvases,omitempty"`
+	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
+	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
@@ -1454,15 +1488,21 @@ type resumeSessionRequest struct {
 	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
+	Canvases                       []CanvasDeclaration            `json:"canvases,omitempty"`
+	OpenCanvases                   []rpc.OpenCanvasInstance       `json:"openCanvases,omitempty"`
+	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
+	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume
 type resumeSessionResponse struct {
-	SessionID     string               `json:"sessionId"`
-	WorkspacePath string               `json:"workspacePath"`
-	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
+	SessionID     string                   `json:"sessionId"`
+	WorkspacePath string                   `json:"workspacePath"`
+	Capabilities  *SessionCapabilities     `json:"capabilities,omitempty"`
+	OpenCanvases  []rpc.OpenCanvasInstance `json:"openCanvases,omitempty"`
 }
 
 type hooksInvokeRequest struct {

@@ -50,6 +50,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ExternalToolRequestedEvent), "external_tool.requested")]
 [JsonDerivedType(typeof(HookEndEvent), "hook.end")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
+[JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
 [JsonDerivedType(typeof(McpOauthRequiredEvent), "mcp.oauth_required")]
 [JsonDerivedType(typeof(ModelCallFailureEvent), "model.call_failure")]
@@ -59,6 +60,8 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
+[JsonDerivedType(typeof(SessionCanvasOpenedEvent), "session.canvas.opened")]
+[JsonDerivedType(typeof(SessionCanvasRegistryChangedEvent), "session.canvas.registry_changed")]
 [JsonDerivedType(typeof(SessionCompactionCompleteEvent), "session.compaction_complete")]
 [JsonDerivedType(typeof(SessionCompactionStartEvent), "session.compaction_start")]
 [JsonDerivedType(typeof(SessionContextChangedEvent), "session.context_changed")]
@@ -1200,6 +1203,45 @@ public sealed partial class SessionExtensionsLoadedEvent : SessionEvent
     public required SessionExtensionsLoadedData Data { get; set; }
 }
 
+/// <summary>Schema for the `CanvasOpenedData` type.</summary>
+/// <remarks>Represents the <c>session.canvas.opened</c> event.</remarks>
+public sealed partial class SessionCanvasOpenedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.opened";
+
+    /// <summary>The <c>session.canvas.opened</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasOpenedData Data { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+/// <remarks>Represents the <c>session.canvas.registry_changed</c> event.</remarks>
+public sealed partial class SessionCanvasRegistryChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.canvas.registry_changed";
+
+    /// <summary>The <c>session.canvas.registry_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionCanvasRegistryChangedData Data { get; set; }
+}
+
+/// <summary>MCP App view called a tool on a connected MCP server (SEP-1865).</summary>
+/// <remarks>Represents the <c>mcp_app.tool_call_complete</c> event.</remarks>
+public sealed partial class McpAppToolCallCompleteEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "mcp_app.tool_call_complete";
+
+    /// <summary>The <c>mcp_app.tool_call_complete</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required McpAppToolCallCompleteData Data { get; set; }
+}
+
 /// <summary>Session initialization metadata including context and configuration.</summary>
 public sealed partial class SessionStartData
 {
@@ -1345,6 +1387,11 @@ public sealed partial class SessionErrorData
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
 
+    /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serviceRequestId")]
+    public string? ServiceRequestId { get; set; }
+
     /// <summary>Error stack trace, when available.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("stack")]
@@ -1459,6 +1506,11 @@ public sealed partial class SessionModelChangeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("cause")]
     public string? Cause { get; set; }
+
+    /// <summary>Context tier after the model change; null explicitly clears a previously selected tier.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("contextTier")]
+    public SessionModelChangeDataContextTier? ContextTier { get; set; }
 
     /// <summary>Newly selected model identifier.</summary>
     [JsonPropertyName("newModel")]
@@ -1835,6 +1887,11 @@ public sealed partial class SessionCompactionCompleteData
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
 
+    /// <summary>Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serviceRequestId")]
+    public string? ServiceRequestId { get; set; }
+
     /// <summary>Whether compaction completed successfully.</summary>
     [JsonPropertyName("success")]
     public required bool Success { get; set; }
@@ -2055,6 +2112,11 @@ public sealed partial class AssistantMessageData
     [JsonPropertyName("requestId")]
     public string? RequestId { get; set; }
 
+    /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serviceRequestId")]
+    public string? ServiceRequestId { get; set; }
+
     /// <summary>Tool invocations requested by the assistant in this message.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolRequests")]
@@ -2200,6 +2262,11 @@ public sealed partial class AssistantUsageData
     [JsonPropertyName("reasoningTokens")]
     public long? ReasoningTokens { get; set; }
 
+    /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serviceRequestId")]
+    public string? ServiceRequestId { get; set; }
+
     /// <summary>Time to first token in milliseconds. Only available for streaming requests.</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -2240,6 +2307,11 @@ public sealed partial class ModelCallFailureData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("providerCallId")]
     public string? ProviderCallId { get; set; }
+
+    /// <summary>Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("serviceRequestId")]
+    public string? ServiceRequestId { get; set; }
 
     /// <summary>Where the failed model call originated.</summary>
     [JsonPropertyName("source")]
@@ -2387,6 +2459,11 @@ public sealed partial class ToolExecutionCompleteData
     [JsonPropertyName("toolCallId")]
     public required string ToolCallId { get; set; }
 
+    /// <summary>Tool definition metadata, present for MCP tools with MCP Apps support.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolDescription")]
+    public ToolExecutionCompleteToolDescription? ToolDescription { get; set; }
+
     /// <summary>Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("toolTelemetry")]
@@ -2432,6 +2509,16 @@ public sealed partial class SkillInvokedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("pluginVersion")]
     public string? PluginVersion { get; set; }
+
+    /// <summary>Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("source")]
+    public string? Source { get; set; }
+
+    /// <summary>What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("trigger")]
+    public SkillInvokedTrigger? Trigger { get; set; }
 }
 
 /// <summary>Sub-agent startup details including parent tool call and agent information.</summary>
@@ -3087,6 +3174,11 @@ public sealed partial class SessionMcpServersLoadedData
 /// <summary>Schema for the `McpServerStatusChangedData` type.</summary>
 public sealed partial class SessionMcpServerStatusChangedData
 {
+    /// <summary>Error message if the server entered a failed state.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
     /// <summary>Name of the MCP server whose status changed.</summary>
     [JsonPropertyName("serverName")]
     public required string ServerName { get; set; }
@@ -3102,6 +3194,103 @@ public sealed partial class SessionExtensionsLoadedData
     /// <summary>Array of discovered extensions and their status.</summary>
     [JsonPropertyName("extensions")]
     public required ExtensionsLoadedExtension[] Extensions { get; set; }
+}
+
+/// <summary>Schema for the `CanvasOpenedData` type.</summary>
+public sealed partial class SessionCanvasOpenedData
+{
+    /// <summary>Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.</summary>
+    [JsonPropertyName("availability")]
+    public required CanvasOpenedAvailability Availability { get; set; }
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Owning extension display name, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>Input supplied when the instance was opened.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("input")]
+    public JsonElement? Input { get; set; }
+
+    /// <summary>Stable caller-supplied canvas instance identifier.</summary>
+    [JsonPropertyName("instanceId")]
+    public required string InstanceId { get; set; }
+
+    /// <summary>Whether this notification represents an idempotent reopen.</summary>
+    [JsonPropertyName("reopen")]
+    public required bool Reopen { get; set; }
+
+    /// <summary>Provider-supplied status text.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+
+    /// <summary>Rendered title.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    /// <summary>URL for web-rendered canvases.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("url")]
+    public string? Url { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedData` type.</summary>
+public sealed partial class SessionCanvasRegistryChangedData
+{
+    /// <summary>Canvas declarations currently available.</summary>
+    [JsonPropertyName("canvases")]
+    public required CanvasRegistryChangedCanvas[] Canvases { get; set; }
+}
+
+/// <summary>MCP App view called a tool on a connected MCP server (SEP-1865).</summary>
+public sealed partial class McpAppToolCallCompleteData
+{
+    /// <summary>Arguments passed to the tool by the app view, if any.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("arguments")]
+    public IDictionary<string, JsonElement>? Arguments { get; set; }
+
+    /// <summary>Wall-clock duration of the underlying tools/call in milliseconds.</summary>
+    [JsonPropertyName("durationMs")]
+    public required double DurationMs { get; set; }
+
+    /// <summary>Set when the underlying tools/call threw an error before returning a CallToolResult.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("error")]
+    public McpAppToolCallCompleteError? Error { get; set; }
+
+    /// <summary>Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("result")]
+    public IDictionary<string, JsonElement>? Result { get; set; }
+
+    /// <summary>Name of the MCP server hosting the tool.</summary>
+    [JsonPropertyName("serverName")]
+    public required string ServerName { get; set; }
+
+    /// <summary>True when the call completed without throwing AND the MCP CallToolResult did not set isError.</summary>
+    [JsonPropertyName("success")]
+    public required bool Success { get; set; }
+
+    /// <summary>The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("toolMeta")]
+    public McpAppToolCallCompleteToolMeta? ToolMeta { get; set; }
+
+    /// <summary>MCP tool name that was invoked.</summary>
+    [JsonPropertyName("toolName")]
+    public required string ToolName { get; set; }
 }
 
 /// <summary>Working directory and git context at session start.</summary>
@@ -3952,6 +4141,143 @@ public partial class ToolExecutionCompleteContent
 }
 
 
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUICsp</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUICsp
+{
+    /// <summary>Gets or sets the <c>baseUriDomains</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("baseUriDomains")]
+    public string[]? BaseUriDomains { get; set; }
+
+    /// <summary>Gets or sets the <c>connectDomains</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("connectDomains")]
+    public string[]? ConnectDomains { get; set; }
+
+    /// <summary>Gets or sets the <c>frameDomains</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("frameDomains")]
+    public string[]? FrameDomains { get; set; }
+
+    /// <summary>Gets or sets the <c>resourceDomains</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resourceDomains")]
+    public string[]? ResourceDomains { get; set; }
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsCamera</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsCamera
+{
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite
+{
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation
+{
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone
+{
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUIPermissions</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUIPermissions
+{
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("camera")]
+    public ToolExecutionCompleteUIResourceMetaUIPermissionsCamera? Camera { get; set; }
+
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("clipboardWrite")]
+    public ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite? ClipboardWrite { get; set; }
+
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("geolocation")]
+    public ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation? Geolocation { get; set; }
+
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("microphone")]
+    public ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone? Microphone { get; set; }
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMetaUI</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMetaUI
+{
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("csp")]
+    public ToolExecutionCompleteUIResourceMetaUICsp? Csp { get; set; }
+
+    /// <summary>Gets or sets the <c>domain</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("domain")]
+    public string? Domain { get; set; }
+
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("permissions")]
+    public ToolExecutionCompleteUIResourceMetaUIPermissions? Permissions { get; set; }
+
+    /// <summary>Gets or sets the <c>prefersBorder</c> value.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("prefersBorder")]
+    public bool? PrefersBorder { get; set; }
+}
+
+/// <summary>Resource-level UI metadata (CSP, permissions, visual preferences).</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResourceMeta</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResourceMeta
+{
+    /// <summary>Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ui")]
+    public ToolExecutionCompleteUIResourceMetaUI? Ui { get; set; }
+}
+
+/// <summary>MCP Apps UI resource content for rendering in a sandboxed iframe.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteUIResource</c>.</remarks>
+public sealed partial class ToolExecutionCompleteUIResource
+{
+    /// <summary>Resource-level UI metadata (CSP, permissions, visual preferences).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("_meta")]
+    public ToolExecutionCompleteUIResourceMeta? _meta { get; set; }
+
+    /// <summary>Base64-encoded HTML content.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("blob")]
+    public string? Blob { get; set; }
+
+    /// <summary>MIME type of the content.</summary>
+    [JsonPropertyName("mimeType")]
+    public required string MimeType { get; set; }
+
+    /// <summary>HTML content as a string.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    /// <summary>The ui:// URI of the resource.</summary>
+    [JsonPropertyName("uri")]
+    public required string Uri { get; set; }
+}
+
 /// <summary>Tool execution result on success.</summary>
 /// <remarks>Nested data type for <c>ToolExecutionCompleteResult</c>.</remarks>
 public sealed partial class ToolExecutionCompleteResult
@@ -3969,6 +4295,55 @@ public sealed partial class ToolExecutionCompleteResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("detailedContent")]
     public string? DetailedContent { get; set; }
+
+    /// <summary>MCP Apps UI resource content for rendering in a sandboxed iframe.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("uiResource")]
+    public ToolExecutionCompleteUIResource? UiResource { get; set; }
+}
+
+/// <summary>Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteToolDescriptionMetaUI</c>.</remarks>
+public sealed partial class ToolExecutionCompleteToolDescriptionMetaUI
+{
+    /// <summary>URI of the UI resource.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resourceUri")]
+    public string? ResourceUri { get; set; }
+
+    /// <summary>Who can access this tool.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("visibility")]
+    public ToolExecutionCompleteToolDescriptionMetaUIVisibility[]? Visibility { get; set; }
+}
+
+/// <summary>MCP Apps metadata for UI resource association.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteToolDescriptionMeta</c>.</remarks>
+public sealed partial class ToolExecutionCompleteToolDescriptionMeta
+{
+    /// <summary>Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ui")]
+    public ToolExecutionCompleteToolDescriptionMetaUI? Ui { get; set; }
+}
+
+/// <summary>Tool definition metadata, present for MCP tools with MCP Apps support.</summary>
+/// <remarks>Nested data type for <c>ToolExecutionCompleteToolDescription</c>.</remarks>
+public sealed partial class ToolExecutionCompleteToolDescription
+{
+    /// <summary>MCP Apps metadata for UI resource association.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("_meta")]
+    public ToolExecutionCompleteToolDescriptionMeta? _meta { get; set; }
+
+    /// <summary>Tool description.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>Tool name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
 }
 
 /// <summary>Error details when the hook failed.</summary>
@@ -5185,10 +5560,20 @@ public sealed partial class CommandsChangedCommand
 /// <remarks>Nested data type for <c>CapabilitiesChangedUI</c>.</remarks>
 public sealed partial class CapabilitiesChangedUI
 {
+    /// <summary>Whether canvas rendering is now supported.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("canvases")]
+    public bool? Canvases { get; set; }
+
     /// <summary>Whether elicitation is now supported.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("elicitation")]
     public bool? Elicitation { get; set; }
+
+    /// <summary>Whether MCP Apps (SEP-1865) UI passthrough is now supported.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("mcpApps")]
+    public bool? McpApps { get; set; }
 }
 
 /// <summary>Schema for the `SkillsLoadedSkill` type.</summary>
@@ -5272,6 +5657,16 @@ public sealed partial class McpServersLoadedServer
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
+    /// <summary>Name of the plugin that supplied the effective MCP server config, only when source is plugin.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginName")]
+    public string? PluginName { get; set; }
+
+    /// <summary>Version of the plugin that supplied the effective MCP server config, only when source is plugin.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("pluginVersion")]
+    public string? PluginVersion { get; set; }
+
     /// <summary>Configuration source: user, workspace, plugin, or builtin.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("source")]
@@ -5280,6 +5675,11 @@ public sealed partial class McpServersLoadedServer
     /// <summary>Connection status: connected, failed, needs-auth, pending, disabled, or not_configured.</summary>
     [JsonPropertyName("status")]
     public required McpServerStatus Status { get; set; }
+
+    /// <summary>Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("transport")]
+    public McpServerTransport? Transport { get; set; }
 }
 
 /// <summary>Schema for the `ExtensionsLoadedExtension` type.</summary>
@@ -5301,6 +5701,97 @@ public sealed partial class ExtensionsLoadedExtension
     /// <summary>Current status: running, disabled, failed, or starting.</summary>
     [JsonPropertyName("status")]
     public required ExtensionsLoadedExtensionStatus Status { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedCanvasAction` type.</summary>
+/// <remarks>Nested data type for <c>CanvasRegistryChangedCanvasAction</c>.</remarks>
+public sealed partial class CanvasRegistryChangedCanvasAction
+{
+    /// <summary>Action description.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    /// <summary>JSON Schema for action input.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; set; }
+
+    /// <summary>Action name.</summary>
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
+}
+
+/// <summary>Schema for the `CanvasRegistryChangedCanvas` type.</summary>
+/// <remarks>Nested data type for <c>CanvasRegistryChangedCanvas</c>.</remarks>
+public sealed partial class CanvasRegistryChangedCanvas
+{
+    /// <summary>Actions the agent or host may invoke.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("actions")]
+    public CanvasRegistryChangedCanvasAction[]? Actions { get; set; }
+
+    /// <summary>Provider-local canvas identifier.</summary>
+    [JsonPropertyName("canvasId")]
+    public required string CanvasId { get; set; }
+
+    /// <summary>Short, single-sentence description shown to the agent in canvas catalogs.</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Safe for generated string properties: JSON Schema minLength/maxLength map to string length validation, not reflection over trimmed Count members")]
+    [MinLength(1)]
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
+
+    /// <summary>Human-readable canvas name.</summary>
+    [JsonPropertyName("displayName")]
+    public required string DisplayName { get; set; }
+
+    /// <summary>Owning provider identifier.</summary>
+    [JsonPropertyName("extensionId")]
+    public required string ExtensionId { get; set; }
+
+    /// <summary>Owning extension display name, when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("extensionName")]
+    public string? ExtensionName { get; set; }
+
+    /// <summary>JSON Schema for canvas open input.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("inputSchema")]
+    public JsonElement? InputSchema { get; set; }
+}
+
+/// <summary>Set when the underlying tools/call threw an error before returning a CallToolResult.</summary>
+/// <remarks>Nested data type for <c>McpAppToolCallCompleteError</c>.</remarks>
+public sealed partial class McpAppToolCallCompleteError
+{
+    /// <summary>Human-readable error message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>Schema for the `McpAppToolCallCompleteToolMetaUI` type.</summary>
+/// <remarks>Nested data type for <c>McpAppToolCallCompleteToolMetaUI</c>.</remarks>
+public sealed partial class McpAppToolCallCompleteToolMetaUI
+{
+    /// <summary>`ui://` URI declared by the tool's `_meta.ui.resourceUri`.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("resourceUri")]
+    public string? ResourceUri { get; set; }
+
+    /// <summary>Tool visibility per SEP-1865 (typically a subset of `["model","app"]`).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("visibility")]
+    public string[]? Visibility { get; set; }
+}
+
+/// <summary>The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.</summary>
+/// <remarks>Nested data type for <c>McpAppToolCallCompleteToolMeta</c>.</remarks>
+public sealed partial class McpAppToolCallCompleteToolMeta
+{
+    /// <summary>Schema for the `McpAppToolCallCompleteToolMetaUI` type.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("ui")]
+    public McpAppToolCallCompleteToolMetaUI? Ui { get; set; }
 }
 
 /// <summary>Hosting platform type of the repository (github or ado).</summary>
@@ -5424,6 +5915,67 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
         public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
+        }
+    }
+}
+
+/// <summary>Defines the allowed values.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionModelChangeDataContextTier : IEquatable<SessionModelChangeDataContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionModelChangeDataContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionModelChangeDataContextTier"/>.</param>
+    [JsonConstructor]
+    public SessionModelChangeDataContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionModelChangeDataContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Default context tier with standard context window size.</summary>
+    public static SessionModelChangeDataContextTier Default { get; } = new("default");
+
+    /// <summary>Extended context tier with a larger context window.</summary>
+    public static SessionModelChangeDataContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionModelChangeDataContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionModelChangeDataContextTier left, SessionModelChangeDataContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionModelChangeDataContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionModelChangeDataContextTier left, SessionModelChangeDataContextTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionModelChangeDataContextTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionModelChangeDataContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionModelChangeDataContextTier}"/> for serializing <see cref="SessionModelChangeDataContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionModelChangeDataContextTier>
+    {
+        /// <inheritdoc />
+        public override SessionModelChangeDataContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionModelChangeDataContextTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionModelChangeDataContextTier));
         }
     }
 }
@@ -6183,6 +6735,131 @@ public readonly struct ToolExecutionCompleteContentResourceLinkIconTheme : IEqua
         public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteContentResourceLinkIconTheme value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteContentResourceLinkIconTheme));
+        }
+    }
+}
+
+/// <summary>Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ToolExecutionCompleteToolDescriptionMetaUIVisibility : IEquatable<ToolExecutionCompleteToolDescriptionMetaUIVisibility>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ToolExecutionCompleteToolDescriptionMetaUIVisibility"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ToolExecutionCompleteToolDescriptionMetaUIVisibility"/>.</param>
+    [JsonConstructor]
+    public ToolExecutionCompleteToolDescriptionMetaUIVisibility(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ToolExecutionCompleteToolDescriptionMetaUIVisibility"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Tool is callable by the model (LLM tool surface).</summary>
+    public static ToolExecutionCompleteToolDescriptionMetaUIVisibility Model { get; } = new("model");
+
+    /// <summary>Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool.</summary>
+    public static ToolExecutionCompleteToolDescriptionMetaUIVisibility App { get; } = new("app");
+
+    /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteToolDescriptionMetaUIVisibility"/> instances are equivalent.</summary>
+    public static bool operator ==(ToolExecutionCompleteToolDescriptionMetaUIVisibility left, ToolExecutionCompleteToolDescriptionMetaUIVisibility right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ToolExecutionCompleteToolDescriptionMetaUIVisibility"/> instances are not equivalent.</summary>
+    public static bool operator !=(ToolExecutionCompleteToolDescriptionMetaUIVisibility left, ToolExecutionCompleteToolDescriptionMetaUIVisibility right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ToolExecutionCompleteToolDescriptionMetaUIVisibility other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ToolExecutionCompleteToolDescriptionMetaUIVisibility other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ToolExecutionCompleteToolDescriptionMetaUIVisibility}"/> for serializing <see cref="ToolExecutionCompleteToolDescriptionMetaUIVisibility"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ToolExecutionCompleteToolDescriptionMetaUIVisibility>
+    {
+        /// <inheritdoc />
+        public override ToolExecutionCompleteToolDescriptionMetaUIVisibility Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ToolExecutionCompleteToolDescriptionMetaUIVisibility value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ToolExecutionCompleteToolDescriptionMetaUIVisibility));
+        }
+    }
+}
+
+/// <summary>What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SkillInvokedTrigger : IEquatable<SkillInvokedTrigger>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SkillInvokedTrigger"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SkillInvokedTrigger"/>.</param>
+    [JsonConstructor]
+    public SkillInvokedTrigger(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SkillInvokedTrigger"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Skill invocation requested explicitly by the user, such as via a slash command or UI affordance.</summary>
+    public static SkillInvokedTrigger UserInvoked { get; } = new("user-invoked");
+
+    /// <summary>Skill invocation requested by the agent.</summary>
+    public static SkillInvokedTrigger AgentInvoked { get; } = new("agent-invoked");
+
+    /// <summary>Skill content loaded as part of another context, such as a configured custom agent or subagent.</summary>
+    public static SkillInvokedTrigger ContextLoad { get; } = new("context-load");
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInvokedTrigger"/> instances are equivalent.</summary>
+    public static bool operator ==(SkillInvokedTrigger left, SkillInvokedTrigger right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SkillInvokedTrigger"/> instances are not equivalent.</summary>
+    public static bool operator !=(SkillInvokedTrigger left, SkillInvokedTrigger right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SkillInvokedTrigger other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SkillInvokedTrigger other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SkillInvokedTrigger}"/> for serializing <see cref="SkillInvokedTrigger"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SkillInvokedTrigger>
+    {
+        /// <inheritdoc />
+        public override SkillInvokedTrigger Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SkillInvokedTrigger value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SkillInvokedTrigger));
         }
     }
 }
@@ -6967,6 +7644,73 @@ public readonly struct McpServerStatus : IEquatable<McpServerStatus>
     }
 }
 
+/// <summary>Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server).</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct McpServerTransport : IEquatable<McpServerTransport>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="McpServerTransport"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="McpServerTransport"/>.</param>
+    [JsonConstructor]
+    public McpServerTransport(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="McpServerTransport"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Server communicates over stdio with a local child process.</summary>
+    public static McpServerTransport Stdio { get; } = new("stdio");
+
+    /// <summary>Server communicates over streamable HTTP.</summary>
+    public static McpServerTransport Http { get; } = new("http");
+
+    /// <summary>Server communicates over Server-Sent Events (deprecated).</summary>
+    public static McpServerTransport Sse { get; } = new("sse");
+
+    /// <summary>Server is backed by an in-memory runtime implementation.</summary>
+    public static McpServerTransport Memory { get; } = new("memory");
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerTransport"/> instances are equivalent.</summary>
+    public static bool operator ==(McpServerTransport left, McpServerTransport right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="McpServerTransport"/> instances are not equivalent.</summary>
+    public static bool operator !=(McpServerTransport left, McpServerTransport right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is McpServerTransport other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(McpServerTransport other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{McpServerTransport}"/> for serializing <see cref="McpServerTransport"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<McpServerTransport>
+    {
+        /// <inheritdoc />
+        public override McpServerTransport Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, McpServerTransport value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(McpServerTransport));
+        }
+    }
+}
+
 /// <summary>Discovery source.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -7095,6 +7839,67 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
     }
 }
 
+/// <summary>Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailability>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="CanvasOpenedAvailability"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="CanvasOpenedAvailability"/>.</param>
+    [JsonConstructor]
+    public CanvasOpenedAvailability(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="CanvasOpenedAvailability"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Provider connection is live; actions can be invoked.</summary>
+    public static CanvasOpenedAvailability Ready { get; } = new("ready");
+
+    /// <summary>Provider has gone away; the instance is awaiting rebinding.</summary>
+    public static CanvasOpenedAvailability Stale { get; } = new("stale");
+
+    /// <summary>Returns a value indicating whether two <see cref="CanvasOpenedAvailability"/> instances are equivalent.</summary>
+    public static bool operator ==(CanvasOpenedAvailability left, CanvasOpenedAvailability right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="CanvasOpenedAvailability"/> instances are not equivalent.</summary>
+    public static bool operator !=(CanvasOpenedAvailability left, CanvasOpenedAvailability right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is CanvasOpenedAvailability other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(CanvasOpenedAvailability other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{CanvasOpenedAvailability}"/> for serializing <see cref="CanvasOpenedAvailability"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<CanvasOpenedAvailability>
+    {
+        /// <inheritdoc />
+        public override CanvasOpenedAvailability Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, CanvasOpenedAvailability value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasOpenedAvailability));
+        }
+    }
+}
+
 [JsonSourceGenerationOptions(
     JsonSerializerDefaults.Web,
     AllowOutOfOrderMetadataProperties = true,
@@ -7130,6 +7935,8 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(AutoModeSwitchCompletedEvent))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedData))]
 [JsonSerializable(typeof(AutoModeSwitchRequestedEvent))]
+[JsonSerializable(typeof(CanvasRegistryChangedCanvas))]
+[JsonSerializable(typeof(CanvasRegistryChangedCanvasAction))]
 [JsonSerializable(typeof(CapabilitiesChangedData))]
 [JsonSerializable(typeof(CapabilitiesChangedEvent))]
 [JsonSerializable(typeof(CapabilitiesChangedUI))]
@@ -7168,6 +7975,11 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(HookEndEvent))]
 [JsonSerializable(typeof(HookStartData))]
 [JsonSerializable(typeof(HookStartEvent))]
+[JsonSerializable(typeof(McpAppToolCallCompleteData))]
+[JsonSerializable(typeof(McpAppToolCallCompleteError))]
+[JsonSerializable(typeof(McpAppToolCallCompleteEvent))]
+[JsonSerializable(typeof(McpAppToolCallCompleteToolMeta))]
+[JsonSerializable(typeof(McpAppToolCallCompleteToolMetaUI))]
 [JsonSerializable(typeof(McpOauthCompletedData))]
 [JsonSerializable(typeof(McpOauthCompletedEvent))]
 [JsonSerializable(typeof(McpOauthRequiredData))]
@@ -7224,6 +8036,10 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(SamplingRequestedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
+[JsonSerializable(typeof(SessionCanvasOpenedData))]
+[JsonSerializable(typeof(SessionCanvasOpenedEvent))]
+[JsonSerializable(typeof(SessionCanvasRegistryChangedData))]
+[JsonSerializable(typeof(SessionCanvasRegistryChangedEvent))]
 [JsonSerializable(typeof(SessionCompactionCompleteData))]
 [JsonSerializable(typeof(SessionCompactionCompleteEvent))]
 [JsonSerializable(typeof(SessionCompactionStartData))]
@@ -7329,6 +8145,18 @@ public readonly struct ExtensionsLoadedExtensionStatus : IEquatable<ExtensionsLo
 [JsonSerializable(typeof(ToolExecutionCompleteError))]
 [JsonSerializable(typeof(ToolExecutionCompleteEvent))]
 [JsonSerializable(typeof(ToolExecutionCompleteResult))]
+[JsonSerializable(typeof(ToolExecutionCompleteToolDescription))]
+[JsonSerializable(typeof(ToolExecutionCompleteToolDescriptionMeta))]
+[JsonSerializable(typeof(ToolExecutionCompleteToolDescriptionMetaUI))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResource))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMeta))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUI))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUICsp))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUIPermissions))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUIPermissionsCamera))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation))]
+[JsonSerializable(typeof(ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone))]
 [JsonSerializable(typeof(ToolExecutionPartialResultData))]
 [JsonSerializable(typeof(ToolExecutionPartialResultEvent))]
 [JsonSerializable(typeof(ToolExecutionProgressData))]

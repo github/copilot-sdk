@@ -12,6 +12,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::canvas::{CanvasDeclaration, CanvasHandler};
+use crate::generated::api_types::OpenCanvasInstance;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
     UserInputHandler,
@@ -773,6 +775,26 @@ impl CloudSessionOptions {
     }
 }
 
+/// Stable extension identity for session participants that provide canvases.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExtensionInfo {
+    /// Extension namespace/source, e.g. `"github-app"`.
+    pub source: String,
+    /// Stable provider name within the source namespace.
+    pub name: String,
+}
+
+impl ExtensionInfo {
+    /// Create stable extension identity metadata.
+    pub fn new(source: impl Into<String>, name: impl Into<String>) -> Self {
+        Self {
+            source: source.into(),
+            name: name.into(),
+        }
+    }
+}
+
 /// Configuration for a single MCP server.
 ///
 /// MCP (Model Context Protocol) servers expose external tools to the
@@ -1088,6 +1110,19 @@ pub struct SessionConfig {
     pub system_message: Option<SystemMessageConfig>,
     /// Client-defined tool declarations to expose to the agent.
     pub tools: Option<Vec<Tool>>,
+    /// Canvas declarations this connection provides to the runtime.
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    /// Provider-side canvas lifecycle handler. The SDK routes inbound
+    /// `canvas.open` / `canvas.close` / `canvas.action.invoke` requests to
+    /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
+    /// to install one.
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Request canvas renderer tools for this connection.
+    pub request_canvas_renderer: Option<bool>,
+    /// Request extension tools and dispatch for this connection.
+    pub request_extensions: Option<bool>,
+    /// Stable extension identity for canvas/tool providers on this connection.
+    pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of built-in tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names the agent must not use.
@@ -1211,6 +1246,14 @@ impl std::fmt::Debug for SessionConfig {
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("canvases", &self.canvases)
+            .field(
+                "canvas_handler",
+                &self.canvas_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
+            .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
@@ -1290,6 +1333,11 @@ impl Default for SessionConfig {
             streaming: None,
             system_message: None,
             tools: None,
+            canvases: None,
+            canvas_handler: None,
+            request_canvas_renderer: None,
+            request_extensions: None,
+            extension_info: None,
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
@@ -1340,6 +1388,7 @@ pub(crate) struct SessionConfigRuntime {
     pub hooks_handler: Option<Arc<dyn SessionHooks>>,
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
     pub tool_handlers: HashMap<String, Arc<dyn crate::tool::ToolHandler>>,
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
     pub session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     pub commands: Option<Vec<CommandDefinition>>,
 }
@@ -1407,6 +1456,8 @@ impl SessionConfig {
                 })
                 .collect()
         });
+        let wire_canvases = self.canvases.clone();
+        let canvas_handler = self.canvas_handler.clone();
 
         let wire = crate::wire::SessionCreateWire {
             session_id,
@@ -1416,6 +1467,10 @@ impl SessionConfig {
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
+            canvases: wire_canvases,
+            request_canvas_renderer: self.request_canvas_renderer,
+            request_extensions: self.request_extensions,
+            extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             mcp_servers: self.mcp_servers,
@@ -1456,6 +1511,7 @@ impl SessionConfig {
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
+            canvas_handler,
             session_fs_provider: self.session_fs_provider,
             commands: self.commands,
         };
@@ -1603,6 +1659,39 @@ impl SessionConfig {
     /// Set the client-defined tools to expose to the agent.
     pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
         self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Set canvas declarations for this connection. The runtime advertises
+    /// these to the agent; install a [`CanvasHandler`] via
+    /// [`with_canvas_handler`](Self::with_canvas_handler) to receive the
+    /// resulting provider callbacks.
+    pub fn with_canvases<I: IntoIterator<Item = CanvasDeclaration>>(mut self, canvases: I) -> Self {
+        self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Install the provider-side [`CanvasHandler`] for this session.
+    pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
+        self.canvas_handler = Some(handler);
+        self
+    }
+
+    /// Request host canvas renderer tools for this connection.
+    pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
+        self.request_canvas_renderer = Some(request);
+        self
+    }
+
+    /// Request extension tools and dispatch for this connection.
+    pub fn with_request_extensions(mut self, request: bool) -> Self {
+        self.request_extensions = Some(request);
+        self
+    }
+
+    /// Set stable extension identity metadata for this connection.
+    pub fn with_extension_info(mut self, extension_info: ExtensionInfo) -> Self {
+        self.extension_info = Some(extension_info);
         self
     }
 
@@ -1790,6 +1879,19 @@ pub struct ResumeSessionConfig {
     pub system_message: Option<SystemMessageConfig>,
     /// Client-defined tool declarations to re-supply on resume.
     pub tools: Option<Vec<Tool>>,
+    /// Canvas declarations this connection provides to the runtime.
+    pub canvases: Option<Vec<CanvasDeclaration>>,
+    /// Provider-side canvas lifecycle handler. See
+    /// [`SessionConfig::canvas_handler`].
+    pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    /// Open canvas instances the caller knows were open before this resume.
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
+    /// Request canvas renderer tools for this connection.
+    pub request_canvas_renderer: Option<bool>,
+    /// Request extension tools and dispatch for this connection.
+    pub request_extensions: Option<bool>,
+    /// Stable extension identity for canvas/tool providers on this connection.
+    pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of tool names the agent may use.
     pub available_tools: Option<Vec<String>>,
     /// Blocklist of built-in tool names.
@@ -1891,6 +1993,15 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
+            .field("canvases", &self.canvases)
+            .field(
+                "canvas_handler",
+                &self.canvas_handler.as_ref().map(|_| "<set>"),
+            )
+            .field("open_canvases", &self.open_canvases)
+            .field("request_canvas_renderer", &self.request_canvas_renderer)
+            .field("request_extensions", &self.request_extensions)
+            .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
@@ -1997,6 +2108,8 @@ impl ResumeSessionConfig {
                 })
                 .collect()
         });
+        let wire_canvases = self.canvases.clone();
+        let canvas_handler = self.canvas_handler.clone();
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -2005,6 +2118,11 @@ impl ResumeSessionConfig {
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
+            canvases: wire_canvases,
+            open_canvases: self.open_canvases,
+            request_canvas_renderer: self.request_canvas_renderer,
+            request_extensions: self.request_extensions,
+            extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
             mcp_servers: self.mcp_servers,
@@ -2046,6 +2164,7 @@ impl ResumeSessionConfig {
             hooks_handler: self.hooks_handler,
             system_message_transform: self.system_message_transform,
             tool_handlers,
+            canvas_handler,
             session_fs_provider: self.session_fs_provider,
             commands: self.commands,
         };
@@ -2065,6 +2184,12 @@ impl ResumeSessionConfig {
             streaming: None,
             system_message: None,
             tools: None,
+            canvases: None,
+            canvas_handler: None,
+            open_canvases: None,
+            request_canvas_renderer: None,
+            request_extensions: None,
+            extension_info: None,
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
@@ -2216,6 +2341,45 @@ impl ResumeSessionConfig {
     /// Re-supply client-defined tools on resume.
     pub fn with_tools<I: IntoIterator<Item = Tool>>(mut self, tools: I) -> Self {
         self.tools = Some(tools.into_iter().collect());
+        self
+    }
+
+    /// Re-supply canvas declarations on resume.
+    pub fn with_canvases<I: IntoIterator<Item = CanvasDeclaration>>(mut self, canvases: I) -> Self {
+        self.canvases = Some(canvases.into_iter().collect());
+        self
+    }
+
+    /// Install the provider-side [`CanvasHandler`] for the resumed session.
+    pub fn with_canvas_handler(mut self, handler: Arc<dyn CanvasHandler>) -> Self {
+        self.canvas_handler = Some(handler);
+        self
+    }
+
+    /// Seed open canvas instances that were visible before resuming.
+    pub fn with_open_canvases<I: IntoIterator<Item = OpenCanvasInstance>>(
+        mut self,
+        open_canvases: I,
+    ) -> Self {
+        self.open_canvases = Some(open_canvases.into_iter().collect());
+        self
+    }
+
+    /// Request host canvas renderer tools for this connection on resume.
+    pub fn with_request_canvas_renderer(mut self, request: bool) -> Self {
+        self.request_canvas_renderer = Some(request);
+        self
+    }
+
+    /// Request extension tools and dispatch for this connection on resume.
+    pub fn with_request_extensions(mut self, request: bool) -> Self {
+        self.request_extensions = Some(request);
+        self
+    }
+
+    /// Set stable extension identity metadata for this connection on resume.
+    pub fn with_extension_info(mut self, extension_info: ExtensionInfo) -> Self {
+        self.extension_info = Some(extension_info);
         self
     }
 
@@ -2465,6 +2629,31 @@ pub struct CreateSessionResult {
     /// Capabilities negotiated with the CLI for this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<SessionCapabilities>,
+}
+
+/// Response from `session.resume`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ResumeSessionResult {
+    /// The CLI-assigned session ID. Older runtimes may omit this on resume.
+    #[serde(default)]
+    pub session_id: Option<SessionId>,
+    /// Workspace directory for the session (infinite sessions).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_path: Option<PathBuf>,
+    /// Remote session URL, if the session is running remotely.
+    #[serde(default, alias = "remote_url")]
+    pub remote_url: Option<String>,
+    /// Capabilities negotiated with the CLI for this session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<SessionCapabilities>,
+    /// Canvas instances already open when the session was resumed.
+    #[serde(
+        default,
+        alias = "openCanvasInstances",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub open_canvases: Option<Vec<OpenCanvasInstance>>,
 }
 
 /// Severity level for [`Session::log`](crate::session::Session::log) messages.
@@ -3299,6 +3488,9 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// Host-specific canvas capabilities.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canvases: Option<bool>,
 }
 
 /// Options for the [`SessionUi::input`](crate::session::SessionUi::input) convenience method.
@@ -3449,7 +3641,7 @@ mod tests {
 
     use super::{
         Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, GitHubReferenceType,
+        ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType,
         InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
         SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
@@ -3694,7 +3886,8 @@ mod tests {
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
-            .with_include_sub_agent_streaming_events(false);
+            .with_include_sub_agent_streaming_events(false)
+            .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_ref().map(|s| s.as_str()), Some("sess-1"));
         assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
@@ -3726,6 +3919,10 @@ mod tests {
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(false));
+        assert_eq!(
+            cfg.extension_info,
+            Some(ExtensionInfo::new("github-app", "counter"))
+        );
     }
 
     #[test]
@@ -3749,7 +3946,8 @@ mod tests {
             .with_enable_session_telemetry(false)
             .with_include_sub_agent_streaming_events(true)
             .with_suppress_resume_event(true)
-            .with_continue_pending_work(true);
+            .with_continue_pending_work(true)
+            .with_extension_info(ExtensionInfo::new("github-app", "counter"));
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
@@ -3781,6 +3979,10 @@ mod tests {
         assert_eq!(cfg.include_sub_agent_streaming_events, Some(true));
         assert_eq!(cfg.suppress_resume_event, Some(true));
         assert_eq!(cfg.continue_pending_work, Some(true));
+        assert_eq!(
+            cfg.extension_info,
+            Some(ExtensionInfo::new("github-app", "counter"))
+        );
     }
 
     /// `continue_pending_work` must serialize to wire as `continuePendingWork`

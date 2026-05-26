@@ -31,6 +31,8 @@ public final class SessionCommandsApi {
 
     /**
      * Optional filters controlling which command sources to include in the listing.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionCommandsListResult> list() {
@@ -42,6 +44,8 @@ public final class SessionCommandsApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<Void> invoke(SessionCommandsInvokeParams params) {
@@ -55,6 +59,8 @@ public final class SessionCommandsApi {
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionCommandsHandlePendingCommandResult> handlePendingCommand(SessionCommandsHandlePendingCommandParams params) {
@@ -64,10 +70,42 @@ public final class SessionCommandsApi {
     }
 
     /**
-     * Queued command request ID and the result indicating whether the client handled it.
+     * Slash command name and argument string to execute synchronously.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionCommandsExecuteResult> execute(SessionCommandsExecuteParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.execute", _p, SessionCommandsExecuteResult.class);
+    }
+
+    /**
+     * Slash-prefixed command string to enqueue for FIFO processing.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionCommandsEnqueueResult> enqueue(SessionCommandsEnqueueParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.commands.enqueue", _p, SessionCommandsEnqueueResult.class);
+    }
+
+    /**
+     * Queued-command request ID and the result indicating whether the host executed it (and whether to stop processing further queued commands).
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
      */
     public CompletableFuture<SessionCommandsRespondToQueuedCommandResult> respondToQueuedCommand(SessionCommandsRespondToQueuedCommandParams params) {

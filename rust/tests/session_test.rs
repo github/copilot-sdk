@@ -6,14 +6,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use github_copilot_sdk::canvas::{
+    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasOpenContext, CanvasOpenResponse,
+    CanvasResult,
+};
+use github_copilot_sdk::generated::api_types::{CanvasInstanceAvailability, OpenCanvasInstance};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
     CloudSessionOptions, CloudSessionRepository, CommandContext, CommandDefinition, CommandHandler,
-    DeliveryMode, ElicitationRequest, ElicitationResult, ExitPlanModeData, MessageOptions,
-    ProviderConfig, RequestId, SessionConfig, SessionId, Tool, ToolInvocation, ToolResult,
+    DeliveryMode, ElicitationRequest, ElicitationResult, ExitPlanModeData, ExtensionInfo,
+    MessageOptions, ProviderConfig, RequestId, SessionConfig, SessionId, Tool, ToolInvocation,
+    ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
@@ -21,6 +27,34 @@ use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(2);
+
+struct TestCanvasHandler;
+
+#[async_trait]
+impl CanvasHandler for TestCanvasHandler {
+    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
+        Ok(CanvasOpenResponse {
+            url: Some(format!("https://example.test/{}", ctx.canvas_id)),
+            title: Some("Test Canvas".to_string()),
+            status: Some("ready".to_string()),
+        })
+    }
+
+    async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+        Ok(serde_json::json!({
+            "actionName": ctx.action_name,
+            "input": ctx.input,
+        }))
+    }
+}
+
+fn test_canvas(id: &str) -> CanvasDeclaration {
+    CanvasDeclaration::new(id, "Test Canvas", "Test canvas description")
+}
+
+fn test_canvas_handler() -> Arc<dyn CanvasHandler> {
+    Arc::new(TestCanvasHandler)
+}
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
     let header = format!("Content-Length: {}\r\n\r\n", body.len());
@@ -321,6 +355,53 @@ async fn create_session_rejects_cloud_config() {
 }
 
 #[tokio::test]
+async fn create_session_sends_canvas_wire_fields() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_canvases([test_canvas("counter")])
+                        .with_request_canvas_renderer(true)
+                        .with_request_extensions(true)
+                        .with_extension_info(ExtensionInfo::new("github-app", "counter-provider")),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["canvases"][0]["id"], "counter");
+    assert_eq!(
+        request["params"]["canvases"][0]["displayName"],
+        "Test Canvas"
+    );
+    assert_eq!(request["params"]["requestCanvasRenderer"], true);
+    assert_eq!(request["params"]["requestExtensions"], true);
+    assert_eq!(request["params"]["extensionInfo"]["source"], "github-app");
+    assert_eq!(
+        request["params"]["extensionInfo"]["name"],
+        "counter-provider"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn create_cloud_session_sends_cloud_create_without_session_id() {
     let (client, mut server_read, mut server_write) = make_client();
 
@@ -609,6 +690,35 @@ async fn create_cloud_session_buffers_early_requests_until_session_id_is_registe
     assert_eq!(response["id"], 301);
     assert_eq!(response["result"]["answer"], "blue");
     assert_eq!(response["result"]["wasFreeform"], true);
+}
+
+#[tokio::test]
+async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_canvases([test_canvas("counter")])
+            .with_canvas_handler(test_canvas_handler())
+    })
+    .await;
+
+    server
+        .send_request(
+            42,
+            "canvas.action.invoke",
+            serde_json::json!({
+                "sessionId": session.id(),
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "actionName": "increment",
+                "input": { "amount": 1 }
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 42);
+    assert_eq!(response["result"]["actionName"], "increment");
+    assert_eq!(response["result"]["input"]["amount"], 1);
 }
 
 #[tokio::test]
@@ -1014,9 +1124,20 @@ fn permission_request_data_extracts_typed_kind() {
 
     let custom: PermissionRequestData = serde_json::from_value(serde_json::json!({
         "kind": "custom-tool",
+        "toolName": "open_canvas",
+        "args": {
+            "extensionId": "github-app:counter-provider",
+            "canvasId": "counter",
+            "instanceId": "counter-1"
+        }
     }))
     .unwrap();
     assert_eq!(custom.kind, Some(PermissionRequestKind::CustomTool));
+    assert_eq!(custom.extra["toolName"], "open_canvas");
+    assert_eq!(
+        custom.extra["args"]["extensionId"],
+        "github-app:counter-provider"
+    );
 
     // Unknown kinds fall through to the catch-all variant rather than failing.
     let unknown: PermissionRequestData = serde_json::from_value(serde_json::json!({
@@ -2700,6 +2821,86 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
     write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
 
     timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let cfg = ResumeSessionConfig::new(SessionId::from("canvas-resume"))
+                .with_canvases([test_canvas("counter")])
+                .with_request_canvas_renderer(true)
+                .with_request_extensions(true)
+                .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"))
+                .with_open_canvases([OpenCanvasInstance {
+                    instance_id: "counter-1".to_string(),
+                    extension_id: "github-app:counter-provider".to_string(),
+                    extension_name: Some("Counter Provider".to_string()),
+                    canvas_id: "counter".to_string(),
+                    title: Some("Counter".to_string()),
+                    status: Some("ready".to_string()),
+                    url: Some("https://example.test/counter".to_string()),
+                    input: Some(serde_json::json!({ "seed": 1 })),
+                    reopen: false,
+                    availability: CanvasInstanceAvailability::Stale,
+                }]);
+            client.resume_session(cfg).await.unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["canvases"][0]["id"], "counter");
+    assert_eq!(request["params"]["requestCanvasRenderer"], true);
+    assert_eq!(request["params"]["requestExtensions"], true);
+    assert_eq!(request["params"]["extensionInfo"]["source"], "github-app");
+    assert_eq!(
+        request["params"]["extensionInfo"]["name"],
+        "counter-provider"
+    );
+    assert_eq!(
+        request["params"]["openCanvases"][0]["availability"],
+        "stale"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": {
+            "sessionId": "canvas-resume",
+            "openCanvases": [{
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "url": "https://example.test/counter",
+                "reopen": false,
+                "availability": "ready"
+            }],
+            "capabilities": {
+                "ui": { "canvases": true }
+            }
+        },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+    let open = session.open_canvases();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
+    let caps = session.capabilities();
+    assert_eq!(caps.ui.unwrap().canvases, Some(true));
 }
 
 #[tokio::test]

@@ -25,7 +25,7 @@ public record SessionPermissionsHandlePendingPermissionRequestParams(
     @JsonProperty("sessionId") String sessionId,
     /** Request ID of the pending permission request */
     @JsonProperty("requestId") String requestId,
-    /** Decision to apply to a pending permission request. */
+    /** The client's response to the pending permission prompt */
     @JsonProperty("result") Object result
 ) {
 }

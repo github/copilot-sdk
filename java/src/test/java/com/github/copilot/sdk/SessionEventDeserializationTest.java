@@ -792,10 +792,10 @@ public class SessionEventDeserializationTest {
 
         var shutdownEvent = (SessionShutdownEvent) event;
         assertEquals(ShutdownType.ROUTINE, shutdownEvent.getData().shutdownType());
-        assertEquals(5.0, shutdownEvent.getData().totalPremiumRequests());
+        assertEquals(Double.valueOf(5.0), shutdownEvent.getData().totalPremiumRequests());
         assertEquals("gpt-4", shutdownEvent.getData().currentModel());
         assertNotNull(shutdownEvent.getData().codeChanges());
-        assertEquals(10.0, shutdownEvent.getData().codeChanges().linesAdded());
+        assertEquals((Long) 10L, shutdownEvent.getData().codeChanges().linesAdded());
     }
 
     @Test
@@ -1054,7 +1054,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         var data = event.getData();
         assertEquals("sess-full", data.sessionId());
-        assertEquals(2.0, data.version());
+        assertEquals((Long) 2L, data.version());
         assertEquals("copilot-cli", data.producer());
         assertEquals("1.2.3", data.copilotVersion());
         assertNotNull(data.startTime());
@@ -1077,7 +1077,7 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         var data = event.getData();
         assertNotNull(data.resumeTime());
-        assertEquals(42.0, data.eventCount());
+        assertEquals((Long) 42L, data.eventCount());
     }
 
     @Test
@@ -1178,13 +1178,13 @@ public class SessionEventDeserializationTest {
         var event = (SessionTruncationEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals(128000.0, data.tokenLimit());
-        assertEquals(150000.0, data.preTruncationTokensInMessages());
-        assertEquals(100.0, data.preTruncationMessagesLength());
-        assertEquals(120000.0, data.postTruncationTokensInMessages());
-        assertEquals(80.0, data.postTruncationMessagesLength());
-        assertEquals(30000.0, data.tokensRemovedDuringTruncation());
-        assertEquals(20.0, data.messagesRemovedDuringTruncation());
+        assertEquals((Long) 128000L, data.tokenLimit());
+        assertEquals((Long) 150000L, data.preTruncationTokensInMessages());
+        assertEquals((Long) 100L, data.preTruncationMessagesLength());
+        assertEquals((Long) 120000L, data.postTruncationTokensInMessages());
+        assertEquals((Long) 80L, data.postTruncationMessagesLength());
+        assertEquals((Long) 30000L, data.tokensRemovedDuringTruncation());
+        assertEquals((Long) 20L, data.messagesRemovedDuringTruncation());
         assertEquals("system", data.performedBy());
     }
 
@@ -1204,9 +1204,9 @@ public class SessionEventDeserializationTest {
         var event = (SessionUsageInfoEvent) parseJson(json);
         assertNotNull(event);
         var data = event.getData();
-        assertEquals(128000.0, data.tokenLimit());
-        assertEquals(50000.0, data.currentTokens());
-        assertEquals(25.0, data.messagesLength());
+        assertEquals((Long) 128000L, data.tokenLimit());
+        assertEquals((Long) 50000L, data.currentTokens());
+        assertEquals((Long) 25L, data.messagesLength());
     }
 
     @Test
@@ -1240,21 +1240,21 @@ public class SessionEventDeserializationTest {
         var data = event.getData();
         assertTrue(data.success());
         assertNull(data.error());
-        assertEquals(150000.0, data.preCompactionTokens());
-        assertEquals(60000.0, data.postCompactionTokens());
-        assertEquals(100.0, data.preCompactionMessagesLength());
-        assertEquals(50.0, data.messagesRemoved());
-        assertEquals(90000.0, data.tokensRemoved());
+        assertEquals((Long) 150000L, data.preCompactionTokens());
+        assertEquals((Long) 60000L, data.postCompactionTokens());
+        assertEquals((Long) 100L, data.preCompactionMessagesLength());
+        assertEquals((Long) 50L, data.messagesRemoved());
+        assertEquals((Long) 90000L, data.tokensRemoved());
         assertEquals("Compacted conversation", data.summaryContent());
-        assertEquals(3.0, data.checkpointNumber());
+        assertEquals((Long) 3L, data.checkpointNumber());
         assertEquals("/checkpoints/3", data.checkpointPath());
         assertEquals("req-compact-1", data.requestId());
 
         var tokens = data.compactionTokensUsed();
         assertNotNull(tokens);
-        assertEquals(1000.0, tokens.inputTokens());
-        assertEquals(500.0, tokens.outputTokens());
-        assertEquals(200.0, tokens.cacheReadTokens());
+        assertEquals((Long) 1000L, tokens.inputTokens());
+        assertEquals((Long) 500L, tokens.outputTokens());
+        assertEquals((Long) 200L, tokens.cacheReadTokens());
     }
 
     @Test
@@ -1288,16 +1288,16 @@ public class SessionEventDeserializationTest {
         var data = event.getData();
         assertEquals(ShutdownType.ERROR, data.shutdownType());
         assertEquals("OOM", data.errorReason());
-        assertEquals(10.0, data.totalPremiumRequests());
-        assertEquals(5000.5, data.totalApiDurationMs());
-        assertEquals(1700000000000.0, data.sessionStartTime());
+        assertEquals(Double.valueOf(10.0), data.totalPremiumRequests());
+        assertEquals((Long) 5000L, data.totalApiDurationMs());
+        assertEquals((Long) 1700000000000L, data.sessionStartTime());
         assertEquals("gpt-4-turbo", data.currentModel());
         assertNotNull(data.modelMetrics());
 
         var changes = data.codeChanges();
         assertNotNull(changes);
-        assertEquals(50.0, changes.linesAdded());
-        assertEquals(20.0, changes.linesRemoved());
+        assertEquals((Long) 50L, changes.linesAdded());
+        assertEquals((Long) 20L, changes.linesRemoved());
         assertNotNull(changes.filesModified());
         assertEquals(3, changes.filesModified().size());
         assertEquals("a.java", changes.filesModified().get(0));
@@ -1391,7 +1391,7 @@ public class SessionEventDeserializationTest {
         var event = (AssistantStreamingDeltaEvent) parseJson(json);
         assertNotNull(event);
         assertEquals("assistant.streaming_delta", event.getType());
-        assertEquals(4096.0, event.getData().totalResponseSizeBytes());
+        assertEquals((Long) 4096L, event.getData().totalResponseSizeBytes());
     }
 
     @Test
@@ -1482,12 +1482,12 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         var data = event.getData();
         assertEquals("gpt-4-turbo", data.model());
-        assertEquals(500.0, data.inputTokens());
-        assertEquals(200.0, data.outputTokens());
-        assertEquals(50.0, data.cacheReadTokens());
-        assertEquals(150.0, data.cacheWriteTokens());
+        assertEquals((Long) 500L, data.inputTokens());
+        assertEquals((Long) 200L, data.outputTokens());
+        assertEquals((Long) 50L, data.cacheReadTokens());
+        assertEquals((Long) 150L, data.cacheWriteTokens());
         assertEquals(0.05, data.cost());
-        assertEquals(1234.5, data.duration());
+        assertEquals((Long) 1234L, data.duration());
         assertEquals("user", data.initiator());
         assertEquals("api-1", data.apiCallId());
         assertEquals("prov-1", data.providerCallId());
@@ -1497,11 +1497,11 @@ public class SessionEventDeserializationTest {
 
         // Verify copilotUsage
         assertNotNull(data.copilotUsage());
-        assertEquals(1234567.0, data.copilotUsage().totalNanoAiu());
+        assertEquals(Double.valueOf(1234567.0), data.copilotUsage().totalNanoAiu());
         assertNotNull(data.copilotUsage().tokenDetails());
         assertEquals(2, data.copilotUsage().tokenDetails().size());
         assertEquals("input", data.copilotUsage().tokenDetails().get(0).tokenType());
-        assertEquals(500.0, data.copilotUsage().tokenDetails().get(0).tokenCount());
+        assertEquals((Long) 500L, data.copilotUsage().tokenDetails().get(0).tokenCount());
         assertEquals("output", data.copilotUsage().tokenDetails().get(1).tokenType());
     }
 
@@ -1522,10 +1522,8 @@ public class SessionEventDeserializationTest {
         assertNotNull(event);
         var data = event.getData();
         assertEquals("gpt-4-turbo", data.model());
-        assertEquals(500.0, data.inputTokens());
-        assertEquals(200.0, data.outputTokens());
-        // quotaSnapshots is null when absent in JSON (generated class uses nullable
-        // fields)
+        assertEquals((Long) 500L, data.inputTokens());
+        assertEquals((Long) 200L, data.outputTokens());
         assertNull(data.quotaSnapshots());
     }
 
@@ -2147,7 +2145,7 @@ public class SessionEventDeserializationTest {
         var event = (SessionShutdownEvent) parseJson(json);
         assertNotNull(event);
         assertEquals(ShutdownType.ROUTINE, event.getData().shutdownType());
-        assertEquals(100.0, event.getData().codeChanges().linesAdded());
+        assertEquals((Long) 100L, event.getData().codeChanges().linesAdded());
         assertEquals(1, event.getData().codeChanges().filesModified().size());
     }
 

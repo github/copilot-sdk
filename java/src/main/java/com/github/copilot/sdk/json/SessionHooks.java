@@ -38,6 +38,7 @@ package com.github.copilot.sdk.json;
 public class SessionHooks {
 
     private PreToolUseHandler onPreToolUse;
+    private PreMcpToolCallHandler onPreMcpToolCall;
     private PostToolUseHandler onPostToolUse;
     private UserPromptSubmittedHandler onUserPromptSubmitted;
     private SessionStartHandler onSessionStart;
@@ -61,6 +62,30 @@ public class SessionHooks {
      */
     public SessionHooks setOnPreToolUse(PreToolUseHandler onPreToolUse) {
         this.onPreToolUse = onPreToolUse;
+        return this;
+    }
+
+    /**
+     * Gets the pre-MCP-tool-call handler.
+     *
+     * @return the handler, or {@code null} if not set
+     * @since 1.0.8
+     */
+    public PreMcpToolCallHandler getOnPreMcpToolCall() {
+        return onPreMcpToolCall;
+    }
+
+    /**
+     * Sets the handler called before an MCP tool call is dispatched to an MCP
+     * server.
+     *
+     * @param onPreMcpToolCall
+     *            the handler
+     * @return this instance for method chaining
+     * @since 1.0.8
+     */
+    public SessionHooks setOnPreMcpToolCall(PreMcpToolCallHandler onPreMcpToolCall) {
+        this.onPreMcpToolCall = onPreMcpToolCall;
         return this;
     }
 
@@ -160,7 +185,7 @@ public class SessionHooks {
      * @return {@code true} if at least one hook handler is set
      */
     public boolean hasHooks() {
-        return onPreToolUse != null || onPostToolUse != null || onUserPromptSubmitted != null || onSessionStart != null
-                || onSessionEnd != null;
+        return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null
+                || onUserPromptSubmitted != null || onSessionStart != null || onSessionEnd != null;
     }
 }

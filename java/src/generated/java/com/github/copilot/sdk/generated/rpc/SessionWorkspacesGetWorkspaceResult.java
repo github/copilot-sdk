@@ -11,11 +11,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.OffsetDateTime;
-import java.util.UUID;
 import javax.annotation.processing.Generated;
 
 /**
- * Current workspace metadata for the session, or null when not available.
+ * Current workspace metadata for the session, including its absolute filesystem path when available.
  *
  * @since 1.0.0
  */
@@ -24,17 +23,20 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionWorkspacesGetWorkspaceResult(
     /** Current workspace metadata, or null if not available */
-    @JsonProperty("workspace") SessionWorkspacesGetWorkspaceResultWorkspace workspace
+    @JsonProperty("workspace") SessionWorkspacesGetWorkspaceResultWorkspace workspace,
+    /** Absolute filesystem path to the workspace directory. Omitted when the session has no workspace (e.g. remote sessions). */
+    @JsonProperty("path") String path
 ) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionWorkspacesGetWorkspaceResultWorkspace(
-        @JsonProperty("id") UUID id,
+        @JsonProperty("id") String id,
         @JsonProperty("cwd") String cwd,
         @JsonProperty("git_root") String gitRoot,
         @JsonProperty("repository") String repository,
-        @JsonProperty("host_type") SessionWorkspacesGetWorkspaceResultWorkspaceHostType hostType,
+        /** Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration. */
+        @JsonProperty("host_type") WorkspacesWorkspaceDetailsHostType hostType,
         @JsonProperty("branch") String branch,
         @JsonProperty("name") String name,
         @JsonProperty("user_named") Boolean userNamed,
@@ -47,24 +49,5 @@ public record SessionWorkspacesGetWorkspaceResult(
         @JsonProperty("mc_last_event_id") String mcLastEventId,
         @JsonProperty("chronicle_sync_dismissed") Boolean chronicleSyncDismissed
     ) {
-
-        public enum SessionWorkspacesGetWorkspaceResultWorkspaceHostType {
-            /** The {@code github} variant. */
-            GITHUB("github"),
-            /** The {@code ado} variant. */
-            ADO("ado");
-
-            private final String value;
-            SessionWorkspacesGetWorkspaceResultWorkspaceHostType(String value) { this.value = value; }
-            @com.fasterxml.jackson.annotation.JsonValue
-            public String getValue() { return value; }
-            @com.fasterxml.jackson.annotation.JsonCreator
-            public static SessionWorkspacesGetWorkspaceResultWorkspaceHostType fromValue(String value) {
-                for (SessionWorkspacesGetWorkspaceResultWorkspaceHostType v : values()) {
-                    if (v.value.equals(value)) return v;
-                }
-                throw new IllegalArgumentException("Unknown SessionWorkspacesGetWorkspaceResultWorkspaceHostType value: " + value);
-            }
-        }
     }
 }

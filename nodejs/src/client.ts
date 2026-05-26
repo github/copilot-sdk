@@ -31,6 +31,12 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
+import {
+    type CanvasActionInvokeParams,
+    type CanvasProviderRequestParams,
+    dispatchCanvasProviderRequest,
+} from "./canvas.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
@@ -51,6 +57,7 @@ import type {
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
+    SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
     SessionLifecycleEvent,
@@ -125,6 +132,32 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
         const { mcpServers, ...rest } = agent;
         return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
     });
+}
+
+function isCanvasProviderRequestParams(params: unknown): params is CanvasProviderRequestParams {
+    if (!params || typeof params !== "object") {
+        return false;
+    }
+
+    const request = params as {
+        sessionId?: unknown;
+        extensionId?: unknown;
+        canvasId?: unknown;
+        instanceId?: unknown;
+    };
+    return (
+        typeof request.sessionId === "string" &&
+        typeof request.extensionId === "string" &&
+        typeof request.canvasId === "string" &&
+        typeof request.instanceId === "string"
+    );
+}
+
+function isCanvasActionInvokeParams(params: unknown): params is CanvasActionInvokeParams {
+    return (
+        isCanvasProviderRequestParams(params) &&
+        typeof (params as { actionName?: unknown }).actionName === "string"
+    );
 }
 
 /**
@@ -803,6 +836,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -849,6 +883,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((canvas) => canvas.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
+                extensionInfo: config.extensionInfo,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -887,7 +925,7 @@ export class CopilotClient {
             const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
-                capabilities?: { ui?: { elicitation?: boolean } };
+                capabilities?: SessionCapabilities;
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
@@ -937,6 +975,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -987,6 +1026,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((canvas) => canvas.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
+                extensionInfo: config.extensionInfo,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -1018,15 +1061,18 @@ export class CopilotClient {
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
+                openCanvases: config.openCanvases,
             });
 
-            const { workspacePath, capabilities } = response as {
+            const { workspacePath, capabilities, openCanvases } = response as {
                 sessionId: string;
                 workspacePath?: string;
-                capabilities?: { ui?: { elicitation?: boolean } };
+                capabilities?: SessionCapabilities;
+                openCanvases?: OpenCanvasInstance[];
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
+            session.setOpenCanvases(openCanvases ?? []);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -1880,6 +1926,17 @@ export class CopilotClient {
                 await this.handleSystemMessageTransform(params)
         );
 
+        this.connection.onRequest("canvas.open", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.open", params)
+        );
+        this.connection.onRequest("canvas.close", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.close", params)
+        );
+        this.connection.onRequest(
+            "canvas.action.invoke",
+            async (params: CanvasActionInvokeParams) => this.handleCanvasActionInvokeRequest(params)
+        );
+
         // Register client session API handlers.
         const sessions = this.sessions;
         registerClientSessionApiHandlers(this.connection, (sessionId) => {
@@ -2082,5 +2139,34 @@ export class CopilotClient {
         }
 
         return await session._handleSystemMessageTransform(params.sections);
+    }
+
+    private async handleCanvasProviderRequest(
+        actionName: string,
+        params: unknown
+    ): Promise<unknown> {
+        if (!isCanvasProviderRequestParams(params)) {
+            throw new Error("Invalid canvas provider request payload");
+        }
+
+        const session = this.sessions.get(params.sessionId);
+        if (!session) {
+            throw new Error(`Session not found: ${params.sessionId}`);
+        }
+
+        const canvas = session.getCanvas(params.canvasId);
+        if (!canvas) {
+            throw new Error(`No canvas registered with id "${params.canvasId}"`);
+        }
+
+        return dispatchCanvasProviderRequest(canvas, actionName, params);
+    }
+
+    private async handleCanvasActionInvokeRequest(params: unknown): Promise<unknown> {
+        if (!isCanvasActionInvokeParams(params)) {
+            throw new Error("Invalid canvas provider request payload");
+        }
+
+        return this.handleCanvasProviderRequest(params.actionName, params);
     }
 }

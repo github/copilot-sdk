@@ -6,6 +6,7 @@ package com.github.copilot.sdk.generated.rpc;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,9 +33,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingResult_record() {
-        var result = new PingResult("pong", 1234L, 2L);
+        var result = new PingResult("pong", null, 2L);
         assertEquals("pong", result.message());
-        assertEquals(1234L, result.timestamp());
+        assertNull(result.timestamp());
         assertEquals(2L, result.protocolVersion());
     }
 
@@ -246,7 +247,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionLogParams_record() {
-        var params = new SessionLogParams("sess-24", "test message", SessionLogLevel.INFO, false, null);
+        var params = new SessionLogParams("sess-24", "test message", SessionLogLevel.INFO, null, false, null, null);
         assertEquals("sess-24", params.sessionId());
         assertEquals("test message", params.message());
         assertEquals(SessionLogLevel.INFO, params.level());
@@ -471,9 +472,10 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void pingResult_fields() {
-        var result = new PingResult("pong", 9999L, 1L);
+        var ts = OffsetDateTime.now();
+        var result = new PingResult("pong", ts, 1L);
         assertEquals("pong", result.message());
-        assertEquals(9999L, result.timestamp());
+        assertEquals(ts, result.timestamp());
         assertEquals(1L, result.protocolVersion());
     }
 
@@ -484,7 +486,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentListResult_with_items() {
-        var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1");
+        var item = new AgentInfo("name1", "Name One", "Desc 1", "/path/to/agent1", null, null, null, null, null, null,
+                null);
         var result = new SessionAgentListResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("name1", result.agents().get(0).name());
@@ -495,7 +498,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentGetCurrentResult_nested() {
-        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null);
+        var agent = new AgentInfo("agent-1", "Agent One", "Does things", null, null, null, null, null, null, null,
+                null);
         var result = new SessionAgentGetCurrentResult(agent);
         assertEquals("agent-1", result.agent().name());
         assertEquals("Agent One", result.agent().displayName());
@@ -511,7 +515,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentReloadResult_with_items() {
-        var item = new AgentInfo("a", "A", "Desc", "/path/to/a");
+        var item = new AgentInfo("a", "A", "Desc", "/path/to/a", null, null, null, null, null, null, null);
         var result = new SessionAgentReloadResult(List.of(item));
         assertEquals(1, result.agents().size());
         assertEquals("a", result.agents().get(0).name());
@@ -519,7 +523,8 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionAgentSelectResult_nested() {
-        var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected");
+        var agent = new AgentInfo("selected", "Selected", "The selected agent", "/path/to/selected", null, null, null,
+                null, null, null, null);
         var result = new SessionAgentSelectResult(agent);
         assertEquals("selected", result.agent().name());
     }
@@ -638,7 +643,7 @@ class GeneratedRpcRecordsCoverageTest {
     @Test
     void sessionHistoryCompactResult_nested() {
         var ctx = new HistoryCompactContextWindow(100000L, 5000L, 20L, 1000L, 3000L, 500L);
-        var result = new SessionHistoryCompactResult(true, 2000L, 5L, ctx);
+        var result = new SessionHistoryCompactResult(true, 2000L, 5L, null, ctx);
         assertTrue(result.success());
         assertEquals(2000L, result.tokensRemoved());
         assertEquals(5L, result.messagesRemoved());
@@ -715,7 +720,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-4.5");
+        var result = new SessionModelGetCurrentResult("claude-sonnet-4.5", null);
         assertEquals("claude-sonnet-4.5", result.modelId());
     }
 
@@ -786,7 +791,7 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionSkillsListResult_nested() {
-        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md");
+        var item = new Skill("deploy", "Deploy the app", SkillSource.PROJECT, true, true, "/skills/deploy.md", null);
         var result = new SessionSkillsListResult(List.of(item));
         assertEquals(1, result.skills().size());
         assertEquals("deploy", result.skills().get(0).name());
@@ -832,9 +837,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionUsageGetMetricsResult_nested() {
-        var changes = new UsageMetricsCodeChanges(100L, 50L, 5L);
-        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000.0, 1700000000000L, changes, null,
-                "gpt-5", 1000L, 500L);
+        var changes = new UsageMetricsCodeChanges(100L, 50L, 5L, null);
+        var result = new SessionUsageGetMetricsResult(0.5, 10L, null, null, 2000L, null, changes, null, "gpt-5", 1000L,
+                500L);
         assertEquals(0.5, result.totalPremiumRequestCost());
         assertEquals(10L, result.totalUserRequests());
         assertNotNull(result.codeChanges());

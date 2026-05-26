@@ -175,6 +175,41 @@ public class McpAndAgentsTest {
     // ============ Custom Agent Tests ============
 
     /**
+     * Verifies that MCP server configuration is accepted without args.
+     *
+     * @see Snapshot:
+     *      mcp_and_agents/should_accept_mcp_server_configuration_on_session_create
+     */
+    @Test
+    void testAcceptMcpServerConfigWithoutArgs() throws Exception {
+        // Reuse existing snapshot - this test validates that args can be omitted
+        ctx.configureForTest("mcp_and_agents", "should_accept_mcp_server_configuration_on_session_create");
+
+        var mcpServers = new HashMap<String, McpServerConfig>();
+        // Create MCP server config without specifying args
+        mcpServers.put("test-server", new McpStdioServerConfig().setCommand("echo").setTools(List.of("*")));
+
+        try (CopilotClient client = ctx.createClient()) {
+            CopilotSession session = client.createSession(
+                    new SessionConfig().setMcpServers(mcpServers).setOnPermissionRequest(PermissionHandler.APPROVE_ALL))
+                    .get();
+
+            assertNotNull(session.getSessionId());
+
+            AssistantMessageEvent response = session.sendAndWait(new MessageOptions().setPrompt("What is 2+2?")).get(60,
+                    TimeUnit.SECONDS);
+
+            assertNotNull(response);
+            assertTrue(response.getData().content().contains("4"),
+                    "Response should contain 4: " + response.getData().content());
+
+            session.close();
+        }
+    }
+
+    // ============ Custom Agent Tests ============
+
+    /**
      * Verifies that custom agent configuration is accepted on session create.
      *
      * @see Snapshot:

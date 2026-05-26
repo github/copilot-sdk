@@ -36,17 +36,17 @@ public final class SessionUsageInfoEvent extends SessionEvent {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SessionUsageInfoEventData(
         /** Maximum token count for the model's context window */
-        @JsonProperty("tokenLimit") Double tokenLimit,
+        @JsonProperty("tokenLimit") Long tokenLimit,
         /** Current number of tokens in the context window */
-        @JsonProperty("currentTokens") Double currentTokens,
+        @JsonProperty("currentTokens") Long currentTokens,
         /** Current number of messages in the conversation */
-        @JsonProperty("messagesLength") Double messagesLength,
+        @JsonProperty("messagesLength") Long messagesLength,
         /** Token count from system message(s) */
-        @JsonProperty("systemTokens") Double systemTokens,
+        @JsonProperty("systemTokens") Long systemTokens,
         /** Token count from non-system messages (user, assistant, tool) */
-        @JsonProperty("conversationTokens") Double conversationTokens,
+        @JsonProperty("conversationTokens") Long conversationTokens,
         /** Token count from tool definitions */
-        @JsonProperty("toolDefinitionsTokens") Double toolDefinitionsTokens,
+        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens,
         /** Whether this is the first usage_info event emitted in this session */
         @JsonProperty("isInitial") Boolean isInitial
     ) {

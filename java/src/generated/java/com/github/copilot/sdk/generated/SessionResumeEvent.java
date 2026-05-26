@@ -39,7 +39,7 @@ public final class SessionResumeEvent extends SessionEvent {
         /** ISO 8601 timestamp when the session was resumed */
         @JsonProperty("resumeTime") OffsetDateTime resumeTime,
         /** Total number of persisted events in the session at the time of resume */
-        @JsonProperty("eventCount") Double eventCount,
+        @JsonProperty("eventCount") Long eventCount,
         /** Model currently selected at resume time */
         @JsonProperty("selectedModel") String selectedModel,
         /** Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max") */

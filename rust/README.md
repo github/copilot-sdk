@@ -716,6 +716,15 @@ let session = client
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
 in-memory provider implementation.
 
+- **Canvas action dispatch is a single trait method, not per-action closures.**
+  The Node SDK binds an optional `handler` closure on each entry of a canvas's
+  `actions[]`. The Rust SDK exposes
+  [`CanvasHandler::on_action`](crate::canvas::CanvasHandler::on_action) and expects the implementor to match on
+  `ctx.action_name`. Same reasoning as `SessionFsProvider`: per-callback
+  `Box<dyn Fn>` fields fight `Send + Sync + 'static` and skip exhaustiveness
+  checks, and the SDK prefers trait + default-impl methods for handler-shaped
+  extension points.
+
 ### Rust-only API
 
 A handful of conveniences exist only on the Rust SDK as of 0.1.0. These

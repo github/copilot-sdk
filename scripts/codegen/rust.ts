@@ -195,6 +195,8 @@ function safeRustFieldName(name: string): string {
 interface RustCodegenCtx {
 	/** Accumulated struct definitions. */
 	structs: string[];
+	/** Accumulated type alias definitions. */
+	typeAliases: string[];
 	/** Accumulated enum definitions. */
 	enums: string[];
 	/** Track generated type names to avoid duplicates. */
@@ -411,6 +413,7 @@ function makeCtx(
 ): RustCodegenCtx {
 	return {
 		structs: [],
+		typeAliases: [],
 		enums: [],
 		generatedNames: new Set(),
 		nonDefaultableTypes: new Set(options.nonDefaultableTypes ?? []),
@@ -454,6 +457,87 @@ function pushRustDoc(lines: string[], text: string | undefined, indent = ""): vo
 			lines.push(`${indent}/// ${paragraph.trim()}`);
 		}
 	}
+}
+
+function isRustMapSchema(schema: JSONSchema7): boolean {
+	const hasProperties =
+		!!schema.properties && Object.keys(schema.properties).length > 0;
+	return (
+		(schema.type === "object" || schema.additionalProperties !== undefined) &&
+		!hasProperties &&
+		schema.additionalProperties !== undefined &&
+		schema.additionalProperties !== false
+	);
+}
+
+function rustMapValueType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	const additionalProperties = schema.additionalProperties;
+	if (
+		additionalProperties &&
+		typeof additionalProperties === "object" &&
+		Object.keys(additionalProperties as Record<string, unknown>).length > 0
+	) {
+		const valueSchema = additionalProperties as JSONSchema7;
+		if (valueSchema.type === "object" && valueSchema.properties) {
+			const valueName = (valueSchema.title as string) || `${parentTypeName}Value`;
+			emitRustStruct(valueName, valueSchema, ctx);
+			return valueName;
+		}
+		return resolveRustType(valueSchema, parentTypeName, "value", true, ctx);
+	}
+	return "serde_json::Value";
+}
+
+function rustMapType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	return `HashMap<String, ${rustMapValueType(schema, parentTypeName, ctx)}>`;
+}
+
+function emitRustTypeAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	aliasType: string,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	ctx.generatedNames.add(typeName);
+
+	const lines: string[] = [];
+	pushRustDoc(lines, description || schema.description);
+	pushRustExperimentalDocs(
+		lines,
+		isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(typeName),
+	);
+	if (isSchemaDeprecated(schema)) {
+		lines.push(...rustDeprecatedAttributes());
+	}
+	const aliasVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
+	lines.push(`${aliasVis} type ${typeName} = ${aliasType};`);
+	ctx.typeAliases.push(lines.join("\n"));
+}
+
+function emitRustMapAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	emitRustTypeAlias(
+		typeName,
+		schema,
+		rustMapType(schema, typeName, ctx),
+		ctx,
+		description,
+	);
 }
 
 function rustRpcResultDescription(
@@ -712,28 +796,8 @@ function resolveRustType(
 			emitRustStruct(structName, propSchema, ctx);
 			return wrapOption(structName, isRequired);
 		}
-		if (propSchema.additionalProperties) {
-			if (
-				typeof propSchema.additionalProperties === "object" &&
-				Object.keys(propSchema.additionalProperties as Record<string, unknown>)
-					.length > 0
-			) {
-				const ap = propSchema.additionalProperties as JSONSchema7;
-				if (ap.type === "object" && ap.properties) {
-					const valueName = (ap.title as string) || `${nestedName}Value`;
-					emitRustStruct(valueName, ap, ctx);
-					return wrapOption(`HashMap<String, ${valueName}>`, isRequired);
-				}
-				const valueType = resolveRustType(
-					ap,
-					parentTypeName,
-					`${jsonPropName}Value`,
-					true,
-					ctx,
-				);
-				return wrapOption(`HashMap<String, ${valueType}>`, isRequired);
-			}
-			return wrapOption("HashMap<String, serde_json::Value>", isRequired);
+		if (isRustMapSchema(propSchema)) {
+			return wrapOption(rustMapType(propSchema, nestedName, ctx), isRequired);
 		}
 		return wrapOption("serde_json::Value", isRequired);
 	}
@@ -1153,6 +1217,12 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 		out.push("");
 	}
 
+	// Supporting type aliases
+	for (const block of ctx.typeAliases) {
+		out.push(block);
+		out.push("");
+	}
+
 	// Supporting enums
 	for (const block of ctx.enums) {
 		out.push(block);
@@ -1393,6 +1463,8 @@ function generateApiTypesCode(
 				getEnumValueDescriptions(schema),
 				isSchemaExperimental(schema),
 			);
+		} else if (isRustMapSchema(schema)) {
+			emitRustMapAlias(name, schema, ctx, schema.description);
 		} else if (asGeneratedObjectSchema(schema, defCollections)) {
 			emitRustStruct(
 				name,
@@ -1453,6 +1525,8 @@ function generateApiTypesCode(
 			if (resolved) {
 				if (resolved.enum && Array.isArray(resolved.enum)) {
 					// Already generated from definitions
+				} else if (isRustMapSchema(resolved)) {
+					emitRustMapAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isObjectSchema(resolved)) {
 					emitRustStruct(resultName, resolved, ctx, resolved.description);
 				}
@@ -1499,6 +1573,11 @@ function generateApiTypesCode(
 
 	// Shared definition types first, then RPC types
 	for (const block of ctx.structs) {
+		out.push(block);
+		out.push("");
+	}
+
+	for (const block of ctx.typeAliases) {
 		out.push(block);
 		out.push("");
 	}

@@ -10,6 +10,7 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
@@ -26,6 +27,8 @@ public record UsageMetricsCodeChanges(
     /** Total lines of code removed */
     @JsonProperty("linesRemoved") Long linesRemoved,
     /** Number of distinct files modified */
-    @JsonProperty("filesModifiedCount") Long filesModifiedCount
+    @JsonProperty("filesModifiedCount") Long filesModifiedCount,
+    /** Distinct file paths modified during the session */
+    @JsonProperty("filesModified") List<String> filesModified
 ) {
 }

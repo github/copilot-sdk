@@ -1504,6 +1504,9 @@ function stableStringify(value: unknown): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    if (isOpaqueJson(schema)) {
+        return isRequired ? "JsonElement" : "JsonElement?";
+    }
     // Handle $ref by resolving against schema definitions and generating the referenced class
     if (schema.$ref) {
         const typeName = typeToClassName(refTypeName(schema.$ref, rpcDefinitions));

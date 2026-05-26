@@ -418,7 +418,7 @@ public class PermissionsTest {
             // Set approve-all so the runtime short-circuits
             var setResult = session.getRpc().permissions
                     .setApproveAll(new com.github.copilot.sdk.generated.rpc.SessionPermissionsSetApproveAllParams(
-                            session.getSessionId(), true))
+                            session.getSessionId(), true, null))
                     .get(10, TimeUnit.SECONDS);
             assertTrue(setResult.success(), "setApproveAll should succeed");
 
