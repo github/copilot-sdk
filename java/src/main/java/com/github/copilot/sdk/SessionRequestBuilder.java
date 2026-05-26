@@ -98,6 +98,8 @@ final class SessionRequestBuilder {
         request.setRequestPermission(true);
         // Always send envValueMode=direct for MCP servers
         request.setEnvValueMode("direct");
+        // Default to in-memory for safe multitenant behavior
+        request.setMcpOAuthTokenStorage("in-memory");
         request.setSessionId(sessionId);
         if (config == null) {
             return request;
@@ -124,6 +126,8 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setMcpOAuthTokenStorage(
+                config.getMcpOAuthTokenStorage() != null ? config.getMcpOAuthTokenStorage() : "in-memory");
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
@@ -189,6 +193,8 @@ final class SessionRequestBuilder {
         request.setRequestPermission(true);
         // Always send envValueMode=direct for MCP servers
         request.setEnvValueMode("direct");
+        // Default to in-memory for safe multitenant behavior
+        request.setMcpOAuthTokenStorage("in-memory");
 
         if (config == null) {
             return request;
@@ -220,6 +226,8 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setMcpOAuthTokenStorage(
+                config.getMcpOAuthTokenStorage() != null ? config.getMcpOAuthTokenStorage() : "in-memory");
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());

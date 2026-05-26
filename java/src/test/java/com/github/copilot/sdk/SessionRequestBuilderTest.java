@@ -104,6 +104,26 @@ public class SessionRequestBuilderTest {
         assertNull(request.getEnableSessionTelemetry());
     }
 
+    @Test
+    void testBuildCreateRequestDefaultsMcpOAuthTokenStorageToInMemory() {
+        var config = new SessionConfig();
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildCreateRequestForwardsExplicitMcpOAuthTokenStorage() {
+        var config = new SessionConfig().setMcpOAuthTokenStorage("persistent");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("persistent", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildCreateRequestDefaultsMcpOAuthTokenStorageWhenConfigIsNull() {
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(null);
+        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+    }
+
     // =========================================================================
     // buildResumeRequest
     // =========================================================================
@@ -210,6 +230,26 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig().setClientName("my-app");
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-10", config);
         assertEquals("my-app", request.getClientName());
+    }
+
+    @Test
+    void testBuildResumeRequestDefaultsMcpOAuthTokenStorageToInMemory() {
+        var config = new ResumeSessionConfig();
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
+        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestForwardsExplicitMcpOAuthTokenStorage() {
+        var config = new ResumeSessionConfig().setMcpOAuthTokenStorage("persistent");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-12", config);
+        assertEquals("persistent", request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestDefaultsMcpOAuthTokenStorageWhenConfigIsNull() {
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", null);
+        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
     }
 
     // =========================================================================

@@ -55,6 +55,7 @@ public class SessionConfig {
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private String mcpOAuthTokenStorage;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
@@ -474,6 +475,37 @@ public class SessionConfig {
      */
     public SessionConfig setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+        return this;
+    }
+
+    /**
+     * Gets the MCP OAuth token storage mode.
+     *
+     * @return the storage mode, or {@code null} if not set
+     */
+    public String getMcpOAuthTokenStorage() {
+        return mcpOAuthTokenStorage;
+    }
+
+    /**
+     * Sets the MCP OAuth token storage mode.
+     * <p>
+     * Controls how MCP OAuth tokens are stored for this session:
+     * <ul>
+     * <li>{@code "persistent"} — tokens are stored in the OS keychain (shared
+     * across sessions)</li>
+     * <li>{@code "in-memory"} — tokens are stored in memory and discarded when the
+     * session ends</li>
+     * </ul>
+     * If not set, the SDK defaults to {@code "in-memory"} for safe multitenant
+     * behavior.
+     *
+     * @param mcpOAuthTokenStorage
+     *            the storage mode
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
+        this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
         return this;
     }
 
