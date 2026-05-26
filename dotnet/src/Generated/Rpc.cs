@@ -14803,6 +14803,12 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
             return await handler.InvokeActionAsync(request, cancellationToken);
         }), singleObjectParam: true);
+        rpc.SetLocalRpcMethod("canvas.action.invoke", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
+        {
+            var handler = getHandlers(request.SessionId).Canvas;
+            if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
+            return await handler.InvokeActionAsync(request, cancellationToken);
+        }), singleObjectParam: true);
     }
 }
 

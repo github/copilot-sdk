@@ -2176,6 +2176,15 @@ function clientHandlerMethodName(rpcMethod: string): string {
     return `${toPascalCase(parts[parts.length - 1])}Async`;
 }
 
+function clientSessionApiRegistrationRpcMethods(rpcMethod: string): string[] {
+    if (rpcMethod === "canvas.invokeAction") {
+        // Older runtimes dispatch canvas actions with this method name.
+        return [rpcMethod, "canvas.action.invoke"];
+    }
+
+    return [rpcMethod];
+}
+
 function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>, classes: string[]): string[] {
     const lines: string[] = [];
     const groups = collectClientGroups(clientSchema);
@@ -2272,20 +2281,22 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
             const paramsClass = paramsTypeName(method);
             const taskType = handlerTaskType(method);
 
-            if (hasParams) {
-                lines.push(`        rpc.SetLocalRpcMethod("${method.rpcMethod}", (Func<${paramsClass}, CancellationToken, ${taskType}>)(async (request, cancellationToken) =>`);
-                lines.push(`        {`);
-                lines.push(`            var handler = getHandlers(request.SessionId).${handlerProperty};`);
-                lines.push(`            if (handler is null) throw new InvalidOperationException($"No ${groupName} handler registered for session: {request.SessionId}");`);
-                if (!isVoidSchema(resultSchema)) {
-                    lines.push(`            return await handler.${handlerMethod}(request, cancellationToken);`);
+            for (const rpcMethod of clientSessionApiRegistrationRpcMethods(method.rpcMethod)) {
+                if (hasParams) {
+                    lines.push(`        rpc.SetLocalRpcMethod("${rpcMethod}", (Func<${paramsClass}, CancellationToken, ${taskType}>)(async (request, cancellationToken) =>`);
+                    lines.push(`        {`);
+                    lines.push(`            var handler = getHandlers(request.SessionId).${handlerProperty};`);
+                    lines.push(`            if (handler is null) throw new InvalidOperationException($"No ${groupName} handler registered for session: {request.SessionId}");`);
+                    if (!isVoidSchema(resultSchema)) {
+                        lines.push(`            return await handler.${handlerMethod}(request, cancellationToken);`);
+                    } else {
+                        lines.push(`            await handler.${handlerMethod}(request, cancellationToken);`);
+                    }
+                    lines.push(`        }), singleObjectParam: true);`);
                 } else {
-                    lines.push(`            await handler.${handlerMethod}(request, cancellationToken);`);
+                    lines.push(`        rpc.SetLocalRpcMethod("${rpcMethod}", (Func<CancellationToken, ${taskType}>)(_ =>`);
+                    lines.push(`            throw new InvalidOperationException("No params provided for ${rpcMethod}")));`);
                 }
-                lines.push(`        }), singleObjectParam: true);`);
-            } else {
-                lines.push(`        rpc.SetLocalRpcMethod("${method.rpcMethod}", (Func<CancellationToken, ${taskType}>)(_ =>`);
-                lines.push(`            throw new InvalidOperationException("No params provided for ${method.rpcMethod}")));`);
             }
         }
     }
