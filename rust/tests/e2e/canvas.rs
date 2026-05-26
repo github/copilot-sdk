@@ -80,7 +80,7 @@ async fn canvas_list_discovers_declared_canvases() {
             let client = ctx.start_client().await;
             let handler = Arc::new(TestCanvasHandler::new());
             let session = client
-                .create_session(canvas_session_config(&ctx, handler))
+                .create_session(canvas_session_config(ctx, handler))
                 .await
                 .expect("create session");
 
@@ -106,7 +106,7 @@ async fn canvas_open_round_trip() {
             let client = ctx.start_client().await;
             let handler = Arc::new(TestCanvasHandler::new());
             let session = client
-                .create_session(canvas_session_config(&ctx, handler.clone()))
+                .create_session(canvas_session_config(ctx, handler.clone()))
                 .await
                 .expect("create session");
 
@@ -135,11 +135,12 @@ async fn canvas_open_round_trip() {
                 Some("https://example.com/counter/counter-1")
             );
 
-            let opens = handler.open_calls.lock();
-            assert_eq!(opens.len(), 1);
-            assert_eq!(opens[0].canvas_id, "counter");
-            assert_eq!(opens[0].instance_id, "counter-1");
-            drop(opens);
+            {
+                let opens = handler.open_calls.lock();
+                assert_eq!(opens.len(), 1);
+                assert_eq!(opens[0].canvas_id, "counter");
+                assert_eq!(opens[0].instance_id, "counter-1");
+            }
 
             let open_list = session
                 .rpc()
@@ -165,7 +166,7 @@ async fn canvas_invoke_action_round_trip() {
             let client = ctx.start_client().await;
             let handler = Arc::new(TestCanvasHandler::new());
             let session = client
-                .create_session(canvas_session_config(&ctx, handler.clone()))
+                .create_session(canvas_session_config(ctx, handler.clone()))
                 .await
                 .expect("create session");
 
@@ -201,13 +202,14 @@ async fn canvas_invoke_action_round_trip() {
 
             assert_eq!(result.result, Some(json!({ "newValue": 42 })));
 
-            let actions = handler.action_calls.lock();
-            assert_eq!(actions.len(), 1);
-            assert_eq!(actions[0].canvas_id, "counter");
-            assert_eq!(actions[0].instance_id, "counter-2");
-            assert_eq!(actions[0].action_name, "increment");
-            assert_eq!(actions[0].input, Some(json!({ "delta": 1 })));
-            drop(actions);
+            {
+                let actions = handler.action_calls.lock();
+                assert_eq!(actions.len(), 1);
+                assert_eq!(actions[0].canvas_id, "counter");
+                assert_eq!(actions[0].instance_id, "counter-2");
+                assert_eq!(actions[0].action_name, "increment");
+                assert_eq!(actions[0].input, Some(json!({ "delta": 1 })));
+            }
 
             session.disconnect().await.expect("disconnect session");
             client.stop().await.expect("stop client");
@@ -224,7 +226,7 @@ async fn canvas_close_round_trip() {
             let client = ctx.start_client().await;
             let handler = Arc::new(TestCanvasHandler::new());
             let session = client
-                .create_session(canvas_session_config(&ctx, handler.clone()))
+                .create_session(canvas_session_config(ctx, handler.clone()))
                 .await
                 .expect("create session");
 
@@ -258,11 +260,12 @@ async fn canvas_close_round_trip() {
                 .await
                 .expect("close canvas");
 
-            let closes = handler.close_calls.lock();
-            assert_eq!(closes.len(), 1);
-            assert_eq!(closes[0].canvas_id, "counter");
-            assert_eq!(closes[0].instance_id, "counter-3");
-            drop(closes);
+            {
+                let closes = handler.close_calls.lock();
+                assert_eq!(closes.len(), 1);
+                assert_eq!(closes[0].canvas_id, "counter");
+                assert_eq!(closes[0].instance_id, "counter-3");
+            }
 
             let open_list = session
                 .rpc()

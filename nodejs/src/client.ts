@@ -129,7 +129,6 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
     });
 }
 
-
 /**
  * Extract transform callbacks from a system message config and prepare the wire payload.
  * Function-valued actions are replaced with `{ action: "transform" }` for serialization,
@@ -2099,5 +2098,4 @@ export class CopilotClient {
 
         return await session._handleSystemMessageTransform(params.sections);
     }
-
 }
