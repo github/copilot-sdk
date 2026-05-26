@@ -136,7 +136,10 @@ mod tests {
 
     #[async_trait]
     impl CanvasHandler for EchoHandler {
-        async fn on_open(&self, ctx: CanvasProviderOpenRequest) -> CanvasResult<CanvasProviderOpenResult> {
+        async fn on_open(
+            &self,
+            ctx: CanvasProviderOpenRequest,
+        ) -> CanvasResult<CanvasProviderOpenResult> {
             Ok(CanvasProviderOpenResult {
                 url: Some(format!("https://example.test/{}", ctx.canvas_id)),
                 title: Some("Echo".to_string()),
@@ -216,7 +219,10 @@ mod tests {
         struct OpenOnly;
         #[async_trait]
         impl CanvasHandler for OpenOnly {
-            async fn on_open(&self, _ctx: CanvasProviderOpenRequest) -> CanvasResult<CanvasProviderOpenResult> {
+            async fn on_open(
+                &self,
+                _ctx: CanvasProviderOpenRequest,
+            ) -> CanvasResult<CanvasProviderOpenResult> {
                 Ok(CanvasProviderOpenResult {
                     url: None,
                     title: None,

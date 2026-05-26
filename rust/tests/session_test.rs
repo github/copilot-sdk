@@ -31,7 +31,10 @@ struct TestCanvasHandler;
 
 #[async_trait]
 impl CanvasHandler for TestCanvasHandler {
-    async fn on_open(&self, ctx: CanvasProviderOpenRequest) -> CanvasResult<CanvasProviderOpenResult> {
+    async fn on_open(
+        &self,
+        ctx: CanvasProviderOpenRequest,
+    ) -> CanvasResult<CanvasProviderOpenResult> {
         Ok(CanvasProviderOpenResult {
             url: Some(format!("https://example.test/{}", ctx.canvas_id)),
             title: Some("Test Canvas".to_string()),

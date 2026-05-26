@@ -109,7 +109,9 @@ async def test_register_canvas_handler_wires_generated_canvas_adapter():
 
         async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:
             self.open_calls.append(ctx)
-            return CanvasProviderOpenResult(url="https://canvas.example", title="Hi", status="ready")
+            return CanvasProviderOpenResult(
+                url="https://canvas.example", title="Hi", status="ready"
+            )
 
         async def on_close(self, ctx: CanvasProviderCloseRequest) -> None:
             self.close_calls.append(ctx)

@@ -100,7 +100,9 @@ export interface CanvasOptions {
     actions?: CanvasAction[];
 
     /** Required. Open a new canvas instance. */
-    open: (ctx: CanvasProviderOpenRequest) => Promise<CanvasProviderOpenResult> | CanvasProviderOpenResult;
+    open: (
+        ctx: CanvasProviderOpenRequest
+    ) => Promise<CanvasProviderOpenResult> | CanvasProviderOpenResult;
 
     /**
      * Optional. Notified when a canvas instance is closed by the user, the
@@ -158,4 +160,3 @@ export class Canvas {
 export function createCanvas(options: CanvasOptions): Canvas {
     return new Canvas(options);
 }
-
