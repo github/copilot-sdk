@@ -174,29 +174,17 @@ describe("Tool filter wiring", () => {
         ).rejects.toThrowError(/bare wildcard/);
     });
 
-    it("forwards toolFilterMode unchanged when set explicitly", async () => {
-        const { client, spy } = await setupClient();
-        await client.createSession({
-            onPermissionRequest: approveAll,
-            availableTools: ["builtin:bash"],
-            excludedTools: ["builtin:bash"],
-            toolFilterMode: "denyPrecedence",
-        });
-        const payload = spy.mock.calls.find(([m]) => m === "session.create")![1] as any;
-        expect(payload.toolFilterMode).toBe("denyPrecedence");
-    });
-
-    it("does not default toolFilterMode in copilot-cli mode", async () => {
+    it("always sends toolFilterMode: denyPrecedence in copilot-cli mode", async () => {
         const { client, spy } = await setupClient("copilot-cli");
         await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: ["builtin:bash"],
         });
         const payload = spy.mock.calls.find(([m]) => m === "session.create")![1] as any;
-        expect(payload.toolFilterMode).toBeUndefined();
+        expect(payload.toolFilterMode).toBe("denyPrecedence");
     });
 
-    it("defaults toolFilterMode to denyPrecedence in empty mode", async () => {
+    it("always sends toolFilterMode: denyPrecedence in empty mode", async () => {
         const { client, spy } = await setupClient("empty");
         await client.createSession({
             onPermissionRequest: approveAll,
@@ -204,17 +192,6 @@ describe("Tool filter wiring", () => {
         });
         const payload = spy.mock.calls.find(([m]) => m === "session.create")![1] as any;
         expect(payload.toolFilterMode).toBe("denyPrecedence");
-    });
-
-    it("empty-mode default can be overridden to allowPrecedence", async () => {
-        const { client, spy } = await setupClient("empty");
-        await client.createSession({
-            onPermissionRequest: approveAll,
-            availableTools: ["builtin:bash"],
-            toolFilterMode: "allowPrecedence",
-        });
-        const payload = spy.mock.calls.find(([m]) => m === "session.create")![1] as any;
-        expect(payload.toolFilterMode).toBe("allowPrecedence");
     });
 
     it("applies the same filter normalization on session.resume", async () => {

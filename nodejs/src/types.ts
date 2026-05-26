@@ -1615,8 +1615,9 @@ export interface SessionConfigBase {
      * name form (exact match across any source). Build this list with
      * {@link ToolSet} for type safety and readable intent.
      *
-     * Interacts with {@link excludedTools} per
-     * {@link SessionConfigBase.toolFilterMode}.
+     * Composes with {@link excludedTools}: a tool is enabled when it matches
+     * `availableTools` (or `availableTools` is unset) AND it does not match
+     * `excludedTools`. This lets you express "everything matching X except Y".
      */
     availableTools?: string[] | ToolSet;
 
@@ -1624,26 +1625,10 @@ export interface SessionConfigBase {
      * List of tool names to disable. Supports the same pattern syntax as
      * {@link availableTools}.
      *
-     * Interacts with {@link availableTools} per
-     * {@link SessionConfigBase.toolFilterMode}: by default (`"allowPrecedence"`),
-     * `excludedTools` is ignored whenever `availableTools` is set; under
-     * `"denyPrecedence"` it always takes effect.
+     * Always takes precedence over {@link availableTools}: a tool listed here
+     * is disabled even if it also matches `availableTools`.
      */
     excludedTools?: string[] | ToolSet;
-
-    /**
-     * Controls how {@link availableTools} and {@link excludedTools} combine
-     * when both are set.
-     *
-     * - `"allowPrecedence"` (default): If `availableTools` is set, `excludedTools`
-     *   is ignored. Preserves the historical CLI behavior.
-     * - `"denyPrecedence"`: `excludedTools` always wins. Enables "everything
-     *   matching X, except Y" patterns.
-     *
-     * When the client is in `Mode = "empty"`, the SDK defaults this to
-     * `"denyPrecedence"` so apps can subtract from `BuiltInTools.Isolated` etc.
-     */
-    toolFilterMode?: "allowPrecedence" | "denyPrecedence";
 
     /**
      * Custom provider configuration (BYOK - Bring Your Own Key).

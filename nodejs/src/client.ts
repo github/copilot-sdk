@@ -849,19 +849,23 @@ export class CopilotClient {
     /**
      * Normalizes session-level tool filter options. Converts {@link ToolSet}
      * instances to plain string arrays, rejects misuse (bare `"*"`) and the
-     * missing-availableTools case in `mode = "empty"`, and applies the
-     * mode-aware default for `toolFilterMode`.
+     * missing-availableTools case in `mode = "empty"`.
+     *
+     * The SDK always sends `toolFilterMode: "denyPrecedence"` so callers can
+     * compose include + exclude lists naturally (e.g. "everything matching X
+     * except Y") regardless of mode. Allowlist-precedence is intentionally not
+     * exposed — it's available on the runtime side as a CLI-only concession to
+     * legacy behavior, but SDK consumers always get the composable semantics.
      *
      * @internal
      */
     private resolveToolFilterOptions(config: {
         availableTools?: string[] | ToolSet;
         excludedTools?: string[] | ToolSet;
-        toolFilterMode?: "allowPrecedence" | "denyPrecedence";
     }): {
         availableTools: string[] | undefined;
         excludedTools: string[] | undefined;
-        toolFilterMode: "allowPrecedence" | "denyPrecedence" | undefined;
+        toolFilterMode: "denyPrecedence";
     } {
         const availableTools = toolFilterListToArray(config.availableTools);
         const excludedTools = toolFilterListToArray(config.excludedTools);
@@ -879,13 +883,7 @@ export class CopilotClient {
             }
         }
 
-        // Empty mode flips the default to deny-precedence so apps can compose
-        // include + exclude lists naturally (e.g. "everything matching X
-        // except Y"). Callers can still override this explicitly.
-        const toolFilterMode =
-            config.toolFilterMode ?? (this.options.mode === "empty" ? "denyPrecedence" : undefined);
-
-        return { availableTools, excludedTools, toolFilterMode };
+        return { availableTools, excludedTools, toolFilterMode: "denyPrecedence" };
     }
 
     async createSession(config: SessionConfig): Promise<CopilotSession> {
