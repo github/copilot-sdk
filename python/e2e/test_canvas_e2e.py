@@ -84,23 +84,26 @@ class TestCanvas:
         handler = _CounterHandler()
         session = await _create_counter_session(ctx, handler)
 
-        result = await session.rpc.canvas.open(
-            CanvasOpenRequest(
-                canvas_id="counter",
-                instance_id="counter-1",
-                input={"seed": 7},
+        try:
+            result = await session.rpc.canvas.open(
+                CanvasOpenRequest(
+                    canvas_id="counter",
+                    instance_id="counter-1",
+                    input={"seed": 7},
+                )
             )
-        )
 
-        assert len(handler.opens) == 1
-        opened = handler.opens[0]
-        assert opened.canvas_id == "counter"
-        assert opened.instance_id == "counter-1"
-        assert opened.input == {"seed": 7}
-        assert result.canvas_id == "counter"
-        assert result.instance_id == "counter-1"
-        assert result.url == "https://example.test/counter-1"
-        assert result.availability == CanvasInstanceAvailability.READY
+            assert len(handler.opens) == 1
+            opened = handler.opens[0]
+            assert opened.canvas_id == "counter"
+            assert opened.instance_id == "counter-1"
+            assert opened.input == {"seed": 7}
+            assert result.canvas_id == "counter"
+            assert result.instance_id == "counter-1"
+            assert result.url == "https://example.test/counter-1"
+            assert result.availability == CanvasInstanceAvailability.READY
+        finally:
+            await session.disconnect()
 
     async def test_dispatches_canvas_action_invoke_to_the_per_action_handler(
         self, ctx: E2ETestContext
@@ -111,29 +114,32 @@ class TestCanvas:
             handler,
             actions=[CanvasAction(name="increment", description="Increment the counter")],
         )
-        await session.rpc.canvas.open(
-            CanvasOpenRequest(canvas_id="counter", instance_id="counter-2")
-        )
-
-        result = await session.rpc.canvas.invoke_action(
-            CanvasInvokeActionRequest(
-                action_name="increment",
-                instance_id="counter-2",
-                input={"amount": 3},
+        try:
+            await session.rpc.canvas.open(
+                CanvasOpenRequest(canvas_id="counter", instance_id="counter-2")
             )
-        )
 
-        assert len(handler.actions) == 1
-        action = handler.actions[0]
-        assert action.canvas_id == "counter"
-        assert action.instance_id == "counter-2"
-        assert action.action_name == "increment"
-        assert action.input == {"amount": 3}
-        assert result.result == {
-            "ok": True,
-            "actionName": "increment",
-            "input": {"amount": 3},
-        }
+            result = await session.rpc.canvas.invoke_action(
+                CanvasInvokeActionRequest(
+                    action_name="increment",
+                    instance_id="counter-2",
+                    input={"amount": 3},
+                )
+            )
+
+            assert len(handler.actions) == 1
+            action = handler.actions[0]
+            assert action.canvas_id == "counter"
+            assert action.instance_id == "counter-2"
+            assert action.action_name == "increment"
+            assert action.input == {"amount": 3}
+            assert result.result == {
+                "ok": True,
+                "actionName": "increment",
+                "input": {"amount": 3},
+            }
+        finally:
+            await session.disconnect()
 
     async def test_dispatches_canvas_close_to_the_provider_on_close_handler(
         self, ctx: E2ETestContext
@@ -141,16 +147,19 @@ class TestCanvas:
         handler = _CounterHandler()
         session = await _create_counter_session(ctx, handler)
 
-        await session.rpc.canvas.open(
-            CanvasOpenRequest(canvas_id="counter", instance_id="counter-3")
-        )
-        await session.rpc.canvas.close(CanvasCloseRequest(instance_id="counter-3"))
-        await asyncio.sleep(0.05)
+        try:
+            await session.rpc.canvas.open(
+                CanvasOpenRequest(canvas_id="counter", instance_id="counter-3")
+            )
+            await session.rpc.canvas.close(CanvasCloseRequest(instance_id="counter-3"))
+            await asyncio.sleep(0.05)
 
-        assert len(handler.closes) == 1
-        closed = handler.closes[0]
-        assert closed.canvas_id == "counter"
-        assert closed.instance_id == "counter-3"
+            assert len(handler.closes) == 1
+            closed = handler.closes[0]
+            assert closed.canvas_id == "counter"
+            assert closed.instance_id == "counter-3"
+        finally:
+            await session.disconnect()
 
     async def test_returns_canvas_action_no_handler_when_declared_action_has_no_handler(
         self, ctx: E2ETestContext
@@ -160,46 +169,57 @@ class TestCanvas:
             _NoActionHandler(),
             actions=[CanvasAction(name="increment", description="Increment the counter")],
         )
-        await session.rpc.canvas.open(
-            CanvasOpenRequest(canvas_id="counter", instance_id="counter-4")
-        )
-
-        with pytest.raises(JsonRpcError) as excinfo:
-            await session.rpc.canvas.invoke_action(
-                CanvasInvokeActionRequest(
-                    action_name="increment",
-                    instance_id="counter-4",
-                    input={},
-                )
+        try:
+            await session.rpc.canvas.open(
+                CanvasOpenRequest(canvas_id="counter", instance_id="counter-4")
             )
 
-        assert excinfo.value.data == {
-            "code": "canvas_action_no_handler",
-            "message": "No handler implemented for this canvas action",
-        }
+            with pytest.raises(JsonRpcError) as excinfo:
+                await session.rpc.canvas.invoke_action(
+                    CanvasInvokeActionRequest(
+                        action_name="increment",
+                        instance_id="counter-4",
+                        input={},
+                    )
+                )
+
+            assert excinfo.value.data == {
+                "code": "canvas_action_no_handler",
+                "message": "No handler implemented for this canvas action",
+            }
+        finally:
+            await session.disconnect()
 
     async def test_seeds_open_canvases_on_resume_from_the_runtime_resume_response(
         self, ctx: E2ETestContext
     ):
         session_a = await _create_counter_session(ctx, _CounterHandler())
-        await session_a.rpc.canvas.open(
-            CanvasOpenRequest(
-                canvas_id="counter",
-                instance_id="counter-resume",
-                input={"initial": True},
+        try:
+            await session_a.rpc.canvas.open(
+                CanvasOpenRequest(
+                    canvas_id="counter",
+                    instance_id="counter-resume",
+                    input={"initial": True},
+                )
             )
-        )
 
-        resumed = await ctx.client.resume_session(
-            session_a.session_id,
-            canvases=[_counter_declaration()],
-            request_canvas_renderer=True,
-            extension_info=_EXTENSION_INFO,
-            canvas_handler=_CounterHandler(),
-        )
+            resumed = await ctx.client.resume_session(
+                session_a.session_id,
+                canvases=[_counter_declaration()],
+                request_canvas_renderer=True,
+                extension_info=_EXTENSION_INFO,
+                canvas_handler=_CounterHandler(),
+            )
 
-        matching = [
-            canvas for canvas in resumed.open_canvases if canvas.instance_id == "counter-resume"
-        ]
-        assert len(matching) == 1
-        assert matching[0].canvas_id == "counter"
+            try:
+                matching = [
+                    canvas
+                    for canvas in resumed.open_canvases
+                    if canvas.instance_id == "counter-resume"
+                ]
+                assert len(matching) == 1
+                assert matching[0].canvas_id == "counter"
+            finally:
+                await resumed.disconnect()
+        finally:
+            await session_a.disconnect()

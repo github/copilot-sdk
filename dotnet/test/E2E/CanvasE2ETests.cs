@@ -15,7 +15,7 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : 
     public async Task DispatchesCanvasOpenToProviderHandler()
     {
         var opens = new List<CanvasOpenContext>();
-        var session = await CreateSessionAsync(CreateCanvasSessionConfig(new RecordingCanvasHandler(opens: opens)));
+        await using var session = await CreateSessionAsync(CreateCanvasSessionConfig(new RecordingCanvasHandler(opens: opens)));
 
         var result = await session.Rpc.Canvas.OpenAsync(
             canvasId: "counter",
@@ -36,7 +36,7 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : 
     public async Task DispatchesCanvasActionInvokeToHandler()
     {
         var actions = new List<CanvasActionContext>();
-        var session = await CreateSessionAsync(CreateCanvasSessionConfig(new RecordingCanvasHandler(actions: actions)));
+        await using var session = await CreateSessionAsync(CreateCanvasSessionConfig(new RecordingCanvasHandler(actions: actions)));
 
         await session.Rpc.Canvas.OpenAsync(canvasId: "counter", instanceId: "counter-2");
         var result = await session.Rpc.Canvas.InvokeActionAsync(
@@ -50,8 +50,9 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : 
         Assert.Equal("increment", action.ActionName);
         Assert.Equal(3, action.Input.GetProperty("amount").GetInt32());
 
-        Assert.NotNull(result.Result);
-        var payload = result.Result.Value;
+        var actionResult = result.Result;
+        Assert.NotNull(actionResult);
+        var payload = actionResult!.Value;
         Assert.True(payload.GetProperty("ok").GetBoolean());
         Assert.Equal("increment", payload.GetProperty("actionName").GetString());
         Assert.Equal(3, payload.GetProperty("input").GetProperty("amount").GetInt32());
@@ -61,7 +62,7 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : 
     public async Task DispatchesCanvasCloseToOnCloseHandler()
     {
         var closes = new List<CanvasLifecycleContext>();
-        var session = await CreateSessionAsync(CreateCanvasSessionConfig(new RecordingCanvasHandler(closes: closes)));
+        await using var session = await CreateSessionAsync(CreateCanvasSessionConfig(new RecordingCanvasHandler(closes: closes)));
 
         await session.Rpc.Canvas.OpenAsync(canvasId: "counter", instanceId: "counter-3");
         await session.Rpc.Canvas.CloseAsync(instanceId: "counter-3");
@@ -75,7 +76,7 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : 
     [Fact]
     public async Task ReturnsCanvasActionNoHandlerForDeclaredActionWithoutHandler()
     {
-        var session = await CreateSessionAsync(CreateCanvasSessionConfig(new OpenOnlyCanvasHandler()));
+        await using var session = await CreateSessionAsync(CreateCanvasSessionConfig(new OpenOnlyCanvasHandler()));
 
         await session.Rpc.Canvas.OpenAsync(canvasId: "counter", instanceId: "counter-4");
         var ex = await Assert.ThrowsAsync<IOException>(() => session.Rpc.Canvas.InvokeActionAsync(
@@ -89,14 +90,14 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : 
     [Fact]
     public async Task SeedsOpenCanvasesOnResumeFromRuntime()
     {
-        var sessionA = await CreateSessionAsync(CreateCanvasSessionConfig(new OpenOnlyCanvasHandler()));
+        await using var sessionA = await CreateSessionAsync(CreateCanvasSessionConfig(new OpenOnlyCanvasHandler()));
 
         await sessionA.Rpc.Canvas.OpenAsync(
             canvasId: "counter",
             instanceId: "counter-resume",
             input: new Dictionary<string, object> { ["initial"] = true });
 
-        var resumed = await ResumeSessionAsync(sessionA.SessionId, CreateCanvasResumeConfig(new OpenOnlyCanvasHandler()));
+        await using var resumed = await ResumeSessionAsync(sessionA.SessionId, CreateCanvasResumeConfig(new OpenOnlyCanvasHandler()));
 
         Assert.NotEmpty(resumed.OpenCanvases);
         var match = Assert.Single(resumed.OpenCanvases, canvas => canvas.InstanceId == "counter-resume");

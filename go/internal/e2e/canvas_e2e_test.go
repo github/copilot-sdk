@@ -140,6 +140,7 @@ func TestCanvasE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResumeSession failed: %v", err)
 		}
+		t.Cleanup(func() { _ = resumed.Disconnect() })
 
 		seeded := resumed.OpenCanvases()
 		if len(seeded) == 0 {
@@ -235,6 +236,7 @@ func createCanvasSession(t *testing.T, client *copilot.Client, ctx *testharness.
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
+	t.Cleanup(func() { _ = session.Disconnect() })
 	return session
 }
 
