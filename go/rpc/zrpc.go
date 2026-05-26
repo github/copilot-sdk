@@ -305,6 +305,27 @@ type CanvasCloseRequest struct {
 	InstanceID string `json:"instanceId"`
 }
 
+// Experimental: CanvasCloseResult is part of an experimental API and may change or be
+// removed.
+type CanvasCloseResult struct {
+}
+
+// Host context supplied by the runtime.
+// Experimental: CanvasHostContext is part of an experimental API and may change or be
+// removed.
+type CanvasHostContext struct {
+	// Host capabilities
+	Capabilities *CanvasHostContextCapabilities `json:"capabilities,omitempty"`
+}
+
+// Host capabilities
+// Experimental: CanvasHostContextCapabilities is part of an experimental API and may change
+// or be removed.
+type CanvasHostContextCapabilities struct {
+	// Whether canvas rendering is supported
+	Canvases *bool `json:"canvases,omitempty"`
+}
+
 // Canvas action invocation parameters.
 // Experimental: CanvasInvokeActionRequest is part of an experimental API and may change or
 // be removed.
@@ -358,6 +379,72 @@ type CanvasOpenRequest struct {
 	Input any `json:"input,omitempty"`
 	// Caller-supplied stable instance identifier
 	InstanceID string `json:"instanceId"`
+}
+
+// Canvas close parameters sent to the provider.
+// Experimental: CanvasProviderCloseRequest is part of an experimental API and may change or
+// be removed.
+type CanvasProviderCloseRequest struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Host context supplied by the runtime.
+	Host *CanvasHostContext `json:"host,omitempty"`
+	// Canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Canvas action invocation parameters sent to the provider.
+// Experimental: CanvasProviderInvokeActionRequest is part of an experimental API and may
+// change or be removed.
+type CanvasProviderInvokeActionRequest struct {
+	// Action name to invoke
+	ActionName string `json:"actionName"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Host context supplied by the runtime.
+	Host *CanvasHostContext `json:"host,omitempty"`
+	// Action input
+	Input any `json:"input,omitempty"`
+	// Canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Canvas open parameters sent to the provider.
+// Experimental: CanvasProviderOpenRequest is part of an experimental API and may change or
+// be removed.
+type CanvasProviderOpenRequest struct {
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Host context supplied by the runtime.
+	Host *CanvasHostContext `json:"host,omitempty"`
+	// Canvas open input
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Target session identifier
+	SessionID string `json:"sessionId"`
+}
+
+// Canvas open result returned by the provider.
+// Experimental: CanvasProviderOpenResult is part of an experimental API and may change or
+// be removed.
+type CanvasProviderOpenResult struct {
+	// Provider-supplied status text
+	Status *string `json:"status,omitempty"`
+	// Provider-supplied title
+	Title *string `json:"title,omitempty"`
+	// URL for web-rendered canvases
+	URL *string `json:"url,omitempty"`
 }
 
 // Slash commands available in the session, after applying any include/exclude filters.
@@ -1735,6 +1822,8 @@ type McpServerConfigHTTP struct {
 	OauthGrantType *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 	// Whether the configured OAuth client is public and does not require a client secret.
 	OauthPublicClient *bool `json:"oauthPublicClient,omitempty"`
+	// OIDC token configuration. When truthy, a token is automatically gathered.
+	Oidc McpServerConfigHTTPOidc `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -1751,6 +1840,8 @@ func (McpServerConfigHTTP) mcpServerConfig() {}
 type McpServerConfigStdio struct {
 	// Command-line arguments passed to the Stdio MCP server process.
 	Args []string `json:"args,omitempty"`
+	// Authentication configuration for this server.
+	Auth McpServerConfigStdioAuth `json:"auth,omitempty"`
 	// Executable command used to start the Stdio MCP server process.
 	Command string `json:"command"`
 	// Working directory for the Stdio MCP server process.
@@ -1763,6 +1854,8 @@ type McpServerConfigStdio struct {
 	// Whether this server is a built-in fallback used when the user has not configured their
 	// own server.
 	IsDefaultServer *bool `json:"isDefaultServer,omitempty"`
+	// OIDC token configuration. When truthy, a token is automatically gathered.
+	Oidc McpServerConfigStdioOidc `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -1776,6 +1869,45 @@ type McpServerConfigHTTPAuth struct {
 	// Fixed port for the OAuth redirect callback server.
 	RedirectPort *int32 `json:"redirectPort,omitempty"`
 }
+
+// OIDC token configuration. When truthy, a token is automatically gathered.
+type McpServerConfigHTTPOidc interface {
+	mcpServerConfigHTTPOidc()
+}
+
+type McpServerConfigHTTPOidcAnyMap map[string]any
+
+func (McpServerConfigHTTPOidcAnyMap) mcpServerConfigHTTPOidc() {}
+
+type McpServerConfigHTTPOidcBoolean bool
+
+func (McpServerConfigHTTPOidcBoolean) mcpServerConfigHTTPOidc() {}
+
+// Authentication configuration for this server.
+type McpServerConfigStdioAuth interface {
+	mcpServerConfigStdioAuth()
+}
+
+type McpServerConfigStdioAuthAnyMap map[string]any
+
+func (McpServerConfigStdioAuthAnyMap) mcpServerConfigStdioAuth() {}
+
+type McpServerConfigStdioAuthBoolean bool
+
+func (McpServerConfigStdioAuthBoolean) mcpServerConfigStdioAuth() {}
+
+// OIDC token configuration. When truthy, a token is automatically gathered.
+type McpServerConfigStdioOidc interface {
+	mcpServerConfigStdioOidc()
+}
+
+type McpServerConfigStdioOidcAnyMap map[string]any
+
+func (McpServerConfigStdioOidcAnyMap) mcpServerConfigStdioOidc() {}
+
+type McpServerConfigStdioOidcBoolean bool
+
+func (McpServerConfigStdioOidcBoolean) mcpServerConfigStdioOidc() {}
 
 // MCP servers configured for the session, with their connection status.
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
@@ -3833,11 +3965,13 @@ type SessionContextInfo struct {
 	TotalTokens int64 `json:"totalTokens"`
 }
 
-// The same metadata records, with summary and context fields backfilled where available.
+// The enriched metadata records, with summary and context fields backfilled where
+// available. Sessions confirmed empty and unnamed are omitted.
 // Experimental: SessionEnrichMetadataResult is part of an experimental API and may change
 // or be removed.
 type SessionEnrichMetadataResult struct {
-	// Same records, with summary and context backfilled
+	// Enriched records, with summary and context backfilled. Sessions confirmed empty and
+	// unnamed may be omitted.
 	Sessions []SessionMetadata `json:"sessions"`
 }
 
@@ -3858,6 +3992,8 @@ type SessionExtensionsReloadResult struct {
 
 // File path, content to append, and optional mode for the client-provided session
 // filesystem.
+// Experimental: SessionFsAppendFileRequest is part of an experimental API and may change or
+// be removed.
 type SessionFsAppendFileRequest struct {
 	// Content to append
 	Content string `json:"content"`
@@ -3870,6 +4006,7 @@ type SessionFsAppendFileRequest struct {
 }
 
 // Describes a filesystem error.
+// Experimental: SessionFsError is part of an experimental API and may change or be removed.
 type SessionFsError struct {
 	// Error classification
 	Code SessionFsErrorCode `json:"code"`
@@ -3878,6 +4015,8 @@ type SessionFsError struct {
 }
 
 // Path to test for existence in the client-provided session filesystem.
+// Experimental: SessionFsExistsRequest is part of an experimental API and may change or be
+// removed.
 type SessionFsExistsRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
@@ -3886,6 +4025,8 @@ type SessionFsExistsRequest struct {
 }
 
 // Indicates whether the requested path exists in the client-provided session filesystem.
+// Experimental: SessionFsExistsResult is part of an experimental API and may change or be
+// removed.
 type SessionFsExistsResult struct {
 	// Whether the path exists
 	Exists bool `json:"exists"`
@@ -3893,6 +4034,8 @@ type SessionFsExistsResult struct {
 
 // Directory path to create in the client-provided session filesystem, with options for
 // recursive creation and POSIX mode.
+// Experimental: SessionFsMkdirRequest is part of an experimental API and may change or be
+// removed.
 type SessionFsMkdirRequest struct {
 	// Optional POSIX-style mode for newly created directories
 	Mode *int64 `json:"mode,omitempty"`
@@ -3905,6 +4048,8 @@ type SessionFsMkdirRequest struct {
 }
 
 // Directory path whose entries should be listed from the client-provided session filesystem.
+// Experimental: SessionFsReaddirRequest is part of an experimental API and may change or be
+// removed.
 type SessionFsReaddirRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
@@ -3913,6 +4058,8 @@ type SessionFsReaddirRequest struct {
 }
 
 // Names of entries in the requested directory, or a filesystem error if the read failed.
+// Experimental: SessionFsReaddirResult is part of an experimental API and may change or be
+// removed.
 type SessionFsReaddirResult struct {
 	// Entry names in the directory
 	Entries []string `json:"entries"`
@@ -3921,6 +4068,8 @@ type SessionFsReaddirResult struct {
 }
 
 // Schema for the `SessionFsReaddirWithTypesEntry` type.
+// Experimental: SessionFsReaddirWithTypesEntry is part of an experimental API and may
+// change or be removed.
 type SessionFsReaddirWithTypesEntry struct {
 	// Entry name
 	Name string `json:"name"`
@@ -3930,6 +4079,8 @@ type SessionFsReaddirWithTypesEntry struct {
 
 // Directory path whose entries (with type information) should be listed from the
 // client-provided session filesystem.
+// Experimental: SessionFsReaddirWithTypesRequest is part of an experimental API and may
+// change or be removed.
 type SessionFsReaddirWithTypesRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
@@ -3939,6 +4090,8 @@ type SessionFsReaddirWithTypesRequest struct {
 
 // Entries in the requested directory paired with file/directory type information, or a
 // filesystem error if the read failed.
+// Experimental: SessionFsReaddirWithTypesResult is part of an experimental API and may
+// change or be removed.
 type SessionFsReaddirWithTypesResult struct {
 	// Directory entries with type information
 	Entries []SessionFsReaddirWithTypesEntry `json:"entries"`
@@ -3947,6 +4100,8 @@ type SessionFsReaddirWithTypesResult struct {
 }
 
 // Path of the file to read from the client-provided session filesystem.
+// Experimental: SessionFsReadFileRequest is part of an experimental API and may change or
+// be removed.
 type SessionFsReadFileRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
@@ -3955,6 +4110,8 @@ type SessionFsReadFileRequest struct {
 }
 
 // File content as a UTF-8 string, or a filesystem error if the read failed.
+// Experimental: SessionFsReadFileResult is part of an experimental API and may change or be
+// removed.
 type SessionFsReadFileResult struct {
 	// File content as UTF-8 string
 	Content string `json:"content"`
@@ -3964,6 +4121,8 @@ type SessionFsReadFileResult struct {
 
 // Source and destination paths for renaming or moving an entry in the client-provided
 // session filesystem.
+// Experimental: SessionFsRenameRequest is part of an experimental API and may change or be
+// removed.
 type SessionFsRenameRequest struct {
 	// Destination path using SessionFs conventions
 	Dest string `json:"dest"`
@@ -3975,6 +4134,8 @@ type SessionFsRenameRequest struct {
 
 // Path to remove from the client-provided session filesystem, with options for recursive
 // removal and force.
+// Experimental: SessionFsRmRequest is part of an experimental API and may change or be
+// removed.
 type SessionFsRmRequest struct {
 	// Ignore errors if the path does not exist
 	Force *bool `json:"force,omitempty"`
@@ -4012,12 +4173,16 @@ type SessionFsSetProviderResult struct {
 }
 
 // Identifies the target session.
+// Experimental: SessionFsSqliteExistsRequest is part of an experimental API and may change
+// or be removed.
 type SessionFsSqliteExistsRequest struct {
 	// Target session identifier
 	SessionID string `json:"sessionId"`
 }
 
 // Indicates whether the per-session SQLite database already exists.
+// Experimental: SessionFsSqliteExistsResult is part of an experimental API and may change
+// or be removed.
 type SessionFsSqliteExistsResult struct {
 	// Whether the session database already exists
 	Exists bool `json:"exists"`
@@ -4025,6 +4190,8 @@ type SessionFsSqliteExistsResult struct {
 
 // SQL query, query type, and optional bind parameters for executing a SQLite query against
 // the per-session database.
+// Experimental: SessionFsSqliteQueryRequest is part of an experimental API and may change
+// or be removed.
 type SessionFsSqliteQueryRequest struct {
 	// Optional named bind parameters
 	Params map[string]any `json:"params,omitempty"`
@@ -4039,6 +4206,8 @@ type SessionFsSqliteQueryRequest struct {
 
 // Query results including rows, columns, and rows affected, or a filesystem error if
 // execution failed.
+// Experimental: SessionFsSqliteQueryResult is part of an experimental API and may change or
+// be removed.
 type SessionFsSqliteQueryResult struct {
 	// Column names from the result set
 	Columns []string `json:"columns"`
@@ -4053,6 +4222,8 @@ type SessionFsSqliteQueryResult struct {
 }
 
 // Path whose metadata should be returned from the client-provided session filesystem.
+// Experimental: SessionFsStatRequest is part of an experimental API and may change or be
+// removed.
 type SessionFsStatRequest struct {
 	// Path using SessionFs conventions
 	Path string `json:"path"`
@@ -4061,6 +4232,8 @@ type SessionFsStatRequest struct {
 }
 
 // Filesystem metadata for the requested path, or a filesystem error if the stat failed.
+// Experimental: SessionFsStatResult is part of an experimental API and may change or be
+// removed.
 type SessionFsStatResult struct {
 	// ISO 8601 timestamp of creation
 	Birthtime time.Time `json:"birthtime"`
@@ -4077,6 +4250,8 @@ type SessionFsStatResult struct {
 }
 
 // File path, content to write, and optional mode for the client-provided session filesystem.
+// Experimental: SessionFsWriteFileRequest is part of an experimental API and may change or
+// be removed.
 type SessionFsWriteFileRequest struct {
 	// Content to write
 	Content string `json:"content"`
@@ -6992,6 +7167,8 @@ const (
 )
 
 // Error classification
+// Experimental: SessionFsErrorCode is part of an experimental API and may change or be
+// removed.
 type SessionFsErrorCode string
 
 const (
@@ -7002,6 +7179,8 @@ const (
 )
 
 // Entry type
+// Experimental: SessionFsReaddirWithTypesEntryType is part of an experimental API and may
+// change or be removed.
 type SessionFsReaddirWithTypesEntryType string
 
 const (
@@ -7023,6 +7202,8 @@ const (
 
 // How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT
 // (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
+// Experimental: SessionFsSqliteQueryType is part of an experimental API and may change or
+// be removed.
 type SessionFsSqliteQueryType string
 
 const (
@@ -7710,8 +7891,8 @@ func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSe
 //
 // Parameters: Session metadata records to enrich with summary and context information.
 //
-// Returns: The same metadata records, with summary and context fields backfilled where
-// available.
+// Returns: The enriched metadata records, with summary and context fields backfilled where
+// available. Sessions confirmed empty and unnamed are omitted.
 func (a *ServerSessionsApi) EnrichMetadata(ctx context.Context, params *SessionsEnrichMetadataRequest) (*SessionEnrichMetadataResult, error) {
 	raw, err := a.client.Request("sessions.enrichMetadata", params)
 	if err != nil {
@@ -11749,6 +11930,33 @@ func NewSessionRpc(client *jsonrpc2.Client, sessionID string) *SessionRpc {
 	return r
 }
 
+// Experimental: CanvasHandler contains experimental APIs that may change or be removed.
+type CanvasHandler interface {
+	// Closes a canvas instance on the provider.
+	//
+	// RPC method: canvas.close.
+	//
+	// Parameters: Canvas close parameters sent to the provider.
+	Close(request *CanvasProviderCloseRequest) (*CanvasCloseResult, error)
+	// InvokeAction invokes an action on an open canvas instance via the provider.
+	//
+	// RPC method: canvas.invokeAction.
+	//
+	// Parameters: Canvas action invocation parameters sent to the provider.
+	//
+	// Returns: Provider-supplied action result.
+	InvokeAction(request *CanvasProviderInvokeActionRequest) (*CanvasInvokeActionResult, error)
+	// Opens a canvas instance on the provider.
+	//
+	// RPC method: canvas.open.
+	//
+	// Parameters: Canvas open parameters sent to the provider.
+	//
+	// Returns: Canvas open result returned by the provider.
+	Open(request *CanvasProviderOpenRequest) (*CanvasProviderOpenResult, error)
+}
+
+// Experimental: SessionFsHandler contains experimental APIs that may change or be removed.
 type SessionFsHandler interface {
 	// AppendFile appends content to a file in the client-provided session filesystem.
 	//
@@ -11866,6 +12074,7 @@ type SessionFsHandler interface {
 
 // ClientSessionApiHandlers provides all client session API handler groups for a session.
 type ClientSessionApiHandlers struct {
+	Canvas    CanvasHandler
 	SessionFs SessionFsHandler
 }
 
@@ -11883,6 +12092,63 @@ func clientSessionHandlerError(err error) *jsonrpc2.Error {
 // RegisterClientSessionApiHandlers registers handlers for server-to-client session API
 // calls.
 func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(sessionID string) *ClientSessionApiHandlers) {
+	client.SetRequestHandler("canvas.close", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request CanvasProviderCloseRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Canvas == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Canvas.Close(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("canvas.invokeAction", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request CanvasProviderInvokeActionRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Canvas == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Canvas.InvokeAction(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
+	client.SetRequestHandler("canvas.open", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+		var request CanvasProviderOpenRequest
+		if err := json.Unmarshal(params, &request); err != nil {
+			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
+		}
+		handlers := getHandlers(request.SessionID)
+		if handlers == nil || handlers.Canvas == nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
+		}
+		result, err := handlers.Canvas.Open(&request)
+		if err != nil {
+			return nil, clientSessionHandlerError(err)
+		}
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("Failed to marshal response: %v", err)}
+		}
+		return raw, nil
+	})
 	client.SetRequestHandler("sessionFs.appendFile", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request SessionFsAppendFileRequest
 		if err := json.Unmarshal(params, &request); err != nil {

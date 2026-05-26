@@ -453,6 +453,28 @@ export type McpAppsSetHostContextDetailsPlatform =
  */
 export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
 /**
+ * OIDC token configuration. When truthy, a token is automatically gathered.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigStdioOidc".
+ */
+export type McpServerConfigStdioOidc =
+  | boolean
+  | {
+      [k: string]: unknown | undefined;
+    };
+/**
+ * Authentication configuration for this server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigStdioAuth".
+ */
+export type McpServerConfigStdioAuth =
+  | boolean
+  | {
+      [k: string]: unknown | undefined;
+    };
+/**
  * Remote transport type. Defaults to "http" when omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -463,6 +485,17 @@ export type McpServerConfigHttpType =
   | "http"
   /** Server-Sent Events transport. */
   | "sse";
+/**
+ * OIDC token configuration. When truthy, a token is automatically gathered.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigHttpOidc".
+ */
+export type McpServerConfigHttpOidc =
+  | boolean
+  | {
+      [k: string]: unknown | undefined;
+    };
 /**
  * OAuth grant type to use when authenticating to the remote MCP server.
  *
@@ -861,6 +894,7 @@ export type SessionContextHostType =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsErrorCode".
  */
+/** @experimental */
 export type SessionFsErrorCode =
   /** The requested path does not exist. */
   | "ENOENT"
@@ -872,6 +906,7 @@ export type SessionFsErrorCode =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirWithTypesEntryType".
  */
+/** @experimental */
 export type SessionFsReaddirWithTypesEntryType =
   /** The entry is a file. */
   | "file"
@@ -894,6 +929,7 @@ export type SessionFsSetProviderConventions =
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteQueryType".
  */
+/** @experimental */
 export type SessionFsSqliteQueryType =
   /** Execute DDL or multi-statement SQL without returning rows. */
   | "exec"
@@ -1776,6 +1812,29 @@ export interface CanvasCloseRequest {
   instanceId: string;
 }
 /**
+ * Host context supplied by the runtime.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasHostContext".
+ */
+/** @experimental */
+export interface CanvasHostContext {
+  capabilities?: CanvasHostContextCapabilities;
+}
+/**
+ * Host capabilities
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasHostContextCapabilities".
+ */
+/** @experimental */
+export interface CanvasHostContextCapabilities {
+  /**
+   * Whether canvas rendering is supported
+   */
+  canvases?: boolean;
+}
+/**
  * Canvas action invocation parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -1799,19 +1858,14 @@ export interface CanvasInvokeActionRequest {
   };
 }
 /**
- * Canvas action invocation result.
+ * Provider-supplied action result.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CanvasInvokeActionResult".
  */
 /** @experimental */
 export interface CanvasInvokeActionResult {
-  /**
-   * Provider-supplied action result
-   */
-  result?: {
-    [k: string]: unknown | undefined;
-  };
+  [k: string]: unknown | undefined;
 }
 /**
  * Declared canvases available in this session.
@@ -1947,6 +2001,121 @@ export interface CanvasOpenRequest {
   input?: {
     [k: string]: unknown | undefined;
   };
+}
+/**
+ * Canvas close parameters sent to the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderCloseRequest".
+ */
+/** @experimental */
+export interface CanvasProviderCloseRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Canvas instance identifier
+   */
+  instanceId: string;
+  host?: CanvasHostContext;
+}
+/**
+ * Canvas action invocation parameters sent to the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderInvokeActionRequest".
+ */
+/** @experimental */
+export interface CanvasProviderInvokeActionRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Action name to invoke
+   */
+  actionName: string;
+  /**
+   * Action input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  host?: CanvasHostContext;
+}
+/**
+ * Canvas open parameters sent to the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderOpenRequest".
+ */
+/** @experimental */
+export interface CanvasProviderOpenRequest {
+  /**
+   * Target session identifier
+   */
+  sessionId: string;
+  /**
+   * Owning provider identifier
+   */
+  extensionId: string;
+  /**
+   * Provider-local canvas identifier
+   */
+  canvasId: string;
+  /**
+   * Stable caller-supplied canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Canvas open input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+  host?: CanvasHostContext;
+}
+/**
+ * Canvas open result returned by the provider.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasProviderOpenResult".
+ */
+/** @experimental */
+export interface CanvasProviderOpenResult {
+  /**
+   * URL for web-rendered canvases
+   */
+  url?: string;
+  /**
+   * Provider-supplied title
+   */
+  title?: string;
+  /**
+   * Provider-supplied status text
+   */
+  status?: string;
 }
 /**
  * Slash commands available in the session, after applying any include/exclude filters.
@@ -3463,6 +3632,8 @@ export interface McpServerConfigStdio {
    * Timeout in milliseconds for tool calls to this server.
    */
   timeout?: number;
+  oidc?: McpServerConfigStdioOidc;
+  auth?: McpServerConfigStdioAuth;
   /**
    * Executable command used to start the Stdio MCP server process.
    */
@@ -3503,6 +3674,8 @@ export interface McpServerConfigHttp {
    * Timeout in milliseconds for tool calls to this server.
    */
   timeout?: number;
+  oidc?: McpServerConfigHttpOidc;
+  auth?: McpServerConfigHttpAuth;
   /**
    * URL of the remote MCP server endpoint.
    */
@@ -3522,7 +3695,6 @@ export interface McpServerConfigHttp {
    */
   oauthPublicClient?: boolean;
   oauthGrantType?: McpServerConfigHttpOauthGrantType;
-  auth?: McpServerConfigHttpAuth;
 }
 /**
  * Additional authentication configuration for this server.
@@ -3535,6 +3707,7 @@ export interface McpServerConfigHttpAuth {
    * Fixed port for the OAuth redirect callback server.
    */
   redirectPort?: number;
+  [k: string]: unknown | undefined;
 }
 /**
  * MCP server names to disable for new sessions.
@@ -6395,7 +6568,7 @@ export interface SessionContext {
   branch?: string;
 }
 /**
- * The same metadata records, with summary and context fields backfilled where available.
+ * The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionEnrichMetadataResult".
@@ -6403,7 +6576,7 @@ export interface SessionContext {
 /** @experimental */
 export interface SessionEnrichMetadataResult {
   /**
-   * Same records, with summary and context backfilled
+   * Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted.
    */
   sessions: SessionMetadata[];
 }
@@ -6451,6 +6624,7 @@ export interface SessionMetadata {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsAppendFileRequest".
  */
+/** @experimental */
 export interface SessionFsAppendFileRequest {
   /**
    * Target session identifier
@@ -6475,6 +6649,7 @@ export interface SessionFsAppendFileRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsError".
  */
+/** @experimental */
 export interface SessionFsError {
   code: SessionFsErrorCode;
   /**
@@ -6488,6 +6663,7 @@ export interface SessionFsError {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsExistsRequest".
  */
+/** @experimental */
 export interface SessionFsExistsRequest {
   /**
    * Target session identifier
@@ -6504,6 +6680,7 @@ export interface SessionFsExistsRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsExistsResult".
  */
+/** @experimental */
 export interface SessionFsExistsResult {
   /**
    * Whether the path exists
@@ -6516,6 +6693,7 @@ export interface SessionFsExistsResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsMkdirRequest".
  */
+/** @experimental */
 export interface SessionFsMkdirRequest {
   /**
    * Target session identifier
@@ -6540,6 +6718,7 @@ export interface SessionFsMkdirRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirRequest".
  */
+/** @experimental */
 export interface SessionFsReaddirRequest {
   /**
    * Target session identifier
@@ -6556,6 +6735,7 @@ export interface SessionFsReaddirRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirResult".
  */
+/** @experimental */
 export interface SessionFsReaddirResult {
   /**
    * Entry names in the directory
@@ -6569,6 +6749,7 @@ export interface SessionFsReaddirResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirWithTypesEntry".
  */
+/** @experimental */
 export interface SessionFsReaddirWithTypesEntry {
   /**
    * Entry name
@@ -6582,6 +6763,7 @@ export interface SessionFsReaddirWithTypesEntry {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirWithTypesRequest".
  */
+/** @experimental */
 export interface SessionFsReaddirWithTypesRequest {
   /**
    * Target session identifier
@@ -6598,6 +6780,7 @@ export interface SessionFsReaddirWithTypesRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReaddirWithTypesResult".
  */
+/** @experimental */
 export interface SessionFsReaddirWithTypesResult {
   /**
    * Directory entries with type information
@@ -6611,6 +6794,7 @@ export interface SessionFsReaddirWithTypesResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReadFileRequest".
  */
+/** @experimental */
 export interface SessionFsReadFileRequest {
   /**
    * Target session identifier
@@ -6627,6 +6811,7 @@ export interface SessionFsReadFileRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsReadFileResult".
  */
+/** @experimental */
 export interface SessionFsReadFileResult {
   /**
    * File content as UTF-8 string
@@ -6640,6 +6825,7 @@ export interface SessionFsReadFileResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsRenameRequest".
  */
+/** @experimental */
 export interface SessionFsRenameRequest {
   /**
    * Target session identifier
@@ -6660,6 +6846,7 @@ export interface SessionFsRenameRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsRmRequest".
  */
+/** @experimental */
 export interface SessionFsRmRequest {
   /**
    * Target session identifier
@@ -6726,6 +6913,7 @@ export interface SessionFsSetProviderResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteExistsResult".
  */
+/** @experimental */
 export interface SessionFsSqliteExistsResult {
   /**
    * Whether the session database already exists
@@ -6738,6 +6926,7 @@ export interface SessionFsSqliteExistsResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteQueryRequest".
  */
+/** @experimental */
 export interface SessionFsSqliteQueryRequest {
   /**
    * Target session identifier
@@ -6761,6 +6950,7 @@ export interface SessionFsSqliteQueryRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteQueryResult".
  */
+/** @experimental */
 export interface SessionFsSqliteQueryResult {
   /**
    * For SELECT: array of row objects. For others: empty array.
@@ -6788,6 +6978,7 @@ export interface SessionFsSqliteQueryResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsStatRequest".
  */
+/** @experimental */
 export interface SessionFsStatRequest {
   /**
    * Target session identifier
@@ -6804,6 +6995,7 @@ export interface SessionFsStatRequest {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsStatResult".
  */
+/** @experimental */
 export interface SessionFsStatResult {
   /**
    * Whether the path is a file
@@ -6833,6 +7025,7 @@ export interface SessionFsStatResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsWriteFileRequest".
  */
+/** @experimental */
 export interface SessionFsWriteFileRequest {
   /**
    * Target session identifier
@@ -9475,6 +9668,7 @@ export interface SessionMcpAppsCallToolResult {
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionFsSqliteExistsRequest".
  */
+/** @experimental */
 export interface SessionFsSqliteExistsRequest {
   /**
    * Target session identifier
@@ -9764,7 +9958,7 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @param params Session metadata records to enrich with summary and context information.
              *
-             * @returns The same metadata records, with summary and context fields backfilled where available.
+             * @returns The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
              */
             enrichMetadata: async (params: SessionsEnrichMetadataRequest): Promise<SessionEnrichMetadataResult> =>
                 connection.sendRequest("sessions.enrichMetadata", params),
@@ -11147,9 +11341,36 @@ export interface SessionFsHandler {
     sqliteExists(params: SessionFsSqliteExistsRequest): Promise<SessionFsSqliteExistsResult>;
 }
 
+/** Handler for `canvas` client session API methods. */
+export interface CanvasHandler {
+    /**
+     * Opens a canvas instance on the provider.
+     *
+     * @param params Canvas open parameters sent to the provider.
+     *
+     * @returns Canvas open result returned by the provider.
+     */
+    open(params: CanvasProviderOpenRequest): Promise<CanvasProviderOpenResult>;
+    /**
+     * Closes a canvas instance on the provider.
+     *
+     * @param params Canvas close parameters sent to the provider.
+     */
+    close(params: CanvasProviderCloseRequest): Promise<void>;
+    /**
+     * Invokes an action on an open canvas instance via the provider.
+     *
+     * @param params Canvas action invocation parameters sent to the provider.
+     *
+     * @returns Provider-supplied action result.
+     */
+    invokeAction(params: CanvasProviderInvokeActionRequest): Promise<CanvasInvokeActionResult>;
+}
+
 /** All client session API handler groups. */
 export interface ClientSessionApiHandlers {
     sessionFs?: SessionFsHandler;
+    canvas?: CanvasHandler;
 }
 
 /**
@@ -11221,5 +11442,20 @@ export function registerClientSessionApiHandlers(
         const handler = getHandlers(params.sessionId).sessionFs;
         if (!handler) throw new Error(`No sessionFs handler registered for session: ${params.sessionId}`);
         return handler.sqliteExists(params);
+    });
+    connection.onRequest("canvas.open", async (params: CanvasProviderOpenRequest) => {
+        const handler = getHandlers(params.sessionId).canvas;
+        if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
+        return handler.open(params);
+    });
+    connection.onRequest("canvas.close", async (params: CanvasProviderCloseRequest) => {
+        const handler = getHandlers(params.sessionId).canvas;
+        if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
+        return handler.close(params);
+    });
+    connection.onRequest("canvas.invokeAction", async (params: CanvasProviderInvokeActionRequest) => {
+        const handler = getHandlers(params.sessionId).canvas;
+        if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
+        return handler.invokeAction(params);
     });
 }

@@ -668,6 +668,25 @@ func (r RawMcpServerConfigData) MarshalJSON() ([]byte, error) {
 	return []byte("null"), nil
 }
 
+func unmarshalMcpServerConfigHTTPOidc(data []byte) (McpServerConfigHTTPOidc, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			return McpServerConfigHTTPOidcBoolean(value), nil
+		}
+	}
+	{
+		var value McpServerConfigHTTPOidcAnyMap
+		if err := json.Unmarshal(data, &value); err == nil {
+			return value, nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for McpServerConfigHTTPOidc")
+}
+
 func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	type rawMcpServerConfigHTTP struct {
 		Auth              *McpServerConfigHTTPAuth           `json:"auth,omitempty"`
@@ -677,6 +696,7 @@ func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 		OauthClientID     *string                            `json:"oauthClientId,omitempty"`
 		OauthGrantType    *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 		OauthPublicClient *bool                              `json:"oauthPublicClient,omitempty"`
+		Oidc              json.RawMessage                    `json:"oidc,omitempty"`
 		Timeout           *int64                             `json:"timeout,omitempty"`
 		Tools             []string                           `json:"tools,omitempty"`
 		Type              *McpServerConfigHTTPType           `json:"type,omitempty"`
@@ -699,6 +719,13 @@ func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	r.OauthClientID = raw.OauthClientID
 	r.OauthGrantType = raw.OauthGrantType
 	r.OauthPublicClient = raw.OauthPublicClient
+	if raw.Oidc != nil {
+		value, err := unmarshalMcpServerConfigHTTPOidc(raw.Oidc)
+		if err != nil {
+			return err
+		}
+		r.Oidc = value
+	}
 	r.Timeout = raw.Timeout
 	r.Tools = raw.Tools
 	r.Type = raw.Type
@@ -706,14 +733,54 @@ func (r *McpServerConfigHTTP) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func unmarshalMcpServerConfigStdioAuth(data []byte) (McpServerConfigStdioAuth, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			return McpServerConfigStdioAuthBoolean(value), nil
+		}
+	}
+	{
+		var value McpServerConfigStdioAuthAnyMap
+		if err := json.Unmarshal(data, &value); err == nil {
+			return value, nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for McpServerConfigStdioAuth")
+}
+
+func unmarshalMcpServerConfigStdioOidc(data []byte) (McpServerConfigStdioOidc, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	{
+		var value bool
+		if err := json.Unmarshal(data, &value); err == nil {
+			return McpServerConfigStdioOidcBoolean(value), nil
+		}
+	}
+	{
+		var value McpServerConfigStdioOidcAnyMap
+		if err := json.Unmarshal(data, &value); err == nil {
+			return value, nil
+		}
+	}
+	return nil, errors.New("data did not match any union variant for McpServerConfigStdioOidc")
+}
+
 func (r *McpServerConfigStdio) UnmarshalJSON(data []byte) error {
 	type rawMcpServerConfigStdio struct {
 		Args            []string          `json:"args,omitempty"`
+		Auth            json.RawMessage   `json:"auth,omitempty"`
 		Command         string            `json:"command"`
 		Cwd             *string           `json:"cwd,omitempty"`
 		Env             map[string]string `json:"env,omitempty"`
 		FilterMapping   json.RawMessage   `json:"filterMapping,omitempty"`
 		IsDefaultServer *bool             `json:"isDefaultServer,omitempty"`
+		Oidc            json.RawMessage   `json:"oidc,omitempty"`
 		Timeout         *int64            `json:"timeout,omitempty"`
 		Tools           []string          `json:"tools,omitempty"`
 	}
@@ -722,6 +789,13 @@ func (r *McpServerConfigStdio) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.Args = raw.Args
+	if raw.Auth != nil {
+		value, err := unmarshalMcpServerConfigStdioAuth(raw.Auth)
+		if err != nil {
+			return err
+		}
+		r.Auth = value
+	}
 	r.Command = raw.Command
 	r.Cwd = raw.Cwd
 	r.Env = raw.Env
@@ -733,6 +807,13 @@ func (r *McpServerConfigStdio) UnmarshalJSON(data []byte) error {
 		r.FilterMapping = value
 	}
 	r.IsDefaultServer = raw.IsDefaultServer
+	if raw.Oidc != nil {
+		value, err := unmarshalMcpServerConfigStdioOidc(raw.Oidc)
+		if err != nil {
+			return err
+		}
+		r.Oidc = value
+	}
 	r.Timeout = raw.Timeout
 	r.Tools = raw.Tools
 	return nil
