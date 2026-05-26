@@ -1510,8 +1510,8 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		}
 
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Say mode ok.",
-			Mode:   "plan",
+			Prompt:    "Say mode ok.",
+			AgentMode: copilot.AgentModePlan,
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
@@ -1535,10 +1535,8 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		if userMsg.Content != "Say mode ok." {
 			t.Errorf("Expected Content 'Say mode ok.', got %q", userMsg.Content)
 		}
-		// The current runtime accepts the per-message mode option but does not
-		// echo it back on the user.message event.
-		if userMsg.AgentMode != nil {
-			t.Errorf("Expected AgentMode=nil, got %v", *userMsg.AgentMode)
+		if userMsg.AgentMode == nil || *userMsg.AgentMode != copilot.UserMessageAgentModePlan {
+			t.Errorf("Expected AgentMode=plan, got %v", userMsg.AgentMode)
 		}
 	})
 
