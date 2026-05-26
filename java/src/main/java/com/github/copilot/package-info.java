@@ -13,16 +13,16 @@
  *
  * <h2>Main Classes</h2>
  * <ul>
- * <li>{@link com.github.copilot.CopilotClient} - The main client for
- * connecting to and communicating with the Copilot CLI. Manages the lifecycle
- * of the CLI process and provides methods for creating sessions, querying
- * models, and checking authentication status.</li>
+ * <li>{@link com.github.copilot.CopilotClient} - The main client for connecting
+ * to and communicating with the Copilot CLI. Manages the lifecycle of the CLI
+ * process and provides methods for creating sessions, querying models, and
+ * checking authentication status.</li>
  * <li>{@link com.github.copilot.CopilotSession} - Represents a single
  * conversation session with Copilot. Sessions maintain context across multiple
  * messages and support streaming responses, tool invocations, and event
  * handling.</li>
- * <li>{@link com.github.copilot.JsonRpcClient} - Low-level JSON-RPC client
- * for communication with the Copilot CLI process.</li>
+ * <li>{@link com.github.copilot.JsonRpcClient} - Low-level JSON-RPC client for
+ * communication with the Copilot CLI process.</li>
  * </ul>
  *
  * <h2>Quick Start</h2>
@@ -43,8 +43,8 @@
  *
  * <h2>Related Packages</h2>
  * <ul>
- * <li>{@link com.github.copilot.generated} - Auto-generated event types
- * emitted during session processing</li>
+ * <li>{@link com.github.copilot.generated} - Auto-generated event types emitted
+ * during session processing</li>
  * <li>{@link com.github.copilot.rpc} - Configuration and data transfer
  * objects</li>
  * </ul>

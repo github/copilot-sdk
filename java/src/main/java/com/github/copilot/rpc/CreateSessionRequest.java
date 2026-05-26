@@ -15,8 +15,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Internal request object for creating a new session.
  * <p>
  * This is a low-level class for JSON-RPC communication. For creating sessions,
- * use
- * {@link com.github.copilot.CopilotClient#createSession(SessionConfig)}.
+ * use {@link com.github.copilot.CopilotClient#createSession(SessionConfig)}.
  *
  * @see com.github.copilot.CopilotClient#createSession(SessionConfig)
  * @see SessionConfig

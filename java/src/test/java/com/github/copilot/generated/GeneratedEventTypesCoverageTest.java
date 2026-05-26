@@ -15,8 +15,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Deserialization tests for generated session event types that are not covered
- * in {@link com.github.copilot.SessionEventDeserializationTest}. Verifies
- * that each event deserializes correctly from JSON and that the {@code type}
+ * in {@link com.github.copilot.SessionEventDeserializationTest}. Verifies that
+ * each event deserializes correctly from JSON and that the {@code type}
  * discriminator and {@code data} fields are accessible.
  */
 public class GeneratedEventTypesCoverageTest {

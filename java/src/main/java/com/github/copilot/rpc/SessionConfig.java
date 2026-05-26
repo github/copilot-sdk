@@ -205,8 +205,8 @@ public class SessionConfig {
      * Sets the system message configuration.
      * <p>
      * The system message controls the behavior and personality of the assistant.
-     * Use {@link com.github.copilot.SystemMessageMode#APPEND} to add
-     * instructions while preserving default behavior, or
+     * Use {@link com.github.copilot.SystemMessageMode#APPEND} to add instructions
+     * while preserving default behavior, or
      * {@link com.github.copilot.SystemMessageMode#REPLACE} to fully customize.
      *
      * @param systemMessage
@@ -794,12 +794,12 @@ public class SessionConfig {
      * Sets an event handler that is registered on the session before the
      * {@code session.create} RPC is issued.
      * <p>
-     * Equivalent to calling
-     * {@link com.github.copilot.CopilotSession#on(Consumer)} immediately after
-     * creation, but executes earlier in the lifecycle so no events are missed.
-     * Using this property rather than {@code CopilotSession.on()} guarantees that
-     * early events emitted by the CLI during session creation (e.g.
-     * {@code session.start}) are delivered to the handler.
+     * Equivalent to calling {@link com.github.copilot.CopilotSession#on(Consumer)}
+     * immediately after creation, but executes earlier in the lifecycle so no
+     * events are missed. Using this property rather than
+     * {@code CopilotSession.on()} guarantees that early events emitted by the CLI
+     * during session creation (e.g. {@code session.start}) are delivered to the
+     * handler.
      *
      * @param onEvent
      *            the event handler to register before session creation

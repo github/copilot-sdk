@@ -37,10 +37,10 @@ public enum SystemMessageMode {
      * Override individual sections of the system prompt.
      * <p>
      * Use this mode with
-     * {@link com.github.copilot.rpc.SystemMessageConfig#setSections} to
-     * selectively replace, remove, append, prepend, or transform individual
-     * sections of the default system prompt. An optional {@code content} string is
-     * appended after all sections when provided.
+     * {@link com.github.copilot.rpc.SystemMessageConfig#setSections} to selectively
+     * replace, remove, append, prepend, or transform individual sections of the
+     * default system prompt. An optional {@code content} string is appended after
+     * all sections when provided.
      *
      * @since 1.2.0
      */

@@ -14,19 +14,19 @@
  * <h2>Client Configuration</h2>
  * <ul>
  * <li>{@link com.github.copilot.rpc.CopilotClientOptions} - Options for
- * configuring the {@link com.github.copilot.CopilotClient}, including CLI
- * path, port, transport mode, and auto-start behavior.</li>
+ * configuring the {@link com.github.copilot.CopilotClient}, including CLI path,
+ * port, transport mode, and auto-start behavior.</li>
  * </ul>
  *
  * <h2>Session Configuration</h2>
  * <ul>
- * <li>{@link com.github.copilot.rpc.SessionConfig} - Configuration for
- * creating a new session, including model selection, tools, system message, and
- * MCP server configuration.</li>
- * <li>{@link com.github.copilot.rpc.ResumeSessionConfig} - Configuration
- * for resuming an existing session.</li>
- * <li>{@link com.github.copilot.rpc.InfiniteSessionConfig} - Configuration
- * for infinite sessions with automatic context compaction.</li>
+ * <li>{@link com.github.copilot.rpc.SessionConfig} - Configuration for creating
+ * a new session, including model selection, tools, system message, and MCP
+ * server configuration.</li>
+ * <li>{@link com.github.copilot.rpc.ResumeSessionConfig} - Configuration for
+ * resuming an existing session.</li>
+ * <li>{@link com.github.copilot.rpc.InfiniteSessionConfig} - Configuration for
+ * infinite sessions with automatic context compaction.</li>
  * <li>{@link com.github.copilot.rpc.SystemMessageConfig} - System message
  * customization options.</li>
  * </ul>
@@ -35,8 +35,8 @@
  * <ul>
  * <li>{@link com.github.copilot.rpc.MessageOptions} - Options for sending
  * messages, including prompt text and attachments.</li>
- * <li>{@link com.github.copilot.rpc.ToolDefinition} - Definition of a
- * custom tool that can be invoked by the assistant.</li>
+ * <li>{@link com.github.copilot.rpc.ToolDefinition} - Definition of a custom
+ * tool that can be invoked by the assistant.</li>
  * <li>{@link com.github.copilot.rpc.ToolInvocation} - Represents a tool
  * invocation request from the assistant.</li>
  * <li>{@link com.github.copilot.rpc.Attachment} - File attachment for
@@ -45,18 +45,18 @@
  *
  * <h2>Provider Configuration (BYOK)</h2>
  * <ul>
- * <li>{@link com.github.copilot.rpc.ProviderConfig} - Configuration for
- * using your own API keys with custom providers (OpenAI, Azure, etc.).</li>
+ * <li>{@link com.github.copilot.rpc.ProviderConfig} - Configuration for using
+ * your own API keys with custom providers (OpenAI, Azure, etc.).</li>
  * <li>{@link com.github.copilot.rpc.AzureOptions} - Azure-specific
  * configuration options.</li>
  * </ul>
  *
  * <h2>Model Information</h2>
  * <ul>
- * <li>{@link com.github.copilot.rpc.ModelInfo} - Information about an
- * available AI model.</li>
- * <li>{@link com.github.copilot.rpc.ModelCapabilities} - Model
- * capabilities and limits.</li>
+ * <li>{@link com.github.copilot.rpc.ModelInfo} - Information about an available
+ * AI model.</li>
+ * <li>{@link com.github.copilot.rpc.ModelCapabilities} - Model capabilities and
+ * limits.</li>
  * <li>{@link com.github.copilot.rpc.ModelPolicy} - Model policy and state
  * information.</li>
  * </ul>
@@ -69,10 +69,10 @@
  *
  * <h2>Permissions</h2>
  * <ul>
- * <li>{@link com.github.copilot.rpc.PermissionHandler} - Handler for
- * permission requests from the assistant.</li>
- * <li>{@link com.github.copilot.rpc.PermissionRequest} - A permission
- * request from the assistant.</li>
+ * <li>{@link com.github.copilot.rpc.PermissionHandler} - Handler for permission
+ * requests from the assistant.</li>
+ * <li>{@link com.github.copilot.rpc.PermissionRequest} - A permission request
+ * from the assistant.</li>
  * <li>{@link com.github.copilot.rpc.PermissionRequestResult} - Result of a
  * permission request decision.</li>
  * </ul>

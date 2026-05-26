@@ -397,8 +397,8 @@ public final class CopilotClient implements AutoCloseable {
      * receive responses. Remember to close the session when done.
      * <p>
      * A permission handler is required when creating a session. Use
-     * {@link com.github.copilot.rpc.PermissionHandler#APPROVE_ALL} to approve
-     * all permission requests, or provide a custom handler to control permissions
+     * {@link com.github.copilot.rpc.PermissionHandler#APPROVE_ALL} to approve all
+     * permission requests, or provide a custom handler to control permissions
      * selectively.
      *
      * <p>
@@ -494,8 +494,8 @@ public final class CopilotClient implements AutoCloseable {
      * conversation. The session's history is preserved.
      * <p>
      * A permission handler is required when resuming a session. Use
-     * {@link com.github.copilot.rpc.PermissionHandler#APPROVE_ALL} to approve
-     * all permission requests, or provide a custom handler to control permissions
+     * {@link com.github.copilot.rpc.PermissionHandler#APPROVE_ALL} to approve all
+     * permission requests, or provide a custom handler to control permissions
      * selectively.
      *
      * @param sessionId
@@ -659,8 +659,8 @@ public final class CopilotClient implements AutoCloseable {
      * The cache is cleared when the client disconnects.
      * <p>
      * If an {@code onListModels} handler was provided in
-     * {@link com.github.copilot.rpc.CopilotClientOptions}, it is called
-     * instead of querying the CLI server. This is useful in BYOK mode.
+     * {@link com.github.copilot.rpc.CopilotClientOptions}, it is called instead of
+     * querying the CLI server. This is useful in BYOK mode.
      *
      * @return a future that resolves with a list of available models
      * @see ModelInfo
@@ -834,8 +834,7 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<String> getForegroundSessionId() {
         return ensureConnected().thenCompose(connection -> connection.rpc
-                .invoke("session.getForeground", Map.of(),
-                        com.github.copilot.rpc.GetForegroundSessionResponse.class)
+                .invoke("session.getForeground", Map.of(), com.github.copilot.rpc.GetForegroundSessionResponse.class)
                 .thenApply(com.github.copilot.rpc.GetForegroundSessionResponse::sessionId));
     }
 

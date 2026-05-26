@@ -743,9 +743,9 @@ public class ResumeSessionConfig {
      * Sets an event handler that is registered on the session before the
      * {@code session.resume} RPC is issued.
      * <p>
-     * Equivalent to calling
-     * {@link com.github.copilot.CopilotSession#on(Consumer)} immediately after
-     * resumption, but executes earlier in the lifecycle so no events are missed.
+     * Equivalent to calling {@link com.github.copilot.CopilotSession#on(Consumer)}
+     * immediately after resumption, but executes earlier in the lifecycle so no
+     * events are missed.
      *
      * @param onEvent
      *            the event handler to register before session resumption

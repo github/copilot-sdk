@@ -830,8 +830,8 @@ public class CopilotSessionTest {
             var session = client
                     .createSession(new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)).get();
 
-            var filter = new com.github.copilot.rpc.SessionListFilter().setCwd("/test/path")
-                    .setRepository("owner/repo").setBranch("main").setGitRoot("/test");
+            var filter = new com.github.copilot.rpc.SessionListFilter().setCwd("/test/path").setRepository("owner/repo")
+                    .setBranch("main").setGitRoot("/test");
 
             assertEquals("/test/path", filter.getCwd());
             assertEquals("owner/repo", filter.getRepository());
