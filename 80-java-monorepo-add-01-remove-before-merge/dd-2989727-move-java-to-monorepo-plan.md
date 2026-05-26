@@ -157,7 +157,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 1. ✅ Update monorepo `copilot-instructions.md` to include Java section. See https://github.com/github/copilot-sdk/issues/1390 .
 2. ✅ Update monorepo `README.md` to list Java as a supported language. See https://github.com/github/awesome-copilot/pull/1811
 3. ✅ Update `scenario-builds.yml` to include Java scenarios (if applicable).
-4. Handle the package rename requested by Steve Sanderson See https://github.com/github/copilot-sdk-partners/issues/115
+4. ⌛ Handle the package rename requested by Steve Sanderson See https://github.com/github/copilot-sdk/pull/1437
 5. Update `docs-validation.yml` to include Java code snippets.
 6. Update `lsp.json` to add Java LSP config (optional).
 7. Add Java to `docs/` getting-started and feature pages.
