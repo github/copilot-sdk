@@ -130,6 +130,118 @@ func (s *Session) getCanvasHandler() CanvasHandler {
 	return s.canvasHandler
 }
 
+type canvasClientSessionAdapter struct {
+	session *Session
+}
+
+func newCanvasClientSessionAdapter(session *Session) rpc.CanvasHandler {
+	return &canvasClientSessionAdapter{session: session}
+}
+
+func (a *canvasClientSessionAdapter) Close(request *rpc.CanvasProviderCloseRequest) (*rpc.CanvasCloseResult, error) {
+	if request == nil {
+		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing canvas close request"))
+	}
+	handler, err := a.resolveHandler(canvasProviderSessionID(request))
+	if err != nil {
+		return nil, err
+	}
+	if err := handler.OnClose(context.Background(), *request); err != nil {
+		return nil, canvasResultError(err)
+	}
+	return nil, nil
+}
+
+func (a *canvasClientSessionAdapter) InvokeAction(request *rpc.CanvasProviderInvokeActionRequest) (any, error) {
+	if request == nil {
+		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing canvas action request"))
+	}
+	handler, err := a.resolveHandler(canvasProviderSessionID(request))
+	if err != nil {
+		return nil, err
+	}
+	result, actionErr := handler.OnAction(context.Background(), *request)
+	if actionErr != nil {
+		return nil, canvasResultError(actionErr)
+	}
+	return result, nil
+}
+
+func (a *canvasClientSessionAdapter) Open(request *rpc.CanvasProviderOpenRequest) (*rpc.CanvasProviderOpenResult, error) {
+	if request == nil {
+		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing canvas open request"))
+	}
+	handler, err := a.resolveHandler(canvasProviderSessionID(request))
+	if err != nil {
+		return nil, err
+	}
+	result, openErr := handler.OnOpen(context.Background(), *request)
+	if openErr != nil {
+		return nil, canvasResultError(openErr)
+	}
+	return &result, nil
+}
+
+func (a *canvasClientSessionAdapter) resolveHandler(sessionID string) (CanvasHandler, error) {
+	if sessionID == "" {
+		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing session ID"))
+	}
+	if a.session == nil || a.session.SessionID != sessionID {
+		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", fmt.Sprintf("unknown session %s", sessionID)))
+	}
+	handler := a.session.getCanvasHandler()
+	if handler == nil {
+		return nil, canvasJSONRPCError(NewCanvasError(
+			"canvas_handler_unset",
+			"No CanvasHandler installed on this session; install one via SessionConfig.CanvasHandler before creating the session.",
+		))
+	}
+	return handler, nil
+}
+
+func canvasProviderSessionID(request any) string {
+	switch req := request.(type) {
+	case *rpc.CanvasProviderCloseRequest:
+		if req != nil {
+			return req.SessionID
+		}
+	case *rpc.CanvasProviderInvokeActionRequest:
+		if req != nil {
+			return req.SessionID
+		}
+	case *rpc.CanvasProviderOpenRequest:
+		if req != nil {
+			return req.SessionID
+		}
+	}
+	return ""
+}
+
+func canvasJSONRPCError(cerr *CanvasError) *jsonrpc2.Error {
+	data, _ := json.Marshal(map[string]string{
+		"code":    cerr.Code,
+		"message": cerr.Message,
+	})
+	return &jsonrpc2.Error{
+		Code:    -32603,
+		Message: cerr.Message,
+		Data:    data,
+	}
+}
+
+func canvasResultError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if rpcErr, ok := err.(*jsonrpc2.Error); ok {
+		return rpcErr
+	}
+	if cerr, ok := err.(*CanvasError); ok {
+		return canvasJSONRPCError(cerr)
+	}
+	return canvasJSONRPCError(NewCanvasError("canvas_handler_error", err.Error()))
+}
+
 // newSession creates a new session wrapper with the given session ID and client.
 func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string) *Session {
 	s := &Session{
@@ -143,6 +255,7 @@ func newSession(sessionID string, client *jsonrpc2.Client, workspacePath string)
 		eventCh:           make(chan SessionEvent, 128),
 		RPC:               rpc.NewSessionRpc(client, sessionID),
 	}
+	s.clientSessionApis.Canvas = newCanvasClientSessionAdapter(s)
 	go s.processEvents()
 	return s
 }

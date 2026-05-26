@@ -1452,12 +1452,14 @@ function getCSharpSchemaTypeName(schema: JSONSchema7 | null | undefined, fallbac
     return getRpcSchemaTypeName(schema, fallback);
 }
 
-/** Returns the C# type for a method's result, accounting for nullable anyOf wrappers. */
+/** Returns the C# type for a method's result, accounting for nullable anyOf wrappers and opaque JSON. */
 function resolvedResultTypeName(method: RpcMethod): string {
     const schema = getMethodResultSchema(method);
     if (!schema) return resultTypeName(method);
+    if (isOpaqueJson(schema)) return "object";
     const inner = getNullableInner(schema);
     if (inner) {
+        if (isOpaqueJson(inner)) return "object?";
         // Nullable wrapper: resolve the inner $ref type name with "?" suffix
         const innerName = inner.$ref
             ? typeToClassName(refTypeName(inner.$ref, rpcDefinitions))
@@ -2181,7 +2183,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     for (const { methods } of groups) {
         for (const method of methods) {
             const resultSchema = getMethodResultSchema(method);
-            if (!isVoidSchema(resultSchema)) {
+            if (!isVoidSchema(resultSchema) && !isOpaqueJson(resultSchema)) {
                 emitRpcResultType(resultTypeName(method), resultSchema!, "public", classes);
             }
 

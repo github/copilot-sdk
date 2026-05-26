@@ -57,111 +57,7 @@ public sealed class ExtensionInfo
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Response returned from <see cref="ICanvasHandler.OnOpenAsync"/>.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CanvasOpenResponse
-{
-    /// <summary>URL the host should render. Optional for canvases with no visual surface.</summary>
-    [JsonPropertyName("url")]
-    public string? Url { get; set; }
-
-    /// <summary>Provider-supplied title shown in host chrome.</summary>
-    [JsonPropertyName("title")]
-    public string? Title { get; set; }
-
-    /// <summary>Provider-supplied status text shown in host chrome.</summary>
-    [JsonPropertyName("status")]
-    public string? Status { get; set; }
-}
-
-/// <summary>Host capabilities passed to canvas provider callbacks.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CanvasHostContext
-{
-    /// <summary>Host capability details.</summary>
-    [JsonPropertyName("capabilities")]
-    public CanvasHostCapabilities Capabilities { get; set; } = new();
-}
-
-/// <summary>Host capability details passed to canvas provider callbacks.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CanvasHostCapabilities
-{
-    /// <summary>Whether the host supports canvas rendering.</summary>
-    [JsonPropertyName("canvases")]
-    public bool Canvases { get; set; }
-}
-
-/// <summary>Context handed to <see cref="ICanvasHandler.OnOpenAsync"/>.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CanvasOpenContext
-{
-    /// <summary>Session that requested the canvas.</summary>
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Owning provider identifier.</summary>
-    public string ExtensionId { get; set; } = string.Empty;
-
-    /// <summary>Canvas id from the declaring <see cref="CanvasDeclaration"/>.</summary>
-    public string CanvasId { get; set; } = string.Empty;
-
-    /// <summary>Stable instance id supplied by the runtime.</summary>
-    public string InstanceId { get; set; } = string.Empty;
-
-    /// <summary>Validated input payload.</summary>
-    public JsonElement Input { get; set; }
-
-    /// <summary>Host capabilities supplied by the runtime.</summary>
-    public CanvasHostContext? Host { get; set; }
-}
-
-/// <summary>Context handed to <see cref="ICanvasHandler.OnActionAsync"/>.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CanvasActionContext
-{
-    /// <summary>Session that invoked the action.</summary>
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Owning provider identifier.</summary>
-    public string ExtensionId { get; set; } = string.Empty;
-
-    /// <summary>Canvas id targeted by the action.</summary>
-    public string CanvasId { get; set; } = string.Empty;
-
-    /// <summary>Instance id targeted by the action.</summary>
-    public string InstanceId { get; set; } = string.Empty;
-
-    /// <summary>Action name from <see cref="CanvasAction.Name"/>.</summary>
-    public string ActionName { get; set; } = string.Empty;
-
-    /// <summary>Validated input payload.</summary>
-    public JsonElement Input { get; set; }
-
-    /// <summary>Host capabilities supplied by the runtime.</summary>
-    public CanvasHostContext? Host { get; set; }
-}
-
-/// <summary>Context handed to a canvas's close lifecycle hook.</summary>
-[Experimental(Diagnostics.Experimental)]
-public sealed class CanvasLifecycleContext
-{
-    /// <summary>Session owning the canvas instance.</summary>
-    public string SessionId { get; set; } = string.Empty;
-
-    /// <summary>Owning provider identifier.</summary>
-    public string ExtensionId { get; set; } = string.Empty;
-
-    /// <summary>Canvas id from the declaring <see cref="CanvasDeclaration"/>.</summary>
-    public string CanvasId { get; set; } = string.Empty;
-
-    /// <summary>Instance id this lifecycle event applies to.</summary>
-    public string InstanceId { get; set; } = string.Empty;
-
-    /// <summary>Host capabilities supplied by the runtime.</summary>
-    public CanvasHostContext? Host { get; set; }
-}
-
-/// <summary>Structured error returned from canvas handlers.</summary>
+/// <summary>Structured exception returned from canvas handlers.</summary>
 /// <remarks>
 /// Throw this from <see cref="ICanvasHandler"/> implementations to surface a
 /// machine-readable error code to the runtime. Any other exception is wrapped
@@ -182,7 +78,7 @@ public sealed class CanvasException : Exception
     public string Code { get; }
 
     /// <summary>
-    /// Default error returned when a custom action has no handler.
+    /// Default exception returned when a custom action has no handler.
     /// </summary>
     public static CanvasException NoHandler() => new(
         "canvas_action_no_handler",
@@ -222,9 +118,9 @@ internal static class CanvasErrorHelpers
 /// <remarks>
 /// A session installs a single <see cref="ICanvasHandler"/> via
 /// <c>SessionConfigBase.CanvasHandler</c>. The handler receives every
-/// inbound <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
+/// inbound <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
 /// JSON-RPC request the runtime issues for this session and decides — typically
-/// by inspecting <see cref="CanvasOpenContext.CanvasId"/> — which
+/// by inspecting <see cref="CanvasProviderOpenRequest.CanvasId"/> — which
 /// application-side canvas should handle the call.
 /// <para>
 /// The SDK does not maintain a per-canvas registry; multiplexing across
@@ -240,16 +136,16 @@ internal static class CanvasErrorHelpers
 public interface ICanvasHandler
 {
     /// <summary>Open a new canvas instance.</summary>
-    Task<CanvasOpenResponse> OnOpenAsync(CanvasOpenContext context, CancellationToken cancellationToken);
+    Task<CanvasProviderOpenResult> OnOpenAsync(CanvasProviderOpenRequest context, CancellationToken cancellationToken);
 
     /// <summary>Canvas was closed by the user or agent. Default: no-op.</summary>
-    Task OnCloseAsync(CanvasLifecycleContext context, CancellationToken cancellationToken);
+    Task OnCloseAsync(CanvasProviderCloseRequest context, CancellationToken cancellationToken);
 
     /// <summary>
     /// Handle a non-lifecycle action declared by the canvas.
     /// Default: throws <see cref="CanvasException.NoHandler"/>.
     /// </summary>
-    Task<object?> OnActionAsync(CanvasActionContext context, CancellationToken cancellationToken);
+    Task<object?> OnActionAsync(CanvasProviderInvokeActionRequest context, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -260,10 +156,10 @@ public interface ICanvasHandler
 public abstract class CanvasHandlerBase : ICanvasHandler
 {
     /// <inheritdoc />
-    public abstract Task<CanvasOpenResponse> OnOpenAsync(CanvasOpenContext context, CancellationToken cancellationToken);
+    public abstract Task<CanvasProviderOpenResult> OnOpenAsync(CanvasProviderOpenRequest context, CancellationToken cancellationToken);
 
     /// <inheritdoc />
-    public virtual Task OnCloseAsync(CanvasLifecycleContext context, CancellationToken cancellationToken)
+    public virtual Task OnCloseAsync(CanvasProviderCloseRequest context, CancellationToken cancellationToken)
 #if NET8_0_OR_GREATER
         => Task.CompletedTask;
 #else
@@ -271,6 +167,6 @@ public abstract class CanvasHandlerBase : ICanvasHandler
 #endif
 
     /// <inheritdoc />
-    public virtual Task<object?> OnActionAsync(CanvasActionContext context, CancellationToken cancellationToken)
+    public virtual Task<object?> OnActionAsync(CanvasProviderInvokeActionRequest context, CancellationToken cancellationToken)
         => Task.FromException<object?>(CanvasException.NoHandler());
 }

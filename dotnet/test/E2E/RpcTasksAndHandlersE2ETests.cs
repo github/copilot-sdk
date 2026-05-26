@@ -28,14 +28,34 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.NotNull(tasks.Tasks);
         Assert.Empty(tasks.Tasks);
 
+        var refresh = await session.Rpc.Tasks.RefreshAsync();
+        Assert.NotNull(refresh);
+
+        using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var waitForPending = await session.Rpc.Tasks.WaitForPendingAsync(waitCts.Token);
+        Assert.NotNull(waitForPending);
+
+        var progress = await session.Rpc.Tasks.GetProgressAsync("missing-task");
+        Assert.Null(progress.Progress);
+
+        var currentPromotable = await session.Rpc.Tasks.GetCurrentPromotableAsync();
+        Assert.Null(currentPromotable.Task);
+
         var promote = await session.Rpc.Tasks.PromoteToBackgroundAsync("missing-task");
         Assert.False(promote.Promoted);
+
+        var promoteCurrent = await session.Rpc.Tasks.PromoteCurrentToBackgroundAsync();
+        Assert.Null(promoteCurrent.Task);
 
         var cancel = await session.Rpc.Tasks.CancelAsync("missing-task");
         Assert.False(cancel.Cancelled);
 
         var remove = await session.Rpc.Tasks.RemoveAsync("missing-task");
         Assert.False(remove.Removed);
+
+        var sendMessage = await session.Rpc.Tasks.SendMessageAsync("missing-task", "hello from the SDK E2E test");
+        Assert.False(sendMessage.Sent);
+        Assert.False(string.IsNullOrWhiteSpace(sendMessage.Error));
     }
 
     [Fact]
@@ -80,6 +100,22 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         });
         Assert.Contains("TASK_AGENT_READY", ready?.Data.Content ?? string.Empty, StringComparison.Ordinal);
 
+        var taskCompletionNotification =
+            new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<SessionEvent>(evt =>
+        {
+            switch (evt)
+            {
+                case AssistantMessageEvent assistantMessage
+                    when assistantMessage.Data.Content?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true:
+                    taskCompletionNotification.TrySetResult(assistantMessage);
+                    break;
+                case SessionErrorEvent error:
+                    taskCompletionNotification.TrySetException(new Exception(error.Data.Message ?? "session error"));
+                    break;
+            }
+        });
+
         var started = await session.Rpc.Tasks.StartAgentAsync(
             agentType: "general-purpose",
             prompt: "Reply with TASK_AGENT_DONE exactly.",
@@ -123,6 +159,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         Assert.NotNull(task);
         Assert.Contains("TASK_AGENT_DONE", task.LatestResponse ?? task.Result ?? string.Empty);
+        await taskCompletionNotification.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         if (task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle)
         {
@@ -156,6 +193,31 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
             requestId: "missing-elicitation-request",
             result: new UIElicitationResponse { Action = UIElicitationResponseAction.Cancel });
         Assert.False(elicitation.Success);
+
+        var userInput = await session.Rpc.Ui.HandlePendingUserInputAsync(
+            requestId: "missing-user-input-request",
+            response: new UIUserInputResponse { Answer = "typed answer", WasFreeform = true });
+        Assert.False(userInput.Success);
+
+        var sampling = await session.Rpc.Ui.HandlePendingSamplingAsync(
+            requestId: "missing-sampling-request",
+            response: new UIHandlePendingSamplingResponse());
+        Assert.False(sampling.Success);
+
+        var autoModeSwitch = await session.Rpc.Ui.HandlePendingAutoModeSwitchAsync(
+            requestId: "missing-auto-mode-switch-request",
+            response: UIAutoModeSwitchResponse.No);
+        Assert.False(autoModeSwitch.Success);
+
+        var exitPlanMode = await session.Rpc.Ui.HandlePendingExitPlanModeAsync(
+            requestId: "missing-exit-plan-mode-request",
+            response: new UIExitPlanModeResponse
+            {
+                Approved = false,
+                Feedback = "No pending plan approval",
+                SelectedAction = UIExitPlanModeAction.ExitOnly,
+            });
+        Assert.False(exitPlanMode.Success);
 
         var permission = await session.Rpc.Permissions.HandlePendingPermissionRequestAsync(
             requestId: "missing-permission-request",
@@ -191,9 +253,82 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         Assert.False(locationApproval.Success);
     }
 
+    [Fact]
+    public async Task Should_Round_Trip_Rpc_Elicitation_Through_Config_Handler()
+    {
+        var handlerContext = new TaskCompletionSource<ElicitationContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var session = await CreateSessionAsync(new SessionConfig
+        {
+            OnElicitationRequest = context =>
+            {
+                handlerContext.TrySetResult(context);
+                return Task.FromResult(new ElicitationResult
+                {
+                    Action = UIElicitationResponseAction.Accept,
+                    Content = new Dictionary<string, object>
+                    {
+                        ["answer"] = "from handler",
+                        ["confirmed"] = true,
+                    },
+                });
+            },
+        });
+
+        var schema = new UIElicitationSchema
+        {
+            Type = "object",
+            Properties = new Dictionary<string, JsonElement>
+            {
+                ["answer"] = ParseJsonElement("""{"type":"string"}"""),
+                ["confirmed"] = ParseJsonElement("""{"type":"boolean"}"""),
+            },
+            Required = ["answer"],
+        };
+
+        var response = await session.Rpc.Ui.ElicitationAsync("Need details", schema);
+        var context = await handlerContext.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(session.SessionId, context.SessionId);
+        Assert.Equal("Need details", context.Message);
+        Assert.NotNull(context.RequestedSchema);
+        Assert.Equal("object", context.RequestedSchema.Type);
+        Assert.Contains("answer", context.RequestedSchema.Properties.Keys);
+        Assert.Contains("confirmed", context.RequestedSchema.Properties.Keys);
+        Assert.Equal(["answer"], context.RequestedSchema.Required);
+
+        Assert.Equal(UIElicitationResponseAction.Accept, response.Action);
+        Assert.NotNull(response.Content);
+        Assert.Equal("from handler", response.Content["answer"].GetString());
+        Assert.True(response.Content["confirmed"].GetBoolean());
+    }
+
+    [Fact]
+    public async Task Should_Register_And_Unregister_Direct_Auto_Mode_Switch_Handler()
+    {
+        var session = await CreateSessionAsync();
+
+        var missing = await session.Rpc.Ui.UnregisterDirectAutoModeSwitchHandlerAsync("missing-direct-auto-mode-handle");
+        Assert.False(missing.Unregistered);
+
+        var registration = await session.Rpc.Ui.RegisterDirectAutoModeSwitchHandlerAsync();
+        Assert.False(string.IsNullOrWhiteSpace(registration.Handle));
+
+        var unregister = await session.Rpc.Ui.UnregisterDirectAutoModeSwitchHandlerAsync(registration.Handle);
+        Assert.True(unregister.Unregistered);
+
+        var unregisterAgain = await session.Rpc.Ui.UnregisterDirectAutoModeSwitchHandlerAsync(registration.Handle);
+        Assert.False(unregisterAgain.Unregistered);
+    }
+
     private static async Task<TaskInfoAgent?> FindAgentTaskAsync(CopilotSession session, string agentId)
     {
         var tasks = await session.Rpc.Tasks.ListAsync();
         return tasks.Tasks.OfType<TaskInfoAgent>().SingleOrDefault(t => string.Equals(t.Id, agentId, StringComparison.Ordinal));
+    }
+
+    private static JsonElement ParseJsonElement(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
     }
 }

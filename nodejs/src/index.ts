@@ -16,14 +16,10 @@ export {
     CanvasError,
     createCanvas,
     type CanvasAction,
-    type CanvasActionContext,
     type CanvasDeclaration,
-    type CanvasHostCapabilities,
     type CanvasHostContext,
+    type CanvasHostContextCapabilities,
     type CanvasJsonSchema,
-    type CanvasLifecycleContext,
-    type CanvasOpenContext,
-    type CanvasOpenResponse,
     type CanvasOptions,
 } from "./canvas.js";
 export {

@@ -1,4 +1,11 @@
 //! Canvas declarations, provider callbacks, and host-side canvas RPC types.
+//!
+//! <div class="warning">
+//!
+//! **Experimental.** Canvas types are part of an experimental wire-protocol surface
+//! and may change or be removed in future SDK or CLI releases.
+//!
+//! </div>
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -6,7 +13,6 @@ use serde_json::Value;
 use thiserror::Error;
 
 use crate::generated::api_types::CanvasAction;
-use crate::types::SessionId;
 
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
 ///
@@ -68,132 +74,6 @@ impl CanvasDeclaration {
     }
 }
 
-/// Response returned from [`CanvasHandler::on_open`].
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasOpenResponse {
-    /// URL the host should render. Optional for canvases with no visual surface.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    /// Provider-supplied title shown in host chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
-    /// Provider-supplied status text shown in host chrome.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
-}
-
-/// Host capabilities passed to canvas provider callbacks.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasHostContext {
-    /// Host capability details.
-    #[serde(default)]
-    pub capabilities: CanvasHostCapabilities,
-}
-
-/// Host capability details passed to canvas provider callbacks.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasHostCapabilities {
-    /// Whether the host supports canvas rendering.
-    #[serde(default)]
-    pub canvases: bool,
-}
-
-/// Context handed to [`CanvasHandler::on_open`].
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default)]
-pub struct CanvasOpenContext {
-    /// Session that requested the canvas.
-    pub session_id: SessionId,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Canvas id from the declaring [`CanvasDeclaration`].
-    pub canvas_id: String,
-    /// Stable instance id supplied by the runtime.
-    pub instance_id: String,
-    /// Validated input payload.
-    pub input: Value,
-    /// Host capabilities supplied by the runtime.
-    pub host: Option<CanvasHostContext>,
-}
-
-/// Context handed to [`CanvasHandler::on_action`].
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default)]
-pub struct CanvasActionContext {
-    /// Session that invoked the action.
-    pub session_id: SessionId,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Canvas id targeted by the action.
-    pub canvas_id: String,
-    /// Instance id targeted by the action.
-    pub instance_id: String,
-    /// Action name from [`crate::generated::api_types::CanvasAction::name`].
-    pub action_name: String,
-    /// Validated input payload.
-    pub input: Value,
-    /// Host capabilities supplied by the runtime.
-    pub host: Option<CanvasHostContext>,
-}
-
-/// Context handed to a canvas's close lifecycle hook.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default)]
-pub struct CanvasLifecycleContext {
-    /// Session owning the canvas instance.
-    pub session_id: SessionId,
-    /// Owning provider identifier.
-    pub extension_id: String,
-    /// Canvas id from the declaring [`CanvasDeclaration`].
-    pub canvas_id: String,
-    /// Instance id this lifecycle event applies to.
-    pub instance_id: String,
-    /// Host capabilities supplied by the runtime.
-    pub host: Option<CanvasHostContext>,
-}
-
 /// Structured error returned from canvas handlers.
 ///
 /// <div class="warning">
@@ -242,101 +122,45 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 
 /// Provider-side canvas lifecycle handler.
 ///
-/// A session installs a single [`CanvasHandler`] (via
-/// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
-/// The handler receives every inbound `canvas.open` / `canvas.close` /
-/// `canvas.action.invoke` JSON-RPC request the runtime issues for this
-/// session and decides — typically by inspecting [`CanvasOpenContext::canvas_id`]
-/// — which application-side canvas should handle the call.
-///
-/// The SDK does not maintain a per-canvas registry; multiplexing across
-/// declared canvases is the implementor's responsibility.
-///
 /// <div class="warning">
 ///
 /// **Experimental.** This trait is part of an experimental wire-protocol surface
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
+///
+/// A session installs a single [`CanvasHandler`] (via
+/// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
+/// The handler receives every inbound `canvas.open` / `canvas.close` /
+/// `canvas.invokeAction` JSON-RPC request the runtime issues for this
+/// session and decides — typically by inspecting
+/// [`CanvasProviderOpenRequest::canvas_id`](crate::generated::api_types::CanvasProviderOpenRequest::canvas_id)
+/// — which application-side canvas should handle the call.
+///
+/// The SDK does not maintain a per-canvas registry; multiplexing across
+/// declared canvases is the implementor's responsibility.
 #[async_trait]
 pub trait CanvasHandler: Send + Sync {
     /// Open a new canvas instance.
-    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse>;
+    async fn on_open(
+        &self,
+        ctx: crate::generated::api_types::CanvasProviderOpenRequest,
+    ) -> CanvasResult<crate::generated::api_types::CanvasProviderOpenResult>;
 
     /// Handle a non-lifecycle action declared by the canvas.
-    async fn on_action(&self, _ctx: CanvasActionContext) -> CanvasResult<Value> {
+    async fn on_action(
+        &self,
+        _ctx: crate::generated::api_types::CanvasProviderInvokeActionRequest,
+    ) -> CanvasResult<Value> {
         Err(CanvasError::no_handler())
     }
 
     /// Canvas was closed by the user or agent.
-    async fn on_close(&self, _ctx: CanvasLifecycleContext) -> CanvasResult<()> {
+    async fn on_close(
+        &self,
+        _ctx: crate::generated::api_types::CanvasProviderCloseRequest,
+    ) -> CanvasResult<()> {
         Ok(())
-    }
-}
-
-/// Common fields sent by direct `canvas.*` provider callbacks.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct CanvasProviderRequestParams {
-    pub session_id: SessionId,
-    pub extension_id: String,
-    pub canvas_id: String,
-    pub instance_id: String,
-    #[serde(default)]
-    pub input: Value,
-    #[serde(default)]
-    pub host: Option<CanvasHostContext>,
-}
-
-/// Wire-level params for `canvas.action.invoke`.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct CanvasInvokeParams {
-    pub session_id: SessionId,
-    pub extension_id: String,
-    pub canvas_id: String,
-    pub instance_id: String,
-    pub action_name: String,
-    #[serde(default)]
-    pub input: Value,
-    #[serde(default)]
-    pub host: Option<CanvasHostContext>,
-}
-
-impl CanvasProviderRequestParams {
-    pub(crate) fn into_open_context(self) -> CanvasOpenContext {
-        CanvasOpenContext {
-            session_id: self.session_id,
-            extension_id: self.extension_id,
-            canvas_id: self.canvas_id,
-            instance_id: self.instance_id,
-            input: self.input,
-            host: self.host,
-        }
-    }
-
-    pub(crate) fn into_lifecycle_context(self) -> CanvasLifecycleContext {
-        CanvasLifecycleContext {
-            session_id: self.session_id,
-            extension_id: self.extension_id,
-            canvas_id: self.canvas_id,
-            instance_id: self.instance_id,
-            host: self.host,
-        }
-    }
-}
-
-impl CanvasInvokeParams {
-    pub(crate) fn into_action_context(self) -> CanvasActionContext {
-        CanvasActionContext {
-            session_id: self.session_id,
-            extension_id: self.extension_id,
-            canvas_id: self.canvas_id,
-            instance_id: self.instance_id,
-            action_name: self.action_name,
-            input: self.input,
-            host: self.host,
-        }
     }
 }
 
@@ -345,20 +169,27 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::generated::api_types::{
+        CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
+    };
+    use crate::types::SessionId;
 
     struct EchoHandler;
 
     #[async_trait]
     impl CanvasHandler for EchoHandler {
-        async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
-            Ok(CanvasOpenResponse {
+        async fn on_open(
+            &self,
+            ctx: CanvasProviderOpenRequest,
+        ) -> CanvasResult<CanvasProviderOpenResult> {
+            Ok(CanvasProviderOpenResult {
                 url: Some(format!("https://example.test/{}", ctx.canvas_id)),
                 title: Some("Echo".to_string()),
                 status: Some("ready".to_string()),
             })
         }
 
-        async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+        async fn on_action(&self, ctx: CanvasProviderInvokeActionRequest) -> CanvasResult<Value> {
             Ok(json!({ "echoed": ctx.action_name, "input": ctx.input }))
         }
     }
@@ -389,12 +220,12 @@ mod tests {
     async fn handler_on_open_returns_response() {
         let handler = EchoHandler;
         let response = handler
-            .on_open(CanvasOpenContext {
+            .on_open(CanvasProviderOpenRequest {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:echo".to_string(),
                 canvas_id: "echo".to_string(),
                 instance_id: "echo-1".to_string(),
-                input: json!({ "x": 1 }),
+                input: Some(json!({ "x": 1 })),
                 host: None,
             })
             .await
@@ -409,13 +240,13 @@ mod tests {
     async fn handler_on_action_returns_value() {
         let handler = EchoHandler;
         let result = handler
-            .on_action(CanvasActionContext {
+            .on_action(CanvasProviderInvokeActionRequest {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:echo".to_string(),
                 canvas_id: "echo".to_string(),
                 instance_id: "inst-1".to_string(),
                 action_name: "shout".to_string(),
-                input: json!("hi"),
+                input: Some(json!("hi")),
                 host: None,
             })
             .await
@@ -430,8 +261,11 @@ mod tests {
         struct OpenOnly;
         #[async_trait]
         impl CanvasHandler for OpenOnly {
-            async fn on_open(&self, _ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
-                Ok(CanvasOpenResponse {
+            async fn on_open(
+                &self,
+                _ctx: CanvasProviderOpenRequest,
+            ) -> CanvasResult<CanvasProviderOpenResult> {
+                Ok(CanvasProviderOpenResult {
                     url: None,
                     title: None,
                     status: None,
@@ -440,13 +274,13 @@ mod tests {
         }
 
         let err = OpenOnly
-            .on_action(CanvasActionContext {
+            .on_action(CanvasProviderInvokeActionRequest {
                 session_id: SessionId::from("s1"),
                 extension_id: "project:open-only".to_string(),
                 canvas_id: "x".to_string(),
                 instance_id: "x-1".to_string(),
                 action_name: "anything".to_string(),
-                input: Value::Null,
+                input: Some(Value::Null),
                 host: None,
             })
             .await

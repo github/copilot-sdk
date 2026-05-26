@@ -8,10 +8,10 @@
  */
 
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
-import { ConnectionError, ResponseError } from "vscode-jsonrpc/node.js";
+import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
-import type { ClientSessionApiHandlers } from "./generated/rpc.js";
-import type { Canvas } from "./canvas.js";
+import type { ClientSessionApiHandlers, CanvasInvokeActionResult } from "./generated/rpc.js";
+import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
@@ -647,23 +647,53 @@ export class CopilotSession {
      */
     registerCanvases(canvases?: Canvas[]): void {
         this.canvases.clear();
-        if (!canvases) {
+        if (!canvases || canvases.length === 0) {
+            delete this.clientSessionApis.canvas;
             return;
         }
         for (const canvas of canvases) {
             this.canvases.set(canvas.declaration.id, canvas);
         }
-    }
 
-    /**
-     * Retrieves a registered canvas by id.
-     *
-     * @param canvasId - The id of the canvas to retrieve
-     * @returns The registered Canvas if found, or undefined
-     * @internal Used by the SDK's direct `canvas.*` dispatcher.
-     */
-    getCanvas(canvasId: string): Canvas | undefined {
-        return this.canvases.get(canvasId);
+        const self = this;
+        this.clientSessionApis.canvas = {
+            async open(params) {
+                const canvas = self.canvases.get(params.canvasId);
+                if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
+                try {
+                    return (await canvas.open(params)) ?? {};
+                } catch (error) {
+                    throw toCanvasRpcError(error);
+                }
+            },
+            async close(params) {
+                const canvas = self.canvases.get(params.canvasId);
+                if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
+                try {
+                    if (canvas.onClose) {
+                        await canvas.onClose(params);
+                    }
+                } catch (error) {
+                    throw toCanvasRpcError(error);
+                }
+            },
+            async invokeAction(params) {
+                const canvas = self.canvases.get(params.canvasId);
+                if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
+                const handler = canvas.actionHandlers.get(params.actionName);
+                if (!handler) {
+                    throw new CanvasError(
+                        "canvas_action_no_handler",
+                        "No handler implemented for this canvas action"
+                    );
+                }
+                try {
+                    return (await handler(params)) as CanvasInvokeActionResult;
+                } catch (error) {
+                    throw toCanvasRpcError(error);
+                }
+            },
+        };
     }
 
     /**
@@ -1196,4 +1226,12 @@ function isToolResultObject(value: unknown): value is ToolResultObject {
     ];
 
     return allowedResultTypes.includes((value as ToolResultObject).resultType);
+}
+
+/** Convert a canvas handler error into a ResponseError with a structured data envelope. */
+function toCanvasRpcError(error: unknown): ResponseError<unknown> {
+    if (error instanceof ResponseError) return error;
+    const code = error instanceof CanvasError ? error.code : "canvas_handler_error";
+    const message = error instanceof Error ? error.message : String(error);
+    return new ResponseError(ErrorCodes.InternalError, message, { code, message });
 }

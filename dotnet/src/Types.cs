@@ -2442,7 +2442,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
+    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
     /// requests to this handler.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
@@ -3092,9 +3092,8 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(string[]))]
 #pragma warning disable GHCP001
 [JsonSerializable(typeof(CanvasDeclaration))]
-[JsonSerializable(typeof(CanvasOpenResponse))]
+[JsonSerializable(typeof(CanvasProviderOpenResult))]
 [JsonSerializable(typeof(CanvasHostContext))]
-[JsonSerializable(typeof(CanvasHostCapabilities))]
 [JsonSerializable(typeof(ExtensionInfo))]
 #pragma warning restore GHCP001
 internal partial class TypesJsonContext : JsonSerializerContext;

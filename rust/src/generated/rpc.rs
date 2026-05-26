@@ -902,7 +902,7 @@ impl<'a> ClientRpcSessions<'a> {
     ///
     /// # Returns
     ///
-    /// The same metadata records, with summary and context fields backfilled where available.
+    /// The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
     ///
     /// <div class="warning">
     ///

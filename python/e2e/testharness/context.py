@@ -133,7 +133,9 @@ class E2ETestContext:
         # where files (e.g., SQLite session-store.db on Windows) may still be
         # held open by a background process during cleanup.
         for base_dir in (self.home_dir, self.work_dir):
-            for item in Path(base_dir).iterdir():
+            base_path = Path(base_dir)
+            base_path.mkdir(parents=True, exist_ok=True)
+            for item in base_path.iterdir():
                 if item.is_dir():
                     shutil.rmtree(item, ignore_errors=True)
                 else:
