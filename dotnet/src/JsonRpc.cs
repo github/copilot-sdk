@@ -440,7 +440,10 @@ internal sealed partial class JsonRpc : IDisposable
             var errorCode = errorProp.TryGetProperty("code", out var codeProp) && codeProp.ValueKind == JsonValueKind.Number
                 ? codeProp.GetInt32()
                 : 0;
-            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode));
+            var errorData = errorProp.TryGetProperty("data", out var dataProp)
+                ? dataProp.Clone()
+                : (JsonElement?)null;
+            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode, errorData));
         }
         else if (message.TryGetProperty("result", out var resultProp))
         {
@@ -899,12 +902,14 @@ internal sealed class ConnectionLostException() : IOException("The JSON-RPC conn
 /// <summary>
 /// Thrown when the remote side returns a JSON-RPC error response.
 /// </summary>
-internal sealed class RemoteRpcException(string message, int errorCode, Exception? innerException = null) : Exception(message, innerException)
+internal sealed class RemoteRpcException(string message, int errorCode, JsonElement? errorData = null, Exception? innerException = null) : Exception(message, innerException)
 {
     /// <summary>JSON-RPC 2.0 reserved error code: requested method does not exist.</summary>
     public const int MethodNotFoundErrorCode = -32601;
 
     public int ErrorCode { get; } = errorCode;
+
+    public JsonElement? ErrorData { get; } = errorData.HasValue ? errorData.Value.Clone() : null;
 }
 
 /// <summary>
