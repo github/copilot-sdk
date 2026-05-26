@@ -634,6 +634,16 @@ func (s *Session) handleHooksInvoke(hookType string, rawInput json.RawMessage) (
 		}
 		return hooks.OnPostToolUse(input, invocation)
 
+	case "postToolUseFailure":
+		if hooks.OnPostToolUseFailure == nil {
+			return nil, nil
+		}
+		var input PostToolUseFailureHookInput
+		if err := json.Unmarshal(rawInput, &input); err != nil {
+			return nil, fmt.Errorf("invalid hook input: %w", err)
+		}
+		return hooks.OnPostToolUseFailure(input, invocation)
+
 	case "userPromptSubmitted":
 		if hooks.OnUserPromptSubmitted == nil {
 			return nil, nil

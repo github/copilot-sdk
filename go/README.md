@@ -142,7 +142,7 @@ Event types: `SessionLifecycleCreated`, `SessionLifecycleDeleted`, `SessionLifec
   - `UriConnection{URL, ConnectionToken}` — connect to an already-running runtime (no process spawned)
 
   When `Path` is empty for stdio/tcp, the SDK uses the bundled CLI (or `COPILOT_CLI_PATH` env var).
-- `Cwd` (string): Working directory for the runtime process
+- `WorkingDirectory` (string): Working directory for the runtime process
 - `BaseDirectory` (string): Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When empty, the runtime defaults to `~/.copilot`. Ignored with `UriConnection`. This does **not** affect where the Go SDK extracts the embedded CLI binary; use `embeddedcli.Config.Dir` for the extraction/cache location.
 - `LogLevel` (string): Log level. When empty (default), the runtime uses its own default level (the SDK does not pass `--log-level`).
 - `Env` ([]string): Environment variables for the runtime process (default: inherits from current process)
@@ -695,6 +695,17 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
             }, nil
         },
 
+        // Called when a tool execution result was a failure. OnPostToolUse only
+        // fires on success, so register OnPostToolUseFailure to observe failed
+        // tool calls. The CLI extracts the failure message and passes it as
+        // input.Error.
+        OnPostToolUseFailure: func(input copilot.PostToolUseFailureHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseFailureHookOutput, error) {
+            fmt.Printf("Tool %s failed: %s\n", input.ToolName, input.Error)
+            return &copilot.PostToolUseFailureHookOutput{
+                AdditionalContext: fmt.Sprintf("Retry guidance for %s", input.ToolName),
+            }, nil
+        },
+
         // Called when user submits a prompt
         OnUserPromptSubmitted: func(input copilot.UserPromptSubmittedHookInput, invocation copilot.HookInvocation) (*copilot.UserPromptSubmittedHookOutput, error) {
             fmt.Printf("User prompt: %s\n", input.Prompt)
@@ -731,7 +742,8 @@ session, err := client.CreateSession(context.Background(), &copilot.SessionConfi
 **Available hooks:**
 
 - `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
-- `OnPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `OnPostToolUse` - Process tool results after successful execution. Can modify results or add context.
+- `OnPostToolUseFailure` - Observe failed tool executions and inject extra context to guide the model's next step.
 - `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
