@@ -22,12 +22,28 @@ from copilot.generated.rpc import (
     PermissionDecisionReject,
     PermissionDecisionRequest,
     TasksCancelRequest,
+    TasksGetProgressRequest,
     TasksPromoteToBackgroundRequest,
     TasksRemoveRequest,
+    TasksSendMessageRequest,
     TasksStartAgentRequest,
+    UIAutoModeSwitchResponse,
+    UIElicitationRequest,
     UIElicitationResponse,
     UIElicitationResponseAction,
+    UIElicitationSchema,
+    UIElicitationSchemaProperty,
+    UIElicitationSchemaPropertyType,
+    UIElicitationSchemaType,
+    UIExitPlanModeAction,
+    UIExitPlanModeResponse,
+    UIHandlePendingAutoModeSwitchRequest,
     UIHandlePendingElicitationRequest,
+    UIHandlePendingExitPlanModeRequest,
+    UIHandlePendingSamplingRequest,
+    UIHandlePendingUserInputRequest,
+    UIUnregisterDirectAutoModeSwitchHandlerRequest,
+    UIUserInputResponse,
 )
 from copilot.session import PermissionHandler
 
@@ -81,6 +97,29 @@ class TestRpcTasksAndHandlers:
 
             remove = await session.rpc.tasks.remove(TasksRemoveRequest(id="missing-task"))
             assert remove.removed is False
+
+            refresh = await session.rpc.tasks.refresh()
+            assert refresh is not None
+
+            wait = await session.rpc.tasks.wait_for_pending()
+            assert wait is not None
+
+            progress = await session.rpc.tasks.get_progress(
+                TasksGetProgressRequest(id="missing-task")
+            )
+            assert progress.progress is None
+
+            promotable = await session.rpc.tasks.get_current_promotable()
+            assert promotable.task is None
+
+            promote_current = await session.rpc.tasks.promote_current_to_background()
+            assert promote_current.task is None
+
+            send = await session.rpc.tasks.send_message(
+                TasksSendMessageRequest(id="missing-task", message="hello")
+            )
+            assert send.sent is False
+            assert send.error
         finally:
             await session.disconnect()
 
@@ -135,6 +174,41 @@ class TestRpcTasksAndHandlers:
             )
             assert elicitation.success is False
 
+            user_input = await session.rpc.ui.handle_pending_user_input(
+                UIHandlePendingUserInputRequest(
+                    request_id="missing-user-input-request",
+                    response=UIUserInputResponse(answer="answer", was_freeform=True),
+                )
+            )
+            assert user_input.success is False
+
+            sampling = await session.rpc.ui.handle_pending_sampling(
+                UIHandlePendingSamplingRequest(
+                    request_id="missing-sampling-request",
+                    response={"role": "assistant", "content": {"type": "text", "text": "hi"}},
+                )
+            )
+            assert sampling.success is False
+
+            auto_mode = await session.rpc.ui.handle_pending_auto_mode_switch(
+                UIHandlePendingAutoModeSwitchRequest(
+                    request_id="missing-auto-mode-request",
+                    response=UIAutoModeSwitchResponse.NO,
+                )
+            )
+            assert auto_mode.success is False
+
+            exit_plan = await session.rpc.ui.handle_pending_exit_plan_mode(
+                UIHandlePendingExitPlanModeRequest(
+                    request_id="missing-exit-plan-request",
+                    response=UIExitPlanModeResponse(
+                        approved=True,
+                        selected_action=UIExitPlanModeAction.INTERACTIVE,
+                    ),
+                )
+            )
+            assert exit_plan.success is False
+
             permission = await session.rpc.permissions.handle_pending_permission_request(
                 PermissionDecisionRequest(
                     request_id="missing-permission-request",
@@ -175,6 +249,57 @@ class TestRpcTasksAndHandlers:
                 )
             )
             assert location_approval.success is False
+        finally:
+            await session.disconnect()
+
+    async def test_should_round_trip_rpc_ui_elicitation_and_direct_auto_mode_switch(
+        self, ctx: E2ETestContext
+    ):
+        seen_contexts = []
+
+        async def on_elicitation(context):
+            seen_contexts.append(context)
+            assert context["message"] == "Choose deployment"
+            schema = context["requestedSchema"]
+            assert schema["properties"]["environment"]["enum"] == ["staging", "production"]
+            return {"action": "accept", "content": {"environment": "staging"}}
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            on_elicitation_request=on_elicitation,
+        )
+        try:
+            response = await session.rpc.ui.elicitation(
+                UIElicitationRequest(
+                    message="Choose deployment",
+                    requested_schema=UIElicitationSchema(
+                        type=UIElicitationSchemaType.OBJECT,
+                        required=["environment"],
+                        properties={
+                            "environment": UIElicitationSchemaProperty(
+                                type=UIElicitationSchemaPropertyType.STRING,
+                                enum=["staging", "production"],
+                            )
+                        },
+                    ),
+                )
+            )
+            assert response.action == UIElicitationResponseAction.ACCEPT
+            assert response.content == {"environment": "staging"}
+            assert len(seen_contexts) == 1
+
+            registered = await session.rpc.ui.register_direct_auto_mode_switch_handler()
+            assert registered.handle
+
+            unregistered = await session.rpc.ui.unregister_direct_auto_mode_switch_handler(
+                UIUnregisterDirectAutoModeSwitchHandlerRequest(handle=registered.handle)
+            )
+            assert unregistered.unregistered is True
+
+            unregistered_again = await session.rpc.ui.unregister_direct_auto_mode_switch_handler(
+                UIUnregisterDirectAutoModeSwitchHandlerRequest(handle=registered.handle)
+            )
+            assert unregistered_again.unregistered is False
         finally:
             await session.disconnect()
 

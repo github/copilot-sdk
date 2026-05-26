@@ -575,4 +575,177 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             await session.Rpc.Permissions.SetApproveAllAsync(false);
         }
     }
+
+    [Fact]
+    public async Task Should_Configure_And_Update_Permission_Paths()
+    {
+        var session = await CreateSessionAsync();
+        var configuredAllowedDirectory = CreateUniqueWorkDirectory("configured-allowed");
+        var addedAllowedDirectory = CreateUniqueWorkDirectory("added-allowed");
+        var newPrimaryDirectory = CreateUniqueWorkDirectory("new-primary");
+
+        var configureResult = await session.Rpc.Permissions.ConfigureAsync(
+            approveAllToolPermissionRequests: false,
+            approveAllReadPermissionRequests: true,
+            rules: new PermissionRulesSet
+            {
+                Approved = [new PermissionRule { Kind = "read", Argument = null }],
+                Denied = [new PermissionRule { Kind = "write", Argument = null }],
+            },
+            paths: new PermissionPathsConfig
+            {
+                WorkspacePath = Ctx.WorkDir,
+                AdditionalDirectories = [configuredAllowedDirectory],
+                IncludeTempDirectory = false,
+                Unrestricted = false,
+            },
+            urls: new PermissionUrlsConfig
+            {
+                InitialAllowed = ["https://example.invalid/permissions-configure"],
+                Unrestricted = false,
+            });
+        Assert.True(configureResult.Success);
+
+        var configuredList = await session.Rpc.Permissions.Paths.ListAsync();
+        AssertPathEqual(Ctx.WorkDir, configuredList.Primary);
+        AssertContainsPath(configuredList.Directories, Ctx.WorkDir);
+        AssertContainsPath(configuredList.Directories, configuredAllowedDirectory);
+
+        var addResult = await session.Rpc.Permissions.Paths.AddAsync(addedAllowedDirectory);
+        Assert.True(addResult.Success);
+
+        var allowedCheck = await session.Rpc.Permissions.Paths.IsPathWithinAllowedDirectoriesAsync(
+            Path.Join(addedAllowedDirectory, "child.txt"));
+        Assert.True(allowedCheck.Allowed);
+
+        var updatePrimaryResult = await session.Rpc.Permissions.Paths.UpdatePrimaryAsync(newPrimaryDirectory);
+        Assert.True(updatePrimaryResult.Success);
+
+        var updatedList = await session.Rpc.Permissions.Paths.ListAsync();
+        AssertPathEqual(newPrimaryDirectory, updatedList.Primary);
+        AssertContainsPath(updatedList.Directories, newPrimaryDirectory);
+
+        var newPrimaryWorkspaceCheck = await session.Rpc.Permissions.Paths.IsPathWithinWorkspaceAsync(
+            Path.Join(newPrimaryDirectory, "child.txt"));
+        Assert.True(newPrimaryWorkspaceCheck.Allowed);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_Permission_State_Rpc_Apis()
+    {
+        var session = await CreateSessionAsync();
+
+        var pendingRequests = await session.Rpc.Permissions.PendingRequestsAsync();
+        Assert.Empty(pendingRequests.Items);
+
+        var setRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(true);
+        Assert.True(setRequiredResult.Success);
+
+        var clearRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(false);
+        Assert.True(clearRequiredResult.Success);
+
+        var promptShownResult = await session.Rpc.Permissions.NotifyPromptShownAsync(
+            $"Permission prompt shown from {nameof(Should_Invoke_Permission_State_Rpc_Apis)}");
+        Assert.True(promptShownResult.Success);
+
+        var rule = new PermissionRule
+        {
+            Kind = "commands",
+            Argument = $"dotnet-permission-e2e-{Guid.NewGuid():N}",
+        };
+
+        var addRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
+            PermissionsModifyRulesScope.Session,
+            add: [rule]);
+        Assert.True(addRuleResult.Success);
+
+        var removeRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
+            PermissionsModifyRulesScope.Session,
+            remove: [rule]);
+        Assert.True(removeRuleResult.Success);
+
+        var enableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(true);
+        Assert.True(enableUrlsResult.Success);
+
+        var disableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(false);
+        Assert.True(disableUrlsResult.Success);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_Permission_Location_And_FolderTrust_Rpc_Apis()
+    {
+        var session = await CreateSessionAsync();
+        var locationDirectory = CreateUniqueWorkDirectory("permission-location");
+        var trustedDirectory = CreateUniqueWorkDirectory("folder-trust");
+        var commandIdentifier = $"dotnet-permission-location-{Guid.NewGuid():N}";
+
+        var resolved = await session.Rpc.Permissions.Locations.ResolveAsync(locationDirectory);
+        Assert.Equal(PermissionLocationType.Dir, resolved.LocationType);
+        AssertPathEqual(locationDirectory, resolved.LocationKey);
+
+        var addToolApprovalResult = await session.Rpc.Permissions.Locations.AddToolApprovalAsync(
+            resolved.LocationKey,
+            new PermissionsLocationsAddToolApprovalDetailsCommands
+            {
+                CommandIdentifiers = [commandIdentifier],
+            });
+        Assert.True(addToolApprovalResult.Success);
+
+        var applied = await session.Rpc.Permissions.Locations.ApplyAsync(locationDirectory);
+        Assert.Equal(resolved.LocationType, applied.LocationType);
+        AssertPathEqual(resolved.LocationKey, applied.LocationKey);
+        Assert.True(applied.AppliedRuleCount >= 1);
+        Assert.Contains(applied.AppliedRules, rule =>
+            string.Equals(rule.Kind, "shell", StringComparison.Ordinal) &&
+            string.Equals(rule.Argument, commandIdentifier, StringComparison.Ordinal));
+
+        var initialTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
+        Assert.False(initialTrust.Trusted);
+
+        var addTrustedResult = await session.Rpc.Permissions.FolderTrust.AddTrustedAsync(trustedDirectory);
+        Assert.True(addTrustedResult.Success);
+
+        var updatedTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
+        Assert.True(updatedTrust.Trusted);
+    }
+
+    private string CreateUniqueWorkDirectory(string prefix)
+    {
+        var path = Path.Join(Ctx.WorkDir, $"{prefix}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void AssertContainsPath(IEnumerable<string> paths, string expected)
+    {
+        Assert.Contains(paths, actual => PathsEqual(expected, actual));
+    }
+
+    private static void AssertPathEqual(string expected, string actual)
+    {
+        Assert.True(
+            PathsEqual(expected, actual),
+            $"Expected path '{expected}' to equal '{actual}'.");
+    }
+
+    private static bool PathsEqual(string expected, string actual)
+    {
+        return string.Equals(
+            NormalizePath(expected),
+            NormalizePath(actual),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        while (fullPath.Length > root.Length &&
+            (fullPath[fullPath.Length - 1] == Path.DirectorySeparatorChar ||
+             fullPath[fullPath.Length - 1] == Path.AltDirectorySeparatorChar))
+        {
+            fullPath = fullPath.Substring(0, fullPath.Length - 1);
+        }
+        return fullPath;
+    }
 }

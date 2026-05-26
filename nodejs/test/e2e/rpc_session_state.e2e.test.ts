@@ -3,13 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomUUID } from "crypto";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { approveAll } from "../../src/index.js";
-import type { SessionEvent } from "../../src/index.js";
+import type { CopilotSession, SessionEvent } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
+import { waitForCondition } from "./harness/sdkTestHelper.js";
 
 describe("Session-scoped RPC", async () => {
-    const { copilotClient: client } = await createSdkTestContext();
+    const { copilotClient: client, workDir } = await createSdkTestContext();
 
     async function assertImplementedFailure(
         action: () => Promise<unknown>,
@@ -65,6 +68,35 @@ describe("Session-scoped RPC", async () => {
         expect(after.modelId).toBe(before.modelId);
 
         await session.disconnect();
+    });
+
+    it("should shutdown session with routine type", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const shutdownEvent = waitForEvent(
+            session,
+            (event): event is Extract<SessionEvent, { type: "session.shutdown" }> =>
+                event.type === "session.shutdown" && event.data.shutdownType === "routine",
+            "session.shutdown routine event"
+        );
+
+        await session.rpc.shutdown({
+            type: "routine",
+            reason: "SDK E2E shutdown coverage",
+        });
+
+        expect((await shutdownEvent).data.shutdownType).toBe("routine");
+    });
+
+    it("should set and get each session mode value", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            for (const mode of ["interactive", "plan", "autopilot"] as const) {
+                await session.rpc.mode.set({ mode });
+                expect(await session.rpc.mode.get()).toBe(mode);
+            }
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should get and set session mode", async () => {
@@ -129,6 +161,127 @@ describe("Session-scoped RPC", async () => {
         await session.disconnect();
     });
 
+    it.each(["../escaped.txt", "../../escaped.txt", "nested/../../../escaped.txt"])(
+        "should reject workspace file path traversal: %s",
+        async (filePath) => {
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            try {
+                await expect(
+                    session.rpc.workspaces.createFile({
+                        path: filePath,
+                        content: "should not land outside workspace",
+                    })
+                ).rejects.toThrow(/workspace files directory/i);
+
+                await expect(session.rpc.workspaces.readFile({ path: filePath })).rejects.toThrow(
+                    /workspace files directory/i
+                );
+            } finally {
+                await session.disconnect();
+            }
+        }
+    );
+
+    it("should create workspace file with nested path auto-creating dirs", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const nestedPath = `nested-${randomUUID()}/subdir/file.txt`;
+            await session.rpc.workspaces.createFile({
+                path: nestedPath,
+                content: "nested content",
+            });
+
+            expect((await session.rpc.workspaces.readFile({ path: nestedPath })).content).toBe(
+                "nested content"
+            );
+            expect(
+                (await session.rpc.workspaces.listFiles()).files.some((f) => f.endsWith("file.txt"))
+            ).toBe(true);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should report error reading nonexistent workspace file", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            await expect(
+                session.rpc.workspaces.readFile({
+                    path: `never-exists-${randomUUID()}.txt`,
+                })
+            ).rejects.toThrow();
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should update existing workspace file with update operation", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const filePath = `reused-${randomUUID()}.txt`;
+            await session.rpc.workspaces.createFile({ path: filePath, content: "v1" });
+
+            const updated = waitForEvent(
+                session,
+                (
+                    event
+                ): event is Extract<SessionEvent, { type: "session.workspace_file_changed" }> =>
+                    event.type === "session.workspace_file_changed" &&
+                    event.data.path === filePath &&
+                    event.data.operation === "update",
+                `workspace_file_changed update event for ${filePath}`
+            );
+            await session.rpc.workspaces.createFile({ path: filePath, content: "v2" });
+
+            expect((await updated).data.operation).toBe("update");
+            expect((await session.rpc.workspaces.readFile({ path: filePath })).content).toBe("v2");
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it.each(["", "   ", "\t\n  \r"])(
+        "should reject empty or whitespace session name",
+        async (emptyOrWhitespace) => {
+            const session = await client.createSession({ onPermissionRequest: approveAll });
+            try {
+                await expect(session.rpc.name.set({ name: emptyOrWhitespace })).rejects.toThrow(
+                    /empty/i
+                );
+            } finally {
+                await session.disconnect();
+            }
+        }
+    );
+
+    it("should emit title changed event each time name set is called", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const titleA = `Title-A-${randomUUID()}`;
+            const titleB = `Title-B-${randomUUID()}`;
+
+            const first = waitForEvent(
+                session,
+                (event): event is Extract<SessionEvent, { type: "session.title_changed" }> =>
+                    event.type === "session.title_changed" && event.data.title === titleA,
+                "first title_changed event"
+            );
+            await session.rpc.name.set({ name: titleA });
+            expect((await first).data.title).toBe(titleA);
+
+            const second = waitForEvent(
+                session,
+                (event): event is Extract<SessionEvent, { type: "session.title_changed" }> =>
+                    event.type === "session.title_changed" && event.data.title === titleB,
+                "second title_changed event"
+            );
+            await session.rpc.name.set({ name: titleB });
+            expect((await second).data.title).toBe(titleB);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
     it("should get and set session metadata", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
@@ -140,6 +293,218 @@ describe("Session-scoped RPC", async () => {
         expect(sources.sources).toBeDefined();
 
         await session.disconnect();
+    });
+
+    it("should call metadata snapshot, setWorkingDirectory, and recordContextChange", async () => {
+        const firstDirectory = createUniqueDirectory(workDir, "rpc-session-state-first");
+        const secondDirectory = createUniqueDirectory(workDir, "rpc-session-state-second");
+        const contextDirectory = createUniqueDirectory(workDir, "rpc-session-state-context");
+        const branch = `rpc-context-${randomUUID()}`;
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+            workingDirectory: firstDirectory,
+        });
+        try {
+            const initialSnapshot = await session.rpc.metadata.snapshot();
+            expect(initialSnapshot.sessionId).toBe(session.sessionId);
+            expect(initialSnapshot.currentMode).toBe("interactive");
+            expect(initialSnapshot.selectedModel).toBe("claude-sonnet-4.5");
+            expect(initialSnapshot.isRemote).toBe(false);
+            expect(initialSnapshot.alreadyInUse).toBe(false);
+            expect(Date.parse(initialSnapshot.startTime)).not.toBeNaN();
+            expect(Date.parse(initialSnapshot.modifiedTime)).not.toBeNaN();
+            expect(pathsEqual(initialSnapshot.workingDirectory, firstDirectory)).toBe(true);
+            expect(initialSnapshot.workspace?.id).toBe(session.sessionId);
+            expect(initialSnapshot.workspacePath?.trim()).toBeTruthy();
+
+            const setWorkingDirectory = await session.rpc.metadata.setWorkingDirectory({
+                workingDirectory: secondDirectory,
+            });
+            expect(pathsEqual(setWorkingDirectory.workingDirectory, secondDirectory)).toBe(true);
+
+            await waitForCondition(
+                async () =>
+                    pathsEqual(
+                        (await session.rpc.metadata.snapshot()).workingDirectory,
+                        secondDirectory
+                    ),
+                { timeoutMessage: "Timed out waiting for metadata snapshot to reflect cwd." }
+            );
+
+            const contextChanged = waitForEvent(
+                session,
+                (event): event is Extract<SessionEvent, { type: "session.context_changed" }> =>
+                    event.type === "session.context_changed" && event.data.branch === branch,
+                "session.context_changed event"
+            );
+
+            const context = {
+                cwd: contextDirectory,
+                gitRoot: firstDirectory,
+                branch,
+                repository: "github/copilot-sdk-e2e",
+                repositoryHost: "github.com",
+                hostType: "github" as const,
+                baseCommit: "0000000000000000000000000000000000000000",
+                headCommit: "1111111111111111111111111111111111111111",
+            };
+            await session.rpc.metadata.recordContextChange({ context });
+
+            const event = await contextChanged;
+            expect(pathsEqual(event.data.cwd, contextDirectory)).toBe(true);
+            expect(pathsEqual(event.data.gitRoot ?? "", firstDirectory)).toBe(true);
+            expect(event.data.branch).toBe(branch);
+            expect(event.data.repository).toBe("github/copilot-sdk-e2e");
+            expect(event.data.repositoryHost).toBe("github.com");
+            expect(event.data.hostType).toBe("github");
+            expect(event.data.baseCommit).toBe(context.baseCommit);
+            expect(event.data.headCommit).toBe(context.headCommit);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should update options and initialize session services", async () => {
+        const initialDirectory = createUniqueDirectory(workDir, "rpc-options-initial");
+        const optionsDirectory = createUniqueDirectory(workDir, "rpc-options-updated");
+        const featureName = `rpc-session-state-${randomUUID()}`;
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            workingDirectory: initialDirectory,
+        });
+        try {
+            const update = await session.rpc.options.update({
+                clientName: "node-sdk-rpc-session-state-e2e",
+                lspClientName: "node-sdk-rpc-session-state-lsp",
+                integrationId: `node-sdk-${randomUUID()}`,
+                featureFlags: { [featureName]: true },
+                workingDirectory: optionsDirectory,
+                coauthorEnabled: false,
+                enableStreaming: false,
+                askUserDisabled: true,
+            });
+            expect(update.success).toBe(true);
+
+            await waitForCondition(
+                async () =>
+                    pathsEqual(
+                        (await session.rpc.metadata.snapshot()).workingDirectory,
+                        optionsDirectory
+                    ),
+                {
+                    timeoutMessage:
+                        "Timed out waiting for options.update workingDirectory to reach metadata snapshot.",
+                }
+            );
+
+            await expect(
+                session.rpc.lsp.initialize({
+                    workingDirectory: optionsDirectory,
+                    gitRoot: initialDirectory,
+                    force: true,
+                })
+            ).resolves.toBeNull();
+
+            await expect(
+                session.rpc.telemetry.setFeatureOverrides({
+                    features: {
+                        rpc_session_state_feature: featureName,
+                        rpc_session_state_value: "enabled",
+                    },
+                })
+            ).resolves.toBeNull();
+
+            await expect(session.rpc.tools.initializeAndValidate()).resolves.toBeDefined();
+            expect(
+                pathsEqual(
+                    (await session.rpc.metadata.snapshot()).workingDirectory,
+                    optionsDirectory
+                )
+            ).toBe(true);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should set reasoning effort and auto name", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            model: "claude-sonnet-4.5",
+        });
+        try {
+            const reasoning = await session.rpc.model.setReasoningEffort({
+                reasoningEffort: "high",
+            });
+            expect(reasoning.reasoningEffort).toBe("high");
+
+            const currentModel = await session.rpc.model.getCurrent();
+            expect(currentModel.modelId).toBe("claude-sonnet-4.5");
+            expect(currentModel.reasoningEffort).toBe("high");
+
+            const autoName = `Auto Session ${randomUUID()}`;
+            const autoChanged = waitForEvent(
+                session,
+                (event): event is Extract<SessionEvent, { type: "session.title_changed" }> =>
+                    event.type === "session.title_changed" && event.data.title === autoName,
+                "session.title_changed event after name.setAuto"
+            );
+            const autoResult = await session.rpc.name.setAuto({ summary: `  ${autoName}  ` });
+            expect(autoResult.applied).toBe(true);
+            expect((await autoChanged).data.title).toBe(autoName);
+            expect((await session.rpc.name.get()).name).toBe(autoName);
+
+            const explicitName = `Explicit Session ${randomUUID()}`;
+            const explicitChanged = waitForEvent(
+                session,
+                (event): event is Extract<SessionEvent, { type: "session.title_changed" }> =>
+                    event.type === "session.title_changed" && event.data.title === explicitName,
+                "session.title_changed event after explicit name.set"
+            );
+            await session.rpc.name.set({ name: explicitName });
+            expect((await explicitChanged).data.title).toBe(explicitName);
+
+            const ignoredAutoResult = await session.rpc.name.setAuto({
+                summary: `Ignored ${randomUUID()}`,
+            });
+            expect(ignoredAutoResult.applied).toBe(false);
+            expect((await session.rpc.name.get()).name).toBe(explicitName);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should set auth credentials", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const login = `sdk-rpc-${randomUUID()}`;
+            const setCredentials = await session.rpc.auth.setCredentials({
+                credentials: {
+                    type: "user",
+                    host: "https://github.com",
+                    login,
+                    copilotUser: {
+                        analytics_tracking_id: "rpc-session-state-tracking-id",
+                        chat_enabled: true,
+                        copilot_plan: "individual_pro",
+                        endpoints: {
+                            api: "https://api.githubcopilot.test",
+                            telemetry: "https://localhost:1/telemetry",
+                        },
+                        login,
+                    },
+                },
+            });
+            expect(setCredentials.success).toBe(true);
+
+            const status = await session.rpc.auth.getStatus();
+            expect(status.isAuthenticated).toBe(true);
+            expect(status.authType).toBe("user");
+            expect(status.host).toBe("https://github.com");
+            expect(status.login).toBe(login);
+        } finally {
+            await session.disconnect();
+        }
     });
 
     it("should fork session with persisted messages", async () => {
@@ -346,11 +711,98 @@ describe("Session-scoped RPC", async () => {
     it("should compact session history after messages", async () => {
         const session = await client.createSession({ onPermissionRequest: approveAll });
 
+        expect((await session.rpc.metadata.isProcessing()).processing).toBe(false);
         await session.sendAndWait({ prompt: "What is 2+2?" });
+        expect((await session.rpc.metadata.isProcessing()).processing).toBe(false);
+
+        const contextInfo = await session.rpc.metadata.contextInfo({
+            promptTokenLimit: 128_000,
+            outputTokenLimit: 4_096,
+            selectedModel: "claude-sonnet-4.5",
+        });
+        expect(contextInfo.contextInfo).not.toBeNull();
+        if (contextInfo.contextInfo) {
+            expect(contextInfo.contextInfo.modelName).toBe("claude-sonnet-4.5");
+            expect(contextInfo.contextInfo.promptTokenLimit).toBe(128_000);
+            expect(contextInfo.contextInfo.limit).toBeGreaterThanOrEqual(
+                contextInfo.contextInfo.promptTokenLimit
+            );
+            expect(contextInfo.contextInfo.totalTokens).toBeGreaterThan(0);
+            expect(contextInfo.contextInfo.systemTokens).toBeGreaterThan(0);
+            expect(contextInfo.contextInfo.conversationTokens).toBeGreaterThan(0);
+            expect(contextInfo.contextInfo.toolDefinitionsTokens).toBeGreaterThanOrEqual(0);
+            expect(contextInfo.contextInfo.totalTokens).toBe(
+                contextInfo.contextInfo.systemTokens +
+                    contextInfo.contextInfo.conversationTokens +
+                    contextInfo.contextInfo.toolDefinitionsTokens
+            );
+        }
+
+        const recomputed = await session.rpc.metadata.recomputeContextTokens({
+            modelId: "claude-sonnet-4.5",
+        });
+        expect(recomputed.systemTokenCount).toBeGreaterThan(0);
+        expect(recomputed.messagesTokenCount).toBeGreaterThan(0);
+        expect(recomputed.totalTokens).toBe(
+            recomputed.systemTokenCount + recomputed.messagesTokenCount
+        );
 
         const result = await session.rpc.history.compact();
-        expect(result).toBeDefined();
+        expect(result.success).toBe(true);
+        expect(result.messagesRemoved).toBeGreaterThanOrEqual(0);
+        if (result.contextWindow) {
+            expect(result.contextWindow.messagesLength).toBeGreaterThanOrEqual(0);
+            expect(result.contextWindow.currentTokens).toBeGreaterThanOrEqual(0);
+            if (result.contextWindow.conversationTokens != null) {
+                expect(result.contextWindow.conversationTokens).toBeGreaterThanOrEqual(0);
+                expect(result.contextWindow.conversationTokens).toBeLessThanOrEqual(
+                    result.contextWindow.currentTokens
+                );
+            }
+        }
+        expect(await session.rpc.name.get()).toBeDefined();
 
         await session.disconnect();
     });
 });
+
+function createUniqueDirectory(baseDir: string, prefix: string): string {
+    const directory = join(baseDir, `${prefix}-${randomUUID()}`);
+    mkdirSync(directory, { recursive: true });
+    return directory;
+}
+
+function pathsEqual(left: string, right: string): boolean {
+    return normalizePath(left) === normalizePath(right);
+}
+
+function normalizePath(value: string): string {
+    return value.replace(/[\\/]+$/g, "").toLowerCase();
+}
+
+function waitForEvent<T extends SessionEvent>(
+    session: CopilotSession,
+    predicate: (event: SessionEvent) => event is T,
+    description: string,
+    timeoutMs = 15_000
+): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        let unsubscribe: () => void = () => {};
+        const timeout = setTimeout(() => {
+            unsubscribe();
+            reject(new Error(`Timed out waiting for ${description}`));
+        }, timeoutMs);
+
+        unsubscribe = session.on((event) => {
+            if (predicate(event)) {
+                clearTimeout(timeout);
+                unsubscribe();
+                resolve(event);
+            } else if (event.type === "session.error") {
+                clearTimeout(timeout);
+                unsubscribe();
+                reject(new Error(`${event.data.message}\n${event.data.stack ?? ""}`));
+            }
+        });
+    });
+}

@@ -125,4 +125,38 @@ describe("Compaction", async () => {
         // Should not have any compaction events when disabled
         expect(compactionEvents.length).toBe(0);
     });
+
+    it("should return empty handoff summary for fresh session", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const result = await session.rpc.history.summarizeForHandoff();
+            expect(result.summary).toBe("");
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should summarize for handoff after non-ephemeral log event", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            await session.log("handoff summary log coverage");
+            const result = await session.rpc.history.summarizeForHandoff();
+            expect(typeof result.summary).toBe("string");
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should report no-op when cancelling compaction without in-flight work", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            const backgroundResult = await session.rpc.history.cancelBackgroundCompaction();
+            const manualResult = await session.rpc.history.abortManualCompaction();
+
+            expect(backgroundResult.cancelled).toBe(false);
+            expect(manualResult.aborted).toBe(false);
+        } finally {
+            await session.disconnect();
+        }
+    });
 });

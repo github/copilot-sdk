@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -454,4 +454,209 @@ describe("Permission callbacks", async () => {
 
         await session.disconnect();
     });
+
+    it("should configure and update permission paths", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const configuredAllowedDirectory = await createUniqueWorkDirectory(
+            workDir,
+            "configured-allowed"
+        );
+        const addedAllowedDirectory = await createUniqueWorkDirectory(workDir, "added-allowed");
+        const newPrimaryDirectory = await createUniqueWorkDirectory(workDir, "new-primary");
+        try {
+            const configureResult = await session.rpc.permissions.configure({
+                approveAllToolPermissionRequests: false,
+                approveAllReadPermissionRequests: true,
+                rules: {
+                    approved: [{ kind: "read", argument: null }],
+                    denied: [{ kind: "write", argument: null }],
+                },
+                paths: {
+                    workspacePath: workDir,
+                    additionalDirectories: [configuredAllowedDirectory],
+                    includeTempDirectory: false,
+                    unrestricted: false,
+                },
+                urls: {
+                    initialAllowed: ["https://example.invalid/permissions-configure"],
+                    unrestricted: false,
+                },
+            });
+            expect(configureResult.success).toBe(true);
+
+            const configuredList = await session.rpc.permissions.paths.list();
+            expectPathEqual(configuredList.primary, workDir);
+            expect(configuredList.directories.some((p) => pathsEqual(p, workDir))).toBe(true);
+            expect(
+                configuredList.directories.some((p) => pathsEqual(p, configuredAllowedDirectory))
+            ).toBe(true);
+
+            expect(
+                (await session.rpc.permissions.paths.add({ path: addedAllowedDirectory })).success
+            ).toBe(true);
+            expect(
+                (
+                    await session.rpc.permissions.paths.isPathWithinAllowedDirectories({
+                        path: join(addedAllowedDirectory, "child.txt"),
+                    })
+                ).allowed
+            ).toBe(true);
+
+            expect(
+                (await session.rpc.permissions.paths.updatePrimary({ path: newPrimaryDirectory }))
+                    .success
+            ).toBe(true);
+            const updatedList = await session.rpc.permissions.paths.list();
+            expectPathEqual(updatedList.primary, newPrimaryDirectory);
+            expect(updatedList.directories.some((p) => pathsEqual(p, newPrimaryDirectory))).toBe(
+                true
+            );
+            expect(
+                (
+                    await session.rpc.permissions.paths.isPathWithinWorkspace({
+                        path: join(newPrimaryDirectory, "child.txt"),
+                    })
+                ).allowed
+            ).toBe(true);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should invoke permission state rpc apis", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        try {
+            expect((await session.rpc.permissions.pendingRequests()).items).toEqual([]);
+
+            expect((await session.rpc.permissions.setRequired({ required: true })).success).toBe(
+                true
+            );
+            expect((await session.rpc.permissions.setRequired({ required: false })).success).toBe(
+                true
+            );
+            expect(
+                (
+                    await session.rpc.permissions.notifyPromptShown({
+                        message: "Permission prompt shown from Node SDK E2E",
+                    })
+                ).success
+            ).toBe(true);
+
+            const rule = {
+                kind: "commands",
+                argument: `node-permission-e2e-${Date.now()}`,
+            };
+            expect(
+                (
+                    await session.rpc.permissions.modifyRules({
+                        scope: "session",
+                        add: [rule],
+                    })
+                ).success
+            ).toBe(true);
+            expect(
+                (
+                    await session.rpc.permissions.modifyRules({
+                        scope: "session",
+                        remove: [rule],
+                    })
+                ).success
+            ).toBe(true);
+            expect(
+                (await session.rpc.permissions.urls.setUnrestrictedMode({ unrestricted: true }))
+                    .success
+            ).toBe(true);
+            expect(
+                (await session.rpc.permissions.urls.setUnrestrictedMode({ unrestricted: false }))
+                    .success
+            ).toBe(true);
+        } finally {
+            await session.disconnect();
+        }
+    });
+
+    it("should invoke permission location and folder trust rpc apis", async () => {
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const locationDirectory = await createUniqueWorkDirectory(workDir, "permission-location");
+        const trustedDirectory = await createUniqueWorkDirectory(workDir, "folder-trust");
+        const commandIdentifier = `node-permission-location-${Date.now()}`;
+        try {
+            const resolved = await session.rpc.permissions.locations.resolve({
+                workingDirectory: locationDirectory,
+            });
+            expect(resolved.locationType).toBe("dir");
+            expectPathEqual(resolved.locationKey, locationDirectory);
+
+            expect(
+                (
+                    await session.rpc.permissions.locations.addToolApproval({
+                        locationKey: resolved.locationKey,
+                        approval: {
+                            kind: "commands",
+                            commandIdentifiers: [commandIdentifier],
+                        },
+                    })
+                ).success
+            ).toBe(true);
+
+            const applied = await session.rpc.permissions.locations.apply({
+                workingDirectory: locationDirectory,
+            });
+            expect(applied.locationType).toBe(resolved.locationType);
+            expectPathEqual(applied.locationKey, resolved.locationKey);
+            expect(applied.appliedRuleCount).toBeGreaterThanOrEqual(1);
+            expect(
+                applied.appliedRules.some(
+                    (rule) => rule.kind === "shell" && rule.argument === commandIdentifier
+                )
+            ).toBe(true);
+
+            expect(
+                (
+                    await session.rpc.permissions.folderTrust.isTrusted({
+                        path: trustedDirectory,
+                    })
+                ).trusted
+            ).toBe(false);
+            expect(
+                (
+                    await session.rpc.permissions.folderTrust.addTrusted({
+                        path: trustedDirectory,
+                    })
+                ).success
+            ).toBe(true);
+            expect(
+                (
+                    await session.rpc.permissions.folderTrust.isTrusted({
+                        path: trustedDirectory,
+                    })
+                ).trusted
+            ).toBe(true);
+        } finally {
+            await session.disconnect();
+        }
+    });
 });
+
+async function createUniqueWorkDirectory(baseDir: string, prefix: string): Promise<string> {
+    const directory = join(
+        baseDir,
+        `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
+    await mkdir(directory, { recursive: true });
+    return directory;
+}
+
+function expectPathEqual(actual: string, expected: string): void {
+    expect(pathsEqual(actual, expected), `Expected path '${actual}' to equal '${expected}'.`).toBe(
+        true
+    );
+}
+
+function pathsEqual(left: string, right: string): boolean {
+    return normalizePath(left) === normalizePath(right);
+}
+
+function normalizePath(value: string): string {
+    return value.replace(/[\\/]+$/g, "").toLowerCase();
+}

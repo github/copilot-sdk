@@ -126,3 +126,21 @@ export function getNextEventOfType(
         });
     });
 }
+
+export async function waitForCondition(
+    predicate: () => boolean | Promise<boolean>,
+    {
+        timeoutMs = 30_000,
+        intervalMs = 100,
+        timeoutMessage = "Timed out waiting for condition.",
+    }: { timeoutMs?: number; intervalMs?: number; timeoutMessage?: string } = {}
+): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (await predicate()) {
+            return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    throw new Error(timeoutMessage);
+}
