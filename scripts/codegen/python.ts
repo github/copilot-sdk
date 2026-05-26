@@ -18,6 +18,7 @@ import {
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     isObjectSchema,
+    isOpaqueJson,
     isVoidSchema,
     getNullableInner,
     isRpcMethod,
@@ -3225,7 +3226,8 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     const effectiveResultSchema = nullableInner ?? resultSchema;
     const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
     const hasNullableResult = !!nullableInner;
-    const resultIsObject = isPythonObjectResultSchema(effectiveResultSchema);
+    const resultIsOpaque = isOpaqueJson(effectiveResultSchema);
+    const resultIsObject = !resultIsOpaque && isPythonObjectResultSchema(effectiveResultSchema);
 
     let resultType: string;
     if (hasNullableResult) {
@@ -3264,7 +3266,11 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
 
     // Deserialize helper
     const innerTypeName = hasNullableResult ? resolveType(pythonResultTypeName(method, nullableInner)) : resultType;
+    const isAnyType = innerTypeName === "Any";
     const deserialize = (expr: string) => {
+        if (resultIsOpaque || isAnyType) {
+            return expr;
+        }
         if (hasNullableResult) {
             return resultIsObject
                 ? `${innerTypeName}.from_dict(${expr}) if ${expr} is not None else None`
