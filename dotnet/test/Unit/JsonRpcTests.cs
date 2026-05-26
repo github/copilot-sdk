@@ -109,7 +109,7 @@ public class JsonRpcTests
 
         var data = GetRemoteErrorData(structured);
         Assert.NotNull(data);
-        var errorData = data!.Value;
+        var errorData = data.Value;
         Assert.Equal("canvas_action_no_handler", errorData.GetProperty("code").GetString());
         Assert.Equal("No handler implemented for this canvas action", errorData.GetProperty("message").GetString());
 
