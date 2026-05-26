@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use github_copilot_sdk::generated::SessionMode;
 use github_copilot_sdk::generated::api_types::{
     AuthInfoType, HistoryTruncateRequest, LspInitializeRequest, MetadataContextInfoRequest,
@@ -14,7 +16,6 @@ use github_copilot_sdk::generated::session_events::{
     SessionWorkspaceFileChangedData, ShutdownType, WorkspaceFileChangedOperation,
 };
 use serde_json::json;
-use std::collections::HashMap;
 
 use super::support::{
     assistant_message_content, wait_for_condition, wait_for_event, with_e2e_context,
@@ -892,11 +893,11 @@ async fn should_fork_session_with_persisted_messages() {
                     .await
                     .expect("create session");
                 let answer = session
-                    .send_and_wait("Reply with exactly: RUST_FORK_SOURCE")
+                    .send_and_wait("Say FORK_SOURCE_ALPHA exactly.")
                     .await
                     .expect("send")
                     .expect("assistant response");
-                assert!(assistant_message_content(&answer).contains("RUST_FORK_SOURCE"));
+                assert!(assistant_message_content(&answer).contains("FORK_SOURCE_ALPHA"));
 
                 let fork = client
                     .rpc()
@@ -924,7 +925,7 @@ async fn should_fork_session_with_persisted_messages() {
                         .expect("fork events")
                         .iter()
                         .any(|event| assistant_message_content_if_present(event)
-                            .is_some_and(|content| content.contains("RUST_FORK_SOURCE")))
+                            .is_some_and(|content| content.contains("FORK_SOURCE_ALPHA")))
                 );
 
                 forked.disconnect().await.expect("disconnect fork");

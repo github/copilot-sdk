@@ -644,25 +644,3 @@ func saveAndGetEventFilePath(t *testing.T, client *copilot.Client, sessionID str
 	}
 	return path.FilePath
 }
-
-func waitForListedSession(t *testing.T, client *copilot.Client, sessionID string, filter *rpc.SessionListFilter, metadataLimit *int64) rpc.SessionMetadata {
-	t.Helper()
-	var metadata *rpc.SessionMetadata
-	waitForRPCCondition(t, 30*time.Second, "session "+sessionID+" to appear in sessions.list", func() (bool, error) {
-		list, err := client.RPC.Sessions.List(t.Context(), &rpc.SessionsListRequest{
-			Filter:        filter,
-			MetadataLimit: metadataLimit,
-		})
-		if err != nil {
-			return false, err
-		}
-		for i := range list.Sessions {
-			if list.Sessions[i].SessionID == sessionID {
-				metadata = &list.Sessions[i]
-				return true, nil
-			}
-		}
-		return false, nil
-	})
-	return *metadata
-}

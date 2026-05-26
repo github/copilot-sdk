@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { realpathSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
@@ -658,5 +659,13 @@ function pathsEqual(left: string, right: string): boolean {
 }
 
 function normalizePath(value: string): string {
-    return value.replace(/[\\/]+$/g, "").toLowerCase();
+    const trimmed = value.replace(/[\\/]+$/g, "");
+    try {
+        return realpathSync
+            .native(trimmed)
+            .replace(/[\\/]+$/g, "")
+            .toLowerCase();
+    } catch {
+        return trimmed.toLowerCase();
+    }
 }
