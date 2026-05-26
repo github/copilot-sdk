@@ -37,9 +37,25 @@ function toJavaClassName(typeName: string): string {
     return typeName.split(/[._]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join("");
 }
 
+/** Java reserved keywords and Object method names that cannot be used as record component names. */
+const JAVA_RESERVED_IDENTIFIERS = new Set([
+    "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
+    "continue", "default", "do", "double", "else", "enum", "extends", "final", "finally", "float",
+    "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native",
+    "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp",
+    "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void",
+    "volatile", "while",
+    // Object methods that conflict with record component accessor names
+    "wait", "notify", "notifyAll", "getClass", "clone", "finalize", "toString", "hashCode", "equals",
+]);
+
 function toCamelCase(name: string): string {
     const pascal = toPascalCase(name);
-    return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+    let result = pascal.charAt(0).toLowerCase() + pascal.slice(1);
+    if (JAVA_RESERVED_IDENTIFIERS.has(result)) {
+        result = result + "_";
+    }
+    return result;
 }
 
 function toEnumConstant(value: string): string {
@@ -102,6 +118,11 @@ interface JavaTypeResult {
 let currentDefinitions: Record<string, JSONSchema7> = {};
 const pendingStandaloneTypes = new Map<string, JSONSchema7>();
 
+// Cross-schema definitions: keyed by schema filename (e.g. "session-events.schema.json"),
+// value is the definitions map from that schema. Populated by generateRpcTypes so that
+// cross-schema $ref values like "session-events.schema.json#/definitions/Foo" can be resolved.
+const crossSchemaDefinitions = new Map<string, Record<string, JSONSchema7>>();
+
 /**
  * Resolve a $ref in a JSON Schema against the current definitions.
  * Returns the resolved schema, or the original if no $ref is present.
@@ -131,6 +152,28 @@ function schemaTypeToJava(
 
     // Resolve $ref first — register standalone types for generation
     if (schema.$ref) {
+        // Handle cross-schema $ref (e.g. "session-events.schema.json#/definitions/Foo")
+        const crossSchemaMatch = schema.$ref.match(/^([^#]+)#\/definitions\/(.+)$/);
+        if (crossSchemaMatch) {
+            const [, schemaFile, typeName] = crossSchemaMatch;
+            const externalDefs = crossSchemaDefinitions.get(schemaFile);
+            if (externalDefs) {
+                const resolved = externalDefs[typeName];
+                if (resolved) {
+                    // Save and swap currentDefinitions so recursive calls resolve against
+                    // the external schema's definitions.
+                    const savedDefs = currentDefinitions;
+                    currentDefinitions = externalDefs;
+                    const result = schemaTypeToJava(resolved, required, context, propName, nestedTypes);
+                    currentDefinitions = savedDefs;
+                    return result;
+                }
+            }
+            // Fallback: extract just the type name and warn
+            console.warn(`[codegen] Unresolved cross-schema $ref: ${schema.$ref}`);
+            return { javaType: typeName, imports };
+        }
+
         const name = schema.$ref.replace(/^#\/definitions\//, "");
         const resolved = currentDefinitions[name];
         if (resolved) {
@@ -883,6 +926,19 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
     pendingStandaloneTypes.clear();
+    crossSchemaDefinitions.clear();
+
+    // Load cross-schema definitions (session-events) so that cross-schema $ref values
+    // like "session-events.schema.json#/definitions/Foo" can be resolved.
+    try {
+        const sessionEventsSchemaPath = await getSessionEventsSchemaPath();
+        const sessionEventsContent = await fs.readFile(sessionEventsSchemaPath, "utf-8");
+        const sessionEventsSchema = JSON.parse(sessionEventsContent) as JSONSchema7;
+        crossSchemaDefinitions.set("session-events.schema.json",
+            (sessionEventsSchema.definitions ?? {}) as Record<string, JSONSchema7>);
+    } catch (e) {
+        console.warn(`[codegen] Could not load session-events schema for cross-ref resolution: ${e}`);
+    }
 
     const packageName = "com.github.copilot.sdk.generated.rpc";
     const packageDir = `src/generated/java/com/github/copilot/sdk/generated/rpc`;

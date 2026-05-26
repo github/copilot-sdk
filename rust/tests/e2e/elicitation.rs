@@ -384,6 +384,7 @@ async fn session_capabilities_types_are_properly_structured() {
         ui: Some(UiCapabilities {
             elicitation: Some(true),
             mcp_apps: None,
+            canvases: None,
         }),
     };
 
@@ -546,7 +547,7 @@ impl PermissionHandler for QueuedElicitationHandler {
         _request_id: RequestId,
         _data: github_copilot_sdk::PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 

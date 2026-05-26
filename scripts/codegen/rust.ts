@@ -38,9 +38,11 @@ import {
 	isRpcMethod,
 	isSchemaDeprecated,
 	isSchemaExperimental,
+	isSchemaInternal,
 	isVoidSchema,
 	parseExternalSchemaRef,
 	postProcessSchema,
+	propagateInternalVisibility,
 	refTypeName,
 	resolveObjectSchema,
 	resolveRef,
@@ -193,6 +195,8 @@ function safeRustFieldName(name: string): string {
 interface RustCodegenCtx {
 	/** Accumulated struct definitions. */
 	structs: string[];
+	/** Accumulated type alias definitions. */
+	typeAliases: string[];
 	/** Accumulated enum definitions. */
 	enums: string[];
 	/** Track generated type names to avoid duplicates. */
@@ -409,6 +413,7 @@ function makeCtx(
 ): RustCodegenCtx {
 	return {
 		structs: [],
+		typeAliases: [],
 		enums: [],
 		generatedNames: new Set(),
 		nonDefaultableTypes: new Set(options.nonDefaultableTypes ?? []),
@@ -452,6 +457,87 @@ function pushRustDoc(lines: string[], text: string | undefined, indent = ""): vo
 			lines.push(`${indent}/// ${paragraph.trim()}`);
 		}
 	}
+}
+
+function isRustMapSchema(schema: JSONSchema7): boolean {
+	const hasProperties =
+		!!schema.properties && Object.keys(schema.properties).length > 0;
+	return (
+		(schema.type === "object" || schema.additionalProperties !== undefined) &&
+		!hasProperties &&
+		schema.additionalProperties !== undefined &&
+		schema.additionalProperties !== false
+	);
+}
+
+function rustMapValueType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	const additionalProperties = schema.additionalProperties;
+	if (
+		additionalProperties &&
+		typeof additionalProperties === "object" &&
+		Object.keys(additionalProperties as Record<string, unknown>).length > 0
+	) {
+		const valueSchema = additionalProperties as JSONSchema7;
+		if (valueSchema.type === "object" && valueSchema.properties) {
+			const valueName = (valueSchema.title as string) || `${parentTypeName}Value`;
+			emitRustStruct(valueName, valueSchema, ctx);
+			return valueName;
+		}
+		return resolveRustType(valueSchema, parentTypeName, "value", true, ctx);
+	}
+	return "serde_json::Value";
+}
+
+function rustMapType(
+	schema: JSONSchema7,
+	parentTypeName: string,
+	ctx: RustCodegenCtx,
+): string {
+	return `HashMap<String, ${rustMapValueType(schema, parentTypeName, ctx)}>`;
+}
+
+function emitRustTypeAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	aliasType: string,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	ctx.generatedNames.add(typeName);
+
+	const lines: string[] = [];
+	pushRustDoc(lines, description || schema.description);
+	pushRustExperimentalDocs(
+		lines,
+		isSchemaExperimental(schema) || ctx.experimentalTypeNames.has(typeName),
+	);
+	if (isSchemaDeprecated(schema)) {
+		lines.push(...rustDeprecatedAttributes());
+	}
+	const aliasVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
+	lines.push(`${aliasVis} type ${typeName} = ${aliasType};`);
+	ctx.typeAliases.push(lines.join("\n"));
+}
+
+function emitRustMapAlias(
+	typeName: string,
+	schema: JSONSchema7,
+	ctx: RustCodegenCtx,
+	description?: string,
+): void {
+	if (ctx.generatedNames.has(typeName)) return;
+	emitRustTypeAlias(
+		typeName,
+		schema,
+		rustMapType(schema, typeName, ctx),
+		ctx,
+		description,
+	);
 }
 
 function rustRpcResultDescription(
@@ -710,28 +796,8 @@ function resolveRustType(
 			emitRustStruct(structName, propSchema, ctx);
 			return wrapOption(structName, isRequired);
 		}
-		if (propSchema.additionalProperties) {
-			if (
-				typeof propSchema.additionalProperties === "object" &&
-				Object.keys(propSchema.additionalProperties as Record<string, unknown>)
-					.length > 0
-			) {
-				const ap = propSchema.additionalProperties as JSONSchema7;
-				if (ap.type === "object" && ap.properties) {
-					const valueName = (ap.title as string) || `${nestedName}Value`;
-					emitRustStruct(valueName, ap, ctx);
-					return wrapOption(`HashMap<String, ${valueName}>`, isRequired);
-				}
-				const valueType = resolveRustType(
-					ap,
-					parentTypeName,
-					`${jsonPropName}Value`,
-					true,
-					ctx,
-				);
-				return wrapOption(`HashMap<String, ${valueType}>`, isRequired);
-			}
-			return wrapOption("HashMap<String, serde_json::Value>", isRequired);
+		if (isRustMapSchema(propSchema)) {
+			return wrapOption(rustMapType(propSchema, nestedName, ctx), isRequired);
 		}
 		return wrapOption("serde_json::Value", isRequired);
 	}
@@ -776,6 +842,7 @@ function emitRustStruct(
 	if (isSchemaDeprecated(schema)) {
 		lines.push(...rustDeprecatedAttributes());
 	}
+	const structVis = isSchemaInternal(schema) ? "pub(crate)" : "pub";
 
 	// Resolve field types up-front so we can decide whether `Default` can be
 	// derived. A required field whose bare type is non-default-able (e.g. an
@@ -810,13 +877,18 @@ function emitRustStruct(
 		lines.push("#[derive(Debug, Clone, Default, Serialize, Deserialize)]");
 	}
 	lines.push(`#[serde(rename_all = "camelCase")]`);
-	lines.push(`pub struct ${typeName} {`);
+	lines.push(`${structVis} struct ${typeName} {`);
 
 	for (const { propName, prop, isReq, rustField, rustType } of fields) {
 		if (prop.description) {
 			for (const line of prop.description.split(/\r?\n/)) {
 				lines.push(`    /// ${line}`);
 			}
+		}
+		pushRustExperimentalDocs(lines, isSchemaExperimental(prop), "    ");
+		const propIsInternal = isSchemaInternal(prop);
+		if (propIsInternal) {
+			lines.push(`    #[doc(hidden)]`);
 		}
 		if (isSchemaDeprecated(prop)) {
 			lines.push(...rustDeprecatedAttributes("    "));
@@ -846,7 +918,7 @@ function emitRustStruct(
 			lines.push(`    #[serde(rename = "${propName}")]`);
 		}
 
-		lines.push(`    pub ${rustField}: ${rustType},`);
+		lines.push(`    ${propIsInternal ? "pub(crate)" : "pub"} ${rustField}: ${rustType},`);
 	}
 
 	lines.push("}");
@@ -1145,6 +1217,12 @@ export function generateSessionEventsCode(schema: JSONSchema7): string {
 		out.push("");
 	}
 
+	// Supporting type aliases
+	for (const block of ctx.typeAliases) {
+		out.push(block);
+		out.push("");
+	}
+
 	// Supporting enums
 	for (const block of ctx.enums) {
 		out.push(block);
@@ -1385,6 +1463,8 @@ function generateApiTypesCode(
 				getEnumValueDescriptions(schema),
 				isSchemaExperimental(schema),
 			);
+		} else if (isRustMapSchema(schema)) {
+			emitRustMapAlias(name, schema, ctx, schema.description);
 		} else if (asGeneratedObjectSchema(schema, defCollections)) {
 			emitRustStruct(
 				name,
@@ -1445,6 +1525,8 @@ function generateApiTypesCode(
 			if (resolved) {
 				if (resolved.enum && Array.isArray(resolved.enum)) {
 					// Already generated from definitions
+				} else if (isRustMapSchema(resolved)) {
+					emitRustMapAlias(resultName, resolved, ctx, resolved.description);
 				} else if (isObjectSchema(resolved)) {
 					emitRustStruct(resultName, resolved, ctx, resolved.description);
 				}
@@ -1491,6 +1573,11 @@ function generateApiTypesCode(
 
 	// Shared definition types first, then RPC types
 	for (const block of ctx.structs) {
+		out.push(block);
+		out.push("");
+	}
+
+	for (const block of ctx.typeAliases) {
 		out.push(block);
 		out.push("");
 	}
@@ -1781,17 +1868,18 @@ function emitNamespaceMethod(
 	};
 
 	const paramArg = hasParams ? `, params: ${paramsTypeName}` : "";
+	const fnVis = method.visibility === "internal" ? "pub(crate)" : "pub";
 
 	if (hasParams && paramsInfo.optional) {
 		out.push(...buildDocs(false));
 		out.push(
-			`    pub async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
+			`    ${fnVis} async fn ${fnName}(&self) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, false, resultIsVoid);
 		out.push("");
 		out.push(...buildDocs(true));
 		out.push(
-			`    pub async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
+			`    ${fnVis} async fn ${fnName}_with_params(&self, params: ${paramsTypeName}) -> Result<${returnType}, Error> {`,
 		);
 		pushNamespaceMethodBody(out, constName, isSession, true, resultIsVoid);
 		out.push("");
@@ -1800,7 +1888,7 @@ function emitNamespaceMethod(
 
 	out.push(...buildDocs(hasParams));
 	out.push(
-		`    pub async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
+		`    ${fnVis} async fn ${fnName}(&self${paramArg}) -> Result<${returnType}, Error> {`,
 	);
 	pushNamespaceMethodBody(out, constName, isSession, hasParams, resultIsVoid);
 	out.push("");
@@ -1988,11 +2076,15 @@ async function generate(): Promise<void> {
 		await fs.readFile(apiSchemaPath, "utf-8"),
 	) as ApiSchema;
 
-	const sessionEventsSchema = postProcessSchema(
-		stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+	const sessionEventsSchema = propagateInternalVisibility(
+		postProcessSchema(
+			stripBooleanLiterals(sessionEventsRaw) as JSONSchema7,
+		),
 	);
-	const apiSchema = postProcessSchema(
-		stripBooleanLiterals(apiRaw) as JSONSchema7,
+	const apiSchema = propagateInternalVisibility(
+		postProcessSchema(
+			stripBooleanLiterals(apiRaw) as JSONSchema7,
+		),
 	) as unknown as ApiSchema;
 
 	// Ensure output directory exists

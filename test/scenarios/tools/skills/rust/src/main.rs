@@ -27,9 +27,7 @@ impl SessionHooks for AllowAllHooks {
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     // CARGO_MANIFEST_DIR resolves to .../tools/skills/rust at compile time.
     let skills_dir: PathBuf = [env!("CARGO_MANIFEST_DIR"), "..", "sample-skills"]

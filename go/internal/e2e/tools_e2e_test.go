@@ -10,6 +10,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func TestToolsE2E(t *testing.T) {
@@ -284,9 +285,9 @@ func TestToolsE2E(t *testing.T) {
 
 		didRunPermissionRequest := false
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				didRunPermissionRequest = true
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
+				return &rpc.PermissionDecisionNoResult{}, nil
 			},
 			Tools: []copilot.Tool{
 				safeLookupTool,
@@ -496,11 +497,11 @@ func TestToolsE2E(t *testing.T) {
 						return strings.ToUpper(params.Input), nil
 					}),
 			},
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				mu.Lock()
 				permissionRequests = append(permissionRequests, request)
 				mu.Unlock()
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -555,8 +556,8 @@ func TestToolsE2E(t *testing.T) {
 						return strings.ToUpper(params.Input), nil
 					}),
 			},
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionReject{}, nil
 			},
 		})
 		if err != nil {

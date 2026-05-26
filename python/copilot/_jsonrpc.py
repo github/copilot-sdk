@@ -400,9 +400,12 @@ class JsonRpcClient:
             outcome = handler(params)
             if inspect.isawaitable(outcome):
                 outcome = await outcome
-            if outcome is not None and not isinstance(outcome, dict):
+            if outcome is not None and not isinstance(
+                outcome, dict | list | str | int | float | bool
+            ):
                 raise ValueError(
-                    f"Request handler must return a dict, got {type(outcome).__name__}"
+                    "Request handler must return a JSON-serializable value, "
+                    f"got {type(outcome).__name__}"
                 )
             await self._send_response(message["id"], outcome)
         except JsonRpcError as exc:
@@ -419,7 +422,7 @@ class JsonRpcClient:
             )
             await self._send_error_response(message["id"], -32603, str(exc), None)
 
-    async def _send_response(self, request_id: str, result: dict | None):
+    async def _send_response(self, request_id: str, result: Any):
         response = {
             "jsonrpc": "2.0",
             "id": request_id,

@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { approveAll, CopilotClient, RuntimeConnection, type ModelInfo } from "../src/index.js";
+import {
+    approveAll,
+    CopilotClient,
+    createCanvas,
+    RuntimeConnection,
+    type ModelInfo,
+} from "../src/index.js";
 import { CopilotSession } from "../src/session.js";
 import { defaultJoinSessionPermissionHandler } from "../src/types.js";
 
@@ -17,18 +23,195 @@ describe("CopilotClient", () => {
         expect(spy).not.toHaveBeenCalled();
     });
 
-    it("throws when a v2 permission handler returns no-result", async () => {
+    it("forwards canvas declarations and request flags in session.create", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            actions: [{ name: "increment", description: "Increment the counter" }],
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            canvases: [canvas],
+            requestCanvasRenderer: true,
+            requestExtensions: true,
+            extensionInfo: { source: "github-app", name: "counter-provider" },
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
+        expect(payload.canvases).toEqual([
+            expect.objectContaining({
+                id: "counter",
+                displayName: "Counter",
+                description: "A counter canvas",
+                actions: [{ name: "increment", description: "Increment the counter" }],
+            }),
+        ]);
+        expect(payload.requestCanvasRenderer).toBe(true);
+        expect(payload.requestExtensions).toBe(true);
+        expect(payload.extensionInfo).toEqual({
+            source: "github-app",
+            name: "counter-provider",
+        });
+    });
+
+    it("forwards canvas declarations in session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const session = await client.createSession({ onPermissionRequest: approveAll });
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            canvases: [canvas],
+            requestCanvasRenderer: true,
+            requestExtensions: true,
+            extensionInfo: { source: "github-app", name: "counter-provider" },
+        });
+
+        const payload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        expect(payload.canvases).toEqual([expect.objectContaining({ id: "counter" })]);
+        expect(payload.requestCanvasRenderer).toBe(true);
+        expect(payload.requestExtensions).toBe(true);
+        expect(payload.extensionInfo).toEqual({
+            source: "github-app",
+            name: "counter-provider",
+        });
+        expect(payload.openCanvasInstances).toBeUndefined();
+    });
+
+    it("routes direct canvas action requests to registered canvases", async () => {
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: ({ instanceId }) => ({ url: `https://example.test/${instanceId}` }),
+            actions: [
+                {
+                    name: "increment",
+                    handler: ({ actionName, input }) => ({ actionName, input }),
+                },
+            ],
+        });
         const session = new CopilotSession("session-1", {} as any);
-        session.registerPermissionHandler(() => ({ kind: "no-result" }));
+        session.registerCanvases([canvas]);
+        const client = new CopilotClient();
+        (client as any).sessions.set(session.sessionId, session);
+
+        const result = await (client as any).handleCanvasProviderRequest("increment", {
+            sessionId: session.sessionId,
+            extensionId: "project:counter",
+            canvasId: "counter",
+            instanceId: "counter-1",
+            actionName: "increment",
+            input: { amount: 1 },
+        });
+
+        expect(result).toEqual({ actionName: "increment", input: { amount: 1 } });
+    });
+
+    it("returns canvas_action_no_handler when no per-action handler is registered", async () => {
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open: () => ({ url: "https://example.test/counter" }),
+        });
+
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerCanvases([canvas]);
         const client = new CopilotClient();
         (client as any).sessions.set(session.sessionId, session);
 
         await expect(
-            (client as any).handlePermissionRequestV2({
+            (client as any).handleCanvasProviderRequest("ghost", {
                 sessionId: session.sessionId,
-                permissionRequest: { kind: "write" },
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+                actionName: "ghost",
+                input: undefined,
             })
-        ).rejects.toThrow(/protocol v2 server/);
+        ).rejects.toMatchObject({ code: "canvas_action_no_handler" });
+    });
+
+    it("rejects malformed direct canvas action payloads", async () => {
+        const client = new CopilotClient();
+
+        await expect((client as any).handleCanvasActionInvokeRequest(undefined)).rejects.toThrow(
+            "Invalid canvas provider request payload"
+        );
+        await expect(
+            (client as any).handleCanvasActionInvokeRequest({
+                sessionId: "session-1",
+                extensionId: "project:counter",
+                canvasId: "counter",
+                instanceId: "counter-1",
+            })
+        ).rejects.toThrow("Invalid canvas provider request payload");
+    });
+
+    it("rejects direct canvas provider payloads without extension ids", async () => {
+        const open = vi.fn(() => ({ url: "https://example.test/counter" }));
+        const canvas = createCanvas({
+            id: "counter",
+            displayName: "Counter",
+            description: "A counter canvas",
+            open,
+        });
+        const session = new CopilotSession("session-1", {} as any);
+        session.registerCanvases([canvas]);
+        const client = new CopilotClient();
+        (client as any).sessions.set(session.sessionId, session);
+
+        await expect(
+            (client as any).handleCanvasProviderRequest("canvas.open", {
+                sessionId: session.sessionId,
+                canvasId: "counter",
+                instanceId: "counter-1",
+            })
+        ).rejects.toThrow("Invalid canvas provider request payload");
+        expect(open).not.toHaveBeenCalled();
+    });
+
+    it("throws for unknown direct canvas dispatches", async () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const client = new CopilotClient();
+        (client as any).sessions.set(session.sessionId, session);
+
+        await expect(
+            (client as any).handleCanvasProviderRequest("canvas.open", {
+                sessionId: session.sessionId,
+                extensionId: "project:missing",
+                canvasId: "missing",
+                instanceId: "missing-1",
+            })
+        ).rejects.toThrow('No canvas registered with id "missing"');
     });
 
     it("forwards clientName in session.create request", async () => {
@@ -984,7 +1167,7 @@ describe("CopilotClient", () => {
             await client.start();
             onTestFinished(() => client.forceStop());
 
-            expect(client.getState()).toBe("connected");
+            expect((client as any).state).toBe("connected");
 
             // Kill the child process to simulate unexpected termination
             const proc = (client as any).cliProcess as import("node:child_process").ChildProcess;
@@ -992,7 +1175,7 @@ describe("CopilotClient", () => {
 
             // Wait for the connection.onClose handler to fire
             await vi.waitFor(() => {
-                expect(client.getState()).toBe("disconnected");
+                expect((client as any).state).toBe("disconnected");
             });
         });
     });

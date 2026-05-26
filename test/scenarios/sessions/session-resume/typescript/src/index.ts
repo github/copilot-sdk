@@ -1,10 +1,7 @@
-import { CopilotClient , RuntimeConnection } from "@github/copilot-sdk";
+import { CopilotClient } from "@github/copilot-sdk";
 
 async function main() {
-  const client = new CopilotClient({
-    connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
-    gitHubToken: process.env.GITHUB_TOKEN,
-  });
+  const client = new CopilotClient();
 
   try {
     // 1. Create a session

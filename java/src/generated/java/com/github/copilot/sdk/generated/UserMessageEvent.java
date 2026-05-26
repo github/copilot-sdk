@@ -44,7 +44,7 @@ public final class UserMessageEvent extends SessionEvent {
         @JsonProperty("attachments") List<Object> attachments,
         /** Normalized document MIME types that were sent natively instead of through tagged_files XML */
         @JsonProperty("supportedNativeDocumentMimeTypes") List<String> supportedNativeDocumentMimeTypes,
-        /** Path-backed native document attachments that stayed on the tagged_files path flow because native upload would exceed the request size limit */
+        /** Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit */
         @JsonProperty("nativeDocumentPathFallbackPaths") List<String> nativeDocumentPathFallbackPaths,
         /** Origin of this message, used for timeline filtering (e.g., "skill-pdf" for skill-injected messages that should be hidden from the user) */
         @JsonProperty("source") String source,

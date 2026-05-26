@@ -191,6 +191,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeMcpAppToolCallComplete:
+		var d McpAppToolCallCompleteData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeMcpOauthCompleted:
 		var d McpOauthCompletedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -241,6 +247,18 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionBackgroundTasksChanged:
 		var d SessionBackgroundTasksChangedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCanvasOpened:
+		var d SessionCanvasOpenedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionCanvasRegistryChanged:
+		var d SessionCanvasRegistryChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -904,9 +922,10 @@ func (r ToolExecutionCompleteContentText) MarshalJSON() ([]byte, error) {
 
 func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 	type rawToolExecutionCompleteResult struct {
-		Content         string            `json:"content"`
-		Contents        []json.RawMessage `json:"contents,omitempty"`
-		DetailedContent *string           `json:"detailedContent,omitempty"`
+		Content         string                           `json:"content"`
+		Contents        []json.RawMessage                `json:"contents,omitempty"`
+		DetailedContent *string                          `json:"detailedContent,omitempty"`
+		UIResource      *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
 	}
 	var raw rawToolExecutionCompleteResult
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -924,6 +943,7 @@ func (r *ToolExecutionCompleteResult) UnmarshalJSON(data []byte) error {
 		}
 	}
 	r.DetailedContent = raw.DetailedContent
+	r.UIResource = raw.UIResource
 	return nil
 }
 

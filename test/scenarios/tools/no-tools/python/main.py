@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from copilot import CopilotClient
 
@@ -10,9 +9,7 @@ If asked about your capabilities or tools, clearly state that you have no tools 
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

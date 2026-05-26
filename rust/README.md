@@ -78,7 +78,7 @@ client.stop().await?;
 | `extra_args`  | `Vec<String>`               | Extra CLI flags                                                 |
 | `transport`   | `Transport`                 | `Stdio` (default), `Tcp { port }`, or `External { host, port }` |
 
-With the default `CliProgram::Resolve`, `Client::start()` automatically resolves the binary via `github_copilot_sdk::resolve::copilot_binary()` — checking `COPILOT_CLI_PATH`, the [embedded CLI](#embedded-cli), and then the system PATH. Use `CliProgram::Path(path)` to skip resolution.
+With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
 
 ### Session
 
@@ -207,9 +207,9 @@ impl PermissionHandler for MyPermissions {
         data: PermissionRequestData,
     ) -> PermissionResult {
         if data.extra.get("tool").and_then(|v| v.as_str()) == Some("view") {
-            PermissionResult::Approved
+            PermissionResult::approve_once()
         } else {
-            PermissionResult::Denied
+            PermissionResult::reject(None)
         }
     }
 }
@@ -375,7 +375,7 @@ Tools are named types (not closures) — visible in stack traces and navigable v
 
 Tools without an attached handler (`Tool::with_handler` never called) are declaration-only: the SDK advertises them on the wire but doesn't dispatch invocations to anything. Useful when another connected client services the tool.
 
-For trivial tools that don't need a named type, [`define_tool`](crate::tool::define_tool) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
+For trivial tools that don't need a named type, the `define_tool` helper function (available with the `derive` feature) collapses the definition to a single expression and returns a fully-formed `Tool` with handler attached:
 
 ```rust,ignore
 use github_copilot_sdk::tool::{define_tool, JsonSchema};
@@ -672,7 +672,7 @@ ergonomics the dynamically-typed SDKs don't.
   `Session` value to thread in, and the SDK already prefers traits over
   boxed closures for handler-shaped APIs (`PermissionHandler`, `ToolHandler`,
   `SessionHooks`,
-  `ToolHandler`).
+  `SystemMessageTransform`).
 
 ```rust,ignore
 use std::sync::Arc;
@@ -697,6 +697,15 @@ let session = client
 
 See [`examples/session_fs.rs`](examples/session_fs.rs) for a complete
 in-memory provider implementation.
+
+- **Canvas action dispatch is a single trait method, not per-action closures.**
+  The Node SDK binds an optional `handler` closure on each entry of a canvas's
+  `actions[]`. The Rust SDK exposes
+  [`CanvasHandler::on_action`](crate::canvas::CanvasHandler::on_action) and expects the implementor to match on
+  `ctx.action_name`. Same reasoning as `SessionFsProvider`: per-callback
+  `Box<dyn Fn>` fields fight `Send + Sync + 'static` and skip exhaustiveness
+  checks, and the SDK prefers trait + default-impl methods for handler-shaped
+  extension points.
 
 ### Rust-only API
 
@@ -740,34 +749,56 @@ none of them are scheduled for removal.
 | `transforms.rs`   | `SystemMessageTransform` trait, section-level system message customization                                                 |
 | `tool.rs`         | `ToolHandler` trait, `define_tool`, `schema_for::<T>()` (with `derive` feature)                                            |
 | `types.rs`        | CLI protocol types (`SessionId`, `SessionEvent`, `SessionConfig`, `Tool`, etc.)                                            |
-| `resolve.rs`      | Binary resolution (`copilot_binary`, `node_binary`, `extended_path`)                                                       |
-| `embeddedcli.rs`  | Embedded CLI extraction (`embedded-cli` feature)                                                                           |
+| `resolve.rs`      | Bundled-CLI resolution (`copilot_binary`)                                                                                  |
+| `embeddedcli.rs`  | Embedded CLI extraction (gated on the default `bundled-cli` feature)                                                       |
 | `router.rs`       | Internal per-session event demux                                                                                           |
 | `jsonrpc.rs`      | Internal Content-Length framed JSON-RPC transport                                                                          |
 
 ## Embedded CLI
 
-By default, `copilot_binary()` searches `COPILOT_CLI_PATH`, the system PATH, and common install locations. To **ship with a specific CLI version** embedded in the binary, set `COPILOT_CLI_VERSION` at build time:
+The SDK bundles the Copilot CLI binary inside the consumer's compiled crate by default. No env var setup, no separate install — just `cargo build` and you get a self-contained binary.
 
-```bash
-COPILOT_CLI_VERSION=1.0.15 cargo build
+To opt out (e.g. for binary-size-sensitive consumers, or environments that provide the CLI via PATH), set `default-features = false`:
+
+```toml
+github-copilot-sdk = { version = "0.1", default-features = false }
 ```
 
 ### How it works
 
-1. **Build time:** The SDK's `build.rs` detects `COPILOT_CLI_VERSION`, downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the archive's SHA-256 against the release's `SHA256SUMS.txt`, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`. No extra steps or tools needed — just the env var.
+1. **Pinned at publish time.** When the rust crate is published, a workflow step writes `bundled_cli_version.txt` (CLI version + per-platform SHA-256 hashes) into the crate from the in-effect `nodejs/package-lock.json` and the matching GitHub Release's `SHA256SUMS.txt`. This file is gitignored locally; it only exists in the published crate tarball.
 
-2. **Runtime:** On the first call to `github_copilot_sdk::resolve::copilot_binary()`, the embedded binary is lazily extracted to `~/.cache/github-copilot-sdk-{version}/copilot` (or `copilot.exe` on Windows), SHA-256 verified, and cached. Subsequent calls return the cached path.
+2. **Build time:** The SDK's `build.rs` resolves the version + per-platform SHA-256:
+   - `COPILOT_CLI_VERSION` env var (advanced override; fetches live `SHA256SUMS.txt`).
+   - Otherwise, `bundled_cli_version.txt` from the published crate.
+   - Otherwise (mono-repo contributor build), live read from `../nodejs/package-lock.json` + live fetch of `SHA256SUMS.txt`.
 
-3. **Dev builds:** Without the env var, `build.rs` does nothing. The binary is resolved from PATH as usual — zero friction.
+   It then downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the SHA-256, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`.
+
+3. **Runtime:** On the first call to `github_copilot_sdk::Client::start()`, the embedded archive is lazily extracted to the platform cache dir (`%LOCALAPPDATA%\github-copilot-sdk-{version}\` on Windows, `~/Library/Caches/github-copilot-sdk-{version}/` on macOS, `$XDG_CACHE_HOME/github-copilot-sdk-{version}/` (or `~/.cache/...`) on Linux). Subsequent runs reuse the extracted binary.
+
+### Overriding the extraction location
+
+Use [`ClientOptions::with_bundled_cli_extract_dir`] when you need to place the extracted binary somewhere other than the platform cache dir (CI runners with ephemeral homes, sandboxes that disallow cache paths, etc.):
+
+```rust,ignore
+use std::path::PathBuf;
+use github_copilot_sdk::{Client, ClientOptions};
+
+let options = ClientOptions::new()
+    .with_bundled_cli_extract_dir(PathBuf::from("/var/run/my-app/copilot"));
+let client = Client::start(options).await?;
+```
 
 ### Resolution priority
 
 `copilot_binary()` checks these sources in order:
 
-1. `COPILOT_CLI_PATH` environment variable
-2. Embedded CLI (build-time, via `COPILOT_CLI_VERSION`)
-3. System PATH + common install locations
+1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`
+2. `COPILOT_CLI_PATH` environment variable
+3. Embedded CLI (when the `bundled-cli` feature is enabled, which it is by default)
+
+There is no PATH scanning. If both 1+2 are unset and the SDK was built with `default-features = false`, `Client::start` returns `Error::BinaryNotFound`.
 
 ### Platforms
 
@@ -775,26 +806,21 @@ Supported: `darwin-arm64`, `darwin-x64`, `linux-x64`, `linux-arm64`, `win32-x64`
 
 ## Features
 
-No features are enabled by default — the bare SDK resolves the CLI from `COPILOT_CLI_PATH` or the system PATH without pulling in additional feature-gated dependencies.
-
 | Feature        | Default | Description                                                                                                                                               |
 | -------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `embedded-cli` | —       | Build-time CLI embedding via `COPILOT_CLI_VERSION` (adds `sha2`, `zstd`). Enable when you need to ship a self-contained binary with a pinned CLI version. |
+| `bundled-cli`  | ✓       | Build-time CLI embedding. Pulls in `dirs`, `tar`+`flate2` (Linux/macOS), or `zip` (Windows). Disable via `default-features = false` to opt out (e.g. when shipping a smaller binary or when always supplying the CLI via `CliProgram::Path` / `COPILOT_CLI_PATH`). |
 | `derive`       | —       | `schema_for::<T>()` for generating JSON Schema from Rust types (adds `schemars`). Enable when defining [tool parameters](#tool-registration).             |
 
 ```toml
 # These examples use registry syntax for illustration; until the crate is
 # published, use a path or git dependency instead.
 
-# Minimal — resolve CLI from PATH
+# Default — bundles the Copilot CLI in your binary.
 github-copilot-sdk = "0.1"
 
-# Ship a pinned CLI version in your binary
-github-copilot-sdk = { version = "0.1", features = ["embedded-cli"] }
+# Opt out of bundling — resolve CLI from COPILOT_CLI_PATH or system PATH instead.
+github-copilot-sdk = { version = "0.1", default-features = false }
 
-# Derive JSON Schema for tool parameters
+# Derive JSON Schema for tool parameters (adds to default bundled-cli).
 github-copilot-sdk = { version = "0.1", features = ["derive"] }
-
-# Both
-github-copilot-sdk = { version = "0.1", features = ["embedded-cli", "derive"] }
 ```

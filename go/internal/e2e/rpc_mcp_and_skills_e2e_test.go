@@ -108,18 +108,13 @@ func TestRpcMcpAndSkillsE2E(t *testing.T) {
 		const serverName = "rpc-list-mcp-server"
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			MCPServers: map[string]copilot.MCPServerConfig{
-				serverName: copilot.MCPStdioServerConfig{
-					Command: "echo",
-					Args:    []string{"rpc-list-mcp-server"},
-					Tools:   &[]string{"*"},
-				},
-			},
+			MCPServers:          testMCPServers(t, serverName),
 		})
 		if err != nil {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
+		waitForMCPServerStatus(t, session, serverName, rpc.McpServerStatusConnected)
 		result, err := session.RPC.Mcp.List(t.Context())
 		if err != nil {
 			t.Fatalf("Mcp.List failed: %v", err)

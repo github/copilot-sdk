@@ -244,7 +244,7 @@ impl PermissionHandler for ElicitationApproveHandler {
         _request_id: RequestId,
         _data: github_copilot_sdk::PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 

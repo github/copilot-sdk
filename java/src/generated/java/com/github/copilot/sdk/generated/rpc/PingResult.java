@@ -10,10 +10,11 @@ package com.github.copilot.sdk.generated.rpc;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.OffsetDateTime;
 import javax.annotation.processing.Generated;
 
 /**
- * Server liveness response, including the echoed message, current timestamp, and protocol version.
+ * Server liveness response, including the echoed message, current server timestamp, and protocol version.
  *
  * @since 1.0.0
  */
@@ -23,8 +24,8 @@ import javax.annotation.processing.Generated;
 public record PingResult(
     /** Echoed message (or default greeting) */
     @JsonProperty("message") String message,
-    /** Server timestamp in milliseconds */
-    @JsonProperty("timestamp") Long timestamp,
+    /** ISO 8601 timestamp when the server handled the ping */
+    @JsonProperty("timestamp") OffsetDateTime timestamp,
     /** Server protocol version number */
     @JsonProperty("protocolVersion") Long protocolVersion
 ) {

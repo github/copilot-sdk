@@ -22,7 +22,7 @@ from copilot.client import (
     ModelLimits,
     ModelSupports,
 )
-from copilot.session import PermissionHandler, PermissionNoResult
+from copilot.session import PermissionHandler
 from e2e.testharness import CLI_PATH
 
 
@@ -44,30 +44,6 @@ class TestPermissionHandlerOptional:
         try:
             session = await client.create_session(on_permission_request=None)
             assert session.session_id
-        finally:
-            await client.force_stop()
-
-    @pytest.mark.asyncio
-    async def test_v2_permission_adapter_rejects_no_result(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
-        await client.start()
-        try:
-            session = await client.create_session(
-                on_permission_request=lambda request, invocation: PermissionNoResult()
-            )
-            with pytest.raises(ValueError, match="protocol v2 server"):
-                await client._handle_permission_request_v2(
-                    {
-                        "sessionId": session.session_id,
-                        "permissionRequest": {
-                            "kind": "write",
-                            "canOfferSessionApproval": True,
-                            "diff": "",
-                            "fileName": "test.txt",
-                            "intention": "test",
-                        },
-                    }
-                )
         finally:
             await client.force_stop()
 

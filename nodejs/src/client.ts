@@ -31,14 +31,19 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
+import {
+    type CanvasActionInvokeParams,
+    type CanvasProviderRequestParams,
+    dispatchCanvasProviderRequest,
+} from "./canvas.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
-import { CopilotSession, NO_RESULT_PERMISSION_V2_ERROR } from "./session.js";
+import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
-    ConnectionState,
     CopilotClientOptions,
     CustomAgentConfig,
     ExitPlanModeRequest,
@@ -52,6 +57,7 @@ import type {
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
+    SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
     SessionLifecycleEvent,
@@ -62,9 +68,6 @@ import type {
     SystemMessageCustomizeConfig,
     TelemetryConfig,
     Tool,
-    ToolCallRequestPayload,
-    ToolCallResponsePayload,
-    ToolResultObject,
     TraceContextProvider,
     TypedSessionLifecycleHandler,
 } from "./types.js";
@@ -74,7 +77,7 @@ import { defaultJoinSessionPermissionHandler } from "./types.js";
  * Minimum protocol version this SDK can communicate with.
  * Servers reporting a version below this are rejected.
  */
-const MIN_PROTOCOL_VERSION = 2;
+const MIN_PROTOCOL_VERSION = 3;
 
 /**
  * Emit a Node warning (`process.emitWarning`) when the consumer set
@@ -154,6 +157,32 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
         const { mcpServers, ...rest } = agent;
         return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
     });
+}
+
+function isCanvasProviderRequestParams(params: unknown): params is CanvasProviderRequestParams {
+    if (!params || typeof params !== "object") {
+        return false;
+    }
+
+    const request = params as {
+        sessionId?: unknown;
+        extensionId?: unknown;
+        canvasId?: unknown;
+        instanceId?: unknown;
+    };
+    return (
+        typeof request.sessionId === "string" &&
+        typeof request.extensionId === "string" &&
+        typeof request.canvasId === "string" &&
+        typeof request.instanceId === "string"
+    );
+}
+
+function isCanvasActionInvokeParams(params: unknown): params is CanvasActionInvokeParams {
+    return (
+        isCanvasProviderRequestParams(params) &&
+        typeof (params as { actionName?: unknown }).actionName === "string"
+    );
 }
 
 /**
@@ -276,7 +305,7 @@ export class CopilotClient {
     private socket: Socket | null = null;
     private runtimePort: number | null = null;
     private actualHost: string = "localhost";
-    private state: ConnectionState = "disconnected";
+    private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
@@ -832,6 +861,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -878,6 +908,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((canvas) => canvas.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
+                extensionInfo: config.extensionInfo,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -917,7 +951,7 @@ export class CopilotClient {
             const { workspacePath, capabilities } = response as {
                 sessionId: string;
                 workspacePath?: string;
-                capabilities?: { ui?: { elicitation?: boolean; mcpApps?: boolean } };
+                capabilities?: SessionCapabilities;
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
@@ -968,6 +1002,7 @@ export class CopilotClient {
             this.onGetTraceContext
         );
         session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
         session.registerCommands(config.commands);
         session.registerPermissionHandler(config.onPermissionRequest);
         if (config.onUserInputRequest) {
@@ -1018,6 +1053,10 @@ export class CopilotClient {
                     overridesBuiltInTool: tool.overridesBuiltInTool,
                     skipPermission: tool.skipPermission,
                 })),
+                canvases: config.canvases?.map((canvas) => canvas.declaration),
+                requestCanvasRenderer: config.requestCanvasRenderer,
+                requestExtensions: config.requestExtensions,
+                extensionInfo: config.extensionInfo,
                 commands: config.commands?.map((cmd) => ({
                     name: cmd.name,
                     description: cmd.description,
@@ -1050,15 +1089,18 @@ export class CopilotClient {
                 continuePendingWork: config.continuePendingWork,
                 gitHubToken: config.gitHubToken,
                 remoteSession: config.remoteSession,
+                openCanvases: config.openCanvases,
             });
 
-            const { workspacePath, capabilities } = response as {
+            const { workspacePath, capabilities, openCanvases } = response as {
                 sessionId: string;
                 workspacePath?: string;
-                capabilities?: { ui?: { elicitation?: boolean; mcpApps?: boolean } };
+                capabilities?: SessionCapabilities;
+                openCanvases?: OpenCanvasInstance[];
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
+            session.setOpenCanvases(openCanvases ?? []);
             warnIfMcpAppsDropped(config.enableMcpApps, capabilities);
         } catch (e) {
             this.sessions.delete(sessionId);
@@ -1066,22 +1108,6 @@ export class CopilotClient {
         }
 
         return session;
-    }
-
-    /**
-     * Gets the current connection state of the client.
-     *
-     * @returns The current connection state: "disconnected", "connecting", "connected", or "error"
-     *
-     * @example
-     * ```typescript
-     * if (client.getState() === "connected") {
-     *   const session = await client.createSession({ onPermissionRequest: approveAll });
-     * }
-     * ```
-     */
-    getState(): ConnectionState {
-        return this.state;
     }
 
     /**
@@ -1885,25 +1911,6 @@ export class CopilotClient {
             this.handleSessionLifecycleNotification(notification);
         });
 
-        // Protocol v3 servers send tool calls and permission requests as broadcast events
-        // (external_tool.requested / permission.requested) handled in CopilotSession._dispatchEvent.
-        // Protocol v2 servers use the older tool.call / permission.request RPC model instead.
-        // We always register v2 adapters because handlers are set up before version negotiation;
-        // a v3 server will simply never send these requests.
-        this.connection.onRequest(
-            "tool.call",
-            async (params: ToolCallRequestPayload): Promise<ToolCallResponsePayload> =>
-                await this.handleToolCallRequestV2(params)
-        );
-
-        this.connection.onRequest(
-            "permission.request",
-            async (params: {
-                sessionId: string;
-                permissionRequest: unknown;
-            }): Promise<{ result: unknown }> => await this.handlePermissionRequestV2(params)
-        );
-
         this.connection.onRequest(
             "userInput.request",
             async (params: {
@@ -1946,6 +1953,17 @@ export class CopilotClient {
                 sections: Record<string, { content: string }>;
             }): Promise<{ sections: Record<string, { content: string }> }> =>
                 await this.handleSystemMessageTransform(params)
+        );
+
+        this.connection.onRequest("canvas.open", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.open", params)
+        );
+        this.connection.onRequest("canvas.close", async (params: CanvasProviderRequestParams) =>
+            this.handleCanvasProviderRequest("canvas.close", params)
+        );
+        this.connection.onRequest(
+            "canvas.action.invoke",
+            async (params: CanvasActionInvokeParams) => this.handleCanvasActionInvokeRequest(params)
         );
 
         // Register client session API handlers.
@@ -2152,80 +2170,12 @@ export class CopilotClient {
         return await session._handleSystemMessageTransform(params.sections);
     }
 
-    // ========================================================================
-    // Protocol v2 backward-compatibility adapters
-    // ========================================================================
-
-    /**
-     * Handles a v2-style tool.call RPC request from the server.
-     * Looks up the session and tool handler, executes it, and returns the result
-     * in the v2 response format.
-     */
-    private async handleToolCallRequestV2(
-        params: ToolCallRequestPayload
-    ): Promise<ToolCallResponsePayload> {
-        if (
-            !params ||
-            typeof params.sessionId !== "string" ||
-            typeof params.toolCallId !== "string" ||
-            typeof params.toolName !== "string"
-        ) {
-            throw new Error("Invalid tool call payload");
-        }
-
-        const session = this.sessions.get(params.sessionId);
-        if (!session) {
-            throw new Error(`Unknown session ${params.sessionId}`);
-        }
-
-        const handler = session.getToolHandler(params.toolName);
-        if (!handler) {
-            return {
-                result: {
-                    textResultForLlm: `Tool '${params.toolName}' is not supported by this client instance.`,
-                    resultType: "failure",
-                    error: `tool '${params.toolName}' not supported`,
-                    toolTelemetry: {},
-                },
-            };
-        }
-
-        try {
-            const traceparent = (params as { traceparent?: string }).traceparent;
-            const tracestate = (params as { tracestate?: string }).tracestate;
-            const invocation = {
-                sessionId: params.sessionId,
-                toolCallId: params.toolCallId,
-                toolName: params.toolName,
-                arguments: params.arguments,
-                traceparent,
-                tracestate,
-            };
-            const result = await handler(params.arguments, invocation);
-            return { result: this.normalizeToolResultV2(result) };
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            return {
-                result: {
-                    textResultForLlm:
-                        "Invoking this tool produced an error. Detailed information is not available.",
-                    resultType: "failure",
-                    error: message,
-                    toolTelemetry: {},
-                },
-            };
-        }
-    }
-
-    /**
-     * Handles a v2-style permission.request RPC request from the server.
-     */
-    private async handlePermissionRequestV2(params: {
-        sessionId: string;
-        permissionRequest: unknown;
-    }): Promise<{ result: unknown }> {
-        if (!params || typeof params.sessionId !== "string" || !params.permissionRequest) {
-            throw new Error("Invalid permission request payload");
+    private async handleCanvasProviderRequest(
+        actionName: string,
+        params: unknown
+    ): Promise<unknown> {
+        if (!isCanvasProviderRequestParams(params)) {
+            throw new Error("Invalid canvas provider request payload");
         }
 
         const session = this.sessions.get(params.sessionId);
@@ -2233,50 +2183,19 @@ export class CopilotClient {
             throw new Error(`Session not found: ${params.sessionId}`);
         }
 
-        try {
-            const result = await session._handlePermissionRequestV2(params.permissionRequest);
-            return { result };
-        } catch (error) {
-            if (error instanceof Error && error.message === NO_RESULT_PERMISSION_V2_ERROR) {
-                throw error;
-            }
-            return {
-                result: {
-                    kind: "user-not-available",
-                },
-            };
+        const canvas = session.getCanvas(params.canvasId);
+        if (!canvas) {
+            throw new Error(`No canvas registered with id "${params.canvasId}"`);
         }
+
+        return dispatchCanvasProviderRequest(canvas, actionName, params);
     }
 
-    private normalizeToolResultV2(result: unknown): ToolResultObject {
-        if (result === undefined || result === null) {
-            return {
-                textResultForLlm: "Tool returned no result",
-                resultType: "failure",
-                error: "tool returned no result",
-                toolTelemetry: {},
-            };
+    private async handleCanvasActionInvokeRequest(params: unknown): Promise<unknown> {
+        if (!isCanvasActionInvokeParams(params)) {
+            throw new Error("Invalid canvas provider request payload");
         }
 
-        if (this.isToolResultObject(result)) {
-            return result;
-        }
-
-        const textResult = typeof result === "string" ? result : JSON.stringify(result);
-        return {
-            textResultForLlm: textResult,
-            resultType: "success",
-            toolTelemetry: {},
-        };
-    }
-
-    private isToolResultObject(value: unknown): value is ToolResultObject {
-        return (
-            typeof value === "object" &&
-            value !== null &&
-            "textResultForLlm" in value &&
-            typeof (value as ToolResultObject).textResultForLlm === "string" &&
-            "resultType" in value
-        );
+        return this.handleCanvasProviderRequest(params.actionName, params);
     }
 }

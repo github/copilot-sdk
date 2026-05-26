@@ -4,6 +4,20 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
+from .canvas import (
+    CanvasAction,
+    CanvasActionContext,
+    CanvasDeclaration,
+    CanvasError,
+    CanvasHandler,
+    CanvasHostCapabilities,
+    CanvasHostContext,
+    CanvasLifecycleContext,
+    CanvasOpenContext,
+    CanvasOpenResponse,
+    ExtensionInfo,
+    OpenCanvasInstance,
+)
 from .client import (
     ChildProcessRuntimeConnection,
     CloudSessionOptions,
@@ -130,6 +144,16 @@ __all__ = [
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
+    "CanvasAction",
+    "CanvasActionContext",
+    "CanvasDeclaration",
+    "CanvasError",
+    "CanvasHandler",
+    "CanvasHostCapabilities",
+    "CanvasHostContext",
+    "CanvasLifecycleContext",
+    "CanvasOpenContext",
+    "CanvasOpenResponse",
     "ChildProcessRuntimeConnection",
     "CloudSessionOptions",
     "CloudSessionRepository",
@@ -148,6 +172,7 @@ __all__ = [
     "ExitPlanModeHandler",
     "ExitPlanModeRequest",
     "ExitPlanModeResult",
+    "ExtensionInfo",
     "GetAuthStatusResponse",
     "GetStatusResponse",
     "InfiniteSessionConfig",
@@ -167,6 +192,7 @@ __all__ = [
     "ModelSupportsOverride",
     "ModelVisionLimits",
     "ModelVisionLimitsOverride",
+    "OpenCanvasInstance",
     "PermissionHandler",
     "PermissionNoResult",
     "PermissionRequest",

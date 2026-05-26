@@ -122,6 +122,7 @@ import (
 	"context"
 	"fmt"
 	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func main() {
@@ -131,8 +132,8 @@ func main() {
 	session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
 		Model:     "gpt-4.1",
 		Streaming: copilot.Bool(true),
-		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+		OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		},
 	})
 

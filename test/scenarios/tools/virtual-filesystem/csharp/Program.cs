@@ -1,15 +1,12 @@
 using System.ComponentModel;
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Microsoft.Extensions.AI;
 
 // In-memory virtual filesystem
 var virtualFs = new Dictionary<string, string>();
 
-using var client = new CopilotClient(new CopilotClientOptions
-{
-    Connection = RuntimeConnection.ForStdio(path: Environment.GetEnvironmentVariable("COPILOT_CLI_PATH")),
-    GitHubToken = Environment.GetEnvironmentVariable("GITHUB_TOKEN"),
-});
+using var client = new CopilotClient();
 
 await client.StartAsync();
 
@@ -49,7 +46,7 @@ try
                 "List all files in the virtual filesystem"),
         ],
         OnPermissionRequest = (request, invocation) =>
-            Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+            Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce()),
         Hooks = new SessionHooks
         {
             OnPreToolUse = (input, invocation) =>

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
@@ -43,20 +44,20 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     writePermissionRequestReceived.TrySetResult(writeRequest);
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "test.txt"), "original content");
 
-        await session.SendAsync(new MessageOptions
+        var sendTask = session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Edit test.txt and replace 'original' with 'modified'"
         });
 
         var readRequest = await readPermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
         var writeRequest = await writePermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        await TestHelper.GetFinalAssistantMessageAsync(session);
+        await sendTask;
 
         List<PermissionRequest> observedPermissionRequests;
         lock (permissionRequestsLock)
@@ -86,10 +87,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                return Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.Rejected
-                });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.Reject());
             }
         });
 
@@ -135,7 +133,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
         });
         var permissionDenied = false;
 
@@ -181,7 +179,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             {
                 permissionRequestReceived = true;
                 await Task.Yield();
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -212,7 +210,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequestReceived = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -228,24 +226,46 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Handle_Permission_Handler_Errors_Gracefully()
     {
+        var permissionRequestReceived =
+            new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                // Simulate an error in the handler
+                permissionRequestReceived.TrySetResult(request);
                 throw new InvalidOperationException("Handler error");
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        try
         {
-            Prompt = "Run 'echo test'. If you can't, say 'failed'."
-        });
+            var exchanges = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions
+                {
+                    Prompt = "Run 'echo test'. If you can't, say 'failed'."
+                },
+                minimumCount: 2);
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+            var permissionRequest = await permissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.IsType<PermissionRequestShell>(permissionRequest);
 
-        // Should handle the error and deny permission
-        Assert.Matches("fail|cannot|unable|permission", message?.Data.Content?.ToLowerInvariant() ?? string.Empty);
+            var toolResultMessage = exchanges
+                .SelectMany(exchange => exchange.Request.Messages)
+                .LastOrDefault(message =>
+                    message.Role == "tool" &&
+                    message.StringContent?.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(toolResultMessage);
+            Assert.Contains(
+                "could not request permission",
+                toolResultMessage.StringContent ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -262,7 +282,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
         });
         var permissionDenied = false;
 
@@ -297,7 +317,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     receivedToolCallId = true;
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -340,7 +360,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 handlerEntered.TrySetResult();
                 await releaseHandler.Task.WaitAsync(TimeSpan.FromSeconds(30));
                 AddLifecycleEvent("permission-complete", shellRequest.ToolCallId);
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -438,7 +458,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 }
 
                 await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -515,7 +535,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (_, _) =>
             {
                 permissionCalled.TrySetResult(true);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.NoResult());
             }
         });
 
@@ -541,7 +561,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (_, _) =>
             {
                 Interlocked.Increment(ref handlerCallCount);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 

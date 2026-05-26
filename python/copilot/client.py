@@ -35,20 +35,28 @@ from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._sdk_protocol_version import get_sdk_protocol_version
-from ._telemetry import get_trace_context, trace_context
+from ._telemetry import get_trace_context
+from .canvas import (
+    CanvasDeclaration,
+    CanvasError,
+    CanvasHandler,
+    ExtensionInfo,
+    _action_context_from_params,
+    _lifecycle_context_from_params,
+    _open_context_from_params,
+)
 from .generated.rpc import (
     ClientSessionApiHandlers,
-    ConnectRequest,
-    PermissionDecisionUserNotAvailable,
+    OpenCanvasInstance,
     RemoteSessionMode,
     ServerRpc,
+    _ConnectRequest,
     _InternalServerRpc,
     from_datetime,
     register_client_session_api_handlers,
 )
 from .generated.session_events import (
     SessionEvent,
-    _load_PermissionRequest,
     session_event_from_dict,
 )
 from .session import (
@@ -62,7 +70,6 @@ from .session import (
     ExitPlanModeHandler,
     InfiniteSessionConfig,
     MCPServerConfig,
-    PermissionNoResult,
     ProviderConfig,
     ReasoningEffort,
     SectionTransformFn,
@@ -73,7 +80,7 @@ from .session import (
     _PermissionHandlerFn,
 )
 from .session_fs_provider import SessionFsProvider, create_session_fs_adapter
-from .tools import Tool, ToolInvocation, ToolResult
+from .tools import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -186,9 +193,10 @@ class TelemetryConfig(TypedDict, total=False):
 class RuntimeConnection:
     """Discriminated config describing how to reach the Copilot runtime.
 
-    Construct via the static factories :meth:`stdio`, :meth:`tcp`, or
-    :meth:`uri`. Each factory returns the matching subclass; pattern-match
-    on the subclass (or :func:`isinstance`) to branch on the transport.
+    Construct via the static factories :meth:`for_stdio`, :meth:`for_tcp`,
+    or :meth:`for_uri`. Each factory returns the matching subclass;
+    pattern-match on the subclass (or :func:`isinstance`) to branch on the
+    transport.
 
     Example:
         >>> CopilotClient()  # default: stdio with the bundled runtime
@@ -965,13 +973,9 @@ SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
 
 HandlerUnsubcribe = Callable[[], None]
 
-_NO_RESULT_PERMISSION_V2_ERROR = (
-    "Permission handlers cannot return 'no-result' when connected to a protocol v2 server."
-)
-
 # Minimum protocol version this SDK can communicate with.
 # Servers reporting a version below this are rejected.
-_MIN_PROTOCOL_VERSION = 2
+_MIN_PROTOCOL_VERSION = 3
 
 
 def _get_bundled_cli_path() -> str | None:
@@ -1578,6 +1582,11 @@ class CopilotClient:
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
         cloud: CloudSessionOptions | None = None,
+        canvases: list[CanvasDeclaration] | None = None,
+        request_canvas_renderer: bool | None = None,
+        request_extensions: bool | None = None,
+        extension_info: ExtensionInfo | None = None,
+        canvas_handler: CanvasHandler | None = None,
     ) -> CopilotSession:
         """
         Create a new conversation session with the Copilot CLI.
@@ -1825,6 +1834,15 @@ class CopilotClient:
                 ]
             payload["infiniteSessions"] = wire_config
 
+        if canvases:
+            payload["canvases"] = [c.to_dict() for c in canvases]
+        if request_canvas_renderer is not None:
+            payload["requestCanvasRenderer"] = request_canvas_renderer
+        if request_extensions is not None:
+            payload["requestExtensions"] = request_extensions
+        if extension_info is not None:
+            payload["extensionInfo"] = extension_info.to_dict()
+
         if not self._client:
             raise RuntimeError("Client not connected")
 
@@ -1868,6 +1886,8 @@ class CopilotClient:
             session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
         if on_auto_mode_switch_request:
             session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+        if canvas_handler is not None:
+            session._register_canvas_handler(canvas_handler)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -1964,6 +1984,12 @@ class CopilotClient:
         github_token: str | None = None,
         remote_session: RemoteSessionMode | None = None,
         continue_pending_work: bool | None = None,
+        canvases: list[CanvasDeclaration] | None = None,
+        request_canvas_renderer: bool | None = None,
+        request_extensions: bool | None = None,
+        extension_info: ExtensionInfo | None = None,
+        canvas_handler: CanvasHandler | None = None,
+        open_canvases: list[OpenCanvasInstance] | None = None,
     ) -> CopilotSession:
         """
         Resume an existing conversation session by its ID.
@@ -2189,6 +2215,17 @@ class CopilotClient:
                 ]
             payload["infiniteSessions"] = wire_config
 
+        if canvases:
+            payload["canvases"] = [c.to_dict() for c in canvases]
+        if open_canvases:
+            payload["openCanvases"] = [inst.to_dict() for inst in open_canvases]
+        if request_canvas_renderer is not None:
+            payload["requestCanvasRenderer"] = request_canvas_renderer
+        if request_extensions is not None:
+            payload["requestExtensions"] = request_extensions
+        if extension_info is not None:
+            payload["extensionInfo"] = extension_info.to_dict()
+
         if not self._client:
             raise RuntimeError("Client not connected")
 
@@ -2229,6 +2266,8 @@ class CopilotClient:
             session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
         if on_auto_mode_switch_request:
             session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+        if canvas_handler is not None:
+            session._register_canvas_handler(canvas_handler)
         if hooks:
             session._register_hooks(hooks)
         if transform_callbacks:
@@ -2261,6 +2300,11 @@ class CopilotClient:
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
+            open_canvases_raw = response.get("openCanvases")
+            if isinstance(open_canvases_raw, list):
+                session._set_open_canvases(
+                    [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
+                )
             _warn_if_mcp_apps_dropped(enable_mcp_apps, capabilities, session_id)
         except BaseException as exc:
             with self._sessions_lock:
@@ -2683,8 +2727,8 @@ class CopilotClient:
 
         server_version: int | None
         try:
-            connect_result = await _InternalServerRpc(self._client).connect(
-                ConnectRequest(token=self._effective_connection_token)
+            connect_result = await _InternalServerRpc(self._client)._connect(
+                _ConnectRequest(token=self._effective_connection_token)
             )
             server_version = connect_result.protocol_version
         except JsonRpcError as err:
@@ -3032,12 +3076,6 @@ class CopilotClient:
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
-        # Protocol v3 servers send tool calls / permission requests as broadcast events.
-        # Protocol v2 servers use the older tool.call / permission.request RPC model.
-        # We always register v2 adapters because handlers are set up before version
-        # negotiation; a v3 server will simply never send these requests.
-        self._client.set_request_handler("tool.call", self._handle_tool_call_request_v2)
-        self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler(
             "exitPlanMode.request", self._handle_exit_plan_mode_request
@@ -3048,6 +3086,18 @@ class CopilotClient:
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
+        )
+        self._client.set_request_handler(
+            "canvas.open",
+            self._canvas_request_handler(self._handle_canvas_open),
+        )
+        self._client.set_request_handler(
+            "canvas.close",
+            self._canvas_request_handler(self._handle_canvas_close),
+        )
+        self._client.set_request_handler(
+            "canvas.action.invoke",
+            self._canvas_request_handler(self._handle_canvas_action_invoke),
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
 
@@ -3157,11 +3207,6 @@ class CopilotClient:
                 self._dispatch_lifecycle_event(lifecycle_event)
 
         self._client.set_notification_handler(handle_notification)
-        # Protocol v3 servers send tool calls / permission requests as broadcast events.
-        # Protocol v2 servers use the older tool.call / permission.request RPC model.
-        # We always register v2 adapters; a v3 server will simply never send these requests.
-        self._client.set_request_handler("tool.call", self._handle_tool_call_request_v2)
-        self._client.set_request_handler("permission.request", self._handle_permission_request_v2)
         self._client.set_request_handler("userInput.request", self._handle_user_input_request)
         self._client.set_request_handler(
             "exitPlanMode.request", self._handle_exit_plan_mode_request
@@ -3172,6 +3217,18 @@ class CopilotClient:
         self._client.set_request_handler("hooks.invoke", self._handle_hooks_invoke)
         self._client.set_request_handler(
             "systemMessage.transform", self._handle_system_message_transform
+        )
+        self._client.set_request_handler(
+            "canvas.open",
+            self._canvas_request_handler(self._handle_canvas_open),
+        )
+        self._client.set_request_handler(
+            "canvas.close",
+            self._canvas_request_handler(self._handle_canvas_close),
+        )
+        self._client.set_request_handler(
+            "canvas.action.invoke",
+            self._canvas_request_handler(self._handle_canvas_action_invoke),
         )
         register_client_session_api_handlers(self._client, self._get_client_session_handlers)
 
@@ -3303,108 +3360,112 @@ class CopilotClient:
 
         return await session._handle_system_message_transform(sections)
 
-    # ========================================================================
-    # Protocol v2 backward-compatibility adapters
-    # ========================================================================
-
-    async def _handle_tool_call_request_v2(self, params: dict) -> dict:
-        """Handle a v2-style tool.call RPC request from the server."""
-        session_id = params.get("sessionId")
-        tool_call_id = params.get("toolCallId")
-        tool_name = params.get("toolName")
-
-        if not session_id or not tool_call_id or not tool_name:
-            raise ValueError("invalid tool call payload")
-
+    def _resolve_canvas_handler(self, session_id: str) -> CanvasHandler:
+        """Look up the canvas handler for ``session_id`` or raise CanvasError."""
         with self._sessions_lock:
             session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
+        if session is None:
+            raise CanvasError(
+                "canvas_handler_unset",
+                f"No session registered for {session_id}; cannot dispatch canvas RPC.",
+            )
+        handler = session._get_canvas_handler()
+        if handler is None:
+            raise CanvasError.handler_unset()
+        return handler
 
-        handler = session._get_tool_handler(tool_name)
-        if not handler:
-            return {
-                "result": {
-                    "textResultForLlm": (
-                        f"Tool '{tool_name}' is not supported by this client instance."
-                    ),
-                    "resultType": "failure",
-                    "error": f"tool '{tool_name}' not supported",
-                    "toolTelemetry": {},
-                }
-            }
-
-        arguments = params.get("arguments")
-        invocation = ToolInvocation(
-            session_id=session_id,
-            tool_call_id=tool_call_id,
-            tool_name=tool_name,
-            arguments=arguments,
-        )
-
-        tp = params.get("traceparent")
-        ts = params.get("tracestate")
-
+    async def _handle_canvas_open(self, params: dict) -> dict:
+        """Handle an inbound ``canvas.open`` request from the CLI runtime."""
         try:
-            with trace_context(tp, ts):
-                handler_start = time.perf_counter()
-                result = handler(invocation)
-                if inspect.isawaitable(result):
-                    result = await result
-                log_timing(
-                    logger,
-                    logging.DEBUG,
-                    "CopilotClient._handle_tool_call_request_v2 tool dispatch",
-                    handler_start,
-                    session_id=session_id,
-                    tool_call_id=tool_call_id,
-                    tool_name=tool_name,
-                )
-
-            tool_result: ToolResult = result  # type: ignore[assignment]
-            return {
-                "result": {
-                    "textResultForLlm": tool_result.text_result_for_llm,
-                    "resultType": tool_result.result_type,
-                    "error": tool_result.error,
-                    "toolTelemetry": tool_result.tool_telemetry or {},
-                }
-            }
+            session_id = params["sessionId"]
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", "canvas.open params missing sessionId"
+            ) from exc
+        handler = self._resolve_canvas_handler(session_id)
+        try:
+            ctx = _open_context_from_params(params)
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", f"canvas.open params missing field: {exc.args[0]}"
+            ) from exc
+        try:
+            response = await handler.on_open(ctx)
+        except CanvasError:
+            raise
         except Exception as exc:
-            return {
-                "result": {
-                    "textResultForLlm": (
-                        "Invoking this tool produced an error."
-                        " Detailed information is not available."
-                    ),
-                    "resultType": "failure",
-                    "error": str(exc),
-                    "toolTelemetry": {},
-                }
-            }
+            raise CanvasError(
+                "canvas_open_handler_failed",
+                f"canvas.open handler raised: {exc}",
+            ) from exc
+        return response.to_dict()
 
-    async def _handle_permission_request_v2(self, params: dict) -> dict:
-        """Handle a v2-style permission.request RPC request from the server."""
-        session_id = params.get("sessionId")
-        permission_request = params.get("permissionRequest")
-
-        if not session_id or not permission_request:
-            raise ValueError("invalid permission request payload")
-
-        with self._sessions_lock:
-            session = self._sessions.get(session_id)
-        if not session:
-            raise ValueError(f"unknown session {session_id}")
-
+    async def _handle_canvas_close(self, params: dict) -> None:
+        """Handle an inbound ``canvas.close`` request from the CLI runtime."""
         try:
-            perm_request = _load_PermissionRequest(permission_request)
-            result = await session._handle_permission_request(perm_request)
-            if isinstance(result, PermissionNoResult):
-                raise ValueError(_NO_RESULT_PERMISSION_V2_ERROR)
-            return {"result": result.to_dict()}
-        except ValueError as exc:
-            if str(exc) == _NO_RESULT_PERMISSION_V2_ERROR:
-                raise
-            return {"result": PermissionDecisionUserNotAvailable().to_dict()}
-        except Exception:  # pylint: disable=broad-except
-            return {"result": PermissionDecisionUserNotAvailable().to_dict()}
+            session_id = params["sessionId"]
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", "canvas.close params missing sessionId"
+            ) from exc
+        handler = self._resolve_canvas_handler(session_id)
+        try:
+            ctx = _lifecycle_context_from_params(params)
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request", f"canvas.close params missing field: {exc.args[0]}"
+            ) from exc
+        try:
+            await handler.on_close(ctx)
+        except CanvasError:
+            raise
+        except Exception as exc:
+            raise CanvasError(
+                "canvas_close_handler_failed",
+                f"canvas.close handler raised: {exc}",
+            ) from exc
+        return None
+
+    async def _handle_canvas_action_invoke(self, params: dict) -> Any:
+        """Handle an inbound ``canvas.action.invoke`` request from the CLI runtime."""
+        try:
+            session_id = params["sessionId"]
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request",
+                "canvas.action.invoke params missing sessionId",
+            ) from exc
+        handler = self._resolve_canvas_handler(session_id)
+        try:
+            ctx = _action_context_from_params(params)
+        except KeyError as exc:
+            raise CanvasError(
+                "canvas_invalid_request",
+                f"canvas.action.invoke params missing field: {exc.args[0]}",
+            ) from exc
+        try:
+            return await handler.on_action(ctx)
+        except CanvasError:
+            raise
+        except Exception as exc:
+            raise CanvasError(
+                "canvas_action_handler_failed",
+                f"canvas.action.invoke handler raised: {exc}",
+            ) from exc
+
+    @staticmethod
+    def _canvas_request_handler(
+        coro: Callable[[dict], Awaitable[Any]],
+    ) -> Callable[[dict], Awaitable[Any]]:
+        """Wrap a canvas RPC coroutine so ``CanvasError`` becomes a JSON-RPC error
+        with the structured envelope in the error's ``data`` field, matching the
+        Rust SDK wire shape.
+        """
+
+        async def wrapper(params: dict) -> Any:
+            try:
+                return await coro(params)
+            except CanvasError as err:
+                raise JsonRpcError(-32603, err.message, data=err.to_envelope()) from err
+
+        return wrapper

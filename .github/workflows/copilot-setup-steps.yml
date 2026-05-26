@@ -76,7 +76,7 @@ jobs:
 
       # Install gh-aw extension for advanced GitHub CLI features
       - name: Install gh-aw extension
-        uses: github/gh-aw/actions/setup-cli@4d44d0e89851a877f4ddc0cb6c0197e42b1016c5 # v0.73.0
+        uses: github/gh-aw/actions/setup-cli@0feed75a980b06f247abbbf80127f8eb2c19e2c5 # v0.74.8
         with:
           version: v0.74.4
 

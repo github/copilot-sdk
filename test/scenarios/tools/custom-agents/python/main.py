@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from copilot import CopilotClient
 from copilot.tools import Tool
@@ -10,9 +9,7 @@ async def analyze_handler(args):
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

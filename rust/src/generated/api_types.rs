@@ -96,6 +96,16 @@ pub mod rpc_methods {
     pub const SESSION_AUTH_GETSTATUS: &str = "session.auth.getStatus";
     /// `session.auth.setCredentials`
     pub const SESSION_AUTH_SETCREDENTIALS: &str = "session.auth.setCredentials";
+    /// `session.canvas.list`
+    pub const SESSION_CANVAS_LIST: &str = "session.canvas.list";
+    /// `session.canvas.listOpen`
+    pub const SESSION_CANVAS_LISTOPEN: &str = "session.canvas.listOpen";
+    /// `session.canvas.open`
+    pub const SESSION_CANVAS_OPEN: &str = "session.canvas.open";
+    /// `session.canvas.close`
+    pub const SESSION_CANVAS_CLOSE: &str = "session.canvas.close";
+    /// `session.canvas.invokeAction`
+    pub const SESSION_CANVAS_INVOKEACTION: &str = "session.canvas.invokeAction";
     /// `session.model.getCurrent`
     pub const SESSION_MODEL_GETCURRENT: &str = "session.model.getCurrent";
     /// `session.model.switchTo`
@@ -132,6 +142,8 @@ pub mod rpc_methods {
     pub const SESSION_WORKSPACES_READCHECKPOINT: &str = "session.workspaces.readCheckpoint";
     /// `session.workspaces.saveLargePaste`
     pub const SESSION_WORKSPACES_SAVELARGEPASTE: &str = "session.workspaces.saveLargePaste";
+    /// `session.workspaces.diff`
+    pub const SESSION_WORKSPACES_DIFF: &str = "session.workspaces.diff";
     /// `session.instructions.getSources`
     pub const SESSION_INSTRUCTIONS_GETSOURCES: &str = "session.instructions.getSources";
     /// `session.fleet.start`
@@ -199,6 +211,18 @@ pub mod rpc_methods {
     pub const SESSION_MCP_REMOVEGITHUB: &str = "session.mcp.removeGitHub";
     /// `session.mcp.oauth.login`
     pub const SESSION_MCP_OAUTH_LOGIN: &str = "session.mcp.oauth.login";
+    /// `session.mcp.apps.readResource`
+    pub const SESSION_MCP_APPS_READRESOURCE: &str = "session.mcp.apps.readResource";
+    /// `session.mcp.apps.listTools`
+    pub const SESSION_MCP_APPS_LISTTOOLS: &str = "session.mcp.apps.listTools";
+    /// `session.mcp.apps.callTool`
+    pub const SESSION_MCP_APPS_CALLTOOL: &str = "session.mcp.apps.callTool";
+    /// `session.mcp.apps.setHostContext`
+    pub const SESSION_MCP_APPS_SETHOSTCONTEXT: &str = "session.mcp.apps.setHostContext";
+    /// `session.mcp.apps.getHostContext`
+    pub const SESSION_MCP_APPS_GETHOSTCONTEXT: &str = "session.mcp.apps.getHostContext";
+    /// `session.mcp.apps.diagnose`
+    pub const SESSION_MCP_APPS_DIAGNOSE: &str = "session.mcp.apps.diagnose";
     /// `session.plugins.list`
     pub const SESSION_PLUGINS_LIST: &str = "session.plugins.list";
     /// `session.options.update`
@@ -472,6 +496,13 @@ pub struct AgentInfo {
     /// Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.
     pub id: String,
     /// MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(default)]
     pub mcp_servers: HashMap<String, serde_json::Value>,
     /// Preferred model id for this agent. When omitted, inherits the outer agent's model.
@@ -850,6 +881,199 @@ pub struct ApiKeyAuthInfo {
     pub r#type: ApiKeyAuthInfoType,
 }
 
+/// Canvas action that the agent or host can invoke. To discover the input schema for a particular action, call the list_canvas_capabilities tool.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasAction {
+    /// Description of the action
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// JSON Schema for the action input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+    /// Action name exposed by the canvas provider
+    pub name: String,
+}
+
+/// Canvas close parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasCloseRequest {
+    /// Open canvas instance identifier
+    pub instance_id: String,
+}
+
+/// Canvas action invocation parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasInvokeActionRequest {
+    /// Action name to invoke
+    pub action_name: String,
+    /// Action input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Open canvas instance identifier
+    pub instance_id: String,
+}
+
+/// Canvas action invocation result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasInvokeActionResult {
+    /// Provider-supplied action result
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
+/// Canvas available in the current session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveredCanvas {
+    /// Actions the agent or host may invoke on an open instance
+    #[serde(default)]
+    pub actions: Vec<CanvasAction>,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Short, single-sentence description shown to the agent in canvas catalogs.
+    pub description: String,
+    /// Human-readable canvas name
+    pub display_name: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// JSON Schema for canvas open input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<serde_json::Value>,
+}
+
+/// Declared canvases available in this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasList {
+    /// Declared canvases available in this session
+    pub canvases: Vec<DiscoveredCanvas>,
+}
+
+/// Open canvas instance snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenCanvasInstance {
+    /// Runtime-controlled routing state for an open canvas instance.
+    pub availability: CanvasInstanceAvailability,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Whether this snapshot came from an idempotent reopen
+    pub reopen: bool,
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Live open-canvas snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasListOpenResult {
+    /// Currently open canvas instances
+    pub open_canvases: Vec<OpenCanvasInstance>,
+}
+
+/// Canvas open parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasOpenRequest {
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier. Optional when the canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_id: Option<String>,
+    /// Canvas open input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Caller-supplied stable instance identifier
+    pub instance_id: String,
+}
+
 /// Optional unstructured input hint
 ///
 /// <div class="warning">
@@ -1102,7 +1326,7 @@ pub struct ConnectRemoteSessionParams {
 /// Optional connection token presented by the SDK client during the handshake.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ConnectRequest {
+pub(crate) struct ConnectRequest {
     /// Connection token; required when the server was started with COPILOT_CONNECTION_TOKEN
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
@@ -1111,7 +1335,7 @@ pub struct ConnectRequest {
 /// Handshake result reporting the server's protocol version and package version on success.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ConnectResult {
+pub(crate) struct ConnectResult {
     /// Always true on success
     pub ok: bool,
     /// Server protocol version number
@@ -1169,7 +1393,7 @@ pub struct DiscoveredMcpServer {
     pub name: String,
     /// Configuration source: user, workspace, plugin, or builtin
     pub source: McpServerSource,
-    /// Server transport type: stdio, http, sse, or memory
+    /// Server transport type: stdio, http, sse (deprecated), or memory
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<DiscoveredMcpServerType>,
 }
@@ -1428,6 +1652,9 @@ pub struct ExternalToolTextResultForLlmBinaryResultsForLlm {
     /// Human-readable description of the binary data
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Optional metadata from the producing tool.
+    #[serde(default)]
+    pub metadata: HashMap<String, serde_json::Value>,
     /// MIME type of the binary data
     pub mime_type: String,
     /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
@@ -2125,6 +2352,289 @@ pub struct LspInitializeRequest {
     pub working_directory: Option<String>,
 }
 
+/// MCP server, tool name, and arguments to invoke from an MCP App view.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsCallToolRequest {
+    /// Tool arguments
+    #[serde(default)]
+    pub arguments: HashMap<String, serde_json::Value>,
+    /// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
+    pub origin_server_name: String,
+    /// MCP server hosting the tool
+    pub server_name: String,
+    /// MCP tool name
+    pub tool_name: String,
+}
+
+/// Capability negotiation snapshot
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsDiagnoseCapability {
+    /// Whether the runtime advertises `extensions.io.modelcontextprotocol/ui` to MCP servers
+    pub advertised: bool,
+    /// Whether the MCP_APPS feature flag (or COPILOT_MCP_APPS env override) is on
+    pub feature_flag_enabled: bool,
+    /// Whether the session has the `mcp-apps` capability
+    pub session_has_mcp_apps: bool,
+}
+
+/// MCP server to diagnose MCP Apps wiring for.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsDiagnoseRequest {
+    /// MCP server to probe
+    pub server_name: String,
+}
+
+/// What the server returned for this session
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsDiagnoseServer {
+    /// Whether the named server is currently connected
+    pub connected: bool,
+    /// Up to 5 tool names with `_meta.ui` for quick inspection
+    pub sample_tool_names: Vec<String>,
+    /// Total tools returned by the server's tools/list
+    pub tool_count: f64,
+    /// Tools whose `_meta.ui` is populated (resourceUri and/or visibility set)
+    pub tools_with_ui_meta: f64,
+}
+
+/// Diagnostic snapshot of MCP Apps wiring for the named server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsDiagnoseResult {
+    /// Capability negotiation snapshot
+    pub capability: McpAppsDiagnoseCapability,
+    /// What the server returned for this session
+    pub server: McpAppsDiagnoseServer,
+}
+
+/// Current host context
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsHostContextDetails {
+    /// Display modes the host supports
+    #[serde(default)]
+    pub available_display_modes: Vec<McpAppsHostContextDetailsAvailableDisplayMode>,
+    /// Current display mode (SEP-1865)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_mode: Option<McpAppsHostContextDetailsDisplayMode>,
+    /// BCP-47 locale, e.g. 'en-US'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    /// Platform type for responsive design
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<McpAppsHostContextDetailsPlatform>,
+    /// UI theme preference per SEP-1865
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<McpAppsHostContextDetailsTheme>,
+    /// IANA timezone, e.g. 'America/New_York'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
+    /// Host application identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+}
+
+/// Current host context advertised to MCP App guests.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsHostContext {
+    /// Current host context
+    pub context: McpAppsHostContextDetails,
+}
+
+/// MCP server to list app-callable tools for.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsListToolsRequest {
+    /// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
+    pub origin_server_name: String,
+    /// MCP server hosting the app
+    pub server_name: String,
+}
+
+/// App-callable tools from the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsListToolsResult {
+    /// App-callable tools from the server
+    pub tools: Vec<HashMap<String, serde_json::Value>>,
+}
+
+/// MCP server and resource URI to fetch.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsReadResourceRequest {
+    /// Name of the MCP server hosting the resource
+    pub server_name: String,
+    /// Resource URI (typically ui://...)
+    pub uri: String,
+}
+
+/// Schema for the `McpAppsResourceContent` type.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsResourceContent {
+    /// Resource-level metadata (CSP, permissions, etc.)
+    #[serde(rename = "_meta", default)]
+    pub meta: HashMap<String, serde_json::Value>,
+    /// Base64-encoded binary content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blob: Option<String>,
+    /// MIME type of the content
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Text content (e.g. HTML)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// The resource URI (typically ui://...)
+    pub uri: String,
+}
+
+/// Resource contents returned by the MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsReadResourceResult {
+    /// Resource contents returned by the server
+    pub contents: Vec<McpAppsResourceContent>,
+}
+
+/// Host context advertised to MCP App guests
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsSetHostContextDetails {
+    /// Display modes the host supports
+    #[serde(default)]
+    pub available_display_modes: Vec<McpAppsSetHostContextDetailsAvailableDisplayMode>,
+    /// Current display mode (SEP-1865)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_mode: Option<McpAppsSetHostContextDetailsDisplayMode>,
+    /// BCP-47 locale, e.g. 'en-US'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    /// Platform type for responsive design
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<McpAppsSetHostContextDetailsPlatform>,
+    /// UI theme preference per SEP-1865
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub theme: Option<McpAppsSetHostContextDetailsTheme>,
+    /// IANA timezone, e.g. 'America/New_York'
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time_zone: Option<String>,
+    /// Host application identifier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+}
+
+/// Host context to advertise to MCP App guests.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAppsSetHostContextRequest {
+    /// Host context advertised to MCP App guests
+    pub context: McpAppsSetHostContextDetails,
+}
+
 /// The requestId previously passed to executeSampling that should be cancelled.
 ///
 /// <div class="warning">
@@ -2286,18 +2796,6 @@ pub struct McpExecuteSamplingParams {
     /// Name of the MCP server that initiated the sampling request
     pub server_name: String,
 }
-
-/// MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpExecuteSamplingResult {}
 
 /// Remote MCP server name and optional overrides controlling reauthentication, OAuth client display name, and the callback success-page copy.
 ///
@@ -2763,6 +3261,24 @@ pub struct MetadataSnapshotRemoteMetadata {
     pub task_type: Option<MetadataSnapshotRemoteMetadataTaskType>,
 }
 
+/// Long context tier pricing (available for models with extended context windows)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelBillingTokenPricesLongContext {
+    /// AI Credits cost per billing batch of cached tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_price: Option<f64>,
+    /// Maximum context window tokens for the long context tier
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_max: Option<i64>,
+    /// AI Credits cost per billing batch of input tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_price: Option<f64>,
+    /// AI Credits cost per billing batch of output tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_price: Option<f64>,
+}
+
 /// Token-level pricing information for this model
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2770,15 +3286,21 @@ pub struct ModelBillingTokenPrices {
     /// Number of tokens per standard billing batch
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_size: Option<i64>,
-    /// Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+    /// AI Credits cost per billing batch of cached tokens
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_price: Option<i64>,
-    /// Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+    pub cache_price: Option<f64>,
+    /// Maximum context window tokens for the default tier
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub input_price: Option<i64>,
-    /// Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD)
+    pub context_max: Option<i64>,
+    /// AI Credits cost per billing batch of input tokens
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_price: Option<i64>,
+    pub input_price: Option<f64>,
+    /// Long context tier pricing (available for models with extended context windows)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub long_context: Option<ModelBillingTokenPricesLongContext>,
+    /// AI Credits cost per billing batch of output tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_price: Option<f64>,
 }
 
 /// Billing information
@@ -5160,8 +5682,9 @@ pub struct SendRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
     /// Optional provenance tag copied to the resulting user.message event. Supported values are `system`, `command-*`, and `schedule-*`.
+    #[doc(hidden)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<serde_json::Value>,
+    pub(crate) source: Option<serde_json::Value>,
     /// W3C Trace Context traceparent header for distributed tracing of this agent turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traceparent: Option<String>,
@@ -6397,6 +6920,13 @@ pub struct SessionsSetAdditionalPluginsResult {}
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdateOptionsParams {
     /// Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(default)]
     pub additional_content_exclusion_policies: Vec<serde_json::Value>,
     /// Runtime context discriminator (e.g., `cli`, `actions`).
@@ -6475,6 +7005,13 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     /// Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<serde_json::Value>,
     /// Reasoning effort for the selected model (model-defined enum).
@@ -6484,6 +7021,13 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub running_in_interactive_mode: Option<bool>,
     /// Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This type is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sandbox_config: Option<serde_json::Value>,
     /// Shell init profile (`None` or `NonInteractive`).
@@ -8103,6 +8647,55 @@ pub struct UserAuthInfo {
     pub r#type: UserAuthInfoType,
 }
 
+/// A single changed file and its unified diff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDiffFileChange {
+    /// Type of change represented by this file diff.
+    pub change_type: WorkspaceDiffFileChangeType,
+    /// Unified diff content for the file. Empty when the diff was truncated.
+    pub diff: String,
+    /// Whether the diff content was omitted because it exceeded the per-file size limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_truncated: Option<bool>,
+    /// Original file path for renamed files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_path: Option<String>,
+    /// Path to the changed file, relative to the workspace root.
+    pub path: String,
+}
+
+/// Workspace diff result for the requested mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDiffResult {
+    /// Default branch used for a branch diff, when branch mode was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_branch: Option<String>,
+    /// Changed files and their unified diffs.
+    pub changes: Vec<WorkspaceDiffFileChange>,
+    /// Whether a requested branch diff fell back to unstaged changes because branch diff failed.
+    pub is_fallback: bool,
+    /// Effective mode used for the returned changes.
+    pub mode: WorkspaceDiffMode,
+    /// Diff mode requested by the client.
+    pub requested_mode: WorkspaceDiffMode,
+}
+
 /// Schema for the `WorkspacesCheckpoints` type.
 ///
 /// <div class="warning">
@@ -8137,6 +8730,21 @@ pub struct WorkspacesCreateFileRequest {
     pub content: String,
     /// Relative path within the workspace files directory
     pub path: String,
+}
+
+/// Parameters for computing a workspace diff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacesDiffRequest {
+    /// Diff mode requested by the client.
+    pub mode: WorkspaceDiffMode,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -8650,6 +9258,120 @@ pub struct SessionAuthSetCredentialsResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Declared canvases available in this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListResult {
+    /// Declared canvases available in this session
+    pub canvases: Vec<DiscoveredCanvas>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListOpenParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Live open-canvas snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasListOpenResult {
+    /// Currently open canvas instances
+    pub open_canvases: Vec<OpenCanvasInstance>,
+}
+
+/// Open canvas instance snapshot.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasOpenResult {
+    /// Runtime-controlled routing state for an open canvas instance.
+    pub availability: CanvasInstanceAvailability,
+    /// Provider-local canvas identifier
+    pub canvas_id: String,
+    /// Owning provider identifier
+    pub extension_id: String,
+    /// Owning extension display name, when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+    /// Input supplied when the instance was opened
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Stable caller-supplied canvas instance identifier
+    pub instance_id: String,
+    /// Whether this snapshot came from an idempotent reopen
+    pub reopen: bool,
+    /// Provider-supplied status text
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Rendered title
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// URL for web-rendered canvases
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+/// Canvas action invocation result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCanvasInvokeActionResult {
+    /// Provider-supplied action result
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SessionModelGetCurrentParams {
     /// Target session identifier
     pub session_id: SessionId,
@@ -9001,6 +9723,30 @@ pub struct SessionWorkspacesSaveLargePasteResultSaved {
 pub struct SessionWorkspacesSaveLargePasteResult {
     /// Saved-paste descriptor, or null when the workspace is unavailable (e.g. CCA runtime, non-infinite sessions, remote sessions)
     pub saved: Option<SessionWorkspacesSaveLargePasteResultSaved>,
+}
+
+/// Workspace diff result for the requested mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspacesDiffResult {
+    /// Default branch used for a branch diff, when branch mode was requested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_branch: Option<String>,
+    /// Changed files and their unified diffs.
+    pub changes: Vec<WorkspaceDiffFileChange>,
+    /// Whether a requested branch diff fell back to unstaged changes because branch diff failed.
+    pub is_fallback: bool,
+    /// Effective mode used for the returned changes.
+    pub mode: WorkspaceDiffMode,
+    /// Diff mode requested by the client.
+    pub requested_mode: WorkspaceDiffMode,
 }
 
 /// Identifies the target session.
@@ -9654,6 +10400,83 @@ pub struct SessionMcpOauthLoginResult {
     /// URL the caller should open in a browser to complete OAuth. Omitted when cached tokens were still valid and no browser interaction was needed — the server is already reconnected in that case. When present, the runtime starts the callback listener before returning and continues the flow in the background; completion is signaled via session.mcp_server_status_changed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authorization_url: Option<String>,
+}
+
+/// Resource contents returned by the MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpAppsReadResourceResult {
+    /// Resource contents returned by the server
+    pub contents: Vec<McpAppsResourceContent>,
+}
+
+/// App-callable tools from the named MCP server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpAppsListToolsResult {
+    /// App-callable tools from the server
+    pub tools: Vec<HashMap<String, serde_json::Value>>,
+}
+
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpAppsGetHostContextParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Current host context advertised to MCP App guests.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpAppsGetHostContextResult {
+    /// Current host context
+    pub context: McpAppsHostContextDetails,
+}
+
+/// Diagnostic snapshot of MCP Apps wiring for the named server.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpAppsDiagnoseResult {
+    /// Capability negotiation snapshot
+    pub capability: McpAppsDiagnoseCapability,
+    /// What the server returned for this session
+    pub server: McpAppsDiagnoseServer,
 }
 
 /// Identifies the target session.
@@ -10991,6 +11814,36 @@ pub struct SessionFsSqliteExistsParams {
     pub session_id: SessionId,
 }
 
+/// MCP CreateMessageResult payload (with optional 'tools' extension), present when action='success'. Treated as opaque at the schema layer; consumers should construct/consume it per the MCP CreateMessageResult shape.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type McpExecuteSamplingResult = HashMap<String, serde_json::Value>;
+
+/// The form values submitted by the user (present when action is 'accept')
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type UIElicitationResponseContent = HashMap<String, serde_json::Value>;
+
+/// Standard MCP CallToolResult
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+pub type SessionMcpAppsCallToolResult = HashMap<String, serde_json::Value>;
+
 /// Where the agent definition was loaded from
 ///
 /// <div class="warning">
@@ -11064,6 +11917,28 @@ pub enum AuthInfoType {
     /// Authentication from a Copilot API token.
     #[serde(rename = "copilot-api-token")]
     CopilotApiToken,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Runtime-controlled routing state for an open canvas instance.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CanvasInstanceAvailability {
+    /// The owning provider is currently connected and routing calls will be dispatched normally.
+    #[serde(rename = "ready")]
+    Ready,
+    /// The owning provider is not currently connected. Routing calls fail with canvas_provider_unavailable until the agent re-issues open_canvas (which rehydrates via a fresh canvas.open) or the provider reconnects.
+    #[serde(rename = "stale")]
+    Stale,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -11170,7 +12045,7 @@ pub enum CopilotApiTokenAuthInfoType {
     CopilotApiToken,
 }
 
-/// Server transport type: stdio, http, sse, or memory
+/// Server transport type: stdio, http, sse (deprecated), or memory
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiscoveredMcpServerType {
     /// Server communicates over stdio with a local child process.
@@ -11179,7 +12054,7 @@ pub enum DiscoveredMcpServerType {
     /// Server communicates over streamable HTTP.
     #[serde(rename = "http")]
     Http,
-    /// Server communicates over Server-Sent Events.
+    /// Server communicates over Server-Sent Events (deprecated).
     #[serde(rename = "sse")]
     Sse,
     /// Server is backed by an in-memory runtime implementation.
@@ -11517,6 +12392,200 @@ pub enum SessionLogLevel {
     /// Error message describing a failure.
     #[serde(rename = "error")]
     Error,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Allowed values for the `McpAppsHostContextDetailsAvailableDisplayMode` enumeration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsHostContextDetailsAvailableDisplayMode {
+    /// Rendered inline within the host conversation surface
+    #[serde(rename = "inline")]
+    Inline,
+    /// Rendered as a fullscreen overlay
+    #[serde(rename = "fullscreen")]
+    Fullscreen,
+    /// Rendered as a picture-in-picture floating panel
+    #[serde(rename = "pip")]
+    Pip,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current display mode (SEP-1865)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsHostContextDetailsDisplayMode {
+    /// Rendered inline within the host conversation surface
+    #[serde(rename = "inline")]
+    Inline,
+    /// Rendered as a fullscreen overlay
+    #[serde(rename = "fullscreen")]
+    Fullscreen,
+    /// Rendered as a picture-in-picture floating panel
+    #[serde(rename = "pip")]
+    Pip,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Platform type for responsive design
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsHostContextDetailsPlatform {
+    /// Host runs in a web browser
+    #[serde(rename = "web")]
+    Web,
+    /// Host runs as a desktop application
+    #[serde(rename = "desktop")]
+    Desktop,
+    /// Host runs on a mobile device
+    #[serde(rename = "mobile")]
+    Mobile,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// UI theme preference per SEP-1865
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsHostContextDetailsTheme {
+    /// Light UI theme
+    #[serde(rename = "light")]
+    Light,
+    /// Dark UI theme
+    #[serde(rename = "dark")]
+    Dark,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Allowed values for the `McpAppsSetHostContextDetailsAvailableDisplayMode` enumeration.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsSetHostContextDetailsAvailableDisplayMode {
+    /// Rendered inline within the host conversation surface
+    #[serde(rename = "inline")]
+    Inline,
+    /// Rendered as a fullscreen overlay
+    #[serde(rename = "fullscreen")]
+    Fullscreen,
+    /// Rendered as a picture-in-picture floating panel
+    #[serde(rename = "pip")]
+    Pip,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current display mode (SEP-1865)
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsSetHostContextDetailsDisplayMode {
+    /// Rendered inline within the host conversation surface
+    #[serde(rename = "inline")]
+    Inline,
+    /// Rendered as a fullscreen overlay
+    #[serde(rename = "fullscreen")]
+    Fullscreen,
+    /// Rendered as a picture-in-picture floating panel
+    #[serde(rename = "pip")]
+    Pip,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Platform type for responsive design
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsSetHostContextDetailsPlatform {
+    /// Host runs in a web browser
+    #[serde(rename = "web")]
+    Web,
+    /// Host runs as a desktop application
+    #[serde(rename = "desktop")]
+    Desktop,
+    /// Host runs on a mobile device
+    #[serde(rename = "mobile")]
+    Mobile,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// UI theme preference per SEP-1865
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum McpAppsSetHostContextDetailsTheme {
+    /// Light UI theme
+    #[serde(rename = "light")]
+    Light,
+    /// Dark UI theme
+    #[serde(rename = "dark")]
+    Dark,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
@@ -12943,6 +14012,56 @@ pub enum UserAuthInfoType {
     #[serde(rename = "user")]
     #[default]
     User,
+}
+
+/// Type of change represented by this file diff.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceDiffFileChangeType {
+    /// The file was added.
+    #[serde(rename = "added")]
+    Added,
+    /// The file was modified.
+    #[serde(rename = "modified")]
+    Modified,
+    /// The file was deleted.
+    #[serde(rename = "deleted")]
+    Deleted,
+    /// The file was renamed.
+    #[serde(rename = "renamed")]
+    Renamed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Diff mode requested by the client.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WorkspaceDiffMode {
+    /// Return staged, unstaged, and untracked working tree changes.
+    #[serde(rename = "unstaged")]
+    Unstaged,
+    /// Return changes compared with the default branch.
+    #[serde(rename = "branch")]
+    Branch,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.

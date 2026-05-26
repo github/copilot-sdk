@@ -56,14 +56,12 @@ describe("Client", () => {
         onTestFinishedForceStop(client);
 
         await client.start();
-        expect(client.getState()).toBe("connected");
 
         const pong = await client.ping("test message");
         expect(pong.message).toBe("pong: test message");
         expect(Date.parse(pong.timestamp)).not.toBeNaN();
 
         expect(await client.stop()).toHaveLength(0); // No errors on stop
-        expect(client.getState()).toBe("disconnected");
     });
 
     it("should start and connect to server using tcp", async () => {
@@ -71,14 +69,12 @@ describe("Client", () => {
         onTestFinishedForceStop(client);
 
         await client.start();
-        expect(client.getState()).toBe("connected");
 
         const pong = await client.ping("test message");
         expect(pong.message).toBe("pong: test message");
         expect(Date.parse(pong.timestamp)).not.toBeNaN();
 
         expect(await client.stop()).toHaveLength(0); // No errors on stop
-        expect(client.getState()).toBe("disconnected");
     });
 
     it.skipIf(process.platform === "darwin")(
@@ -101,7 +97,6 @@ describe("Client", () => {
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             const errors = await client.stop();
-            expect(client.getState()).toBe("disconnected");
             if (errors.length > 0) {
                 expect(errors[0].message).toContain("Failed to disconnect session");
             }
@@ -117,7 +112,6 @@ describe("Client", () => {
 
         await client.createSession({ onPermissionRequest: approveAll });
         await client.forceStop();
-        expect(client.getState()).toBe("disconnected");
     });
 
     it("should get status with version and protocol info", async () => {

@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Queued command request ID and the result indicating whether the client handled it.
+ * Queued-command request ID and the result indicating whether the host executed it (and whether to stop processing further queued commands).
  *
  * @since 1.0.0
  */
@@ -23,9 +23,9 @@ import javax.annotation.processing.Generated;
 public record SessionCommandsRespondToQueuedCommandParams(
     /** Target session identifier */
     @JsonProperty("sessionId") String sessionId,
-    /** Request ID from the queued command event */
+    /** Request ID from the `command.queued` event the host is responding to. */
     @JsonProperty("requestId") String requestId,
-    /** Result of the queued command execution */
+    /** Result of the queued command execution. */
     @JsonProperty("result") Object result
 ) {
 }

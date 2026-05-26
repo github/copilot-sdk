@@ -29,7 +29,7 @@ impl PermissionHandler for PermissionLogger {
             .unwrap_or("")
             .to_string();
         self.log.lock().await.push(format!("approved:{tool_name}"));
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -50,9 +50,7 @@ impl SessionHooks for AllowAllHooks {
 
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let mut opts = ClientOptions::default();
-    opts.github_token = std::env::var("GITHUB_TOKEN").ok();
-    let client = Client::start(opts).await?;
+    let client = Client::start(ClientOptions::default()).await?;
 
     let permission_log = Arc::new(Mutex::new(Vec::<String>::new()));
     let handler = Arc::new(PermissionLogger {

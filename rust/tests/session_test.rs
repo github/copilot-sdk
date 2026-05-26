@@ -6,15 +6,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
+use github_copilot_sdk::canvas::{
+    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasOpenContext, CanvasOpenResponse,
+    CanvasResult,
+};
+use github_copilot_sdk::generated::api_types::{CanvasInstanceAvailability, OpenCanvasInstance};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
-    ExitPlanModeHandler, ExitPlanModeResult, PermissionHandler, PermissionResult, UserInputHandler,
-    UserInputResponse,
+    ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
 };
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
-    ElicitationResult, ExitPlanModeData, MessageOptions, PermissionRequestData, RequestId,
-    SessionConfig, SessionId, Tool, ToolInvocation, ToolResult,
+    ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
+    SessionId, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
@@ -22,6 +26,34 @@ use tokio::io::{AsyncWrite, AsyncWriteExt, duplex};
 use tokio::time::timeout;
 
 const TIMEOUT: Duration = Duration::from_secs(2);
+
+struct TestCanvasHandler;
+
+#[async_trait]
+impl CanvasHandler for TestCanvasHandler {
+    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
+        Ok(CanvasOpenResponse {
+            url: Some(format!("https://example.test/{}", ctx.canvas_id)),
+            title: Some("Test Canvas".to_string()),
+            status: Some("ready".to_string()),
+        })
+    }
+
+    async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+        Ok(serde_json::json!({
+            "actionName": ctx.action_name,
+            "input": ctx.input,
+        }))
+    }
+}
+
+fn test_canvas(id: &str) -> CanvasDeclaration {
+    CanvasDeclaration::new(id, "Test Canvas", "Test canvas description")
+}
+
+fn test_canvas_handler() -> Arc<dyn CanvasHandler> {
+    Arc::new(TestCanvasHandler)
+}
 
 async fn write_framed(writer: &mut (impl AsyncWrite + Unpin), body: &[u8]) {
     let header = format!("Content-Length: {}\r\n\r\n", body.len());
@@ -288,6 +320,82 @@ async fn create_session_sends_correct_rpc() {
     let session = timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
     assert_eq!(session.id(), session_id.as_str());
     assert_eq!(session.workspace_path(), Some(Path::new("/ws")));
+}
+
+#[tokio::test]
+async fn create_session_sends_canvas_wire_fields() {
+    let (client, mut server_read, mut server_write) = make_client();
+
+    let create_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            client
+                .create_session(
+                    SessionConfig::default()
+                        .with_canvases([test_canvas("counter")])
+                        .with_request_canvas_renderer(true)
+                        .with_request_extensions(true)
+                        .with_extension_info(ExtensionInfo::new("github-app", "counter-provider")),
+                )
+                .await
+                .unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.create");
+    assert_eq!(request["params"]["canvases"][0]["id"], "counter");
+    assert_eq!(
+        request["params"]["canvases"][0]["displayName"],
+        "Test Canvas"
+    );
+    assert_eq!(request["params"]["requestCanvasRenderer"], true);
+    assert_eq!(request["params"]["requestExtensions"], true);
+    assert_eq!(request["params"]["extensionInfo"]["source"], "github-app");
+    assert_eq!(
+        request["params"]["extensionInfo"]["name"],
+        "counter-provider"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let session_id = requested_session_id(&request).to_string();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "sessionId": session_id },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    timeout(TIMEOUT, create_handle).await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
+    let (session, mut server) = create_session_pair_with_config(|cfg| {
+        cfg.with_canvases([test_canvas("counter")])
+            .with_canvas_handler(test_canvas_handler())
+    })
+    .await;
+
+    server
+        .send_request(
+            42,
+            "canvas.action.invoke",
+            serde_json::json!({
+                "sessionId": session.id(),
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "actionName": "increment",
+                "input": { "amount": 1 }
+            }),
+        )
+        .await;
+
+    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
+    assert_eq!(response["id"], 42);
+    assert_eq!(response["result"]["actionName"], "increment");
+    assert_eq!(response["result"]["input"]["amount"], 1);
 }
 
 #[tokio::test]
@@ -693,9 +801,20 @@ fn permission_request_data_extracts_typed_kind() {
 
     let custom: PermissionRequestData = serde_json::from_value(serde_json::json!({
         "kind": "custom-tool",
+        "toolName": "open_canvas",
+        "args": {
+            "extensionId": "github-app:counter-provider",
+            "canvasId": "counter",
+            "instanceId": "counter-1"
+        }
     }))
     .unwrap();
     assert_eq!(custom.kind, Some(PermissionRequestKind::CustomTool));
+    assert_eq!(custom.extra["toolName"], "open_canvas");
+    assert_eq!(
+        custom.extra["args"]["extensionId"],
+        "github-app:counter-provider"
+    );
 
     // Unknown kinds fall through to the catch-all variant rather than failing.
     let unknown: PermissionRequestData = serde_json::from_value(serde_json::json!({
@@ -1179,41 +1298,6 @@ async fn elicitation_returns_typed_result() {
 }
 
 #[tokio::test]
-async fn permission_request_dispatches_to_handler() {
-    struct DenyHandler;
-    #[async_trait]
-    impl PermissionHandler for DenyHandler {
-        async fn handle(
-            &self,
-            _session_id: SessionId,
-            _request_id: RequestId,
-            _data: PermissionRequestData,
-        ) -> PermissionResult {
-            PermissionResult::Denied
-        }
-    }
-
-    let (_session, mut server) =
-        create_session_pair_with_config(|cfg| cfg.with_permission_handler(Arc::new(DenyHandler)))
-            .await;
-    server
-        .send_request(
-            200,
-            "permission.request",
-            serde_json::json!({
-                "sessionId": server.session_id,
-                "requestId": "perm-1",
-                "kind": "shell",
-            }),
-        )
-        .await;
-
-    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
-    assert_eq!(response["id"], 200);
-    assert_eq!(response["result"]["kind"], "reject");
-}
-
-#[tokio::test]
 async fn user_input_request_dispatches_to_handler() {
     struct InputHandler;
     #[async_trait]
@@ -1455,18 +1539,23 @@ async fn approve_all_handler_approves_permission() {
     .await;
 
     server
-        .send_request(
-            500,
-            "permission.request",
+        .send_event(
+            "permission.requested",
             serde_json::json!({
-                "sessionId": server.session_id,
                 "requestId": "perm-auto",
-                "kind": "shell",
+                "sessionId": server.session_id,
+                "permissionRequest": { "kind": "shell" },
             }),
         )
         .await;
-    let response = timeout(TIMEOUT, server.read_response()).await.unwrap();
-    assert_eq!(response["result"]["kind"], "approve-once");
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(
+        request["method"],
+        "session.permissions.handlePendingPermissionRequest"
+    );
+    assert_eq!(request["params"]["requestId"], "perm-auto");
+    assert_eq!(request["params"]["result"]["kind"], "approve-once");
 }
 
 #[tokio::test]
@@ -2412,6 +2501,86 @@ async fn env_value_mode_hardcoded_direct_on_create_and_resume() {
 }
 
 #[tokio::test]
+async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
+    use github_copilot_sdk::types::ResumeSessionConfig;
+
+    let (client, mut server_read, mut server_write) = make_client();
+    let resume_handle = tokio::spawn({
+        let client = client.clone();
+        async move {
+            let cfg = ResumeSessionConfig::new(SessionId::from("canvas-resume"))
+                .with_canvases([test_canvas("counter")])
+                .with_request_canvas_renderer(true)
+                .with_request_extensions(true)
+                .with_extension_info(ExtensionInfo::new("github-app", "counter-provider"))
+                .with_open_canvases([OpenCanvasInstance {
+                    instance_id: "counter-1".to_string(),
+                    extension_id: "github-app:counter-provider".to_string(),
+                    extension_name: Some("Counter Provider".to_string()),
+                    canvas_id: "counter".to_string(),
+                    title: Some("Counter".to_string()),
+                    status: Some("ready".to_string()),
+                    url: Some("https://example.test/counter".to_string()),
+                    input: Some(serde_json::json!({ "seed": 1 })),
+                    reopen: false,
+                    availability: CanvasInstanceAvailability::Stale,
+                }]);
+            client.resume_session(cfg).await.unwrap()
+        }
+    });
+
+    let request = read_framed(&mut server_read).await;
+    assert_eq!(request["method"], "session.resume");
+    assert_eq!(request["params"]["canvases"][0]["id"], "counter");
+    assert_eq!(request["params"]["requestCanvasRenderer"], true);
+    assert_eq!(request["params"]["requestExtensions"], true);
+    assert_eq!(request["params"]["extensionInfo"]["source"], "github-app");
+    assert_eq!(
+        request["params"]["extensionInfo"]["name"],
+        "counter-provider"
+    );
+    assert_eq!(
+        request["params"]["openCanvases"][0]["availability"],
+        "stale"
+    );
+
+    let id = request["id"].as_u64().unwrap();
+    let response = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": {
+            "sessionId": "canvas-resume",
+            "openCanvases": [{
+                "extensionId": "project:counter",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "url": "https://example.test/counter",
+                "reopen": false,
+                "availability": "ready"
+            }],
+            "capabilities": {
+                "ui": { "canvases": true }
+            }
+        },
+    });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let reload = read_framed(&mut server_read).await;
+    assert_eq!(reload["method"], "session.skills.reload");
+    let id = reload["id"].as_u64().unwrap();
+    let response = serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": {} });
+    write_framed(&mut server_write, &serde_json::to_vec(&response).unwrap()).await;
+
+    let session = timeout(TIMEOUT, resume_handle).await.unwrap().unwrap();
+    let open = session.open_canvases();
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
+    let caps = session.capabilities();
+    assert_eq!(caps.ui.unwrap().canvases, Some(true));
+}
+
+#[tokio::test]
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair().await;
 
@@ -2854,45 +3023,25 @@ fn session_config_serializes_bucket_b_fields() {
         CloudSessionOptions, CloudSessionRepository, SessionConfig, SessionId,
     };
 
-    let cfg = {
-        let mut cfg = SessionConfig::default();
-        cfg.session_id = Some(SessionId::from("custom-id"));
-        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
-        cfg.working_directory = Some(PathBuf::from("/tmp/work"));
-        cfg.github_token = Some("ghs_secret".to_string());
-        cfg.include_sub_agent_streaming_events = Some(false);
-        cfg.enable_session_telemetry = Some(false);
-        cfg.remote_session =
-            Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
-        cfg.cloud = Some(CloudSessionOptions::with_repository(
-            CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
-        ));
-        cfg
-    };
-    let json = serde_json::to_value(&cfg).unwrap();
-    assert_eq!(json["sessionId"], "custom-id");
-    assert_eq!(json["configDir"], "/tmp/cfg");
-    assert_eq!(json["workingDirectory"], "/tmp/work");
-    assert_eq!(json["gitHubToken"], "ghs_secret");
-    assert_eq!(json["includeSubAgentStreamingEvents"], false);
-    assert_eq!(json["enableSessionTelemetry"], false);
-    assert_eq!(json["remoteSession"], "export");
-    assert_eq!(json["cloud"]["repository"]["owner"], "github");
-    assert_eq!(json["cloud"]["repository"]["name"], "copilot-sdk");
-    assert_eq!(json["cloud"]["repository"]["branch"], "main");
+    let mut cfg = SessionConfig::default();
+    cfg.session_id = Some(SessionId::from("custom-id"));
+    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.working_directory = Some(PathBuf::from("/tmp/work"));
+    cfg.github_token = Some("ghs_secret".to_string());
+    cfg.include_sub_agent_streaming_events = Some(false);
+    cfg.enable_session_telemetry = Some(false);
+    cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::Export);
+    cfg.cloud = Some(CloudSessionOptions::with_repository(
+        CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
+    ));
 
     // Debug never leaks the token.
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
     assert!(debug.contains("<redacted>"), "missing redaction: {debug}");
-
-    // Unset fields are omitted on the wire.
-    let empty = serde_json::to_value(SessionConfig::default()).unwrap();
-    assert!(empty.get("sessionId").is_none());
-    assert!(empty.get("gitHubToken").is_none());
-    assert!(empty.get("enableSessionTelemetry").is_none());
-    assert!(empty.get("remoteSession").is_none());
-    assert!(empty.get("cloud").is_none());
+    // Wire-format coverage now lives in the in-crate unit tests next to
+    // `SessionConfig::into_wire` — the wire payload is `pub(crate)` so
+    // external integration tests can only inspect the user-facing config.
 }
 
 #[test]
@@ -2908,22 +3057,11 @@ fn resume_session_config_serializes_bucket_b_fields() {
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);
     cfg.remote_session = Some(github_copilot_sdk::generated::api_types::RemoteSessionMode::On);
-    let json = serde_json::to_value(&cfg).unwrap();
-    assert_eq!(json["sessionId"], "sess-1");
-    assert_eq!(json["workingDirectory"], "/tmp/work");
-    assert_eq!(json["configDir"], "/tmp/cfg");
-    assert_eq!(json["gitHubToken"], "ghs_secret");
-    assert_eq!(json["includeSubAgentStreamingEvents"], true);
-    assert_eq!(json["enableSessionTelemetry"], false);
-    assert_eq!(json["remoteSession"], "on");
-
-    // Unset remote_session is omitted on the wire.
-    let empty = ResumeSessionConfig::new(SessionId::from("sess-2"));
-    let empty_json = serde_json::to_value(&empty).unwrap();
-    assert!(empty_json.get("remoteSession").is_none());
 
     let debug = format!("{cfg:?}");
     assert!(!debug.contains("ghs_secret"), "leaked token: {debug}");
+    // Wire-format coverage lives in the in-crate unit tests; see
+    // `ResumeSessionConfig::into_wire`.
 }
 
 // =====================================================================

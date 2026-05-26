@@ -7,10 +7,12 @@
  */
 
 // Import and re-export generated session event types
+import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
 import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -551,6 +553,8 @@ export interface SessionCapabilities {
          * `false`, indicating the runtime silently dropped the opt-in.
          */
         mcpApps?: boolean;
+        /** Whether the host supports canvas rendering. */
+        canvases?: boolean;
     };
 }
 
@@ -1418,6 +1422,16 @@ export interface InfiniteSessionConfig {
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 /**
+ * Stable extension identity for session participants that provide canvases.
+ */
+export interface ExtensionInfo {
+    /** Extension namespace/source, e.g. "github-app". */
+    source: string;
+    /** Stable provider name within the source namespace. */
+    name: string;
+}
+
+/**
  * Shared configuration fields used by both {@link SessionConfig} (for
  * creating a new session) and {@link ResumeSessionConfig} (for resuming
  * an existing one).
@@ -1469,6 +1483,38 @@ export interface SessionConfigBase {
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools?: Tool<any>[];
+
+    /**
+     * Canvases contributed by this session participant. The declaring
+     * connection becomes the live provider for `canvas.open|focus|close|reload`
+     * and `canvas.action.invoke` dispatches targeting each canvas's `id` for
+     * the lifetime of the connection. Re-declaring the same id on resume
+     * replaces the prior declaration.
+     */
+    canvases?: Canvas[];
+
+    /**
+     * Renderer-side opt-in: when true, the runtime surfaces canvas agent tools
+     * (`list_canvas_capabilities`, `open_canvas`, `invoke_canvas_action`) to
+     * the model for this connection. Default off so SDK callers that cannot
+     * display canvases stay clean.
+     */
+    requestCanvasRenderer?: boolean;
+
+    /**
+     * Extension surface opt-in: when true, the runtime wires extension
+     * management tools and per-extension tool dispatch onto the session for
+     * this connection. Default off so callers that do not expose extensions
+     * stay clean.
+     */
+    requestExtensions?: boolean;
+
+    /**
+     * Stable extension identity for canvas providers on this connection. When
+     * set, the runtime uses `${source}:${name}` as the agent-facing extension
+     * id instead of a reconnect-specific connection id.
+     */
+    extensionInfo?: ExtensionInfo;
 
     /**
      * Slash commands registered for this session.
@@ -1725,6 +1771,12 @@ export interface ResumeSessionConfig extends SessionConfigBase {
      * @default false
      */
     continuePendingWork?: boolean;
+    /**
+     * Snapshot of canvases that were already open when the session was suspended.
+     * When provided on resume, the runtime can rehydrate canvas state so consumers
+     * do not need to re-open canvases that were active before the previous shutdown.
+     */
+    openCanvases?: OpenCanvasInstance[];
 }
 
 /**
@@ -1879,11 +1931,6 @@ export type TypedSessionEventHandler<T extends SessionEventType> = (
  * Event handler callback type (for all events)
  */
 export type SessionEventHandler = (event: SessionEvent) => void;
-
-/**
- * Connection state
- */
-export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
 
 /**
  * Working directory context for a session

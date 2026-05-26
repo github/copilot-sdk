@@ -101,15 +101,17 @@ jobs:
           RUST_E2E_CONCURRENCY: 4
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        run: cargo test --features test-support -- --test-threads=4 --nocapture
+        # `--no-default-features` disables the bundled-cli download; the
+        # tests use the CLI provided by setup-copilot via COPILOT_CLI_PATH.
+        # The dedicated `bundle` job below exercises the bundling pipeline.
+        run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
 
-  # Validates the `embedded-cli` build path on all three supported
-  # platforms. This is the only place `build.rs` actually runs (the
-  # default `cargo test` job above has `COPILOT_CLI_VERSION` unset, so
-  # `build.rs` returns immediately). Catches regressions in the
-  # download / verify / extract / embed pipeline before they ship to
-  # crates.io and before bundling consumers (e.g. github-app's
-  # bundled-CLI release pipeline) hit them downstream.
+  # Validates the bundled-CLI build path on all three supported
+  # platforms. While the regular `cargo test` job above also exercises
+  # build.rs (bundling is on by default now), this matrix job is the
+  # dedicated cross-platform smoke test for the download / verify /
+  # extract / embed pipeline. Catches regressions before they ship to
+  # crates.io and before bundling consumers hit them downstream.
   bundle:
     name: "Rust SDK Bundled CLI Build"
     if: github.event.repository.fork == false
@@ -144,23 +146,21 @@ jobs:
         id: cli-version
         working-directory: ./nodejs
         run: |
-          version=$(node -p "require('./package.json').dependencies['@github/copilot'].replace(/^[\^~]/, '')")
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "Pinned CLI version: $version"
 
       # Cache the downloaded archive across runs so we don't refetch
-      # ~130 MB on every CI invocation. Keyed by OS + CLI version; on
-      # cache miss the bundle job exercises the full ureq download +
-      # SHA-256 + retry path, which is exactly the regression surface
-      # we want validated.
+      # ~130 MB on every CI invocation. Keyed by OS + CLI version so old
+      # archives drop out when the pinned version bumps, keeping the
+      # cache bounded.
       - name: Cache bundled CLI tarball
         uses: actions/cache@v4
         with:
           path: ./rust/.bundled-cli-cache
           key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
 
-      - name: cargo build --features embedded-cli
+      - name: cargo build (bundled-cli is the default feature)
         env:
-          COPILOT_CLI_VERSION: ${{ steps.cli-version.outputs.version }}
           BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
-        run: cargo build --features embedded-cli
+        run: cargo build

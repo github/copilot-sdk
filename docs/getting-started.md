@@ -1967,12 +1967,10 @@ const session = await client.createSession({ onPermissionRequest: approveAll });
 <summary><strong>Python</strong></summary>
 
 ```python
-from copilot import CopilotClient, CopilotClientOptions, RuntimeConnection
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
-client = CopilotClient(CopilotClientOptions(
-    connection=RuntimeConnection.for_uri("localhost:4321"),
-))
+client = CopilotClient(connection=RuntimeConnection.for_uri("localhost:4321"))
 await client.start()
 
 # Use the client normally

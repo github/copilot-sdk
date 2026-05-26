@@ -7,6 +7,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -60,7 +61,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly CopilotClient _parentClient;
 
-    private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? _permissionHandler;
+    private volatile Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? _permissionHandler;
     private volatile Func<UserInputRequest, UserInputInvocation, Task<UserInputResponse>>? _userInputHandler;
     private volatile Func<ElicitationContext, Task<ElicitationResult>>? _elicitationHandler;
     private volatile Func<ExitPlanModeRequest, ExitPlanModeInvocation, Task<ExitPlanModeResult>>? _exitPlanModeHandler;
@@ -74,6 +75,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
 
     private Dictionary<string, Func<string, Task<string>>>? _transformCallbacks;
     private readonly SemaphoreSlim _transformCallbacksLock = new(1, 1);
+
+#pragma warning disable GHCP001
+    private volatile ICanvasHandler? _canvasHandler;
+    private IReadOnlyList<OpenCanvasInstance> _openCanvases = Array.Empty<OpenCanvasInstance>();
+#pragma warning restore GHCP001
 
     private int _isDisposed;
 
@@ -120,6 +126,19 @@ public sealed partial class CopilotSession : IAsyncDisposable
         get => field ?? Interlocked.CompareExchange(ref field, new(), null) ?? field;
         private set;
     }
+
+#pragma warning disable GHCP001
+    /// <summary>
+    /// Canvas instances currently known to be open for this session.
+    /// </summary>
+    /// <remarks>
+    /// Populated from the most recent <c>session.create</c> / <c>session.resume</c>
+    /// response. This snapshot is not refreshed automatically when canvases open or
+    /// close after the session is established.
+    /// </remarks>
+    [Experimental(Diagnostics.Experimental)]
+    public IReadOnlyList<OpenCanvasInstance> OpenCanvases => _openCanvases;
+#pragma warning restore GHCP001
 
     /// <summary>
     /// Gets the UI API for eliciting information from the user during this session.
@@ -535,7 +554,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// When the assistant needs permission to perform certain actions (e.g., file operations),
     /// this handler is called to approve or deny the request.
     /// </remarks>
-    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>>? handler)
+    internal void RegisterPermissionHandler(Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? handler)
     {
         _permissionHandler = handler;
     }
@@ -545,16 +564,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     /// <param name="permissionRequestData">The permission request data from the CLI.</param>
     /// <returns>A task that resolves with the permission decision.</returns>
-    internal async Task<PermissionRequestResult> HandlePermissionRequestAsync(JsonElement permissionRequestData)
+    internal async Task<PermissionDecision> HandlePermissionRequestAsync(JsonElement permissionRequestData)
     {
         var handler = _permissionHandler;
 
         if (handler == null)
         {
-            return new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable
-            };
+            return PermissionDecision.UserNotAvailable();
         }
 
         var request = JsonSerializer.Deserialize(permissionRequestData.GetRawText(), SessionEventsJsonContext.Default.PermissionRequest)
@@ -640,7 +656,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                                 ? new ElicitationSchema
                                 {
                                     Type = data.RequestedSchema.Type,
-                                    Properties = data.RequestedSchema.Properties,
+                                    Properties = data.RequestedSchema.Properties.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value),
                                     Required = data.RequestedSchema.Required?.ToList()
                                 }
                                 : null;
@@ -690,7 +706,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a tool handler and sends the result back via the HandlePendingToolCall RPC.
     /// </summary>
-    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, object? arguments, AIFunction tool)
+    private async Task ExecuteToolAndRespondAsync(string requestId, string toolName, string toolCallId, JsonElement? arguments, AIFunction tool)
     {
         try
         {
@@ -710,13 +726,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 }
             };
 
-            if (arguments is not null)
+            if (arguments is JsonElement incomingJsonArgs)
             {
-                if (arguments is not JsonElement incomingJsonArgs)
-                {
-                    throw new InvalidOperationException($"Incoming arguments must be a {nameof(JsonElement)}; received {arguments.GetType().Name}");
-                }
-
                 foreach (var prop in incomingJsonArgs.EnumerateObject())
                 {
                     aiFunctionArgs[prop.Name] = prop.Value;
@@ -765,7 +776,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// <summary>
     /// Executes a permission handler and sends the result back via the HandlePendingPermissionRequest RPC.
     /// </summary>
-    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, Func<PermissionRequest, PermissionInvocation, Task<PermissionRequestResult>> handler)
+    private async Task ExecutePermissionAndRespondAsync(string requestId, PermissionRequest permissionRequest, Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>> handler)
     {
         try
         {
@@ -775,20 +786,17 @@ public sealed partial class CopilotSession : IAsyncDisposable
             };
 
             var permissionTimestamp = Stopwatch.GetTimestamp();
-            var result = await handler(permissionRequest, invocation);
+            var decision = await handler(permissionRequest, invocation);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync dispatch. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
                 permissionTimestamp,
                 SessionId,
                 requestId);
-            if (result.Kind == new PermissionRequestResultKind("no-result"))
+            if (decision is PermissionDecisionNoResult)
             {
                 return;
             }
             var responseRpcTimestamp = Stopwatch.GetTimestamp();
-            PermissionDecision decision = result.Kind == PermissionRequestResultKind.Rejected
-                ? new PermissionDecisionReject { Feedback = result.Feedback }
-                : new PermissionDecision { Kind = result.Kind.Value };
             await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, decision);
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.ExecutePermissionAndRespondAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
@@ -800,10 +808,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             try
             {
-                await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, new PermissionDecision
-                {
-                    Kind = PermissionRequestResultKind.UserNotAvailable.Value
-                });
+                await Rpc.Permissions.HandlePendingPermissionRequestAsync(requestId, PermissionDecision.UserNotAvailable());
             }
             catch (IOException)
             {
@@ -874,6 +879,125 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         Capabilities = capabilities ?? new SessionCapabilities();
     }
+
+#pragma warning disable GHCP001
+    internal void SetOpenCanvases(IList<OpenCanvasInstance>? canvases)
+    {
+        _openCanvases = canvases is { Count: > 0 }
+            ? new List<OpenCanvasInstance>(canvases).AsReadOnly()
+            : Array.Empty<OpenCanvasInstance>();
+    }
+
+    internal void SetCanvasHandler(ICanvasHandler? handler)
+    {
+        _canvasHandler = handler;
+    }
+
+    internal async ValueTask<CanvasOpenResponse> HandleCanvasOpenAsync(
+        string extensionId,
+        string canvasId,
+        string instanceId,
+        JsonElement input,
+        CanvasHostContext? host)
+    {
+        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
+        var ctx = new CanvasOpenContext
+        {
+            SessionId = SessionId,
+            ExtensionId = extensionId,
+            CanvasId = canvasId,
+            InstanceId = instanceId,
+            Input = input,
+            Host = host,
+        };
+        try
+        {
+            return await handler.OnOpenAsync(ctx, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (CanvasError ce)
+        {
+            throw CanvasErrorHelpers.ToRpcException(ce);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw CanvasErrorHelpers.HandlerError(ex.Message);
+        }
+    }
+
+    internal async ValueTask HandleCanvasCloseAsync(
+        string extensionId,
+        string canvasId,
+        string instanceId,
+        CanvasHostContext? host)
+    {
+        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
+        var ctx = new CanvasLifecycleContext
+        {
+            SessionId = SessionId,
+            ExtensionId = extensionId,
+            CanvasId = canvasId,
+            InstanceId = instanceId,
+            Host = host,
+        };
+        try
+        {
+            await handler.OnCloseAsync(ctx, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (CanvasError ce)
+        {
+            throw CanvasErrorHelpers.ToRpcException(ce);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw CanvasErrorHelpers.HandlerError(ex.Message);
+        }
+    }
+
+    internal async ValueTask<JsonElement> HandleCanvasActionAsync(
+        string extensionId,
+        string canvasId,
+        string instanceId,
+        string actionName,
+        JsonElement input,
+        CanvasHostContext? host)
+    {
+        var handler = _canvasHandler ?? throw CanvasErrorHelpers.HandlerUnset();
+        var ctx = new CanvasActionContext
+        {
+            SessionId = SessionId,
+            ExtensionId = extensionId,
+            CanvasId = canvasId,
+            InstanceId = instanceId,
+            ActionName = actionName,
+            Input = input,
+            Host = host,
+        };
+        try
+        {
+            var result = await handler.OnActionAsync(ctx, CancellationToken.None).ConfigureAwait(false);
+            return SerializeActionResult(result);
+        }
+        catch (CanvasError ce)
+        {
+            throw CanvasErrorHelpers.ToRpcException(ce);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw CanvasErrorHelpers.HandlerError(ex.Message);
+        }
+    }
+
+    private static JsonElement SerializeActionResult(object? value)
+    {
+        var element = CopilotClient.ToJsonElementForWire(value);
+        if (element.HasValue)
+        {
+            return element.Value;
+        }
+        using var doc = JsonDocument.Parse("null");
+        return doc.RootElement.Clone();
+    }
+#pragma warning restore GHCP001
 
     /// <summary>
     /// Dispatches a command.execute event to the registered handler and
@@ -957,7 +1081,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             await Rpc.Ui.HandlePendingElicitationAsync(requestId, new UIElicitationResponse
             {
                 Action = result.Action,
-                Content = result.Content
+                Content = result.Content?.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => CopilotClient.ToJsonElementForWire(kvp.Value)!.Value)
             });
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotSession.HandleElicitationRequestAsync response sent successfully. Elapsed={Elapsed}, SessionId={SessionId}, RequestId={RequestId}",
@@ -1000,6 +1126,15 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </summary>
     private sealed class SessionUiApiImpl(CopilotSession session) : ISessionUiApi
     {
+        // Parses a JSON string and returns a detached JsonElement. Using `using`
+        // ensures the pooled buffers backing the JsonDocument are released
+        // promptly; the cloned RootElement is independent of the document.
+        private static JsonElement ParseJsonElement(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.Clone();
+        }
+
         public async Task<ElicitationResult> ElicitAsync(ElicitationParams elicitationParams, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(elicitationParams);
@@ -1009,12 +1144,18 @@ public sealed partial class CopilotSession : IAsyncDisposable
             var schema = new UIElicitationSchema
             {
                 Type = elicitationParams.RequestedSchema.Type,
-                Properties = elicitationParams.RequestedSchema.Properties,
+                Properties = elicitationParams.RequestedSchema.Properties.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => CopilotClient.ToJsonElementForWire(kvp.Value)!.Value),
                 Required = elicitationParams.RequestedSchema.Required
             };
 
             var result = await session.Rpc.Ui.ElicitationAsync(elicitationParams.Message, schema, cancellationToken);
-            return new ElicitationResult { Action = result.Action, Content = result.Content };
+            return new ElicitationResult
+            {
+                Action = result.Action,
+                Content = result.Content?.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value)
+            };
         }
 
         public async Task<bool> ConfirmAsync(string message, CancellationToken cancellationToken)
@@ -1026,9 +1167,9 @@ public sealed partial class CopilotSession : IAsyncDisposable
             var schema = new UIElicitationSchema
             {
                 Type = "object",
-                Properties = new Dictionary<string, object>
+                Properties = new Dictionary<string, JsonElement>
                 {
-                    ["confirmed"] = new Dictionary<string, object> { ["type"] = "boolean", ["default"] = true }
+                    ["confirmed"] = ParseJsonElement("""{"type":"boolean","default":true}""")
                 },
                 Required = ["confirmed"]
             };
@@ -1038,11 +1179,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 && result.Content != null
                 && result.Content.TryGetValue("confirmed", out var val))
             {
-                return val switch
+                return val.ValueKind switch
                 {
-                    bool b => b,
-                    JsonElement { ValueKind: JsonValueKind.True } => true,
-                    JsonElement { ValueKind: JsonValueKind.False } => false,
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
                     _ => false
                 };
             }
@@ -1057,12 +1197,13 @@ public sealed partial class CopilotSession : IAsyncDisposable
             session.ThrowIfDisposed();
             session.AssertElicitation();
 
+            var enumJson = JsonSerializer.Serialize(options, TypesJsonContext.Default.StringArray);
             var schema = new UIElicitationSchema
             {
                 Type = "object",
-                Properties = new Dictionary<string, object>
+                Properties = new Dictionary<string, JsonElement>
                 {
-                    ["selection"] = new Dictionary<string, object> { ["type"] = "string", ["enum"] = options }
+                    ["selection"] = ParseJsonElement($$"""{"type":"string","enum":{{enumJson}}}""")
                 },
                 Required = ["selection"]
             };
@@ -1072,12 +1213,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 && result.Content != null
                 && result.Content.TryGetValue("selection", out var val))
             {
-                return val switch
-                {
-                    string s => s,
-                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
-                    _ => val.ToString()
-                };
+                return val.ValueKind == JsonValueKind.String ? val.GetString() : val.ToString();
             }
 
             return null;
@@ -1089,18 +1225,21 @@ public sealed partial class CopilotSession : IAsyncDisposable
             session.ThrowIfDisposed();
             session.AssertElicitation();
 
-            var field = new Dictionary<string, object> { ["type"] = "string" };
-            if (options?.Title != null) field["title"] = options.Title;
-            if (options?.Description != null) field["description"] = options.Description;
-            if (options?.MinLength != null) field["minLength"] = options.MinLength;
-            if (options?.MaxLength != null) field["maxLength"] = options.MaxLength;
-            if (options?.Format != null) field["format"] = options.Format;
-            if (options?.Default != null) field["default"] = options.Default;
+            var fieldNode = new System.Text.Json.Nodes.JsonObject { ["type"] = "string" };
+            if (options?.Title != null) fieldNode["title"] = options.Title;
+            if (options?.Description != null) fieldNode["description"] = options.Description;
+            if (options?.MinLength != null) fieldNode["minLength"] = options.MinLength;
+            if (options?.MaxLength != null) fieldNode["maxLength"] = options.MaxLength;
+            if (options?.Format != null) fieldNode["format"] = options.Format;
+            if (options?.Default != null) fieldNode["default"] = options.Default;
 
             var schema = new UIElicitationSchema
             {
                 Type = "object",
-                Properties = new Dictionary<string, object> { ["value"] = field },
+                Properties = new Dictionary<string, JsonElement>
+                {
+                    ["value"] = ParseJsonElement(fieldNode.ToJsonString())
+                },
                 Required = ["value"]
             };
 
@@ -1109,12 +1248,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 && result.Content != null
                 && result.Content.TryGetValue("value", out var val))
             {
-                return val switch
-                {
-                    string s => s,
-                    JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
-                    _ => val.ToString()
-                };
+                return val.ValueKind == JsonValueKind.String ? val.GetString() : val.ToString();
             }
 
             return null;

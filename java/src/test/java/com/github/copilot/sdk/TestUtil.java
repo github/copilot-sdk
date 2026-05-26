@@ -36,9 +36,9 @@ public final class TestUtil {
      * <p>
      * Resolution order:
      * <ol>
-     * <li>Search the system PATH using {@code where.exe} (Windows) or {@code which}
-     * (Linux/macOS).</li>
-     * <li>Fall back to the {@code COPILOT_CLI_PATH} environment variable.</li>
+     * <li>Use the {@code COPILOT_CLI_PATH} environment variable when set.</li>
+     * <li>Otherwise search the system PATH using {@code where.exe} (Windows) or
+     * {@code which} (Linux/macOS).</li>
      * <li>Walk parent directories looking for
      * {@code nodejs/node_modules/@github/copilot/index.js}.</li>
      * </ol>
@@ -55,14 +55,14 @@ public final class TestUtil {
      *         {@code null} if none was found
      */
     static String findCliPath() {
-        String copilotInPath = findCopilotInPath();
-        if (copilotInPath != null) {
-            return copilotInPath;
-        }
-
         String envPath = System.getenv("COPILOT_CLI_PATH");
         if (envPath != null && !envPath.isEmpty()) {
             return envPath;
+        }
+
+        String copilotInPath = findCopilotInPath();
+        if (copilotInPath != null) {
+            return copilotInPath;
         }
 
         Path current = Paths.get(System.getProperty("user.dir"));

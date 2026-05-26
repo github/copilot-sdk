@@ -4,16 +4,15 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parking_lot::Mutex as ParkingLotMutex;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, warn};
 
-use crate::generated::api_types::{
-    LogRequest, ModelSwitchToRequest, PermissionDecision, PermissionDecisionApproveOnce,
-    PermissionDecisionApproveOnceKind, PermissionDecisionReject, PermissionDecisionRejectKind,
-};
+use crate::canvas::{CanvasHandler, CanvasInvokeParams, CanvasProviderRequestParams};
+use crate::generated::api_types::{LogRequest, ModelSwitchToRequest, OpenCanvasInstance};
 use crate::generated::session_events::{
     CommandExecuteData, ElicitationRequestedData, ExternalToolRequestedData, SessionErrorData,
     SessionEventType,
@@ -29,9 +28,10 @@ use crate::transforms::SystemMessageTransform;
 use crate::types::{
     CommandContext, CommandDefinition, CommandHandler, CreateSessionResult, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, GetMessagesResponse, MessageOptions,
-    PermissionRequestData, RequestId, ResumeSessionConfig, SectionOverride, SessionCapabilities,
-    SessionConfig, SessionEvent, SessionId, SetModelOptions, SystemMessageConfig, ToolInvocation,
-    ToolResult, ToolResultExpanded, TraceContext, UiInputOptions, ensure_attachment_display_names,
+    PermissionRequestData, RequestId, ResumeSessionConfig, ResumeSessionResult, SectionOverride,
+    SessionCapabilities, SessionConfig, SessionEvent, SessionId, SetModelOptions,
+    SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
+    UiInputOptions, ensure_attachment_display_names,
 };
 use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
 
@@ -125,7 +125,7 @@ impl Drop for PendingSessionRegistration {
 /// Owns an internal event loop that dispatches events to the per-callback
 /// handlers installed on the session config.
 ///
-/// Protocol methods (`send`, `get_messages`, `abort`, etc.) automatically
+/// Protocol methods (`send`, `get_events`, `abort`, etc.) automatically
 /// inject the session ID into RPC params.
 ///
 /// Call [`destroy`](Self::destroy) for graceful cleanup (RPC + local). If dropped
@@ -165,6 +165,8 @@ pub struct Session {
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     /// Capabilities negotiated with the CLI, updated on `capabilities.changed` events.
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    /// Canvas instances currently known to be open for this session.
+    open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     /// Broadcast channel for runtime event subscribers — see [`Session::subscribe`].
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
 }
@@ -196,6 +198,12 @@ impl Session {
     /// via `capabilities.changed` events.
     pub fn capabilities(&self) -> SessionCapabilities {
         self.capabilities.read().clone()
+    }
+
+    /// Open canvas instances reported by the most recent `session.resume`
+    /// response or surfaced by inbound `canvas.opened` events.
+    pub fn open_canvases(&self) -> Vec<OpenCanvasInstance> {
+        self.open_canvases.read().clone()
     }
 
     /// Returns a [`CancellationToken`] that fires when this session shuts
@@ -791,45 +799,29 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
-        let wire = config.to_wire(session_id.clone());
+        let enable_mcp_apps = config.enable_mcp_apps;
+        let (wire, mut runtime) = config.into_wire(session_id.clone())?;
 
         let permission_handler = crate::permission::resolve_handler(
-            config.permission_handler.take(),
-            config.permission_policy.take(),
+            runtime.permission_handler.take(),
+            runtime.permission_policy.take(),
         );
-        let elicitation_handler = config.elicitation_handler.take();
-        let user_input_handler = config.user_input_handler.take();
-        let exit_plan_mode_handler = config.exit_plan_mode_handler.take();
-        let auto_mode_switch_handler = config.auto_mode_switch_handler.take();
-        let mut tool_map: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
-        if let Some(tools) = config.tools.as_mut() {
-            for tool in tools.iter_mut() {
-                if let Some(handler) = tool.handler.take() {
-                    if tool_map.contains_key(&tool.name) {
-                        return Err(Error::InvalidConfig(format!(
-                            "duplicate tool handler registered for name {:?}",
-                            tool.name
-                        )));
-                    }
-                    tool_map.insert(tool.name.clone(), handler);
-                }
-            }
-        }
         let handlers = SessionHandlers {
             permission: permission_handler,
-            elicitation: elicitation_handler,
-            user_input: user_input_handler,
-            exit_plan_mode: exit_plan_mode_handler,
-            auto_mode_switch: auto_mode_switch_handler,
-            tools: Arc::new(tool_map),
+            elicitation: runtime.elicitation_handler.take(),
+            user_input: runtime.user_input_handler.take(),
+            exit_plan_mode: runtime.exit_plan_mode_handler.take(),
+            auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
         };
-        let hooks = config.hooks_handler.take();
-        let transforms = config.system_message_transform.take();
-        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
-        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
+        let hooks = runtime.hooks_handler.take();
+        let transforms = runtime.system_message_transform.take();
+        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
-        let command_handlers = build_command_handler_map(config.commands.as_deref());
-        let session_fs_provider = config.session_fs_provider.take();
+        let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let canvas_handler = runtime.canvas_handler.take();
+        let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
         }
@@ -861,6 +853,7 @@ impl Client {
             hooks,
             transforms,
             command_handlers,
+            canvas_handler,
             session_fs_provider,
             channels,
             idle_waiter.clone(),
@@ -906,7 +899,7 @@ impl Client {
             }));
         }
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
-        warn_if_mcp_apps_dropped(config.enable_mcp_apps, &capabilities.read(), &session_id);
+        warn_if_mcp_apps_dropped(enable_mcp_apps, &capabilities.read(), &session_id);
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -924,6 +917,7 @@ impl Client {
             shutdown,
             idle_waiter,
             capabilities,
+            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
             event_tx,
         })
     }
@@ -947,45 +941,29 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
-        let wire = config.to_wire();
+        let enable_mcp_apps = config.enable_mcp_apps;
+        let (wire, mut runtime) = config.into_wire()?;
 
         let permission_handler = crate::permission::resolve_handler(
-            config.permission_handler.take(),
-            config.permission_policy.take(),
+            runtime.permission_handler.take(),
+            runtime.permission_policy.take(),
         );
-        let elicitation_handler = config.elicitation_handler.take();
-        let user_input_handler = config.user_input_handler.take();
-        let exit_plan_mode_handler = config.exit_plan_mode_handler.take();
-        let auto_mode_switch_handler = config.auto_mode_switch_handler.take();
-        let mut tool_map: HashMap<String, Arc<dyn crate::tool::ToolHandler>> = HashMap::new();
-        if let Some(tools) = config.tools.as_mut() {
-            for tool in tools.iter_mut() {
-                if let Some(handler) = tool.handler.take() {
-                    if tool_map.contains_key(&tool.name) {
-                        return Err(Error::InvalidConfig(format!(
-                            "duplicate tool handler registered for name {:?}",
-                            tool.name
-                        )));
-                    }
-                    tool_map.insert(tool.name.clone(), handler);
-                }
-            }
-        }
         let handlers = SessionHandlers {
             permission: permission_handler,
-            elicitation: elicitation_handler,
-            user_input: user_input_handler,
-            exit_plan_mode: exit_plan_mode_handler,
-            auto_mode_switch: auto_mode_switch_handler,
-            tools: Arc::new(tool_map),
+            elicitation: runtime.elicitation_handler.take(),
+            user_input: runtime.user_input_handler.take(),
+            exit_plan_mode: runtime.exit_plan_mode_handler.take(),
+            auto_mode_switch: runtime.auto_mode_switch_handler.take(),
+            tools: Arc::new(std::mem::take(&mut runtime.tool_handlers)),
         };
-        let hooks = config.hooks_handler.take();
-        let transforms = config.system_message_transform.take();
-        let tools_count = config.tools.as_ref().map_or(0, Vec::len);
-        let commands_count = config.commands.as_ref().map_or(0, Vec::len);
+        let hooks = runtime.hooks_handler.take();
+        let transforms = runtime.system_message_transform.take();
+        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+        let commands_count = runtime.commands.as_ref().map_or(0, Vec::len);
         let has_hooks = hooks.is_some();
-        let command_handlers = build_command_handler_map(config.commands.as_deref());
-        let session_fs_provider = config.session_fs_provider.take();
+        let command_handlers = build_command_handler_map(runtime.commands.as_deref());
+        let canvas_handler = runtime.canvas_handler.take();
+        let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
             return Err(Error::Session(SessionError::SessionFsProviderRequired));
         }
@@ -1017,6 +995,7 @@ impl Client {
             hooks,
             transforms,
             command_handlers,
+            canvas_handler,
             session_fs_provider,
             channels,
             idle_waiter.clone(),
@@ -1049,12 +1028,17 @@ impl Client {
             "Client::resume_session session resume request completed successfully"
         );
 
-        // The CLI may reassign the session ID on resume.
-        let cli_session_id: SessionId = result
-            .get("sessionId")
-            .and_then(|v| v.as_str())
-            .unwrap_or(&session_id)
-            .into();
+        let resume_result: ResumeSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                registration.cleanup(event_loop).await;
+                return Err(error.into());
+            }
+        };
+        let cli_session_id = resume_result
+            .session_id
+            .clone()
+            .unwrap_or_else(|| session_id.clone());
         if cli_session_id != session_id {
             registration.cleanup(event_loop).await;
             return Err(Error::Session(SessionError::SessionIdMismatch {
@@ -1062,19 +1046,6 @@ impl Client {
                 returned: cli_session_id,
             }));
         }
-
-        let resume_capabilities: Option<SessionCapabilities> = result
-            .get("capabilities")
-            .and_then(|v| {
-                serde_json::from_value(v.clone())
-                    .map_err(|e| warn!(error = %e, "failed to deserialize capabilities from resume response"))
-                    .ok()
-            });
-        let remote_url = result
-            .get("remoteUrl")
-            .or_else(|| result.get("remote_url"))
-            .and_then(|value| value.as_str())
-            .map(ToString::to_string);
 
         // Reload skills after resume (best-effort).
         let skills_reload_start = Instant::now();
@@ -1099,8 +1070,11 @@ impl Client {
             );
         }
 
-        *capabilities.write() = resume_capabilities.unwrap_or_default();
-        warn_if_mcp_apps_dropped(config.enable_mcp_apps, &capabilities.read(), &session_id);
+        *capabilities.write() = resume_result.capabilities.unwrap_or_default();
+        warn_if_mcp_apps_dropped(enable_mcp_apps, &capabilities.read(), &session_id);
+        let open_canvases = Arc::new(parking_lot::RwLock::new(
+            resume_result.open_canvases.unwrap_or_default(),
+        ));
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1111,13 +1085,14 @@ impl Client {
         Ok(Session {
             id: session_id,
             cwd: self.cwd().clone(),
-            workspace_path: None,
-            remote_url,
+            workspace_path: resume_result.workspace_path,
+            remote_url: resume_result.remote_url,
             client: self.clone(),
             event_loop: ParkingLotMutex::new(Some(event_loop)),
             shutdown,
             idle_waiter,
             capabilities,
+            open_canvases,
             event_tx,
         })
     }
@@ -1173,6 +1148,7 @@ fn spawn_event_loop(
     hooks: Option<Arc<dyn SessionHooks>>,
     transforms: Option<Arc<dyn SystemMessageTransform>>,
     command_handlers: Arc<CommandHandlerMap>,
+    canvas_handler: Option<Arc<dyn CanvasHandler>>,
     session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
@@ -1207,9 +1183,15 @@ fn spawn_event_loop(
                         ).await;
                     }
                     Some(request) = requests.recv() => {
-                        handle_request(
-                            &session_id, &client, &handlers, hooks.as_deref(), transforms.as_deref(), session_fs_provider.as_ref(), request,
-                        ).await;
+                        let ctx = RequestDispatchContext {
+                            client: &client,
+                            handlers: &handlers,
+                            hooks: hooks.as_deref(),
+                            transforms: transforms.as_deref(),
+                            canvas_handler: canvas_handler.as_ref(),
+                            session_fs_provider: session_fs_provider.as_ref(),
+                        };
+                        handle_request(&session_id, ctx, request).await;
                     }
                     else => break,
                 }
@@ -1233,63 +1215,16 @@ fn extract_request_id(data: &Value) -> Option<RequestId> {
         .map(RequestId::new)
 }
 
-fn pending_permission_result_kind(result: &PermissionResult) -> &'static str {
-    match result {
-        PermissionResult::Approved => "approve-once",
-        PermissionResult::Denied => "reject",
-        // Fallback to "user-not-available" for UserNotAvailable, Deferred (when
-        // forced through this path), Custom (handled separately upstream), and
-        // NoResult that gets here defensively.
-        _ => "user-not-available",
-    }
-}
-
-fn permission_request_response(result: &PermissionResult) -> PermissionDecision {
-    match result {
-        PermissionResult::Approved => {
-            PermissionDecision::ApproveOnce(PermissionDecisionApproveOnce {
-                kind: PermissionDecisionApproveOnceKind::ApproveOnce,
-            })
-        }
-        _ => PermissionDecision::Reject(PermissionDecisionReject {
-            kind: PermissionDecisionRejectKind::Reject,
-            feedback: None,
-        }),
-    }
-}
-
-/// Map a permission result into the `result` payload for the notification
-/// path (`session.permissions.handlePendingPermissionRequest`).
+/// Map a [`PermissionResult`] to the `result` payload sent back to the
+/// server via `session.permissions.handlePendingPermissionRequest`.
 ///
-/// Returns `None` when the SDK must not respond.
+/// Returns `None` when the SDK must not send a response.
 fn notification_permission_payload(result: &PermissionResult) -> Option<Value> {
     match result {
-        PermissionResult::Deferred | PermissionResult::NoResult => None,
-        PermissionResult::Custom(value) => Some(value.clone()),
-        _ => Some(serde_json::json!({
-            "kind": pending_permission_result_kind(result),
-        })),
-    }
-}
-
-/// Map a permission result into the JSON-RPC `result` payload for the
-/// direct-RPC path (`permission.request`).
-///
-/// Always returns a value. [`PermissionResult::Deferred`] is treated as
-/// [`PermissionResult::Approved`] here because the JSON-RPC contract
-/// requires a reply — see the variant's doc comment.
-fn direct_permission_payload(result: &PermissionResult) -> Value {
-    match result {
-        PermissionResult::Custom(value) => value.clone(),
-        PermissionResult::Deferred => {
-            serde_json::to_value(permission_request_response(&PermissionResult::Approved))
-                .expect("serializing direct permission response should succeed")
-        }
-        PermissionResult::NoResult | PermissionResult::UserNotAvailable => serde_json::json!({
-            "kind": pending_permission_result_kind(result),
-        }),
-        _ => serde_json::to_value(permission_request_response(result))
-            .expect("serializing direct permission response should succeed"),
+        PermissionResult::NoResult => None,
+        PermissionResult::Decision(decision) => Some(
+            serde_json::to_value(decision).expect("serializing permission decision should succeed"),
+        ),
     }
 }
 
@@ -1544,12 +1479,12 @@ async fn handle_notification(
             );
             tokio::spawn(
                 async move {
-                    if data.tool_call_id.is_empty() || data.tool_name.is_empty() {
-                        let error_msg = if data.tool_call_id.is_empty() {
-                            "Missing toolCallId"
-                        } else {
-                            "Missing toolName"
-                        };
+                    // `tool_name.is_empty()` would have produced a `None`
+                    // lookup in `handlers.tools` and short-circuited at the
+                    // outer guard above, so only the tool_call_id check is
+                    // reachable here.
+                    if data.tool_call_id.is_empty() {
+                        let error_msg = "Missing toolCallId";
                         let rpc_start = Instant::now();
                         let _ = client
                             .call(
@@ -1804,17 +1739,28 @@ async fn handle_notification(
     }
 }
 
+struct RequestDispatchContext<'a> {
+    client: &'a Client,
+    handlers: &'a SessionHandlers,
+    hooks: Option<&'a dyn SessionHooks>,
+    transforms: Option<&'a dyn SystemMessageTransform>,
+    canvas_handler: Option<&'a Arc<dyn CanvasHandler>>,
+    session_fs_provider: Option<&'a Arc<dyn SessionFsProvider>>,
+}
+
 /// Process a JSON-RPC request from the CLI.
 async fn handle_request(
     session_id: &SessionId,
-    client: &Client,
-    handlers: &SessionHandlers,
-    hooks: Option<&dyn SessionHooks>,
-    transforms: Option<&dyn SystemMessageTransform>,
-    session_fs_provider: Option<&Arc<dyn SessionFsProvider>>,
+    ctx: RequestDispatchContext<'_>,
     request: crate::JsonRpcRequest,
 ) {
     let sid = session_id.clone();
+    let client = ctx.client;
+    let handlers = ctx.handlers;
+    let hooks = ctx.hooks;
+    let transforms = ctx.transforms;
+    let canvas_handler = ctx.canvas_handler;
+    let session_fs_provider = ctx.session_fs_provider;
 
     if request.method.starts_with("sessionFs.") {
         crate::session_fs_dispatch::dispatch(client, session_fs_provider, request).await;
@@ -1822,6 +1768,38 @@ async fn handle_request(
     }
 
     match request.method.as_str() {
+        "canvas.open" => {
+            let Some(params) =
+                parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
+                    .await
+            else {
+                return;
+            };
+            let result = dispatch_canvas_open(canvas_handler, params).await;
+            send_canvas_dispatch_response(client, request.id, result).await;
+        }
+
+        "canvas.close" => {
+            let Some(params) =
+                parse_request_params::<CanvasProviderRequestParams>(client, request.id, &request)
+                    .await
+            else {
+                return;
+            };
+            let result = dispatch_canvas_close(canvas_handler, params).await;
+            send_canvas_dispatch_response(client, request.id, result).await;
+        }
+
+        "canvas.action.invoke" => {
+            let Some(params) =
+                parse_request_params::<CanvasInvokeParams>(client, request.id, &request).await
+            else {
+                return;
+            };
+            let result = dispatch_canvas_action(canvas_handler, params).await;
+            send_canvas_dispatch_response(client, request.id, result).await;
+        }
+
         "hooks.invoke" => {
             let params = request.params.as_ref();
             let hook_type = params
@@ -1978,68 +1956,6 @@ async fn handle_request(
             let _ = client.send_response(&rpc_response).await;
         }
 
-        "permission.request" => {
-            let Some(request_id) = request
-                .params
-                .as_ref()
-                .and_then(|p| p.get("requestId"))
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-            else {
-                warn!("permission.request missing 'requestId' field");
-                let rpc_response = JsonRpcResponse {
-                    jsonrpc: "2.0".to_string(),
-                    id: request.id,
-                    result: None,
-                    error: Some(crate::JsonRpcError {
-                        code: error_codes::INVALID_PARAMS,
-                        message: "missing required field: requestId".to_string(),
-                        data: None,
-                    }),
-                };
-                let _ = client.send_response(&rpc_response).await;
-                return;
-            };
-            let request_id = RequestId::new(request_id);
-            let raw_params = request
-                .params
-                .as_ref()
-                .cloned()
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-            let data: PermissionRequestData =
-                serde_json::from_value(raw_params.clone()).unwrap_or(PermissionRequestData {
-                    kind: None,
-                    tool_call_id: None,
-                    extra: raw_params,
-                });
-
-            let handler_start = Instant::now();
-            let rpc_result = if let Some(permission_handler) = handlers.permission.as_ref() {
-                let result = permission_handler
-                    .handle(sid.clone(), request_id.clone(), data)
-                    .await;
-                tracing::debug!(
-                    elapsed_ms = handler_start.elapsed().as_millis(),
-                    session_id = %sid,
-                    request_id = %request_id,
-                    "PermissionHandler::handle dispatch"
-                );
-                direct_permission_payload(&result)
-            } else {
-                // Back-compat with v2 servers that still send
-                // permission.request as a direct RPC: default to
-                // user-not-available rather than erroring.
-                serde_json::json!({ "kind": "user-not-available" })
-            };
-            let rpc_response = JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(rpc_result),
-                error: None,
-            };
-            let _ = client.send_response(&rpc_response).await;
-        }
-
         "systemMessage.transform" => {
             let params = request.params.as_ref();
             let sections: HashMap<String, crate::transforms::TransformSection> =
@@ -2116,6 +2032,112 @@ async fn handle_request(
     }
 }
 
+async fn parse_request_params<T>(
+    client: &Client,
+    id: u64,
+    request: &crate::JsonRpcRequest,
+) -> Option<T>
+where
+    T: DeserializeOwned,
+{
+    let params = request
+        .params
+        .as_ref()
+        .cloned()
+        .unwrap_or(Value::Object(serde_json::Map::new()));
+    match serde_json::from_value(params) {
+        Ok(params) => Some(params),
+        Err(error) => {
+            let _ = send_error_response(
+                client,
+                id,
+                error_codes::INVALID_PARAMS,
+                &format!("invalid params: {error}"),
+            )
+            .await;
+            None
+        }
+    }
+}
+
+async fn send_canvas_dispatch_response(
+    client: &Client,
+    id: u64,
+    result: crate::canvas::CanvasResult<Value>,
+) {
+    let response = match result {
+        Ok(value) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: Some(value),
+            error: None,
+        },
+        Err(error) => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id,
+            result: None,
+            error: Some(crate::JsonRpcError {
+                code: error_codes::INTERNAL_ERROR,
+                message: error.message.clone(),
+                data: Some(serde_json::json!({
+                    "code": error.code,
+                    "message": error.message,
+                })),
+            }),
+        },
+    };
+    if let Err(error) = client.send_response(&response).await {
+        warn!(
+            request_id = id,
+            error = %error,
+            "failed to send canvas provider response"
+        );
+    }
+}
+
+fn canvas_handler_or_err(
+    handler: Option<&Arc<dyn CanvasHandler>>,
+) -> crate::canvas::CanvasResult<&Arc<dyn CanvasHandler>> {
+    handler.ok_or_else(|| {
+        crate::canvas::CanvasError::new(
+            "canvas_handler_unset",
+            "No CanvasHandler installed on this session; \
+             call SessionConfig::with_canvas_handler before creating the session.",
+        )
+    })
+}
+
+async fn dispatch_canvas_open(
+    handler: Option<&Arc<dyn CanvasHandler>>,
+    params: CanvasProviderRequestParams,
+) -> crate::canvas::CanvasResult<Value> {
+    let handler = canvas_handler_or_err(handler)?;
+    let response = handler.on_open(params.into_open_context()).await?;
+    serde_json::to_value(response).map_err(|error| {
+        crate::canvas::CanvasError::new(
+            "canvas_open_response_serialization_failed",
+            format!("failed to serialize canvas.open response: {error}"),
+        )
+    })
+}
+
+async fn dispatch_canvas_close(
+    handler: Option<&Arc<dyn CanvasHandler>>,
+    params: CanvasProviderRequestParams,
+) -> crate::canvas::CanvasResult<Value> {
+    let handler = canvas_handler_or_err(handler)?;
+    handler.on_close(params.into_lifecycle_context()).await?;
+    Ok(Value::Null)
+}
+
+async fn dispatch_canvas_action(
+    handler: Option<&Arc<dyn CanvasHandler>>,
+    params: CanvasInvokeParams,
+) -> crate::canvas::CanvasResult<Value> {
+    let handler = canvas_handler_or_err(handler)?;
+    handler.on_action(params.into_action_context()).await
+}
+
 async fn send_error_response(
     client: &Client,
     id: u64,
@@ -2169,108 +2191,31 @@ fn inject_transform_sections_resume(
 mod tests {
     use serde_json::json;
 
-    use super::{
-        direct_permission_payload, notification_permission_payload, pending_permission_result_kind,
-        permission_request_response,
-    };
+    use super::notification_permission_payload;
     use crate::handler::PermissionResult;
 
     #[test]
-    fn pending_permission_requests_use_decision_kinds() {
-        assert_eq!(
-            pending_permission_result_kind(&PermissionResult::Approved),
-            "approve-once"
-        );
-        assert_eq!(
-            pending_permission_result_kind(&PermissionResult::Denied),
-            "reject"
-        );
-        assert_eq!(
-            pending_permission_result_kind(&PermissionResult::UserNotAvailable),
-            "user-not-available"
-        );
-    }
-
-    #[test]
-    fn direct_permission_requests_use_decision_response_kinds() {
-        assert_eq!(
-            serde_json::to_value(permission_request_response(&PermissionResult::Approved))
-                .expect("serializing approved permission response should succeed"),
-            json!({ "kind": "approve-once" })
-        );
-        assert_eq!(
-            serde_json::to_value(permission_request_response(&PermissionResult::Denied))
-                .expect("serializing denied permission response should succeed"),
-            json!({ "kind": "reject" })
-        );
-        assert_eq!(
-            serde_json::to_value(permission_request_response(
-                &PermissionResult::UserNotAvailable
-            ))
-            .expect("serializing fallback permission response should succeed"),
-            json!({ "kind": "reject" })
-        );
-    }
-
-    #[test]
-    fn notification_payload_handles_non_responses_and_custom() {
-        // Deferred/NoResult -> no payload, SDK must not respond.
-        assert!(notification_permission_payload(&PermissionResult::Deferred).is_none());
+    fn notification_payload_suppresses_no_result() {
         assert!(notification_permission_payload(&PermissionResult::NoResult).is_none());
+    }
 
-        // Custom → handler-supplied value passed through verbatim.
-        let custom = json!({
-            "kind": "approve-and-remember",
-            "allowlist": ["ls", "grep"],
-        });
+    #[test]
+    fn notification_payload_serializes_decisions() {
         assert_eq!(
-            notification_permission_payload(&PermissionResult::Custom(custom.clone())),
-            Some(custom)
-        );
-
-        // Approved/Denied → existing kind-only shape.
-        assert_eq!(
-            notification_permission_payload(&PermissionResult::Approved),
+            notification_permission_payload(&PermissionResult::approve_once()),
             Some(json!({ "kind": "approve-once" }))
         );
         assert_eq!(
-            notification_permission_payload(&PermissionResult::Denied),
+            notification_permission_payload(&PermissionResult::reject(None)),
             Some(json!({ "kind": "reject" }))
         );
-    }
-
-    #[test]
-    fn direct_payload_handles_deferred_and_custom() {
-        // Custom → handler-supplied value passed through verbatim.
-        let custom = json!({
-            "kind": "approve-and-remember",
-            "allowlist": ["ls", "grep"],
-        });
         assert_eq!(
-            direct_permission_payload(&PermissionResult::Custom(custom.clone())),
-            custom
-        );
-
-        // Deferred → falls back to Approved because the direct RPC must reply.
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::Deferred),
-            json!({ "kind": "approve-once" })
-        );
-
-        // NoResult -> direct RPC cannot be left pending, so report no user.
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::NoResult),
-            json!({ "kind": "user-not-available" })
-        );
-
-        // Approved/Denied → existing kind-only shape.
-        assert_eq!(
-            direct_permission_payload(&PermissionResult::Approved),
-            json!({ "kind": "approve-once" })
+            notification_permission_payload(&PermissionResult::reject(Some("bad".to_string()))),
+            Some(json!({ "kind": "reject", "feedback": "bad" }))
         );
         assert_eq!(
-            direct_permission_payload(&PermissionResult::Denied),
-            json!({ "kind": "reject" })
+            notification_permission_payload(&PermissionResult::user_not_available()),
+            Some(json!({ "kind": "user-not-available" }))
         );
     }
 }

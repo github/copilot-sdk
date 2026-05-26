@@ -79,6 +79,7 @@ const (
 	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
 	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
 	SessionEventTypeHookStart                     SessionEventType = "hook.start"
+	SessionEventTypeMcpAppToolCallComplete        SessionEventType = "mcp_app.tool_call_complete"
 	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
 	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
 	SessionEventTypeModelCallFailure              SessionEventType = "model.call_failure"
@@ -88,6 +89,8 @@ const (
 	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
 	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
 	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionCanvasOpened           SessionEventType = "session.canvas.opened"
+	SessionEventTypeSessionCanvasRegistryChanged  SessionEventType = "session.canvas.registry_changed"
 	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
 	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
 	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
@@ -170,8 +173,10 @@ func (*AssistantReasoningData) Type() SessionEventType { return SessionEventType
 // Assistant response containing text content, optional tool requests, and interaction metadata
 type AssistantMessageData struct {
 	// Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping
+	// Experimental: AnthropicAdvisorBlocks is part of an experimental API and may change or be removed.
 	AnthropicAdvisorBlocks []any `json:"anthropicAdvisorBlocks,omitempty"`
 	// Anthropic advisor model ID used for this response, for timeline display on replay
+	// Experimental: AnthropicAdvisorModel is part of an experimental API and may change or be removed.
 	AnthropicAdvisorModel *string `json:"anthropicAdvisorModel,omitempty"`
 	// The assistant's text response content
 	Content string `json:"content"`
@@ -196,6 +201,8 @@ type AssistantMessageData struct {
 	ReasoningText *string `json:"reasoningText,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	RequestID *string `json:"requestId,omitempty"`
+	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Tool invocations requested by the assistant in this message
 	ToolRequests []AssistantMessageToolRequest `json:"toolRequests,omitempty"`
 	// Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
@@ -272,6 +279,8 @@ type SessionCompactionCompleteData struct {
 	PreCompactionTokens *int64 `json:"preCompactionTokens,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for the compaction LLM call
 	RequestID *string `json:"requestId,omitempty"`
+	// Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call
+	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Whether compaction completed successfully
 	Success bool `json:"success"`
 	// LLM-generated summary of the compacted conversation history
@@ -408,6 +417,8 @@ type SessionErrorData struct {
 	Message string `json:"message"`
 	// GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Error stack trace, when available
 	Stack *string `json:"stack,omitempty"`
 	// HTTP status code from the upstream request, if applicable
@@ -467,6 +478,8 @@ type ModelCallFailureData struct {
 	Model *string `json:"model,omitempty"`
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
+	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Where the failed model call originated
 	Source ModelCallFailureSource `json:"source"`
 	// HTTP status code from the failed request
@@ -532,8 +545,10 @@ type AssistantUsageData struct {
 	// Number of tokens written to prompt cache
 	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
+	// Internal: CopilotUsage is part of the SDK's internal API surface and is not intended for external use.
 	CopilotUsage *AssistantUsageCopilotUsage `json:"copilotUsage,omitempty"`
 	// Model multiplier cost for billing purposes
+	// Experimental: Cost is part of an experimental API and may change or be removed.
 	Cost *float64 `json:"cost,omitempty"`
 	// Duration of the API call in milliseconds
 	Duration *int64 `json:"duration,omitempty"`
@@ -553,17 +568,45 @@ type AssistantUsageData struct {
 	// GitHub request tracing ID (x-github-request-id header) for server-side log correlation
 	ProviderCallID *string `json:"providerCallId,omitempty"`
 	// Per-quota resource usage snapshots, keyed by quota identifier
+	// Internal: QuotaSnapshots is part of the SDK's internal API surface and is not intended for external use.
 	QuotaSnapshots map[string]AssistantUsageQuotaSnapshot `json:"quotaSnapshots,omitempty"`
 	// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Number of output tokens used for reasoning (e.g., chain-of-thought)
 	ReasoningTokens *int64 `json:"reasoningTokens,omitempty"`
+	// Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation
+	ServiceRequestID *string `json:"serviceRequestId,omitempty"`
 	// Time to first token in milliseconds. Only available for streaming requests
 	TimeToFirstTokenMs *int64 `json:"timeToFirstTokenMs,omitempty"`
 }
 
 func (*AssistantUsageData) sessionEventData()      {}
 func (*AssistantUsageData) Type() SessionEventType { return SessionEventTypeAssistantUsage }
+
+// MCP App view called a tool on a connected MCP server (SEP-1865)
+type McpAppToolCallCompleteData struct {
+	// Arguments passed to the tool by the app view, if any
+	Arguments map[string]any `json:"arguments,omitempty"`
+	// Wall-clock duration of the underlying tools/call in milliseconds
+	DurationMs float64 `json:"durationMs"`
+	// Set when the underlying tools/call threw an error before returning a CallToolResult
+	Error *McpAppToolCallCompleteError `json:"error,omitempty"`
+	// Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
+	Result map[string]any `json:"result,omitempty"`
+	// Name of the MCP server hosting the tool
+	ServerName string `json:"serverName"`
+	// True when the call completed without throwing AND the MCP CallToolResult did not set isError
+	Success bool `json:"success"`
+	// The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
+	ToolMeta *McpAppToolCallCompleteToolMeta `json:"toolMeta,omitempty"`
+	// MCP tool name that was invoked
+	ToolName string `json:"toolName"`
+}
+
+func (*McpAppToolCallCompleteData) sessionEventData() {}
+func (*McpAppToolCallCompleteData) Type() SessionEventType {
+	return SessionEventTypeMcpAppToolCallComplete
+}
 
 // MCP OAuth request completion notification
 type McpOauthCompletedData struct {
@@ -578,6 +621,8 @@ func (*McpOauthCompletedData) Type() SessionEventType { return SessionEventTypeM
 type SessionModelChangeData struct {
 	// Reason the change happened, when not user-initiated. Currently `"rate_limit_auto_switch"` for changes triggered by the auto-mode-switch rate-limit recovery path. UI clients can use this to render contextual copy.
 	Cause *string `json:"cause,omitempty"`
+	// Context tier after the model change; null explicitly clears a previously selected tier
+	ContextTier *SessionModelChangeDataContextTier `json:"contextTier,omitempty"`
 	// Newly selected model identifier
 	NewModel string `json:"newModel"`
 	// Model that was previously selected, if any
@@ -829,6 +874,44 @@ func (*SessionBackgroundTasksChangedData) Type() SessionEventType {
 	return SessionEventTypeSessionBackgroundTasksChanged
 }
 
+// Schema for the `CanvasOpenedData` type.
+type SessionCanvasOpenedData struct {
+	// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+	Availability CanvasOpenedAvailability `json:"availability"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// Input supplied when the instance was opened
+	Input any `json:"input,omitempty"`
+	// Stable caller-supplied canvas instance identifier
+	InstanceID string `json:"instanceId"`
+	// Whether this notification represents an idempotent reopen
+	Reopen bool `json:"reopen"`
+	// Provider-supplied status text
+	Status *string `json:"status,omitempty"`
+	// Rendered title
+	Title *string `json:"title,omitempty"`
+	// URL for web-rendered canvases
+	URL *string `json:"url,omitempty"`
+}
+
+func (*SessionCanvasOpenedData) sessionEventData()      {}
+func (*SessionCanvasOpenedData) Type() SessionEventType { return SessionEventTypeSessionCanvasOpened }
+
+// Schema for the `CanvasRegistryChangedData` type.
+type SessionCanvasRegistryChangedData struct {
+	// Canvas declarations currently available
+	Canvases []CanvasRegistryChangedCanvas `json:"canvases"`
+}
+
+func (*SessionCanvasRegistryChangedData) sessionEventData() {}
+func (*SessionCanvasRegistryChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionCanvasRegistryChanged
+}
+
 // Schema for the `CustomAgentsUpdatedData` type.
 type SessionCustomAgentsUpdatedData struct {
 	// Array of loaded custom agent metadata
@@ -857,6 +940,8 @@ func (*SessionExtensionsLoadedData) Type() SessionEventType {
 
 // Schema for the `McpServerStatusChangedData` type.
 type SessionMcpServerStatusChangedData struct {
+	// Error message if the server entered a failed state
+	Error *string `json:"error,omitempty"`
 	// Name of the MCP server whose status changed
 	ServerName string `json:"serverName"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
@@ -1052,8 +1137,10 @@ type SessionShutdownData struct {
 	// Cumulative time spent in API calls during the session, in milliseconds
 	TotalAPIDurationMs int64 `json:"totalApiDurationMs"`
 	// Session-wide accumulated nano-AI units cost
+	// Experimental: TotalNanoAiu is part of an experimental API and may change or be removed.
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Total number of premium API requests used during the session
+	// Internal: TotalPremiumRequests is part of the SDK's internal API surface and is not intended for external use.
 	TotalPremiumRequests *float64 `json:"totalPremiumRequests,omitempty"`
 }
 
@@ -1085,6 +1172,10 @@ type SkillInvokedData struct {
 	PluginName *string `json:"pluginName,omitempty"`
 	// Version of the plugin this skill originated from, when applicable
 	PluginVersion *string `json:"pluginVersion,omitempty"`
+	// Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill)
+	Source *string `json:"source,omitempty"`
+	// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
+	Trigger *SkillInvokedTrigger `json:"trigger,omitempty"`
 }
 
 func (*SkillInvokedData) sessionEventData()      {}
@@ -1275,6 +1366,8 @@ type ToolExecutionCompleteData struct {
 	Success bool `json:"success"`
 	// Unique identifier for the completed tool call
 	ToolCallID string `json:"toolCallId"`
+	// Tool definition metadata, present for MCP tools with MCP Apps support
+	ToolDescription *ToolExecutionCompleteToolDescription `json:"toolDescription,omitempty"`
 	// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
 	ToolTelemetry map[string]any `json:"toolTelemetry,omitempty"`
 	// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
@@ -1465,6 +1558,7 @@ type AssistantMessageToolRequest struct {
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
+// Internal: AssistantUsageCopilotUsage is an internal SDK API and is not part of the public surface.
 type AssistantUsageCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []AssistantUsageCopilotUsageTokenDetail `json:"tokenDetails"`
@@ -1485,29 +1579,70 @@ type AssistantUsageCopilotUsageTokenDetail struct {
 }
 
 // Schema for the `AssistantUsageQuotaSnapshot` type.
+// Internal: AssistantUsageQuotaSnapshot is an internal SDK API and is not part of the public surface.
 type AssistantUsageQuotaSnapshot struct {
 	// Total requests allowed by the entitlement
+	// Internal: EntitlementRequests is part of the SDK's internal API surface and is not intended for external use.
 	EntitlementRequests int64 `json:"entitlementRequests"`
 	// Whether the user has an unlimited usage entitlement
+	// Internal: IsUnlimitedEntitlement is part of the SDK's internal API surface and is not intended for external use.
 	IsUnlimitedEntitlement bool `json:"isUnlimitedEntitlement"`
 	// Number of additional usage requests made this period
+	// Internal: Overage is part of the SDK's internal API surface and is not intended for external use.
 	Overage float64 `json:"overage"`
 	// Whether additional usage is allowed when quota is exhausted
+	// Internal: OverageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	OverageAllowedWithExhaustedQuota bool `json:"overageAllowedWithExhaustedQuota"`
 	// Percentage of quota remaining (0 to 100)
+	// Internal: RemainingPercentage is part of the SDK's internal API surface and is not intended for external use.
 	RemainingPercentage float64 `json:"remainingPercentage"`
 	// Date when the quota resets
+	// Internal: ResetDate is part of the SDK's internal API surface and is not intended for external use.
 	ResetDate *time.Time `json:"resetDate,omitempty"`
 	// Whether usage is still permitted after quota exhaustion
+	// Internal: UsageAllowedWithExhaustedQuota is part of the SDK's internal API surface and is not intended for external use.
 	UsageAllowedWithExhaustedQuota bool `json:"usageAllowedWithExhaustedQuota"`
 	// Number of requests already consumed
+	// Internal: UsedRequests is part of the SDK's internal API surface and is not intended for external use.
 	UsedRequests int64 `json:"usedRequests"`
+}
+
+// Schema for the `CanvasRegistryChangedCanvas` type.
+type CanvasRegistryChangedCanvas struct {
+	// Actions the agent or host may invoke
+	Actions []CanvasRegistryChangedCanvasAction `json:"actions,omitempty"`
+	// Provider-local canvas identifier
+	CanvasID string `json:"canvasId"`
+	// Short, single-sentence description shown to the agent in canvas catalogs.
+	Description string `json:"description"`
+	// Human-readable canvas name
+	DisplayName string `json:"displayName"`
+	// Owning provider identifier
+	ExtensionID string `json:"extensionId"`
+	// Owning extension display name, when available
+	ExtensionName *string `json:"extensionName,omitempty"`
+	// JSON Schema for canvas open input
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
+}
+
+// Schema for the `CanvasRegistryChangedCanvasAction` type.
+type CanvasRegistryChangedCanvasAction struct {
+	// Action description
+	Description *string `json:"description,omitempty"`
+	// JSON Schema for action input
+	InputSchema map[string]any `json:"inputSchema,omitempty"`
+	// Action name
+	Name string `json:"name"`
 }
 
 // UI capability changes
 type CapabilitiesChangedUI struct {
+	// Whether canvas rendering is now supported
+	Canvases *bool `json:"canvases,omitempty"`
 	// Whether elicitation is now supported
 	Elicitation *bool `json:"elicitation,omitempty"`
+	// Whether MCP Apps (SEP-1865) UI passthrough is now supported
+	McpApps *bool `json:"mcpApps,omitempty"`
 }
 
 // Schema for the `CommandsChangedCommand` type.
@@ -1525,6 +1660,7 @@ type CompactionCompleteCompactionTokensUsed struct {
 	// Tokens written to prompt cache in the compaction LLM call
 	CacheWriteTokens *int64 `json:"cacheWriteTokens,omitempty"`
 	// Per-request cost and usage data from the CAPI copilot_usage response field
+	// Internal: CopilotUsage is part of the SDK's internal API surface and is not intended for external use.
 	CopilotUsage *CompactionCompleteCompactionTokensUsedCopilotUsage `json:"copilotUsage,omitempty"`
 	// Duration of the compaction LLM call in milliseconds
 	Duration *int64 `json:"duration,omitempty"`
@@ -1537,6 +1673,7 @@ type CompactionCompleteCompactionTokensUsed struct {
 }
 
 // Per-request cost and usage data from the CAPI copilot_usage response field
+// Internal: CompactionCompleteCompactionTokensUsedCopilotUsage is an internal SDK API and is not part of the public surface.
 type CompactionCompleteCompactionTokensUsedCopilotUsage struct {
 	// Itemized token usage breakdown
 	TokenDetails []CompactionCompleteCompactionTokensUsedCopilotUsageTokenDetail `json:"tokenDetails"`
@@ -1646,6 +1783,26 @@ type HookEndError struct {
 	Stack *string `json:"stack,omitempty"`
 }
 
+// Set when the underlying tools/call threw an error before returning a CallToolResult
+type McpAppToolCallCompleteError struct {
+	// Human-readable error message
+	Message string `json:"message"`
+}
+
+// The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
+type McpAppToolCallCompleteToolMeta struct {
+	// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+	UI *McpAppToolCallCompleteToolMetaUI `json:"ui,omitempty"`
+}
+
+// Schema for the `McpAppToolCallCompleteToolMetaUI` type.
+type McpAppToolCallCompleteToolMetaUI struct {
+	// `ui://` URI declared by the tool's `_meta.ui.resourceUri`
+	ResourceURI *string `json:"resourceUri,omitempty"`
+	// Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
+	Visibility []string `json:"visibility,omitempty"`
+}
+
 // Static OAuth client configuration, if the server specifies one
 type McpOauthRequiredStaticClientConfig struct {
 	// OAuth client ID for the server
@@ -1662,10 +1819,16 @@ type McpServersLoadedServer struct {
 	Error *string `json:"error,omitempty"`
 	// Server name (config key)
 	Name string `json:"name"`
+	// Name of the plugin that supplied the effective MCP server config, only when source is plugin
+	PluginName *string `json:"pluginName,omitempty"`
+	// Version of the plugin that supplied the effective MCP server config, only when source is plugin
+	PluginVersion *string `json:"pluginVersion,omitempty"`
 	// Configuration source: user, workspace, plugin, or builtin
 	Source *McpServerSource `json:"source,omitempty"`
 	// Connection status: connected, failed, needs-auth, pending, disabled, or not_configured
 	Status McpServerStatus `json:"status"`
+	// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
+	Transport *McpServerTransport `json:"transport,omitempty"`
 }
 
 // Derived user-facing permission prompt details for UI consumers
@@ -2229,6 +2392,7 @@ type ShutdownModelMetric struct {
 	// Token count details per type
 	TokenDetails map[string]ShutdownModelMetricTokenDetail `json:"tokenDetails,omitempty"`
 	// Accumulated nano-AI units cost for this model
+	// Experimental: TotalNanoAiu is part of an experimental API and may change or be removed.
 	TotalNanoAiu *float64 `json:"totalNanoAiu,omitempty"`
 	// Token usage breakdown
 	Usage ShutdownModelMetricUsage `json:"usage"`
@@ -2237,8 +2401,10 @@ type ShutdownModelMetric struct {
 // Request count and cost metrics
 type ShutdownModelMetricRequests struct {
 	// Cumulative cost multiplier for requests to this model
+	// Experimental: Cost is part of an experimental API and may change or be removed.
 	Cost *float64 `json:"cost,omitempty"`
 	// Total number of API requests made to this model
+	// Experimental: Count is part of an experimental API and may change or be removed.
 	Count *int64 `json:"count,omitempty"`
 }
 
@@ -2540,6 +2706,98 @@ type ToolExecutionCompleteResult struct {
 	Contents []ToolExecutionCompleteContent `json:"contents,omitempty"`
 	// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
 	DetailedContent *string `json:"detailedContent,omitempty"`
+	// MCP Apps UI resource content for rendering in a sandboxed iframe
+	UIResource *ToolExecutionCompleteUIResource `json:"uiResource,omitempty"`
+}
+
+// Tool definition metadata, present for MCP tools with MCP Apps support
+type ToolExecutionCompleteToolDescription struct {
+	// Tool description
+	Description *string `json:"description,omitempty"`
+	// MCP Apps metadata for UI resource association
+	Meta *ToolExecutionCompleteToolDescriptionMeta `json:"_meta,omitempty"`
+	// Tool name
+	Name string `json:"name"`
+}
+
+// MCP Apps metadata for UI resource association
+type ToolExecutionCompleteToolDescriptionMeta struct {
+	// Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+	UI *ToolExecutionCompleteToolDescriptionMetaUI `json:"ui,omitempty"`
+}
+
+// Schema for the `ToolExecutionCompleteToolDescriptionMetaUI` type.
+type ToolExecutionCompleteToolDescriptionMetaUI struct {
+	// URI of the UI resource
+	ResourceURI *string `json:"resourceUri,omitempty"`
+	// Who can access this tool
+	Visibility []ToolExecutionCompleteToolDescriptionMetaUIVisibility `json:"visibility,omitempty"`
+}
+
+// MCP Apps UI resource content for rendering in a sandboxed iframe
+type ToolExecutionCompleteUIResource struct {
+	// Base64-encoded HTML content
+	Blob *string `json:"blob,omitempty"`
+	// Resource-level UI metadata (CSP, permissions, visual preferences)
+	Meta *ToolExecutionCompleteUIResourceMeta `json:"_meta,omitempty"`
+	// MIME type of the content
+	MIMEType string `json:"mimeType"`
+	// HTML content as a string
+	Text *string `json:"text,omitempty"`
+	// The ui:// URI of the resource
+	URI string `json:"uri"`
+}
+
+// Resource-level UI metadata (CSP, permissions, visual preferences)
+type ToolExecutionCompleteUIResourceMeta struct {
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+	UI *ToolExecutionCompleteUIResourceMetaUI `json:"ui,omitempty"`
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUI` type.
+type ToolExecutionCompleteUIResourceMetaUI struct {
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+	Csp    *ToolExecutionCompleteUIResourceMetaUICsp `json:"csp,omitempty"`
+	Domain *string                                   `json:"domain,omitempty"`
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+	Permissions   *ToolExecutionCompleteUIResourceMetaUIPermissions `json:"permissions,omitempty"`
+	PrefersBorder *bool                                             `json:"prefersBorder,omitempty"`
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUICsp` type.
+type ToolExecutionCompleteUIResourceMetaUICsp struct {
+	BaseURIDomains  []string `json:"baseUriDomains,omitempty"`
+	ConnectDomains  []string `json:"connectDomains,omitempty"`
+	FrameDomains    []string `json:"frameDomains,omitempty"`
+	ResourceDomains []string `json:"resourceDomains,omitempty"`
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissions` type.
+type ToolExecutionCompleteUIResourceMetaUIPermissions struct {
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+	Camera *ToolExecutionCompleteUIResourceMetaUIPermissionsCamera `json:"camera,omitempty"`
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+	ClipboardWrite *ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite `json:"clipboardWrite,omitempty"`
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+	Geolocation *ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation `json:"geolocation,omitempty"`
+	// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+	Microphone *ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone `json:"microphone,omitempty"`
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
+type ToolExecutionCompleteUIResourceMetaUIPermissionsCamera struct {
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite` type.
+type ToolExecutionCompleteUIResourceMetaUIPermissionsClipboardWrite struct {
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation` type.
+type ToolExecutionCompleteUIResourceMetaUIPermissionsGeolocation struct {
+}
+
+// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone` type.
+type ToolExecutionCompleteUIResourceMetaUIPermissionsMicrophone struct {
 }
 
 // A user message attachment — a file, directory, code selection, blob, or GitHub reference
@@ -2725,6 +2983,16 @@ const (
 	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
 )
 
+// Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.
+type CanvasOpenedAvailability string
+
+const (
+	// Provider connection is live; actions can be invoked.
+	CanvasOpenedAvailabilityReady CanvasOpenedAvailability = "ready"
+	// Provider has gone away; the instance is awaiting rebinding.
+	CanvasOpenedAvailabilityStale CanvasOpenedAvailability = "stale"
+)
+
 // The user action: "accept" (submitted form), "decline" (explicitly refused), or "cancel" (dismissed)
 type ElicitationCompletedAction string
 
@@ -2807,6 +3075,20 @@ type McpOauthRequiredStaticClientConfigGrantType string
 
 const (
 	McpOauthRequiredStaticClientConfigGrantTypeClientCredentials McpOauthRequiredStaticClientConfigGrantType = "client_credentials"
+)
+
+// Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server)
+type McpServerTransport string
+
+const (
+	// Server communicates over streamable HTTP.
+	McpServerTransportHTTP McpServerTransport = "http"
+	// Server is backed by an in-memory runtime implementation.
+	McpServerTransportMemory McpServerTransport = "memory"
+	// Server communicates over Server-Sent Events (deprecated).
+	McpServerTransportSse McpServerTransport = "sse"
+	// Server communicates over stdio with a local child process.
+	McpServerTransportStdio McpServerTransport = "stdio"
 )
 
 // Where the failed model call originated
@@ -2913,6 +3195,27 @@ const (
 	PlanChangedOperationUpdate PlanChangedOperation = "update"
 )
 
+type SessionModelChangeDataContextTier string
+
+const (
+	// Default context tier with standard context window size.
+	SessionModelChangeDataContextTierDefault SessionModelChangeDataContextTier = "default"
+	// Extended context tier with a larger context window.
+	SessionModelChangeDataContextTierLongContext SessionModelChangeDataContextTier = "long_context"
+)
+
+// What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)
+type SkillInvokedTrigger string
+
+const (
+	// Skill invocation requested by the agent.
+	SkillInvokedTriggerAgentInvoked SkillInvokedTrigger = "agent-invoked"
+	// Skill content loaded as part of another context, such as a configured custom agent or subagent.
+	SkillInvokedTriggerContextLoad SkillInvokedTrigger = "context-load"
+	// Skill invocation requested explicitly by the user, such as via a slash command or UI affordance.
+	SkillInvokedTriggerUserInvoked SkillInvokedTrigger = "user-invoked"
+)
+
 // Message role: "system" for system prompts, "developer" for developer-injected instructions
 type SystemMessageRole string
 
@@ -2965,6 +3268,16 @@ const (
 	ToolExecutionCompleteContentTypeResourceLink ToolExecutionCompleteContentType = "resource_link"
 	ToolExecutionCompleteContentTypeTerminal     ToolExecutionCompleteContentType = "terminal"
 	ToolExecutionCompleteContentTypeText         ToolExecutionCompleteContentType = "text"
+)
+
+// Allowed values for the `ToolExecutionCompleteToolDescriptionMetaUIVisibility` enumeration.
+type ToolExecutionCompleteToolDescriptionMetaUIVisibility string
+
+const (
+	// Tool is callable by the MCP App view (iframe) via session.mcp.apps.callTool
+	ToolExecutionCompleteToolDescriptionMetaUIVisibilityApp ToolExecutionCompleteToolDescriptionMetaUIVisibility = "app"
+	// Tool is callable by the model (LLM tool surface)
+	ToolExecutionCompleteToolDescriptionMetaUIVisibilityModel ToolExecutionCompleteToolDescriptionMetaUIVisibility = "model"
 )
 
 // The agent mode that was active when this message was sent

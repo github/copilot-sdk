@@ -2,7 +2,6 @@
 
 use std::time::Instant;
 
-use github_copilot_sdk::resolve::copilot_binary_with_source;
 use github_copilot_sdk::{Client, ClientOptions, SDK_PROTOCOL_VERSION};
 
 fn default_options() -> ClientOptions {
@@ -89,11 +88,8 @@ async fn cli_operation_latency() {
 
     client2.stop().await.expect("stop second client failed");
 
-    let (cli_path, source) = copilot_binary_with_source().expect("copilot binary not found");
-
     eprintln!();
     eprintln!("=== CLI operation latency ===");
-    eprintln!("  binary: {} ({:?})", cli_path.display(), source);
     eprintln!("  cold Client::start:   {:>8.1?}", cold_start);
     eprintln!("  warm ping():          {:>8.1?}", warm_ping);
     eprintln!(

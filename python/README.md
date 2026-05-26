@@ -574,13 +574,12 @@ session = await client.create_session(
 Provide your own function to inspect each request and apply custom logic (sync or async):
 
 ```python
-from copilot import (
+from copilot import PermissionRequest, PermissionRequestResult
+from copilot.generated.rpc import (
     PermissionDecisionApproveOnce,
     PermissionDecisionReject,
-    PermissionRequest,
-    PermissionRequestResult,
-    PermissionRequestShell,
 )
+from copilot.generated.session_events import PermissionRequestShell
 
 
 def on_permission_request(

@@ -54,6 +54,8 @@ public final class ToolExecutionCompleteEvent extends SessionEvent {
         @JsonProperty("toolTelemetry") Map<String, Object> toolTelemetry,
         /** Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
+        /** Whether this tool execution ran inside a sandbox container */
+        @JsonProperty("sandboxed") Boolean sandboxed,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {

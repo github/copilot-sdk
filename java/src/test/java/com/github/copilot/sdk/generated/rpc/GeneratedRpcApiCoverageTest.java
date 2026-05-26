@@ -633,7 +633,7 @@ class GeneratedRpcApiCoverageTest {
         var stub = new StubCaller();
         var session = new SessionRpc(stub, "sess-log");
 
-        var logParams = new SessionLogParams(null, "Hello from test", null, null, null);
+        var logParams = new SessionLogParams(null, "Hello from test", null, null, null, null, null);
         session.log(logParams);
 
         assertEquals(1, stub.calls.size());

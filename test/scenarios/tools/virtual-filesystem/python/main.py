@@ -1,5 +1,4 @@
 import asyncio
-import os
 
 from pydantic import BaseModel, Field
 
@@ -49,9 +48,7 @@ async def auto_approve_tool(input_data, invocation):
 
 
 async def main():
-    client = CopilotClient(
-        github_token=os.environ.get("GITHUB_TOKEN"),
-    )
+    client = CopilotClient()
 
     try:
         session = await client.create_session(

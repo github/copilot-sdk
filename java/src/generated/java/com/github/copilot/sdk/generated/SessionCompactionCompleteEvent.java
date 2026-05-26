@@ -40,19 +40,21 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         /** Error message if compaction failed */
         @JsonProperty("error") String error,
         /** Total tokens in conversation before compaction */
-        @JsonProperty("preCompactionTokens") Double preCompactionTokens,
+        @JsonProperty("preCompactionTokens") Long preCompactionTokens,
         /** Total tokens in conversation after compaction */
-        @JsonProperty("postCompactionTokens") Double postCompactionTokens,
+        @JsonProperty("postCompactionTokens") Long postCompactionTokens,
         /** Number of messages before compaction */
-        @JsonProperty("preCompactionMessagesLength") Double preCompactionMessagesLength,
+        @JsonProperty("preCompactionMessagesLength") Long preCompactionMessagesLength,
         /** Number of messages removed during compaction */
-        @JsonProperty("messagesRemoved") Double messagesRemoved,
+        @JsonProperty("messagesRemoved") Long messagesRemoved,
         /** Number of tokens removed during compaction */
-        @JsonProperty("tokensRemoved") Double tokensRemoved,
+        @JsonProperty("tokensRemoved") Long tokensRemoved,
+        /** User-supplied focus instructions provided to a manual `/compact` invocation. Omitted for automatic compaction and for manual compaction with no focus text. */
+        @JsonProperty("customInstructions") String customInstructions,
         /** LLM-generated summary of the compacted conversation history */
         @JsonProperty("summaryContent") String summaryContent,
         /** Checkpoint snapshot number created for recovery */
-        @JsonProperty("checkpointNumber") Double checkpointNumber,
+        @JsonProperty("checkpointNumber") Long checkpointNumber,
         /** File path where the checkpoint was stored */
         @JsonProperty("checkpointPath") String checkpointPath,
         /** Token usage breakdown for the compaction LLM call (aligned with assistant.usage format) */
@@ -60,11 +62,11 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         /** GitHub request tracing ID (x-github-request-id header) for the compaction LLM call */
         @JsonProperty("requestId") String requestId,
         /** Token count from system message(s) after compaction */
-        @JsonProperty("systemTokens") Double systemTokens,
+        @JsonProperty("systemTokens") Long systemTokens,
         /** Token count from non-system messages (user, assistant, tool) after compaction */
-        @JsonProperty("conversationTokens") Double conversationTokens,
+        @JsonProperty("conversationTokens") Long conversationTokens,
         /** Token count from tool definitions after compaction */
-        @JsonProperty("toolDefinitionsTokens") Double toolDefinitionsTokens
+        @JsonProperty("toolDefinitionsTokens") Long toolDefinitionsTokens
     ) {
     }
 }

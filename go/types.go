@@ -283,42 +283,17 @@ type SystemMessageConfig struct {
 	Sections map[string]SectionOverride `json:"sections,omitempty"`
 }
 
-// PermissionRequestResultKind represents the kind of a permission request result.
-type PermissionRequestResultKind string
-
-const (
-	// PermissionRequestResultKindApproved indicates the permission was approved for this one instance.
-	PermissionRequestResultKindApproved PermissionRequestResultKind = "approve-once"
-
-	// PermissionRequestResultKindRejected indicates the permission was denied interactively by the user.
-	PermissionRequestResultKindRejected PermissionRequestResultKind = "reject"
-
-	// PermissionRequestResultKindUserNotAvailable indicates the permission was denied because
-	// user confirmation was unavailable.
-	PermissionRequestResultKindUserNotAvailable PermissionRequestResultKind = "user-not-available"
-
-	// PermissionRequestResultKindNoResult indicates no permission decision was made.
-	PermissionRequestResultKindNoResult PermissionRequestResultKind = "no-result"
-
-	// Deprecated: Use PermissionRequestResultKindRejected instead.
-	PermissionRequestResultKindDeniedInteractivelyByUser = PermissionRequestResultKindRejected
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedCouldNotRequestFromUser = PermissionRequestResultKindUserNotAvailable
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedByRules = PermissionRequestResultKindUserNotAvailable
-)
-
-// PermissionRequestResult represents the result of a permission request
-type PermissionRequestResult struct {
-	Kind  PermissionRequestResultKind `json:"kind"`
-	Rules []any                       `json:"rules,omitempty"`
-}
-
-// PermissionHandlerFunc executes a permission request
-// The handler should return a PermissionRequestResult. Returning an error denies the permission.
-type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
+// PermissionHandlerFunc executes a permission request.
+// The handler should return a [rpc.PermissionDecision]. Returning an error
+// causes the SDK to respond with [rpc.PermissionDecisionUserNotAvailable].
+//
+// Use the variant types directly:
+//
+//	&rpc.PermissionDecisionApproveOnce{}
+//	&rpc.PermissionDecisionReject{Feedback: &feedback}
+//	&rpc.PermissionDecisionUserNotAvailable{}
+//	&rpc.PermissionDecisionNoResult{}  // decline to respond; another client may answer
+type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error)
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {
@@ -972,6 +947,21 @@ type SessionConfig struct {
 	// Cloud creates a remote session in the cloud instead of a local session.
 	// The optional repository is associated with the cloud session.
 	Cloud *CloudSessionOptions
+	// Canvases declares canvases this session provides. Sent over the wire on
+	// `session.create`. CanvasHandler must be set when this is non-empty (the
+	// SDK does not enforce this — declarations without a handler will surface
+	// canvas RPCs that return a canvas_handler_unset error envelope).
+	Canvases []CanvasDeclaration
+	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
+	RequestCanvasRenderer *bool
+	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	RequestExtensions *bool
+	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
+	// requests for this session. The SDK does not maintain a per-canvas registry;
+	// the handler must dispatch on CanvasOpenContext.CanvasID itself.
+	CanvasHandler CanvasHandler `json:"-"`
+	// ExtensionInfo identifies the stable extension providing this session's canvases.
+	ExtensionInfo *ExtensionInfo
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -1229,6 +1219,21 @@ type ResumeSessionConfig struct {
 	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on resume.
 	// See SessionConfig.EnableMcpApps.
 	EnableMcpApps bool
+	// Canvases declares canvases this session provides. Sent over the wire on
+	// `session.resume`. See SessionConfig.Canvases.
+	Canvases []CanvasDeclaration
+	// OpenCanvases declares canvas instances the caller knows were open before
+	// this resume so the runtime can re-attach them. Sent over the wire on
+	// `session.resume` as `openCanvases`.
+	OpenCanvases []rpc.OpenCanvasInstance
+	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
+	RequestCanvasRenderer *bool
+	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	RequestExtensions *bool
+	// CanvasHandler receives inbound canvas.* requests for this session. See SessionConfig.CanvasHandler.
+	CanvasHandler CanvasHandler `json:"-"`
+	// ExtensionInfo identifies the stable extension providing this session's canvases.
+	ExtensionInfo *ExtensionInfo
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -1454,6 +1459,10 @@ type createSessionRequest struct {
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
 	Cloud                          *CloudSessionOptions           `json:"cloud,omitempty"`
+	Canvases                       []CanvasDeclaration            `json:"canvases,omitempty"`
+	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
+	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
@@ -1510,15 +1519,21 @@ type resumeSessionRequest struct {
 	RequestMcpApps                 *bool                          `json:"requestMcpApps,omitempty"`
 	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
+	Canvases                       []CanvasDeclaration            `json:"canvases,omitempty"`
+	OpenCanvases                   []rpc.OpenCanvasInstance       `json:"openCanvases,omitempty"`
+	RequestCanvasRenderer          *bool                          `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions              *bool                          `json:"requestExtensions,omitempty"`
+	ExtensionInfo                  *ExtensionInfo                 `json:"extensionInfo,omitempty"`
 	Traceparent                    string                         `json:"traceparent,omitempty"`
 	Tracestate                     string                         `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume
 type resumeSessionResponse struct {
-	SessionID     string               `json:"sessionId"`
-	WorkspacePath string               `json:"workspacePath"`
-	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
+	SessionID     string                   `json:"sessionId"`
+	WorkspacePath string                   `json:"workspacePath"`
+	Capabilities  *SessionCapabilities     `json:"capabilities,omitempty"`
+	OpenCanvases  []rpc.OpenCanvasInstance `json:"openCanvases,omitempty"`
 }
 
 type hooksInvokeRequest struct {

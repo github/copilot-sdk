@@ -4,6 +4,7 @@
 
 using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -79,6 +80,22 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
         });
         Assert.Contains("TASK_AGENT_READY", ready?.Data.Content ?? string.Empty, StringComparison.Ordinal);
 
+        var taskCompletionNotification =
+            new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var subscription = session.On<SessionEvent>(evt =>
+        {
+            switch (evt)
+            {
+                case AssistantMessageEvent assistantMessage
+                    when assistantMessage.Data.Content?.Contains("TASK_AGENT_DONE", StringComparison.Ordinal) == true:
+                    taskCompletionNotification.TrySetResult(assistantMessage);
+                    break;
+                case SessionErrorEvent error:
+                    taskCompletionNotification.TrySetException(new Exception(error.Data.Message ?? "session error"));
+                    break;
+            }
+        });
+
         var started = await session.Rpc.Tasks.StartAgentAsync(
             agentType: "general-purpose",
             prompt: "Reply with TASK_AGENT_DONE exactly.",
@@ -122,6 +139,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         Assert.NotNull(task);
         Assert.Contains("TASK_AGENT_DONE", task.LatestResponse ?? task.Result ?? string.Empty);
+        await taskCompletionNotification.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         if (task.Status == GitHub.Copilot.Rpc.TaskStatus.Idle)
         {
@@ -143,7 +161,7 @@ public class RpcTasksAndHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelp
 
         var tool = await session.Rpc.Tools.HandlePendingToolCallAsync(
             requestId: "missing-tool-request",
-            result: "tool result");
+            result: JsonDocument.Parse("\"tool result\"").RootElement.Clone());
         Assert.False(tool.Success);
 
         var command = await session.Rpc.Commands.HandlePendingCommandAsync(

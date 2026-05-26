@@ -38,7 +38,7 @@ public final class SessionSnapshotRewindEvent extends SessionEvent {
         /** Event ID that was rewound to; this event and all after it were removed */
         @JsonProperty("upToEventId") String upToEventId,
         /** Number of events that were removed by the rewind */
-        @JsonProperty("eventsRemoved") Double eventsRemoved
+        @JsonProperty("eventsRemoved") Long eventsRemoved
     ) {
     }
 }

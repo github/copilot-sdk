@@ -53,8 +53,6 @@ import (
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-const noResultPermissionV2Error = "permission handlers cannot return 'no-result' when connected to a protocol v2 server"
-
 // warnIfMcpAppsDropped logs a warning via the standard log package when the
 // consumer set EnableMcpApps=true on create/resume but the runtime did not
 // advertise capabilities.ui.mcpApps in the response. The runtime silently drops
@@ -652,6 +650,10 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
+	req.Canvases = config.Canvases
+	req.RequestCanvasRenderer = config.RequestCanvasRenderer
+	req.RequestExtensions = config.RequestExtensions
+	req.ExtensionInfo = config.ExtensionInfo
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -736,6 +738,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	if config.OnAutoModeSwitchRequest != nil {
 		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
+	}
+	if config.CanvasHandler != nil {
+		session.registerCanvasHandler(config.CanvasHandler)
 	}
 
 	c.sessionsMux.Lock()
@@ -871,6 +876,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.InfiniteSessions = config.InfiniteSessions
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
+	req.Canvases = config.Canvases
+	req.OpenCanvases = config.OpenCanvases
+	req.RequestCanvasRenderer = config.RequestCanvasRenderer
+	req.RequestExtensions = config.RequestExtensions
+	req.ExtensionInfo = config.ExtensionInfo
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}
@@ -929,6 +939,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.OnAutoModeSwitchRequest != nil {
 		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
 	}
+	if config.CanvasHandler != nil {
+		session.registerCanvasHandler(config.CanvasHandler)
+	}
 
 	c.sessionsMux.Lock()
 	c.sessions[sessionID] = session
@@ -971,6 +984,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
+	session.setOpenCanvases(response.OpenCanvases)
 	warnIfMcpAppsDropped(config.EnableMcpApps, response.Capabilities, sessionID)
 
 	return session, nil
@@ -1416,7 +1430,7 @@ func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
 }
 
 // minProtocolVersion is the minimum protocol version this SDK can communicate with.
-const minProtocolVersion = 2
+const minProtocolVersion = 3
 
 // verifyProtocolVersion sends the `connect` handshake (carrying the optional token) and
 // verifies the server's protocol version. Falls back to `ping` against legacy servers
@@ -1772,20 +1786,17 @@ func (c *Client) connectViaTcp(ctx context.Context) error {
 }
 
 // setupNotificationHandler configures handlers for session events and RPC requests.
-// Protocol v3 servers send tool calls and permission requests as broadcast session events.
-// Protocol v2 servers use the older tool.call / permission.request RPC model.
-// We always register v2 adapters because handlers are set up before version negotiation;
-// a v3 server will simply never send these requests.
 func (c *Client) setupNotificationHandler() {
 	c.client.SetRequestHandler("session.event", jsonrpc2.NotificationHandlerFor(c.handleSessionEvent))
 	c.client.SetRequestHandler("session.lifecycle", jsonrpc2.NotificationHandlerFor(c.handleLifecycleEvent))
-	c.client.SetRequestHandler("tool.call", jsonrpc2.RequestHandlerFor(c.handleToolCallRequestV2))
-	c.client.SetRequestHandler("permission.request", jsonrpc2.RequestHandlerFor(c.handlePermissionRequestV2))
 	c.client.SetRequestHandler("userInput.request", jsonrpc2.RequestHandlerFor(c.handleUserInputRequest))
 	c.client.SetRequestHandler("exitPlanMode.request", jsonrpc2.RequestHandlerFor(c.handleExitPlanModeRequest))
 	c.client.SetRequestHandler("autoModeSwitch.request", jsonrpc2.RequestHandlerFor(c.handleAutoModeSwitchRequest))
 	c.client.SetRequestHandler("hooks.invoke", jsonrpc2.RequestHandlerFor(c.handleHooksInvoke))
 	c.client.SetRequestHandler("systemMessage.transform", jsonrpc2.RequestHandlerFor(c.handleSystemMessageTransform))
+	c.client.SetRequestHandler("canvas.open", jsonrpc2.RequestHandlerFor(c.handleCanvasOpen))
+	c.client.SetRequestHandler("canvas.close", jsonrpc2.RequestHandlerFor(c.handleCanvasClose))
+	c.client.SetRequestHandler("canvas.action.invoke", jsonrpc2.RequestHandlerFor(c.handleCanvasActionInvoke))
 	rpc.RegisterClientSessionApiHandlers(c.client, func(sessionID string) *rpc.ClientSessionApiHandlers {
 		c.sessionsMux.Lock()
 		defer c.sessionsMux.Unlock()
@@ -1935,119 +1946,88 @@ func (c *Client) handleSystemMessageTransform(req systemMessageTransformRequest)
 	return resp, nil
 }
 
-// ========================================================================
-// Protocol v2 backward-compatibility adapters
-// ========================================================================
-
-// toolCallRequestV2 is the v2 RPC request payload for tool.call.
-type toolCallRequestV2 struct {
-	SessionID   string `json:"sessionId"`
-	ToolCallID  string `json:"toolCallId"`
-	ToolName    string `json:"toolName"`
-	Arguments   any    `json:"arguments"`
-	Traceparent string `json:"traceparent,omitempty"`
-	Tracestate  string `json:"tracestate,omitempty"`
-}
-
-// toolCallResponseV2 is the v2 RPC response payload for tool.call.
-type toolCallResponseV2 struct {
-	Result ToolResult `json:"result"`
-}
-
-// permissionRequestV2 is the v2 RPC request payload for permission.request.
-type permissionRequestV2 struct {
-	SessionID string            `json:"sessionId"`
-	Request   PermissionRequest `json:"permissionRequest"`
-}
-
-// permissionResponseV2 is the v2 RPC response payload for permission.request.
-type permissionResponseV2 struct {
-	Result PermissionRequestResult `json:"result"`
-}
-
-// handleToolCallRequestV2 handles a v2-style tool.call RPC request from the server.
-func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallResponseV2, *jsonrpc2.Error) {
-	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
+// canvasJSONRPCError converts a CanvasError into the structured JSON-RPC error
+// envelope used by all canvas.* dispatch responses.
+func canvasJSONRPCError(cerr *CanvasError) *jsonrpc2.Error {
+	data, _ := json.Marshal(map[string]string{
+		"code":    cerr.Code,
+		"message": cerr.Message,
+	})
+	return &jsonrpc2.Error{
+		Code:    -32603,
+		Message: cerr.Message,
+		Data:    data,
 	}
+}
 
+// resolveCanvasSession looks up a session and its installed CanvasHandler,
+// returning the canvas_handler_unset error envelope if either is missing.
+func (c *Client) resolveCanvasSession(sessionID string) (*Session, CanvasHandler, *jsonrpc2.Error) {
 	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
+	session, ok := c.sessions[sessionID]
 	c.sessionsMux.Unlock()
 	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
+		return nil, nil, canvasJSONRPCError(NewCanvasError(
+			"canvas_handler_unset",
+			fmt.Sprintf("unknown session %s", sessionID),
+		))
 	}
-
-	handler, ok := session.getToolHandler(req.ToolName)
-	if !ok {
-		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", req.ToolName),
-			ResultType:       "failure",
-			Error:            fmt.Sprintf("tool '%s' not supported", req.ToolName),
-			ToolTelemetry:    map[string]any{},
-		}}, nil
-	}
-
-	ctx := contextWithTraceParent(context.Background(), req.Traceparent, req.Tracestate)
-
-	invocation := ToolInvocation{
-		SessionID:    req.SessionID,
-		ToolCallID:   req.ToolCallID,
-		ToolName:     req.ToolName,
-		Arguments:    req.Arguments,
-		TraceContext: ctx,
-	}
-
-	result, err := handler(invocation)
-	if err != nil {
-		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
-			ResultType:       "failure",
-			Error:            err.Error(),
-			ToolTelemetry:    map[string]any{},
-		}}, nil
-	}
-
-	return &toolCallResponseV2{Result: result}, nil
-}
-
-// handlePermissionRequestV2 handles a v2-style permission.request RPC request from the server.
-func (c *Client) handlePermissionRequestV2(req permissionRequestV2) (*permissionResponseV2, *jsonrpc2.Error) {
-	if req.SessionID == "" {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid permission request payload"}
-	}
-
-	c.sessionsMux.Lock()
-	session, ok := c.sessions[req.SessionID]
-	c.sessionsMux.Unlock()
-	if !ok {
-		return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("unknown session %s", req.SessionID)}
-	}
-
-	handler := session.getPermissionHandler()
+	handler := session.getCanvasHandler()
 	if handler == nil {
-		return &permissionResponseV2{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
+		return session, nil, canvasJSONRPCError(NewCanvasError(
+			"canvas_handler_unset",
+			"No CanvasHandler installed on this session; install one via SessionConfig.CanvasHandler before creating the session.",
+		))
 	}
+	return session, handler, nil
+}
 
-	invocation := PermissionInvocation{
-		SessionID: session.SessionID,
+// canvasResultError normalizes any error returned from a CanvasHandler method
+// into the structured JSON-RPC error envelope.
+func canvasResultError(err error) *jsonrpc2.Error {
+	if err == nil {
+		return nil
 	}
+	if cerr, ok := err.(*CanvasError); ok {
+		return canvasJSONRPCError(cerr)
+	}
+	return canvasJSONRPCError(NewCanvasError("canvas_handler_error", err.Error()))
+}
 
-	result, err := handler(req.Request, invocation)
+// handleCanvasOpen dispatches an inbound canvas.open request to the session's CanvasHandler.
+func (c *Client) handleCanvasOpen(params canvasProviderRequestParams) (CanvasOpenResponse, *jsonrpc2.Error) {
+	_, handler, rpcErr := c.resolveCanvasSession(params.SessionID)
+	if rpcErr != nil {
+		return CanvasOpenResponse{}, rpcErr
+	}
+	resp, err := handler.OnOpen(context.Background(), params.toOpenContext())
 	if err != nil {
-		return &permissionResponseV2{
-			Result: PermissionRequestResult{
-				Kind: PermissionRequestResultKindDeniedCouldNotRequestFromUser,
-			},
-		}, nil
+		return CanvasOpenResponse{}, canvasResultError(err)
 	}
-	if result.Kind == "no-result" {
-		return nil, &jsonrpc2.Error{Code: -32603, Message: noResultPermissionV2Error}
-	}
+	return resp, nil
+}
 
-	return &permissionResponseV2{Result: result}, nil
+// handleCanvasClose dispatches an inbound canvas.close request to the session's CanvasHandler.
+func (c *Client) handleCanvasClose(params canvasProviderRequestParams) (any, *jsonrpc2.Error) {
+	_, handler, rpcErr := c.resolveCanvasSession(params.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	if err := handler.OnClose(context.Background(), params.toLifecycleContext()); err != nil {
+		return nil, canvasResultError(err)
+	}
+	return nil, nil
+}
+
+// handleCanvasActionInvoke dispatches an inbound canvas.action.invoke request to the session's CanvasHandler.
+func (c *Client) handleCanvasActionInvoke(params canvasInvokeParams) (any, *jsonrpc2.Error) {
+	_, handler, rpcErr := c.resolveCanvasSession(params.SessionID)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	result, err := handler.OnAction(context.Background(), params.toActionContext())
+	if err != nil {
+		return nil, canvasResultError(err)
+	}
+	return result, nil
 }

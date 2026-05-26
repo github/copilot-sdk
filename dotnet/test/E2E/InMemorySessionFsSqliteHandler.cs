@@ -43,7 +43,7 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
     public Task<SessionFsSqliteResult?> QueryAsync(
         SessionFsSqliteQueryType queryType,
         string query,
-        IDictionary<string, object>? bindParams,
+        IDictionary<string, object?>? bindParams,
         CancellationToken cancellationToken)
     {
         sqliteCalls.Add(new SqliteCall(sessionId, queryType.Value, query));
@@ -125,7 +125,7 @@ internal sealed class InMemorySessionFsSqliteHandler(string sessionId, List<Sqli
         return Task.FromResult(_db is not null);
     }
 
-    private static void AddParams(SqliteCommand cmd, IDictionary<string, object>? bindParams)
+    private static void AddParams(SqliteCommand cmd, IDictionary<string, object?>? bindParams)
     {
         if (bindParams is null) return;
         foreach (var (key, value) in bindParams)

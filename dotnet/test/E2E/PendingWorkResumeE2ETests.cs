@@ -1,10 +1,12 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using GitHub.Copilot.Rpc;
 using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 using RpcPermissionDecisionApproveOnce = GitHub.Copilot.Rpc.PermissionDecisionApproveOnce;
@@ -21,7 +23,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
     public async Task Should_Continue_Pending_Permission_Request_After_Resume()
     {
         var originalPermissionRequest = new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseOriginalPermission = new TaskCompletionSource<PermissionRequestResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseOriginalPermission = new TaskCompletionSource<PermissionDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
         var resumedToolInvoked = false;
 
         await using var server = Ctx.CreateClient(options: new CopilotClientOptions { Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken) });
@@ -59,10 +61,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             var session2 = await resumedTcpClient.ResumeSessionAsync(sessionId, new ResumeSessionConfig
             {
                 ContinuePendingWork = true,
-                OnPermissionRequest = (_, _) => Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.NoResult
-                }),
+                OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(PermissionDecision.NoResult()),
                 Tools =
                 [
                     AIFunctionFactory.Create(
@@ -90,10 +89,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
         }
         finally
         {
-            releaseOriginalPermission.TrySetResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.UserNotAvailable,
-            });
+            releaseOriginalPermission.TrySetResult(PermissionDecision.UserNotAvailable());
         }
 
         [Description("Transforms a value after permission is granted")]
@@ -141,7 +137,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             var toolResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
-                result: "EXTERNAL_RESUMED_BETA");
+                result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.True(toolResult.Success);
 
             var answer = await TestHelper.GetFinalAssistantMessageAsync(session2, PendingWorkTimeout);
@@ -210,7 +206,7 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
 
             var resumedResult = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolEvent.Data.RequestId,
-                result: "EXTERNAL_RESUMED_BETA");
+                result: JsonDocument.Parse("\"EXTERNAL_RESUMED_BETA\"").RootElement.Clone());
             Assert.True(resumedResult.Success);
 
             // continuePendingWork=false may interrupt agent continuation before this response,
@@ -287,11 +283,11 @@ public class PendingWorkResumeE2ETests(E2ETestFixture fixture, ITestOutputHelper
             var toolB = toolEvents["pending_lookup_b"];
             var resultB = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolB.Data.RequestId,
-                result: "PARALLEL_B_BETA");
+                result: JsonDocument.Parse("\"PARALLEL_B_BETA\"").RootElement.Clone());
             Assert.True(resultB.Success);
             var resultA = await session2.Rpc.Tools.HandlePendingToolCallAsync(
                 toolA.Data.RequestId,
-                result: "PARALLEL_A_ALPHA");
+                result: JsonDocument.Parse("\"PARALLEL_A_ALPHA\"").RootElement.Clone());
             Assert.True(resultA.Success);
 
             await session2.DisposeAsync();
