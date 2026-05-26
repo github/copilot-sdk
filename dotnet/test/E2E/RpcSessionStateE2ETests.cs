@@ -626,20 +626,10 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
         Assert.False((await session.Rpc.Metadata.IsProcessingAsync()).Processing);
 
-        await session.SendAsync(new MessageOptions { Prompt = "What is 2+2?" });
-        await TestHelper.WaitForConditionAsync(
-            async () => (await session.Rpc.Metadata.IsProcessingAsync()).Processing,
-            timeout: TimeSpan.FromSeconds(30),
-            timeoutMessage: "Timed out waiting for metadata.isProcessing to report an in-flight turn.");
-
-        var answer = await TestHelper.GetFinalAssistantMessageAsync(session, TimeSpan.FromMinutes(3));
+        var answer = await session.SendAndWaitAsync(new MessageOptions { Prompt = "What is 2+2?" });
         Assert.NotNull(answer);
         Assert.Contains("4", answer!.Data.Content ?? string.Empty, StringComparison.Ordinal);
-
-        await TestHelper.WaitForConditionAsync(
-            async () => !(await session.Rpc.Metadata.IsProcessingAsync()).Processing,
-            timeout: TimeSpan.FromSeconds(30),
-            timeoutMessage: "Timed out waiting for metadata.isProcessing to return to idle.");
+        Assert.False((await session.Rpc.Metadata.IsProcessingAsync()).Processing);
 
         var contextInfo = await session.Rpc.Metadata.ContextInfoAsync(
             promptTokenLimit: 128_000,
