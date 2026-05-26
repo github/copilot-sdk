@@ -209,6 +209,9 @@ class TestRpcServer:
             try:
                 await client.stop()
             except ExceptionGroup:
+                # Intentional: shutting down the per-test client can race the
+                # CLI's own teardown and surface as an aggregated cancellation
+                # error from anyio. We don't want it to fail the test.
                 pass
 
     async def test_should_add_secret_filter_values(self, ctx: E2ETestContext):
@@ -224,6 +227,9 @@ class TestRpcServer:
             try:
                 await client.stop()
             except ExceptionGroup:
+                # Intentional: shutting down the per-test client can race the
+                # CLI's own teardown and surface as an aggregated cancellation
+                # error from anyio. We don't want it to fail the test.
                 pass
 
     async def test_should_list_find_and_inspect_persisted_session_state(self, ctx: E2ETestContext):

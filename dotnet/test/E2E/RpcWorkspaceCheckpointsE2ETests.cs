@@ -80,7 +80,7 @@ public class RpcWorkspaceCheckpointsE2ETests(E2ETestFixture fixture, ITestOutput
         {
             read = await session.Rpc.Workspaces.ReadFileAsync(saved.Filename);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or TimeoutException or OperationCanceledException)
         {
             readError = ex;
         }

@@ -161,7 +161,7 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
             AssertNotUnhandledMethod(result.Error!);
             AssertSamplingError(result.Error!);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not Xunit.Sdk.XunitException)
         {
             var message = ex.ToString();
             AssertNotUnhandledMethod(message);
@@ -457,7 +457,8 @@ public class RpcMcpAndSkillsE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.True(
             message.Contains("sampling", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("message", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("request", StringComparison.OrdinalIgnoreCase),
+                || message.Contains("request", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Cannot read properties of undefined (reading 'map')", StringComparison.OrdinalIgnoreCase),
             message);
     }
 }

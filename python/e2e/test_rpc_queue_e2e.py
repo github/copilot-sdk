@@ -43,7 +43,7 @@ async def _wait_for_command_in_pending_items(session, command: str) -> QueuePend
                 assert command.lstrip("/") in item.display_text
                 return item
         await asyncio.sleep(0.2)
-    pytest.fail(f"Timed out waiting for {command!r} in pending items: {last_items!r}")
+    raise AssertionError(f"Timed out waiting for {command!r} in pending items: {last_items!r}")
 
 
 async def _wait_for_command_not_in_pending_items(session, command: str) -> None:

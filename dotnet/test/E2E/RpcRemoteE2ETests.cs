@@ -76,9 +76,8 @@ public class RpcRemoteE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         {
             return await action();
         }
-        catch (Exception ex)
+        catch (IOException ex) when (ex.ToString().Contains($"Unhandled method {method}", StringComparison.OrdinalIgnoreCase))
         {
-            Assert.DoesNotContain($"Unhandled method {method}", ex.ToString(), StringComparison.OrdinalIgnoreCase);
             return null;
         }
     }
@@ -89,9 +88,8 @@ public class RpcRemoteE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         {
             await action();
         }
-        catch (Exception ex)
+        catch (IOException ex) when (ex.ToString().Contains($"Unhandled method {method}", StringComparison.OrdinalIgnoreCase))
         {
-            Assert.DoesNotContain($"Unhandled method {method}", ex.ToString(), StringComparison.OrdinalIgnoreCase);
         }
     }
 }

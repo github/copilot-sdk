@@ -330,7 +330,8 @@ public class RpcSessionStateE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         Assert.Equal(branch, contextChanged.Data.Branch);
         Assert.Equal("github/copilot-sdk-e2e", contextChanged.Data.Repository);
         Assert.Equal("github.com", contextChanged.Data.RepositoryHost);
-        Assert.Equal("github", contextChanged.Data.HostType?.Value);
+        Assert.NotNull(contextChanged.Data.HostType);
+        Assert.Equal("github", contextChanged.Data.HostType.Value.Value);
         Assert.Equal(context.BaseCommit, contextChanged.Data.BaseCommit);
         Assert.Equal(context.HeadCommit, contextChanged.Data.HeadCommit);
     }

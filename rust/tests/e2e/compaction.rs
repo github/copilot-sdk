@@ -6,7 +6,7 @@ use super::support::with_e2e_context;
 async fn should_return_empty_handoff_summary_for_fresh_session() {
     with_e2e_context(
         "compaction",
-        "should_not_emit_compaction_events_when_infinite_sessions_disabled",
+        "should_return_empty_handoff_summary_for_fresh_session",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
@@ -36,7 +36,7 @@ async fn should_return_empty_handoff_summary_for_fresh_session() {
 async fn should_report_noop_when_cancelling_compaction_without_inflight_work() {
     with_e2e_context(
         "compaction",
-        "should_not_emit_compaction_events_when_infinite_sessions_disabled",
+        "should_report_noop_when_cancelling_compaction_without_inflight_work",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
@@ -73,7 +73,7 @@ async fn should_report_noop_when_cancelling_compaction_without_inflight_work() {
 async fn should_summarize_for_handoff_after_non_ephemeral_log_event() {
     with_e2e_context(
         "compaction",
-        "should_not_emit_compaction_events_when_infinite_sessions_disabled",
+        "should_summarize_for_handoff_after_non_ephemeral_log_event",
         |ctx| {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
