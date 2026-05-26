@@ -6605,13 +6605,13 @@ export interface SessionMetadata {
    */
   summary?: string;
   /**
-   * Identifier of the client driving the session.
-   */
-  clientName?: string;
-  /**
    * Optional human-friendly name set via /rename
    */
   name?: string;
+  /**
+   * Runtime client name that created/last resumed this session
+   */
+  clientName?: string;
   /**
    * True for remote (GitHub) sessions; false for local
    */
@@ -7219,6 +7219,10 @@ export interface SessionMetadataSnapshot {
    * User-provided name supplied at session construction (via `--name`), if any. Immutable after construction.
    */
   initialName?: string;
+  /**
+   * Runtime client name associated with the session (telemetry identifier).
+   */
+  clientName?: string;
   remoteMetadata?: MetadataSnapshotRemoteMetadata;
   /**
    * Short human-readable summary of the session, if known. Omitted when no summary has been generated.
@@ -9524,6 +9528,7 @@ export interface WorkspacesGetWorkspaceResult {
     host_type?: WorkspacesWorkspaceDetailsHostType;
     branch?: string;
     name?: string;
+    client_name?: string;
     user_named?: boolean;
     summary_count?: number;
     created_at?: string;

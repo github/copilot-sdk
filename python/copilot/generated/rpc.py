@@ -8578,6 +8578,7 @@ class Workspace:
     id: str
     branch: str | None = None
     chronicle_sync_dismissed: bool | None = None
+    client_name: str | None = None
     created_at: datetime | None = None
     cwd: str | None = None
     git_root: str | None = None
@@ -8600,6 +8601,7 @@ class Workspace:
         id = from_str(obj.get("id"))
         branch = from_union([from_str, from_none], obj.get("branch"))
         chronicle_sync_dismissed = from_union([from_bool, from_none], obj.get("chronicle_sync_dismissed"))
+        client_name = from_union([from_str, from_none], obj.get("client_name"))
         created_at = from_union([from_datetime, from_none], obj.get("created_at"))
         cwd = from_union([from_str, from_none], obj.get("cwd"))
         git_root = from_union([from_str, from_none], obj.get("git_root"))
@@ -8613,7 +8615,7 @@ class Workspace:
         summary_count = from_union([from_int, from_none], obj.get("summary_count"))
         updated_at = from_union([from_datetime, from_none], obj.get("updated_at"))
         user_named = from_union([from_bool, from_none], obj.get("user_named"))
-        return Workspace(id, branch, chronicle_sync_dismissed, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, summary_count, updated_at, user_named)
+        return Workspace(id, branch, chronicle_sync_dismissed, client_name, created_at, cwd, git_root, host_type, mc_last_event_id, mc_session_id, mc_task_id, name, remote_steerable, repository, summary_count, updated_at, user_named)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -8622,6 +8624,8 @@ class Workspace:
             result["branch"] = from_union([from_str, from_none], self.branch)
         if self.chronicle_sync_dismissed is not None:
             result["chronicle_sync_dismissed"] = from_union([from_bool, from_none], self.chronicle_sync_dismissed)
+        if self.client_name is not None:
+            result["client_name"] = from_union([from_str, from_none], self.client_name)
         if self.created_at is not None:
             result["created_at"] = from_union([lambda x: x.isoformat(), from_none], self.created_at)
         if self.cwd is not None:
@@ -12158,6 +12162,9 @@ class SessionMetadata:
     start_time: str
     """Session creation time as an ISO 8601 timestamp"""
 
+    client_name: str | None = None
+    """Runtime client name that created/last resumed this session"""
+
     context: SessionContext | None = None
     """Schema for the `SessionContext` type."""
 
@@ -12165,9 +12172,6 @@ class SessionMetadata:
     """GitHub task ID, when this local session is bound to one. Only present for local sessions
     exported to remote control.
     """
-    client_name: str | None = None
-    """Identifier of the client driving the session."""
-
     name: str | None = None
     """Optional human-friendly name set via /rename"""
 
@@ -12181,12 +12185,12 @@ class SessionMetadata:
         modified_time = from_str(obj.get("modifiedTime"))
         session_id = from_str(obj.get("sessionId"))
         start_time = from_str(obj.get("startTime"))
+        client_name = from_union([from_str, from_none], obj.get("clientName"))
         context = from_union([SessionContext.from_dict, from_none], obj.get("context"))
         mc_task_id = from_union([from_str, from_none], obj.get("mcTaskId"))
-        client_name = from_union([from_str, from_none], obj.get("clientName"))
         name = from_union([from_str, from_none], obj.get("name"))
         summary = from_union([from_str, from_none], obj.get("summary"))
-        return SessionMetadata(is_remote, modified_time, session_id, start_time, context, mc_task_id, client_name, name, summary)
+        return SessionMetadata(is_remote, modified_time, session_id, start_time, client_name, context, mc_task_id, name, summary)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -12194,12 +12198,12 @@ class SessionMetadata:
         result["modifiedTime"] = from_str(self.modified_time)
         result["sessionId"] = from_str(self.session_id)
         result["startTime"] = from_str(self.start_time)
+        if self.client_name is not None:
+            result["clientName"] = from_union([from_str, from_none], self.client_name)
         if self.context is not None:
             result["context"] = from_union([lambda x: to_class(SessionContext, x), from_none], self.context)
         if self.mc_task_id is not None:
             result["mcTaskId"] = from_union([from_str, from_none], self.mc_task_id)
-        if self.client_name is not None:
-            result["clientName"] = from_union([from_str, from_none], self.client_name)
         if self.name is not None:
             result["name"] = from_union([from_str, from_none], self.name)
         if self.summary is not None:
@@ -13991,6 +13995,9 @@ class SessionMetadataSnapshot:
     working_directory: str
     """Absolute path to the session's current working directory"""
 
+    client_name: str | None = None
+    """Runtime client name associated with the session (telemetry identifier)."""
+
     initial_name: str | None = None
     """User-provided name supplied at session construction (via `--name`), if any. Immutable
     after construction.
@@ -14026,13 +14033,14 @@ class SessionMetadataSnapshot:
         session_id = from_str(obj.get("sessionId"))
         start_time = from_datetime(obj.get("startTime"))
         working_directory = from_str(obj.get("workingDirectory"))
+        client_name = from_union([from_str, from_none], obj.get("clientName"))
         initial_name = from_union([from_str, from_none], obj.get("initialName"))
         remote_metadata = from_union([MetadataSnapshotRemoteMetadata.from_dict, from_none], obj.get("remoteMetadata"))
         selected_model = from_union([from_str, from_none], obj.get("selectedModel"))
         summary = from_union([from_str, from_none], obj.get("summary"))
         workspace = from_union([WorkspaceSummary.from_dict, from_none], obj.get("workspace"))
         workspace_path = from_union([from_none, from_str], obj.get("workspacePath"))
-        return SessionMetadataSnapshot(already_in_use, current_mode, is_remote, modified_time, session_id, start_time, working_directory, initial_name, remote_metadata, selected_model, summary, workspace, workspace_path)
+        return SessionMetadataSnapshot(already_in_use, current_mode, is_remote, modified_time, session_id, start_time, working_directory, client_name, initial_name, remote_metadata, selected_model, summary, workspace, workspace_path)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -14043,6 +14051,8 @@ class SessionMetadataSnapshot:
         result["sessionId"] = from_str(self.session_id)
         result["startTime"] = self.start_time.isoformat()
         result["workingDirectory"] = from_str(self.working_directory)
+        if self.client_name is not None:
+            result["clientName"] = from_union([from_str, from_none], self.client_name)
         if self.initial_name is not None:
             result["initialName"] = from_union([from_str, from_none], self.initial_name)
         if self.remote_metadata is not None:

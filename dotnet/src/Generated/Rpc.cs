@@ -709,6 +709,10 @@ public sealed class SessionContext
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionMetadata
 {
+    /// <summary>Runtime client name that created/last resumed this session.</summary>
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
+
     /// <summary>Schema for the `SessionContext` type.</summary>
     [JsonPropertyName("context")]
     public SessionContext? Context { get; set; }
@@ -720,10 +724,6 @@ public sealed class SessionMetadata
     /// <summary>GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.</summary>
     [JsonPropertyName("mcTaskId")]
     public string? McTaskId { get; set; }
-
-    /// <summary>Identifier of the client driving the session.</summary>
-    [JsonPropertyName("clientName")]
-    public string? ClientName { get; set; }
 
     /// <summary>Last-modified time of the session's persisted state, as ISO 8601.</summary>
     [JsonPropertyName("modifiedTime")]
@@ -2519,6 +2519,10 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
     [JsonPropertyName("chronicle_sync_dismissed")]
     public bool? ChronicleSyncDismissed { get; set; }
+
+    /// <summary>Gets or sets the <c>client_name</c> value.</summary>
+    [JsonPropertyName("client_name")]
+    public string? ClientName { get; set; }
 
     /// <summary>Gets or sets the <c>created_at</c> value.</summary>
     [JsonPropertyName("created_at")]
@@ -6526,6 +6530,10 @@ public sealed class SessionMetadataSnapshot
     /// <summary>True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions.</summary>
     [JsonPropertyName("alreadyInUse")]
     public bool AlreadyInUse { get; set; }
+
+    /// <summary>Runtime client name associated with the session (telemetry identifier).</summary>
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
 
     /// <summary>The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot').</summary>
     [JsonPropertyName("currentMode")]

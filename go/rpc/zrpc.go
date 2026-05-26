@@ -4390,6 +4390,8 @@ type SessionMcpReloadResult struct {
 // Schema for the `SessionMetadata` type.
 // Experimental: SessionMetadata is part of an experimental API and may change or be removed.
 type SessionMetadata struct {
+	// Runtime client name that created/last resumed this session
+	ClientName *string `json:"clientName,omitempty"`
 	// Schema for the `SessionContext` type.
 	Context *SessionContext `json:"context,omitempty"`
 	// True for remote (GitHub) sessions; false for local
@@ -4397,8 +4399,6 @@ type SessionMetadata struct {
 	// GitHub task ID, when this local session is bound to one. Only present for local sessions
 	// exported to remote control.
 	McTaskID *string `json:"mcTaskId,omitempty"`
-	// Identifier of the client driving the session.
-	ClientName *string `json:"clientName,omitempty"`
 	// Last-modified time of the session's persisted state, as ISO 8601
 	ModifiedTime string `json:"modifiedTime"`
 	// Optional human-friendly name set via /rename
@@ -4419,6 +4419,8 @@ type SessionMetadataSnapshot struct {
 	// Local consumers may surface a confirmation prompt before fully attaching. Always false
 	// for new sessions.
 	AlreadyInUse bool `json:"alreadyInUse"`
+	// Runtime client name associated with the session (telemetry identifier).
+	ClientName *string `json:"clientName,omitempty"`
 	// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
 	CurrentMode MetadataSnapshotCurrentMode `json:"currentMode"`
 	// User-provided name supplied at session construction (via `--name`), if any. Immutable
@@ -6285,6 +6287,7 @@ type WorkspacesGetWorkspaceResult struct {
 type WorkspacesGetWorkspaceResultWorkspace struct {
 	Branch                 *string    `json:"branch,omitempty"`
 	ChronicleSyncDismissed *bool      `json:"chronicle_sync_dismissed,omitempty"`
+	ClientName             *string    `json:"client_name,omitempty"`
 	CreatedAt              *time.Time `json:"created_at,omitempty"`
 	Cwd                    *string    `json:"cwd,omitempty"`
 	GitRoot                *string    `json:"git_root,omitempty"`

@@ -10,7 +10,8 @@ use super::session_events::{
     AbortReason, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule,
     ReasoningSummary, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval,
 };
-use crate::types::{RequestId, SessionEvent, SessionId};
+use crate::types::SessionEvent;
+use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
@@ -6004,6 +6005,9 @@ pub struct SessionContextInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadata {
+    /// Runtime client name that created/last resumed this session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     /// Schema for the `SessionContext` type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<SessionContext>,
@@ -6012,9 +6016,6 @@ pub struct SessionMetadata {
     /// GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mc_task_id: Option<String>,
-    /// Identifier of the client driving the session.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_name: Option<String>,
     /// Last-modified time of the session's persisted state, as ISO 8601
     pub modified_time: String,
     /// Optional human-friendly name set via /rename
@@ -6651,6 +6652,9 @@ pub struct SessionMetadataSnapshotWorkspace {
 pub struct SessionMetadataSnapshot {
     /// True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions.
     pub already_in_use: bool,
+    /// Runtime client name associated with the session (telemetry identifier).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     /// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
     pub current_mode: MetadataSnapshotCurrentMode,
     /// User-provided name supplied at session construction (via `--name`), if any. Immutable after construction.
@@ -9049,6 +9053,8 @@ pub struct WorkspacesGetWorkspaceResultWorkspace {
         skip_serializing_if = "Option::is_none"
     )]
     pub chronicle_sync_dismissed: Option<bool>,
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -9853,6 +9859,8 @@ pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
         skip_serializing_if = "Option::is_none"
     )]
     pub chronicle_sync_dismissed: Option<bool>,
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -11491,6 +11499,9 @@ pub struct SessionMetadataSnapshotResultWorkspace {
 pub struct SessionMetadataSnapshotResult {
     /// True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions.
     pub already_in_use: bool,
+    /// Runtime client name associated with the session (telemetry identifier).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     /// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
     pub current_mode: MetadataSnapshotCurrentMode,
     /// User-provided name supplied at session construction (via `--name`), if any. Immutable after construction.
