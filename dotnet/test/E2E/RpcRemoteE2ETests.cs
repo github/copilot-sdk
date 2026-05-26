@@ -90,6 +90,7 @@ public class RpcRemoteE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         }
         catch (IOException ex) when (ex.ToString().Contains($"Unhandled method {method}", StringComparison.OrdinalIgnoreCase))
         {
+            // Older runtimes may not expose this RPC yet; that is the only accepted fallback path.
         }
     }
 }
