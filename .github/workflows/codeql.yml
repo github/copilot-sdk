@@ -1,0 +1,93 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # Weekly on Monday at 06:00 UTC
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      java: ${{ steps.filter.outputs.java }}
+      js: ${{ steps.filter.outputs.js }}
+      python: ${{ steps.filter.outputs.python }}
+      go: ${{ steps.filter.outputs.go }}
+      csharp: ${{ steps.filter.outputs.csharp }}
+      actions: ${{ steps.filter.outputs.actions }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            java:
+              - 'java/**'
+            js:
+              - 'nodejs/**'
+              - 'scripts/**'
+            python:
+              - 'python/**'
+            go:
+              - 'go/**'
+            csharp:
+              - 'dotnet/**'
+            actions:
+              - '.github/workflows/**'
+              - '.github/actions/**'
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    needs: changes
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: java-kotlin
+            gate: java
+          - language: javascript-typescript
+            gate: js
+          - language: python
+            gate: python
+          - language: go
+            gate: go
+          - language: csharp
+            gate: csharp
+          - language: actions
+            gate: actions
+    steps:
+      - name: Checkout repository
+        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
