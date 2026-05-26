@@ -1822,6 +1822,8 @@ type McpServerConfigHTTP struct {
 	OauthGrantType *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 	// Whether the configured OAuth client is public and does not require a client secret.
 	OauthPublicClient *bool `json:"oauthPublicClient,omitempty"`
+	// OIDC token configuration. When truthy, a token is automatically gathered.
+	Oidc McpServerConfigHTTPOidc `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -1838,6 +1840,8 @@ func (McpServerConfigHTTP) mcpServerConfig() {}
 type McpServerConfigStdio struct {
 	// Command-line arguments passed to the Stdio MCP server process.
 	Args []string `json:"args,omitempty"`
+	// Authentication configuration for this server.
+	Auth McpServerConfigStdioAuth `json:"auth,omitempty"`
 	// Executable command used to start the Stdio MCP server process.
 	Command string `json:"command"`
 	// Working directory for the Stdio MCP server process.
@@ -1850,6 +1854,8 @@ type McpServerConfigStdio struct {
 	// Whether this server is a built-in fallback used when the user has not configured their
 	// own server.
 	IsDefaultServer *bool `json:"isDefaultServer,omitempty"`
+	// OIDC token configuration. When truthy, a token is automatically gathered.
+	Oidc McpServerConfigStdioOidc `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -1863,6 +1869,45 @@ type McpServerConfigHTTPAuth struct {
 	// Fixed port for the OAuth redirect callback server.
 	RedirectPort *int32 `json:"redirectPort,omitempty"`
 }
+
+// OIDC token configuration. When truthy, a token is automatically gathered.
+type McpServerConfigHTTPOidc interface {
+	mcpServerConfigHTTPOidc()
+}
+
+type McpServerConfigHTTPOidcAnyMap map[string]any
+
+func (McpServerConfigHTTPOidcAnyMap) mcpServerConfigHTTPOidc() {}
+
+type McpServerConfigHTTPOidcBoolean bool
+
+func (McpServerConfigHTTPOidcBoolean) mcpServerConfigHTTPOidc() {}
+
+// Authentication configuration for this server.
+type McpServerConfigStdioAuth interface {
+	mcpServerConfigStdioAuth()
+}
+
+type McpServerConfigStdioAuthAnyMap map[string]any
+
+func (McpServerConfigStdioAuthAnyMap) mcpServerConfigStdioAuth() {}
+
+type McpServerConfigStdioAuthBoolean bool
+
+func (McpServerConfigStdioAuthBoolean) mcpServerConfigStdioAuth() {}
+
+// OIDC token configuration. When truthy, a token is automatically gathered.
+type McpServerConfigStdioOidc interface {
+	mcpServerConfigStdioOidc()
+}
+
+type McpServerConfigStdioOidcAnyMap map[string]any
+
+func (McpServerConfigStdioOidcAnyMap) mcpServerConfigStdioOidc() {}
+
+type McpServerConfigStdioOidcBoolean bool
+
+func (McpServerConfigStdioOidcBoolean) mcpServerConfigStdioOidc() {}
 
 // MCP servers configured for the session, with their connection status.
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
@@ -3920,11 +3965,13 @@ type SessionContextInfo struct {
 	TotalTokens int64 `json:"totalTokens"`
 }
 
-// The same metadata records, with summary and context fields backfilled where available.
+// The enriched metadata records, with summary and context fields backfilled where
+// available. Sessions confirmed empty and unnamed are omitted.
 // Experimental: SessionEnrichMetadataResult is part of an experimental API and may change
 // or be removed.
 type SessionEnrichMetadataResult struct {
-	// Same records, with summary and context backfilled
+	// Enriched records, with summary and context backfilled. Sessions confirmed empty and
+	// unnamed may be omitted.
 	Sessions []SessionMetadata `json:"sessions"`
 }
 
@@ -7844,8 +7891,8 @@ func (a *ServerSessionsApi) Connect(ctx context.Context, params *ConnectRemoteSe
 //
 // Parameters: Session metadata records to enrich with summary and context information.
 //
-// Returns: The same metadata records, with summary and context fields backfilled where
-// available.
+// Returns: The enriched metadata records, with summary and context fields backfilled where
+// available. Sessions confirmed empty and unnamed are omitted.
 func (a *ServerSessionsApi) EnrichMetadata(ctx context.Context, params *SessionsEnrichMetadataRequest) (*SessionEnrichMetadataResult, error) {
 	raw, err := a.client.Request("sessions.enrichMetadata", params)
 	if err != nil {

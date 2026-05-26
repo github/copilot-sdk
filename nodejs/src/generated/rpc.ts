@@ -453,6 +453,28 @@ export type McpAppsSetHostContextDetailsPlatform =
  */
 export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
 /**
+ * OIDC token configuration. When truthy, a token is automatically gathered.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigStdioOidc".
+ */
+export type McpServerConfigStdioOidc =
+  | boolean
+  | {
+      [k: string]: unknown | undefined;
+    };
+/**
+ * Authentication configuration for this server.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigStdioAuth".
+ */
+export type McpServerConfigStdioAuth =
+  | boolean
+  | {
+      [k: string]: unknown | undefined;
+    };
+/**
  * Remote transport type. Defaults to "http" when omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -463,6 +485,17 @@ export type McpServerConfigHttpType =
   | "http"
   /** Server-Sent Events transport. */
   | "sse";
+/**
+ * OIDC token configuration. When truthy, a token is automatically gathered.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerConfigHttpOidc".
+ */
+export type McpServerConfigHttpOidc =
+  | boolean
+  | {
+      [k: string]: unknown | undefined;
+    };
 /**
  * OAuth grant type to use when authenticating to the remote MCP server.
  *
@@ -3599,6 +3632,8 @@ export interface McpServerConfigStdio {
    * Timeout in milliseconds for tool calls to this server.
    */
   timeout?: number;
+  oidc?: McpServerConfigStdioOidc;
+  auth?: McpServerConfigStdioAuth;
   /**
    * Executable command used to start the Stdio MCP server process.
    */
@@ -3639,6 +3674,8 @@ export interface McpServerConfigHttp {
    * Timeout in milliseconds for tool calls to this server.
    */
   timeout?: number;
+  oidc?: McpServerConfigHttpOidc;
+  auth?: McpServerConfigHttpAuth;
   /**
    * URL of the remote MCP server endpoint.
    */
@@ -3658,7 +3695,6 @@ export interface McpServerConfigHttp {
    */
   oauthPublicClient?: boolean;
   oauthGrantType?: McpServerConfigHttpOauthGrantType;
-  auth?: McpServerConfigHttpAuth;
 }
 /**
  * Additional authentication configuration for this server.
@@ -3671,6 +3707,7 @@ export interface McpServerConfigHttpAuth {
    * Fixed port for the OAuth redirect callback server.
    */
   redirectPort?: number;
+  [k: string]: unknown | undefined;
 }
 /**
  * MCP server names to disable for new sessions.
@@ -6531,7 +6568,7 @@ export interface SessionContext {
   branch?: string;
 }
 /**
- * The same metadata records, with summary and context fields backfilled where available.
+ * The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "SessionEnrichMetadataResult".
@@ -6539,7 +6576,7 @@ export interface SessionContext {
 /** @experimental */
 export interface SessionEnrichMetadataResult {
   /**
-   * Same records, with summary and context backfilled
+   * Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted.
    */
   sessions: SessionMetadata[];
 }
@@ -9921,7 +9958,7 @@ export function createServerRpc(connection: MessageConnection) {
              *
              * @param params Session metadata records to enrich with summary and context information.
              *
-             * @returns The same metadata records, with summary and context fields backfilled where available.
+             * @returns The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
              */
             enrichMetadata: async (params: SessionsEnrichMetadataRequest): Promise<SessionEnrichMetadataResult> =>
                 connection.sendRequest("sessions.enrichMetadata", params),

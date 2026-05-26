@@ -1011,11 +1011,11 @@ internal sealed class SessionsReleaseLockRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>The same metadata records, with summary and context fields backfilled where available.</summary>
+/// <summary>The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionEnrichMetadataResult
 {
-    /// <summary>Same records, with summary and context backfilled.</summary>
+    /// <summary>Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted.</summary>
     [JsonPropertyName("sessions")]
     public IList<SessionMetadata> Sessions { get => field ??= []; set; }
 }
@@ -12098,7 +12098,7 @@ public sealed class ServerSessionsApi
     /// <summary>Backfills missing summary and context fields on the supplied session metadata records.</summary>
     /// <param name="sessions">Session metadata records to enrich. Records that already have summary and context are returned unchanged.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The same metadata records, with summary and context fields backfilled where available.</returns>
+    /// <returns>The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.</returns>
     public async Task<SessionEnrichMetadataResult> EnrichMetadataAsync(IList<SessionMetadata> sessions, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sessions);

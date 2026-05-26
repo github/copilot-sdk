@@ -3071,6 +3071,9 @@ pub struct McpServerConfigHttp {
     /// Whether the configured OAuth client is public and does not require a client secret.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth_public_client: Option<bool>,
+    /// OIDC token configuration. When truthy, a token is automatically gathered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oidc: Option<serde_json::Value>,
     /// Timeout in milliseconds for tool calls to this server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
@@ -3091,6 +3094,9 @@ pub struct McpServerConfigStdio {
     /// Command-line arguments passed to the Stdio MCP server process.
     #[serde(default)]
     pub args: Vec<String>,
+    /// Authentication configuration for this server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<serde_json::Value>,
     /// Executable command used to start the Stdio MCP server process.
     pub command: String,
     /// Working directory for the Stdio MCP server process.
@@ -3105,6 +3111,9 @@ pub struct McpServerConfigStdio {
     /// Whether this server is a built-in fallback used when the user has not configured their own server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_default_server: Option<bool>,
+    /// OIDC token configuration. When truthy, a token is automatically gathered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oidc: Option<serde_json::Value>,
     /// Timeout in milliseconds for tool calls to this server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
@@ -6018,7 +6027,7 @@ pub struct SessionMetadata {
     pub summary: Option<String>,
 }
 
-/// The same metadata records, with summary and context fields backfilled where available.
+/// The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
 ///
 /// <div class="warning">
 ///
@@ -6029,7 +6038,7 @@ pub struct SessionMetadata {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionEnrichMetadataResult {
-    /// Same records, with summary and context backfilled
+    /// Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted.
     pub sessions: Vec<SessionMetadata>,
 }
 
@@ -9389,7 +9398,7 @@ pub struct SessionsPruneOldResult {
     pub skipped: Vec<String>,
 }
 
-/// The same metadata records, with summary and context fields backfilled where available.
+/// The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
 ///
 /// <div class="warning">
 ///
@@ -9400,7 +9409,7 @@ pub struct SessionsPruneOldResult {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionsEnrichMetadataResult {
-    /// Same records, with summary and context backfilled
+    /// Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted.
     pub sessions: Vec<SessionMetadata>,
 }
 
