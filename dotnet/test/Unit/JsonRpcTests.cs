@@ -79,6 +79,49 @@ public class JsonRpcTests
     }
 
     [Fact]
+    public async Task JsonRpc_Preserves_Remote_Error_Data()
+    {
+        using var pair = JsonRpcReflectionPair.Create();
+
+        pair.Server.SetLocalRpcMethod(
+            "structuredError",
+            (Func<string, int, CancellationToken, ValueTask<string>>)((_, _, _) => throw CreateLocalRpcInvocationException(
+                -32603,
+                "No handler implemented for this canvas action",
+                CreateJsonElement("""{"code":"canvas_action_no_handler","message":"No handler implemented for this canvas action"}"""))));
+        pair.Server.SetLocalRpcMethod(
+            "nullErrorData",
+            (Func<string, int, CancellationToken, ValueTask<string>>)((_, _, _) => throw CreateLocalRpcInvocationException(
+                -32603,
+                "Null error data",
+                CreateJsonElement("null"))));
+        pair.Server.SetLocalRpcMethod(
+            "omittedErrorData",
+            (Func<string, int, CancellationToken, ValueTask<string>>)((_, _, _) => throw CreateLocalRpcInvocationException(
+                -32603,
+                "Omitted error data")));
+
+        pair.StartListening();
+
+        var structured = await Assert.ThrowsAnyAsync<Exception>(() =>
+            pair.Client.InvokeAsync<string>("structuredError", ["invoke", 1]));
+        Assert.Equal(-32603, GetRemoteErrorCode(structured));
+
+        var data = GetRemoteErrorData(structured);
+        Assert.NotNull(data);
+        Assert.Equal("canvas_action_no_handler", data.Value.GetProperty("code").GetString());
+        Assert.Equal("No handler implemented for this canvas action", data.Value.GetProperty("message").GetString());
+
+        var nullData = await Assert.ThrowsAnyAsync<Exception>(() =>
+            pair.Client.InvokeAsync<string>("nullErrorData", ["invoke", 1]));
+        Assert.Equal(JsonValueKind.Null, GetRemoteErrorData(nullData)?.ValueKind);
+
+        var omittedData = await Assert.ThrowsAnyAsync<Exception>(() =>
+            pair.Client.InvokeAsync<string>("omittedErrorData", ["invoke", 1]));
+        Assert.Null(GetRemoteErrorData(omittedData));
+    }
+
+    [Fact]
     public async Task JsonRpc_Cancels_And_Disposes_Pending_Requests()
     {
         using var pair = JsonRpcReflectionPair.Create(startServer: false);
@@ -98,6 +141,30 @@ public class JsonRpcTests
         var property = exception.GetType().GetProperty("ErrorCode", BindingFlags.Instance | BindingFlags.Public);
         Assert.NotNull(property);
         return (int)property.GetValue(exception)!;
+    }
+
+    private static JsonElement? GetRemoteErrorData(Exception exception)
+    {
+        var property = exception.GetType().GetProperty("ErrorData", BindingFlags.Instance | BindingFlags.Public);
+        Assert.NotNull(property);
+        return property.GetValue(exception) is JsonElement value ? value : null;
+    }
+
+    private static JsonElement CreateJsonElement(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static Exception CreateLocalRpcInvocationException(int code, string message, JsonElement? data = null)
+    {
+        var type = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.LocalRpcInvocationException", throwOnError: true)!;
+        return (Exception)Activator.CreateInstance(
+            type,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: [code, message, data],
+            culture: null)!;
     }
 
     private sealed class NamedParams

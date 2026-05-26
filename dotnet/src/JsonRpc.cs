@@ -441,7 +441,7 @@ internal sealed partial class JsonRpc : IDisposable
                 ? codeProp.GetInt32()
                 : 0;
             var errorData = errorProp.TryGetProperty("data", out var dataProp)
-                ? dataProp.Clone()
+                ? dataProp
                 : (JsonElement?)null;
             pending.TrySetException(new RemoteRpcException(errorMessage, errorCode, errorData));
         }
