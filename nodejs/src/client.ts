@@ -36,9 +36,11 @@ import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
 import { getTraceContext } from "./telemetry.js";
+import { ToolSet } from "./toolSet.js";
 import type {
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    CopilotClientMode,
     CopilotClientOptions,
     CustomAgentConfig,
     ExitPlanModeRequest,
@@ -127,6 +129,38 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
         const { mcpServers, ...rest } = agent;
         return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
     });
+}
+
+function toolFilterListToArray(value: string[] | ToolSet | undefined): string[] | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    return value instanceof ToolSet ? value.toArray() : value;
+}
+
+/**
+ * Catches misuse of `availableTools`/`excludedTools` at the SDK boundary so
+ * users get an actionable error rather than a silently-empty filter.
+ *
+ * The runtime treats a bare `"*"` as a literal name match for a tool whose
+ * name is the single character `*`, which the runtime's charset guard would
+ * reject at registration — so the filter effectively matches nothing. We
+ * surface that here as an error pointing the developer at the source-qualified
+ * forms produced by {@link ToolSet}.
+ */
+function validateToolFilterList(field: string, list: string[] | undefined): void {
+    if (!list) {
+        return;
+    }
+    for (const entry of list) {
+        if (entry === "*") {
+            throw new Error(
+                `Invalid ${field} entry '*': there is no bare wildcard. ` +
+                    "Use one or more of `new ToolSet().addBuiltIn('*')`, `.addMcp('*')`, " +
+                    "or `.addCustom('*')` to target a specific source."
+            );
+        }
+    }
 }
 
 /**
@@ -267,6 +301,7 @@ export class CopilotClient {
         baseDirectory?: string;
         sessionIdleTimeoutSeconds: number;
         enableRemoteSessions: boolean;
+        mode: CopilotClientMode;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -414,7 +449,29 @@ export class CopilotClient {
             baseDirectory: options.baseDirectory,
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             enableRemoteSessions: options.enableRemoteSessions ?? false,
+            mode: options.mode ?? "copilot-cli",
         };
+
+        // Empty mode: validate at construction time that the app supplied a
+        // per-session persistence location. The runtime is mode-agnostic, so
+        // without this check it would silently fall back to ~/.copilot, which
+        // defeats the point of empty mode for multi-tenant scenarios.
+        if (this.options.mode === "empty") {
+            const hasPersistence =
+                this.options.baseDirectory !== undefined ||
+                this.sessionFsConfig !== null ||
+                // External runtimes manage their own persistence layer; the SDK
+                // can't enforce it from here.
+                conn.kind === "uri" ||
+                conn.kind === "parent-process";
+            if (!hasPersistence) {
+                throw new Error(
+                    "CopilotClient was created with mode: 'empty' but neither " +
+                        "'baseDirectory' nor 'sessionFs' was set. Empty mode requires " +
+                        "an explicit per-session persistence location; pick one."
+                );
+            }
+        }
     }
 
     private connectionExtraArgs: string[] = [];
@@ -789,6 +846,48 @@ export class CopilotClient {
      * });
      * ```
      */
+    /**
+     * Normalizes session-level tool filter options. Converts {@link ToolSet}
+     * instances to plain string arrays, rejects misuse (bare `"*"`) and the
+     * missing-availableTools case in `mode = "empty"`, and applies the
+     * mode-aware default for `toolFilterMode`.
+     *
+     * @internal
+     */
+    private resolveToolFilterOptions(config: {
+        availableTools?: string[] | ToolSet;
+        excludedTools?: string[] | ToolSet;
+        toolFilterMode?: "allowPrecedence" | "denyPrecedence";
+    }): {
+        availableTools: string[] | undefined;
+        excludedTools: string[] | undefined;
+        toolFilterMode: "allowPrecedence" | "denyPrecedence" | undefined;
+    } {
+        const availableTools = toolFilterListToArray(config.availableTools);
+        const excludedTools = toolFilterListToArray(config.excludedTools);
+        validateToolFilterList("availableTools", availableTools);
+        validateToolFilterList("excludedTools", excludedTools);
+
+        if (this.options.mode === "empty") {
+            if (availableTools === undefined) {
+                throw new Error(
+                    "CopilotClient is in mode: 'empty' but the session config did not " +
+                        "specify 'availableTools'. Empty mode requires every session to " +
+                        "explicitly opt into the tools it wants — e.g. " +
+                        "`new ToolSet().addBuiltIn(BuiltInTools.Isolated)`."
+                );
+            }
+        }
+
+        // Empty mode flips the default to deny-precedence so apps can compose
+        // include + exclude lists naturally (e.g. "everything matching X
+        // except Y"). Callers can still override this explicitly.
+        const toolFilterMode =
+            config.toolFilterMode ?? (this.options.mode === "empty" ? "denyPrecedence" : undefined);
+
+        return { availableTools, excludedTools, toolFilterMode };
+    }
+
     async createSession(config: SessionConfig): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
@@ -838,6 +937,8 @@ export class CopilotClient {
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
 
+        const toolFilterOptions = this.resolveToolFilterOptions(config);
+
         try {
             const response = await this.connection!.sendRequest("session.create", {
                 ...(await getTraceContext(this.onGetTraceContext)),
@@ -861,8 +962,9 @@ export class CopilotClient {
                     description: cmd.description,
                 })),
                 systemMessage: wireSystemMessage,
-                availableTools: config.availableTools,
-                excludedTools: config.excludedTools,
+                availableTools: toolFilterOptions.availableTools,
+                excludedTools: toolFilterOptions.excludedTools,
+                toolFilterMode: toolFilterOptions.toolFilterMode,
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
@@ -977,6 +1079,8 @@ export class CopilotClient {
         this.sessions.set(sessionId, session);
         this.setupSessionFs(session, config);
 
+        const toolFilterOptions = this.resolveToolFilterOptions(config);
+
         try {
             const response = await this.connection!.sendRequest("session.resume", {
                 ...(await getTraceContext(this.onGetTraceContext)),
@@ -985,8 +1089,9 @@ export class CopilotClient {
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
                 systemMessage: wireSystemMessage,
-                availableTools: config.availableTools,
-                excludedTools: config.excludedTools,
+                availableTools: toolFilterOptions.availableTools,
+                excludedTools: toolFilterOptions.excludedTools,
+                toolFilterMode: toolFilterOptions.toolFilterMode,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,

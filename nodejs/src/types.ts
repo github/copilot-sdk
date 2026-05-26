@@ -13,6 +13,7 @@ import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -167,12 +168,40 @@ export interface ParentProcessRuntimeConnection {
 /** @internal */
 export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntimeConnection;
 
+/**
+ * Controls SDK defaults for ambient features.
+ *
+ * - `"copilot-cli"` (default): Defaults equivalent to Copilot CLI. Useful when
+ *   building a coding agent that shares sessions with Copilot CLI. Do not use
+ *   this mode for server-based multi-user applications — the default coding
+ *   agent has tools and capabilities that operate across sessions and can
+ *   access the host OS environment.
+ * - `"empty"`: Disables optional features by default. The app must explicitly
+ *   opt into anything it needs. Required for any scenario where CLI-like
+ *   ambient behavior is unsafe (e.g. multi-user servers).
+ */
+export type CopilotClientMode = "empty" | "copilot-cli";
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.
      */
     connection?: RuntimeConnection;
+
+    /**
+     * Selects the SDK defaulting strategy. See {@link CopilotClientMode}.
+     *
+     * When set to `"empty"`, the SDK validates that the app has supplied the
+     * required configuration ({@link CopilotClientOptions.baseDirectory} or
+     * {@link CopilotClientOptions.sessionFs}, plus
+     * {@link SessionConfigBase.availableTools} on each session) and translates
+     * session creation requests into runtime options that flip tool filter
+     * precedence to deny-wins so exclusions are expressible.
+     *
+     * @default "copilot-cli"
+     */
+    mode?: CopilotClientMode;
 
     /**
      * Working directory for the runtime process.
@@ -1580,15 +1609,41 @@ export interface SessionConfigBase {
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.
-     * Takes precedence over excludedTools.
+     *
+     * Supports source-qualified filter patterns (`builtin:*`, `builtin:<name>`,
+     * `mcp:*`, `mcp:<name>`, `custom:*`, `custom:<name>`) as well as the bare
+     * name form (exact match across any source). Build this list with
+     * {@link ToolSet} for type safety and readable intent.
+     *
+     * Interacts with {@link excludedTools} per
+     * {@link SessionConfigBase.toolFilterMode}.
      */
-    availableTools?: string[];
+    availableTools?: string[] | ToolSet;
 
     /**
-     * List of tool names to disable. All other tools remain available.
-     * Ignored if availableTools is specified.
+     * List of tool names to disable. Supports the same pattern syntax as
+     * {@link availableTools}.
+     *
+     * Interacts with {@link availableTools} per
+     * {@link SessionConfigBase.toolFilterMode}: by default (`"allowPrecedence"`),
+     * `excludedTools` is ignored whenever `availableTools` is set; under
+     * `"denyPrecedence"` it always takes effect.
      */
-    excludedTools?: string[];
+    excludedTools?: string[] | ToolSet;
+
+    /**
+     * Controls how {@link availableTools} and {@link excludedTools} combine
+     * when both are set.
+     *
+     * - `"allowPrecedence"` (default): If `availableTools` is set, `excludedTools`
+     *   is ignored. Preserves the historical CLI behavior.
+     * - `"denyPrecedence"`: `excludedTools` always wins. Enables "everything
+     *   matching X, except Y" patterns.
+     *
+     * When the client is in `Mode = "empty"`, the SDK defaults this to
+     * `"denyPrecedence"` so apps can subtract from `BuiltInTools.Isolated` etc.
+     */
+    toolFilterMode?: "allowPrecedence" | "denyPrecedence";
 
     /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
