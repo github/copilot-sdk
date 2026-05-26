@@ -81,7 +81,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
         await session.disconnect();
     });
 
-    it("empty mode + denyPrecedence default: excludedTools subtracts from availableTools", async () => {
+    it("empty mode + excluded default: excludedTools subtracts from availableTools", async () => {
         const shellToolName = process.platform === "win32" ? "powershell" : "bash";
         const session = await client.createSession({
             onPermissionRequest: approveAll,

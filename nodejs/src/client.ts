@@ -851,7 +851,7 @@ export class CopilotClient {
      * instances to plain string arrays, rejects misuse (bare `"*"`) and the
      * missing-availableTools case in `mode = "empty"`.
      *
-     * The SDK always sends `toolFilterMode: "denyPrecedence"` so callers can
+     * The SDK always sends `toolFilterPrecedence: "excluded"` so callers can
      * compose include + exclude lists naturally (e.g. "everything matching X
      * except Y") regardless of mode. Allowlist-precedence is intentionally not
      * exposed — it's available on the runtime side as a CLI-only concession to
@@ -865,7 +865,7 @@ export class CopilotClient {
     }): {
         availableTools: string[] | undefined;
         excludedTools: string[] | undefined;
-        toolFilterMode: "denyPrecedence";
+        toolFilterPrecedence: "excluded";
     } {
         const availableTools = toolFilterListToArray(config.availableTools);
         const excludedTools = toolFilterListToArray(config.excludedTools);
@@ -883,7 +883,7 @@ export class CopilotClient {
             }
         }
 
-        return { availableTools, excludedTools, toolFilterMode: "denyPrecedence" };
+        return { availableTools, excludedTools, toolFilterPrecedence: "excluded" };
     }
 
     async createSession(config: SessionConfig): Promise<CopilotSession> {
@@ -962,7 +962,7 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
-                toolFilterMode: toolFilterOptions.toolFilterMode,
+                toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
@@ -1089,7 +1089,7 @@ export class CopilotClient {
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
-                toolFilterMode: toolFilterOptions.toolFilterMode,
+                toolFilterPrecedence: toolFilterOptions.toolFilterPrecedence,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,

@@ -174,24 +174,24 @@ describe("Tool filter wiring", () => {
         ).rejects.toThrowError(/bare wildcard/);
     });
 
-    it("always sends toolFilterMode: denyPrecedence in copilot-cli mode", async () => {
+    it("always sends toolFilterPrecedence: excluded in copilot-cli mode", async () => {
         const { client, spy } = await setupClient("copilot-cli");
         await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: ["builtin:bash"],
         });
         const payload = spy.mock.calls.find(([m]) => m === "session.create")![1] as any;
-        expect(payload.toolFilterMode).toBe("denyPrecedence");
+        expect(payload.toolFilterPrecedence).toBe("excluded");
     });
 
-    it("always sends toolFilterMode: denyPrecedence in empty mode", async () => {
+    it("always sends toolFilterPrecedence: excluded in empty mode", async () => {
         const { client, spy } = await setupClient("empty");
         await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
         });
         const payload = spy.mock.calls.find(([m]) => m === "session.create")![1] as any;
-        expect(payload.toolFilterMode).toBe("denyPrecedence");
+        expect(payload.toolFilterPrecedence).toBe("excluded");
     });
 
     it("applies the same filter normalization on session.resume", async () => {
@@ -206,6 +206,6 @@ describe("Tool filter wiring", () => {
         });
         const payload = spy.mock.calls.find(([m]) => m === "session.resume")![1] as any;
         expect(payload.availableTools).toEqual(["builtin:view", "builtin:task_complete"]);
-        expect(payload.toolFilterMode).toBe("denyPrecedence");
+        expect(payload.toolFilterPrecedence).toBe("excluded");
     });
 });
