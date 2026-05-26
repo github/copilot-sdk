@@ -34,6 +34,7 @@ import {
     isIntegerSchemaBoundedToInt32,
     isNodeFullyDeprecated,
     isNodeFullyExperimental,
+    isOpaqueJson,
     isRpcMethod,
     isSchemaDeprecated,
     isSchemaExperimental,
@@ -3559,6 +3560,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         if (nullableInner) {
             // Nullable results (e.g., *SessionFSError) don't need a wrapper type;
             // the inner type is already in definitions via shared hoisting.
+        } else if (isOpaqueJson(resultSchema)) {
+            // Opaque JSON results map to `any` — no named struct needed.
         } else if (isVoidSchema(resultSchema)) {
             // Emit an empty struct for void results (forward-compatible with adding fields later)
             allDefinitions[goResultTypeName(method)] = {
@@ -4035,10 +4038,15 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
             }
             const paramsType = resolveType(goParamsTypeName(method));
             const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
-            const resultType = nullableInner
-                ? resolveType(goNullableResultTypeName(method, nullableInner))
-                : resolveType(goResultTypeName(method));
-            const returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            let returnType: string;
+            if (isOpaqueJson(resultSchema)) {
+                returnType = "any";
+            } else {
+                const resultType = nullableInner
+                    ? resolveType(goNullableResultTypeName(method, nullableInner))
+                    : resolveType(goResultTypeName(method));
+                returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            }
             lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (${returnType}, error)`);
         }
         lines.push(`}`);

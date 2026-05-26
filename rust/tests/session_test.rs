@@ -6,11 +6,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use github_copilot_sdk::canvas::{
-    CanvasActionContext, CanvasDeclaration, CanvasHandler, CanvasOpenContext, CanvasOpenResponse,
-    CanvasResult,
+use github_copilot_sdk::canvas::{CanvasDeclaration, CanvasHandler, CanvasResult};
+use github_copilot_sdk::generated::api_types::{
+    CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
+    CanvasProviderOpenResult, OpenCanvasInstance,
 };
-use github_copilot_sdk::generated::api_types::{CanvasInstanceAvailability, OpenCanvasInstance};
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
@@ -31,15 +31,18 @@ struct TestCanvasHandler;
 
 #[async_trait]
 impl CanvasHandler for TestCanvasHandler {
-    async fn on_open(&self, ctx: CanvasOpenContext) -> CanvasResult<CanvasOpenResponse> {
-        Ok(CanvasOpenResponse {
+    async fn on_open(
+        &self,
+        ctx: CanvasProviderOpenRequest,
+    ) -> CanvasResult<CanvasProviderOpenResult> {
+        Ok(CanvasProviderOpenResult {
             url: Some(format!("https://example.test/{}", ctx.canvas_id)),
             title: Some("Test Canvas".to_string()),
             status: Some("ready".to_string()),
         })
     }
 
-    async fn on_action(&self, ctx: CanvasActionContext) -> CanvasResult<Value> {
+    async fn on_action(&self, ctx: CanvasProviderInvokeActionRequest) -> CanvasResult<Value> {
         Ok(serde_json::json!({
             "actionName": ctx.action_name,
             "input": ctx.input,
@@ -380,7 +383,7 @@ async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
     server
         .send_request(
             42,
-            "canvas.action.invoke",
+            "canvas.invokeAction",
             serde_json::json!({
                 "sessionId": session.id(),
                 "extensionId": "project:counter",

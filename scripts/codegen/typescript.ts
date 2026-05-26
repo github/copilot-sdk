@@ -846,6 +846,9 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
         const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
             lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
+        } else if (groupExperimental) {
+            lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+            lines.push(TS_EXPERIMENTAL_JSDOC);
         } else {
             lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
         }

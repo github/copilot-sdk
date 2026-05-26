@@ -5,6 +5,7 @@
 
 /// Canvas declarations, provider callbacks, and host-side canvas RPC types.
 pub mod canvas;
+mod canvas_dispatch;
 /// Bundled CLI binary extraction and caching.
 pub(crate) mod embeddedcli;
 /// Event handler traits for session lifecycle.

@@ -2,7 +2,7 @@
 //
 // This file mirrors rust/src/canvas.rs. The SDK does not maintain a per-canvas
 // registry; multiplexing across declared canvases is the CanvasHandler
-// implementor's responsibility (typically by switching on CanvasOpenContext.CanvasID).
+// implementor's responsibility (typically by switching on CanvasProviderOpenRequest.CanvasID).
 
 package copilot
 
@@ -27,74 +27,13 @@ type CanvasDeclaration struct {
 	Actions []rpc.CanvasAction `json:"actions,omitempty"`
 }
 
-// CanvasOpenResponse is the response returned from CanvasHandler.OnOpen.
-type CanvasOpenResponse struct {
-	// URL the host should render. Optional for canvases with no visual surface.
-	URL *string `json:"url,omitempty"`
-	// Title is the provider-supplied title shown in host chrome.
-	Title *string `json:"title,omitempty"`
-	// Status is the provider-supplied status text shown in host chrome.
-	Status *string `json:"status,omitempty"`
-}
-
-// CanvasHostContext carries host capability hints passed to canvas provider callbacks.
-type CanvasHostContext struct {
-	// Capabilities describes host feature support relevant to canvases.
-	Capabilities CanvasHostCapabilities `json:"capabilities"`
-}
-
-// CanvasHostCapabilities describes host capability details passed to canvas provider callbacks.
-type CanvasHostCapabilities struct {
-	// Canvases indicates whether the host supports canvas rendering.
-	Canvases bool `json:"canvases"`
-}
-
-// CanvasOpenContext is the context handed to CanvasHandler.OnOpen.
-type CanvasOpenContext struct {
-	// SessionID is the session that requested the canvas.
-	SessionID string
-	// ExtensionID is the owning provider identifier.
-	ExtensionID string
-	// CanvasID is the canvas id from the declaring CanvasDeclaration.
-	CanvasID string
-	// InstanceID is the stable instance id supplied by the runtime.
-	InstanceID string
-	// Input is the validated input payload.
-	Input any
-	// Host carries host capabilities supplied by the runtime.
-	Host *CanvasHostContext
-}
-
-// CanvasActionContext is the context handed to CanvasHandler.OnAction.
-type CanvasActionContext struct {
-	// SessionID is the session that invoked the action.
-	SessionID string
-	// ExtensionID is the owning provider identifier.
-	ExtensionID string
-	// CanvasID is the canvas id targeted by the action.
-	CanvasID string
-	// InstanceID is the instance id targeted by the action.
-	InstanceID string
-	// ActionName is the action name from CanvasAction.Name.
-	ActionName string
-	// Input is the validated input payload.
-	Input any
-	// Host carries host capabilities supplied by the runtime.
-	Host *CanvasHostContext
-}
-
-// CanvasLifecycleContext is the context handed to a canvas's close lifecycle hook.
-type CanvasLifecycleContext struct {
-	// SessionID is the session owning the canvas instance.
-	SessionID string
-	// ExtensionID is the owning provider identifier.
-	ExtensionID string
-	// CanvasID is the canvas id from the declaring CanvasDeclaration.
-	CanvasID string
-	// InstanceID is the instance id this lifecycle event applies to.
-	InstanceID string
-	// Host carries host capabilities supplied by the runtime.
-	Host *CanvasHostContext
+// ExtensionInfo carries stable extension identity for session participants
+// that provide canvases.
+type ExtensionInfo struct {
+	// Source is the extension namespace/source, e.g. "github-app".
+	Source string `json:"source"`
+	// Name is the extension identifier within that source, e.g. "my-app".
+	Name string `json:"name"`
 }
 
 // CanvasError is a structured error returned from canvas handlers.
@@ -131,8 +70,8 @@ func CanvasErrorNoHandler() *CanvasError {
 //
 // A session installs a single CanvasHandler (via SessionConfig.CanvasHandler).
 // The handler receives every inbound `canvas.open` / `canvas.close` /
-// `canvas.action.invoke` JSON-RPC request the runtime issues for this session
-// and decides — typically by inspecting CanvasOpenContext.CanvasID — which
+// `canvas.invokeAction` JSON-RPC request the runtime issues for this session
+// and decides — typically by inspecting CanvasProviderOpenRequest.CanvasID — which
 // application-side canvas should handle the call.
 //
 // The SDK does not maintain a per-canvas registry; multiplexing across declared
@@ -141,9 +80,9 @@ func CanvasErrorNoHandler() *CanvasError {
 // Embed CanvasHandlerDefaults to inherit no-op defaults for OnClose and a
 // "no handler" error for OnAction.
 type CanvasHandler interface {
-	OnOpen(ctx context.Context, c CanvasOpenContext) (CanvasOpenResponse, error)
-	OnClose(ctx context.Context, c CanvasLifecycleContext) error
-	OnAction(ctx context.Context, c CanvasActionContext) (any, error)
+	OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error)
+	OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error
+	OnAction(ctx context.Context, c rpc.CanvasProviderInvokeActionRequest) (any, error)
 }
 
 // CanvasHandlerDefaults supplies default OnClose / OnAction implementations
@@ -154,79 +93,15 @@ type CanvasHandler interface {
 //	type myHandler struct {
 //	    copilot.CanvasHandlerDefaults
 //	}
-//	func (h *myHandler) OnOpen(ctx context.Context, c copilot.CanvasOpenContext) (copilot.CanvasOpenResponse, error) { ... }
+//	func (h *myHandler) OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error) { ... }
 type CanvasHandlerDefaults struct{}
 
 // OnClose returns nil by default.
-func (CanvasHandlerDefaults) OnClose(ctx context.Context, c CanvasLifecycleContext) error {
+func (CanvasHandlerDefaults) OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error {
 	return nil
 }
 
 // OnAction returns CanvasErrorNoHandler() by default.
-func (CanvasHandlerDefaults) OnAction(ctx context.Context, c CanvasActionContext) (any, error) {
+func (CanvasHandlerDefaults) OnAction(ctx context.Context, c rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	return nil, CanvasErrorNoHandler()
-}
-
-// canvasProviderRequestParams is the wire shape of the common fields sent by
-// direct `canvas.*` provider callbacks (canvas.open / canvas.close).
-type canvasProviderRequestParams struct {
-	SessionID   string             `json:"sessionId"`
-	ExtensionID string             `json:"extensionId"`
-	CanvasID    string             `json:"canvasId"`
-	InstanceID  string             `json:"instanceId"`
-	Input       any                `json:"input,omitempty"`
-	Host        *CanvasHostContext `json:"host,omitempty"`
-}
-
-func (p *canvasProviderRequestParams) toOpenContext() CanvasOpenContext {
-	return CanvasOpenContext{
-		SessionID:   p.SessionID,
-		ExtensionID: p.ExtensionID,
-		CanvasID:    p.CanvasID,
-		InstanceID:  p.InstanceID,
-		Input:       p.Input,
-		Host:        p.Host,
-	}
-}
-
-func (p *canvasProviderRequestParams) toLifecycleContext() CanvasLifecycleContext {
-	return CanvasLifecycleContext{
-		SessionID:   p.SessionID,
-		ExtensionID: p.ExtensionID,
-		CanvasID:    p.CanvasID,
-		InstanceID:  p.InstanceID,
-		Host:        p.Host,
-	}
-}
-
-// canvasInvokeParams is the wire shape for `canvas.action.invoke`.
-type canvasInvokeParams struct {
-	SessionID   string             `json:"sessionId"`
-	ExtensionID string             `json:"extensionId"`
-	CanvasID    string             `json:"canvasId"`
-	InstanceID  string             `json:"instanceId"`
-	ActionName  string             `json:"actionName"`
-	Input       any                `json:"input,omitempty"`
-	Host        *CanvasHostContext `json:"host,omitempty"`
-}
-
-func (p *canvasInvokeParams) toActionContext() CanvasActionContext {
-	return CanvasActionContext{
-		SessionID:   p.SessionID,
-		ExtensionID: p.ExtensionID,
-		CanvasID:    p.CanvasID,
-		InstanceID:  p.InstanceID,
-		ActionName:  p.ActionName,
-		Input:       p.Input,
-		Host:        p.Host,
-	}
-}
-
-// ExtensionInfo carries stable extension identity for session participants
-// that provide canvases.
-type ExtensionInfo struct {
-	// Source is the extension namespace/source, e.g. "github-app".
-	Source string `json:"source"`
-	// Name is the stable provider name within the source namespace.
-	Name string `json:"name"`
 }

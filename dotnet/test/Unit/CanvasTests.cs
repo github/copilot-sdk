@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GitHub.Copilot;
+using GitHub.Copilot.Rpc;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -47,10 +48,10 @@ public class CanvasTests
     }
 
     [Fact]
-    public void CanvasOpenResponse_Roundtrips_WithCamelCaseFields()
+    public void CanvasProviderOpenResult_Roundtrips_WithCamelCaseFields()
     {
         var options = GetSerializerOptions();
-        var response = new CanvasOpenResponse
+        var response = new CanvasProviderOpenResult
         {
             Url = "https://example.com/c/1",
             Title = "Demo",
@@ -58,7 +59,7 @@ public class CanvasTests
         };
 
         var json = JsonSerializer.Serialize(response, options);
-        var parsed = JsonSerializer.Deserialize<CanvasOpenResponse>(json, options);
+        var parsed = JsonSerializer.Deserialize<CanvasProviderOpenResult>(json, options);
 
         Assert.NotNull(parsed);
         Assert.Equal("https://example.com/c/1", parsed!.Url);
@@ -81,7 +82,7 @@ public class CanvasTests
     public async Task CanvasHandlerBase_DefaultOnClose_Completes()
     {
         var handler = new TestHandler();
-        await handler.OnCloseAsync(new CanvasLifecycleContext(), CancellationToken.None);
+        await handler.OnCloseAsync(new CanvasProviderCloseRequest(), CancellationToken.None);
     }
 
     [Fact]
@@ -89,7 +90,7 @@ public class CanvasTests
     {
         var handler = new TestHandler();
         var ex = await Assert.ThrowsAsync<CanvasError>(
-            () => handler.OnActionAsync(new CanvasActionContext(), CancellationToken.None));
+            () => handler.OnActionAsync(new CanvasProviderInvokeActionRequest(), CancellationToken.None));
         Assert.Equal("canvas_action_no_handler", ex.Code);
     }
 
@@ -154,7 +155,7 @@ public class CanvasTests
 
     private sealed class TestHandler : CanvasHandlerBase
     {
-        public override Task<CanvasOpenResponse> OnOpenAsync(CanvasOpenContext context, CancellationToken cancellationToken)
-            => Task.FromResult(new CanvasOpenResponse { Url = "https://example.com" });
+        public override Task<CanvasProviderOpenResult> OnOpenAsync(CanvasProviderOpenRequest context, CancellationToken cancellationToken)
+            => Task.FromResult(new CanvasProviderOpenResult { Url = "https://example.com" });
     }
 }
