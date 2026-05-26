@@ -11,8 +11,13 @@ use github_copilot_sdk::generated::api_types::{
     PermissionDecisionApproveOnceKind, PermissionDecisionApprovePermanently,
     PermissionDecisionApprovePermanentlyKind, PermissionDecisionReject,
     PermissionDecisionRejectKind, PermissionDecisionRequest, TasksCancelRequest,
-    TasksPromoteToBackgroundRequest, TasksRemoveRequest, TasksStartAgentRequest,
-    UIElicitationResponse, UIElicitationResponseAction, UIHandlePendingElicitationRequest,
+    TasksGetProgressRequest, TasksPromoteToBackgroundRequest, TasksRemoveRequest,
+    TasksSendMessageRequest, TasksStartAgentRequest, UIAutoModeSwitchResponse,
+    UIElicitationResponse, UIElicitationResponseAction, UIExitPlanModeResponse,
+    UIHandlePendingAutoModeSwitchRequest, UIHandlePendingElicitationRequest,
+    UIHandlePendingExitPlanModeRequest, UIHandlePendingSamplingRequest,
+    UIHandlePendingUserInputRequest, UIUnregisterDirectAutoModeSwitchHandlerRequest,
+    UIUserInputResponse,
 };
 
 use super::support::with_e2e_context;
@@ -33,6 +38,40 @@ async fn should_list_task_state_and_return_false_for_missing_task_operations() {
 
                 let tasks = session.rpc().tasks().list().await.expect("list tasks");
                 assert!(tasks.tasks.is_empty());
+                session
+                    .rpc()
+                    .tasks()
+                    .refresh()
+                    .await
+                    .expect("refresh tasks");
+                session
+                    .rpc()
+                    .tasks()
+                    .wait_for_pending()
+                    .await
+                    .expect("wait for pending tasks");
+                assert!(
+                    session
+                        .rpc()
+                        .tasks()
+                        .get_progress(TasksGetProgressRequest {
+                            id: "missing-task".to_string(),
+                        })
+                        .await
+                        .expect("progress missing")
+                        .progress
+                        .is_none()
+                );
+                assert!(
+                    session
+                        .rpc()
+                        .tasks()
+                        .get_current_promotable()
+                        .await
+                        .expect("current promotable")
+                        .task
+                        .is_none()
+                );
                 assert!(
                     !session
                         .rpc()
@@ -43,6 +82,16 @@ async fn should_list_task_state_and_return_false_for_missing_task_operations() {
                         .await
                         .expect("promote missing")
                         .promoted
+                );
+                assert!(
+                    session
+                        .rpc()
+                        .tasks()
+                        .promote_current_to_background()
+                        .await
+                        .expect("promote current missing")
+                        .task
+                        .is_none()
                 );
                 assert!(
                     !session
@@ -66,6 +115,18 @@ async fn should_list_task_state_and_return_false_for_missing_task_operations() {
                         .expect("remove missing")
                         .removed
                 );
+                let send = session
+                    .rpc()
+                    .tasks()
+                    .send_message(TasksSendMessageRequest {
+                        id: "missing-task".to_string(),
+                        message: "hello".to_string(),
+                        from_agent_id: None,
+                    })
+                    .await
+                    .expect("send missing task");
+                assert!(!send.sent);
+                assert!(send.error.is_some());
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -210,6 +271,58 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                     .expect("handle missing elicitation");
                 assert!(!elicitation.success);
 
+                let user_input = session
+                    .rpc()
+                    .ui()
+                    .handle_pending_user_input(UIHandlePendingUserInputRequest {
+                        request_id: "missing-user-input-request".into(),
+                        response: UIUserInputResponse {
+                            answer: "answer".to_string(),
+                            was_freeform: true,
+                        },
+                    })
+                    .await
+                    .expect("handle missing user input");
+                assert!(!user_input.success);
+
+                let sampling = session
+                    .rpc()
+                    .ui()
+                    .handle_pending_sampling(UIHandlePendingSamplingRequest {
+                        request_id: "missing-sampling-request".into(),
+                        response: None,
+                    })
+                    .await
+                    .expect("handle missing sampling");
+                assert!(!sampling.success);
+
+                let auto_mode = session
+                    .rpc()
+                    .ui()
+                    .handle_pending_auto_mode_switch(UIHandlePendingAutoModeSwitchRequest {
+                        request_id: "missing-auto-mode-request".into(),
+                        response: UIAutoModeSwitchResponse::No,
+                    })
+                    .await
+                    .expect("handle missing auto mode switch");
+                assert!(!auto_mode.success);
+
+                let exit_plan = session
+                    .rpc()
+                    .ui()
+                    .handle_pending_exit_plan_mode(UIHandlePendingExitPlanModeRequest {
+                        request_id: "missing-exit-plan-request".into(),
+                        response: UIExitPlanModeResponse {
+                            approved: false,
+                            auto_approve_edits: None,
+                            feedback: Some("not now".to_string()),
+                            selected_action: None,
+                        },
+                    })
+                    .await
+                    .expect("handle missing exit plan");
+                assert!(!exit_plan.success);
+
                 for (request_id, result) in [
                     (
                         "missing-permission-request",
@@ -271,6 +384,57 @@ async fn should_return_expected_results_for_missing_pending_handler_requestids()
                         .expect("handle missing permission");
                     assert!(!permission.success, "{request_id} should not be handled");
                 }
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_register_and_unregister_direct_auto_mode_switch_handler() {
+    with_e2e_context(
+        "rpc_tasks_and_handlers",
+        "should_register_and_unregister_direct_auto_mode_switch_handler",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let missing = session
+                    .rpc()
+                    .ui()
+                    .unregister_direct_auto_mode_switch_handler(
+                        UIUnregisterDirectAutoModeSwitchHandlerRequest {
+                            handle: "missing-handle".to_string(),
+                        },
+                    )
+                    .await
+                    .expect("unregister missing handler");
+                assert!(!missing.unregistered);
+                let handle = session
+                    .rpc()
+                    .ui()
+                    .register_direct_auto_mode_switch_handler()
+                    .await
+                    .expect("register handler")
+                    .handle;
+                assert!(!handle.trim().is_empty());
+                let removed = session
+                    .rpc()
+                    .ui()
+                    .unregister_direct_auto_mode_switch_handler(
+                        UIUnregisterDirectAutoModeSwitchHandlerRequest { handle },
+                    )
+                    .await
+                    .expect("unregister handler");
+                assert!(removed.unregistered);
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
