@@ -57,9 +57,7 @@ class TestRpcEventLog:
 
             async def has_plan_event() -> bool:
                 nonlocal observed
-                observed = await session.rpc.event_log.read(
-                    EventLogReadRequest(max=100, wait_ms=0)
-                )
+                observed = await session.rpc.event_log.read(EventLogReadRequest(max=100, wait_ms=0))
                 return any(
                     isinstance(evt.data, SessionPlanChangedData)
                     and evt.data.operation == PlanChangedOperation.CREATE
@@ -152,8 +150,7 @@ class TestRpcEventLog:
             assert read.cursor_status == EventsCursorStatus.OK
             assert all(evt.type.value == "session.title_changed" for evt in read.events)
             assert any(
-                isinstance(evt.data, SessionTitleChangedData)
-                and evt.data.title == expected_title
+                isinstance(evt.data, SessionTitleChangedData) and evt.data.title == expected_title
                 for evt in read.events
             )
         finally:

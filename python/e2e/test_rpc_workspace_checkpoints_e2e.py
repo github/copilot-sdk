@@ -104,9 +104,7 @@ class TestRpcWorkspaceCheckpoints:
         finally:
             await session.disconnect()
 
-    async def test_should_save_large_paste_and_expose_readable_content(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_save_large_paste_and_expose_readable_content(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )

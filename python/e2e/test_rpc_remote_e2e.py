@@ -69,9 +69,7 @@ class TestRpcRemote:
         finally:
             await session.disconnect()
 
-    async def test_notify_steerable_changed_event_and_persist_flag(
-        self, ctx: E2ETestContext
-    ):
+    async def test_notify_steerable_changed_event_and_persist_flag(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )

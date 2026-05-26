@@ -11,9 +11,9 @@ import pytest
 from copilot.generated.rpc import (
     CommandsRespondToQueuedCommandRequest,
     EnqueueCommandParams,
+    QueuedCommandHandled,
     QueuePendingItems,
     QueuePendingItemsKind,
-    QueuedCommandHandled,
     RegisterEventInterestParams,
     ReleaseEventInterestParams,
 )
@@ -63,9 +63,7 @@ async def _assert_queue_empty(session) -> None:
 
 
 class TestRpcQueue:
-    async def test_fresh_queue_is_empty_and_empty_mutations_are_noops(
-        self, ctx: E2ETestContext
-    ):
+    async def test_fresh_queue_is_empty_and_empty_mutations_are_noops(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
         )
@@ -131,9 +129,7 @@ class TestRpcQueue:
             assert remove.removed is True
             await _wait_for_command_not_in_pending_items(session, second_command)
 
-            third = await session.rpc.commands.enqueue(
-                EnqueueCommandParams(command=third_command)
-            )
+            third = await session.rpc.commands.enqueue(EnqueueCommandParams(command=third_command))
             assert third.queued is True
             await _wait_for_command_in_pending_items(session, third_command)
 

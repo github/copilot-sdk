@@ -36,7 +36,9 @@ class TestRpcCommands:
             commands = await session.rpc.commands.list(CommandsListRequest())
             by_name = {command.name: command for command in commands.commands}
 
-            builtins = [command for command in commands.commands if command.kind == SlashCommandKind.BUILTIN]
+            builtins = [
+                command for command in commands.commands if command.kind == SlashCommandKind.BUILTIN
+            ]
             assert builtins
             if "model" in by_name:
                 assert by_name["model"].kind == SlashCommandKind.BUILTIN
@@ -68,9 +70,7 @@ class TestRpcCommands:
         finally:
             await session.disconnect()
 
-    async def test_should_execute_registered_command_with_arguments(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_execute_registered_command_with_arguments(self, ctx: E2ETestContext):
         calls: list[CommandContext] = []
 
         def deploy(context: CommandContext) -> None:

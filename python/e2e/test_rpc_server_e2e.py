@@ -21,11 +21,11 @@ from copilot.generated.rpc import (
     ModelsListRequest,
     PingRequest,
     SecretsAddFilterValuesRequest,
+    SessionContext,
     SessionFSSetProviderCapabilities,
     SessionFSSetProviderConventions,
     SessionFSSetProviderRequest,
     SessionListFilter,
-    SessionContext,
     SessionMetadata,
     SessionsBulkDeleteRequest,
     SessionsCheckInUseRequest,
@@ -36,8 +36,8 @@ from copilot.generated.rpc import (
     SessionsGetEventFilePathRequest,
     SessionsGetLastForContextRequest,
     SessionsGetPersistedRemoteSteerableRequest,
-    SessionsLoadDeferredRepoHooksRequest,
     SessionsListRequest,
+    SessionsLoadDeferredRepoHooksRequest,
     SessionsPruneOldRequest,
     SessionsReleaseLockRequest,
     SessionsReloadPluginHooksRequest,
@@ -226,9 +226,7 @@ class TestRpcServer:
             except ExceptionGroup:
                 pass
 
-    async def test_should_list_find_and_inspect_persisted_session_state(
-        self, ctx: E2ETestContext
-    ):
+    async def test_should_list_find_and_inspect_persisted_session_state(self, ctx: E2ETestContext):
         session_id = str(uuid.uuid4())
         working_directory = Path(ctx.work_dir) / f"server-rpc-list-{uuid.uuid4().hex}"
         working_directory.mkdir(parents=True, exist_ok=True)
@@ -278,9 +276,7 @@ class TestRpcServer:
             assert by_task.session_id is None
 
             last_for_context = await ctx.client.rpc.sessions.get_last_for_context(
-                SessionsGetLastForContextRequest(
-                    context=SessionContext(cwd=str(working_directory))
-                )
+                SessionsGetLastForContextRequest(context=SessionContext(cwd=str(working_directory)))
             )
             assert last_for_context.session_id in (None, session_id)
 
