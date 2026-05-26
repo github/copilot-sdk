@@ -118,19 +118,20 @@ hooks: {
     onUserPromptSubmitted: async (input, invocation) => { ... },
     onPreToolUse: async (input, invocation) => { ... },
     onPostToolUse: async (input, invocation) => { ... },
+    onPostToolUseFailure: async (input, invocation) => { ... },
     onSessionStart: async (input, invocation) => { ... },
     onSessionEnd: async (input, invocation) => { ... },
     onErrorOccurred: async (input, invocation) => { ... },
 }
 ```
 
-All hook inputs include `timestamp` (unix ms) and `cwd` (working directory).
+All hook inputs include `timestamp` (`Date`) and `workingDirectory`.
 All handlers receive `invocation: { sessionId: string }` as the second argument.
 All handlers may return `void`/`undefined` (no-op) or an output object.
 
 ### onUserPromptSubmitted
 
-**Input:** `{ prompt: string, timestamp, cwd }`
+**Input:** `{ prompt: string, timestamp, workingDirectory }`
 
 **Output (all fields optional):**
 | Field | Type | Effect |
@@ -140,7 +141,7 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 
 ### onPreToolUse
 
-**Input:** `{ toolName: string, toolArgs: unknown, timestamp, cwd }`
+**Input:** `{ toolName: string, toolArgs: unknown, timestamp, workingDirectory }`
 
 **Output (all fields optional):**
 | Field | Type | Effect |
@@ -152,7 +153,10 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 
 ### onPostToolUse
 
-**Input:** `{ toolName: string, toolArgs: unknown, toolResult: ToolResultObject, timestamp, cwd }`
+**Input:** `{ toolName: string, toolArgs: unknown, toolResult: ToolResultObject, timestamp, workingDirectory }`
+
+Fires only when the tool returned a successful result. To observe non-success
+outcomes, register `onPostToolUseFailure` as well.
 
 **Output (all fields optional):**
 | Field | Type | Effect |
@@ -160,9 +164,29 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 | `modifiedResult` | `ToolResultObject` | Replaces the tool result |
 | `additionalContext` | `string` | Injected into the conversation |
 
+### onPostToolUseFailure
+
+**Input:** `{ toolName: string, toolArgs: unknown, error: string, timestamp, workingDirectory }`
+
+Fires after a tool execution whose result was `"failure"`. `onPostToolUse`
+does **not** fire for these outcomes, so register this handler to observe or
+react to them — useful for telemetry, replay buffers, fault-injection tests,
+or pairing pre/post tool tracking that would otherwise leak when the tool
+fails. Note the input shape differs from `onPostToolUse`: only `error` (the
+stringified failure message) is provided, not the full `toolResult`.
+
+**Output (all fields optional):**
+| Field | Type | Effect |
+|-------|------|--------|
+| `additionalContext` | `string` | Appended as hidden guidance the model sees alongside the failed tool result |
+
+Note: only `"failure"` results trigger this hook. Other non-success
+`resultType` values (`"rejected"`, `"denied"`, `"timeout"`) do not currently
+fire it.
+
 ### onSessionStart
 
-**Input:** `{ source: "startup" \| "resume" \| "new", initialPrompt?: string, timestamp, cwd }`
+**Input:** `{ source: "startup" \| "resume" \| "new", initialPrompt?: string, timestamp, workingDirectory }`
 
 **Output (all fields optional):**
 | Field | Type | Effect |
@@ -171,7 +195,7 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 
 ### onSessionEnd
 
-**Input:** `{ reason: "complete" \| "error" \| "abort" \| "timeout" \| "user_exit", finalMessage?: string, error?: string, timestamp, cwd }`
+**Input:** `{ reason: "complete" \| "error" \| "abort" \| "timeout" \| "user_exit", finalMessage?: string, error?: string, timestamp, workingDirectory }`
 
 **Output (all fields optional):**
 | Field | Type | Effect |
@@ -181,7 +205,7 @@ All handlers may return `void`/`undefined` (no-op) or an output object.
 
 ### onErrorOccurred
 
-**Input:** `{ error: string, errorContext: "model_call" \| "tool_execution" \| "system" \| "user_input", recoverable: boolean, timestamp, cwd }`
+**Input:** `{ error: string, errorContext: "model_call" \| "tool_execution" \| "system" \| "user_input", recoverable: boolean, timestamp, workingDirectory }`
 
 **Output (all fields optional):**
 | Field | Type | Effect |

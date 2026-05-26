@@ -152,16 +152,17 @@ Hooks intercept and modify behavior at key lifecycle points. Register them in th
 
 ### Available Hooks
 
-| Hook                    | Fires When                | Can Modify                                  |
-| ----------------------- | ------------------------- | ------------------------------------------- |
-| `onUserPromptSubmitted` | User sends a message      | The prompt text, add context                |
-| `onPreToolUse`          | Before a tool executes    | Tool args, permission decision, add context |
-| `onPostToolUse`         | After a tool executes     | Tool result, add context                    |
-| `onSessionStart`        | Session starts or resumes | Add context, modify config                  |
-| `onSessionEnd`          | Session ends              | Cleanup actions, summary                    |
-| `onErrorOccurred`       | An error occurs           | Error handling strategy (retry/skip/abort)  |
+| Hook                    | Fires When                               | Can Modify                                  |
+| ----------------------- | ---------------------------------------- | ------------------------------------------- |
+| `onUserPromptSubmitted` | User sends a message                     | The prompt text, add context                |
+| `onPreToolUse`          | Before a tool executes                   | Tool args, permission decision, add context |
+| `onPostToolUse`         | After a tool executes successfully       | Tool result, add context                    |
+| `onPostToolUseFailure`  | After a tool execution returns a failure | Add hidden guidance to the model            |
+| `onSessionStart`        | Session starts or resumes                | Add context, modify config                  |
+| `onSessionEnd`          | Session ends                             | Cleanup actions, summary                    |
+| `onErrorOccurred`       | An error occurs                          | Error handling strategy (retry/skip/abort)  |
 
-All hook inputs include `timestamp` (unix ms) and `cwd` (working directory).
+All hook inputs include `timestamp` (`Date`) and `workingDirectory`.
 
 ### Modifying the user's message
 
@@ -267,12 +268,18 @@ hooks: {
 }
 ```
 
-### Augmenting tool results with extra context
+### Reacting when a tool fails
+
+`onPostToolUse` only fires for successful tool executions. To observe or react
+to failures, register `onPostToolUseFailure`. The input includes
+`input.error` (the stringified failure message); only `additionalContext` on
+the return value is consumed by the runtime, and it is appended as hidden
+guidance alongside the failed tool result.
 
 ```js
 hooks: {
-    onPostToolUse: async (input) => {
-        if (input.toolName === "bash" && input.toolResult?.resultType === "failure") {
+    onPostToolUseFailure: async (input) => {
+        if (input.toolName === "bash") {
             return {
                 additionalContext: "The command failed. Try a different approach.",
             };

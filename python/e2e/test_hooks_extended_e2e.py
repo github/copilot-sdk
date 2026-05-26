@@ -2,10 +2,11 @@
 Extended hook lifecycle tests that mirror dotnet/test/HookLifecycleAndOutputTests.cs.
 
 E2E coverage for every handler exposed on ``SessionHooks``:
-``on_pre_tool_use``, ``on_post_tool_use``, ``on_user_prompt_submitted``,
-``on_session_start``, ``on_session_end``, ``on_error_occurred``. Output-shape
-behavior (modifiedPrompt / additionalContext / errorHandling / modifiedArgs /
-modifiedResult / sessionSummary) is asserted alongside hook invocation.
+``on_pre_tool_use``, ``on_post_tool_use``, ``on_post_tool_use_failure``,
+``on_user_prompt_submitted``, ``on_session_start``, ``on_session_end``,
+``on_error_occurred``. Output-shape behavior (modifiedPrompt /
+additionalContext / errorHandling / modifiedArgs / modifiedResult /
+sessionSummary) is asserted alongside hook invocation.
 """
 
 from __future__ import annotations
@@ -182,5 +183,45 @@ class TestHooksExtended:
             )
             assert any(inp.get("toolName") == "report_intent" for inp in inputs)
             assert (response.data.content or "").strip().rstrip(".") in {"Done", "done"}
+        finally:
+            await session.disconnect()
+
+    async def test_should_invoke_posttoolusefailure_hook_for_failed_tool_result(
+        self, ctx: E2ETestContext
+    ):
+        failure_inputs: list[dict] = []
+        post_tool_use_inputs: list[dict] = []
+
+        async def on_post_tool_use(input_data, invocation):
+            post_tool_use_inputs.append(input_data)
+            return None
+
+        async def on_post_tool_use_failure(input_data, invocation):
+            failure_inputs.append(input_data)
+            assert invocation["session_id"] == session.session_id
+            return {"additionalContext": "HOOK_FAILURE_GUIDANCE_APPLIED"}
+
+        session = await ctx.client.create_session(
+            on_permission_request=PermissionHandler.approve_all,
+            available_tools=["report_intent"],
+            hooks={
+                "on_post_tool_use": on_post_tool_use,
+                "on_post_tool_use_failure": on_post_tool_use_failure,
+            },
+        )
+        try:
+            response = await session.send_and_wait(
+                "Call the view tool with path 'missing.txt'. "
+                "If it fails, use the hook guidance to answer."
+            )
+            assert not post_tool_use_inputs
+            assert len(failure_inputs) == 1
+            failure_input = failure_inputs[0]
+            assert failure_input["toolName"] == "view"
+            assert "does not exist" in failure_input["error"]
+            assert "missing.txt" in failure_input["toolArgs"]["path"]
+            assert failure_input["timestamp"].timestamp() > 0
+            assert failure_input["workingDirectory"]
+            assert "HOOK_FAILURE_GUIDANCE_APPLIED" in (response.data.content or "")
         finally:
             await session.disconnect()

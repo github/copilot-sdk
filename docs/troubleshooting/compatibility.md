@@ -64,7 +64,8 @@ The Copilot SDK communicates with the CLI via JSON-RPC protocol. Features must b
 | Remote HTTP/SSE | `mcpServers` config | Connect to services |
 | **Hooks** | | |
 | Pre-tool use | `onPreToolUse` | Permission, modify args |
-| Post-tool use | `onPostToolUse` | Modify results |
+| Post-tool use (success) | `onPostToolUse` | Modify results |
+| Post-tool use (failure) | `onPostToolUseFailure` | Observe failed tool calls, inject retry guidance |
 | User prompt | `onUserPromptSubmitted` | Modify prompts |
 | Session start/end | `onSessionStart`, `onSessionEnd` | Lifecycle with source/reason |
 | Error handling | `onErrorOccurred` | Custom handling |

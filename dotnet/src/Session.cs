@@ -1346,6 +1346,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseHookInput)!,
                         invocation)
                     : null,
+                "postToolUseFailure" => hooks.OnPostToolUseFailure != null
+                    ? await hooks.OnPostToolUseFailure(
+                        JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.PostToolUseFailureHookInput)!,
+                        invocation)
+                    : null,
                 "userPromptSubmitted" => hooks.OnUserPromptSubmitted != null
                     ? await hooks.OnUserPromptSubmitted(
                         JsonSerializer.Deserialize(input.GetRawText(), SessionJsonContext.Default.UserPromptSubmittedHookInput)!,
@@ -1709,6 +1714,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     [JsonSerializable(typeof(ExitPlanModeResult))]
     [JsonSerializable(typeof(GetMessagesRequest))]
     [JsonSerializable(typeof(GetMessagesResponse))]
+    [JsonSerializable(typeof(PostToolUseFailureHookInput))]
+    [JsonSerializable(typeof(PostToolUseFailureHookOutput))]
     [JsonSerializable(typeof(PostToolUseHookInput))]
     [JsonSerializable(typeof(PostToolUseHookOutput))]
     [JsonSerializable(typeof(PreMcpToolCallHookInput))]

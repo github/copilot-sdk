@@ -3,7 +3,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 using Microsoft.Extensions.AI;
-using System.Text.Json;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -11,11 +10,11 @@ namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// E2E coverage for every handler exposed on <see cref="SessionHooks"/>:
-/// OnPreToolUse, OnPostToolUse, OnUserPromptSubmitted, OnSessionStart, OnSessionEnd,
-/// OnErrorOccurred. Output-shape behavior (modifiedPrompt / additionalContext /
-/// errorHandling / modifiedArgs / modifiedResult / sessionSummary) is asserted alongside
-/// hook invocation. If a new handler is added to <c>SessionHooks</c>, add a corresponding
-/// test here.
+/// OnPreToolUse, OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted,
+/// OnSessionStart, OnSessionEnd, OnErrorOccurred. Output-shape behavior
+/// (modifiedPrompt / additionalContext / errorHandling / modifiedArgs /
+/// modifiedResult / sessionSummary) is asserted alongside hook invocation. If a
+/// new handler is added to <c>SessionHooks</c>, add a corresponding test here.
 /// </summary>
 public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "hooks_extended", output)
@@ -342,5 +341,56 @@ public class HookLifecycleAndOutputE2ETests(E2ETestFixture fixture, ITestOutputH
 
         Assert.Contains(inputs, input => input.ToolName == "report_intent");
         Assert.Equal("Done.", response?.Data.Content);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_PostToolUseFailure_Hook_For_Failed_Tool_Result()
+    {
+        var failureInputs = new List<PostToolUseFailureHookInput>();
+        var postToolUseInputs = new List<PostToolUseHookInput>();
+        CopilotSession? session = null;
+        session = await CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            AvailableTools = ["report_intent"],
+            Hooks = new SessionHooks
+            {
+                OnPostToolUse = (input, invocation) =>
+                {
+                    postToolUseInputs.Add(input);
+                    return Task.FromResult<PostToolUseHookOutput?>(null);
+                },
+                OnPostToolUseFailure = (input, invocation) =>
+                {
+                    failureInputs.Add(input);
+                    Assert.Equal(session!.SessionId, invocation.SessionId);
+                    return Task.FromResult<PostToolUseFailureHookOutput?>(new PostToolUseFailureHookOutput
+                    {
+                        AdditionalContext = "HOOK_FAILURE_GUIDANCE_APPLIED",
+                    });
+                },
+            },
+        });
+
+        var response = await session.SendAndWaitAsync(new MessageOptions
+        {
+            Prompt = "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.",
+        });
+
+        Assert.Empty(postToolUseInputs);
+        var input = Assert.Single(failureInputs);
+        Assert.Equal("view", input.ToolName);
+        Assert.Contains("does not exist", input.Error);
+        Assert.NotNull(input.ToolArgs);
+        Assert.True(input.Timestamp > DateTimeOffset.UnixEpoch);
+        Assert.False(string.IsNullOrEmpty(input.WorkingDirectory));
+        Assert.Contains("HOOK_FAILURE_GUIDANCE_APPLIED", response?.Data.Content ?? string.Empty);
+
+        var exchanges = await WaitForExchangesAsync(2);
+        var toolMessage = exchanges[^1].Request.Messages.Single(message => message.Role == "tool");
+        Assert.Contains("does not exist", toolMessage.StringContent);
+        Assert.Contains(
+            exchanges[^1].Request.Messages,
+            message => (message.StringContent ?? string.Empty).Contains("HOOK_FAILURE_GUIDANCE_APPLIED", StringComparison.Ordinal));
     }
 }

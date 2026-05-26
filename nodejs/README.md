@@ -957,13 +957,23 @@ const session = await client.createSession({
             };
         },
 
-        // Called after each tool execution
+        // Called after each successful tool execution
         onPostToolUse: async (input, invocation) => {
             console.log(`Tool ${input.toolName} completed`);
             // Optionally modify the result or add context
             return {
                 additionalContext: "Post-execution notes",
             };
+        },
+
+        // Called after a tool execution whose result was "failure".
+        // onPostToolUse does NOT fire for failed tool calls — register this
+        // hook to observe them. Input includes `error` (the failure message
+        // extracted from the tool's result), not the full result object.
+        onPostToolUseFailure: async (input, invocation) => {
+            console.log(`Tool ${input.toolName} failed: ${input.error}`);
+            // Optionally append hidden guidance to the model.
+            return { additionalContext: "Suggest checking inputs and retrying." };
         },
 
         // Called when user submits a prompt
@@ -1001,7 +1011,8 @@ const session = await client.createSession({
 **Available hooks:**
 
 - `onPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
-- `onPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `onPostToolUse` - Process tool results after **successful** execution. Can modify results or add context.
+- `onPostToolUseFailure` - Observe and append hidden guidance to the model after tool executions whose result was `"failure"`. Register this in addition to `onPostToolUse` to see failed tool calls.
 - `onUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
 - `onSessionStart` - Run logic when a session starts or resumes.
 - `onSessionEnd` - Cleanup or logging when session ends.

@@ -13,7 +13,8 @@ Hooks allow you to intercept and customize the behavior of Copilot sessions at k
 | Hook | Trigger | Use Case |
 |------|---------|----------|
 | [`onPreToolUse`](./pre-tool-use.md) | Before a tool executes | Permission control, argument validation |
-| [`onPostToolUse`](./post-tool-use.md) | After a tool executes | Result transformation, logging |
+| [`onPostToolUse`](./post-tool-use.md) | After a tool executes (success only) | Result transformation, logging |
+| [`onPostToolUseFailure`](./post-tool-use.md#failure-variant) | After a tool execution whose result was a failure | Inject retry guidance, log failures |
 | [`onUserPromptSubmitted`](./user-prompt-submitted.md) | When user sends a message | Prompt modification, filtering |
 | [`onSessionStart`](./session-lifecycle.md#session-start) | Session begins | Add context, configure session |
 | [`onSessionEnd`](./session-lifecycle.md#session-end) | Session ends | Cleanup, analytics |

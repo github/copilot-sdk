@@ -859,6 +859,19 @@ var session = await client.CreateSessionAsync(new SessionConfig
             };
         },
 
+        // Called when a tool execution result was a failure. OnPostToolUse only
+        // fires on success, so register OnPostToolUseFailure to observe failed
+        // tool calls. The CLI extracts the failure message and passes it as
+        // input.Error.
+        OnPostToolUseFailure = async (input, invocation) =>
+        {
+            Console.WriteLine($"Tool {input.ToolName} failed: {input.Error}");
+            return new PostToolUseFailureHookOutput
+            {
+                AdditionalContext = $"Retry guidance for {input.ToolName}"
+            };
+        },
+
         // Called when user submits a prompt
         OnUserPromptSubmitted = async (input, invocation) =>
         {
@@ -902,7 +915,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
 **Available hooks:**
 
 - `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
-- `OnPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `OnPostToolUse` - Process tool results after successful execution. Can modify results or add context.
+- `OnPostToolUseFailure` - Observe failed tool executions and inject extra context to guide the model's next step.
 - `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
