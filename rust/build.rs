@@ -232,10 +232,17 @@ fn target_platform() -> Option<Platform> {
 
 /// Dev-mode extraction: write the single binary entry from `archive` to
 /// `<platform cache>/github-copilot-sdk/cli/<version>/<binary_name>` (staging
-/// dir + atomic rename). Idempotent — returns the existing path if a previous
+/// file + atomic rename). Idempotent — returns the existing path if a previous
 /// build already populated the target. Mirrors the cache layout
 /// `embeddedcli::default_install_dir` uses at runtime so the two modes are
 /// interchangeable.
+///
+/// Uses file-level (not directory-level) atomic rename so the recovery path
+/// works on Windows too: `std::fs::rename` on Windows atomically replaces
+/// existing files via `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, but
+/// **cannot** replace an existing directory. Staging the binary alongside
+/// its final location and renaming the file is portable; staging an entire
+/// directory and renaming it is not.
 fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBuf {
     let cache_root = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
     let install_dir = cache_root
@@ -248,28 +255,27 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
         return final_path;
     }
 
-    let parent = install_dir
-        .parent()
-        .expect("install_dir always has a parent");
-    std::fs::create_dir_all(parent)
-        .unwrap_or_else(|e| panic!("failed to create cache parent {}: {e}", parent.display()));
+    std::fs::create_dir_all(&install_dir).unwrap_or_else(|e| {
+        panic!(
+            "failed to create install dir {}: {e}",
+            install_dir.display()
+        )
+    });
 
-    // Staging dir is a sibling of the final per-version dir so the atomic
-    // rename stays on the same filesystem. PID + nanos disambiguate parallel
-    // builds racing on the same cache.
+    // Staging file is a sibling of the final binary so the rename stays on
+    // the same filesystem. PID + nanos disambiguate parallel builds racing
+    // on the same cache.
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let staging = parent.join(format!(
-        ".staging-{version}-{pid}-{nanos}",
+    let staging_binary = install_dir.join(format!(
+        ".{binary_name}.staging-{pid}-{nanos}",
+        binary_name = platform.binary_name,
         pid = std::process::id(),
     ));
-    std::fs::create_dir_all(&staging)
-        .unwrap_or_else(|e| panic!("failed to create staging dir {}: {e}", staging.display()));
 
     let bytes = extract_binary_bytes(archive, platform);
-    let staging_binary = staging.join(platform.binary_name);
     std::fs::write(&staging_binary, &bytes)
         .unwrap_or_else(|e| panic!("failed to write {}: {e}", staging_binary.display()));
 
@@ -280,19 +286,18 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
             .unwrap_or_else(|e| panic!("failed to chmod {}: {e}", staging_binary.display()));
     }
 
-    match std::fs::rename(&staging, &install_dir) {
+    // Atomic on both Unix and Windows for file-to-file renames. If a
+    // concurrent build already won the race, the rename replaces their
+    // bytes with ours — the SHA-verified inputs are identical, so this is
+    // safe.
+    match std::fs::rename(&staging_binary, &final_path) {
         Ok(()) => {}
-        Err(_) if final_path.is_file() => {
-            // Another concurrent build won the race; their bytes are the same
-            // (verified SHA), so just clean up our staging copy.
-            let _ = std::fs::remove_dir_all(&staging);
-        }
         Err(e) => {
-            let _ = std::fs::remove_dir_all(&staging);
+            let _ = std::fs::remove_file(&staging_binary);
             panic!(
                 "failed to rename {} -> {}: {e}",
-                staging.display(),
-                install_dir.display()
+                staging_binary.display(),
+                final_path.display()
             );
         }
     }
