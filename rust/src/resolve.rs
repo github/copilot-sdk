@@ -7,10 +7,11 @@
 //! 2. The `COPILOT_CLI_PATH` environment variable.
 //! 3. The bundled CLI embedded in this crate at build time (gated on the
 //!    default `bundled-cli` cargo feature).
+//! 4. The build-time-extracted CLI in the per-user cache (when
+//!    `bundled-cli` is disabled, i.e. dev builds).
 //!
 //! There is no PATH scanning and no walking of standard install locations.
-//! If you've opted out of bundling (via `default-features = false`) and
-//! neither `CliProgram::Path` nor `COPILOT_CLI_PATH` is set,
+//! If none of the above resolves to a real file,
 //! [`Client::start`](crate::Client::start) returns
 //! [`Error::BinaryNotFound`](crate::Error::BinaryNotFound).
 
@@ -24,7 +25,9 @@ use crate::Error;
 /// Resolve the CLI binary, optionally overriding the directory the bundled
 /// CLI is extracted to. Called by `Client::start` to thread
 /// `ClientOptions::bundled_cli_extract_dir` through to
-/// `embeddedcli::install_at`.
+/// `embeddedcli::install_at`. `extract_dir` only affects embed mode — in
+/// dev mode the binary path is baked in at build time and `extract_dir`
+/// is ignored (there's no archive to re-extract).
 pub(crate) fn copilot_binary_with_extract_dir(
     extract_dir: Option<&Path>,
 ) -> Result<PathBuf, Error> {
@@ -35,16 +38,27 @@ pub(crate) fn copilot_binary_with_extract_dir(
         }
         warn!(
             path = %candidate.display(),
-            "COPILOT_CLI_PATH is set but does not point to a file; falling back to bundled CLI"
+            "COPILOT_CLI_PATH is set but does not point to a file; falling back"
         );
     }
 
-    let bundled = match extract_dir {
-        Some(dir) => crate::embeddedcli::install_at(dir),
-        None => crate::embeddedcli::path(),
-    };
-    if let Some(path) = bundled {
-        return Ok(path);
+    #[cfg(feature = "bundled-cli")]
+    {
+        let bundled = match extract_dir {
+            Some(dir) => crate::embeddedcli::install_at(dir),
+            None => crate::embeddedcli::path(),
+        };
+        if let Some(path) = bundled {
+            return Ok(path);
+        }
+    }
+
+    #[cfg(not(feature = "bundled-cli"))]
+    {
+        let _ = extract_dir;
+        if let Some(path) = dev_cli_path() {
+            return Ok(path);
+        }
     }
 
     Err(Error::BinaryNotFound {
@@ -54,4 +68,26 @@ pub(crate) fn copilot_binary_with_extract_dir(
                feature enabled, set COPILOT_CLI_PATH, or supply an explicit path via \
                `CliProgram::Path(...)` on `ClientOptions::program`.",
     })
+}
+
+/// Path to the CLI extracted into the per-user cache by `build.rs` when
+/// `bundled-cli` is disabled. Returns `None` if the cached file is missing
+/// (e.g. the user deleted the cache after building).
+#[cfg(not(feature = "bundled-cli"))]
+fn dev_cli_path() -> Option<PathBuf> {
+    // `has_dev_cli` is emitted by build.rs only when it successfully extracted
+    // the CLI for a supported target. On unsupported targets (where
+    // target_platform() returns None) the cfg is absent.
+    #[cfg(has_dev_cli)]
+    {
+        let path = PathBuf::from(env!("COPILOT_CLI_DEV_PATH"));
+        if path.is_file() {
+            return Some(path);
+        }
+        warn!(
+            path = %path.display(),
+            "build-time-extracted CLI is missing from cache; rebuild the crate to re-extract"
+        );
+    }
+    None
 }

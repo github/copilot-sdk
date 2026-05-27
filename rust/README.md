@@ -756,30 +756,39 @@ none of them are scheduled for removal.
 
 ## Embedded CLI
 
-The SDK bundles the Copilot CLI binary inside the consumer's compiled crate by default. No env var setup, no separate install — just `cargo build` and you get a self-contained binary.
+The SDK provisions the Copilot CLI binary at build time. By default the `bundled-cli` feature embeds the verified binary directly in your compiled crate, so end-user binaries are self-contained — no env var setup, no separate install, just `cargo build`.
 
-To opt out (e.g. for binary-size-sensitive consumers, or environments that provide the CLI via PATH), set `default-features = false`:
+For development you usually want the smaller dev build:
 
 ```toml
 github-copilot-sdk = { version = "0.1", default-features = false }
 ```
 
+This still pins, downloads, and SHA-verifies the same CLI version, but extracts the binary into a per-user cache instead of embedding it. The runtime resolver returns that cached path. The cache is shared across crates and across embed/dev builds.
+
 ### How it works
 
-1. **Pinned at publish time.** When the rust crate is published, a workflow step writes `bundled_cli_version.txt` (CLI version + per-platform SHA-256 hashes) into the crate from the in-effect `nodejs/package-lock.json` and the matching GitHub Release's `SHA256SUMS.txt`. This file is gitignored locally; it only exists in the published crate tarball.
+1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
+   - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
+   - Otherwise, `../nodejs/package-lock.json` (mono-repo contributor build — matches the .NET and Go SDK conventions in this repo).
 
-2. **Build time:** The SDK's `build.rs` resolves the version + per-platform SHA-256:
-   - `COPILOT_CLI_VERSION` env var (advanced override; fetches live `SHA256SUMS.txt`).
-   - Otherwise, `bundled_cli_version.txt` from the published crate.
-   - Otherwise (mono-repo contributor build), live read from `../nodejs/package-lock.json` + live fetch of `SHA256SUMS.txt`.
+2. **Build time:** `build.rs` downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), live-fetches the matching `SHA256SUMS.txt`, and verifies the archive hash. Then:
+   - **`bundled-cli` on (default, release):** embeds the raw archive bytes via `include_bytes!()`. Runtime extracts on first `Client::start()`.
+   - **`bundled-cli` off (dev):** extracts the binary directly into the platform cache (staging dir + atomic rename), idempotent across rebuilds.
 
-   It then downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), verifies the SHA-256, extracts the `copilot` binary, compresses it with zstd, and embeds via `include_bytes!()`.
+3. **Runtime:** in both modes the binary lives at:
 
-3. **Runtime:** On the first call to `github_copilot_sdk::Client::start()`, the embedded archive is lazily extracted to the platform cache dir (`%LOCALAPPDATA%\github-copilot-sdk-{version}\` on Windows, `~/Library/Caches/github-copilot-sdk-{version}/` on macOS, `$XDG_CACHE_HOME/github-copilot-sdk-{version}/` (or `~/.cache/...`) on Linux). Subsequent runs reuse the extracted binary.
+   | OS | Path |
+   |----|------|
+   | macOS | `~/Library/Caches/github-copilot-sdk/cli/<version>/copilot` |
+   | Linux | `${XDG_CACHE_HOME:-~/.cache}/github-copilot-sdk/cli/<version>/copilot` |
+   | Windows | `%LOCALAPPDATA%\github-copilot-sdk\cli\<version>\copilot.exe` |
+
+   Old version directories accumulate in siblings; clean them up at your leisure.
 
 ### Overriding the extraction location
 
-Use [`ClientOptions::with_bundled_cli_extract_dir`] when you need to place the extracted binary somewhere other than the platform cache dir (CI runners with ephemeral homes, sandboxes that disallow cache paths, etc.):
+[`ClientOptions::with_bundled_cli_extract_dir`] redirects embed-mode extraction to a custom directory (CI runners with ephemeral homes, sandboxes that disallow cache paths, etc.):
 
 ```rust,ignore
 use std::path::PathBuf;
@@ -790,15 +799,22 @@ let options = ClientOptions::new()
 let client = Client::start(options).await?;
 ```
 
+In dev mode this option is a no-op — the binary's path is fixed at build time and there is no archive to re-extract. Set `COPILOT_CLI_PATH` instead if you need to point the runtime at a different binary.
+
 ### Resolution priority
 
-`copilot_binary()` checks these sources in order:
+`Client::start` resolves the CLI in this order:
 
-1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`
-2. `COPILOT_CLI_PATH` environment variable
-3. Embedded CLI (when the `bundled-cli` feature is enabled, which it is by default)
+1. Explicit `CliProgram::Path(path)` on `ClientOptions::program`.
+2. `COPILOT_CLI_PATH` environment variable, if it points at a real file.
+3. **`bundled-cli` on:** the embedded archive, lazily extracted on first call.
+4. **`bundled-cli` off:** the build-time-extracted binary in the per-user cache.
 
-There is no PATH scanning. If both 1+2 are unset and the SDK was built with `default-features = false`, `Client::start` returns `Error::BinaryNotFound`.
+There is no PATH scanning. If none of the above resolves, `Client::start` returns `Error::BinaryNotFound`.
+
+### Download cache (build-time)
+
+`build.rs` re-downloads on every clean build by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache the verified archive between builds (CI keys this on `<os>-<version>` for ~zero-cost rebuilds on cache hits).
 
 ### Platforms
 

@@ -4,7 +4,8 @@
 //!
 //! build.rs downloads the platform's `copilot-{platform}.{tar.gz,zip}`
 //! archive from GitHub Releases, SHA-256 verifies it against the version
-//! pinned in `bundled_cli_version.txt`, and embeds the **raw archive bytes**
+//! pinned in `cli-version.txt` (or `../nodejs/package-lock.json` in the
+//! mono-repo), and embeds the **raw archive bytes**
 //! into the consumer's compiled artifact via `include_bytes!()`. Extraction
 //! to a real on-disk path is deferred until the first call to
 //! [`path`] / [`install_at`] — at which point the bytes are part of the
@@ -31,14 +32,15 @@ mod build_time {
     include!(concat!(env!("OUT_DIR"), "/bundled_cli.rs"));
 }
 
+#[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
 /// Returns the path to the installed CLI binary, lazily extracting the
 /// embedded archive on first call.
 ///
 /// On first call this extracts the embedded archive to
-/// `<platform cache dir>/github-copilot-sdk-{version}/copilot[.exe]` and
-/// returns the resulting path. The cache dir comes from
+/// `<platform cache dir>/github-copilot-sdk/cli/<version>/copilot[.exe]`
+/// and returns the resulting path. The cache dir comes from
 /// [`dirs::cache_dir()`] — `%LOCALAPPDATA%` on Windows,
 /// `~/Library/Caches/` on macOS, `$XDG_CACHE_HOME` (or `~/.cache/`) on
 /// Linux. Subsequent calls return the cached result. The extraction
@@ -47,6 +49,7 @@ static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 /// trusted mean no further hashing is needed.
 ///
 /// Returns `None` if no CLI was embedded at build time.
+#[cfg(feature = "bundled-cli")]
 pub(crate) fn path() -> Option<PathBuf> {
     INSTALLED_PATH
         .get_or_init(|| {
@@ -69,11 +72,12 @@ pub(crate) fn path() -> Option<PathBuf> {
 }
 
 /// Install the embedded CLI binary into the given directory instead of the
-/// default `<platform cache dir>/github-copilot-sdk-{version}/` location
+/// default `<platform cache dir>/github-copilot-sdk/cli/<version>/` location
 /// (see [`path`] for the per-platform mapping).
 ///
 /// Idempotent: skips extraction if the target binary already exists.
 /// Returns `None` when the SDK was built without a bundled CLI.
+#[cfg(feature = "bundled-cli")]
 #[allow(dead_code)] // Used by resolve.rs when ClientOptions::bundled_cli_extract_dir is set.
 pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
     #[cfg(has_bundled_cli)]
@@ -98,10 +102,11 @@ pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
 #[cfg(has_bundled_cli)]
 fn default_install_dir(version: &str) -> PathBuf {
     let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    let root = cache.join("github-copilot-sdk").join("cli");
     if version.is_empty() {
-        cache.join("github-copilot-sdk")
+        root.join("unversioned")
     } else {
-        cache.join(format!("github-copilot-sdk-{}", sanitize_version(version)))
+        root.join(sanitize_version(version))
     }
 }
 

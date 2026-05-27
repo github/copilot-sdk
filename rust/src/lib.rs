@@ -7,6 +7,7 @@
 pub mod canvas;
 mod canvas_dispatch;
 /// Bundled CLI binary extraction and caching.
+#[cfg(feature = "bundled-cli")]
 pub(crate) mod embeddedcli;
 /// Event handler traits for session lifecycle.
 pub mod handler;

@@ -19,7 +19,7 @@ include = [
     "Cargo.toml",
     "README.md",
     "LICENSE",
-    "bundled_cli_version.txt",
+    "cli-version.txt",
 ]
 
 [lib]
@@ -69,6 +69,7 @@ tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [build-dependencies]
+dirs = "5"
 flate2 = "1"
 sha2 = "0.10"
 tar = "0.4"

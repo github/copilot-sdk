@@ -167,12 +167,14 @@ jobs:
           workspaces: "rust"
       - name: Set version
         run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
-      - name: Snapshot CLI version + hashes for build.rs
-        run: bash scripts/snapshot-bundled-cli-version.sh
-      - name: Verify snapshot file exists
+      - name: Write cli-version.txt from package-lock.json
         run: |
-          if [[ ! -f bundled_cli_version.txt ]]; then
-            echo "::error::bundled_cli_version.txt was not generated. The Snapshot step must run before packaging."
+          node -e "console.log(require('../nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)" > cli-version.txt
+          echo "Wrote cli-version.txt: $(cat cli-version.txt)"
+      - name: Verify cli-version.txt exists
+        run: |
+          if [[ ! -f cli-version.txt ]]; then
+            echo "::error::cli-version.txt was not generated. The previous step must run before packaging."
             exit 1
           fi
       - name: Package (dry run)
