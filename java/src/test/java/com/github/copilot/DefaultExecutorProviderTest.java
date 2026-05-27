@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -95,6 +96,38 @@ class DefaultExecutorProviderTest {
         }
     }
 
+    @Test
+    void clientCloseShutsDownOwnedDefaultExecutorOnJdk25() throws Exception {
+        if (Runtime.version().feature() < 25) {
+            return;
+        }
+
+        Path classes = Path.of("target", "classes");
+        Path jar = Files.createTempFile("copilot-sdk-client-default-executor", ".jar");
+        try {
+            createClassesJar(jar, classes);
+
+            try (var loader = new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)) {
+                Class<?> clientClass = Class.forName("com.github.copilot.CopilotClient", true, loader);
+                AutoCloseable client = (AutoCloseable) clientClass.getConstructor().newInstance();
+                Field ownedExecutorField = clientClass.getDeclaredField("ownedExecutor");
+                ownedExecutorField.setAccessible(true);
+                ExecutorService ownedExecutor = (ExecutorService) ownedExecutorField.get(client);
+
+                assertNotNull(ownedExecutor);
+                assertFalse(ownedExecutor.isShutdown());
+
+                client.close();
+
+                assertTrue(ownedExecutor.isShutdown());
+                assertTrue(ownedExecutor.awaitTermination(5, TimeUnit.SECONDS));
+                assertTrue(ownedExecutor.isTerminated());
+            }
+        } finally {
+            Files.deleteIfExists(jar);
+        }
+    }
+
     private static boolean isCurrentThreadVirtual() {
         try {
             Method isVirtual = Thread.class.getMethod("isVirtual");
@@ -113,6 +146,31 @@ class DefaultExecutorProviderTest {
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar), manifest)) {
             addClass(output, "com/github/copilot/DefaultExecutorProvider.class", baseClass);
             addClass(output, "META-INF/versions/25/com/github/copilot/DefaultExecutorProvider.class", java25Class);
+        }
+    }
+
+    private static void createClassesJar(Path jar, Path classes) throws IOException {
+        Manifest manifest = new Manifest();
+        Attributes attributes = manifest.getMainAttributes();
+        attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        attributes.putValue("Multi-Release", "true");
+
+        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar), manifest);
+                var files = Files.walk(classes)) {
+            var iterator = files.iterator();
+            while (iterator.hasNext()) {
+                Path file = iterator.next();
+                if (!Files.isRegularFile(file)) {
+                    continue;
+                }
+
+                String entryName = classes.relativize(file).toString().replace('\\', '/');
+                if ("META-INF/MANIFEST.MF".equals(entryName)) {
+                    continue;
+                }
+
+                addClass(output, entryName, file);
+            }
         }
     }
 
