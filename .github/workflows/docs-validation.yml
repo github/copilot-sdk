@@ -142,7 +142,7 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: 'microsoft'
           java-version: '17'
           cache: 'maven'
 
