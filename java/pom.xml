@@ -447,6 +447,10 @@
                         <configuration>
                             <dataFile>${project.build.directory}/jacoco-test-results/sdk-tests.exec</dataFile>
                             <outputDirectory>${project.reporting.outputDirectory}/jacoco-coverage</outputDirectory>
+                            <excludes>
+                                <!-- Exclude multi-release classes to avoid duplicate class analysis. -->
+                                <exclude>META-INF/versions/**/*.class</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
@@ -506,6 +510,48 @@
             <properties>
                 <surefire.jvm.args>-XX:+EnableDynamicAgentLoading</surefire.jvm.args>
             </properties>
+        </profile>
+        <profile>
+            <id>java25-multi-release</id>
+            <activation>
+                <jdk>[25,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>compile-java25</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <release>25</release>
+                                    <useIncrementalCompilation>false</useIncrementalCompilation>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/main/java25</compileSourceRoot>
+                                    </compileSourceRoots>
+                                    <multiReleaseOutput>true</multiReleaseOutput>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <!-- Skip git-clone + npm install of the copilot-sdk test harness -->
         <profile>

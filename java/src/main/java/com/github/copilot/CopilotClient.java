@@ -14,6 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -81,6 +82,8 @@ public final class CopilotClient implements AutoCloseable {
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
     private final CopilotClientOptions options;
+    private final Executor executor;
+    private final ExecutorService ownedExecutor;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
@@ -168,6 +171,11 @@ public final class CopilotClient implements AutoCloseable {
             this.optionsPort = null;
         }
 
+        Executor providedExecutor = this.options.getExecutor();
+        this.executor = providedExecutor != null ? providedExecutor : DefaultExecutorProvider.create();
+        this.ownedExecutor = providedExecutor == null && DefaultExecutorProvider.isOwned(this.executor)
+                && this.executor instanceof ExecutorService executorService ? executorService : null;
+
         this.serverManager = new CliServerManager(this.options);
         this.serverManager.setConnectionToken(this.effectiveConnectionToken);
     }
@@ -191,11 +199,8 @@ public final class CopilotClient implements AutoCloseable {
     private CompletableFuture<Connection> startCore() {
         LOG.fine("Starting Copilot client");
 
-        Executor exec = options.getExecutor();
         try {
-            return exec != null
-                    ? CompletableFuture.supplyAsync(this::startCoreBody, exec)
-                    : CompletableFuture.supplyAsync(this::startCoreBody);
+            return CompletableFuture.supplyAsync(this::startCoreBody, executor);
         } catch (RejectedExecutionException e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -224,8 +229,7 @@ public final class CopilotClient implements AutoCloseable {
             Connection connection = new Connection(rpc, process, new ServerRpc(rpc::invoke));
 
             // Register handlers for server-to-client calls
-            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch,
-                    options.getExecutor());
+            RpcHandlerDispatcher dispatcher = new RpcHandlerDispatcher(sessions, lifecycleManager::dispatch, executor);
             dispatcher.registerHandlers(rpc);
 
             // Verify protocol version
@@ -323,7 +327,6 @@ public final class CopilotClient implements AutoCloseable {
      */
     public CompletableFuture<Void> stop() {
         var closeFutures = new ArrayList<CompletableFuture<Void>>();
-        Executor exec = options.getExecutor();
 
         for (CopilotSession session : new ArrayList<>(sessions.values())) {
             Runnable closeTask = () -> {
@@ -335,9 +338,7 @@ public final class CopilotClient implements AutoCloseable {
             };
             CompletableFuture<Void> future;
             try {
-                future = exec != null
-                        ? CompletableFuture.runAsync(closeTask, exec)
-                        : CompletableFuture.runAsync(closeTask);
+                future = CompletableFuture.runAsync(closeTask, executor);
             } catch (RejectedExecutionException e) {
                 LOG.log(Level.WARNING, "Executor rejected session close task; closing inline", e);
                 closeTask.run();
@@ -359,7 +360,7 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         disposed = true;
         sessions.clear();
-        return cleanupConnection();
+        return cleanupConnection().whenComplete((ignored, error) -> shutdownOwnedExecutor());
     }
 
     private CompletableFuture<Void> cleanupConnection() {
@@ -470,9 +471,7 @@ public final class CopilotClient implements AutoCloseable {
             java.util.function.Function<String, CopilotSession> initializeSession = sid -> {
                 long setupNanos = System.nanoTime();
                 var s = new CopilotSession(sid, connection.rpc);
-                if (options.getExecutor() != null) {
-                    s.setExecutor(options.getExecutor());
-                }
+                s.setExecutor(executor);
                 SessionRequestBuilder.configureSession(s, config);
                 if (extracted.transformCallbacks() != null) {
                     s.registerTransformCallbacks(extracted.transformCallbacks());
@@ -599,9 +598,7 @@ public final class CopilotClient implements AutoCloseable {
             // Register the session before the RPC call to avoid missing early events.
             long setupNanos = System.nanoTime();
             var session = new CopilotSession(sessionId, connection.rpc);
-            if (options.getExecutor() != null) {
-                session.setExecutor(options.getExecutor());
-            }
+            session.setExecutor(executor);
             SessionRequestBuilder.configureSession(session, config);
             sessions.put(sessionId, session);
             LoggingHelpers.logTiming(LOG, Level.FINE,
@@ -1148,6 +1145,14 @@ public final class CopilotClient implements AutoCloseable {
             stop().get(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (Exception e) {
             LOG.log(Level.FINE, "Error during close", e);
+        } finally {
+            shutdownOwnedExecutor();
+        }
+    }
+
+    private void shutdownOwnedExecutor() {
+        if (ownedExecutor != null) {
+            ownedExecutor.shutdown();
         }
     }
 
