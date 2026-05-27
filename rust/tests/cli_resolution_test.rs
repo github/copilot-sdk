@@ -110,22 +110,32 @@ fn dev_mode_extracted_binary_exists() {
 }
 
 /// Build-time version pin: `cli-version.txt` (when present) must be a
-/// single-line non-empty exact version. When absent, build.rs falls
-/// through to `../nodejs/package-lock.json` — both are accepted, this
-/// test only checks the pin file's format if it's there.
+/// combined snapshot — a `version=X.Y.Z` line plus per-asset hash lines.
+/// When absent, build.rs falls through to `../nodejs/package-lock.json` —
+/// both are accepted, this test only checks the pin file's format if it's
+/// there.
 #[test]
 fn pin_file_when_present_is_well_formed() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let pin = PathBuf::from(manifest_dir).join("cli-version.txt");
     if !pin.is_file() {
-        // Mono-repo build path — no assertion needed.
+        // Contributor build path — no assertion needed.
         return;
     }
     let contents = std::fs::read_to_string(&pin).expect("read cli-version.txt");
-    let trimmed = contents.trim();
-    assert!(!trimmed.is_empty(), "cli-version.txt is empty");
-    assert!(
-        !trimmed.contains(char::is_whitespace),
-        "cli-version.txt should be a single version line, got {trimmed:?}"
-    );
+    let mut saw_version = false;
+    for raw in contents.lines() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .unwrap_or_else(|| panic!("malformed line: {raw:?}"));
+        assert!(!value.trim().is_empty(), "empty value for key {key:?}");
+        if key.trim() == "version" {
+            saw_version = true;
+        }
+    }
+    assert!(saw_version, "cli-version.txt missing `version=` line");
 }
