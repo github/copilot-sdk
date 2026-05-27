@@ -1113,7 +1113,7 @@ pub struct SessionConfig {
     /// Canvas declarations this connection provides to the runtime.
     pub canvases: Option<Vec<CanvasDeclaration>>,
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// `canvas.open` / `canvas.close` / `canvas.invokeAction` requests to
+    /// `canvas.open` / `canvas.close` / `canvas.action.invoke` requests to
     /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
     /// to install one.
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,

@@ -18761,6 +18761,9 @@ class CanvasHandler(Protocol):
     async def close(self, params: CanvasProviderCloseRequest) -> None:
         "Closes a canvas instance on the provider.\n\nArgs:\n    params: Canvas close parameters sent to the provider."
         pass
+    async def invoke(self, params: CanvasProviderInvokeActionRequest) -> Any:
+        "Invokes an action on an open canvas instance via the provider.\n\nArgs:\n    params: Canvas action invocation parameters sent to the provider.\n\nReturns:\n    Provider-supplied action result."
+        pass
 
 @dataclass
 class ClientSessionApiHandlers:
@@ -18870,3 +18873,10 @@ def register_client_session_api_handlers(
         await handler.close(request)
         return None
     client.set_request_handler("canvas.close", handle_canvas_close)
+    async def handle_canvas_action_invoke(params: dict) -> dict | None:
+        request = CanvasProviderInvokeActionRequest.from_dict(params)
+        handler = get_handlers(request.session_id).canvas
+        if handler is None: raise RuntimeError(f"No canvas handler registered for session: {request.session_id}")
+        result = await handler.invoke(request)
+        return result.value if hasattr(result, 'value') else result
+    client.set_request_handler("canvas.action.invoke", handle_canvas_action_invoke)

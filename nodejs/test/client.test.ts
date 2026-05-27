@@ -105,7 +105,7 @@ describe("CopilotClient", () => {
         expect(payload.openCanvasInstances).toBeUndefined();
     });
 
-    it("routes canvas.invokeAction to registered canvas action handlers via clientSessionApis", async () => {
+    it("routes canvas.action.invoke to registered canvas action handlers via clientSessionApis", async () => {
         const canvas = createCanvas({
             id: "counter",
             displayName: "Counter",
@@ -121,7 +121,7 @@ describe("CopilotClient", () => {
         const session = new CopilotSession("session-1", {} as any);
         session.registerCanvases([canvas]);
 
-        const result = await session.clientSessionApis.canvas!.invokeAction({
+        const result = await session.clientSessionApis.canvas!.invoke({
             sessionId: session.sessionId,
             extensionId: "project:counter",
             canvasId: "counter",
@@ -145,7 +145,7 @@ describe("CopilotClient", () => {
         session.registerCanvases([canvas]);
 
         await expect(
-            session.clientSessionApis.canvas!.invokeAction({
+            session.clientSessionApis.canvas!.invoke({
                 sessionId: session.sessionId,
                 extensionId: "project:counter",
                 canvasId: "counter",
