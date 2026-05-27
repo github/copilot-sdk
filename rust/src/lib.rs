@@ -43,8 +43,6 @@ pub mod generated;
 /// source-qualified tool filter patterns.
 pub mod mode;
 
-pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
-
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -57,6 +55,7 @@ use async_trait::async_trait;
 pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
+pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]

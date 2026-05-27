@@ -12,9 +12,7 @@ use std::sync::Arc;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
 use github_copilot_sdk::types::SystemMessageConfig;
-use github_copilot_sdk::{
-    BUILTIN_TOOLS_ISOLATED, Client, ClientMode, SessionConfig, ToolSet,
-};
+use github_copilot_sdk::{BUILTIN_TOOLS_ISOLATED, Client, ClientMode, SessionConfig, ToolSet};
 use serde_json::Value;
 
 use super::support::{assistant_message_content, with_e2e_context};
