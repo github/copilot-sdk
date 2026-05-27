@@ -39,6 +39,7 @@ public record SessionWorkspacesGetWorkspaceResult(
         @JsonProperty("host_type") WorkspacesWorkspaceDetailsHostType hostType,
         @JsonProperty("branch") String branch,
         @JsonProperty("name") String name,
+        @JsonProperty("client_name") String clientName,
         @JsonProperty("user_named") Boolean userNamed,
         @JsonProperty("summary_count") Long summaryCount,
         @JsonProperty("created_at") OffsetDateTime createdAt,

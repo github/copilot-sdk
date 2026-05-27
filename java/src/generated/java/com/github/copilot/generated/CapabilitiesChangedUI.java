@@ -22,6 +22,10 @@ import javax.annotation.processing.Generated;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CapabilitiesChangedUI(
     /** Whether elicitation is now supported */
-    @JsonProperty("elicitation") Boolean elicitation
+    @JsonProperty("elicitation") Boolean elicitation,
+    /** Whether MCP Apps (SEP-1865) UI passthrough is now supported */
+    @JsonProperty("mcpApps") Boolean mcpApps,
+    /** Whether canvas rendering is now supported */
+    @JsonProperty("canvases") Boolean canvases
 ) {
 }

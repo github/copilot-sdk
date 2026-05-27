@@ -61,6 +61,8 @@ public final class SessionCompactionCompleteEvent extends SessionEvent {
         @JsonProperty("compactionTokensUsed") CompactionCompleteCompactionTokensUsed compactionTokensUsed,
         /** GitHub request tracing ID (x-github-request-id header) for the compaction LLM call */
         @JsonProperty("requestId") String requestId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for the compaction LLM call */
+        @JsonProperty("serviceRequestId") String serviceRequestId,
         /** Token count from system message(s) after compaction */
         @JsonProperty("systemTokens") Long systemTokens,
         /** Token count from non-system messages (user, assistant, tool) after compaction */

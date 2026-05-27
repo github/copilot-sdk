@@ -55,6 +55,15 @@ public final class SystemPromptSections {
     public static final String CUSTOM_INSTRUCTIONS = "custom_instructions";
 
     /**
+     * Runtime-provided context and instructions (e.g. system notifications,
+     * memories, workspace context, mode-specific instructions, content-exclusion
+     * policy).
+     *
+     * @since 1.3.0
+     */
+    public static final String RUNTIME_INSTRUCTIONS = "runtime_instructions";
+
+    /**
      * End-of-prompt instructions: parallel tool calling, persistence, task
      * completion.
      */
