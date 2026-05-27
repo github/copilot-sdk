@@ -145,9 +145,8 @@ await session.SendAndWaitAsync(new MessageOptions
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 import java.util.List;
 
 try (var client = new CopilotClient()) {
@@ -280,8 +279,9 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
 import java.util.List;
 
 var session = client.createSession(

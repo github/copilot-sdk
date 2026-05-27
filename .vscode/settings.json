@@ -19,5 +19,6 @@
   },
   "[go]": {
     "editor.defaultFormatter": "golang.go"
-  }
+  },
+  "java.configuration.updateBuildConfiguration": "automatic"
 }

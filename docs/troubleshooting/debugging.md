@@ -96,8 +96,8 @@ var client = new CopilotClient(new CopilotClientOptions
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setLogLevel("debug")
@@ -180,6 +180,7 @@ var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // The Java SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir

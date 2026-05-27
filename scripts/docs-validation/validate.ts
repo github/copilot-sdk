@@ -3,10 +3,10 @@
  * Runs language-specific type/compile checks.
  */
 
+import { execFileSync, execSync } from "child_process";
 import * as fs from "fs";
-import * as path from "path";
-import { execFileSync } from "child_process";
 import { glob } from "glob";
+import * as path from "path";
 
 const ROOT_DIR = path.resolve(import.meta.dirname, "../..");
 const VALIDATION_DIR = path.join(ROOT_DIR, "docs/.validation");
@@ -33,7 +33,7 @@ function loadManifest(): Manifest {
   const manifestPath = path.join(VALIDATION_DIR, "manifest.json");
   if (!fs.existsSync(manifestPath)) {
     console.error(
-      "❌ No manifest found. Run extraction first: npm run extract"
+      "❌ No manifest found. Run extraction first: npm run extract",
     );
     process.exit(1);
   }
@@ -86,7 +86,7 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
     for (const file of files) {
       if (file === "tsconfig.json") continue;
       const block = manifest.blocks.find(
-        (b) => b.outputFile === `typescript/${file}`
+        (b) => b.outputFile === `typescript/${file}`,
       );
       results.push({
         file: `typescript/${file}`,
@@ -122,7 +122,7 @@ async function validateTypeScript(): Promise<ValidationResult[]> {
       if (file === "tsconfig.json") continue;
       const fullPath = path.join(tsDir, file);
       const block = manifest.blocks.find(
-        (b) => b.outputFile === `typescript/${file}`
+        (b) => b.outputFile === `typescript/${file}`,
       );
       const errors = fileErrors.get(fullPath) || fileErrors.get(file) || [];
 
@@ -154,7 +154,7 @@ async function validatePython(): Promise<ValidationResult[]> {
   for (const file of files) {
     const fullPath = path.join(pyDir, file);
     const block = manifest.blocks.find(
-      (b) => b.outputFile === `python/${file}`
+      (b) => b.outputFile === `python/${file}`,
     );
     const errors: string[] = [];
 
@@ -172,8 +172,14 @@ async function validatePython(): Promise<ValidationResult[]> {
       try {
         execFileSync(
           "python3",
-          ["-m", "mypy", fullPath, "--ignore-missing-imports", "--no-error-summary"],
-          { encoding: "utf-8" }
+          [
+            "-m",
+            "mypy",
+            fullPath,
+            "--ignore-missing-imports",
+            "--no-error-summary",
+          ],
+          { encoding: "utf-8" },
         );
       } catch (err: any) {
         const output = err.stdout || err.stderr || err.message || "";
@@ -183,7 +189,7 @@ async function validatePython(): Promise<ValidationResult[]> {
           .filter(
             (l: string) =>
               l.includes(": error:") &&
-              !l.includes("Cannot find implementation")
+              !l.includes("Cannot find implementation"),
           );
         if (typeErrors.length > 0) {
           errors.push(...typeErrors);
@@ -253,7 +259,9 @@ replace github.com/github/copilot-sdk/go => ${path.join(ROOT_DIR, "go")}
     } catch (err: any) {
       const output = err.stdout || err.stderr || err.message || "";
       errors.push(
-        ...output.split("\n").filter((l: string) => l.trim() && !l.startsWith("#"))
+        ...output
+          .split("\n")
+          .filter((l: string) => l.trim() && !l.startsWith("#")),
       );
     }
 
@@ -299,15 +307,19 @@ async function validateCSharp(): Promise<ValidationResult[]> {
 
   // Compile all files together
   try {
-    execFileSync("dotnet", ["build", path.join(csDir, "DocsValidation.csproj")], {
-      encoding: "utf-8",
-      cwd: csDir,
-    });
+    execFileSync(
+      "dotnet",
+      ["build", path.join(csDir, "DocsValidation.csproj")],
+      {
+        encoding: "utf-8",
+        cwd: csDir,
+      },
+    );
 
     // All files passed
     for (const file of files) {
       const block = manifest.blocks.find(
-        (b) => b.outputFile === `csharp/${file}`
+        (b) => b.outputFile === `csharp/${file}`,
       );
       results.push({
         file: `csharp/${file}`,
@@ -336,7 +348,7 @@ async function validateCSharp(): Promise<ValidationResult[]> {
 
     for (const file of files) {
       const block = manifest.blocks.find(
-        (b) => b.outputFile === `csharp/${file}`
+        (b) => b.outputFile === `csharp/${file}`,
       );
       const errors = fileErrors.get(file) || [];
 
@@ -353,7 +365,148 @@ async function validateCSharp(): Promise<ValidationResult[]> {
   return results;
 }
 
-function printResults(results: ValidationResult[], language: string): { failed: number; passed: number; failures: ValidationResult[] } {
+async function validateJava(): Promise<ValidationResult[]> {
+  const results: ValidationResult[] = [];
+  const javaDir = path.join(VALIDATION_DIR, "java");
+  const manifest = loadManifest();
+
+  if (!fs.existsSync(javaDir)) {
+    console.log("  No Java files to validate");
+    return results;
+  }
+
+  // Create a minimal Maven project structure
+  const srcDir = path.join(javaDir, "src", "main", "java");
+  fs.mkdirSync(srcDir, { recursive: true });
+
+  // Copy all .java files into src/main/java/ (copy, not move, for idempotency)
+  const files = await glob("*.java", { cwd: javaDir });
+  for (const file of files) {
+    fs.copyFileSync(path.join(javaDir, file), path.join(srcDir, file));
+  }
+
+  // Read the SDK version from java/pom.xml
+  const sdkPomPath = path.join(ROOT_DIR, "java", "pom.xml");
+  const sdkPomContent = fs.readFileSync(sdkPomPath, "utf-8");
+  const versionMatch = sdkPomContent.match(
+    /<artifactId>copilot-sdk-java<\/artifactId>\s*<version>([^<]+)<\/version>/,
+  );
+  const sdkVersion = versionMatch ? versionMatch[1] : "1.0.0-SNAPSHOT";
+
+  // Create pom.xml that references the local SDK
+  const pomXml = `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>docs</groupId>
+    <artifactId>docs-validation-java</artifactId>
+    <version>1.0.0</version>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>com.github</groupId>
+            <artifactId>copilot-sdk-java</artifactId>
+            <version>${sdkVersion}</version>
+        </dependency>
+    </dependencies>
+</project>`;
+
+  fs.writeFileSync(path.join(javaDir, "pom.xml"), pomXml);
+
+  // First, install the local SDK into the local Maven repo
+  const pomPath = path.join(ROOT_DIR, "java", "pom.xml");
+  try {
+    execSync(`mvn install -f "${pomPath}" -DskipTests -q`, {
+      encoding: "utf-8",
+      cwd: path.join(ROOT_DIR, "java"),
+    });
+  } catch (err: any) {
+    // If SDK install fails, all Java snippets fail
+    const errorMsg = `SDK install failed: ${(err.stderr || err.message || "").slice(0, 200)}`;
+    for (const file of files) {
+      const block = manifest.blocks.find(
+        (b) => b.outputFile === `java/${file}`,
+      );
+      results.push({
+        file: `java/${file}`,
+        sourceFile: block?.sourceFile || "unknown",
+        sourceLine: block?.sourceLine || 0,
+        success: false,
+        errors: [errorMsg],
+      });
+    }
+    return results;
+  }
+
+  // Compile the validation project
+  try {
+    const validationPom = path.join(javaDir, "pom.xml");
+    execSync(`mvn compile -f "${validationPom}" -q`, {
+      encoding: "utf-8",
+      cwd: javaDir,
+    });
+
+    // All files passed
+    for (const file of files) {
+      const block = manifest.blocks.find(
+        (b) => b.outputFile === `java/${file}`,
+      );
+      results.push({
+        file: `java/${file}`,
+        sourceFile: block?.sourceFile || "unknown",
+        sourceLine: block?.sourceLine || 0,
+        success: true,
+        errors: [],
+      });
+    }
+  } catch (err: any) {
+    const output = err.stdout || err.stderr || err.message || "";
+
+    // Parse javac errors from Maven output
+    // Format: [ERROR] /path/to/File.java:[line,col] error: message
+    const fileErrors = new Map<string, string[]>();
+
+    for (const line of output.split("\n")) {
+      const match = line.match(
+        /\[ERROR\]\s+.*[/\\]([^/\\]+\.java):\[(\d+),(\d+)\]\s*(.*)/,
+      );
+      if (match) {
+        const fileName = match[1];
+        if (!fileErrors.has(fileName)) {
+          fileErrors.set(fileName, []);
+        }
+        fileErrors.get(fileName)!.push(`${fileName}:${match[2]}: ${match[4]}`);
+      }
+    }
+
+    for (const file of files) {
+      const block = manifest.blocks.find(
+        (b) => b.outputFile === `java/${file}`,
+      );
+      const errors = fileErrors.get(file) || [];
+
+      results.push({
+        file: `java/${file}`,
+        sourceFile: block?.sourceFile || "unknown",
+        sourceLine: block?.sourceLine || 0,
+        success: errors.length === 0,
+        errors,
+      });
+    }
+  }
+
+  return results;
+}
+
+function printResults(
+  results: ValidationResult[],
+  language: string,
+): { failed: number; passed: number; failures: ValidationResult[] } {
   const failed = results.filter((r) => !r.success);
   const passed = results.filter((r) => r.success);
 
@@ -379,7 +532,14 @@ function printResults(results: ValidationResult[], language: string): { failed: 
   return { failed: failed.length, passed: passed.length, failures: failed };
 }
 
-function writeGitHubSummary(summaryData: { language: string; passed: number; failed: number; failures: ValidationResult[] }[]) {
+function writeGitHubSummary(
+  summaryData: {
+    language: string;
+    passed: number;
+    failed: number;
+    failures: ValidationResult[];
+  }[],
+) {
   const summaryFile = process.env.GITHUB_STEP_SUMMARY;
   if (!summaryFile) return;
 
@@ -432,13 +592,19 @@ async function main() {
   }
 
   let totalFailed = 0;
-  const summaryData: { language: string; passed: number; failed: number; failures: ValidationResult[] }[] = [];
+  const summaryData: {
+    language: string;
+    passed: number;
+    failed: number;
+    failures: ValidationResult[];
+  }[] = [];
 
   const validators: [string, () => Promise<ValidationResult[]>][] = [
     ["TypeScript", validateTypeScript],
     ["Python", validatePython],
     ["Go", validateGo],
     ["C#", validateCSharp],
+    ["Java", validateJava],
   ];
 
   for (const [name, validator] of validators) {
