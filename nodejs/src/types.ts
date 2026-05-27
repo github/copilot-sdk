@@ -13,6 +13,7 @@ import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -167,12 +168,40 @@ export interface ParentProcessRuntimeConnection {
 /** @internal */
 export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntimeConnection;
 
+/**
+ * Controls SDK defaults for ambient features.
+ *
+ * - `"copilot-cli"` (default): Defaults equivalent to Copilot CLI. Useful when
+ *   building a coding agent that shares sessions with Copilot CLI. Do not use
+ *   this mode for server-based multi-user applications — the default coding
+ *   agent has tools and capabilities that operate across sessions and can
+ *   access the host OS environment.
+ * - `"empty"`: Disables optional features by default. The app must explicitly
+ *   opt into anything it needs. Required for any scenario where CLI-like
+ *   ambient behavior is unsafe (e.g. multi-user servers).
+ */
+export type CopilotClientMode = "empty" | "copilot-cli";
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.
      */
     connection?: RuntimeConnection;
+
+    /**
+     * Selects the SDK defaulting strategy. See {@link CopilotClientMode}.
+     *
+     * When set to `"empty"`, the SDK validates that the app has supplied the
+     * required configuration ({@link CopilotClientOptions.baseDirectory} or
+     * {@link CopilotClientOptions.sessionFs}, plus
+     * {@link SessionConfigBase.availableTools} on each session) and translates
+     * session creation requests into runtime options that flip tool filter
+     * precedence to deny-wins so exclusions are expressible.
+     *
+     * @default "copilot-cli"
+     */
+    mode?: CopilotClientMode;
 
     /**
      * Working directory for the runtime process.
@@ -1110,6 +1139,51 @@ export type PostToolUseHandler = (
 ) => Promise<PostToolUseHookOutput | void> | PostToolUseHookOutput | void;
 
 /**
+ * Input for post-tool-use-failure hook.
+ *
+ * Dispatched after a tool execution whose `resultType` is `"failure"`.
+ * The input differs from {@link PostToolUseHookInput}: the host CLI does not
+ * forward the full `ToolResultObject` to failure hooks — only `error`, the
+ * stringified failure message extracted from the tool's result, is provided.
+ */
+export interface PostToolUseFailureHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+    /**
+     * Failure message from the tool's result (the `error` field of the
+     * underlying `ToolResultObject`, falling back to its text/log fields).
+     */
+    error: string;
+}
+
+/**
+ * Output for post-tool-use-failure hook.
+ *
+ * Only `additionalContext` is consumed by the host CLI — it is appended as
+ * hidden guidance to the model alongside the failed tool result. Other fields
+ * such as `modifiedResult` or `suppressOutput` are not honored for failure
+ * hooks (see {@link PostToolUseHookOutput} for the success-only hook).
+ */
+export interface PostToolUseFailureHookOutput {
+    additionalContext?: string;
+}
+
+/**
+ * Handler for post-tool-use-failure hook.
+ *
+ * Fires after a tool execution whose result was `"failure"`. `onPostToolUse`
+ * only fires for successful results, so register this handler to observe or
+ * react to failed tool outcomes.
+ *
+ * Note: `"rejected"`, `"denied"`, and `"timeout"` results do not currently
+ * trigger this hook either — only `"failure"` does.
+ */
+export type PostToolUseFailureHandler = (
+    input: PostToolUseFailureHookInput,
+    invocation: { sessionId: string }
+) => Promise<PostToolUseFailureHookOutput | void> | PostToolUseFailureHookOutput | void;
+
+/**
  * Input for user-prompt-submitted hook
  */
 export interface UserPromptSubmittedHookInput extends BaseHookInput {
@@ -1225,9 +1299,21 @@ export interface SessionHooks {
     onPreMcpToolCall?: PreMcpToolCallHandler;
 
     /**
-     * Called after a tool is executed
+     * Called after a tool is executed with a successful result.
+     *
+     * For failed tool executions, register {@link onPostToolUseFailure} instead;
+     * this handler does not fire for non-success results.
      */
     onPostToolUse?: PostToolUseHandler;
+
+    /**
+     * Called after a tool execution whose result was `"failure"`.
+     *
+     * Register this handler alongside {@link onPostToolUse} to observe failed
+     * tool calls — `onPostToolUse` only fires for successful results, so
+     * without this hook failed tool calls are invisible to extensions.
+     */
+    onPostToolUseFailure?: PostToolUseFailureHandler;
 
     /**
      * Called when the user submits a prompt
@@ -1523,15 +1609,26 @@ export interface SessionConfigBase {
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.
-     * Takes precedence over excludedTools.
+     *
+     * Supports source-qualified filter patterns (`builtin:*`, `builtin:<name>`,
+     * `mcp:*`, `mcp:<name>`, `custom:*`, `custom:<name>`) as well as the bare
+     * name form (exact match across any source). Build this list with
+     * {@link ToolSet} for type safety and readable intent.
+     *
+     * Composes with {@link excludedTools}: a tool is enabled when it matches
+     * `availableTools` (or `availableTools` is unset) AND it does not match
+     * `excludedTools`. This lets you express "everything matching X except Y".
      */
-    availableTools?: string[];
+    availableTools?: string[] | ToolSet;
 
     /**
-     * List of tool names to disable. All other tools remain available.
-     * Ignored if availableTools is specified.
+     * List of tool names to disable. Supports the same pattern syntax as
+     * {@link availableTools}.
+     *
+     * Always takes precedence over {@link availableTools}: a tool listed here
+     * is disabled even if it also matches `availableTools`.
      */
-    excludedTools?: string[];
+    excludedTools?: string[] | ToolSet;
 
     /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
@@ -1548,6 +1645,43 @@ export interface SessionConfigBase {
      * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
      */
     enableSessionTelemetry?: boolean;
+
+    /**
+     * When true, the runtime skips loading custom-instruction sources
+     * (e.g. `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`).
+     *
+     * Defaults to `false` (custom instructions are loaded). Under
+     * {@link CopilotClientOptions.mode} = `"empty"`, defaults to `true`; apps
+     * can pass `false` here to opt back in.
+     */
+    skipCustomInstructions?: boolean;
+
+    /**
+     * When true, custom agents default to local-only execution and are not
+     * dispatched to remote workers.
+     *
+     * Defaults to `false`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `true`; apps can pass `false` here to opt back in.
+     */
+    customAgentsLocalOnly?: boolean;
+
+    /**
+     * When true, the runtime instructs the agent to include a `Co-authored-by`
+     * trailer in commit messages it composes.
+     *
+     * Defaults to `true`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `false`; apps can pass `true` here to opt back in.
+     */
+    coauthorEnabled?: boolean;
+
+    /**
+     * When true, the `manage_schedule` tool is exposed to the agent.
+     *
+     * Defaults to whatever the runtime exposes (typically gated to staff
+     * users). Under {@link CopilotClientOptions.mode} = `"empty"`, defaults to
+     * `false`; apps can pass `true` here to opt back in.
+     */
+    manageScheduleEnabled?: boolean;
 
     /**
      * Optional handler for permission requests from the server.
@@ -1870,6 +2004,12 @@ export interface MessageOptions {
      * - "immediate": Send immediately
      */
     mode?: "enqueue" | "immediate";
+
+    /**
+     * The UI mode the agent was in when this message was sent (for example "plan" or "autopilot").
+     * Defaults to the session's current mode when unset.
+     */
+    agentMode?: "interactive" | "plan" | "autopilot" | "shell";
 
     /**
      * Custom HTTP headers to include in outbound model requests for this turn.

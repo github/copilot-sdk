@@ -84,8 +84,8 @@ func TestModeHandlersE2E(t *testing.T) {
 		)
 
 		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: planPrompt,
-			Mode:   "plan",
+			Prompt:    planPrompt,
+			AgentMode: copilot.AgentModePlan,
 		})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)

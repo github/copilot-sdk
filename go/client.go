@@ -237,6 +237,7 @@ func NewClient(options *ClientOptions) *Client {
 	}
 
 	client.options = opts
+	validateNewClientForMode(&client.options)
 	return client
 }
 
@@ -597,6 +598,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		return nil, err
 	}
 
+	c.applyConfigDefaultsForMode(config)
+
 	req := createSessionRequest{}
 	req.Model = config.Model
 	req.ClientName = config.ClientName
@@ -606,12 +609,22 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.EnableConfigDiscovery = Bool(true)
 	}
 	req.Tools = config.Tools
-	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
+	systemMessage := c.systemMessageForMode(config.SystemMessage)
+	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
 	req.SystemMessage = wireSystemMessage
-	req.AvailableTools = config.AvailableTools
-	req.ExcludedTools = config.ExcludedTools
+	availableTools, excludedTools, precedence, ferr := c.resolveToolFilterOptions(config.AvailableTools, config.ExcludedTools)
+	if ferr != nil {
+		return nil, ferr
+	}
+	req.AvailableTools = availableTools
+	req.ExcludedTools = excludedTools
+	req.ToolFilterPrecedence = precedence
 	req.Provider = config.Provider
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.SkipCustomInstructions = config.SkipCustomInstructions
+	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
+	req.CoauthorEnabled = config.CoauthorEnabled
+	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
 	req.WorkingDirectory = config.WorkingDirectory
 	req.MCPServers = config.MCPServers
@@ -661,6 +674,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
 		config.Hooks.OnPreMcpToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
+		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
@@ -757,6 +771,15 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
 
+	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
+		SkipCustomInstructions: config.SkipCustomInstructions,
+		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
+		CoauthorEnabled:        config.CoauthorEnabled,
+		ManageScheduleEnabled:  config.ManageScheduleEnabled,
+	}); err != nil {
+		return nil, err
+	}
+
 	return session, nil
 }
 
@@ -792,19 +815,31 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		return nil, err
 	}
 
+	c.applyResumeDefaultsForMode(config)
+
 	var req resumeSessionRequest
 	req.SessionID = sessionID
 	req.ClientName = config.ClientName
 	req.Model = config.Model
 	req.ReasoningEffort = config.ReasoningEffort
-	wireSystemMessage, transformCallbacks := extractTransformCallbacks(config.SystemMessage)
+	systemMessage := c.systemMessageForMode(config.SystemMessage)
+	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
 	req.SystemMessage = wireSystemMessage
 	req.Tools = config.Tools
 	req.Provider = config.Provider
 	req.EnableSessionTelemetry = config.EnableSessionTelemetry
+	req.SkipCustomInstructions = config.SkipCustomInstructions
+	req.CustomAgentsLocalOnly = config.CustomAgentsLocalOnly
+	req.CoauthorEnabled = config.CoauthorEnabled
+	req.ManageScheduleEnabled = config.ManageScheduleEnabled
 	req.ModelCapabilities = config.ModelCapabilities
-	req.AvailableTools = config.AvailableTools
-	req.ExcludedTools = config.ExcludedTools
+	availableTools, excludedTools, precedence, ferr := c.resolveToolFilterOptions(config.AvailableTools, config.ExcludedTools)
+	if ferr != nil {
+		return nil, ferr
+	}
+	req.AvailableTools = availableTools
+	req.ExcludedTools = excludedTools
+	req.ToolFilterPrecedence = precedence
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
 	}
@@ -819,6 +854,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.Hooks != nil && (config.Hooks.OnPreToolUse != nil ||
 		config.Hooks.OnPreMcpToolCall != nil ||
 		config.Hooks.OnPostToolUse != nil ||
+		config.Hooks.OnPostToolUseFailure != nil ||
 		config.Hooks.OnUserPromptSubmitted != nil ||
 		config.Hooks.OnSessionStart != nil ||
 		config.Hooks.OnSessionEnd != nil ||
@@ -952,6 +988,15 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
 	session.setOpenCanvases(response.OpenCanvases)
+
+	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
+		SkipCustomInstructions: config.SkipCustomInstructions,
+		CustomAgentsLocalOnly:  config.CustomAgentsLocalOnly,
+		CoauthorEnabled:        config.CoauthorEnabled,
+		ManageScheduleEnabled:  config.ManageScheduleEnabled,
+	}); err != nil {
+		return nil, err
+	}
 
 	return session, nil
 }
@@ -1532,6 +1577,10 @@ func (c *Client) startCLIServer(ctx context.Context) error {
 
 	if c.options.BaseDirectory != "" {
 		c.process.Env = setEnvValue(c.process.Env, "COPILOT_HOME", c.options.BaseDirectory)
+	}
+
+	if c.options.Mode == ModeEmpty {
+		c.process.Env = setEnvValue(c.process.Env, "COPILOT_DISABLE_KEYTAR", "1")
 	}
 
 	if c.options.Telemetry != nil {

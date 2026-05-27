@@ -103,15 +103,17 @@ class TestSessions:
             },
         )
 
-        assistant_message = await session.send_and_wait("Who are you?")
-        assert assistant_message is not None
+        try:
+            await session.send("Who are you?")
 
-        # Validate the system message sent to the model
-        traffic = await ctx.get_exchanges()
-        system_message = _get_system_message(traffic[0])
-        assert custom_tone in system_message
-        assert appended_content in system_message
-        assert "<code_change_instructions>" not in system_message
+            # Validate the system message sent to the model
+            traffic = await ctx.wait_for_exchanges()
+            system_message = _get_system_message(traffic[0])
+            assert custom_tone in system_message
+            assert appended_content in system_message
+            assert "<code_change_instructions>" not in system_message
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_availableTools(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -1077,8 +1079,8 @@ class TestSessions:
             pytest.fail("disconnect from within handler appears to have deadlocked")
 
     async def test_should_send_with_mode_property(self, ctx: E2ETestContext):
-        """Per-message `mode` is accepted but not echoed back on user.message."""
-        from copilot.generated.session_events import UserMessageData
+        """Per-message `agent_mode` is forwarded and echoed back on user.message."""
+        from copilot.generated.session_events import UserMessageAgentMode, UserMessageData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
@@ -1086,7 +1088,7 @@ class TestSessions:
 
         await session.send_and_wait(
             "Say mode ok.",
-            mode="plan",  # type: ignore[arg-type]
+            agent_mode="plan",
         )
 
         messages = await session.get_events()
@@ -1094,8 +1096,7 @@ class TestSessions:
         assert user_messages
         last = user_messages[-1].data
         assert last.content == "Say mode ok."
-        # The runtime accepts the per-message mode but does not echo it back.
-        assert last.agent_mode is None
+        assert last.agent_mode == UserMessageAgentMode.PLAN
 
         await session.disconnect()
 

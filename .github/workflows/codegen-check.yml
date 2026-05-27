@@ -14,6 +14,8 @@ on:
       - 'go/generated_*.go'
       - 'go/rpc/**'
       - 'rust/src/generated/**'
+      - 'sdk-protocol-version.json'
+      - 'java/src/main/java/com/github/copilot/SdkProtocolVersion.java'
       - '.github/workflows/codegen-check.yml'
   workflow_dispatch:
 
@@ -76,6 +78,15 @@ jobs:
             echo "::error::Generated files are out of date. Run 'cd scripts/codegen && npm run generate' and commit the changes."
             git diff --stat
             git diff
+            exit 1
+          fi
+
+      - name: Verify Java protocol version matches
+        run: |
+          EXPECTED=$(jq -r '.version' sdk-protocol-version.json)
+          ACTUAL=$(grep -oP 'LATEST\(\K[0-9]+' java/src/main/java/com/github/copilot/SdkProtocolVersion.java)
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "::error::Java SDK protocol version ($ACTUAL) does not match sdk-protocol-version.json ($EXPECTED). Java manages its own SdkProtocolVersion.java via java/scripts/codegen/. Update it to match."
             exit 1
           fi
           echo "✅ Generated files are up-to-date"

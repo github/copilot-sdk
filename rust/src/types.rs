@@ -1234,6 +1234,22 @@ pub struct SessionConfig {
     /// `systemMessage.transform` RPC callbacks to it during the session.
     /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// Whether to skip loading custom-instruction sources for this session.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `true` in [`crate::ClientMode::Empty`] when unset.
+    pub skip_custom_instructions: Option<bool>,
+    /// Whether to constrain custom agents to local-only execution. Applied
+    /// via `session.options.update` after create/resume. Defaults to `true`
+    /// in [`crate::ClientMode::Empty`] when unset.
+    pub custom_agents_local_only: Option<bool>,
+    /// Whether to include the `Co-authored-by` trailer in commit messages.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `false` in [`crate::ClientMode::Empty`] when unset.
+    pub coauthor_enabled: Option<bool>,
+    /// Whether to expose the `manage_schedule` tool. Applied via
+    /// `session.options.update` after create/resume. Defaults to `false` in
+    /// [`crate::ClientMode::Empty`] when unset.
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1369,6 +1385,10 @@ impl Default for SessionConfig {
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 }
@@ -1423,10 +1443,10 @@ impl SessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -1456,6 +1476,7 @@ impl SessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -1837,6 +1858,30 @@ impl SessionConfig {
         self.cloud = Some(cloud);
         self
     }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
+        self
+    }
 }
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
@@ -1965,6 +2010,14 @@ pub struct ResumeSessionConfig {
     pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. See [`SessionConfig::system_message_transform`].
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// See [`SessionConfig::skip_custom_instructions`].
+    pub skip_custom_instructions: Option<bool>,
+    /// See [`SessionConfig::custom_agents_local_only`].
+    pub custom_agents_local_only: Option<bool>,
+    /// See [`SessionConfig::coauthor_enabled`].
+    pub coauthor_enabled: Option<bool>,
+    /// See [`SessionConfig::manage_schedule_enabled`].
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -2075,10 +2128,10 @@ impl ResumeSessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -2108,6 +2161,7 @@ impl ResumeSessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2205,6 +2259,10 @@ impl ResumeSessionConfig {
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 
@@ -2529,6 +2587,30 @@ impl ResumeSessionConfig {
     /// session from one process to another without losing in-flight work.
     pub fn with_continue_pending_work(mut self, continue_pending: bool) -> Self {
         self.continue_pending_work = Some(continue_pending);
+        self
+    }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
         self
     }
 }
@@ -2944,6 +3026,24 @@ pub enum DeliveryMode {
     Immediate,
 }
 
+/// The UI mode the agent is in for a given turn, used by
+/// [`MessageOptions::agent_mode`].
+///
+/// Wire values: `"interactive"`, `"plan"`, `"autopilot"`, `"shell"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AgentMode {
+    /// The agent is responding interactively to the user.
+    Interactive,
+    /// The agent is preparing a plan before making changes.
+    Plan,
+    /// The agent is working autonomously toward task completion.
+    Autopilot,
+    /// The agent is in shell-focused UI mode.
+    Shell,
+}
+
 /// Options for sending a user message to the agent.
 ///
 /// Used by both [`Session::send`](crate::session::Session::send) and
@@ -2983,6 +3083,10 @@ pub struct MessageOptions {
     /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
     /// runs immediately ([`DeliveryMode::Immediate`]).
     pub mode: Option<DeliveryMode>,
+    /// Optional UI mode the agent was in when this message was sent
+    /// (for example [`AgentMode::Plan`] or [`AgentMode::Autopilot`]).
+    /// Defaults to the session's current mode when `None`.
+    pub agent_mode: Option<AgentMode>,
     /// Optional attachments to include with the message.
     pub attachments: Option<Vec<Attachment>>,
     /// Maximum time to wait for the session to go idle. Honored only by
@@ -3011,6 +3115,7 @@ impl MessageOptions {
         Self {
             prompt: prompt.into(),
             mode: None,
+            agent_mode: None,
             attachments: None,
             wait_timeout: None,
             request_headers: None,
@@ -3026,6 +3131,14 @@ impl MessageOptions {
     /// prompt behind in-flight work.
     pub fn with_mode(mut self, mode: DeliveryMode) -> Self {
         self.mode = Some(mode);
+        self
+    }
+
+    /// Set the per-message agent UI mode for this turn.
+    ///
+    /// When `None`, the session's current mode is used.
+    pub fn with_agent_mode(mut self, agent_mode: AgentMode) -> Self {
+        self.agent_mode = Some(agent_mode);
         self
     }
 
@@ -3623,11 +3736,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType,
-        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
+        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
+        GitHubReferenceType, InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig,
+        SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool, ToolBinaryResult,
+        ToolResult, ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -4162,6 +4275,25 @@ mod tests {
         );
         let parsed: DeliveryMode = serde_json::from_str("\"immediate\"").unwrap();
         assert_eq!(parsed, DeliveryMode::Immediate);
+    }
+
+    #[test]
+    fn agent_mode_serializes_to_kebab_case_strings() {
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Interactive).unwrap(),
+            "\"interactive\""
+        );
+        assert_eq!(serde_json::to_string(&AgentMode::Plan).unwrap(), "\"plan\"");
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Autopilot).unwrap(),
+            "\"autopilot\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Shell).unwrap(),
+            "\"shell\""
+        );
+        let parsed: AgentMode = serde_json::from_str("\"plan\"").unwrap();
+        assert_eq!(parsed, AgentMode::Plan);
     }
 
     #[test]

@@ -19,7 +19,7 @@ include = [
     "Cargo.toml",
     "README.md",
     "LICENSE",
-    "bundled_cli_version.txt",
+    "cli-version.txt",
 ]
 
 [lib]
@@ -27,7 +27,7 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:dirs", "dep:tar", "dep:flate2", "dep:zip"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 derive = ["dep:schemars"]
 test-support = []
 
@@ -43,12 +43,11 @@ async-trait = "0.1"
 schemars = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-thiserror = "2"
 tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
-dirs = { version = "5", optional = true }
+dirs = "5"
 parking_lot = "0.12"
 regex = "1"
 getrandom = "0.2"
@@ -68,7 +67,20 @@ serial_test = "3"
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 
+# Integration tests that call test-support-only Client methods (e.g.
+# `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
+# require the `test-support` feature because `cfg(test)` is not set on the
+# library when Cargo compiles it for integration tests.
+[[test]]
+name = "session_test"
+required-features = ["test-support"]
+
+[[test]]
+name = "protocol_version_test"
+required-features = ["test-support"]
+
 [build-dependencies]
+dirs = "5"
 flate2 = "1"
 sha2 = "0.10"
 tar = "0.4"

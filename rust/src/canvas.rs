@@ -10,7 +10,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use thiserror::Error;
 
 use crate::generated::api_types::CanvasAction;
 
@@ -82,15 +81,22 @@ impl CanvasDeclaration {
 /// and may change or be removed in future SDK or CLI releases.
 ///
 /// </div>
-#[derive(Debug, Clone, Error, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-#[error("{code}: {message}")]
 pub struct CanvasError {
     /// Machine-readable error code.
     pub code: String,
     /// Human-readable message.
     pub message: String,
 }
+
+impl std::fmt::Display for CanvasError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for CanvasError {}
 
 impl CanvasError {
     /// Construct a new error envelope with the given code and message.
@@ -227,6 +233,7 @@ mod tests {
                 instance_id: "echo-1".to_string(),
                 input: Some(json!({ "x": 1 })),
                 host: None,
+                session: None,
             })
             .await
             .unwrap();
@@ -248,6 +255,7 @@ mod tests {
                 action_name: "shout".to_string(),
                 input: Some(json!("hi")),
                 host: None,
+                session: None,
             })
             .await
             .unwrap();
@@ -282,6 +290,7 @@ mod tests {
                 action_name: "anything".to_string(),
                 input: Some(Value::Null),
                 host: None,
+                session: None,
             })
             .await
             .unwrap_err();

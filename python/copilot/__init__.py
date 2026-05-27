@@ -4,6 +4,11 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
+from ._mode import (
+    BUILTIN_TOOLS_ISOLATED,
+    CopilotClientMode,
+    ToolSet,
+)
 from .canvas import (
     CanvasAction,
     CanvasDeclaration,
@@ -87,6 +92,9 @@ from .session import (
     PermissionHandler,
     PermissionNoResult,
     PermissionRequestResult,
+    PostToolUseFailureHandler,
+    PostToolUseFailureHookInput,
+    PostToolUseFailureHookOutput,
     PostToolUseHandler,
     PostToolUseHookInput,
     PostToolUseHookOutput,
@@ -141,6 +149,7 @@ __all__ = [
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
+    "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",
     "CanvasError",
@@ -154,6 +163,7 @@ __all__ = [
     "CommandContext",
     "CommandDefinition",
     "CopilotClient",
+    "CopilotClientMode",
     "CopilotSession",
     "CreateSessionFsHandler",
     "ElicitationContext",
@@ -193,6 +203,9 @@ __all__ = [
     "PermissionRequestResult",
     "PingResponse",
     "PostToolUseHandler",
+    "PostToolUseFailureHandler",
+    "PostToolUseFailureHookInput",
+    "PostToolUseFailureHookOutput",
     "PostToolUseHookInput",
     "PostToolUseHookOutput",
     "PreMcpToolCallHandler",
@@ -246,6 +259,7 @@ __all__ = [
     "ToolInvocation",
     "ToolResult",
     "ToolResultType",
+    "ToolSet",
     "UriRuntimeConnection",
     "UserInputHandler",
     "UserInputRequest",

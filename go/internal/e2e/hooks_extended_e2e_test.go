@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -12,11 +13,12 @@ import (
 
 // Mirrors dotnet/test/HookLifecycleAndOutputTests.cs (snapshot category "hooks_extended").
 //
-// Covers each handler exposed on copilot.SessionHooks: OnPreToolUse, OnPostToolUse,
-// OnUserPromptSubmitted, OnSessionStart, OnSessionEnd, OnErrorOccurred. Output-shape
-// behavior (modifiedPrompt / additionalContext / errorHandling / modifiedArgs /
-// modifiedResult / sessionSummary) is asserted alongside hook invocation. If a new
-// handler is added to SessionHooks, add a corresponding test here.
+// Covers each handler exposed on copilot.SessionHooks: OnPreToolUse,
+// OnPostToolUse, OnPostToolUseFailure, OnUserPromptSubmitted, OnSessionStart,
+// OnSessionEnd, OnErrorOccurred. Output-shape behavior (modifiedPrompt /
+// additionalContext / errorHandling / modifiedArgs / modifiedResult /
+// sessionSummary) is asserted alongside hook invocation. If a new handler is
+// added to SessionHooks, add a corresponding test here.
 func TestHooksExtendedE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
@@ -338,6 +340,78 @@ func TestHooksExtendedE2E(t *testing.T) {
 		assistantMessage, ok := response.Data.(*copilot.AssistantMessageData)
 		if !ok || assistantMessage.Content != "Done." {
 			t.Errorf("Expected response content to be 'Done.', got %v", response.Data)
+		}
+	})
+
+	t.Run("should invoke postToolUseFailure hook for failed tool result", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		var (
+			mu                sync.Mutex
+			failureInputs     []copilot.PostToolUseFailureHookInput
+			postToolUseInputs []copilot.PostToolUseHookInput
+		)
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			AvailableTools:      []string{"report_intent"},
+			Hooks: &copilot.SessionHooks{
+				OnPostToolUse: func(input copilot.PostToolUseHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseHookOutput, error) {
+					mu.Lock()
+					postToolUseInputs = append(postToolUseInputs, input)
+					mu.Unlock()
+					return nil, nil
+				},
+				OnPostToolUseFailure: func(input copilot.PostToolUseFailureHookInput, invocation copilot.HookInvocation) (*copilot.PostToolUseFailureHookOutput, error) {
+					mu.Lock()
+					failureInputs = append(failureInputs, input)
+					mu.Unlock()
+					if invocation.SessionID == "" {
+						t.Error("Expected non-empty session ID in invocation")
+					}
+					return &copilot.PostToolUseFailureHookOutput{
+						AdditionalContext: "HOOK_FAILURE_GUIDANCE_APPLIED",
+					}, nil
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		response, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
+			Prompt: "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.",
+		})
+		if err != nil {
+			t.Fatalf("Failed to send message: %v", err)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if len(postToolUseInputs) != 0 {
+			t.Fatalf("Expected postToolUse not to fire for failed result, got %+v", postToolUseInputs)
+		}
+		if len(failureInputs) != 1 {
+			t.Fatalf("Expected one postToolUseFailure input, got %+v", failureInputs)
+		}
+		input := failureInputs[0]
+		if input.ToolName != "view" {
+			t.Errorf("Expected tool name view, got %q", input.ToolName)
+		}
+		if !strings.Contains(input.Error, "does not exist") {
+			t.Errorf("Expected missing-tool error, got %q", input.Error)
+		}
+		if !strings.Contains(fmt.Sprint(input.ToolArgs), "missing.txt") {
+			t.Errorf("Expected tool args to contain missing.txt, got %+v", input.ToolArgs)
+		}
+		if input.WorkingDirectory == "" {
+			t.Error("Expected working directory to be populated")
+		}
+		if input.Timestamp.IsZero() {
+			t.Error("Expected timestamp to be populated")
+		}
+		if assistantMessage, ok := response.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(assistantMessage.Content, "HOOK_FAILURE_GUIDANCE_APPLIED") {
+			t.Errorf("Expected response to contain hook guidance, got %v", response.Data)
 		}
 	})
 }

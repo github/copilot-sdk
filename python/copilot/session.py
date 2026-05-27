@@ -721,6 +721,38 @@ PostToolUseHandler = Callable[
 ]
 
 
+class PostToolUseFailureHookInput(TypedDict):
+    """Input for post-tool-use-failure hook.
+
+    Fires after a tool execution whose result was ``"failure"``. The CLI
+    extracts the failure message from the tool result and passes it as the
+    ``error`` field (rather than passing the full result object).
+    """
+
+    sessionId: str
+    timestamp: datetime
+    workingDirectory: str
+    toolName: str
+    toolArgs: Any
+    error: str
+
+
+class PostToolUseFailureHookOutput(TypedDict, total=False):
+    """Output for post-tool-use-failure hook.
+
+    Only ``additionalContext`` is consumed by the host CLI — it is appended
+    as hidden guidance to the model alongside the failed tool result.
+    """
+
+    additionalContext: str
+
+
+PostToolUseFailureHandler = Callable[
+    [PostToolUseFailureHookInput, dict[str, str]],
+    PostToolUseFailureHookOutput | None | Awaitable[PostToolUseFailureHookOutput | None],
+]
+
+
 class UserPromptSubmittedHookInput(TypedDict):
     """Input for user-prompt-submitted hook"""
 
@@ -824,6 +856,7 @@ class SessionHooks(TypedDict, total=False):
     on_pre_tool_use: PreToolUseHandler
     on_pre_mcp_tool_call: PreMcpToolCallHandler
     on_post_tool_use: PostToolUseHandler
+    on_post_tool_use_failure: PostToolUseFailureHandler
     on_user_prompt_submitted: UserPromptSubmittedHandler
     on_session_start: SessionStartHandler
     on_session_end: SessionEndHandler
@@ -1124,6 +1157,7 @@ class CopilotSession:
         *,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
+        agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
     ) -> str:
         """
@@ -1137,6 +1171,9 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
+            agent_mode: The UI mode the agent was in when this message was sent
+                (for example ``"plan"`` or ``"autopilot"``). Defaults to the
+                session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
 
         Returns:
@@ -1159,6 +1196,8 @@ class CopilotSession:
             params["attachments"] = attachments
         if mode is not None:
             params["mode"] = mode
+        if agent_mode is not None:
+            params["agentMode"] = agent_mode
         if request_headers is not None:
             params["requestHeaders"] = request_headers
         params.update(get_trace_context())
@@ -1182,6 +1221,7 @@ class CopilotSession:
         *,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
+        agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
@@ -1198,6 +1238,9 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
+            agent_mode: The UI mode the agent was in when this message was sent
+                (for example ``"plan"`` or ``"autopilot"``). Defaults to the
+                session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
@@ -1256,6 +1299,7 @@ class CopilotSession:
                 prompt,
                 attachments=attachments,
                 mode=mode,
+                agent_mode=agent_mode,
                 request_headers=request_headers,
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
@@ -2120,6 +2164,7 @@ class CopilotSession:
             "preToolUse": hooks.get("on_pre_tool_use"),
             "preMcpToolCall": hooks.get("on_pre_mcp_tool_call"),
             "postToolUse": hooks.get("on_post_tool_use"),
+            "postToolUseFailure": hooks.get("on_post_tool_use_failure"),
             "userPromptSubmitted": hooks.get("on_user_prompt_submitted"),
             "sessionStart": hooks.get("on_session_start"),
             "sessionEnd": hooks.get("on_session_end"),

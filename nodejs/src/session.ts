@@ -53,8 +53,8 @@ import type {
 
 /**
  * Convert a raw hook input received over the wire into its public-facing shape.
- * Currently this only deserializes the numeric Unix-ms `timestamp` field on
- * BaseHookInput into a Date. Anything else passes through unchanged.
+ * This deserializes the numeric Unix-ms `timestamp` field on BaseHookInput
+ * into a Date and maps the wire `cwd` field to `workingDirectory`.
  */
 function deserializeHookInput(raw: unknown): unknown {
     if (
@@ -214,6 +214,7 @@ export class CopilotSession {
             prompt: options.prompt,
             attachments: options.attachments,
             mode: options.mode,
+            agentMode: options.agentMode,
             requestHeaders: options.requestHeaders,
         });
 
@@ -1037,6 +1038,7 @@ export class CopilotSession {
             preToolUse: this.hooks.onPreToolUse as GenericHandler | undefined,
             preMcpToolCall: this.hooks.onPreMcpToolCall as GenericHandler | undefined,
             postToolUse: this.hooks.onPostToolUse as GenericHandler | undefined,
+            postToolUseFailure: this.hooks.onPostToolUseFailure as GenericHandler | undefined,
             userPromptSubmitted: this.hooks.onUserPromptSubmitted as GenericHandler | undefined,
             sessionStart: this.hooks.onSessionStart as GenericHandler | undefined,
             sessionEnd: this.hooks.onSessionEnd as GenericHandler | undefined,

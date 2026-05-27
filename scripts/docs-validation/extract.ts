@@ -23,6 +23,7 @@ const LANGUAGE_MAP: Record<string, string> = {
   csharp: "csharp",
   "c#": "csharp",
   cs: "csharp",
+  java: "java",
 };
 
 interface CodeBlock {
@@ -152,6 +153,8 @@ function getExtension(language: string): string {
       return ".go";
     case "csharp":
       return ".cs";
+    case "java":
+      return ".java";
     default:
       return ".txt";
   }
@@ -181,6 +184,18 @@ function shouldSkipFragment(block: CodeBlock): boolean {
   if (block.language === "go") {
     // Function signatures without bodies (interface definitions shown in docs)
     if (/^func\s+\w+\([^)]*\)\s*\([^)]*\)\s*$/.test(code)) {
+      return true;
+    }
+  }
+
+  // Java: Skip interface definitions, annotations-only, or method signatures without bodies
+  if (block.language === "java") {
+    // Just an annotation
+    if (/^@\w+/.test(code) && !code.includes("{")) {
+      return true;
+    }
+    // Method signature without body
+    if (/^(public|private|protected)?\s*(static\s+)?[\w<>\[\]]+\s+\w+\([^)]*\)\s*(throws\s+[\w,\s]+)?;\s*$/.test(code)) {
       return true;
     }
   }
@@ -352,6 +367,61 @@ ${indentedCode}
     }
   }
 
+  // Java: wrap in a class for compilation
+  if (block.language === "java") {
+    const hasClass =
+      code.includes("class ") ||
+      code.includes("interface ") ||
+      code.includes("enum ");
+
+    if (!hasClass) {
+      // Extract any existing import statements
+      const lines = code.split("\n");
+      const imports: string[] = [];
+      const rest: string[] = [];
+
+      for (const line of lines) {
+        if (line.trim().startsWith("import ")) {
+          imports.push(line);
+        } else {
+          rest.push(line);
+        }
+      }
+
+      // Add default imports if no SDK imports are present
+      const hasAnyCopilotImport = imports.some(i =>
+        i.includes("com.github.copilot"),
+      );
+      if (!hasAnyCopilotImport) {
+        imports.push("import com.github.copilot.*;");
+        imports.push("import com.github.copilot.rpc.*;");
+        imports.push("import java.util.*;");
+        imports.push("import java.util.concurrent.*;");
+      }
+
+      // Generate a unique class name from block.file and block.line
+      let className = `${block.file.replace(/[^a-zA-Z0-9]/g, "_")}_${block.line}`;
+      if (/^\d/.test(className)) {
+        className = "Snippet_" + className;
+      }
+
+      const indentedCode = rest.map(l => "        " + l).join("\n");
+
+      code = `${imports.join("\n")}
+
+public class ${className} {
+    public static void main(String[] args) throws Exception {
+${indentedCode}
+    }
+}`;
+    } else {
+      // Has class structure. Only add SDK imports if not already present.
+      if (!code.includes("import com.github.copilot")) {
+        code = "import com.github.copilot.*;\nimport com.github.copilot.rpc.*;\nimport java.util.*;\nimport java.util.concurrent.*;\n" + code;
+      }
+    }
+  }
+
   return code;
 }
 
@@ -365,7 +435,7 @@ async function main() {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
   // Create language subdirectories
-  for (const lang of ["typescript", "python", "go", "csharp"]) {
+  for (const lang of ["typescript", "python", "go", "csharp", "java"]) {
     fs.mkdirSync(path.join(OUTPUT_DIR, lang), { recursive: true });
   }
 
@@ -414,9 +484,18 @@ async function main() {
       }
 
       const fileName = generateFileName(block, totalBlocks, langCounts);
-      const outputPath = path.join(OUTPUT_DIR, block.language, fileName);
-
       const wrappedCode = wrapCodeForValidation(block);
+
+      // For Java, filename must match the public class name
+      let actualFileName = fileName;
+      if (block.language === "java") {
+        const classMatch = wrappedCode.match(/public class (\w+)/);
+        if (classMatch) {
+          actualFileName = classMatch[1] + ".java";
+        }
+      }
+
+      const outputPath = path.join(OUTPUT_DIR, block.language, actualFileName);
 
       // Add source location comment
       const sourceComment = getSourceComment(
@@ -429,11 +508,11 @@ async function main() {
       fs.writeFileSync(outputPath, finalCode);
 
       manifest.blocks.push({
-        id: `${block.language}/${fileName}`,
+        id: `${block.language}/${actualFileName}`,
         sourceFile: block.file,
         sourceLine: block.line,
         language: block.language,
-        outputFile: `${block.language}/${fileName}`,
+        outputFile: `${block.language}/${actualFileName}`,
       });
 
       totalBlocks++;
@@ -469,7 +548,10 @@ function getSourceComment(
   file: string,
   line: number
 ): string {
-  const location = `Source: ${file}:${line}`;
+  // Normalize path separators to forward slashes to avoid issues
+  // (e.g., Java interprets \u as a unicode escape sequence)
+  const normalizedFile = file.replace(/\\/g, "/");
+  const location = `Source: ${normalizedFile}:${line}`;
   switch (language) {
     case "typescript":
     case "go":

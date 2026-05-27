@@ -358,8 +358,8 @@ async function generateSessionEvents(schemaPath: string): Promise<void> {
     pendingStandaloneTypes.clear();
 
     const variants = extractEventVariants(schema);
-    const packageName = "com.github.copilot.sdk.generated";
-    const packageDir = `src/generated/java/com/github/copilot/sdk/generated`;
+    const packageName = "com.github.copilot.generated";
+    const packageDir = `src/generated/java/com/github/copilot/generated`;
 
     // Generate base SessionEvent class
     await generateSessionEventBaseClass(variants, packageName, packageDir);
@@ -940,8 +940,8 @@ async function generateRpcTypes(schemaPath: string): Promise<void> {
         console.warn(`[codegen] Could not load session-events schema for cross-ref resolution: ${e}`);
     }
 
-    const packageName = "com.github.copilot.sdk.generated.rpc";
-    const packageDir = `src/generated/java/com/github/copilot/sdk/generated/rpc`;
+    const packageName = "com.github.copilot.generated.rpc";
+    const packageDir = `src/generated/java/com/github/copilot/generated/rpc`;
 
     // Collect all RPC methods from all sections
     const sections: [string, Record<string, unknown>][] = [];
@@ -1562,8 +1562,8 @@ async function generateRpcWrappers(schemaPath: string): Promise<void> {
     // Set module-level definitions for $ref resolution in wrapper helpers
     currentDefinitions = (schema.definitions ?? {}) as Record<string, JSONSchema7>;
 
-    const packageName = "com.github.copilot.sdk.generated.rpc";
-    const packageDir = `src/generated/java/com/github/copilot/sdk/generated/rpc`;
+    const packageName = "com.github.copilot.generated.rpc";
+    const packageDir = `src/generated/java/com/github/copilot/generated/rpc`;
 
     // RpcCaller interface and shared ObjectMapper holder
     await generateRpcCallerInterface(packageName, packageDir);

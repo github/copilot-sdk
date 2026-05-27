@@ -325,10 +325,10 @@ dotnet run
 
 Create `HelloCopilot.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 public class HelloCopilot {
     public static void main(String[] args) throws Exception {
@@ -590,10 +590,10 @@ await session.SendAndWaitAsync(new MessageOptions { Prompt = "Tell me a short jo
 
 Update `HelloCopilot.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 public class HelloCopilot {
     public static void main(String[] args) throws Exception {
@@ -856,6 +856,7 @@ unsubscribe.Dispose();
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // Subscribe to all events
 var unsubscribe = session.on(event -> {
@@ -1214,10 +1215,10 @@ await session.SendAndWaitAsync(new MessageOptions
 
 Update `HelloCopilot.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 import java.util.List;
 import java.util.Map;
@@ -1719,10 +1720,10 @@ dotnet run
 
 Create `WeatherAssistant.java`:
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 import java.util.List;
 import java.util.Map;
@@ -2085,8 +2086,8 @@ await using var session = await client.CreateSessionAsync(new()
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(
     new CopilotClientOptions().setCliUrl("localhost:4321")
@@ -2207,8 +2208,8 @@ No extra dependencies—uses built-in `System.Diagnostics.Activity`.
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setTelemetry(new TelemetryConfig()

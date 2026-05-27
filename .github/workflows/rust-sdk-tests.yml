@@ -73,18 +73,38 @@ jobs:
           prefix-key: v1-rust-no-bin
           cache-bin: false
 
+      - name: Read pinned @github/copilot CLI version
+        id: cli-version
+        working-directory: ./nodejs
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@github/copilot'].version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Pinned CLI version: $version"
+
+      # Share the bundled-CLI archive cache with the `bundle` job: build.rs
+      # now downloads in both modes (embed for `bundle`, extract-to-cache
+      # for this `test` job's `--no-default-features` build).
+      - name: Cache bundled CLI tarball
+        uses: actions/cache@v4
+        with:
+          path: ./rust/.bundled-cli-cache
+          key: bundled-cli-${{ matrix.os }}-${{ steps.cli-version.outputs.version }}
+
       - name: cargo fmt --check (nightly)
         if: runner.os == 'Linux'
         run: cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml --check
 
       - name: cargo clippy
         if: runner.os == 'Linux'
+        env:
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: cargo clippy --all-targets --features test-support -- --no-deps -D warnings -D clippy::unwrap_used -D clippy::disallowed_macros -D clippy::await_holding_invalid_type
 
       - name: cargo doc
         if: runner.os == 'Linux'
         env:
           RUSTDOCFLAGS: "-D warnings"
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
         run: cargo doc --no-deps --all-features
 
       - name: Install test harness dependencies
@@ -101,9 +121,12 @@ jobs:
           RUST_E2E_CONCURRENCY: 4
           COPILOT_HMAC_KEY: ${{ secrets.COPILOT_DEVELOPER_CLI_INTEGRATION_HMAC_KEY }}
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        # `--no-default-features` disables the bundled-cli download; the
-        # tests use the CLI provided by setup-copilot via COPILOT_CLI_PATH.
-        # The dedicated `bundle` job below exercises the bundling pipeline.
+          BUNDLED_CLI_CACHE_DIR: ${{ github.workspace }}/rust/.bundled-cli-cache
+        # `--no-default-features` selects dev mode: build.rs still downloads
+        # + verifies + extracts the CLI to the per-user cache, but doesn't
+        # embed it. Tests exec against the setup-copilot CLI via
+        # COPILOT_CLI_PATH (the env override wins over the dev cache).
+        # The dedicated `bundle` job below exercises the embed pipeline.
         run: cargo test --no-default-features --features test-support -- --test-threads=4 --nocapture
 
   # Validates the bundled-CLI build path on all three supported

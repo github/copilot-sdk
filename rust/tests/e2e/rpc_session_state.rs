@@ -731,7 +731,7 @@ async fn should_update_options_and_initialize_session_services() {
                     .options()
                     .update(SessionUpdateOptionsParams {
                         ask_user_disabled: Some(true),
-                        available_tools: vec!["view".to_string()],
+                        available_tools: Some(vec!["view".to_string()]),
                         client_name: Some("rust-rpc-e2e".to_string()),
                         enable_streaming: Some(true),
                         model: Some(MODEL_ID.to_string()),

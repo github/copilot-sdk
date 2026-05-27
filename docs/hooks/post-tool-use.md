@@ -1,11 +1,14 @@
 # Post-tool use hook
 
-The `onPostToolUse` hook is called **after** a tool executes. Use it to:
+The `onPostToolUse` hook is called **after** a tool executes **successfully**. Use it to:
 
-* Transform or filter tool results
-* Log tool execution for auditing
-* Add context based on results
-* Suppress results from the conversation
+- Transform or filter tool results
+- Log tool execution for auditing
+- Add context based on results
+- Suppress results from the conversation
+
+> **Failure variant** — `onPostToolUse` only fires for successful tool executions. To observe **failed** tool calls, register `onPostToolUseFailure` (`on_post_tool_use_failure` in Python, `OnPostToolUseFailure` in Go/.NET, `on_post_tool_use_failure` in Rust). The handler receives `{ sessionId, toolName, toolArgs, error, timestamp, workingDirectory }` — the `error` field is a string extracted from the tool's failure result — and may return `{ additionalContext: string }` to inject extra guidance for the model (e.g. retry hints). See the [hooks overview](./hooks-overview.md) for the full list.
+> <a id="failure-variant"></a>
 
 ## Hook signature
 
@@ -13,18 +16,25 @@ The `onPostToolUse` hook is called **after** a tool executes. Use it to:
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 <!-- docs-validate: hidden -->
+
 ```ts
-import type { PostToolUseHookInput, HookInvocation, PostToolUseHookOutput } from "@github/copilot-sdk";
+import type {
+  PostToolUseHookInput,
+  HookInvocation,
+  PostToolUseHookOutput,
+} from "@github/copilot-sdk";
 type PostToolUseHandler = (
   input: PostToolUseHookInput,
-  invocation: HookInvocation
+  invocation: HookInvocation,
 ) => Promise<PostToolUseHookOutput | null | undefined>;
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```typescript
 type PostToolUseHandler = (
   input: PostToolUseHookInput,
-  invocation: HookInvocation
+  invocation: HookInvocation,
 ) => Promise<PostToolUseHookOutput | null | undefined>;
 ```
 
@@ -34,6 +44,7 @@ type PostToolUseHandler = (
 <summary><strong>Python</strong></summary>
 
 <!-- docs-validate: hidden -->
+
 ```python
 from copilot.session import PostToolUseHookInput, PostToolUseHookOutput
 from typing import Callable, Awaitable
@@ -43,7 +54,9 @@ PostToolUseHandler = Callable[
     Awaitable[PostToolUseHookOutput | None]
 ]
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```python
 PostToolUseHandler = Callable[
     [PostToolUseHookInput, dict[str, str]],
@@ -57,6 +70,7 @@ PostToolUseHandler = Callable[
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: hidden -->
+
 ```go
 package main
 
@@ -69,7 +83,9 @@ type PostToolUseHandler func(
 
 func main() {}
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```go
 type PostToolUseHandler func(
     input PostToolUseHookInput,
@@ -83,6 +99,7 @@ type PostToolUseHandler func(
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: hidden -->
+
 ```csharp
 using GitHub.Copilot;
 
@@ -90,7 +107,9 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
     PostToolUseHookInput input,
     HookInvocation invocation);
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```csharp
 public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
     PostToolUseHookInput input,
@@ -102,33 +121,48 @@ public delegate Task<PostToolUseHookOutput?> PostToolUseHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
 
-PostToolUseHandler postToolUseHandler;
+public class PostToolUseSignature {
+    PostToolUseHandler handler = (PostToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(null);
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface PostToolUseHandler {
+    CompletableFuture<PostToolUseHookOutput> handle(
+        PostToolUseHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>
 
 ## Input
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `timestamp` | number | Unix timestamp when the hook was triggered |
-| `cwd` | string | Current working directory |
-| `toolName` | string | Name of the tool that was called |
-| `toolArgs` | object | Arguments that were passed to the tool |
-| `toolResult` | object | Result returned by the tool |
+| Field              | Type               | Description                            |
+| ------------------ | ------------------ | -------------------------------------- |
+| `timestamp`        | SDK timestamp type | When the hook was triggered            |
+| `workingDirectory` | string             | Current working directory              |
+| `toolName`         | string             | Name of the tool that was called       |
+| `toolArgs`         | object             | Arguments that were passed to the tool |
+| `toolResult`       | object             | Result returned by the tool            |
 
 ## Output
 
 Return `null` or `undefined` to pass through the result unchanged. Otherwise, return an object with any of these fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `modifiedResult` | object | Modified result to use instead of original |
-| `additionalContext` | string | Extra context injected into the conversation |
-| `suppressOutput` | boolean | If true, result won't appear in conversation |
+| Field               | Type    | Description                                  |
+| ------------------- | ------- | -------------------------------------------- |
+| `modifiedResult`    | object  | Modified result to use instead of original   |
+| `additionalContext` | string  | Extra context injected into the conversation |
+| `suppressOutput`    | boolean | If true, result won't appear in conversation |
 
 ## Examples
 
@@ -173,6 +207,7 @@ session = await client.create_session(on_permission_request=PermissionHandler.ap
 <summary><strong>Go</strong></summary>
 
 <!-- docs-validate: hidden -->
+
 ```go
 package main
 
@@ -198,7 +233,9 @@ func main() {
 	_ = session
 }
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```go
 session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
     Hooks: &copilot.SessionHooks{
@@ -218,6 +255,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 <summary><strong>.NET</strong></summary>
 
 <!-- docs-validate: hidden -->
+
 ```csharp
 using GitHub.Copilot;
 
@@ -242,7 +280,9 @@ public static class PostToolUseExample
     }
 }
 ```
+
 <!-- /docs-validate: hidden -->
+
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -264,9 +304,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 var hooks = new SessionHooks()
@@ -303,7 +344,7 @@ const session = await client.createSession({
         for (const pattern of SENSITIVE_PATTERNS) {
           redacted = redacted.replace(pattern, "[REDACTED]");
         }
-        
+
         if (redacted !== input.toolResult) {
           return { modifiedResult: redacted };
         }
@@ -323,7 +364,7 @@ const session = await client.createSession({
   hooks: {
     onPostToolUse: async (input) => {
       const resultStr = JSON.stringify(input.toolResult);
-      
+
       if (resultStr.length > MAX_RESULT_LENGTH) {
         return {
           modifiedResult: {
@@ -349,17 +390,19 @@ const session = await client.createSession({
       // If a file read returned an error, add helpful context
       if (input.toolName === "read_file" && input.toolResult?.error) {
         return {
-          additionalContext: "Tip: If the file doesn't exist, consider creating it or checking the path.",
+          additionalContext:
+            "Tip: If the file doesn't exist, consider creating it or checking the path.",
         };
       }
-      
+
       // If shell command failed, add debugging hint
       if (input.toolName === "shell" && input.toolResult?.exitCode !== 0) {
         return {
-          additionalContext: "The command failed. Check if required dependencies are installed.",
+          additionalContext:
+            "The command failed. Check if required dependencies are installed.",
         };
       }
-      
+
       return null;
     },
   },
@@ -392,7 +435,7 @@ const session = await client.createSession({
 
 ```typescript
 interface AuditEntry {
-  timestamp: number;
+  timestamp: Date;
   sessionId: string;
   toolName: string;
   args: unknown;
@@ -413,10 +456,10 @@ const session = await client.createSession({
         result: input.toolResult,
         success: !input.toolResult?.error,
       });
-      
+
       // Optionally persist to database/file
       await saveAuditLog(auditLog);
-      
+
       return null;
     },
   },
@@ -433,10 +476,10 @@ const session = await client.createSession({
     onPostToolUse: async (input) => {
       if (NOISY_TOOLS.includes(input.toolName)) {
         // Summarize instead of showing full result
-        const items = Array.isArray(input.toolResult) 
-          ? input.toolResult 
+        const items = Array.isArray(input.toolResult)
+          ? input.toolResult
           : input.toolResult?.items || [];
-        
+
         return {
           modifiedResult: {
             summary: `Found ${items.length} items`,
@@ -464,6 +507,6 @@ const session = await client.createSession({
 
 ## See also
 
-* [Hooks Overview](./index.md)
-* [Pre-Tool Use Hook](./pre-tool-use.md)
-* [Error Handling Hook](./error-handling.md)
+- [Hooks Overview](./index.md)
+- [Pre-Tool Use Hook](./pre-tool-use.md)
+- [Error Handling Hook](./error-handling.md)

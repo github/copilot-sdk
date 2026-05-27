@@ -67,6 +67,9 @@ pub(crate) struct SessionCreateWire {
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
+    /// SDK always sends `"excluded"` so include + exclude lists compose
+    /// naturally (everything matching X except Y).
+    pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     pub env_value_mode: &'static str,
@@ -143,6 +146,8 @@ pub(crate) struct SessionResumeWire {
     pub available_tools: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub excluded_tools: Option<Vec<String>>,
+    /// SDK always sends `"excluded"`. See create-wire docs.
+    pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     pub env_value_mode: &'static str,

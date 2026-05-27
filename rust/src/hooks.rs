@@ -132,6 +132,43 @@ pub struct PostToolUseOutput {
     pub suppress_output: Option<bool>,
 }
 
+/// Input for the `postToolUseFailure` hook — received after a tool execution
+/// whose result was `"failure"`.
+///
+/// `postToolUse` only fires for successful tool executions. Register a handler
+/// for `postToolUseFailure` to observe failed tool calls. The CLI extracts the
+/// failure message from the tool result and passes it as the `error` field
+/// (rather than passing the full result object).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostToolUseFailureInput {
+    /// The runtime session ID of the session that triggered the hook.
+    pub session_id: String,
+    /// Unix timestamp (ms).
+    pub timestamp: i64,
+    /// Working directory.
+    #[serde(rename = "cwd")]
+    pub working_directory: PathBuf,
+    /// Name of the tool that failed.
+    pub tool_name: String,
+    /// Arguments that were passed to the tool.
+    pub tool_args: Value,
+    /// Failure message extracted from the tool's result.
+    pub error: String,
+}
+
+/// Output for the `postToolUseFailure` hook.
+///
+/// Only `additional_context` is consumed by the host CLI — it is appended as
+/// hidden guidance to the model alongside the failed tool result.
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostToolUseFailureOutput {
+    /// Extra context appended to the failed tool result for the agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_context: Option<String>,
+}
+
 /// Input for the `userPromptSubmitted` hook — received when the user sends a message.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -294,6 +331,15 @@ pub enum HookEvent {
         /// Session context.
         ctx: HookContext,
     },
+    /// Fired after a tool execution whose result was `"failure"`.
+    /// [`HookEvent::PostToolUse`] only fires on success, so observe this
+    /// variant to react to failed tool calls.
+    PostToolUseFailure {
+        /// Typed input data.
+        input: PostToolUseFailureInput,
+        /// Session context.
+        ctx: HookContext,
+    },
     /// Fired when the user sends a message.
     UserPromptSubmitted {
         /// Typed input data.
@@ -339,6 +385,8 @@ pub enum HookOutput {
     PreMcpToolCall(PreMcpToolCallOutput),
     /// Response for a post-tool-use hook.
     PostToolUse(PostToolUseOutput),
+    /// Response for a post-tool-use-failure hook.
+    PostToolUseFailure(PostToolUseFailureOutput),
     /// Response for a user-prompt-submitted hook.
     UserPromptSubmitted(UserPromptSubmittedOutput),
     /// Response for a session-start hook.
@@ -356,6 +404,7 @@ impl HookOutput {
             Self::PreToolUse(_) => "PreToolUse",
             Self::PreMcpToolCall(_) => "PreMcpToolCall",
             Self::PostToolUse(_) => "PostToolUse",
+            Self::PostToolUseFailure(_) => "PostToolUseFailure",
             Self::UserPromptSubmitted(_) => "UserPromptSubmitted",
             Self::SessionStart(_) => "SessionStart",
             Self::SessionEnd(_) => "SessionEnd",
@@ -402,6 +451,11 @@ pub trait SessionHooks: Send + Sync + 'static {
                 .on_post_tool_use(input, ctx)
                 .await
                 .map(HookOutput::PostToolUse)
+                .unwrap_or(HookOutput::None),
+            HookEvent::PostToolUseFailure { input, ctx } => self
+                .on_post_tool_use_failure(input, ctx)
+                .await
+                .map(HookOutput::PostToolUseFailure)
                 .unwrap_or(HookOutput::None),
             HookEvent::UserPromptSubmitted { input, ctx } => self
                 .on_user_prompt_submitted(input, ctx)
@@ -454,6 +508,18 @@ pub trait SessionHooks: Send + Sync + 'static {
         _input: PostToolUseInput,
         _ctx: HookContext,
     ) -> Option<PostToolUseOutput> {
+        None
+    }
+
+    /// Called after a tool execution whose result was `"failure"`. The
+    /// success-only [`on_post_tool_use`](Self::on_post_tool_use) hook does
+    /// not fire for these outcomes, so override this method to observe or
+    /// inject extra context after failed tool calls.
+    async fn on_post_tool_use_failure(
+        &self,
+        _input: PostToolUseFailureInput,
+        _ctx: HookContext,
+    ) -> Option<PostToolUseFailureOutput> {
         None
     }
 
@@ -527,6 +593,10 @@ pub(crate) async fn dispatch_hook(
             let input: PostToolUseInput = serde_json::from_value(raw_input)?;
             HookEvent::PostToolUse { input, ctx }
         }
+        "postToolUseFailure" => {
+            let input: PostToolUseFailureInput = serde_json::from_value(raw_input)?;
+            HookEvent::PostToolUseFailure { input, ctx }
+        }
         "userPromptSubmitted" => {
             let input: UserPromptSubmittedInput = serde_json::from_value(raw_input)?;
             HookEvent::UserPromptSubmitted { input, ctx }
@@ -571,6 +641,7 @@ pub(crate) async fn dispatch_hook(
         ("preToolUse", HookOutput::PreToolUse(o)) => Some(serde_json::to_value(o)?),
         ("preMcpToolCall", HookOutput::PreMcpToolCall(o)) => Some(serde_json::to_value(o)?),
         ("postToolUse", HookOutput::PostToolUse(o)) => Some(serde_json::to_value(o)?),
+        ("postToolUseFailure", HookOutput::PostToolUseFailure(o)) => Some(serde_json::to_value(o)?),
         ("userPromptSubmitted", HookOutput::UserPromptSubmitted(o)) => {
             Some(serde_json::to_value(o)?)
         }
@@ -748,6 +819,101 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(result["output"], serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn dispatch_post_tool_use_failure_default() {
+        // No handler override — should return an empty output object.
+        let hooks = TestHooks;
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "toolName": "some_tool",
+            "toolArgs": {"key": "value"},
+            "error": "boom"
+        });
+        let result = dispatch_hook(
+            &hooks,
+            &SessionId::new("sess-1"),
+            "postToolUseFailure",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["output"], serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn dispatch_post_tool_use_failure_returns_additional_context() {
+        struct FailureHooks;
+        #[async_trait]
+        impl SessionHooks for FailureHooks {
+            async fn on_post_tool_use_failure(
+                &self,
+                input: PostToolUseFailureInput,
+                _ctx: HookContext,
+            ) -> Option<PostToolUseFailureOutput> {
+                assert_eq!(input.session_id, "sess-1");
+                assert_eq!(input.tool_name, "some_tool");
+                assert_eq!(input.error, "boom");
+                assert_eq!(input.working_directory, PathBuf::from("/tmp"));
+                Some(PostToolUseFailureOutput {
+                    additional_context: Some(format!(
+                        "tool {} failed: {}",
+                        input.tool_name, input.error
+                    )),
+                })
+            }
+        }
+
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "toolName": "some_tool",
+            "toolArgs": {},
+            "error": "boom"
+        });
+        let result = dispatch_hook(
+            &FailureHooks,
+            &SessionId::new("sess-1"),
+            "postToolUseFailure",
+            input,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            result["output"]["additionalContext"],
+            "tool some_tool failed: boom"
+        );
+    }
+
+    #[tokio::test]
+    async fn dispatch_post_tool_use_failure_invalid_input_errors() {
+        // Missing required `error` field — dispatcher should surface the
+        // deserialization error rather than dispatching with empty input.
+        let hooks = TestHooks;
+        let input = serde_json::json!({
+            "sessionId": "sess-1",
+            "timestamp": 1234567890,
+            "cwd": "/tmp",
+            "toolName": "some_tool",
+            "toolArgs": {}
+        });
+        let err = dispatch_hook(
+            &hooks,
+            &SessionId::new("sess-1"),
+            "postToolUseFailure",
+            input,
+        )
+        .await
+        .unwrap_err();
+        let msg = err.to_string().to_ascii_lowercase();
+        assert!(
+            msg.contains("error") || msg.contains("missing field"),
+            "unexpected error: {msg}"
+        );
     }
 
     #[tokio::test]
