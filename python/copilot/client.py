@@ -35,7 +35,6 @@ from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._mode import (
-    BUILTIN_TOOLS_ISOLATED,
     CopilotClientMode,
     ToolSet,
     _enable_session_telemetry_default,
@@ -1542,8 +1541,8 @@ class CopilotClient:
         reasoning_effort: ReasoningEffort | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
-        available_tools: "list[str] | ToolSet | None" = None,
-        excluded_tools: "list[str] | ToolSet | None" = None,
+        available_tools: list[str] | ToolSet | None = None,
+        excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
@@ -1961,8 +1960,8 @@ class CopilotClient:
         reasoning_effort: ReasoningEffort | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
-        available_tools: "list[str] | ToolSet | None" = None,
-        excluded_tools: "list[str] | ToolSet | None" = None,
+        available_tools: list[str] | ToolSet | None = None,
+        excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
@@ -3239,7 +3238,7 @@ class CopilotClient:
 
     async def _apply_post_create_options_patch(
         self,
-        session: "CopilotSession",
+        session: CopilotSession,
         mode: CopilotClientMode,
         skip_custom_instructions: bool | None,
         custom_agents_local_only: bool | None,
@@ -3252,7 +3251,7 @@ class CopilotClient:
         If the patch is rejected, tear the session down so empty-mode callers
         never end up with a permissive session.
         """
-        from .generated.rpc import SessionUpdateOptionsParams, SessionInstalledPlugin
+        from .generated.rpc import SessionInstalledPlugin, SessionUpdateOptionsParams
 
         patch = _post_create_options_patch(
             mode,

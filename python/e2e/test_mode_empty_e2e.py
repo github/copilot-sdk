@@ -26,9 +26,7 @@ def _make_empty_client(ctx: E2ETestContext) -> CopilotClient:
         working_directory=ctx.work_dir,
         env=ctx.get_env(),
         github_token=(
-            "fake-token-for-e2e-tests"
-            if os.environ.get("GITHUB_ACTIONS") == "true"
-            else None
+            "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         ),
         base_directory=ctx.home_dir,
         mode="empty",
@@ -71,9 +69,7 @@ def _shell_tool_name() -> str:
 
 
 class TestModeEmpty:
-    async def test_empty_mode_isolated_set_shell_tool_is_not_exposed(
-        self, ctx: E2ETestContext
-    ):
+    async def test_empty_mode_isolated_set_shell_tool_is_not_exposed(self, ctx: E2ETestContext):
         client = _make_empty_client(ctx)
         try:
             await client.start()
@@ -96,9 +92,7 @@ class TestModeEmpty:
         finally:
             await client.stop()
 
-    async def test_empty_mode_builtin_star_exposes_all_built_in_tools(
-        self, ctx: E2ETestContext
-    ):
+    async def test_empty_mode_builtin_star_exposes_all_built_in_tools(self, ctx: E2ETestContext):
         client = _make_empty_client(ctx)
         try:
             await client.start()

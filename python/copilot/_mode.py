@@ -10,7 +10,8 @@ off, custom instructions off, etc.). Callers can opt back in field-by-field.
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable, Literal
+from collections.abc import Iterable
+from typing import Any, Literal
 
 CopilotClientMode = Literal["copilot-cli", "empty"]
 
@@ -46,7 +47,7 @@ class ToolSet:
     def __init__(self) -> None:
         self._items: list[str] = []
 
-    def add_builtin(self, name: str | Iterable[str]) -> "ToolSet":
+    def add_builtin(self, name: str | Iterable[str]) -> ToolSet:
         """Add a built-in tool pattern (``"bash"``/``"*"``/an iterable of names)."""
         if isinstance(name, str):
             _validate_tool_name("builtin", name)
@@ -57,13 +58,13 @@ class ToolSet:
                 self._items.append(f"builtin:{n}")
         return self
 
-    def add_custom(self, name: str) -> "ToolSet":
+    def add_custom(self, name: str) -> ToolSet:
         """Add a custom-tool pattern (e.g. ``"my_tool"`` or ``"*"``)."""
         _validate_tool_name("custom", name)
         self._items.append(f"custom:{name}")
         return self
 
-    def add_mcp(self, tool_name: str) -> "ToolSet":
+    def add_mcp(self, tool_name: str) -> ToolSet:
         """Add an MCP tool pattern (e.g. ``"github-list_issues"`` or ``"*"``)."""
         _validate_tool_name("mcp", tool_name)
         self._items.append(f"mcp:{tool_name}")
