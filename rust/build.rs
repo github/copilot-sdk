@@ -22,9 +22,10 @@ fn main() {
     // Two-source version resolution:
     //   1. `cli-version.txt` at the crate root (published-crate consumer,
     //      vendored-slot consumer).
-    //   2. Sibling `../nodejs/package-lock.json` (mono-repo contributor build,
-    //      same convention as .NET's `_GetCopilotCliVersion` MSBuild target
-    //      and the Go `cmd/bundler` tool).
+    //   2. Sibling `../nodejs/package-lock.json` (contributor build inside
+    //      the github/copilot-sdk repo — same convention as .NET's
+    //      `_GetCopilotCliVersion` MSBuild target and the Go `cmd/bundler`
+    //      tool).
     //
     // No env-var override and no committed per-asset SHA snapshot — the SHA
     // is always fetched live against the version's `SHA256SUMS.txt`.
@@ -112,7 +113,7 @@ fn read_version() -> String {
         return version.to_string();
     }
 
-    // 2. Mono-repo lockfile fallback.
+    // 2. Lockfile fallback (contributor build inside github/copilot-sdk).
     let lockfile = Path::new(&manifest_dir)
         .join("..")
         .join("nodejs")
@@ -127,7 +128,7 @@ fn read_version() -> String {
          - {} (missing)\n\
          - {} (missing)\n\
          In a published crate or vendored slot, `cli-version.txt` should be present.\n\
-         In the github/copilot-sdk mono-repo, `../nodejs/package-lock.json` is the source.",
+         Inside the github/copilot-sdk repo, `../nodejs/package-lock.json` is the source.",
         pin.display(),
         lockfile.display(),
     );

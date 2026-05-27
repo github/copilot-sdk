@@ -770,7 +770,7 @@ This still pins, downloads, and SHA-verifies the same CLI version, but extracts 
 
 1. **Version pin.** `build.rs` reads the CLI version from one of two sources:
    - `cli-version.txt` at the crate root (present in published crate tarballs and vendored slots).
-   - Otherwise, `../nodejs/package-lock.json` (mono-repo contributor build — matches the .NET and Go SDK conventions in this repo).
+   - Otherwise, `../nodejs/package-lock.json` (contributor build inside the github/copilot-sdk repo — matches the .NET and Go SDK conventions here).
 
 2. **Build time:** `build.rs` downloads the platform-appropriate archive from the [`github/copilot-cli` GitHub Releases](https://github.com/github/copilot-cli/releases) (`copilot-{platform}.tar.gz` on macOS/Linux, `.zip` on Windows), live-fetches the matching `SHA256SUMS.txt`, and verifies the archive hash. Then:
    - **`bundled-cli` on (default, release):** embeds the raw archive bytes via `include_bytes!()`. Runtime extracts on first `Client::start()`.

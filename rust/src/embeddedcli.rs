@@ -4,8 +4,9 @@
 //!
 //! build.rs downloads the platform's `copilot-{platform}.{tar.gz,zip}`
 //! archive from GitHub Releases, SHA-256 verifies it against the version
-//! pinned in `cli-version.txt` (or `../nodejs/package-lock.json` in the
-//! mono-repo), and embeds the **raw archive bytes**
+//! pinned in `cli-version.txt` (or `../nodejs/package-lock.json` when
+//! building inside the github/copilot-sdk repo itself), and embeds the
+//! **raw archive bytes**
 //! into the consumer's compiled artifact via `include_bytes!()`. Extraction
 //! to a real on-disk path is deferred until the first call to
 //! [`path`] / [`install_at`] — at which point the bytes are part of the
