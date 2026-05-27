@@ -168,7 +168,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 1. **Disable CI** in `copilot-sdk-java` (remove or disable workflows).
 2. **Archive** `copilot-sdk-java` repo (make read-only).
 3. **Update external references**:
-   - Maven Central POM `<scm>` URLs
+   - ✅ Maven Central POM `<scm>` URLs
    - README badges pointing to the new repo
    - Javadoc.io configuration
    - Any links in copilot documentation

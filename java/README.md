@@ -1,17 +1,14 @@
 # GitHub Copilot SDK for Java
 
-[![Build](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml/badge.svg)](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml)
-[![Site](https://github.com/github/copilot-sdk-java/actions/workflows/deploy-site.yml/badge.svg)](https://github.com/github/copilot-sdk-java/actions/workflows/deploy-site.yml)
-[![Coverage](.github/badges/jacoco.svg)](https://github.github.io/copilot-sdk-java/snapshot/jacoco/index.html)
-[![Documentation](https://img.shields.io/badge/docs-online-brightgreen)](https://github.github.io/copilot-sdk-java/)
+[![Build](https://github.com/github/copilot-sdk/actions/workflows/java-sdk-tests.yml/badge.svg)](https://github.com/github/copilot-sdk/actions/workflows/java-sdk-tests.yml)
 [![Java 17+](https://img.shields.io/badge/Java-17%2B-blue?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 #### Latest release
-[![GitHub Release Date](https://img.shields.io/github/release-date/github/copilot-sdk-java)](https://github.com/github/copilot-sdk-java/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/github/copilot-sdk-java)](https://github.com/github/copilot-sdk-java/releases)
+
+[![GitHub Release Date](https://img.shields.io/github/release-date/github/copilot-sdk)](https://github.com/github/copilot-sdk/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/github/copilot-sdk)](https://github.com/github/copilot-sdk/releases)
 [![Maven Central](https://img.shields.io/maven-central/v/com.github/copilot-sdk-java)](https://central.sonatype.com/artifact/com.github/copilot-sdk-java)
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://github.github.io/copilot-sdk-java/latest/)
 [![Javadoc](https://javadoc.io/badge2/com.github/copilot-sdk-java/javadoc.svg?q=1)](https://javadoc.io/doc/com.github/copilot-sdk-java/latest/index.html)
 
 ## Background
@@ -129,31 +126,20 @@ See the full source of [`jbang-example.java`](jbang-example.java) for a complete
 Or run it directly from the repository:
 
 ```bash
-jbang https://github.com/github/copilot-sdk-java/blob/latest/jbang-example.java
+jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
-
-## Documentation
-
-📚 **[Full Documentation](https://github.github.io/copilot-sdk-java/)** — Complete API reference, advanced usage examples, and guides.
-
-### Quick Links
-
-- [Getting Started](https://github.github.io/copilot-sdk-java/latest/documentation.html)
-- [Javadoc API Reference](https://github.github.io/copilot-sdk-java/latest/apidocs/)
-- [MCP Servers Integration](https://github.github.io/copilot-sdk-java/latest/mcp.html)
-
 
 ## Projects Using This SDK
 
-| Project | Description |
-|---------|-------------|
+| Project                                                                       | Description                                |
+| ----------------------------------------------------------------------------- | ------------------------------------------ |
 | [JMeter Copilot Plugin](https://github.com/brunoborges/jmeter-copilot-plugin) | JMeter plugin for AI-assisted load testing |
 
 > Want to add your project? Open a PR!
 
 ## CI/CD Workflows
 
-This project uses several GitHub Actions workflows for building, testing, releasing, and syncing with the reference implementation SDK. 
+This project uses several GitHub Actions workflows for building, testing, releasing, and syncing with the reference implementation SDK.
 
 See [WORKFLOWS.md](docs/WORKFLOWS.md) for a full overview and details on each workflow.
 
@@ -168,6 +154,7 @@ This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk
 **Automated sync** — A [scheduled GitHub Actions workflow](.github/workflows/reference-impl-sync.yml) runs on the schedule specified in that file. It checks for new reference implementation commits since the last merge (tracked in [`.lastmerge`](.lastmerge)), and if changes are found, creates an issue labeled `reference-impl-sync` and assigns it to the GitHub Copilot coding agent. Any previously open `reference-impl-sync` issues are automatically closed. The sync also updates the `@github/copilot` version in both `pom.xml` and `scripts/codegen/package.json` to keep schemas and test CLI in lockstep.
 
 **Reusable prompt** — The merge workflow is defined in [`agentic-merge-reference-impl.prompt.md`](.github/prompts/agentic-merge-reference-impl.prompt.md). It can be triggered manually from:
+
 - **VS Code Copilot Chat** — type `/agentic-merge-reference-impl`
 - **GitHub Copilot CLI** — use `copilot` CLI with the same skill reference
 
@@ -175,8 +162,8 @@ This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk
 
 ```bash
 # Clone the repository
-git clone https://github.com/github/copilot-sdk-java.git
-cd copilot-sdk-java
+git clone https://github.com/github/copilot-sdk.git
+cd copilot-sdk/java
 
 # Enable git hooks for code formatting
 git config core.hooksPath .githooks
@@ -212,4 +199,3 @@ MIT — see [LICENSE](LICENSE) for details.
 [![Star History Chart](https://api.star-history.com/svg?repos=github/copilot-sdk-java&type=Date)](https://www.star-history.com/#github/copilot-sdk-java&Date)
 
 ⭐ Drop a star if you find this useful!
-
