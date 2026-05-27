@@ -21,13 +21,17 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ModelBillingTokenPrices(
-    /** Price per billing batch of input tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD) */
-    @JsonProperty("inputPrice") Long inputPrice,
-    /** Price per billing batch of output tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD) */
-    @JsonProperty("outputPrice") Long outputPrice,
-    /** Price per billing batch of cached tokens in nano-AIUs (1 nano-AIU = 0.000000001 AIU, 1 AIU = $0.01 USD) */
-    @JsonProperty("cachePrice") Long cachePrice,
+    /** AI Credits cost per billing batch of input tokens */
+    @JsonProperty("inputPrice") Double inputPrice,
+    /** AI Credits cost per billing batch of output tokens */
+    @JsonProperty("outputPrice") Double outputPrice,
+    /** AI Credits cost per billing batch of cached tokens */
+    @JsonProperty("cachePrice") Double cachePrice,
     /** Number of tokens per standard billing batch */
-    @JsonProperty("batchSize") Long batchSize
+    @JsonProperty("batchSize") Long batchSize,
+    /** Maximum context window tokens for the default tier */
+    @JsonProperty("contextMax") Long contextMax,
+    /** Long context tier pricing (available for models with extended context windows) */
+    @JsonProperty("longContext") ModelBillingTokenPricesLongContext longContext
 ) {
 }
