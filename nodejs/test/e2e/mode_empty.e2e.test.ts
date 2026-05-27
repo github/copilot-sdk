@@ -66,7 +66,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
         return "";
     }
 
-    it("empty mode + Isolated set: shell tool is NOT exposed", async () => {
+    it("empty mode isolated set shell tool is not exposed", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
@@ -86,7 +86,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
         await session.disconnect();
     });
 
-    it("empty mode + builtin:* exposes all built-in tools", async () => {
+    it("empty mode builtin star exposes all built in tools", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn("*"),
@@ -103,7 +103,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
         await session.disconnect();
     });
 
-    it("empty mode + excluded default: excludedTools subtracts from availableTools", async () => {
+    it("empty mode excluded tools subtracts from available tools", async () => {
         const shellToolName = process.platform === "win32" ? "powershell" : "bash";
         const session = await client.createSession({
             onPermissionRequest: approveAll,
@@ -148,7 +148,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
         await session.disconnect();
     });
 
-    it("empty mode + systemMessage replace: LLM follows caller's content verbatim", async () => {
+    it("empty mode system message replace llm follows caller content verbatim", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
@@ -164,7 +164,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
         await session.disconnect();
     });
 
-    it("empty mode + append: caller's instruction takes effect and env_context is still stripped", async () => {
+    it("empty mode append caller instruction takes effect and env context stripped", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
