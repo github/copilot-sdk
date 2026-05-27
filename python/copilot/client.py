@@ -34,6 +34,18 @@ from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
+from ._mode import (
+    BUILTIN_TOOLS_ISOLATED,
+    CopilotClientMode,
+    ToolSet,
+    _enable_session_telemetry_default,
+    _normalize_tool_filter,
+    _post_create_options_patch,
+    _require_available_tools_for_empty_mode,
+    _require_storage_for_empty_mode,
+    _system_message_for_mode,
+    _validate_tool_filter_list,
+)
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context
 from .canvas import (
@@ -303,6 +315,7 @@ class _CopilotClientOptions:
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
+    mode: CopilotClientMode = "copilot-cli"
 
 
 # ============================================================================
@@ -1051,6 +1064,7 @@ class CopilotClient:
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
+        mode: CopilotClientMode = "copilot-cli",
     ):
         """
         Initialize a new CopilotClient.
@@ -1120,9 +1134,16 @@ class CopilotClient:
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
+            mode=mode,
         )
         connection = (
             options.connection if options.connection is not None else RuntimeConnection.for_stdio()
+        )
+        _require_storage_for_empty_mode(
+            mode=options.mode,
+            base_directory=options.base_directory,
+            session_fs_set=options.session_fs is not None,
+            is_uri_connection=isinstance(connection, UriRuntimeConnection),
         )
 
         self._options: _CopilotClientOptions = options
@@ -1521,13 +1542,17 @@ class CopilotClient:
         reasoning_effort: ReasoningEffort | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
-        available_tools: list[str] | None = None,
-        excluded_tools: list[str] | None = None,
+        available_tools: "list[str] | ToolSet | None" = None,
+        excluded_tools: "list[str] | ToolSet | None" = None,
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
         enable_session_telemetry: bool | None = None,
+        skip_custom_instructions: bool | None = None,
+        custom_agents_local_only: bool | None = None,
+        coauthor_enabled: bool | None = None,
+        manage_schedule_enabled: bool | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
@@ -1660,6 +1685,18 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 tool_defs.append(definition)
 
+        # Empty-mode validation and normalization
+        mode = self._options.mode
+        _require_available_tools_for_empty_mode(mode, _normalize_tool_filter(available_tools))
+        available_tools = _normalize_tool_filter(available_tools)
+        excluded_tools = _normalize_tool_filter(excluded_tools)
+        _validate_tool_filter_list("available_tools", available_tools)
+        _validate_tool_filter_list("excluded_tools", excluded_tools)
+        # Mode "empty" strips environment_context from the system message.
+        system_message = _system_message_for_mode(mode, system_message)
+        # Mode "empty" defaults telemetry to off; caller wins.
+        enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
+
         payload: dict[str, Any] = {}
         if model:
             payload["model"] = model
@@ -1678,6 +1715,9 @@ class CopilotClient:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
+        # Always emit "excluded" precedence so caller-supplied excludedTools win
+        # over any built-in availableTools defaults the runtime applies.
+        payload["toolFilterPrecedence"] = "excluded"
 
         # Enable permission request callback if handler provided
         payload["requestPermission"] = bool(on_permission_request)
@@ -1893,6 +1933,15 @@ class CopilotClient:
                 )
             raise
 
+        await self._apply_post_create_options_patch(
+            session,
+            mode,
+            skip_custom_instructions,
+            custom_agents_local_only,
+            coauthor_enabled,
+            manage_schedule_enabled,
+        )
+
         log_timing(
             logger,
             logging.DEBUG,
@@ -1912,13 +1961,17 @@ class CopilotClient:
         reasoning_effort: ReasoningEffort | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
-        available_tools: list[str] | None = None,
-        excluded_tools: list[str] | None = None,
+        available_tools: "list[str] | ToolSet | None" = None,
+        excluded_tools: "list[str] | ToolSet | None" = None,
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
         enable_session_telemetry: bool | None = None,
+        skip_custom_instructions: bool | None = None,
+        custom_agents_local_only: bool | None = None,
+        coauthor_enabled: bool | None = None,
+        manage_schedule_enabled: bool | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
@@ -2055,6 +2108,16 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 tool_defs.append(definition)
 
+        # Empty-mode validation and normalization
+        mode = self._options.mode
+        _require_available_tools_for_empty_mode(mode, _normalize_tool_filter(available_tools))
+        available_tools = _normalize_tool_filter(available_tools)
+        excluded_tools = _normalize_tool_filter(excluded_tools)
+        _validate_tool_filter_list("available_tools", available_tools)
+        _validate_tool_filter_list("excluded_tools", excluded_tools)
+        system_message = _system_message_for_mode(mode, system_message)
+        enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
+
         payload: dict[str, Any] = {"sessionId": session_id}
 
         if client_name:
@@ -2072,6 +2135,7 @@ class CopilotClient:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
+        payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
         if enable_session_telemetry is not None:
@@ -2266,6 +2330,15 @@ class CopilotClient:
                     session_id=session_id,
                 )
             raise
+
+        await self._apply_post_create_options_patch(
+            session,
+            mode,
+            skip_custom_instructions,
+            custom_agents_local_only,
+            coauthor_enabled,
+            manage_schedule_enabled,
+        )
 
         log_timing(
             logger,
@@ -2871,6 +2944,11 @@ class CopilotClient:
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
 
+        # Mode "empty": disable the runtime's system keychain probe so per-tenant
+        # credentials don't leak through a shared keytar store.
+        if opts.mode == "empty":
+            env["COPILOT_DISABLE_KEYTAR"] = "1"
+
         if self._effective_connection_token:
             env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token
         if opts.base_directory:
@@ -3158,6 +3236,56 @@ class CopilotClient:
         # Start listening for messages
         loop = asyncio.get_running_loop()
         self._client.start(loop)
+
+    async def _apply_post_create_options_patch(
+        self,
+        session: "CopilotSession",
+        mode: CopilotClientMode,
+        skip_custom_instructions: bool | None,
+        custom_agents_local_only: bool | None,
+        coauthor_enabled: bool | None,
+        manage_schedule_enabled: bool | None,
+    ) -> None:
+        """Apply empty-mode safe defaults (or caller-supplied overrides in
+        copilot-cli mode) via ``session.options.update`` after create/resume.
+
+        If the patch is rejected, tear the session down so empty-mode callers
+        never end up with a permissive session.
+        """
+        from .generated.rpc import SessionUpdateOptionsParams, SessionInstalledPlugin
+
+        patch = _post_create_options_patch(
+            mode,
+            skip_custom_instructions,
+            custom_agents_local_only,
+            coauthor_enabled,
+            manage_schedule_enabled,
+        )
+        if patch is None:
+            return
+
+        params = SessionUpdateOptionsParams()
+        if "skipCustomInstructions" in patch:
+            params.skip_custom_instructions = patch["skipCustomInstructions"]
+        if "customAgentsLocalOnly" in patch:
+            params.custom_agents_local_only = patch["customAgentsLocalOnly"]
+        if "coauthorEnabled" in patch:
+            params.coauthor_enabled = patch["coauthorEnabled"]
+        if "manageScheduleEnabled" in patch:
+            params.manage_schedule_enabled = patch["manageScheduleEnabled"]
+        if "installedPlugins" in patch:
+            params.installed_plugins = [
+                SessionInstalledPlugin.from_dict(p) if isinstance(p, dict) else p
+                for p in patch["installedPlugins"]
+            ]
+
+        try:
+            await session.rpc.options.update(params)
+        except BaseException:
+            with self._sessions_lock:
+                self._sessions.pop(session.session_id, None)
+            await session.disconnect()
+            raise
 
     async def _set_session_fs_provider(self) -> None:
         if not self._session_fs_config or not self._client:
