@@ -11,7 +11,7 @@
 #     authoritative per-platform hashes.
 #
 # Output:
-#   - bundled_cli_version.txt (in the rust crate root). Gitignored.
+#   - cli-version.txt (in the rust crate root). Gitignored.
 
 set -euo pipefail
 
@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUST_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${RUST_DIR}/.." && pwd)"
 LOCKFILE="${REPO_ROOT}/nodejs/package-lock.json"
-OUTPUT="${RUST_DIR}/bundled_cli_version.txt"
+OUTPUT="${RUST_DIR}/cli-version.txt"
 
 if [[ ! -f "${LOCKFILE}" ]]; then
   echo "error: ${LOCKFILE} not found" >&2
