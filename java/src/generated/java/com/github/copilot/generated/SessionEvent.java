@@ -33,10 +33,12 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionTitleChangedEvent.class, name = "session.title_changed"),
     @JsonSubTypes.Type(value = SessionScheduleCreatedEvent.class, name = "session.schedule_created"),
     @JsonSubTypes.Type(value = SessionScheduleCancelledEvent.class, name = "session.schedule_cancelled"),
+    @JsonSubTypes.Type(value = SessionAutopilotObjectiveChangedEvent.class, name = "session.autopilot_objective_changed"),
     @JsonSubTypes.Type(value = SessionInfoEvent.class, name = "session.info"),
     @JsonSubTypes.Type(value = SessionWarningEvent.class, name = "session.warning"),
     @JsonSubTypes.Type(value = SessionModelChangeEvent.class, name = "session.model_change"),
     @JsonSubTypes.Type(value = SessionModeChangedEvent.class, name = "session.mode_changed"),
+    @JsonSubTypes.Type(value = SessionPermissionsChangedEvent.class, name = "session.permissions_changed"),
     @JsonSubTypes.Type(value = SessionPlanChangedEvent.class, name = "session.plan_changed"),
     @JsonSubTypes.Type(value = SessionWorkspaceFileChangedEvent.class, name = "session.workspace_file_changed"),
     @JsonSubTypes.Type(value = SessionHandoffEvent.class, name = "session.handoff"),
@@ -75,6 +77,7 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SubagentDeselectedEvent.class, name = "subagent.deselected"),
     @JsonSubTypes.Type(value = HookStartEvent.class, name = "hook.start"),
     @JsonSubTypes.Type(value = HookEndEvent.class, name = "hook.end"),
+    @JsonSubTypes.Type(value = HookProgressEvent.class, name = "hook.progress"),
     @JsonSubTypes.Type(value = SystemMessageEvent.class, name = "system.message"),
     @JsonSubTypes.Type(value = SystemNotificationEvent.class, name = "system.notification"),
     @JsonSubTypes.Type(value = PermissionRequestedEvent.class, name = "permission.requested"),
@@ -105,7 +108,10 @@ import javax.annotation.processing.Generated;
     @JsonSubTypes.Type(value = SessionCustomAgentsUpdatedEvent.class, name = "session.custom_agents_updated"),
     @JsonSubTypes.Type(value = SessionMcpServersLoadedEvent.class, name = "session.mcp_servers_loaded"),
     @JsonSubTypes.Type(value = SessionMcpServerStatusChangedEvent.class, name = "session.mcp_server_status_changed"),
-    @JsonSubTypes.Type(value = SessionExtensionsLoadedEvent.class, name = "session.extensions_loaded")
+    @JsonSubTypes.Type(value = SessionExtensionsLoadedEvent.class, name = "session.extensions_loaded"),
+    @JsonSubTypes.Type(value = SessionCanvasOpenedEvent.class, name = "session.canvas.opened"),
+    @JsonSubTypes.Type(value = SessionCanvasRegistryChangedEvent.class, name = "session.canvas.registry_changed"),
+    @JsonSubTypes.Type(value = McpAppToolCallCompleteEvent.class, name = "mcp_app.tool_call_complete")
 })
 @javax.annotation.processing.Generated("copilot-sdk-codegen")
 public abstract sealed class SessionEvent permits
@@ -117,10 +123,12 @@ public abstract sealed class SessionEvent permits
         SessionTitleChangedEvent,
         SessionScheduleCreatedEvent,
         SessionScheduleCancelledEvent,
+        SessionAutopilotObjectiveChangedEvent,
         SessionInfoEvent,
         SessionWarningEvent,
         SessionModelChangeEvent,
         SessionModeChangedEvent,
+        SessionPermissionsChangedEvent,
         SessionPlanChangedEvent,
         SessionWorkspaceFileChangedEvent,
         SessionHandoffEvent,
@@ -159,6 +167,7 @@ public abstract sealed class SessionEvent permits
         SubagentDeselectedEvent,
         HookStartEvent,
         HookEndEvent,
+        HookProgressEvent,
         SystemMessageEvent,
         SystemNotificationEvent,
         PermissionRequestedEvent,
@@ -190,6 +199,9 @@ public abstract sealed class SessionEvent permits
         SessionMcpServersLoadedEvent,
         SessionMcpServerStatusChangedEvent,
         SessionExtensionsLoadedEvent,
+        SessionCanvasOpenedEvent,
+        SessionCanvasRegistryChangedEvent,
+        McpAppToolCallCompleteEvent,
         UnknownSessionEvent {
 
     /** Unique event identifier (UUID v4), generated when the event is emitted. */

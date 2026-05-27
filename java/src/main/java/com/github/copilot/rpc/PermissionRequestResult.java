@@ -39,6 +39,56 @@ public final class PermissionRequestResult {
     @JsonProperty("rules")
     private List<Object> rules;
 
+    @JsonProperty("feedback")
+    private String feedback;
+
+    /**
+     * Creates a result that approves this single request.
+     *
+     * @return a new approved result
+     * @since 1.3.0
+     */
+    public static PermissionRequestResult approveOnce() {
+        return new PermissionRequestResult().setKind(PermissionRequestResultKind.APPROVED);
+    }
+
+    /**
+     * Creates a result that rejects the request, optionally forwarding feedback to
+     * the LLM.
+     *
+     * @param feedback
+     *            optional feedback message, or {@code null}
+     * @return a new rejected result
+     * @since 1.3.0
+     */
+    public static PermissionRequestResult reject(String feedback) {
+        var result = new PermissionRequestResult().setKind(PermissionRequestResultKind.REJECTED);
+        result.setFeedback(feedback);
+        return result;
+    }
+
+    /**
+     * Creates a result denying the request because no user is available to confirm
+     * it.
+     *
+     * @return a new user-not-available result
+     * @since 1.3.0
+     */
+    public static PermissionRequestResult userNotAvailable() {
+        return new PermissionRequestResult().setKind(PermissionRequestResultKind.USER_NOT_AVAILABLE);
+    }
+
+    /**
+     * Creates a result that declines to respond to this permission request,
+     * allowing another connected client to answer instead.
+     *
+     * @return a new no-result result
+     * @since 1.3.0
+     */
+    public static PermissionRequestResult noResult() {
+        return new PermissionRequestResult().setKind(PermissionRequestResultKind.NO_RESULT);
+    }
+
     /**
      * Gets the result kind as a string.
      *
@@ -91,6 +141,31 @@ public final class PermissionRequestResult {
      */
     public PermissionRequestResult setRules(List<Object> rules) {
         this.rules = rules;
+        return this;
+    }
+
+    /**
+     * Gets optional human-readable feedback to forward to the LLM along with the
+     * decision.
+     *
+     * @return the feedback message, or {@code null}
+     * @since 1.3.0
+     */
+    public String getFeedback() {
+        return feedback;
+    }
+
+    /**
+     * Sets optional human-readable feedback to forward to the LLM along with the
+     * decision.
+     *
+     * @param feedback
+     *            the feedback message
+     * @return this result for method chaining
+     * @since 1.3.0
+     */
+    public PermissionRequestResult setFeedback(String feedback) {
+        this.feedback = feedback;
         return this;
     }
 }

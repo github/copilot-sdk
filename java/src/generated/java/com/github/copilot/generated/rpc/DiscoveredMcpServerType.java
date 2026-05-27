@@ -10,7 +10,7 @@ package com.github.copilot.generated.rpc;
 import javax.annotation.processing.Generated;
 
 /**
- * Server transport type: stdio, http, sse, or memory
+ * Server transport type: stdio, http, sse (deprecated), or memory
  *
  * @since 1.0.0
  */

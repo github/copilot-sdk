@@ -58,6 +58,8 @@ public final class AssistantMessageEvent extends SessionEvent {
         @JsonProperty("interactionId") String interactionId,
         /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
         @JsonProperty("requestId") String requestId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
+        @JsonProperty("serviceRequestId") String serviceRequestId,
         /** Raw Anthropic content array with advisor blocks (server_tool_use, advisor_tool_result) for verbatim round-tripping */
         @JsonProperty("anthropicAdvisorBlocks") List<Object> anthropicAdvisorBlocks,
         /** Anthropic advisor model ID used for this response, for timeline display on replay */

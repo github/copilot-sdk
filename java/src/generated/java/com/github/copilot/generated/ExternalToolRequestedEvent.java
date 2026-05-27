@@ -45,6 +45,8 @@ public final class ExternalToolRequestedEvent extends SessionEvent {
         @JsonProperty("toolName") String toolName,
         /** Arguments to pass to the external tool */
         @JsonProperty("arguments") Object arguments,
+        /** Active session working directory, when known. */
+        @JsonProperty("workingDirectory") String workingDirectory,
         /** W3C Trace Context traceparent header for the execute_tool span */
         @JsonProperty("traceparent") String traceparent,
         /** W3C Trace Context tracestate header for the execute_tool span */

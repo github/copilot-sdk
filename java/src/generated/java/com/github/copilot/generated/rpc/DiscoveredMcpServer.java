@@ -23,7 +23,7 @@ import javax.annotation.processing.Generated;
 public record DiscoveredMcpServer(
     /** Server name (config key) */
     @JsonProperty("name") String name,
-    /** Server transport type: stdio, http, sse, or memory */
+    /** Server transport type: stdio, http, sse (deprecated), or memory */
     @JsonProperty("type") DiscoveredMcpServerType type,
     /** Configuration source: user, workspace, plugin, or builtin */
     @JsonProperty("source") McpServerSource source,

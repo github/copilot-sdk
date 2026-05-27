@@ -31,8 +31,12 @@ public record SessionMetadata(
     @JsonProperty("summary") String summary,
     /** Optional human-friendly name set via /rename */
     @JsonProperty("name") String name,
+    /** Runtime client name that created/last resumed this session */
+    @JsonProperty("clientName") String clientName,
     /** True for remote (GitHub) sessions; false for local */
     @JsonProperty("isRemote") Boolean isRemote,
+    /** True for detached maintenance sessions that should be hidden from normal resume lists. */
+    @JsonProperty("isDetached") Boolean isDetached,
     /** Schema for the `SessionContext` type. */
     @JsonProperty("context") SessionContext context,
     /** GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control. */

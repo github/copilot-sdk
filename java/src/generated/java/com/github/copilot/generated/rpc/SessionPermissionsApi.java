@@ -98,6 +98,31 @@ public final class SessionPermissionsApi {
     }
 
     /**
+     * Whether to enable full allow-all permissions for the session.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionPermissionsSetAllowAllResult> setAllowAll(SessionPermissionsSetAllowAllParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.permissions.setAllowAll", _p, SessionPermissionsSetAllowAllResult.class);
+    }
+
+    /**
+     * No parameters.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionPermissionsGetAllowAllResult> getAllowAll() {
+        return caller.invoke("session.permissions.getAllowAll", java.util.Map.of("sessionId", this.sessionId), SessionPermissionsGetAllowAllResult.class);
+    }
+
+    /**
      * Scope and add/remove instructions for modifying session- or location-scoped permission rules.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden

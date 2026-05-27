@@ -119,4 +119,19 @@ public final class SessionWorkspacesApi {
         return caller.invoke("session.workspaces.saveLargePaste", _p, SessionWorkspacesSaveLargePasteResult.class);
     }
 
+    /**
+     * Parameters for computing a workspace diff.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionWorkspacesDiffResult> diff(SessionWorkspacesDiffParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.workspaces.diff", _p, SessionWorkspacesDiffResult.class);
+    }
+
 }

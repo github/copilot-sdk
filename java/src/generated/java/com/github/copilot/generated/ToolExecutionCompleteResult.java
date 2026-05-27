@@ -27,6 +27,8 @@ public record ToolExecutionCompleteResult(
     /** Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent. */
     @JsonProperty("detailedContent") String detailedContent,
     /** Structured content blocks (text, images, audio, resources) returned by the tool in their native format */
-    @JsonProperty("contents") List<Object> contents
+    @JsonProperty("contents") List<Object> contents,
+    /** MCP Apps UI resource content for rendering in a sandboxed iframe */
+    @JsonProperty("uiResource") ToolExecutionCompleteUIResource uiResource
 ) {
 }

@@ -28,6 +28,12 @@ public record McpServersLoadedServer(
     /** Configuration source: user, workspace, plugin, or builtin */
     @JsonProperty("source") McpServerSource source,
     /** Error message if the server failed to connect */
-    @JsonProperty("error") String error
+    @JsonProperty("error") String error,
+    /** Transport mechanism: stdio, http, sse (deprecated), or memory (in-process MCP server) */
+    @JsonProperty("transport") McpServerTransport transport,
+    /** Name of the plugin that supplied the effective MCP server config, only when source is plugin */
+    @JsonProperty("pluginName") String pluginName,
+    /** Version of the plugin that supplied the effective MCP server config, only when source is plugin */
+    @JsonProperty("pluginVersion") String pluginVersion
 ) {
 }

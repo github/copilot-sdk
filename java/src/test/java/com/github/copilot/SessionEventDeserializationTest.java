@@ -2399,7 +2399,8 @@ public class SessionEventDeserializationTest {
         assertTrue(castedEvent.getData().ui().elicitation());
 
         // Verify setData round-trip
-        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(new CapabilitiesChangedUI(false));
+        var newData = new CapabilitiesChangedEvent.CapabilitiesChangedEventData(
+                new CapabilitiesChangedUI(false, null, null));
         castedEvent.setData(newData);
         assertFalse(castedEvent.getData().ui().elicitation());
     }

@@ -46,7 +46,7 @@ public final class ServerSessionsApi {
     }
 
     /**
-     * Optional metadata-load limit and context filter applied to the returned sessions.
+     * Optional metadata-load limit and filters applied to the returned sessions.
      *
      * @apiNote This method is experimental and may change in a future version.
      * @since 1.0.0
