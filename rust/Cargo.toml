@@ -20,6 +20,7 @@ include = [
     "README.md",
     "LICENSE",
     "cli-version.txt",
+    "cli-shas.txt",
 ]
 
 [lib]

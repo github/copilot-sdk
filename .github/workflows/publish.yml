@@ -171,12 +171,16 @@ jobs:
         run: |
           node -e "console.log(require('../nodejs/package-lock.json').packages['node_modules/@github/copilot'].version)" > cli-version.txt
           echo "Wrote cli-version.txt: $(cat cli-version.txt)"
-      - name: Verify cli-version.txt exists
+      - name: Snapshot per-platform SHAs for build.rs
+        run: bash scripts/write-cli-shas.sh
+      - name: Verify pin files exist
         run: |
-          if [[ ! -f cli-version.txt ]]; then
-            echo "::error::cli-version.txt was not generated. The previous step must run before packaging."
-            exit 1
-          fi
+          for f in cli-version.txt cli-shas.txt; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error::$f was not generated. Previous steps must run before packaging."
+              exit 1
+            fi
+          done
       - name: Package (dry run)
         run: cargo publish --dry-run --allow-dirty
       - name: Upload artifact

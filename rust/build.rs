@@ -9,6 +9,7 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(has_bundled_cli)");
     println!("cargo::rustc-check-cfg=cfg(has_dev_cli)");
     println!("cargo:rerun-if-changed=cli-version.txt");
+    println!("cargo:rerun-if-changed=cli-shas.txt");
     println!("cargo:rerun-if-changed=../nodejs/package-lock.json");
 
     let Some(platform) = target_platform() else {
@@ -27,11 +28,28 @@ fn main() {
     //      `_GetCopilotCliVersion` MSBuild target and the Go `cmd/bundler`
     //      tool).
     //
-    // No env-var override and no committed per-asset SHA snapshot — the SHA
-    // is always fetched live against the version's `SHA256SUMS.txt`.
+    // Two-source version resolution:
+    //   1. `cli-version.txt` at the crate root (published-crate consumer,
+    //      vendored-slot consumer).
+    //   2. Sibling `../nodejs/package-lock.json` (contributor build inside
+    //      the github/copilot-sdk repo — same convention as .NET's
+    //      `_GetCopilotCliVersion` MSBuild target and the Go `cmd/bundler`
+    //      tool).
+    //
+    // SHA-256 resolution mirrors that:
+    //   1. `cli-shas.txt` at the crate root — per-asset hashes committed at
+    //      publish time, mapping `<asset_name>=<hex hash>` per line. This
+    //      is the trust boundary for published crates / vendored slots:
+    //      verifying the download against a publish-time-committed hash
+    //      means an attacker who later re-points the release tag can't
+    //      silently swap in poisoned bytes on later consumer builds.
+    //   2. Live fetch of `SHA256SUMS.txt` from the release URL. Only fires
+    //      when no snapshot is committed (i.e. contributor builds inside
+    //      this repo, which already trust the live release for the
+    //      version too).
     let version = read_version();
     let asset_name = platform.asset_name;
-    let expected_hash = fetch_live_sha256(&version, asset_name);
+    let expected_hash = read_expected_sha(&version, asset_name);
 
     let base_url = format!("https://github.com/github/copilot-cli/releases/download/v{version}");
     let cache_dir = std::env::var("BUNDLED_CLI_CACHE_DIR")
@@ -88,6 +106,40 @@ pub(super) static CLI_BINARY_NAME: &str = "{binary_name}";
     );
 
     std::fs::write(out.join("bundled_cli.rs"), generated).expect("failed to write bundled_cli.rs");
+}
+
+/// Resolve the SHA-256 hash for `asset_name`. Prefers the committed
+/// snapshot at `cli-shas.txt`; falls back to live fetch of the release's
+/// `SHA256SUMS.txt`. See the doc comment in `main` for the threat-model
+/// rationale.
+fn read_expected_sha(version: &str, asset_name: &str) -> String {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set");
+    let snapshot = Path::new(&manifest_dir).join("cli-shas.txt");
+    if snapshot.is_file() {
+        let contents = std::fs::read_to_string(&snapshot)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", snapshot.display()));
+        return parse_sha_snapshot(&contents, asset_name)
+            .unwrap_or_else(|e| panic!("invalid {}: {e}", snapshot.display()));
+    }
+    fetch_live_sha256(version, asset_name)
+}
+
+/// Parse `cli-shas.txt`. Format is one `<asset_name>=<hex hash>` per line.
+/// Blank lines and `#`-prefixed lines are skipped.
+fn parse_sha_snapshot(contents: &str, asset_name: &str) -> Result<String, String> {
+    for (line_no, raw) in contents.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .ok_or_else(|| format!("line {}: expected `key=value`, got `{raw}`", line_no + 1))?;
+        if key.trim() == asset_name {
+            return Ok(value.trim().to_string());
+        }
+    }
+    Err(format!("missing hash for asset `{asset_name}`"))
 }
 
 /// Resolve the CLI version from one of two sources. Panics with a clear

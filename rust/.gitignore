@@ -1,3 +1,4 @@
 /target
 Cargo.lock.bak
 cli-version.txt
+cli-shas.txt
