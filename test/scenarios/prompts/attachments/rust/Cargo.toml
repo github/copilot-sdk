@@ -1,9 +1,0 @@
-[package]
-name = "attachments-rust"
-version = "0.0.0"
-edition = "2024"
-publish = false
-
-[dependencies]
-github-copilot-sdk = { path = "../../../../../rust" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
