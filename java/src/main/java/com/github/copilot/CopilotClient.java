@@ -157,8 +157,8 @@ public final class CopilotClient implements AutoCloseable {
         }
 
         Executor providedExecutor = this.options.getExecutor();
-        this.executor = providedExecutor != null ? providedExecutor : DefaultExecutorProvider.create();
-        this.ownedExecutor = providedExecutor == null && DefaultExecutorProvider.isOwned(this.executor)
+        this.executor = providedExecutor != null ? providedExecutor : InternalExecutorProvider.create();
+        this.ownedExecutor = providedExecutor == null && InternalExecutorProvider.isOwned(this.executor)
                 && this.executor instanceof ExecutorService executorService ? executorService : null;
 
         this.serverManager = new CliServerManager(this.options);
