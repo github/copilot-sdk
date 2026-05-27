@@ -4,6 +4,11 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
+from ._mode import (
+    BUILTIN_TOOLS_ISOLATED,
+    CopilotClientMode,
+    ToolSet,
+)
 from .canvas import (
     CanvasAction,
     CanvasDeclaration,
@@ -144,6 +149,7 @@ __all__ = [
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
+    "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",
     "CanvasError",
@@ -157,6 +163,7 @@ __all__ = [
     "CommandContext",
     "CommandDefinition",
     "CopilotClient",
+    "CopilotClientMode",
     "CopilotSession",
     "CreateSessionFsHandler",
     "ElicitationContext",
@@ -252,6 +259,7 @@ __all__ = [
     "ToolInvocation",
     "ToolResult",
     "ToolResultType",
+    "ToolSet",
     "UriRuntimeConnection",
     "UserInputHandler",
     "UserInputRequest",

@@ -166,8 +166,10 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .skills()
                     .discover(SkillsDiscoverRequest {
-                        project_paths: Vec::new(),
-                        skill_directories: vec![skill_directory.to_string_lossy().to_string()],
+                        project_paths: None,
+                        skill_directories: Some(vec![
+                            skill_directory.to_string_lossy().to_string(),
+                        ]),
                     })
                     .await
                     .expect("skills discover");
@@ -190,8 +192,10 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .skills()
                     .discover(SkillsDiscoverRequest {
-                        project_paths: Vec::new(),
-                        skill_directories: vec![skill_directory.to_string_lossy().to_string()],
+                        project_paths: None,
+                        skill_directories: Some(vec![
+                            skill_directory.to_string_lossy().to_string(),
+                        ]),
                     })
                     .await
                     .expect("skills discover disabled");
@@ -537,7 +541,7 @@ async fn should_prune_dryrun_and_bulkdelete_persisted_session() {
                         older_than_days: 0,
                         dry_run: Some(true),
                         include_named: Some(true),
-                        exclude_session_ids: vec![session_id.to_string()],
+                        exclude_session_ids: Some(vec![session_id.to_string()]),
                     })
                     .await
                     .expect("dry-run prune");
