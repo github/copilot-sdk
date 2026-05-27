@@ -379,10 +379,10 @@ async function validateJava(): Promise<ValidationResult[]> {
   const srcDir = path.join(javaDir, "src", "main", "java");
   fs.mkdirSync(srcDir, { recursive: true });
 
-  // Move all .java files into src/main/java/
+  // Copy all .java files into src/main/java/ (copy, not move, for idempotency)
   const files = await glob("*.java", { cwd: javaDir });
   for (const file of files) {
-    fs.renameSync(path.join(javaDir, file), path.join(srcDir, file));
+    fs.copyFileSync(path.join(javaDir, file), path.join(srcDir, file));
   }
 
   // Read the SDK version from java/pom.xml

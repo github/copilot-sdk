@@ -10,6 +10,7 @@ on:
       - 'go/**/*.go'
       - 'dotnet/src/**'
       - 'java/src/**'
+      - 'java/pom.xml'
       - 'scripts/docs-validation/**'
       - '.github/workflows/docs-validation.yml'
   workflow_dispatch:
