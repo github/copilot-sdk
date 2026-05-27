@@ -130,7 +130,7 @@ internal partial class CanvasJsonContext : JsonSerializerContext;
 /// <remarks>
 /// A session installs a single <see cref="ICanvasHandler"/> via
 /// <c>SessionConfigBase.CanvasHandler</c>. The handler receives every
-/// inbound <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
+/// inbound <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
 /// JSON-RPC request the runtime issues for this session and decides — typically
 /// by inspecting <see cref="CanvasProviderOpenRequest.CanvasId"/> — which
 /// application-side canvas should handle the call.

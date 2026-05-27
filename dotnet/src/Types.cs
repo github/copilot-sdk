@@ -2630,7 +2630,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
+    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
     /// requests to this handler.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]

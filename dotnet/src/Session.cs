@@ -939,7 +939,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
         }
 
-        public async Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
+        public async Task<object> InvokeAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
