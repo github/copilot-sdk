@@ -53,90 +53,93 @@ func (r RawSessionEventData) Type() SessionEventType {
 type SessionEventType string
 
 const (
-	SessionEventTypeAbort                         SessionEventType = "abort"
-	SessionEventTypeAssistantIntent               SessionEventType = "assistant.intent"
-	SessionEventTypeAssistantMessage              SessionEventType = "assistant.message"
-	SessionEventTypeAssistantMessageDelta         SessionEventType = "assistant.message_delta"
-	SessionEventTypeAssistantMessageStart         SessionEventType = "assistant.message_start"
-	SessionEventTypeAssistantReasoning            SessionEventType = "assistant.reasoning"
-	SessionEventTypeAssistantReasoningDelta       SessionEventType = "assistant.reasoning_delta"
-	SessionEventTypeAssistantStreamingDelta       SessionEventType = "assistant.streaming_delta"
-	SessionEventTypeAssistantTurnEnd              SessionEventType = "assistant.turn_end"
-	SessionEventTypeAssistantTurnStart            SessionEventType = "assistant.turn_start"
-	SessionEventTypeAssistantUsage                SessionEventType = "assistant.usage"
-	SessionEventTypeAutoModeSwitchCompleted       SessionEventType = "auto_mode_switch.completed"
-	SessionEventTypeAutoModeSwitchRequested       SessionEventType = "auto_mode_switch.requested"
-	SessionEventTypeCapabilitiesChanged           SessionEventType = "capabilities.changed"
-	SessionEventTypeCommandCompleted              SessionEventType = "command.completed"
-	SessionEventTypeCommandExecute                SessionEventType = "command.execute"
-	SessionEventTypeCommandQueued                 SessionEventType = "command.queued"
-	SessionEventTypeCommandsChanged               SessionEventType = "commands.changed"
-	SessionEventTypeElicitationCompleted          SessionEventType = "elicitation.completed"
-	SessionEventTypeElicitationRequested          SessionEventType = "elicitation.requested"
-	SessionEventTypeExitPlanModeCompleted         SessionEventType = "exit_plan_mode.completed"
-	SessionEventTypeExitPlanModeRequested         SessionEventType = "exit_plan_mode.requested"
-	SessionEventTypeExternalToolCompleted         SessionEventType = "external_tool.completed"
-	SessionEventTypeExternalToolRequested         SessionEventType = "external_tool.requested"
-	SessionEventTypeHookEnd                       SessionEventType = "hook.end"
-	SessionEventTypeHookStart                     SessionEventType = "hook.start"
-	SessionEventTypeMcpAppToolCallComplete        SessionEventType = "mcp_app.tool_call_complete"
-	SessionEventTypeMcpOauthCompleted             SessionEventType = "mcp.oauth_completed"
-	SessionEventTypeMcpOauthRequired              SessionEventType = "mcp.oauth_required"
-	SessionEventTypeModelCallFailure              SessionEventType = "model.call_failure"
-	SessionEventTypePendingMessagesModified       SessionEventType = "pending_messages.modified"
-	SessionEventTypePermissionCompleted           SessionEventType = "permission.completed"
-	SessionEventTypePermissionRequested           SessionEventType = "permission.requested"
-	SessionEventTypeSamplingCompleted             SessionEventType = "sampling.completed"
-	SessionEventTypeSamplingRequested             SessionEventType = "sampling.requested"
-	SessionEventTypeSessionBackgroundTasksChanged SessionEventType = "session.background_tasks_changed"
-	SessionEventTypeSessionCanvasOpened           SessionEventType = "session.canvas.opened"
-	SessionEventTypeSessionCanvasRegistryChanged  SessionEventType = "session.canvas.registry_changed"
-	SessionEventTypeSessionCompactionComplete     SessionEventType = "session.compaction_complete"
-	SessionEventTypeSessionCompactionStart        SessionEventType = "session.compaction_start"
-	SessionEventTypeSessionContextChanged         SessionEventType = "session.context_changed"
-	SessionEventTypeSessionCustomAgentsUpdated    SessionEventType = "session.custom_agents_updated"
-	SessionEventTypeSessionCustomNotification     SessionEventType = "session.custom_notification"
-	SessionEventTypeSessionError                  SessionEventType = "session.error"
-	SessionEventTypeSessionExtensionsLoaded       SessionEventType = "session.extensions_loaded"
-	SessionEventTypeSessionHandoff                SessionEventType = "session.handoff"
-	SessionEventTypeSessionIdle                   SessionEventType = "session.idle"
-	SessionEventTypeSessionInfo                   SessionEventType = "session.info"
-	SessionEventTypeSessionMcpServersLoaded       SessionEventType = "session.mcp_servers_loaded"
-	SessionEventTypeSessionMcpServerStatusChanged SessionEventType = "session.mcp_server_status_changed"
-	SessionEventTypeSessionModeChanged            SessionEventType = "session.mode_changed"
-	SessionEventTypeSessionModelChange            SessionEventType = "session.model_change"
-	SessionEventTypeSessionPlanChanged            SessionEventType = "session.plan_changed"
-	SessionEventTypeSessionRemoteSteerableChanged SessionEventType = "session.remote_steerable_changed"
-	SessionEventTypeSessionResume                 SessionEventType = "session.resume"
-	SessionEventTypeSessionScheduleCancelled      SessionEventType = "session.schedule_cancelled"
-	SessionEventTypeSessionScheduleCreated        SessionEventType = "session.schedule_created"
-	SessionEventTypeSessionShutdown               SessionEventType = "session.shutdown"
-	SessionEventTypeSessionSkillsLoaded           SessionEventType = "session.skills_loaded"
-	SessionEventTypeSessionSnapshotRewind         SessionEventType = "session.snapshot_rewind"
-	SessionEventTypeSessionStart                  SessionEventType = "session.start"
-	SessionEventTypeSessionTaskComplete           SessionEventType = "session.task_complete"
-	SessionEventTypeSessionTitleChanged           SessionEventType = "session.title_changed"
-	SessionEventTypeSessionToolsUpdated           SessionEventType = "session.tools_updated"
-	SessionEventTypeSessionTruncation             SessionEventType = "session.truncation"
-	SessionEventTypeSessionUsageInfo              SessionEventType = "session.usage_info"
-	SessionEventTypeSessionWarning                SessionEventType = "session.warning"
-	SessionEventTypeSessionWorkspaceFileChanged   SessionEventType = "session.workspace_file_changed"
-	SessionEventTypeSkillInvoked                  SessionEventType = "skill.invoked"
-	SessionEventTypeSubagentCompleted             SessionEventType = "subagent.completed"
-	SessionEventTypeSubagentDeselected            SessionEventType = "subagent.deselected"
-	SessionEventTypeSubagentFailed                SessionEventType = "subagent.failed"
-	SessionEventTypeSubagentSelected              SessionEventType = "subagent.selected"
-	SessionEventTypeSubagentStarted               SessionEventType = "subagent.started"
-	SessionEventTypeSystemMessage                 SessionEventType = "system.message"
-	SessionEventTypeSystemNotification            SessionEventType = "system.notification"
-	SessionEventTypeToolExecutionComplete         SessionEventType = "tool.execution_complete"
-	SessionEventTypeToolExecutionPartialResult    SessionEventType = "tool.execution_partial_result"
-	SessionEventTypeToolExecutionProgress         SessionEventType = "tool.execution_progress"
-	SessionEventTypeToolExecutionStart            SessionEventType = "tool.execution_start"
-	SessionEventTypeToolUserRequested             SessionEventType = "tool.user_requested"
-	SessionEventTypeUserInputCompleted            SessionEventType = "user_input.completed"
-	SessionEventTypeUserInputRequested            SessionEventType = "user_input.requested"
-	SessionEventTypeUserMessage                   SessionEventType = "user.message"
+	SessionEventTypeAbort                            SessionEventType = "abort"
+	SessionEventTypeAssistantIntent                  SessionEventType = "assistant.intent"
+	SessionEventTypeAssistantMessage                 SessionEventType = "assistant.message"
+	SessionEventTypeAssistantMessageDelta            SessionEventType = "assistant.message_delta"
+	SessionEventTypeAssistantMessageStart            SessionEventType = "assistant.message_start"
+	SessionEventTypeAssistantReasoning               SessionEventType = "assistant.reasoning"
+	SessionEventTypeAssistantReasoningDelta          SessionEventType = "assistant.reasoning_delta"
+	SessionEventTypeAssistantStreamingDelta          SessionEventType = "assistant.streaming_delta"
+	SessionEventTypeAssistantTurnEnd                 SessionEventType = "assistant.turn_end"
+	SessionEventTypeAssistantTurnStart               SessionEventType = "assistant.turn_start"
+	SessionEventTypeAssistantUsage                   SessionEventType = "assistant.usage"
+	SessionEventTypeAutoModeSwitchCompleted          SessionEventType = "auto_mode_switch.completed"
+	SessionEventTypeAutoModeSwitchRequested          SessionEventType = "auto_mode_switch.requested"
+	SessionEventTypeCapabilitiesChanged              SessionEventType = "capabilities.changed"
+	SessionEventTypeCommandCompleted                 SessionEventType = "command.completed"
+	SessionEventTypeCommandExecute                   SessionEventType = "command.execute"
+	SessionEventTypeCommandQueued                    SessionEventType = "command.queued"
+	SessionEventTypeCommandsChanged                  SessionEventType = "commands.changed"
+	SessionEventTypeElicitationCompleted             SessionEventType = "elicitation.completed"
+	SessionEventTypeElicitationRequested             SessionEventType = "elicitation.requested"
+	SessionEventTypeExitPlanModeCompleted            SessionEventType = "exit_plan_mode.completed"
+	SessionEventTypeExitPlanModeRequested            SessionEventType = "exit_plan_mode.requested"
+	SessionEventTypeExternalToolCompleted            SessionEventType = "external_tool.completed"
+	SessionEventTypeExternalToolRequested            SessionEventType = "external_tool.requested"
+	SessionEventTypeHookEnd                          SessionEventType = "hook.end"
+	SessionEventTypeHookProgress                     SessionEventType = "hook.progress"
+	SessionEventTypeHookStart                        SessionEventType = "hook.start"
+	SessionEventTypeMcpAppToolCallComplete           SessionEventType = "mcp_app.tool_call_complete"
+	SessionEventTypeMcpOauthCompleted                SessionEventType = "mcp.oauth_completed"
+	SessionEventTypeMcpOauthRequired                 SessionEventType = "mcp.oauth_required"
+	SessionEventTypeModelCallFailure                 SessionEventType = "model.call_failure"
+	SessionEventTypePendingMessagesModified          SessionEventType = "pending_messages.modified"
+	SessionEventTypePermissionCompleted              SessionEventType = "permission.completed"
+	SessionEventTypePermissionRequested              SessionEventType = "permission.requested"
+	SessionEventTypeSamplingCompleted                SessionEventType = "sampling.completed"
+	SessionEventTypeSamplingRequested                SessionEventType = "sampling.requested"
+	SessionEventTypeSessionAutopilotObjectiveChanged SessionEventType = "session.autopilot_objective_changed"
+	SessionEventTypeSessionBackgroundTasksChanged    SessionEventType = "session.background_tasks_changed"
+	SessionEventTypeSessionCanvasOpened              SessionEventType = "session.canvas.opened"
+	SessionEventTypeSessionCanvasRegistryChanged     SessionEventType = "session.canvas.registry_changed"
+	SessionEventTypeSessionCompactionComplete        SessionEventType = "session.compaction_complete"
+	SessionEventTypeSessionCompactionStart           SessionEventType = "session.compaction_start"
+	SessionEventTypeSessionContextChanged            SessionEventType = "session.context_changed"
+	SessionEventTypeSessionCustomAgentsUpdated       SessionEventType = "session.custom_agents_updated"
+	SessionEventTypeSessionCustomNotification        SessionEventType = "session.custom_notification"
+	SessionEventTypeSessionError                     SessionEventType = "session.error"
+	SessionEventTypeSessionExtensionsLoaded          SessionEventType = "session.extensions_loaded"
+	SessionEventTypeSessionHandoff                   SessionEventType = "session.handoff"
+	SessionEventTypeSessionIdle                      SessionEventType = "session.idle"
+	SessionEventTypeSessionInfo                      SessionEventType = "session.info"
+	SessionEventTypeSessionMcpServersLoaded          SessionEventType = "session.mcp_servers_loaded"
+	SessionEventTypeSessionMcpServerStatusChanged    SessionEventType = "session.mcp_server_status_changed"
+	SessionEventTypeSessionModeChanged               SessionEventType = "session.mode_changed"
+	SessionEventTypeSessionModelChange               SessionEventType = "session.model_change"
+	SessionEventTypeSessionPermissionsChanged        SessionEventType = "session.permissions_changed"
+	SessionEventTypeSessionPlanChanged               SessionEventType = "session.plan_changed"
+	SessionEventTypeSessionRemoteSteerableChanged    SessionEventType = "session.remote_steerable_changed"
+	SessionEventTypeSessionResume                    SessionEventType = "session.resume"
+	SessionEventTypeSessionScheduleCancelled         SessionEventType = "session.schedule_cancelled"
+	SessionEventTypeSessionScheduleCreated           SessionEventType = "session.schedule_created"
+	SessionEventTypeSessionShutdown                  SessionEventType = "session.shutdown"
+	SessionEventTypeSessionSkillsLoaded              SessionEventType = "session.skills_loaded"
+	SessionEventTypeSessionSnapshotRewind            SessionEventType = "session.snapshot_rewind"
+	SessionEventTypeSessionStart                     SessionEventType = "session.start"
+	SessionEventTypeSessionTaskComplete              SessionEventType = "session.task_complete"
+	SessionEventTypeSessionTitleChanged              SessionEventType = "session.title_changed"
+	SessionEventTypeSessionToolsUpdated              SessionEventType = "session.tools_updated"
+	SessionEventTypeSessionTruncation                SessionEventType = "session.truncation"
+	SessionEventTypeSessionUsageInfo                 SessionEventType = "session.usage_info"
+	SessionEventTypeSessionWarning                   SessionEventType = "session.warning"
+	SessionEventTypeSessionWorkspaceFileChanged      SessionEventType = "session.workspace_file_changed"
+	SessionEventTypeSkillInvoked                     SessionEventType = "skill.invoked"
+	SessionEventTypeSubagentCompleted                SessionEventType = "subagent.completed"
+	SessionEventTypeSubagentDeselected               SessionEventType = "subagent.deselected"
+	SessionEventTypeSubagentFailed                   SessionEventType = "subagent.failed"
+	SessionEventTypeSubagentSelected                 SessionEventType = "subagent.selected"
+	SessionEventTypeSubagentStarted                  SessionEventType = "subagent.started"
+	SessionEventTypeSystemMessage                    SessionEventType = "system.message"
+	SessionEventTypeSystemNotification               SessionEventType = "system.notification"
+	SessionEventTypeToolExecutionComplete            SessionEventType = "tool.execution_complete"
+	SessionEventTypeToolExecutionPartialResult       SessionEventType = "tool.execution_partial_result"
+	SessionEventTypeToolExecutionProgress            SessionEventType = "tool.execution_progress"
+	SessionEventTypeToolExecutionStart               SessionEventType = "tool.execution_start"
+	SessionEventTypeToolUserRequested                SessionEventType = "tool.user_requested"
+	SessionEventTypeUserInputCompleted               SessionEventType = "user_input.completed"
+	SessionEventTypeUserInputRequested               SessionEventType = "user_input.requested"
+	SessionEventTypeUserMessage                      SessionEventType = "user.message"
 )
 
 // Agent intent description for current activity or plan
@@ -238,6 +241,21 @@ type AutoModeSwitchRequestedData struct {
 func (*AutoModeSwitchRequestedData) sessionEventData() {}
 func (*AutoModeSwitchRequestedData) Type() SessionEventType {
 	return SessionEventTypeAutoModeSwitchRequested
+}
+
+// Autopilot objective state file operation details indicating what changed
+type SessionAutopilotObjectiveChangedData struct {
+	// Current autopilot objective id, if one exists
+	ID *int64 `json:"id,omitempty"`
+	// The type of operation performed on the autopilot objective state file
+	Operation AutopilotObjectiveChangedOperation `json:"operation"`
+	// Current autopilot objective status, if one exists
+	Status *AutopilotObjectiveChangedStatus `json:"status,omitempty"`
+}
+
+func (*SessionAutopilotObjectiveChangedData) sessionEventData() {}
+func (*SessionAutopilotObjectiveChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionAutopilotObjectiveChanged
 }
 
 // Context window breakdown at the start of LLM-powered conversation compaction
@@ -405,6 +423,15 @@ func (*PendingMessagesModifiedData) Type() SessionEventType {
 	return SessionEventTypePendingMessagesModified
 }
 
+// Ephemeral progress update from a running hook process
+type HookProgressData struct {
+	// Human-readable progress message from the hook process
+	Message string `json:"message"`
+}
+
+func (*HookProgressData) sessionEventData()      {}
+func (*HookProgressData) Type() SessionEventType { return SessionEventTypeHookProgress }
+
 // Error details for timeline display including message and optional diagnostic information
 type SessionErrorData struct {
 	// Only set on `errorType: "rate_limit"`. When `true`, the runtime will follow this error with an `auto_mode_switch.requested` event (or silently switch if `continueOnAutoMode` is enabled). UI clients can use this flag to suppress duplicate rendering of the rate-limit error when they show their own auto-mode-switch prompt.
@@ -457,6 +484,8 @@ type ExternalToolRequestedData struct {
 	Traceparent *string `json:"traceparent,omitempty"`
 	// W3C Trace Context tracestate header for the execute_tool span
 	Tracestate *string `json:"tracestate,omitempty"`
+	// Active session working directory, when known.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 func (*ExternalToolRequestedData) sessionEventData() {}
@@ -721,6 +750,19 @@ type PermissionRequestedData struct {
 
 func (*PermissionRequestedData) sessionEventData()      {}
 func (*PermissionRequestedData) Type() SessionEventType { return SessionEventTypePermissionRequested }
+
+// Permissions change details carrying the aggregate allow-all boolean transition.
+type SessionPermissionsChangedData struct {
+	// Aggregate allow-all flag after the change
+	AllowAllPermissions bool `json:"allowAllPermissions"`
+	// Aggregate allow-all flag before the change
+	PreviousAllowAllPermissions bool `json:"previousAllowAllPermissions"`
+}
+
+func (*SessionPermissionsChangedData) sessionEventData() {}
+func (*SessionPermissionsChangedData) Type() SessionEventType {
+	return SessionEventTypeSessionPermissionsChanged
+}
 
 // Plan approval request with plan content and available user actions
 type ExitPlanModeRequestedData struct {
@@ -1396,6 +1438,8 @@ func (*ToolExecutionProgressData) Type() SessionEventType {
 type ToolExecutionStartData struct {
 	// Arguments passed to the tool
 	Arguments any `json:"arguments,omitempty"`
+	// When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
+	DisplayVerbatim *bool `json:"displayVerbatim,omitempty"`
 	// Name of the MCP server hosting this tool, when the tool is an MCP tool
 	McpServerName *string `json:"mcpServerName,omitempty"`
 	// Original tool name on the MCP server, when the tool is an MCP tool
@@ -2981,6 +3025,32 @@ const (
 	AutoModeSwitchResponseYes AutoModeSwitchResponse = "yes"
 	// Switch models now and keep using the replacement automatically.
 	AutoModeSwitchResponseYesAlways AutoModeSwitchResponse = "yes_always"
+)
+
+// The type of operation performed on the autopilot objective state file
+type AutopilotObjectiveChangedOperation string
+
+const (
+	// Autopilot objective state file was created for a new objective.
+	AutopilotObjectiveChangedOperationCreate AutopilotObjectiveChangedOperation = "create"
+	// Autopilot objective state file was deleted or cleared.
+	AutopilotObjectiveChangedOperationDelete AutopilotObjectiveChangedOperation = "delete"
+	// Autopilot objective state file was updated for an existing objective.
+	AutopilotObjectiveChangedOperationUpdate AutopilotObjectiveChangedOperation = "update"
+)
+
+// Current autopilot objective status, if one exists
+type AutopilotObjectiveChangedStatus string
+
+const (
+	// Objective is active and can drive autopilot continuations.
+	AutopilotObjectiveChangedStatusActive AutopilotObjectiveChangedStatus = "active"
+	// Legacy objective state indicating the previous continuation cap was reached.
+	AutopilotObjectiveChangedStatusCapReached AutopilotObjectiveChangedStatus = "cap_reached"
+	// Objective was completed by the agent.
+	AutopilotObjectiveChangedStatusCompleted AutopilotObjectiveChangedStatus = "completed"
+	// Objective is paused and will not drive autopilot continuations.
+	AutopilotObjectiveChangedStatusPaused AutopilotObjectiveChangedStatus = "paused"
 )
 
 // Runtime-controlled routing state for the instance. "ready" when the provider connection is live; "stale" when the provider has gone away and the instance is awaiting rebinding.

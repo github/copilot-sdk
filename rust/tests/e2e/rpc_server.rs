@@ -326,6 +326,7 @@ async fn should_list_find_and_inspect_persisted_session_state() {
                             git_root: None,
                             repository: None,
                         }),
+                        include_detached: None,
                         metadata_limit: Some(10),
                     })
                     .await
@@ -423,6 +424,7 @@ async fn should_enrich_basic_session_metadata() {
                     .expect("create session");
                 let session_id = session.id().clone();
                 let metadata = SessionMetadata {
+                    client_name: None,
                     context: Some(SessionContext {
                         branch: None,
                         cwd: ctx.work_dir().display().to_string(),
@@ -430,6 +432,7 @@ async fn should_enrich_basic_session_metadata() {
                         host_type: None,
                         repository: None,
                     }),
+                    is_detached: None,
                     is_remote: false,
                     mc_task_id: None,
                     modified_time: "2026-01-01T00:00:00.000Z".to_string(),

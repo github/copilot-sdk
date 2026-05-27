@@ -49,6 +49,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(ExternalToolCompletedEvent), "external_tool.completed")]
 [JsonDerivedType(typeof(ExternalToolRequestedEvent), "external_tool.requested")]
 [JsonDerivedType(typeof(HookEndEvent), "hook.end")]
+[JsonDerivedType(typeof(HookProgressEvent), "hook.progress")]
 [JsonDerivedType(typeof(HookStartEvent), "hook.start")]
 [JsonDerivedType(typeof(McpAppToolCallCompleteEvent), "mcp_app.tool_call_complete")]
 [JsonDerivedType(typeof(McpOauthCompletedEvent), "mcp.oauth_completed")]
@@ -59,6 +60,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(PermissionRequestedEvent), "permission.requested")]
 [JsonDerivedType(typeof(SamplingCompletedEvent), "sampling.completed")]
 [JsonDerivedType(typeof(SamplingRequestedEvent), "sampling.requested")]
+[JsonDerivedType(typeof(SessionAutopilotObjectiveChangedEvent), "session.autopilot_objective_changed")]
 [JsonDerivedType(typeof(SessionBackgroundTasksChangedEvent), "session.background_tasks_changed")]
 [JsonDerivedType(typeof(SessionCanvasOpenedEvent), "session.canvas.opened")]
 [JsonDerivedType(typeof(SessionCanvasRegistryChangedEvent), "session.canvas.registry_changed")]
@@ -76,6 +78,7 @@ namespace GitHub.Copilot;
 [JsonDerivedType(typeof(SessionMcpServersLoadedEvent), "session.mcp_servers_loaded")]
 [JsonDerivedType(typeof(SessionModeChangedEvent), "session.mode_changed")]
 [JsonDerivedType(typeof(SessionModelChangeEvent), "session.model_change")]
+[JsonDerivedType(typeof(SessionPermissionsChangedEvent), "session.permissions_changed")]
 [JsonDerivedType(typeof(SessionPlanChangedEvent), "session.plan_changed")]
 [JsonDerivedType(typeof(SessionRemoteSteerableChangedEvent), "session.remote_steerable_changed")]
 [JsonDerivedType(typeof(SessionResumeEvent), "session.resume")]
@@ -254,6 +257,19 @@ public sealed partial class SessionScheduleCancelledEvent : SessionEvent
     public required SessionScheduleCancelledData Data { get; set; }
 }
 
+/// <summary>Autopilot objective state file operation details indicating what changed.</summary>
+/// <remarks>Represents the <c>session.autopilot_objective_changed</c> event.</remarks>
+public sealed partial class SessionAutopilotObjectiveChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.autopilot_objective_changed";
+
+    /// <summary>The <c>session.autopilot_objective_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionAutopilotObjectiveChangedData Data { get; set; }
+}
+
 /// <summary>Informational message for timeline display with categorization.</summary>
 /// <remarks>Represents the <c>session.info</c> event.</remarks>
 public sealed partial class SessionInfoEvent : SessionEvent
@@ -304,6 +320,19 @@ public sealed partial class SessionModeChangedEvent : SessionEvent
     /// <summary>The <c>session.mode_changed</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required SessionModeChangedData Data { get; set; }
+}
+
+/// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
+/// <remarks>Represents the <c>session.permissions_changed</c> event.</remarks>
+public sealed partial class SessionPermissionsChangedEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "session.permissions_changed";
+
+    /// <summary>The <c>session.permissions_changed</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required SessionPermissionsChangedData Data { get; set; }
 }
 
 /// <summary>Plan file operation details indicating what changed.</summary>
@@ -798,6 +827,19 @@ public sealed partial class HookEndEvent : SessionEvent
     /// <summary>The <c>hook.end</c> event payload.</summary>
     [JsonPropertyName("data")]
     public required HookEndData Data { get; set; }
+}
+
+/// <summary>Ephemeral progress update from a running hook process.</summary>
+/// <remarks>Represents the <c>hook.progress</c> event.</remarks>
+public sealed partial class HookProgressEvent : SessionEvent
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Type => "hook.progress";
+
+    /// <summary>The <c>hook.progress</c> event payload.</summary>
+    [JsonPropertyName("data")]
+    public required HookProgressData Data { get; set; }
 }
 
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
@@ -1460,6 +1502,24 @@ public sealed partial class SessionScheduleCancelledData
     public required long Id { get; set; }
 }
 
+/// <summary>Autopilot objective state file operation details indicating what changed.</summary>
+public sealed partial class SessionAutopilotObjectiveChangedData
+{
+    /// <summary>Current autopilot objective id, if one exists.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("id")]
+    public long? Id { get; set; }
+
+    /// <summary>The type of operation performed on the autopilot objective state file.</summary>
+    [JsonPropertyName("operation")]
+    public required AutopilotObjectiveChangedOperation Operation { get; set; }
+
+    /// <summary>Current autopilot objective status, if one exists.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("status")]
+    public AutopilotObjectiveChangedStatus? Status { get; set; }
+}
+
 /// <summary>Informational message for timeline display with categorization.</summary>
 public sealed partial class SessionInfoData
 {
@@ -1552,6 +1612,18 @@ public sealed partial class SessionModeChangedData
     /// <summary>The session mode the agent is operating in.</summary>
     [JsonPropertyName("previousMode")]
     public required SessionMode PreviousMode { get; set; }
+}
+
+/// <summary>Permissions change details carrying the aggregate allow-all boolean transition.</summary>
+public sealed partial class SessionPermissionsChangedData
+{
+    /// <summary>Aggregate allow-all flag after the change.</summary>
+    [JsonPropertyName("allowAllPermissions")]
+    public required bool AllowAllPermissions { get; set; }
+
+    /// <summary>Aggregate allow-all flag before the change.</summary>
+    [JsonPropertyName("previousAllowAllPermissions")]
+    public required bool PreviousAllowAllPermissions { get; set; }
 }
 
 /// <summary>Plan file operation details indicating what changed.</summary>
@@ -2356,6 +2428,11 @@ public sealed partial class ToolExecutionStartData
     [JsonPropertyName("arguments")]
     public JsonElement? Arguments { get; set; }
 
+    /// <summary>When true, the tool output should be displayed expanded (verbatim) in the CLI timeline.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("displayVerbatim")]
+    public bool? DisplayVerbatim { get; set; }
+
     /// <summary>Name of the MCP server hosting this tool, when the tool is an MCP tool.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("mcpServerName")]
@@ -2688,6 +2765,14 @@ public sealed partial class HookEndData
     public required bool Success { get; set; }
 }
 
+/// <summary>Ephemeral progress update from a running hook process.</summary>
+public sealed partial class HookProgressData
+{
+    /// <summary>Human-readable progress message from the hook process.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
 /// <summary>System/developer instruction content with role and optional template metadata.</summary>
 public sealed partial class SystemMessageData
 {
@@ -2977,6 +3062,11 @@ public sealed partial class ExternalToolRequestedData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("tracestate")]
     public string? Tracestate { get; set; }
+
+    /// <summary>Active session working directory, when known.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("workingDirectory")]
+    public string? WorkingDirectory { get; set; }
 }
 
 /// <summary>External tool completion notification signaling UI dismissal.</summary>
@@ -5919,6 +6009,137 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
     }
 }
 
+/// <summary>The type of operation performed on the autopilot objective state file.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutopilotObjectiveChangedOperation : IEquatable<AutopilotObjectiveChangedOperation>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutopilotObjectiveChangedOperation"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutopilotObjectiveChangedOperation"/>.</param>
+    [JsonConstructor]
+    public AutopilotObjectiveChangedOperation(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutopilotObjectiveChangedOperation"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Autopilot objective state file was created for a new objective.</summary>
+    public static AutopilotObjectiveChangedOperation Create { get; } = new("create");
+
+    /// <summary>Autopilot objective state file was updated for an existing objective.</summary>
+    public static AutopilotObjectiveChangedOperation Update { get; } = new("update");
+
+    /// <summary>Autopilot objective state file was deleted or cleared.</summary>
+    public static AutopilotObjectiveChangedOperation Delete { get; } = new("delete");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveChangedOperation"/> instances are equivalent.</summary>
+    public static bool operator ==(AutopilotObjectiveChangedOperation left, AutopilotObjectiveChangedOperation right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveChangedOperation"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutopilotObjectiveChangedOperation left, AutopilotObjectiveChangedOperation right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutopilotObjectiveChangedOperation other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutopilotObjectiveChangedOperation other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutopilotObjectiveChangedOperation}"/> for serializing <see cref="AutopilotObjectiveChangedOperation"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutopilotObjectiveChangedOperation>
+    {
+        /// <inheritdoc />
+        public override AutopilotObjectiveChangedOperation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutopilotObjectiveChangedOperation value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutopilotObjectiveChangedOperation));
+        }
+    }
+}
+
+/// <summary>Current autopilot objective status, if one exists.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AutopilotObjectiveChangedStatus : IEquatable<AutopilotObjectiveChangedStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AutopilotObjectiveChangedStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AutopilotObjectiveChangedStatus"/>.</param>
+    [JsonConstructor]
+    public AutopilotObjectiveChangedStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AutopilotObjectiveChangedStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Objective is active and can drive autopilot continuations.</summary>
+    public static AutopilotObjectiveChangedStatus Active { get; } = new("active");
+
+    /// <summary>Objective is paused and will not drive autopilot continuations.</summary>
+    public static AutopilotObjectiveChangedStatus Paused { get; } = new("paused");
+
+    /// <summary>Legacy objective state indicating the previous continuation cap was reached.</summary>
+    public static AutopilotObjectiveChangedStatus CapReached { get; } = new("cap_reached");
+
+    /// <summary>Objective was completed by the agent.</summary>
+    public static AutopilotObjectiveChangedStatus Completed { get; } = new("completed");
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveChangedStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AutopilotObjectiveChangedStatus left, AutopilotObjectiveChangedStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AutopilotObjectiveChangedStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AutopilotObjectiveChangedStatus left, AutopilotObjectiveChangedStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AutopilotObjectiveChangedStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AutopilotObjectiveChangedStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AutopilotObjectiveChangedStatus}"/> for serializing <see cref="AutopilotObjectiveChangedStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AutopilotObjectiveChangedStatus>
+    {
+        /// <inheritdoc />
+        public override AutopilotObjectiveChangedStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AutopilotObjectiveChangedStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AutopilotObjectiveChangedStatus));
+        }
+    }
+}
+
 /// <summary>Defines the allowed values.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -7973,6 +8194,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(HookEndData))]
 [JsonSerializable(typeof(HookEndError))]
 [JsonSerializable(typeof(HookEndEvent))]
+[JsonSerializable(typeof(HookProgressData))]
+[JsonSerializable(typeof(HookProgressEvent))]
 [JsonSerializable(typeof(HookStartData))]
 [JsonSerializable(typeof(HookStartEvent))]
 [JsonSerializable(typeof(McpAppToolCallCompleteData))]
@@ -8034,6 +8257,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SamplingCompletedEvent))]
 [JsonSerializable(typeof(SamplingRequestedData))]
 [JsonSerializable(typeof(SamplingRequestedEvent))]
+[JsonSerializable(typeof(SessionAutopilotObjectiveChangedData))]
+[JsonSerializable(typeof(SessionAutopilotObjectiveChangedEvent))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedData))]
 [JsonSerializable(typeof(SessionBackgroundTasksChangedEvent))]
 [JsonSerializable(typeof(SessionCanvasOpenedData))]
@@ -8069,6 +8294,8 @@ public readonly struct CanvasOpenedAvailability : IEquatable<CanvasOpenedAvailab
 [JsonSerializable(typeof(SessionModeChangedEvent))]
 [JsonSerializable(typeof(SessionModelChangeData))]
 [JsonSerializable(typeof(SessionModelChangeEvent))]
+[JsonSerializable(typeof(SessionPermissionsChangedData))]
+[JsonSerializable(typeof(SessionPermissionsChangedEvent))]
 [JsonSerializable(typeof(SessionPlanChangedData))]
 [JsonSerializable(typeof(SessionPlanChangedEvent))]
 [JsonSerializable(typeof(SessionRemoteSteerableChangedData))]
