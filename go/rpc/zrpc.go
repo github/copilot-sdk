@@ -108,6 +108,184 @@ type AgentList struct {
 	Agents []AgentInfo `json:"agents"`
 }
 
+// Full registry entry for the spawned child. Lets the controller call
+// `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a
+// TOCTOU window).
+// Experimental: AgentRegistryLiveTargetEntry is part of an experimental API and may change
+// or be removed.
+type AgentRegistryLiveTargetEntry struct {
+	// Kind of attention required when status === "attention". Meaningful only when status ===
+	// "attention".
+	AttentionKind *AgentRegistryLiveTargetEntryAttentionKind `json:"attentionKind,omitempty"`
+	// Git branch of the session (when known)
+	Branch *string `json:"branch,omitempty"`
+	// Copilot CLI version that wrote the entry
+	CopilotVersion string `json:"copilotVersion"`
+	// Working directory of the session (when known)
+	Cwd *string `json:"cwd,omitempty"`
+	// Bind host for the entry's JSON-RPC server
+	Host string `json:"host"`
+	// Process kind tag for the registry entry
+	Kind AgentRegistryLiveTargetEntryKind `json:"kind"`
+	// Wall-clock milliseconds since the watcher last observed this entry (heartbeat freshness)
+	LastSeenMs int64 `json:"lastSeenMs"`
+	// How the most recent turn ended (clean vs aborted). Lets the renderer distinguish done
+	// from done_cancelled.
+	LastTerminalEvent *AgentRegistryLiveTargetEntryLastTerminalEvent `json:"lastTerminalEvent,omitempty"`
+	// Model identifier currently selected for the session
+	Model *string `json:"model,omitempty"`
+	// Operating-system pid of the process owning this entry
+	Pid int64 `json:"pid"`
+	// TCP port the entry's JSON-RPC server is listening on
+	Port int64 `json:"port"`
+	// Registry entry schema version (1 = ui-server, 2 = managed-server)
+	SchemaVersion int64 `json:"schemaVersion"`
+	// Session ID of the foreground session for this entry
+	SessionID *string `json:"sessionId,omitempty"`
+	// Friendly session name (when set)
+	SessionName *string `json:"sessionName,omitempty"`
+	// ISO 8601 timestamp captured at registration
+	StartedAt string `json:"startedAt"`
+	// Coarse lifecycle status of the foreground session
+	Status *AgentRegistryLiveTargetEntryStatus `json:"status,omitempty"`
+	// Monotonic per-publisher revision counter incremented on every status update. Lets
+	// watchers detect transient flips.
+	StatusRevision *int64 `json:"statusRevision,omitempty"`
+	// Connection token (null when the target is unauthenticated)
+	// Internal: Token is part of the SDK's internal API surface and is not intended for
+	// external use.
+	Token *string `json:"token,omitempty"`
+}
+
+// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+// Experimental: AgentRegistryLogCapture is part of an experimental API and may change or be
+// removed.
+type AgentRegistryLogCapture struct {
+	// Whether per-spawn log capture is on (false when env-disabled or open failed)
+	Enabled bool `json:"enabled"`
+	// Human-readable open failure message (only set when enabled === false AND the env-disable
+	// opt-out was NOT used)
+	OpenError *string `json:"openError,omitempty"`
+	// Categorized reason for log-open failure
+	OpenErrorReason *AgentRegistryLogCaptureOpenErrorReason `json:"openErrorReason,omitempty"`
+	// Absolute path to the per-spawn log file (only set when enabled)
+	Path *string `json:"path,omitempty"`
+}
+
+// Inputs to spawn a managed-server child via the controller's spawn delegate.
+// Experimental: AgentRegistrySpawnRequest is part of an experimental API and may change or
+// be removed.
+type AgentRegistrySpawnRequest struct {
+	// Custom or built-in agent name (e.g. 'explore'). When omitted, the child uses its own
+	// default.
+	AgentName *string `json:"agentName,omitempty"`
+	// Working directory for the spawned child (must be an existing directory)
+	Cwd string `json:"cwd"`
+	// Optional first user message. Forwarded to the caller (the CLI's spawn wrapper sends it
+	// post-attach via the standard LocalRpcSession.send path).
+	InitialPrompt *string `json:"initialPrompt,omitempty"`
+	// Model identifier to apply to the new session
+	Model *string `json:"model,omitempty"`
+	// Friendly session name. Must satisfy validateSessionName: non-empty, no leading/trailing
+	// whitespace, <=100 chars, no control chars, no double quotes.
+	Name *string `json:"name,omitempty"`
+	// Permission posture for the new session. 'yolo' requires the controller-local session to
+	// currently be in allow-all mode.
+	PermissionMode *AgentRegistrySpawnPermissionMode `json:"permissionMode,omitempty"`
+}
+
+// Outcome of an agentRegistry.spawn call.
+// Experimental: AgentRegistrySpawnResult is part of an experimental API and may change or
+// be removed.
+type AgentRegistrySpawnResult interface {
+	agentRegistrySpawnResult()
+	Kind() AgentRegistrySpawnResultKind
+}
+
+type RawAgentRegistrySpawnResultData struct {
+	Discriminator AgentRegistrySpawnResultKind
+	Raw           json.RawMessage
+}
+
+func (RawAgentRegistrySpawnResultData) agentRegistrySpawnResult() {}
+func (r RawAgentRegistrySpawnResultData) Kind() AgentRegistrySpawnResultKind {
+	return r.Discriminator
+}
+
+// `child_process.spawn` itself failed before the child entered the registry.
+// Experimental: AgentRegistrySpawnError is part of an experimental API and may change or be
+// removed.
+type AgentRegistrySpawnError struct {
+	// Underlying errno code (e.g. ENOENT, EACCES) when available
+	Code *string `json:"code,omitempty"`
+	// Human-readable error message
+	Message string `json:"message"`
+}
+
+func (AgentRegistrySpawnError) agentRegistrySpawnResult() {}
+func (AgentRegistrySpawnError) Kind() AgentRegistrySpawnResultKind {
+	return AgentRegistrySpawnResultKindSpawnError
+}
+
+// Spawn succeeded but the child did not publish a matching managed-server entry within the
+// timeout.
+// Experimental: AgentRegistrySpawnRegistryTimeout is part of an experimental API and may
+// change or be removed.
+type AgentRegistrySpawnRegistryTimeout struct {
+	// Process ID of the orphaned child (so the caller can offer 'kill the pid' guidance)
+	ChildPid int64 `json:"childPid"`
+	// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+	LogCapture *AgentRegistryLogCapture `json:"logCapture,omitempty"`
+}
+
+func (AgentRegistrySpawnRegistryTimeout) agentRegistrySpawnResult() {}
+func (AgentRegistrySpawnRegistryTimeout) Kind() AgentRegistrySpawnResultKind {
+	return AgentRegistrySpawnResultKindRegistryTimeout
+}
+
+// Managed-server child was spawned and registered successfully.
+// Experimental: AgentRegistrySpawnSpawned is part of an experimental API and may change or
+// be removed.
+type AgentRegistrySpawnSpawned struct {
+	// Full registry entry for the spawned child. Lets the controller call
+	// `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a
+	// TOCTOU window).
+	Entry AgentRegistryLiveTargetEntry `json:"entry"`
+	// If the delegate attempted to send the initial prompt and failed, the categorized error
+	// message.
+	InitialPromptError *string `json:"initialPromptError,omitempty"`
+	// Whether the delegate already sent the initial prompt. Always omitted in the current
+	// wiring: the controller sends the prompt post-attach via the standard LocalRpcSession.send
+	// path.
+	InitialPromptSent *bool `json:"initialPromptSent,omitempty"`
+	// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+	LogCapture *AgentRegistryLogCapture `json:"logCapture,omitempty"`
+}
+
+func (AgentRegistrySpawnSpawned) agentRegistrySpawnResult() {}
+func (AgentRegistrySpawnSpawned) Kind() AgentRegistrySpawnResultKind {
+	return AgentRegistrySpawnResultKindSpawned
+}
+
+// Synchronous pre-validation rejected the spawn request.
+// Experimental: AgentRegistrySpawnValidationError is part of an experimental API and may
+// change or be removed.
+type AgentRegistrySpawnValidationError struct {
+	// Which parameter field was invalid. Omitted when the rejection is not field-specific.
+	Field *AgentRegistrySpawnValidationErrorField `json:"field,omitempty"`
+	// Human-readable explanation; safe to surface in the UI banner. Never logged to
+	// unrestricted telemetry.
+	Message string `json:"message"`
+	// Categorized reason for the rejection. Low-cardinality enum so telemetry can aggregate by
+	// reason without leaking raw paths or agent/model names.
+	Reason AgentRegistrySpawnValidationErrorReason `json:"reason"`
+}
+
+func (AgentRegistrySpawnValidationError) agentRegistrySpawnResult() {}
+func (AgentRegistrySpawnValidationError) Kind() AgentRegistrySpawnResultKind {
+	return AgentRegistrySpawnResultKindValidationError
+}
+
 // Custom agents available to the session after reloading definitions from disk.
 // Experimental: AgentReloadResult is part of an experimental API and may change or be
 // removed.
@@ -130,6 +308,24 @@ type AgentSelectRequest struct {
 type AgentSelectResult struct {
 	// The newly selected custom agent
 	Agent AgentInfo `json:"agent"`
+}
+
+// Indicates whether the operation succeeded and reports the post-mutation state.
+// Experimental: AllowAllPermissionSetResult is part of an experimental API and may change
+// or be removed.
+type AllowAllPermissionSetResult struct {
+	// Authoritative allow-all state after the mutation
+	Enabled bool `json:"enabled"`
+	// Whether the operation succeeded
+	Success bool `json:"success"`
+}
+
+// Current full allow-all permission state.
+// Experimental: AllowAllPermissionState is part of an experimental API and may change or be
+// removed.
+type AllowAllPermissionState struct {
+	// Whether full allow-all permissions are currently active
+	Enabled bool `json:"enabled"`
 }
 
 // The new auth credentials to install on the session. When omitted or `undefined`, the call
@@ -393,6 +589,8 @@ type CanvasProviderCloseRequest struct {
 	Host *CanvasHostContext `json:"host,omitempty"`
 	// Canvas instance identifier
 	InstanceID string `json:"instanceId"`
+	// Session context supplied by the runtime.
+	Session *CanvasSessionContext `json:"session,omitempty"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
 }
@@ -413,6 +611,8 @@ type CanvasProviderInvokeActionRequest struct {
 	Input any `json:"input,omitempty"`
 	// Canvas instance identifier
 	InstanceID string `json:"instanceId"`
+	// Session context supplied by the runtime.
+	Session *CanvasSessionContext `json:"session,omitempty"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
 }
@@ -431,6 +631,8 @@ type CanvasProviderOpenRequest struct {
 	Input any `json:"input,omitempty"`
 	// Stable caller-supplied canvas instance identifier
 	InstanceID string `json:"instanceId"`
+	// Session context supplied by the runtime.
+	Session *CanvasSessionContext `json:"session,omitempty"`
 	// Target session identifier
 	SessionID string `json:"sessionId"`
 }
@@ -445,6 +647,14 @@ type CanvasProviderOpenResult struct {
 	Title *string `json:"title,omitempty"`
 	// URL for web-rendered canvases
 	URL *string `json:"url,omitempty"`
+}
+
+// Session context supplied by the runtime.
+// Experimental: CanvasSessionContext is part of an experimental API and may change or be
+// removed.
+type CanvasSessionContext struct {
+	// Active session working directory, when known.
+	WorkingDirectory *string `json:"workingDirectory,omitempty"`
 }
 
 // Slash commands available in the session, after applying any include/exclude filters.
@@ -3114,6 +3324,12 @@ type PermissionsFolderTrustAddTrustedResult struct {
 	Success bool `json:"success"`
 }
 
+// No parameters.
+// Experimental: PermissionsGetAllowAllRequest is part of an experimental API and may change
+// or be removed.
+type PermissionsGetAllowAllRequest struct {
+}
+
 // Tool approval to persist and apply
 // Experimental: PermissionsLocationsAddToolApprovalDetails is part of an experimental API
 // and may change or be removed.
@@ -3334,6 +3550,14 @@ type PermissionsResetSessionApprovalsRequest struct {
 type PermissionsResetSessionApprovalsResult struct {
 	// Whether the operation succeeded
 	Success bool `json:"success"`
+}
+
+// Whether to enable full allow-all permissions for the session.
+// Experimental: PermissionsSetAllowAllRequest is part of an experimental API and may change
+// or be removed.
+type PermissionsSetAllowAllRequest struct {
+	// Whether to enable full allow-all permissions
+	Enabled bool `json:"enabled"`
 }
 
 // Allow-all toggle for tool permission requests, with an optional telemetry source.
@@ -4390,8 +4614,12 @@ type SessionMcpReloadResult struct {
 // Schema for the `SessionMetadata` type.
 // Experimental: SessionMetadata is part of an experimental API and may change or be removed.
 type SessionMetadata struct {
+	// Runtime client name that created/last resumed this session
+	ClientName *string `json:"clientName,omitempty"`
 	// Schema for the `SessionContext` type.
 	Context *SessionContext `json:"context,omitempty"`
+	// True for detached maintenance sessions that should be hidden from normal resume lists.
+	IsDetached *bool `json:"isDetached,omitempty"`
 	// True for remote (GitHub) sessions; false for local
 	IsRemote bool `json:"isRemote"`
 	// GitHub task ID, when this local session is bound to one. Only present for local sessions
@@ -4417,6 +4645,8 @@ type SessionMetadataSnapshot struct {
 	// Local consumers may surface a confirmation prompt before fully attaching. Always false
 	// for new sessions.
 	AlreadyInUse bool `json:"alreadyInUse"`
+	// Runtime client name associated with the session (telemetry identifier).
+	ClientName *string `json:"clientName,omitempty"`
 	// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
 	CurrentMode MetadataSnapshotCurrentMode `json:"currentMode"`
 	// User-provided name supplied at session construction (via `--name`), if any. Immutable
@@ -4704,12 +4934,15 @@ type SessionSkillsEnableResult struct {
 type SessionSkillsEnsureLoadedResult struct {
 }
 
-// Optional metadata-load limit and context filter applied to the returned sessions.
+// Optional metadata-load limit and filters applied to the returned sessions.
 // Experimental: SessionsListRequest is part of an experimental API and may change or be
 // removed.
 type SessionsListRequest struct {
 	// Optional filter applied to the returned sessions
 	Filter *SessionListFilter `json:"filter,omitempty"`
+	// When true, include detached maintenance sessions. Defaults to false for user-facing
+	// session lists.
+	IncludeDetached *bool `json:"includeDetached,omitempty"`
 	// When provided, only the first N sessions (sorted by modification time, newest first) load
 	// full metadata; remaining sessions return basic info only. Use 0 to return only basic info
 	// for every session.
@@ -6283,6 +6516,7 @@ type WorkspacesGetWorkspaceResult struct {
 type WorkspacesGetWorkspaceResultWorkspace struct {
 	Branch                 *string    `json:"branch,omitempty"`
 	ChronicleSyncDismissed *bool      `json:"chronicle_sync_dismissed,omitempty"`
+	ClientName             *string    `json:"client_name,omitempty"`
 	CreatedAt              *time.Time `json:"created_at,omitempty"`
 	Cwd                    *string    `json:"cwd,omitempty"`
 	GitRoot                *string    `json:"git_root,omitempty"`
@@ -6428,6 +6662,143 @@ const (
 	AgentInfoSourceRemote AgentInfoSource = "remote"
 	// Agent loaded from the user's personal agent configuration.
 	AgentInfoSourceUser AgentInfoSource = "user"
+)
+
+// Kind of attention required when status === "attention". Meaningful only when status ===
+// "attention".
+// Experimental: AgentRegistryLiveTargetEntryAttentionKind is part of an experimental API
+// and may change or be removed.
+type AgentRegistryLiveTargetEntryAttentionKind string
+
+const (
+	// Session is waiting on an elicitation prompt
+	AgentRegistryLiveTargetEntryAttentionKindElicitation AgentRegistryLiveTargetEntryAttentionKind = "elicitation"
+	// Session is blocked on an unrecoverable error
+	AgentRegistryLiveTargetEntryAttentionKindError AgentRegistryLiveTargetEntryAttentionKind = "error"
+	// Session is waiting for the user to approve or reject a plan
+	AgentRegistryLiveTargetEntryAttentionKindExitPlan AgentRegistryLiveTargetEntryAttentionKind = "exit_plan"
+	// Session is waiting for a tool-permission decision
+	AgentRegistryLiveTargetEntryAttentionKindPermission AgentRegistryLiveTargetEntryAttentionKind = "permission"
+	// Session is waiting for free-form user input
+	AgentRegistryLiveTargetEntryAttentionKindUserInput AgentRegistryLiveTargetEntryAttentionKind = "user_input"
+)
+
+// Process kind tag for the registry entry
+// Experimental: AgentRegistryLiveTargetEntryKind is part of an experimental API and may
+// change or be removed.
+type AgentRegistryLiveTargetEntryKind string
+
+const (
+	// Headless `--server --managed-server` child spawned by a controller
+	AgentRegistryLiveTargetEntryKindManagedServer AgentRegistryLiveTargetEntryKind = "managed-server"
+	// Interactive Copilot CLI exposing a UI server (legacy/normal CLI process)
+	AgentRegistryLiveTargetEntryKindUIServer AgentRegistryLiveTargetEntryKind = "ui-server"
+)
+
+// How the most recent turn ended (clean vs aborted). Lets the renderer distinguish done
+// from done_cancelled.
+// Experimental: AgentRegistryLiveTargetEntryLastTerminalEvent is part of an experimental
+// API and may change or be removed.
+type AgentRegistryLiveTargetEntryLastTerminalEvent string
+
+const (
+	// Last turn was aborted (e.g. user interrupted)
+	AgentRegistryLiveTargetEntryLastTerminalEventAbort AgentRegistryLiveTargetEntryLastTerminalEvent = "abort"
+	// Last turn ended cleanly (model returned a final assistant message)
+	AgentRegistryLiveTargetEntryLastTerminalEventTurnEnd AgentRegistryLiveTargetEntryLastTerminalEvent = "turn_end"
+)
+
+// Coarse lifecycle status of the foreground session
+// Experimental: AgentRegistryLiveTargetEntryStatus is part of an experimental API and may
+// change or be removed.
+type AgentRegistryLiveTargetEntryStatus string
+
+const (
+	// Session needs user attention (see attentionKind for the specific reason)
+	AgentRegistryLiveTargetEntryStatusAttention AgentRegistryLiveTargetEntryStatus = "attention"
+	// Last turn completed successfully
+	AgentRegistryLiveTargetEntryStatusDone AgentRegistryLiveTargetEntryStatus = "done"
+	// Session is idle, waiting for input
+	AgentRegistryLiveTargetEntryStatusWaiting AgentRegistryLiveTargetEntryStatus = "waiting"
+	// Session is actively processing a turn
+	AgentRegistryLiveTargetEntryStatusWorking AgentRegistryLiveTargetEntryStatus = "working"
+)
+
+// Categorized reason for log-open failure
+// Experimental: AgentRegistryLogCaptureOpenErrorReason is part of an experimental API and
+// may change or be removed.
+type AgentRegistryLogCaptureOpenErrorReason string
+
+const (
+	// No space left on device
+	AgentRegistryLogCaptureOpenErrorReasonDiskFull AgentRegistryLogCaptureOpenErrorReason = "disk_full"
+	// Other / uncategorized open failure
+	AgentRegistryLogCaptureOpenErrorReasonOther AgentRegistryLogCaptureOpenErrorReason = "other"
+	// Filesystem permission denied opening the log file
+	AgentRegistryLogCaptureOpenErrorReasonPermission AgentRegistryLogCaptureOpenErrorReason = "permission"
+)
+
+// Permission posture for the new session. 'yolo' requires the controller-local session to
+// currently be in allow-all mode.
+// Experimental: AgentRegistrySpawnPermissionMode is part of an experimental API and may
+// change or be removed.
+type AgentRegistrySpawnPermissionMode string
+
+const (
+	// Standard permission posture (prompts for each request)
+	AgentRegistrySpawnPermissionModeDefault AgentRegistrySpawnPermissionMode = "default"
+	// Full allow-all (requires the controller-local session to currently be in allow-all mode)
+	AgentRegistrySpawnPermissionModeYolo AgentRegistrySpawnPermissionMode = "yolo"
+)
+
+// Kind discriminator for AgentRegistrySpawnResult.
+type AgentRegistrySpawnResultKind string
+
+const (
+	AgentRegistrySpawnResultKindRegistryTimeout AgentRegistrySpawnResultKind = "registry-timeout"
+	AgentRegistrySpawnResultKindSpawned         AgentRegistrySpawnResultKind = "spawned"
+	AgentRegistrySpawnResultKindSpawnError      AgentRegistrySpawnResultKind = "spawn-error"
+	AgentRegistrySpawnResultKindValidationError AgentRegistrySpawnResultKind = "validation-error"
+)
+
+// Which parameter field was invalid. Omitted when the rejection is not field-specific.
+// Experimental: AgentRegistrySpawnValidationErrorField is part of an experimental API and
+// may change or be removed.
+type AgentRegistrySpawnValidationErrorField string
+
+const (
+	// The agentName parameter
+	AgentRegistrySpawnValidationErrorFieldAgentName AgentRegistrySpawnValidationErrorField = "agentName"
+	// The cwd parameter
+	AgentRegistrySpawnValidationErrorFieldCwd AgentRegistrySpawnValidationErrorField = "cwd"
+	// The model parameter
+	AgentRegistrySpawnValidationErrorFieldModel AgentRegistrySpawnValidationErrorField = "model"
+	// The session name parameter
+	AgentRegistrySpawnValidationErrorFieldName AgentRegistrySpawnValidationErrorField = "name"
+	// The permissionMode parameter
+	AgentRegistrySpawnValidationErrorFieldPermissionMode AgentRegistrySpawnValidationErrorField = "permissionMode"
+)
+
+// Categorized reason for the rejection. Low-cardinality enum so telemetry can aggregate by
+// reason without leaking raw paths or agent/model names.
+// Experimental: AgentRegistrySpawnValidationErrorReason is part of an experimental API and
+// may change or be removed.
+type AgentRegistrySpawnValidationErrorReason string
+
+const (
+	// Provided cwd exists but is not a directory
+	AgentRegistrySpawnValidationErrorReasonCwdNotDirectory AgentRegistrySpawnValidationErrorReason = "cwd-not-directory"
+	// Provided cwd does not exist on disk
+	AgentRegistrySpawnValidationErrorReasonCwdNotFound AgentRegistrySpawnValidationErrorReason = "cwd-not-found"
+	// Session name failed validateSessionName
+	AgentRegistrySpawnValidationErrorReasonInvalidName AgentRegistrySpawnValidationErrorReason = "invalid-name"
+	// Requested agent name was not found in builtin or custom agents
+	AgentRegistrySpawnValidationErrorReasonUnknownAgent AgentRegistrySpawnValidationErrorReason = "unknown-agent"
+	// Requested model is not available to this session
+	AgentRegistrySpawnValidationErrorReasonUnknownModel AgentRegistrySpawnValidationErrorReason = "unknown-model"
+	// Caller asked for permissionMode='yolo' but the controller is not currently in allow-all
+	// mode
+	AgentRegistrySpawnValidationErrorReasonYoloNotAllowed AgentRegistrySpawnValidationErrorReason = "yolo-not-allowed"
 )
 
 // Type discriminator for AuthInfo.
@@ -7603,6 +7974,32 @@ func (a *ServerAccountApi) GetQuota(ctx context.Context, params *AccountGetQuota
 	return &result, nil
 }
 
+// Experimental: ServerAgentRegistryApi contains experimental APIs that may change or be
+// removed.
+type ServerAgentRegistryApi serverApi
+
+// Spawns a managed-server child with the supplied configuration and returns a
+// discriminated-union result. The caller (typically the CLI controller) is responsible for
+// attaching to the spawned child and sending any follow-up prompt. When the
+// controller-local spawn gate is closed the server returns JSON-RPC MethodNotFound.
+//
+// RPC method: agentRegistry.spawn.
+//
+// Parameters: Inputs to spawn a managed-server child via the controller's spawn delegate.
+//
+// Returns: Outcome of an agentRegistry.spawn call.
+func (a *ServerAgentRegistryApi) Spawn(ctx context.Context, params *AgentRegistrySpawnRequest) (AgentRegistrySpawnResult, error) {
+	raw, err := a.client.Request("agentRegistry.spawn", params)
+	if err != nil {
+		return nil, err
+	}
+	result, err := unmarshalAgentRegistrySpawnResult(raw)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 type ServerMcpApi serverApi
 
 // Discovers MCP servers from user, workspace, plugin, and builtin sources.
@@ -8046,8 +8443,7 @@ func (a *ServerSessionsApi) GetSizes(ctx context.Context) (*SessionSizes, error)
 //
 // RPC method: sessions.list.
 //
-// Parameters: Optional metadata-load limit and context filter applied to the returned
-// sessions.
+// Parameters: Optional metadata-load limit and filters applied to the returned sessions.
 //
 // Returns: Persisted sessions matching the filter, ordered most-recently-modified first.
 func (a *ServerSessionsApi) List(ctx context.Context, params *SessionsListRequest) (*SessionList, error) {
@@ -8263,14 +8659,15 @@ type ServerRpc struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
 	common serverApi
 
-	Account   *ServerAccountApi
-	Mcp       *ServerMcpApi
-	Models    *ServerModelsApi
-	Secrets   *ServerSecretsApi
-	SessionFs *ServerSessionFsApi
-	Sessions  *ServerSessionsApi
-	Skills    *ServerSkillsApi
-	Tools     *ServerToolsApi
+	Account       *ServerAccountApi
+	AgentRegistry *ServerAgentRegistryApi
+	Mcp           *ServerMcpApi
+	Models        *ServerModelsApi
+	Secrets       *ServerSecretsApi
+	SessionFs     *ServerSessionFsApi
+	Sessions      *ServerSessionsApi
+	Skills        *ServerSkillsApi
+	Tools         *ServerToolsApi
 }
 
 // Ping checks server responsiveness and returns protocol information.
@@ -8297,6 +8694,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r := &ServerRpc{}
 	r.common = serverApi{client: client}
 	r.Account = (*ServerAccountApi)(&r.common)
+	r.AgentRegistry = (*ServerAgentRegistryApi)(&r.common)
 	r.Mcp = (*ServerMcpApi)(&r.common)
 	r.Models = (*ServerModelsApi)(&r.common)
 	r.Secrets = (*ServerSecretsApi)(&r.common)
@@ -10048,6 +10446,25 @@ func (a *PermissionsApi) Configure(ctx context.Context, params *PermissionsConfi
 	return &result, nil
 }
 
+// GetAllowAll returns whether full allow-all permissions are currently active for the
+// session.
+//
+// RPC method: session.permissions.getAllowAll.
+//
+// Returns: Current full allow-all permission state.
+func (a *PermissionsApi) GetAllowAll(ctx context.Context) (*AllowAllPermissionState, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.permissions.getAllowAll", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AllowAllPermissionState
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // HandlePendingPermissionRequest provides a decision for a pending tool permission request.
 //
 // RPC method: session.permissions.handlePendingPermissionRequest.
@@ -10163,6 +10580,35 @@ func (a *PermissionsApi) ResetSessionApprovals(ctx context.Context) (*Permission
 		return nil, err
 	}
 	var result PermissionsResetSessionApprovalsResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// SetAllowAll enables or disables full allow-all permissions (tools, paths, and URLs) for
+// the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder)
+// to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the
+// unrestricted path and URL managers and emits `session.permissions_changed` on transition.
+// The result returns the authoritative post-mutation state so callers can update their
+// local mirrors without racing the `session.permissions_changed` notification on the same
+// wire.
+//
+// RPC method: session.permissions.setAllowAll.
+//
+// Parameters: Whether to enable full allow-all permissions for the session.
+//
+// Returns: Indicates whether the operation succeeded and reports the post-mutation state.
+func (a *PermissionsApi) SetAllowAll(ctx context.Context, params *PermissionsSetAllowAllRequest) (*AllowAllPermissionSetResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["enabled"] = params.Enabled
+	}
+	raw, err := a.client.Request("session.permissions.setAllowAll", req)
+	if err != nil {
+		return nil, err
+	}
+	var result AllowAllPermissionSetResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		return nil, err
 	}

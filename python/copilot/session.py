@@ -1163,6 +1163,7 @@ class CopilotSession:
         *,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
+        agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
     ) -> str:
         """
@@ -1176,6 +1177,9 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
+            agent_mode: The UI mode the agent was in when this message was sent
+                (for example ``"plan"`` or ``"autopilot"``). Defaults to the
+                session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
 
         Returns:
@@ -1198,6 +1202,8 @@ class CopilotSession:
             params["attachments"] = attachments
         if mode is not None:
             params["mode"] = mode
+        if agent_mode is not None:
+            params["agentMode"] = agent_mode
         if request_headers is not None:
             params["requestHeaders"] = request_headers
         params.update(get_trace_context())
@@ -1221,6 +1227,7 @@ class CopilotSession:
         *,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
+        agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
@@ -1237,6 +1244,9 @@ class CopilotSession:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
+            agent_mode: The UI mode the agent was in when this message was sent
+                (for example ``"plan"`` or ``"autopilot"``). Defaults to the
+                session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
@@ -1295,6 +1305,7 @@ class CopilotSession:
                 prompt,
                 attachments=attachments,
                 mode=mode,
+                agent_mode=agent_mode,
                 request_headers=request_headers,
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)

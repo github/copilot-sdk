@@ -1345,9 +1345,25 @@ type MessageOptions struct {
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
 	Mode string
+	// AgentMode is the UI mode the agent was in when this message was sent
+	// (for example "plan" or "autopilot"). Defaults to the session's current
+	// mode when empty.
+	AgentMode AgentMode
 	// RequestHeaders are custom per-turn HTTP headers for outbound model requests.
 	RequestHeaders map[string]string
 }
+
+// AgentMode is the UI mode the agent is in for a given turn. See
+// [MessageOptions.AgentMode].
+type AgentMode = rpc.SendAgentMode
+
+// AgentMode values supported by the runtime.
+const (
+	AgentModeInteractive = rpc.SendAgentModeInteractive
+	AgentModePlan        = rpc.SendAgentModePlan
+	AgentModeAutopilot   = rpc.SendAgentModeAutopilot
+	AgentModeShell       = rpc.SendAgentModeShell
+)
 
 // SessionEventHandler is a callback for session events
 type SessionEventHandler func(event SessionEvent)
@@ -1716,6 +1732,7 @@ type sessionSendRequest struct {
 	Prompt         string            `json:"prompt"`
 	Attachments    []Attachment      `json:"attachments,omitempty"`
 	Mode           string            `json:"mode,omitempty"`
+	AgentMode      AgentMode         `json:"agentMode,omitempty"`
 	Traceparent    string            `json:"traceparent,omitempty"`
 	Tracestate     string            `json:"tracestate,omitempty"`
 	RequestHeaders map[string]string `json:"requestHeaders,omitempty"`

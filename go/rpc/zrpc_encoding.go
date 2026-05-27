@@ -8,6 +8,103 @@ import (
 	"errors"
 )
 
+func unmarshalAgentRegistrySpawnResult(data []byte) (AgentRegistrySpawnResult, error) {
+	if string(data) == "null" {
+		return nil, nil
+	}
+	type rawUnion struct {
+		Kind AgentRegistrySpawnResultKind `json:"kind"`
+	}
+	var raw rawUnion
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch raw.Kind {
+	case AgentRegistrySpawnResultKindRegistryTimeout:
+		var d AgentRegistrySpawnRegistryTimeout
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AgentRegistrySpawnResultKindSpawnError:
+		var d AgentRegistrySpawnError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AgentRegistrySpawnResultKindSpawned:
+		var d AgentRegistrySpawnSpawned
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	case AgentRegistrySpawnResultKindValidationError:
+		var d AgentRegistrySpawnValidationError
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return &d, nil
+	default:
+		return &RawAgentRegistrySpawnResultData{Discriminator: raw.Kind, Raw: data}, nil
+	}
+}
+
+func (r RawAgentRegistrySpawnResultData) MarshalJSON() ([]byte, error) {
+	if r.Raw != nil {
+		return r.Raw, nil
+	}
+	return json.Marshal(struct {
+		Kind AgentRegistrySpawnResultKind `json:"kind"`
+	}{
+		Kind: r.Discriminator,
+	})
+}
+
+func (r AgentRegistrySpawnError) MarshalJSON() ([]byte, error) {
+	type alias AgentRegistrySpawnError
+	return json.Marshal(struct {
+		Kind AgentRegistrySpawnResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AgentRegistrySpawnRegistryTimeout) MarshalJSON() ([]byte, error) {
+	type alias AgentRegistrySpawnRegistryTimeout
+	return json.Marshal(struct {
+		Kind AgentRegistrySpawnResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AgentRegistrySpawnSpawned) MarshalJSON() ([]byte, error) {
+	type alias AgentRegistrySpawnSpawned
+	return json.Marshal(struct {
+		Kind AgentRegistrySpawnResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
+func (r AgentRegistrySpawnValidationError) MarshalJSON() ([]byte, error) {
+	type alias AgentRegistrySpawnValidationError
+	return json.Marshal(struct {
+		Kind AgentRegistrySpawnResultKind `json:"kind"`
+		alias
+	}{
+		Kind:  r.Kind(),
+		alias: alias(r),
+	})
+}
+
 func unmarshalAuthInfo(data []byte) (AuthInfo, error) {
 	if string(data) == "null" {
 		return nil, nil

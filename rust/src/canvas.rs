@@ -185,6 +185,7 @@ mod tests {
                 instance_id: "echo-1".to_string(),
                 input: Some(json!({ "x": 1 })),
                 host: None,
+                session: None,
             })
             .await
             .unwrap();
@@ -206,6 +207,7 @@ mod tests {
                 action_name: "shout".to_string(),
                 input: Some(json!("hi")),
                 host: None,
+                session: None,
             })
             .await
             .unwrap();
@@ -240,6 +242,7 @@ mod tests {
                 action_name: "anything".to_string(),
                 input: Some(Value::Null),
                 host: None,
+                session: None,
             })
             .await
             .unwrap_err();

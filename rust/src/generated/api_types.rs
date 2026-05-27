@@ -84,6 +84,8 @@ pub mod rpc_methods {
     pub const SESSIONS_LOADDEFERREDREPOHOOKS: &str = "sessions.loadDeferredRepoHooks";
     /// `sessions.setAdditionalPlugins`
     pub const SESSIONS_SETADDITIONALPLUGINS: &str = "sessions.setAdditionalPlugins";
+    /// `agentRegistry.spawn`
+    pub const AGENTREGISTRY_SPAWN: &str = "agentRegistry.spawn";
     /// `session.suspend`
     pub const SESSION_SUSPEND: &str = "session.suspend";
     /// `session.send`
@@ -284,6 +286,10 @@ pub mod rpc_methods {
     pub const SESSION_PERMISSIONS_PENDINGREQUESTS: &str = "session.permissions.pendingRequests";
     /// `session.permissions.setApproveAll`
     pub const SESSION_PERMISSIONS_SETAPPROVEALL: &str = "session.permissions.setApproveAll";
+    /// `session.permissions.setAllowAll`
+    pub const SESSION_PERMISSIONS_SETALLOWALL: &str = "session.permissions.setAllowAll";
+    /// `session.permissions.getAllowAll`
+    pub const SESSION_PERMISSIONS_GETALLOWALL: &str = "session.permissions.getAllowAll";
     /// `session.permissions.modifyRules`
     pub const SESSION_PERMISSIONS_MODIFYRULES: &str = "session.permissions.modifyRules";
     /// `session.permissions.setRequired`
@@ -563,6 +569,208 @@ pub struct AgentList {
     pub agents: Vec<AgentInfo>,
 }
 
+/// Full registry entry for the spawned child. Lets the controller call `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a TOCTOU window).
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistryLiveTargetEntry {
+    /// Kind of attention required when status === "attention". Meaningful only when status === "attention".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attention_kind: Option<AgentRegistryLiveTargetEntryAttentionKind>,
+    /// Git branch of the session (when known)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Copilot CLI version that wrote the entry
+    pub copilot_version: String,
+    /// Working directory of the session (when known)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    /// Bind host for the entry's JSON-RPC server
+    pub host: String,
+    /// Process kind tag for the registry entry
+    pub kind: AgentRegistryLiveTargetEntryKind,
+    /// Wall-clock milliseconds since the watcher last observed this entry (heartbeat freshness)
+    pub last_seen_ms: i64,
+    /// How the most recent turn ended (clean vs aborted). Lets the renderer distinguish done from done_cancelled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_terminal_event: Option<AgentRegistryLiveTargetEntryLastTerminalEvent>,
+    /// Model identifier currently selected for the session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Operating-system pid of the process owning this entry
+    pub pid: i64,
+    /// TCP port the entry's JSON-RPC server is listening on
+    pub port: i64,
+    /// Registry entry schema version (1 = ui-server, 2 = managed-server)
+    pub schema_version: i64,
+    /// Session ID of the foreground session for this entry
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
+    /// Friendly session name (when set)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_name: Option<String>,
+    /// ISO 8601 timestamp captured at registration
+    pub started_at: String,
+    /// Coarse lifecycle status of the foreground session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<AgentRegistryLiveTargetEntryStatus>,
+    /// Monotonic per-publisher revision counter incremented on every status update. Lets watchers detect transient flips.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_revision: Option<i64>,
+    /// Connection token (null when the target is unauthenticated)
+    #[doc(hidden)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) token: Option<String>,
+}
+
+/// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistryLogCapture {
+    /// Whether per-spawn log capture is on (false when env-disabled or open failed)
+    pub enabled: bool,
+    /// Human-readable open failure message (only set when enabled === false AND the env-disable opt-out was NOT used)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_error: Option<String>,
+    /// Categorized reason for log-open failure
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_error_reason: Option<AgentRegistryLogCaptureOpenErrorReason>,
+    /// Absolute path to the per-spawn log file (only set when enabled)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+/// `child_process.spawn` itself failed before the child entered the registry.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistrySpawnError {
+    /// Underlying errno code (e.g. ENOENT, EACCES) when available
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    /// Discriminator: child_process.spawn itself failed
+    pub kind: AgentRegistrySpawnErrorKind,
+    /// Human-readable error message
+    pub message: String,
+}
+
+/// Spawn succeeded but the child did not publish a matching managed-server entry within the timeout.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistrySpawnRegistryTimeout {
+    /// Process ID of the orphaned child (so the caller can offer 'kill the pid' guidance)
+    pub child_pid: i64,
+    /// Discriminator: spawn succeeded but child never registered
+    pub kind: AgentRegistrySpawnRegistryTimeoutKind,
+    /// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_capture: Option<AgentRegistryLogCapture>,
+}
+
+/// Inputs to spawn a managed-server child via the controller's spawn delegate.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistrySpawnRequest {
+    /// Custom or built-in agent name (e.g. 'explore'). When omitted, the child uses its own default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_name: Option<String>,
+    /// Working directory for the spawned child (must be an existing directory)
+    pub cwd: String,
+    /// Optional first user message. Forwarded to the caller (the CLI's spawn wrapper sends it post-attach via the standard LocalRpcSession.send path).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_prompt: Option<String>,
+    /// Model identifier to apply to the new session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// Friendly session name. Must satisfy validateSessionName: non-empty, no leading/trailing whitespace, <=100 chars, no control chars, no double quotes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_mode: Option<AgentRegistrySpawnPermissionMode>,
+}
+
+/// Managed-server child was spawned and registered successfully.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistrySpawnSpawned {
+    /// Full registry entry for the spawned child. Lets the controller call `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a TOCTOU window).
+    pub entry: AgentRegistryLiveTargetEntry,
+    /// If the delegate attempted to send the initial prompt and failed, the categorized error message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_prompt_error: Option<String>,
+    /// Whether the delegate already sent the initial prompt. Always omitted in the current wiring: the controller sends the prompt post-attach via the standard LocalRpcSession.send path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_prompt_sent: Option<bool>,
+    /// Discriminator: managed-server child spawned successfully
+    pub kind: AgentRegistrySpawnSpawnedKind,
+    /// Per-spawn log-capture outcome; populated from spawnLiveTarget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub log_capture: Option<AgentRegistryLogCapture>,
+}
+
+/// Synchronous pre-validation rejected the spawn request.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRegistrySpawnValidationError {
+    /// Which parameter field was invalid. Omitted when the rejection is not field-specific.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<AgentRegistrySpawnValidationErrorField>,
+    /// Discriminator: synchronous pre-validation rejected the request
+    pub kind: AgentRegistrySpawnValidationErrorKind,
+    /// Human-readable explanation; safe to surface in the UI banner. Never logged to unrestricted telemetry.
+    pub message: String,
+    /// Categorized reason for the rejection. Low-cardinality enum so telemetry can aggregate by reason without leaking raw paths or agent/model names.
+    pub reason: AgentRegistrySpawnValidationErrorReason,
+}
+
 /// Custom agents available to the session after reloading definitions from disk.
 ///
 /// <div class="warning">
@@ -606,6 +814,38 @@ pub struct AgentSelectRequest {
 pub struct AgentSelectResult {
     /// The newly selected custom agent
     pub agent: AgentInfo,
+}
+
+/// Indicates whether the operation succeeded and reports the post-mutation state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllowAllPermissionSetResult {
+    /// Authoritative allow-all state after the mutation
+    pub enabled: bool,
+    /// Whether the operation succeeded
+    pub success: bool,
+}
+
+/// Current full allow-all permission state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllowAllPermissionState {
+    /// Whether full allow-all permissions are currently active
+    pub enabled: bool,
 }
 
 /// Schema for the `CopilotUserResponseEndpoints` type.
@@ -1112,6 +1352,22 @@ pub struct CanvasOpenRequest {
     pub instance_id: String,
 }
 
+/// Session context supplied by the runtime.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasSessionContext {
+    /// Active session working directory, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
+}
+
 /// Canvas close parameters sent to the provider.
 ///
 /// <div class="warning">
@@ -1134,6 +1390,9 @@ pub struct CanvasProviderCloseRequest {
     /// Host context supplied by the runtime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<CanvasHostContext>,
+    /// Session context supplied by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<CanvasSessionContext>,
 }
 
 /// Canvas action invocation parameters sent to the provider.
@@ -1163,6 +1422,9 @@ pub struct CanvasProviderInvokeActionRequest {
     /// Host context supplied by the runtime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<CanvasHostContext>,
+    /// Session context supplied by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<CanvasSessionContext>,
 }
 
 /// Canvas open parameters sent to the provider.
@@ -1190,6 +1452,9 @@ pub struct CanvasProviderOpenRequest {
     /// Host context supplied by the runtime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host: Option<CanvasHostContext>,
+    /// Session context supplied by the runtime.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session: Option<CanvasSessionContext>,
 }
 
 /// Canvas open result returned by the provider.
@@ -4986,6 +5251,18 @@ pub struct PermissionsFolderTrustAddTrustedResult {
     pub success: bool,
 }
 
+/// No parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsGetAllowAllRequest {}
+
 /// Indicates whether the operation succeeded.
 ///
 /// <div class="warning">
@@ -5134,6 +5411,21 @@ pub struct PermissionsResetSessionApprovalsRequest {}
 pub struct PermissionsResetSessionApprovalsResult {
     /// Whether the operation succeeded
     pub success: bool,
+}
+
+/// Whether to enable full allow-all permissions for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionsSetAllowAllRequest {
+    /// Whether to enable full allow-all permissions
+    pub enabled: bool,
 }
 
 /// Allow-all toggle for tool permission requests, with an optional telemetry source.
@@ -6004,9 +6296,15 @@ pub struct SessionContextInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionMetadata {
+    /// Runtime client name that created/last resumed this session
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     /// Schema for the `SessionContext` type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<SessionContext>,
+    /// True for detached maintenance sessions that should be hidden from normal resume lists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_detached: Option<bool>,
     /// True for remote (GitHub) sessions; false for local
     pub is_remote: bool,
     /// GitHub task ID, when this local session is bound to one. Only present for local sessions exported to remote control.
@@ -6648,6 +6946,9 @@ pub struct SessionMetadataSnapshotWorkspace {
 pub struct SessionMetadataSnapshot {
     /// True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions.
     pub already_in_use: bool,
+    /// Runtime client name associated with the session (telemetry identifier).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     /// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
     pub current_mode: MetadataSnapshotCurrentMode,
     /// User-provided name supplied at session construction (via `--name`), if any. Immutable after construction.
@@ -7028,7 +7329,7 @@ pub struct SessionSizes {
     pub sizes: HashMap<String, i64>,
 }
 
-/// Optional metadata-load limit and context filter applied to the returned sessions.
+/// Optional metadata-load limit and filters applied to the returned sessions.
 ///
 /// <div class="warning">
 ///
@@ -7042,6 +7343,9 @@ pub struct SessionsListRequest {
     /// Optional filter applied to the returned sessions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<SessionListFilter>,
+    /// When true, include detached maintenance sessions. Defaults to false for user-facing session lists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_detached: Option<bool>,
     /// When provided, only the first N sessions (sorted by modification time, newest first) load full metadata; remaining sessions return basic info only. Use 0 to return only basic info for every session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata_limit: Option<i64>,
@@ -9046,6 +9350,8 @@ pub struct WorkspacesGetWorkspaceResultWorkspace {
         skip_serializing_if = "Option::is_none"
     )]
     pub chronicle_sync_dismissed: Option<bool>,
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -9850,6 +10156,8 @@ pub struct SessionWorkspacesGetWorkspaceResultWorkspace {
         skip_serializing_if = "Option::is_none"
     )]
     pub chronicle_sync_dismissed: Option<bool>,
+    #[serde(rename = "client_name", skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     #[serde(rename = "created_at", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -11174,6 +11482,38 @@ pub struct SessionPermissionsSetApproveAllResult {
     pub success: bool,
 }
 
+/// Indicates whether the operation succeeded and reports the post-mutation state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionsSetAllowAllResult {
+    /// Authoritative allow-all state after the mutation
+    pub enabled: bool,
+    /// Whether the operation succeeded
+    pub success: bool,
+}
+
+/// Current full allow-all permission state.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionsGetAllowAllResult {
+    /// Whether full allow-all permissions are currently active
+    pub enabled: bool,
+}
+
 /// Indicates whether the operation succeeded.
 ///
 /// <div class="warning">
@@ -11488,6 +11828,9 @@ pub struct SessionMetadataSnapshotResultWorkspace {
 pub struct SessionMetadataSnapshotResult {
     /// True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions.
     pub already_in_use: bool,
+    /// Runtime client name associated with the session (telemetry identifier).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_name: Option<String>,
     /// The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot')
     pub current_mode: MetadataSnapshotCurrentMode,
     /// User-provided name supplied at session construction (via `--name`), if any. Immutable after construction.
@@ -12194,6 +12537,270 @@ pub enum AgentInfoSource {
     #[default]
     #[serde(other)]
     Unknown,
+}
+
+/// Kind of attention required when status === "attention". Meaningful only when status === "attention".
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistryLiveTargetEntryAttentionKind {
+    /// Session is blocked on an unrecoverable error
+    #[serde(rename = "error")]
+    Error,
+    /// Session is waiting for a tool-permission decision
+    #[serde(rename = "permission")]
+    Permission,
+    /// Session is waiting for the user to approve or reject a plan
+    #[serde(rename = "exit_plan")]
+    ExitPlan,
+    /// Session is waiting on an elicitation prompt
+    #[serde(rename = "elicitation")]
+    Elicitation,
+    /// Session is waiting for free-form user input
+    #[serde(rename = "user_input")]
+    UserInput,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Process kind tag for the registry entry
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistryLiveTargetEntryKind {
+    /// Interactive Copilot CLI exposing a UI server (legacy/normal CLI process)
+    #[serde(rename = "ui-server")]
+    UiServer,
+    /// Headless `--server --managed-server` child spawned by a controller
+    #[serde(rename = "managed-server")]
+    ManagedServer,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// How the most recent turn ended (clean vs aborted). Lets the renderer distinguish done from done_cancelled.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistryLiveTargetEntryLastTerminalEvent {
+    /// Last turn ended cleanly (model returned a final assistant message)
+    #[serde(rename = "turn_end")]
+    TurnEnd,
+    /// Last turn was aborted (e.g. user interrupted)
+    #[serde(rename = "abort")]
+    Abort,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Coarse lifecycle status of the foreground session
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistryLiveTargetEntryStatus {
+    /// Session is actively processing a turn
+    #[serde(rename = "working")]
+    Working,
+    /// Session is idle, waiting for input
+    #[serde(rename = "waiting")]
+    Waiting,
+    /// Last turn completed successfully
+    #[serde(rename = "done")]
+    Done,
+    /// Session needs user attention (see attentionKind for the specific reason)
+    #[serde(rename = "attention")]
+    Attention,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Categorized reason for log-open failure
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistryLogCaptureOpenErrorReason {
+    /// Filesystem permission denied opening the log file
+    #[serde(rename = "permission")]
+    Permission,
+    /// No space left on device
+    #[serde(rename = "disk_full")]
+    DiskFull,
+    /// Other / uncategorized open failure
+    #[serde(rename = "other")]
+    Other,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: child_process.spawn itself failed
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnErrorKind {
+    #[serde(rename = "spawn-error")]
+    #[default]
+    SpawnError,
+}
+
+/// Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnPermissionMode {
+    /// Standard permission posture (prompts for each request)
+    #[serde(rename = "default")]
+    Default,
+    /// Full allow-all (requires the controller-local session to currently be in allow-all mode)
+    #[serde(rename = "yolo")]
+    Yolo,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: spawn succeeded but child never registered
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnRegistryTimeoutKind {
+    #[serde(rename = "registry-timeout")]
+    #[default]
+    RegistryTimeout,
+}
+
+/// Discriminator: managed-server child spawned successfully
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnSpawnedKind {
+    #[serde(rename = "spawned")]
+    #[default]
+    Spawned,
+}
+
+/// Which parameter field was invalid. Omitted when the rejection is not field-specific.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnValidationErrorField {
+    /// The cwd parameter
+    #[serde(rename = "cwd")]
+    Cwd,
+    /// The session name parameter
+    #[serde(rename = "name")]
+    Name,
+    /// The agentName parameter
+    #[serde(rename = "agentName")]
+    AgentName,
+    /// The model parameter
+    #[serde(rename = "model")]
+    Model,
+    /// The permissionMode parameter
+    #[serde(rename = "permissionMode")]
+    PermissionMode,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Discriminator: synchronous pre-validation rejected the request
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnValidationErrorKind {
+    #[serde(rename = "validation-error")]
+    #[default]
+    ValidationError,
+}
+
+/// Categorized reason for the rejection. Low-cardinality enum so telemetry can aggregate by reason without leaking raw paths or agent/model names.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentRegistrySpawnValidationErrorReason {
+    /// Provided cwd does not exist on disk
+    #[serde(rename = "cwd-not-found")]
+    CwdNotFound,
+    /// Provided cwd exists but is not a directory
+    #[serde(rename = "cwd-not-directory")]
+    CwdNotDirectory,
+    /// Session name failed validateSessionName
+    #[serde(rename = "invalid-name")]
+    InvalidName,
+    /// Requested agent name was not found in builtin or custom agents
+    #[serde(rename = "unknown-agent")]
+    UnknownAgent,
+    /// Requested model is not available to this session
+    #[serde(rename = "unknown-model")]
+    UnknownModel,
+    /// Caller asked for permissionMode='yolo' but the controller is not currently in allow-all mode
+    #[serde(rename = "yolo-not-allowed")]
+    YoloNotAllowed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Outcome of an agentRegistry.spawn call.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AgentRegistrySpawnResult {
+    Spawned(AgentRegistrySpawnSpawned),
+    SpawnError(AgentRegistrySpawnError),
+    RegistryTimeout(AgentRegistrySpawnRegistryTimeout),
+    ValidationError(AgentRegistrySpawnValidationError),
 }
 
 /// API-key authentication for non-GitHub LLM providers (e.g. when running BYOM-style).

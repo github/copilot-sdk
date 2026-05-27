@@ -7,6 +7,7 @@
 pub mod canvas;
 mod canvas_dispatch;
 /// Bundled CLI binary extraction and caching.
+#[cfg(feature = "bundled-cli")]
 pub(crate) mod embeddedcli;
 /// Event handler traits for session lifecycle.
 pub mod handler;
@@ -15,7 +16,7 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
-/// GitHub Copilot CLI binary resolution (env var, embedded, PATH search).
+/// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
 pub(crate) mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
@@ -313,7 +314,7 @@ pub enum Transport {
 /// How the SDK locates the GitHub Copilot CLI binary.
 #[derive(Debug, Clone, Default)]
 pub enum CliProgram {
-    /// Auto-resolve: `COPILOT_CLI_PATH` → embedded CLI → PATH + common locations.
+    /// Auto-resolve: `COPILOT_CLI_PATH` → embedded CLI → dev cache.
     /// This is the default.
     #[default]
     Resolve,
@@ -330,12 +331,12 @@ impl From<PathBuf> for CliProgram {
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
-/// uses the bundled Copilot CLI that was embedded at build time (via the
-/// default `bundled-cli` cargo feature).
+/// uses `COPILOT_CLI_PATH` when set to a real file. Otherwise it uses the
+/// bundled Copilot CLI when the default `bundled-cli` cargo feature is enabled,
+/// or the build-time extracted dev-cache CLI when that feature is disabled.
 ///
 /// Set `program` to [`CliProgram::Path`] to use an explicit binary instead.
-/// This is the required path if you've opted out of bundling via
-/// `default-features = false`.
+/// This skips auto-resolution entirely.
 #[non_exhaustive]
 pub struct ClientOptions {
     /// How to locate the CLI binary.
@@ -416,15 +417,20 @@ pub struct ClientOptions {
     /// first use.
     ///
     /// When `None` (the default), the SDK extracts the embedded CLI to
-    /// `<platform cache dir>/github-copilot-sdk-{version}/copilot[.exe]`,
+    /// `<platform cache dir>/github-copilot-sdk/cli/<version>/copilot[.exe]`,
     /// where the cache dir is [`dirs::cache_dir()`] —
     /// `%LOCALAPPDATA%` on Windows, `~/Library/Caches/` on macOS,
     /// `$XDG_CACHE_HOME` (or `~/.cache/`) on Linux. Use this knob to
     /// redirect the extraction (e.g. to a session-scoped temp directory in
     /// CI runners) without changing the global cache layout.
     ///
-    /// Ignored when the SDK was built without a bundled CLI (i.e. with
-    /// `default-features = false` to disable the `bundled-cli` feature).
+    /// Only applies when the `bundled-cli` cargo feature is on (the
+    /// default). With `bundled-cli` disabled (`default-features = false`)
+    /// there is no archive to re-extract at runtime — the binary lives
+    /// at a build-time-known conventional path. To relocate that
+    /// extraction, set `COPILOT_CLI_EXTRACT_DIR` (honored symmetrically
+    /// at build and runtime); to point the runtime at a different
+    /// binary altogether, use [`CliProgram::Path`] or `COPILOT_CLI_PATH`.
     pub bundled_cli_extract_dir: Option<PathBuf>,
 }
 
@@ -827,6 +833,13 @@ impl ClientOptions {
 
     /// Override the directory where the bundled CLI binary is extracted on
     /// first use. See [`Self::bundled_cli_extract_dir`].
+    ///
+    /// Only applies when the `bundled-cli` cargo feature is on. With
+    /// `bundled-cli` disabled (`default-features = false`), set
+    /// `COPILOT_CLI_EXTRACT_DIR` to relocate the build-time extraction
+    /// (honored symmetrically at build and runtime), or use
+    /// [`CliProgram::Path`] / `COPILOT_CLI_PATH` to point at a different
+    /// binary at runtime.
     pub fn with_bundled_cli_extract_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.bundled_cli_extract_dir = Some(dir.into());
         self

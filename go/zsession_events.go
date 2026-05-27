@@ -28,6 +28,8 @@ type (
 	AutoModeSwitchCompletedData                                    = rpc.AutoModeSwitchCompletedData
 	AutoModeSwitchRequestedData                                    = rpc.AutoModeSwitchRequestedData
 	AutoModeSwitchResponse                                         = rpc.AutoModeSwitchResponse
+	AutopilotObjectiveChangedOperation                             = rpc.AutopilotObjectiveChangedOperation
+	AutopilotObjectiveChangedStatus                                = rpc.AutopilotObjectiveChangedStatus
 	CanvasOpenedAvailability                                       = rpc.CanvasOpenedAvailability
 	CanvasRegistryChangedCanvas                                    = rpc.CanvasRegistryChangedCanvas
 	CanvasRegistryChangedCanvasAction                              = rpc.CanvasRegistryChangedCanvasAction
@@ -67,6 +69,7 @@ type (
 	HandoffSourceType                                              = rpc.HandoffSourceType
 	HookEndData                                                    = rpc.HookEndData
 	HookEndError                                                   = rpc.HookEndError
+	HookProgressData                                               = rpc.HookProgressData
 	HookStartData                                                  = rpc.HookStartData
 	McpAppToolCallCompleteData                                     = rpc.McpAppToolCallCompleteData
 	McpAppToolCallCompleteError                                    = rpc.McpAppToolCallCompleteError
@@ -140,6 +143,7 @@ type (
 	ReasoningSummary                                               = rpc.ReasoningSummary
 	SamplingCompletedData                                          = rpc.SamplingCompletedData
 	SamplingRequestedData                                          = rpc.SamplingRequestedData
+	SessionAutopilotObjectiveChangedData                           = rpc.SessionAutopilotObjectiveChangedData
 	SessionBackgroundTasksChangedData                              = rpc.SessionBackgroundTasksChangedData
 	SessionCanvasOpenedData                                        = rpc.SessionCanvasOpenedData
 	SessionCanvasRegistryChangedData                               = rpc.SessionCanvasRegistryChangedData
@@ -162,6 +166,7 @@ type (
 	SessionModeChangedData                                         = rpc.SessionModeChangedData
 	SessionModelChangeData                                         = rpc.SessionModelChangeData
 	SessionModelChangeDataContextTier                              = rpc.SessionModelChangeDataContextTier
+	SessionPermissionsChangedData                                  = rpc.SessionPermissionsChangedData
 	SessionPlanChangedData                                         = rpc.SessionPlanChangedData
 	SessionRemoteSteerableChangedData                              = rpc.SessionRemoteSteerableChangedData
 	SessionResumeData                                              = rpc.SessionResumeData
@@ -287,6 +292,13 @@ const (
 	AutoModeSwitchResponseNo                                           = rpc.AutoModeSwitchResponseNo
 	AutoModeSwitchResponseYes                                          = rpc.AutoModeSwitchResponseYes
 	AutoModeSwitchResponseYesAlways                                    = rpc.AutoModeSwitchResponseYesAlways
+	AutopilotObjectiveChangedOperationCreate                           = rpc.AutopilotObjectiveChangedOperationCreate
+	AutopilotObjectiveChangedOperationDelete                           = rpc.AutopilotObjectiveChangedOperationDelete
+	AutopilotObjectiveChangedOperationUpdate                           = rpc.AutopilotObjectiveChangedOperationUpdate
+	AutopilotObjectiveChangedStatusActive                              = rpc.AutopilotObjectiveChangedStatusActive
+	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
+	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
+	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
 	CanvasOpenedAvailabilityReady                                      = rpc.CanvasOpenedAvailabilityReady
 	CanvasOpenedAvailabilityStale                                      = rpc.CanvasOpenedAvailabilityStale
 	ElicitationCompletedActionAccept                                   = rpc.ElicitationCompletedActionAccept
@@ -393,6 +405,7 @@ const (
 	SessionEventTypeExternalToolCompleted                              = rpc.SessionEventTypeExternalToolCompleted
 	SessionEventTypeExternalToolRequested                              = rpc.SessionEventTypeExternalToolRequested
 	SessionEventTypeHookEnd                                            = rpc.SessionEventTypeHookEnd
+	SessionEventTypeHookProgress                                       = rpc.SessionEventTypeHookProgress
 	SessionEventTypeHookStart                                          = rpc.SessionEventTypeHookStart
 	SessionEventTypeMcpAppToolCallComplete                             = rpc.SessionEventTypeMcpAppToolCallComplete
 	SessionEventTypeMcpOauthCompleted                                  = rpc.SessionEventTypeMcpOauthCompleted
@@ -403,6 +416,7 @@ const (
 	SessionEventTypePermissionRequested                                = rpc.SessionEventTypePermissionRequested
 	SessionEventTypeSamplingCompleted                                  = rpc.SessionEventTypeSamplingCompleted
 	SessionEventTypeSamplingRequested                                  = rpc.SessionEventTypeSamplingRequested
+	SessionEventTypeSessionAutopilotObjectiveChanged                   = rpc.SessionEventTypeSessionAutopilotObjectiveChanged
 	SessionEventTypeSessionBackgroundTasksChanged                      = rpc.SessionEventTypeSessionBackgroundTasksChanged
 	SessionEventTypeSessionCanvasOpened                                = rpc.SessionEventTypeSessionCanvasOpened
 	SessionEventTypeSessionCanvasRegistryChanged                       = rpc.SessionEventTypeSessionCanvasRegistryChanged
@@ -420,6 +434,7 @@ const (
 	SessionEventTypeSessionMcpServerStatusChanged                      = rpc.SessionEventTypeSessionMcpServerStatusChanged
 	SessionEventTypeSessionModeChanged                                 = rpc.SessionEventTypeSessionModeChanged
 	SessionEventTypeSessionModelChange                                 = rpc.SessionEventTypeSessionModelChange
+	SessionEventTypeSessionPermissionsChanged                          = rpc.SessionEventTypeSessionPermissionsChanged
 	SessionEventTypeSessionPlanChanged                                 = rpc.SessionEventTypeSessionPlanChanged
 	SessionEventTypeSessionRemoteSteerableChanged                      = rpc.SessionEventTypeSessionRemoteSteerableChanged
 	SessionEventTypeSessionResume                                      = rpc.SessionEventTypeSessionResume

@@ -356,6 +356,9 @@ impl Session {
         if let Some(m) = opts.mode {
             params["mode"] = serde_json::to_value(m)?;
         }
+        if let Some(am) = opts.agent_mode {
+            params["agentMode"] = serde_json::to_value(am)?;
+        }
         if let Some(mut a) = opts.attachments {
             ensure_attachment_display_names(&mut a);
             params["attachments"] = serde_json::to_value(a)?;
