@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: session-events.schema.json
+
+package com.github.copilot.generated;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import javax.annotation.processing.Generated;
+
+/**
+ * Session event "auto_mode_switch.requested". Auto mode switch request notification requiring user approval
+ *
+ * @since 1.0.0
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+public final class AutoModeSwitchRequestedEvent extends SessionEvent {
+
+    @Override
+    public String getType() { return "auto_mode_switch.requested"; }
+
+    @JsonProperty("data")
+    private AutoModeSwitchRequestedEventData data;
+
+    public AutoModeSwitchRequestedEventData getData() { return data; }
+    public void setData(AutoModeSwitchRequestedEventData data) { this.data = data; }
+
+    /** Data payload for {@link AutoModeSwitchRequestedEvent}. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record AutoModeSwitchRequestedEventData(
+        /** Unique identifier for this request; used to respond via session.respondToAutoModeSwitch() */
+        @JsonProperty("requestId") String requestId,
+        /** The rate limit error code that triggered this request */
+        @JsonProperty("errorCode") String errorCode,
+        /** Seconds until the rate limit resets, when known. Lets clients render a humanized reset time alongside the prompt. */
+        @JsonProperty("retryAfterSeconds") Long retryAfterSeconds
+    ) {
+    }
+}

@@ -177,7 +177,7 @@ For each attempt:
 2. **Read the generated types** to understand what changed. Check the generated files that the handwritten code references:
    ```bash
    # Example: check what a generated type looks like now
-   cat java/src/generated/java/com/github/copilot/sdk/generated/rpc/<TypeName>.java
+   cat java/src/generated/java/com/github/copilot/generated/rpc/<TypeName>.java
    ```
 
 3. **Fix the affected source files.** You may modify files under:

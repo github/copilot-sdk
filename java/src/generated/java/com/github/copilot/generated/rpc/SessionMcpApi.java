@@ -1,0 +1,141 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+// AUTO-GENERATED FILE - DO NOT EDIT
+// Generated from: api.schema.json
+
+package com.github.copilot.generated.rpc;
+
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.processing.Generated;
+
+/**
+ * API methods for the {@code mcp} namespace.
+ *
+ * @since 1.0.0
+ */
+@javax.annotation.processing.Generated("copilot-sdk-codegen")
+public final class SessionMcpApi {
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = RpcMapper.INSTANCE;
+
+    private final RpcCaller caller;
+    private final String sessionId;
+
+    /** API methods for the {@code mcp.oauth} sub-namespace. */
+    public final SessionMcpOauthApi oauth;
+
+    /** @param caller the RPC transport function */
+    SessionMcpApi(RpcCaller caller, String sessionId) {
+        this.caller = caller;
+        this.sessionId = sessionId;
+        this.oauth = new SessionMcpOauthApi(caller, sessionId);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpListResult> list() {
+        return caller.invoke("session.mcp.list", java.util.Map.of("sessionId", this.sessionId), SessionMcpListResult.class);
+    }
+
+    /**
+     * Name of the MCP server to enable for the session.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> enable(SessionMcpEnableParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.enable", _p, Void.class);
+    }
+
+    /**
+     * Name of the MCP server to disable for the session.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> disable(SessionMcpDisableParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.disable", _p, Void.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<Void> reload() {
+        return caller.invoke("session.mcp.reload", java.util.Map.of("sessionId", this.sessionId), Void.class);
+    }
+
+    /**
+     * Identifiers and raw MCP CreateMessageRequest params used to run a sampling inference.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpExecuteSamplingResult> executeSampling(SessionMcpExecuteSamplingParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.executeSampling", _p, SessionMcpExecuteSamplingResult.class);
+    }
+
+    /**
+     * The requestId previously passed to executeSampling that should be cancelled.
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpCancelSamplingExecutionResult> cancelSamplingExecution(SessionMcpCancelSamplingExecutionParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.cancelSamplingExecution", _p, SessionMcpCancelSamplingExecutionResult.class);
+    }
+
+    /**
+     * Mode controlling how MCP server env values are resolved (`direct` or `indirect`).
+     * <p>
+     * Note: the {@code sessionId} field in the params record is overridden
+     * by the session-scoped wrapper; any value provided is ignored.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpSetEnvValueModeResult> setEnvValueMode(SessionMcpSetEnvValueModeParams params) {
+        com.fasterxml.jackson.databind.node.ObjectNode _p = MAPPER.valueToTree(params);
+        _p.put("sessionId", this.sessionId);
+        return caller.invoke("session.mcp.setEnvValueMode", _p, SessionMcpSetEnvValueModeResult.class);
+    }
+
+    /**
+     * Identifies the target session.
+     *
+     * @apiNote This method is experimental and may change in a future version.
+     * @since 1.0.0
+     */
+    public CompletableFuture<SessionMcpRemoveGitHubResult> removeGitHub() {
+        return caller.invoke("session.mcp.removeGitHub", java.util.Map.of("sessionId", this.sessionId), SessionMcpRemoveGitHubResult.class);
+    }
+
+}
