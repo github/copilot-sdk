@@ -67,6 +67,35 @@ struct PreparedSessionRuntime {
     has_hooks: bool,
 }
 
+enum CreateSessionKind {
+    Local { session_id: SessionId },
+    Cloud,
+}
+
+struct PreparedCreateSession {
+    kind: CreateSessionKind,
+    params: serde_json::Value,
+    runtime: PreparedSessionRuntime,
+    tools_count: usize,
+    commands_count: usize,
+    has_hooks: bool,
+}
+
+struct CreateSessionStats {
+    tools_count: usize,
+    commands_count: usize,
+    has_hooks: bool,
+    total_start: Instant,
+}
+
+struct RunningSession {
+    event_loop: JoinHandle<()>,
+    shutdown: CancellationToken,
+    idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
+    capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+}
+
 /// Shared state between a [`Session`] and its event loop, used by [`Session::send_and_wait`].
 struct IdleWaiter {
     tx: oneshot::Sender<Result<Option<SessionEvent>, Error>>,
@@ -806,260 +835,29 @@ impl Client {
     /// (Mission Control) session instead of a local session. The runtime
     /// assigns the session ID for cloud sessions, so callers must not set
     /// [`SessionConfig::session_id`] or [`SessionConfig::provider`].
-    pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
-        if config.cloud.is_some() {
-            return self.create_cloud_session(config).await;
-        }
-
+    pub async fn create_session(&self, config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let session_id = config
-            .session_id
-            .clone()
-            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
-        config.session_id = Some(session_id.clone());
-        if config.hooks_handler.is_some() && config.hooks.is_none() {
-            config.hooks = Some(true);
-        }
-        if let Some(transforms) = config.system_message_transform.clone() {
-            inject_transform_sections(&mut config, transforms.as_ref());
-        }
-        let (wire, runtime) = config.into_wire(session_id.clone())?;
-        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
-
-        let PreparedSessionRuntime {
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            commands_count,
-            has_hooks,
-        } = prepare_session_runtime(self, runtime)?;
-
-        let mut params = serde_json::to_value(&wire)?;
-        let trace_ctx = self.resolve_trace_context().await;
-        inject_trace_context(&mut params, &trace_ctx);
-
-        let setup_start = Instant::now();
-        let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
-        let channels = self.register_session(&session_id);
-        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
-        tracing::debug!(
-            elapsed_ms = setup_start.elapsed().as_millis(),
-            session_id = %session_id,
+        let PreparedCreateSession {
+            kind,
+            params,
+            runtime,
             tools_count,
             commands_count,
             has_hooks,
-            "Client::create_session local setup complete"
-        );
-
-        let rpc_start = Instant::now();
-        let result = match self.call("session.create", Some(params)).await {
-            Ok(result) => result,
-            Err(error) => {
-                registration.cleanup(event_loop).await;
-                return Err(error);
-            }
-        };
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            "Client::create_session session creation request completed successfully"
-        );
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                registration.cleanup(event_loop).await;
-                return Err(error.into());
-            }
-        };
-        if create_result.session_id != session_id {
-            registration.cleanup(event_loop).await;
-            return Err(Error::Session(SessionError::SessionIdMismatch {
-                requested: session_id,
-                returned: create_result.session_id,
-            }));
-        }
-        *capabilities.write() = create_result.capabilities.unwrap_or_default();
-
-        tracing::debug!(
-            elapsed_ms = total_start.elapsed().as_millis(),
-            session_id = %session_id,
-            "Client::create_session complete"
-        );
-        registration.disarm();
-        Ok(Session {
-            id: session_id,
-            cwd: self.cwd().clone(),
-            workspace_path: create_result.workspace_path,
-            remote_url: create_result.remote_url,
-            client: self.clone(),
-            event_loop: ParkingLotMutex::new(Some(event_loop)),
-            shutdown,
-            idle_waiter,
-            capabilities,
-            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
-            event_tx,
-        })
-    }
-
-    async fn create_cloud_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
-        let total_start = Instant::now();
-        if config.cloud.is_none() {
-            return Err(Error::InvalidConfig(
-                "cloud session creation requires a config built with SessionConfig::with_cloud"
-                    .to_string(),
-            ));
-        }
-        if config.session_id.is_some() {
-            return Err(Error::InvalidConfig(
-                "cloud session creation does not accept a caller-provided \
-                 session_id; the runtime assigns the session id"
-                    .to_string(),
-            ));
-        }
-        if config.provider.is_some() {
-            return Err(Error::InvalidConfig(
-                "cloud session creation does not accept a caller-provided \
-                 provider; the runtime selects the provider"
-                    .to_string(),
-            ));
-        }
-        if config.hooks_handler.is_some() && config.hooks.is_none() {
-            config.hooks = Some(true);
-        }
-        if let Some(transforms) = config.system_message_transform.clone() {
-            inject_transform_sections(&mut config, transforms.as_ref());
-        }
-        let (wire, runtime) = config.into_cloud_wire()?;
-        let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
-
-        let PreparedSessionRuntime {
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            commands_count,
-            has_hooks,
-        } = prepare_session_runtime(self, runtime)?;
-
-        let mut params = serde_json::to_value(&wire)?;
-        let trace_ctx = self.resolve_trace_context().await;
-        inject_trace_context(&mut params, &trace_ctx);
-
-        let setup_start = Instant::now();
-        tracing::debug!(
-            elapsed_ms = setup_start.elapsed().as_millis(),
+        } = prepare_create_session_request(self, config).await?;
+        let stats = CreateSessionStats {
             tools_count,
             commands_count,
             has_hooks,
-            "Client::create_session cloud setup complete"
-        );
-
-        let rpc_start = Instant::now();
-        let result = self.call("session.create", Some(params)).await?;
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            "Client::create_session cloud creation request completed successfully"
-        );
-        // Pre-extract the runtime-assigned session id from the raw response so
-        // we can `session.destroy` it on decode failure without cloning the
-        // whole response. On success we still consume `result` to decode.
-        let recovered_session_id = result
-            .get("sessionId")
-            .and_then(|value| value.as_str())
-            .map(SessionId::from);
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                if let Some(recovered_id) = recovered_session_id {
-                    if let Err(destroy_err) = self
-                        .call(
-                            "session.destroy",
-                            Some(serde_json::json!({ "sessionId": recovered_id })),
-                        )
-                        .await
-                    {
-                        tracing::warn!(
-                            session_id = %recovered_id,
-                            error = %destroy_err,
-                            "failed to destroy cloud session after create response decode failed"
-                        );
-                    }
-                } else {
-                    tracing::warn!(
-                        "Client::create_session cloud decode failure with no recoverable session id; \
-                         skipping session.destroy (runtime session may leak)"
-                    );
-                }
-                return Err(error.into());
-            }
+            total_start,
         };
-        let session_id = create_result.session_id.clone();
 
-        let capabilities = Arc::new(parking_lot::RwLock::new(
-            create_result.capabilities.unwrap_or_default(),
-        ));
-        let channels = self.register_session(&session_id);
-
-        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
-
-        tracing::debug!(
-            elapsed_ms = total_start.elapsed().as_millis(),
-            session_id = %session_id,
-            "Client::create_session cloud complete"
-        );
-        Ok(Session {
-            id: session_id,
-            cwd: self.cwd().clone(),
-            workspace_path: create_result.workspace_path,
-            remote_url: create_result.remote_url,
-            client: self.clone(),
-            event_loop: ParkingLotMutex::new(Some(event_loop)),
-            shutdown,
-            idle_waiter,
-            capabilities,
-            event_tx,
-            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
-        })
+        match kind {
+            CreateSessionKind::Local { session_id } => {
+                create_local_session(self, session_id, params, runtime, stats).await
+            }
+            CreateSessionKind::Cloud => create_cloud_session(self, params, runtime, stats).await,
+        }
     }
 
     /// Resume an existing session on the CLI.
@@ -1211,6 +1009,279 @@ impl Client {
             open_canvases,
             event_tx,
         })
+    }
+}
+
+async fn prepare_create_session_request(
+    client: &Client,
+    mut config: SessionConfig,
+) -> Result<PreparedCreateSession, Error> {
+    let kind = if config.cloud.is_some() {
+        if config.session_id.is_some() {
+            return Err(Error::InvalidConfig(
+                "cloud session creation does not accept a caller-provided \
+                 session_id; the runtime assigns the session id"
+                    .to_string(),
+            ));
+        }
+        if config.provider.is_some() {
+            return Err(Error::InvalidConfig(
+                "cloud session creation does not accept a caller-provided \
+                 provider; the runtime selects the provider"
+                    .to_string(),
+            ));
+        }
+        CreateSessionKind::Cloud
+    } else {
+        let session_id = config
+            .session_id
+            .clone()
+            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
+        config.session_id = Some(session_id.clone());
+        CreateSessionKind::Local { session_id }
+    };
+
+    if config.hooks_handler.is_some() && config.hooks.is_none() {
+        config.hooks = Some(true);
+    }
+    if let Some(transforms) = config.system_message_transform.clone() {
+        inject_transform_sections(&mut config, transforms.as_ref());
+    }
+
+    let (wire, runtime) = match &kind {
+        CreateSessionKind::Local { session_id } => config.into_wire(session_id.clone())?,
+        CreateSessionKind::Cloud => config.into_cloud_wire()?,
+    };
+    let tools_count = wire.tools.as_ref().map_or(0, Vec::len);
+    let runtime = prepare_session_runtime(client, runtime)?;
+    let commands_count = runtime.commands_count;
+    let has_hooks = runtime.has_hooks;
+
+    let mut params = serde_json::to_value(&wire)?;
+    let trace_ctx = client.resolve_trace_context().await;
+    inject_trace_context(&mut params, &trace_ctx);
+
+    Ok(PreparedCreateSession {
+        kind,
+        params,
+        runtime,
+        tools_count,
+        commands_count,
+        has_hooks,
+    })
+}
+
+async fn create_local_session(
+    client: &Client,
+    session_id: SessionId,
+    params: serde_json::Value,
+    runtime: PreparedSessionRuntime,
+    stats: CreateSessionStats,
+) -> Result<Session, Error> {
+    let setup_start = Instant::now();
+    let running = start_registered_session(client, &session_id, runtime);
+    let mut registration = PendingSessionRegistration::new(
+        client.clone(),
+        session_id.clone(),
+        running.shutdown.clone(),
+    );
+    tracing::debug!(
+        elapsed_ms = setup_start.elapsed().as_millis(),
+        session_id = %session_id,
+        tools_count = stats.tools_count,
+        commands_count = stats.commands_count,
+        has_hooks = stats.has_hooks,
+        "Client::create_session local setup complete"
+    );
+
+    let rpc_start = Instant::now();
+    let result = match client.call("session.create", Some(params)).await {
+        Ok(result) => result,
+        Err(error) => {
+            registration.cleanup(running.event_loop).await;
+            return Err(error);
+        }
+    };
+    tracing::debug!(
+        elapsed_ms = rpc_start.elapsed().as_millis(),
+        "Client::create_session session creation request completed successfully"
+    );
+    let create_result: CreateSessionResult = match serde_json::from_value(result) {
+        Ok(result) => result,
+        Err(error) => {
+            registration.cleanup(running.event_loop).await;
+            return Err(error.into());
+        }
+    };
+    if create_result.session_id != session_id {
+        registration.cleanup(running.event_loop).await;
+        return Err(Error::Session(SessionError::SessionIdMismatch {
+            requested: session_id,
+            returned: create_result.session_id,
+        }));
+    }
+
+    tracing::debug!(
+        elapsed_ms = stats.total_start.elapsed().as_millis(),
+        session_id = %session_id,
+        "Client::create_session complete"
+    );
+    registration.disarm();
+    Ok(session_from_create_result(
+        client,
+        session_id,
+        create_result,
+        running,
+    ))
+}
+
+async fn create_cloud_session(
+    client: &Client,
+    params: serde_json::Value,
+    runtime: PreparedSessionRuntime,
+    stats: CreateSessionStats,
+) -> Result<Session, Error> {
+    let setup_start = Instant::now();
+    tracing::debug!(
+        elapsed_ms = setup_start.elapsed().as_millis(),
+        tools_count = stats.tools_count,
+        commands_count = stats.commands_count,
+        has_hooks = stats.has_hooks,
+        "Client::create_session cloud setup complete"
+    );
+
+    let rpc_start = Instant::now();
+    let result = client.call("session.create", Some(params)).await?;
+    tracing::debug!(
+        elapsed_ms = rpc_start.elapsed().as_millis(),
+        "Client::create_session cloud creation request completed successfully"
+    );
+    let create_result = decode_cloud_create_result(client, result).await?;
+    let session_id = create_result.session_id.clone();
+    let running = start_registered_session(client, &session_id, runtime);
+
+    tracing::debug!(
+        elapsed_ms = stats.total_start.elapsed().as_millis(),
+        session_id = %session_id,
+        "Client::create_session cloud complete"
+    );
+    Ok(session_from_create_result(
+        client,
+        session_id,
+        create_result,
+        running,
+    ))
+}
+
+async fn decode_cloud_create_result(
+    client: &Client,
+    result: serde_json::Value,
+) -> Result<CreateSessionResult, Error> {
+    let recovered_session_id = result
+        .get("sessionId")
+        .and_then(|value| value.as_str())
+        .map(SessionId::from);
+    match serde_json::from_value(result) {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            if let Some(recovered_id) = recovered_session_id {
+                if let Err(destroy_err) = client
+                    .call(
+                        "session.destroy",
+                        Some(serde_json::json!({ "sessionId": recovered_id })),
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        session_id = %recovered_id,
+                        error = %destroy_err,
+                        "failed to destroy cloud session after create response decode failed"
+                    );
+                }
+            } else {
+                tracing::warn!(
+                    "Client::create_session cloud decode failure with no recoverable session id; \
+                     skipping session.destroy (runtime session may leak)"
+                );
+            }
+            Err(error.into())
+        }
+    }
+}
+
+fn start_registered_session(
+    client: &Client,
+    session_id: &SessionId,
+    runtime: PreparedSessionRuntime,
+) -> RunningSession {
+    let PreparedSessionRuntime {
+        handlers,
+        hooks,
+        transforms,
+        command_handlers,
+        canvas_handler,
+        session_fs_provider,
+        commands_count: _,
+        has_hooks: _,
+    } = runtime;
+
+    let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
+    let channels = client.register_session(session_id);
+    let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+    let shutdown = CancellationToken::new();
+    let (event_tx, _) = tokio::sync::broadcast::channel(512);
+    let event_loop = spawn_event_loop(
+        session_id.clone(),
+        client.clone(),
+        handlers,
+        hooks,
+        transforms,
+        command_handlers,
+        canvas_handler,
+        session_fs_provider,
+        channels,
+        idle_waiter.clone(),
+        capabilities.clone(),
+        event_tx.clone(),
+        shutdown.clone(),
+    );
+
+    RunningSession {
+        event_loop,
+        shutdown,
+        idle_waiter,
+        capabilities,
+        event_tx,
+    }
+}
+
+fn session_from_create_result(
+    client: &Client,
+    session_id: SessionId,
+    create_result: CreateSessionResult,
+    running: RunningSession,
+) -> Session {
+    let RunningSession {
+        event_loop,
+        shutdown,
+        idle_waiter,
+        capabilities,
+        event_tx,
+    } = running;
+    *capabilities.write() = create_result.capabilities.unwrap_or_default();
+
+    Session {
+        id: session_id,
+        cwd: client.cwd().clone(),
+        workspace_path: create_result.workspace_path,
+        remote_url: create_result.remote_url,
+        client: client.clone(),
+        event_loop: ParkingLotMutex::new(Some(event_loop)),
+        shutdown,
+        idle_waiter,
+        capabilities,
+        open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
+        event_tx,
     }
 }
 
