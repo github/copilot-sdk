@@ -193,9 +193,3 @@ MIT — see [LICENSE](LICENSE) for details.
 ## Acknowledgement
 
 - Initially developed with Copilot and [Bruno Borges](https://www.linkedin.com/in/brunocborges/).
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=github/copilot-sdk-java&type=Date)](https://www.star-history.com/#github/copilot-sdk-java&Date)
-
-⭐ Drop a star if you find this useful!

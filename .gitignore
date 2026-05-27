@@ -2,6 +2,7 @@
 # Documentation validation output
 docs/.validation/
 .DS_Store
+changebundle.md
 
 
 # Visual Studio

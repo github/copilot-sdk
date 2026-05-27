@@ -169,8 +169,8 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 2. **Archive** `copilot-sdk-java` repo (make read-only).
 3. **Update external references**:
    - ✅ Maven Central POM `<scm>` URLs
-   - README badges pointing to the new repo
-   - Javadoc.io configuration
+   - ✅ README badges pointing to the new repo
+   - ✅ Javadoc.io configuration
    - Any links in copilot documentation
 4. **Remove duplicate resources** that were merged rather than moved.
 5. **Run full CI** in monorepo to validate everything.
