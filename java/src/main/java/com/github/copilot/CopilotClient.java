@@ -515,6 +515,11 @@ public final class CopilotClient implements AutoCloseable {
                                 });
                     }).exceptionally(ex -> {
                         sessions.remove(sessionId);
+                        // Also remove the re-keyed entry if the server returned a different ID
+                        String activeId = session.getSessionId();
+                        if (!sessionId.equals(activeId)) {
+                            sessions.remove(activeId);
+                        }
                         LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
                                 "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId=" + sessionId,
                                 totalNanos);
@@ -622,6 +627,11 @@ public final class CopilotClient implements AutoCloseable {
                                 });
                     }).exceptionally(ex -> {
                         sessions.remove(sessionId);
+                        // Also remove the re-keyed entry if the server returned a different ID
+                        String activeId = session.getSessionId();
+                        if (!sessionId.equals(activeId)) {
+                            sessions.remove(activeId);
+                        }
                         LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
                                 "CopilotClient.resumeSession failed. Elapsed={Elapsed}, SessionId=" + sessionId,
                                 totalNanos);
@@ -739,6 +749,7 @@ public final class CopilotClient implements AutoCloseable {
             // Best-effort disconnect so we don't leak it (in empty mode it would
             // otherwise stay alive with permissive defaults).
             LOG.log(Level.WARNING, "session.options.update failed for session " + session.getSessionId(), ex);
+            sessions.remove(session.getSessionId());
             try {
                 session.close();
             } catch (Exception closeEx) {
