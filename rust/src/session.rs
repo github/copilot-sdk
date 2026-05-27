@@ -109,6 +109,15 @@ impl PendingSessionRegistration {
     }
 }
 
+struct SessionRuntimeParts {
+    session_id: SessionId,
+    event_loop: JoinHandle<()>,
+    shutdown: CancellationToken,
+    idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
+    capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
+}
+
 impl Drop for PendingSessionRegistration {
     fn drop(&mut self) {
         if !self.disarmed {
@@ -787,6 +796,7 @@ impl Client {
     /// broadcast (and silently skips dispatch if one arrives anyway).
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
+        let is_cloud_create = config.cloud.is_some();
         let session_id = config
             .session_id
             .clone()
@@ -798,7 +808,10 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
-        let (wire, mut runtime) = config.into_wire(session_id.clone())?;
+        let (mut wire, mut runtime) = config.into_wire(session_id.clone())?;
+        if is_cloud_create {
+            wire.session_id = None;
+        }
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -839,28 +852,58 @@ impl Client {
         inject_trace_context(&mut params, &trace_ctx);
 
         let setup_start = Instant::now();
-        let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
-        let channels = self.register_session(&session_id);
-        let idle_waiter = Arc::new(ParkingLotMutex::new(None));
-        let shutdown = CancellationToken::new();
-        let (event_tx, _) = tokio::sync::broadcast::channel(512);
-        let event_loop = spawn_event_loop(
-            session_id.clone(),
-            self.clone(),
-            handlers,
-            hooks,
-            transforms,
-            command_handlers,
-            canvas_handler,
-            session_fs_provider,
-            channels,
-            idle_waiter.clone(),
-            capabilities.clone(),
-            event_tx.clone(),
-            shutdown.clone(),
-        );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
+        let materialized_cloud_session: Arc<ParkingLotMutex<Option<SessionRuntimeParts>>> =
+            Arc::new(ParkingLotMutex::new(None));
+        let mut local_registration: Option<PendingSessionRegistration> = None;
+
+        if is_cloud_create {
+            self.inner.router.ensure_started(
+                &self.inner.notification_tx,
+                &self.inner.request_rx,
+                &self.inner.pending_cloud_creates,
+            );
+            let materialized = Arc::clone(&materialized_cloud_session);
+            let client = self.clone();
+            let handlers = handlers.clone();
+            let hooks = hooks.clone();
+            let transforms = transforms.clone();
+            let command_handlers = Arc::clone(&command_handlers);
+            let canvas_handler = canvas_handler.clone();
+            let session_fs_provider = session_fs_provider.clone();
+            self.inner.pending_cloud_creates.lock().insert(
+                session_id.clone(),
+                Box::new(move |created_session_id| {
+                    let parts = materialize_session_runtime(
+                        client,
+                        created_session_id,
+                        handlers,
+                        hooks,
+                        transforms,
+                        command_handlers,
+                        canvas_handler,
+                        session_fs_provider,
+                    );
+                    *materialized.lock() = Some(parts);
+                }),
+            );
+        } else {
+            let parts = materialize_session_runtime(
+                self.clone(),
+                session_id.clone(),
+                handlers,
+                hooks,
+                transforms,
+                command_handlers,
+                canvas_handler,
+                session_fs_provider,
+            );
+            local_registration = Some(PendingSessionRegistration::new(
+                self.clone(),
+                parts.session_id.clone(),
+                parts.shutdown.clone(),
+            ));
+            *materialized_cloud_session.lock() = Some(parts);
+        }
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -874,7 +917,15 @@ impl Client {
         let result = match self.call("session.create", Some(params)).await {
             Ok(result) => result,
             Err(error) => {
-                registration.cleanup(event_loop).await;
+                if is_cloud_create {
+                    self.inner.pending_cloud_creates.lock().remove(&session_id);
+                }
+                if let Some(parts) = materialized_cloud_session.lock().take() {
+                    cleanup_session_runtime(self, parts).await;
+                    if let Some(registration) = local_registration.as_mut() {
+                        registration.disarm();
+                    }
+                }
                 return Err(error);
             }
         };
@@ -885,37 +936,63 @@ impl Client {
         let create_result: CreateSessionResult = match serde_json::from_value(result) {
             Ok(result) => result,
             Err(error) => {
-                registration.cleanup(event_loop).await;
+                if is_cloud_create {
+                    self.inner.pending_cloud_creates.lock().remove(&session_id);
+                }
+                if let Some(parts) = materialized_cloud_session.lock().take() {
+                    cleanup_session_runtime(self, parts).await;
+                    if let Some(registration) = local_registration.as_mut() {
+                        registration.disarm();
+                    }
+                }
                 return Err(error.into());
             }
         };
-        if create_result.session_id != session_id {
-            registration.cleanup(event_loop).await;
+        if !is_cloud_create && create_result.session_id != session_id {
+            if let Some(parts) = materialized_cloud_session.lock().take() {
+                cleanup_session_runtime(self, parts).await;
+                if let Some(registration) = local_registration.as_mut() {
+                    registration.disarm();
+                }
+            }
             return Err(Error::Session(SessionError::SessionIdMismatch {
                 requested: session_id,
                 returned: create_result.session_id,
             }));
         }
-        *capabilities.write() = create_result.capabilities.unwrap_or_default();
+
+        if is_cloud_create && materialized_cloud_session.lock().is_none() {
+            self.inner.pending_cloud_creates.lock().remove(&session_id);
+        }
+
+        let Some(parts) = materialized_cloud_session.lock().take() else {
+            self.inner.pending_cloud_creates.lock().remove(&session_id);
+            return Err(Error::InvalidConfig(
+                "cloud session was not registered".to_string(),
+            ));
+        };
+        *parts.capabilities.write() = create_result.capabilities.unwrap_or_default();
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
-            session_id = %session_id,
+            session_id = %parts.session_id,
             "Client::create_session complete"
         );
-        registration.disarm();
+        if let Some(registration) = local_registration.as_mut() {
+            registration.disarm();
+        }
         Ok(Session {
-            id: session_id,
+            id: parts.session_id,
             cwd: self.cwd().clone(),
             workspace_path: create_result.workspace_path,
             remote_url: create_result.remote_url,
             client: self.clone(),
-            event_loop: ParkingLotMutex::new(Some(event_loop)),
-            shutdown,
-            idle_waiter,
-            capabilities,
+            event_loop: ParkingLotMutex::new(Some(parts.event_loop)),
+            shutdown: parts.shutdown,
+            idle_waiter: parts.idle_waiter,
+            capabilities: parts.capabilities,
             open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
-            event_tx,
+            event_tx: parts.event_tx,
         })
     }
 
@@ -1105,6 +1182,54 @@ fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<Comm
         None => HashMap::new(),
     };
     Arc::new(map)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn materialize_session_runtime(
+    client: Client,
+    session_id: SessionId,
+    handlers: SessionHandlers,
+    hooks: Option<Arc<dyn SessionHooks>>,
+    transforms: Option<Arc<dyn SystemMessageTransform>>,
+    command_handlers: Arc<CommandHandlerMap>,
+    canvas_handler: Option<Arc<dyn CanvasHandler>>,
+    session_fs_provider: Option<Arc<dyn SessionFsProvider>>,
+) -> SessionRuntimeParts {
+    let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
+    let channels = client.register_session(&session_id);
+    let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+    let shutdown = CancellationToken::new();
+    let (event_tx, _) = tokio::sync::broadcast::channel(512);
+    let event_loop = spawn_event_loop(
+        session_id.clone(),
+        client.clone(),
+        handlers,
+        hooks,
+        transforms,
+        command_handlers,
+        canvas_handler,
+        session_fs_provider,
+        channels,
+        idle_waiter.clone(),
+        capabilities.clone(),
+        event_tx.clone(),
+        shutdown.clone(),
+    );
+
+    SessionRuntimeParts {
+        session_id,
+        event_loop,
+        shutdown,
+        idle_waiter,
+        capabilities,
+        event_tx,
+    }
+}
+
+async fn cleanup_session_runtime(client: &Client, parts: SessionRuntimeParts) {
+    parts.shutdown.cancel();
+    let _ = parts.event_loop.await;
+    client.unregister_session(&parts.session_id);
 }
 
 #[allow(clippy::too_many_arguments)]

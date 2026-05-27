@@ -100,7 +100,10 @@ class CloudSessionRepository:
 
 @dataclass
 class CloudSessionOptions:
-    """Options for creating a remote session in the cloud."""
+    """Options for creating a remote session in the cloud.
+
+    Experimental: this API is not stable and may change or be removed.
+    """
 
     repository: CloudSessionRepository | None = None
 
@@ -872,6 +875,8 @@ class SessionLifecycleEventBase:
 
     session_id: str
     metadata: SessionLifecycleEventMetadata | None = None
+    # Experimental: this API is not stable and may change or be removed.
+    client_session_id: str | None = None
 
 
 @dataclass
@@ -924,18 +929,29 @@ def _session_lifecycle_event_from_dict(data: dict) -> SessionLifecycleEvent:
     if "metadata" in data and data["metadata"]:
         metadata = SessionLifecycleEventMetadata.from_dict(data["metadata"])
     session_id = data.get("sessionId", "")
+    client_session_id = data.get("clientSessionId")
     event_type = data.get("type")
     if event_type == "session.created":
-        return SessionCreatedEvent(session_id=session_id, metadata=metadata)
+        return SessionCreatedEvent(
+            session_id=session_id, metadata=metadata, client_session_id=client_session_id
+        )
     if event_type == "session.deleted":
-        return SessionDeletedEvent(session_id=session_id, metadata=metadata)
+        return SessionDeletedEvent(
+            session_id=session_id, metadata=metadata, client_session_id=client_session_id
+        )
     if event_type == "session.foreground":
-        return SessionForegroundEvent(session_id=session_id, metadata=metadata)
+        return SessionForegroundEvent(
+            session_id=session_id, metadata=metadata, client_session_id=client_session_id
+        )
     if event_type == "session.background":
-        return SessionBackgroundEvent(session_id=session_id, metadata=metadata)
+        return SessionBackgroundEvent(
+            session_id=session_id, metadata=metadata, client_session_id=client_session_id
+        )
     # Default to ``session.updated`` for unknown event types so consumers
     # keep working across server upgrades.
-    return SessionUpdatedEvent(session_id=session_id, metadata=metadata)
+    return SessionUpdatedEvent(
+        session_id=session_id, metadata=metadata, client_session_id=client_session_id
+    )
 
 
 SessionLifecycleHandler = Callable[[SessionLifecycleEvent], None]
@@ -1187,6 +1203,7 @@ class CopilotClient:
         self._state: _ConnectionState = "disconnected"
         self._sessions: dict[str, CopilotSession] = {}
         self._sessions_lock = threading.Lock()
+        self._pending_cloud_creates: dict[str, CopilotSession] = {}
         self._models_cache: list[ModelInfo] | None = None
         self._models_cache_lock = asyncio.Lock()
         self._lifecycle_handlers: list[SessionLifecycleHandler] = []
@@ -1619,7 +1636,8 @@ class CopilotClient:
             infinite_sessions: Infinite session configuration.
             cloud: Creates a remote session in the cloud instead of a local
                 session. Optionally associates repository metadata with the
-                cloud session.
+                cloud session. Experimental: this API is not stable and may
+                change or be removed.
             on_event: Callback for session events.
 
         Returns:
@@ -1806,6 +1824,8 @@ class CopilotClient:
             raise RuntimeError("Client not connected")
 
         total_start = time.perf_counter()
+        is_cloud_create = cloud is not None
+
         actual_session_id = session_id or str(uuid.uuid4())
         payload["sessionId"] = actual_session_id
 
@@ -1855,6 +1875,8 @@ class CopilotClient:
             session.on(on_event)
         with self._sessions_lock:
             self._sessions[actual_session_id] = session
+            if is_cloud_create:
+                self._pending_cloud_creates[actual_session_id] = session
         log_timing(
             logger,
             logging.DEBUG,
@@ -1869,19 +1891,33 @@ class CopilotClient:
         try:
             rpc_start = time.perf_counter()
             response = await self._client.request("session.create", payload)
+            response_session_id = response.get("sessionId")
+            if is_cloud_create and response_session_id:
+                with self._sessions_lock:
+                    materialized = self._sessions.get(response_session_id)
+                    if materialized is None:
+                        self._pending_cloud_creates.pop(actual_session_id, None)
+                        raise RuntimeError(
+                            f"Cloud session was not registered: {response_session_id}"
+                        )
+                    self._pending_cloud_creates.pop(actual_session_id, None)
+                    session = materialized
             log_timing(
                 logger,
                 logging.DEBUG,
                 "CopilotClient.create_session session creation request completed successfully",
                 rpc_start,
-                session_id=actual_session_id,
+                session_id=session.session_id,
             )
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
         except BaseException as exc:
             with self._sessions_lock:
+                self._sessions.pop(session.session_id, None)
                 self._sessions.pop(actual_session_id, None)
+                if is_cloud_create:
+                    self._pending_cloud_creates.pop(actual_session_id, None)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -1892,7 +1928,6 @@ class CopilotClient:
                     session_id=actual_session_id,
                 )
             raise
-
         log_timing(
             logger,
             logging.DEBUG,
@@ -2643,6 +2678,18 @@ class CopilotClient:
 
     def _dispatch_lifecycle_event(self, event: SessionLifecycleEvent) -> None:
         """Dispatch a lifecycle event to all registered handlers."""
+        if event.type == "session.created" and event.client_session_id:
+            with self._sessions_lock:
+                session = (
+                    None
+                    if event.session_id in self._sessions
+                    else self._pending_cloud_creates.pop(event.client_session_id, None)
+                )
+                if session is not None:
+                    self._sessions.pop(session.session_id, None)
+                    session.session_id = event.session_id
+                    self._sessions[event.session_id] = session
+
         with self._lifecycle_handlers_lock:
             # Copy handlers to avoid holding lock during callbacks
             typed_handlers = list(self._typed_lifecycle_handlers.get(event.type, []))

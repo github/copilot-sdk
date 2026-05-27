@@ -91,6 +91,11 @@ pub struct SessionLifecycleEvent {
     /// Identifier of the session this event refers to.
     #[serde(rename = "sessionId")]
     pub session_id: SessionId,
+    /// Provisional client-generated session ID supplied for cloud session creation.
+    ///
+    /// **Experimental.** This API is not stable and may change or be removed.
+    #[serde(rename = "clientSessionId", skip_serializing_if = "Option::is_none")]
+    pub client_session_id: Option<SessionId>,
     /// Optional metadata describing the session at the time of the event.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<SessionLifecycleEventMetadata>,
@@ -757,6 +762,8 @@ impl CloudSessionRepository {
 }
 
 /// Options for creating a remote session in the cloud.
+///
+/// **Experimental.** This API is not stable and may change or be removed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
@@ -1190,6 +1197,8 @@ pub struct SessionConfig {
     pub remote_session: Option<crate::generated::api_types::RemoteSessionMode>,
     /// Creates a remote session in the cloud instead of a local session.
     /// The optional repository is associated with the cloud session.
+    ///
+    /// **Experimental.** This API is not stable and may change or be removed.
     pub cloud: Option<CloudSessionOptions>,
     /// Forward sub-agent streaming events to this connection. When false,
     /// only non-streaming sub-agent events and `subagent.*` lifecycle events
@@ -1443,7 +1452,7 @@ impl SessionConfig {
         let canvas_handler = self.canvas_handler.clone();
 
         let wire = crate::wire::SessionCreateWire {
-            session_id,
+            session_id: Some(session_id),
             model: self.model,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
@@ -1833,6 +1842,8 @@ impl SessionConfig {
     }
 
     /// Create a remote session in the cloud instead of a local session.
+    ///
+    /// **Experimental.** This API is not stable and may change or be removed.
     pub fn with_cloud(mut self, cloud: CloudSessionOptions) -> Self {
         self.cloud = Some(cloud);
         self

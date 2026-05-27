@@ -140,6 +140,8 @@ type CloudSessionRepository struct {
 }
 
 // CloudSessionOptions configures creation of a remote session in the cloud.
+//
+// Experimental: this API is not stable and may change or be removed.
 type CloudSessionOptions struct {
 	Repository *CloudSessionRepository `json:"repository,omitempty"`
 }
@@ -976,6 +978,8 @@ type SessionConfig struct {
 	RemoteSession rpc.RemoteSessionMode
 	// Cloud creates a remote session in the cloud instead of a local session.
 	// The optional repository is associated with the cloud session.
+	//
+	// Experimental: this API is not stable and may change or be removed.
 	Cloud *CloudSessionOptions
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.create`. CanvasHandler must be set when this is non-empty (the
@@ -1427,9 +1431,13 @@ const (
 
 // SessionLifecycleEvent represents a session lifecycle notification
 type SessionLifecycleEvent struct {
-	Type      SessionLifecycleEventType      `json:"type"`
-	SessionID string                         `json:"sessionId"`
-	Metadata  *SessionLifecycleEventMetadata `json:"metadata,omitempty"`
+	Type      SessionLifecycleEventType `json:"type"`
+	SessionID string                    `json:"sessionId"`
+	// ClientSessionID is a provisional client-generated session ID supplied for cloud session creation.
+	//
+	// Experimental: this API is not stable and may change or be removed.
+	ClientSessionID string                         `json:"clientSessionId,omitempty"`
+	Metadata        *SessionLifecycleEventMetadata `json:"metadata,omitempty"`
 }
 
 // SessionLifecycleEventMetadata contains optional metadata for lifecycle events

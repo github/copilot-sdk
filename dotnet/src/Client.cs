@@ -66,6 +66,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     /// <see cref="CopilotClient"/> that has not been explicitly disposed or removed.
     /// </remarks>
     internal readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
+    private ConcurrentDictionary<string, Func<string, CopilotSession>>? _pendingCloudCreates;
 
     private readonly CopilotClientOptions _options;
     private readonly RuntimeConnection _connection;
@@ -137,6 +138,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 {
                     throw new ArgumentException("ConnectionToken must be a non-empty string or null.", nameof(options));
                 }
+
                 // Auto-generate a connection token when the SDK spawns the runtime over TCP
                 // so the loopback listener is safe by default.
                 tcp.ConnectionToken ??= Guid.NewGuid().ToString();
@@ -163,6 +165,11 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         _logger = _options.Logger ?? NullLogger.Instance;
         _onListModels = _options.OnListModels;
     }
+
+    private ConcurrentDictionary<string, Func<string, CopilotSession>> GetOrCreatePendingCloudCreates() =>
+        _pendingCloudCreates ??
+        System.Threading.Interlocked.CompareExchange(ref _pendingCloudCreates, new(), null) ??
+        _pendingCloudCreates!;
 
     /// <summary>
     /// Parses a runtime URL into a URI with host and port.
@@ -535,42 +542,22 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
+        var isCloudCreate = config.Cloud != null;
         var sessionId = config.SessionId ?? Guid.NewGuid().ToString();
 
         // Create and register the session before issuing the RPC so that
         // events emitted by the CLI (e.g. session.start) are not dropped.
         var setupTimestamp = Stopwatch.GetTimestamp();
-        var session = new CopilotSession(
-            sessionId,
-            connection.Rpc,
-            _logger,
-            this);
-        session.RegisterTools(config.Tools ?? []);
-        session.RegisterPermissionHandler(config.OnPermissionRequest);
-        session.RegisterCommands(config.Commands);
-        session.RegisterElicitationHandler(config.OnElicitationRequest);
-        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
-        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
-        if (config.OnUserInputRequest != null)
+        CopilotSession? session = null;
+        if (isCloudCreate)
         {
-            session.RegisterUserInputHandler(config.OnUserInputRequest);
+            GetOrCreatePendingCloudCreates()[sessionId] =
+                createdSessionId => CreateConfiguredSession(createdSessionId, connection, config, transformCallbacks);
         }
-        if (config.Hooks != null)
+        else
         {
-            session.RegisterHooks(config.Hooks);
+            session = CreateConfiguredSession(sessionId, connection, config, transformCallbacks);
         }
-        if (transformCallbacks != null)
-        {
-            session.RegisterTransformCallbacks(transformCallbacks);
-        }
-        if (config.OnEvent != null)
-        {
-            session.On<SessionEvent>(config.OnEvent);
-        }
-        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
-        session.SetCanvasHandler(config.CanvasHandler);
-        RegisterSession(session);
-        session.StartProcessingEvents();
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.CreateSessionAsync local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
             setupTimestamp,
@@ -632,7 +619,20 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
                 "CopilotClient.CreateSessionAsync session creation request completed successfully. Elapsed={Elapsed}, SessionId={SessionId}",
                 rpcTimestamp,
-                sessionId);
+                response.SessionId);
+
+            if (session is null)
+            {
+                _sessions.TryGetValue(response.SessionId, out session);
+                if (session is null)
+                {
+                    throw new InvalidOperationException($"Session was not registered: {response.SessionId}");
+                }
+            }
+            if (isCloudCreate)
+            {
+                _pendingCloudCreates?.TryRemove(sessionId, out _);
+            }
 
             session.WorkspacePath = response.WorkspacePath;
             session.SetCapabilities(response.Capabilities);
@@ -640,13 +640,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         }
         catch (Exception ex)
         {
-            session.RemoveFromClient();
+            _pendingCloudCreates?.TryRemove(sessionId, out _);
+            session?.RemoveFromClient();
             if (ex is not OperationCanceledException)
             {
                 LoggingHelpers.LogTiming(_logger, LogLevel.Warning, ex,
                     "CopilotClient.CreateSessionAsync failed. Elapsed={Elapsed}, SessionId={SessionId}",
                     totalTimestamp,
-                    sessionId);
+                    sessionId ?? "<pending-cloud-session>");
             }
             throw;
         }
@@ -654,7 +655,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.CreateSessionAsync complete. Elapsed={Elapsed}, SessionId={SessionId}",
             totalTimestamp,
-            sessionId);
+            session.SessionId);
         return session;
     }
 
@@ -703,40 +704,8 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         var (wireSystemMessage, transformCallbacks) = ExtractTransformCallbacks(config.SystemMessage);
 
-        // Create and register the session before issuing the RPC so that
-        // events emitted by the CLI (e.g. session.start) are not dropped.
         var setupTimestamp = Stopwatch.GetTimestamp();
-        var session = new CopilotSession(
-            sessionId,
-            connection.Rpc,
-            _logger,
-            client: this);
-        session.RegisterTools(config.Tools ?? []);
-        session.RegisterPermissionHandler(config.OnPermissionRequest);
-        session.RegisterCommands(config.Commands);
-        session.RegisterElicitationHandler(config.OnElicitationRequest);
-        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
-        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
-        if (config.OnUserInputRequest != null)
-        {
-            session.RegisterUserInputHandler(config.OnUserInputRequest);
-        }
-        if (config.Hooks != null)
-        {
-            session.RegisterHooks(config.Hooks);
-        }
-        if (transformCallbacks != null)
-        {
-            session.RegisterTransformCallbacks(transformCallbacks);
-        }
-        if (config.OnEvent != null)
-        {
-            session.On<SessionEvent>(config.OnEvent);
-        }
-        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
-        session.SetCanvasHandler(config.CanvasHandler);
-        RegisterSession(session);
-        session.StartProcessingEvents();
+        var session = CreateConfiguredSession(sessionId, connection, config, transformCallbacks);
         LoggingHelpers.LogTiming(_logger, LogLevel.Debug, null,
             "CopilotClient.ResumeSessionAsync local setup complete. Elapsed={Elapsed}, SessionId={SessionId}, Tools={ToolsCount}, Commands={CommandsCount}, Hooks={HasHooks}",
             setupTimestamp,
@@ -823,6 +792,46 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             "CopilotClient.ResumeSessionAsync complete. Elapsed={Elapsed}, SessionId={SessionId}",
             totalTimestamp,
             sessionId);
+        return session;
+    }
+
+    private CopilotSession CreateConfiguredSession(
+        string sessionId,
+        Connection connection,
+        SessionConfigBase config,
+        Dictionary<string, Func<string, Task<string>>>? transformCallbacks)
+    {
+        var session = new CopilotSession(
+            sessionId,
+            connection.Rpc,
+            _logger,
+            this);
+        session.RegisterTools(config.Tools ?? []);
+        session.RegisterPermissionHandler(config.OnPermissionRequest);
+        session.RegisterCommands(config.Commands);
+        session.RegisterElicitationHandler(config.OnElicitationRequest);
+        session.RegisterExitPlanModeHandler(config.OnExitPlanModeRequest);
+        session.RegisterAutoModeSwitchHandler(config.OnAutoModeSwitchRequest);
+        if (config.OnUserInputRequest != null)
+        {
+            session.RegisterUserInputHandler(config.OnUserInputRequest);
+        }
+        if (config.Hooks != null)
+        {
+            session.RegisterHooks(config.Hooks);
+        }
+        if (transformCallbacks != null)
+        {
+            session.RegisterTransformCallbacks(transformCallbacks);
+        }
+        if (config.OnEvent != null)
+        {
+            session.On<SessionEvent>(config.OnEvent);
+        }
+        ConfigureSessionFsHandlers(session, config.CreateSessionFsProvider);
+        session.SetCanvasHandler(config.CanvasHandler);
+        RegisterSession(session);
+        session.StartProcessingEvents();
         return session;
     }
 
@@ -1736,7 +1745,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
             }
         }
 
-        public void OnSessionLifecycle(string type, string sessionId, JsonElement? metadata)
+        public void OnSessionLifecycle(string type, string sessionId, JsonElement? metadata, string? clientSessionId = null)
         {
             SessionLifecycleEvent evt = type switch
             {
@@ -1750,11 +1759,21 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
             evt.Type = type;
             evt.SessionId = sessionId;
+            evt.ClientSessionId = clientSessionId;
             if (metadata is not null)
             {
                 evt.Metadata = JsonSerializer.Deserialize(
                     metadata.Value.GetRawText(),
                     TypesJsonContext.Default.SessionLifecycleEventMetadata);
+            }
+
+            if (type == "session.created" &&
+                !client._sessions.ContainsKey(sessionId) &&
+                clientSessionId is not null &&
+                client._pendingCloudCreates is not null &&
+                client._pendingCloudCreates.TryRemove(clientSessionId, out var initializeFunc))
+            {
+                initializeFunc(sessionId);
             }
 
             client.DispatchLifecycleEvent(evt);

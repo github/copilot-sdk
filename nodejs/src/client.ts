@@ -251,6 +251,8 @@ export class CopilotClient {
     private actualHost: string = "localhost";
     private state: "disconnected" | "connecting" | "connected" | "error" = "disconnected";
     private sessions: Map<string, CopilotSession> = new Map();
+    private pendingCloudSessionCreates: Map<string, (sessionId: string) => CopilotSession> =
+        new Map();
     private stderrBuffer: string = ""; // Captures CLI stderr for error messages
     /** Resolved connection mode chosen in the constructor. */
     private connectionConfig: InternalRuntimeConnection;
@@ -483,6 +485,39 @@ export class CopilotClient {
             );
         }
         session.clientSessionApis.sessionFs = createSessionFsAdapter(provider);
+    }
+
+    private configureSession(
+        session: CopilotSession,
+        config: SessionConfig,
+        transformCallbacks: Map<string, SectionTransformFn> | undefined
+    ): void {
+        session.registerTools(config.tools);
+        session.registerCanvases(config.canvases);
+        session.registerCommands(config.commands);
+        session.registerPermissionHandler(config.onPermissionRequest);
+        if (config.onUserInputRequest) {
+            session.registerUserInputHandler(config.onUserInputRequest);
+        }
+        if (config.onElicitationRequest) {
+            session.registerElicitationHandler(config.onElicitationRequest);
+        }
+        if (config.onExitPlanModeRequest) {
+            session.registerExitPlanModeHandler(config.onExitPlanModeRequest);
+        }
+        if (config.onAutoModeSwitchRequest) {
+            session.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
+        }
+        if (config.hooks) {
+            session.registerHooks(config.hooks);
+        }
+        if (transformCallbacks) {
+            session.registerTransformCallbacks(transformCallbacks);
+        }
+        if (config.onEvent) {
+            session.on(config.onEvent);
+        }
+        this.setupSessionFs(session, config);
     }
 
     /**
@@ -794,49 +829,49 @@ export class CopilotClient {
             await this.start();
         }
 
-        const sessionId = config.sessionId ?? randomUUID();
-
-        // Create and register the session before issuing the RPC so that
-        // events emitted by the CLI (e.g. session.start) are not dropped.
-        const session = new CopilotSession(
-            sessionId,
-            this.connection!,
-            undefined,
-            this.onGetTraceContext
-        );
-        session.registerTools(config.tools);
-        session.registerCanvases(config.canvases);
-        session.registerCommands(config.commands);
-        session.registerPermissionHandler(config.onPermissionRequest);
-        if (config.onUserInputRequest) {
-            session.registerUserInputHandler(config.onUserInputRequest);
-        }
-        if (config.onElicitationRequest) {
-            session.registerElicitationHandler(config.onElicitationRequest);
-        }
-        if (config.onExitPlanModeRequest) {
-            session.registerExitPlanModeHandler(config.onExitPlanModeRequest);
-        }
-        if (config.onAutoModeSwitchRequest) {
-            session.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
-        }
-        if (config.hooks) {
-            session.registerHooks(config.hooks);
-        }
-
         // Extract transform callbacks from system message config before serialization.
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
             config.systemMessage
         );
-        if (transformCallbacks) {
-            session.registerTransformCallbacks(transformCallbacks);
+
+        const isCloudCreate = config.cloud !== undefined;
+        if (isCloudCreate && config.sessionId) {
+            // In cloud mode this is a provisional client-side ID, not the final server ID.
         }
 
-        if (config.onEvent) {
-            session.on(config.onEvent);
+        const sessionId = config.sessionId ?? randomUUID();
+        let session: CopilotSession | undefined;
+
+        if (isCloudCreate) {
+            const materializeCloudSession = (createdSessionId: string) => {
+                const existing = this.sessions.get(createdSessionId);
+                if (existing) {
+                    return existing;
+                }
+                const createdSession = new CopilotSession(
+                    createdSessionId,
+                    this.connection!,
+                    undefined,
+                    this.onGetTraceContext
+                );
+                this.configureSession(createdSession, config, transformCallbacks);
+                this.sessions.set(createdSessionId, createdSession);
+                session = createdSession;
+                return createdSession;
+            };
+            this.pendingCloudSessionCreates.set(sessionId, materializeCloudSession);
+        } else {
+            // Create and register the session before issuing the RPC so that
+            // events emitted by the CLI (e.g. session.start) are not dropped.
+            session = new CopilotSession(
+                sessionId!,
+                this.connection!,
+                undefined,
+                this.onGetTraceContext
+            );
+            this.configureSession(session, config, transformCallbacks);
+            this.sessions.set(sessionId!, session);
         }
-        this.sessions.set(sessionId, session);
-        this.setupSessionFs(session, config);
 
         try {
             const response = await this.connection!.sendRequest("session.create", {
@@ -891,15 +926,33 @@ export class CopilotClient {
                 cloud: config.cloud,
             });
 
-            const { workspacePath, capabilities } = response as {
+            const createResponse = response as {
                 sessionId: string;
                 workspacePath?: string;
                 capabilities?: SessionCapabilities;
             };
+            const { workspacePath, capabilities } = createResponse;
+            if (isCloudCreate) {
+                session = this.sessions.get(createResponse.sessionId);
+                if (!session) {
+                    throw new Error(
+                        `Cloud session was not registered: ${createResponse.sessionId}`
+                    );
+                }
+                this.pendingCloudSessionCreates.delete(sessionId);
+            }
+            if (!session) {
+                throw new Error("Session was not registered");
+            }
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
         } catch (e) {
-            this.sessions.delete(sessionId);
+            this.pendingCloudSessionCreates.delete(sessionId);
+            if (session) {
+                this.sessions.delete(session.sessionId);
+            } else if (sessionId !== undefined) {
+                this.sessions.delete(sessionId);
+            }
             throw e;
         }
 
@@ -1944,6 +1997,7 @@ export class CopilotClient {
         const raw = notification as {
             type: SessionLifecycleEventType;
             sessionId: string;
+            clientSessionId?: string;
             metadata?: { startTime?: string; modifiedTime?: string; summary?: string };
         };
 
@@ -1959,8 +2013,17 @@ export class CopilotClient {
         const event = {
             type: raw.type,
             sessionId: raw.sessionId,
+            clientSessionId: raw.clientSessionId,
             metadata,
         } as SessionLifecycleEvent;
+
+        if (raw.type === "session.created" && raw.clientSessionId && !this.sessions.has(raw.sessionId)) {
+            const materialize = this.pendingCloudSessionCreates.get(raw.clientSessionId);
+            if (materialize) {
+                materialize(raw.sessionId);
+                this.pendingCloudSessionCreates.delete(raw.clientSessionId);
+            }
+        }
 
         // Dispatch to typed handlers for this specific event type
         const typedHandlers = this.typedLifecycleHandlers.get(event.type);

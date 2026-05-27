@@ -324,6 +324,8 @@ export interface CloudSessionRepository {
 
 /**
  * Options for creating a remote session in the cloud.
+ *
+ * @experimental This API is not stable and may change or be removed.
  */
 export interface CloudSessionOptions {
     repository?: CloudSessionRepository;
@@ -1768,6 +1770,8 @@ export interface SessionConfig extends SessionConfigBase {
     /**
      * Creates a remote session in the cloud instead of a local session.
      * The optional repository is associated with the cloud session.
+     *
+     * @experimental This API is not stable and may change or be removed.
      */
     cloud?: CloudSessionOptions;
 }
@@ -2154,6 +2158,12 @@ export interface SessionLifecycleEventMetadata {
 interface SessionLifecycleEventBase {
     /** ID of the session this event relates to. */
     sessionId: string;
+    /**
+     * Provisional client-generated session ID supplied for cloud session creation.
+     *
+     * @experimental This API is not stable and may change or be removed.
+     */
+    clientSessionId?: string;
     /** Session metadata (not included for `session.deleted`). */
     metadata?: SessionLifecycleEventMetadata;
 }

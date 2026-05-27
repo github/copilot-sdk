@@ -88,17 +88,18 @@ func validateSessionFsConfig(config *SessionFsConfig) error {
 //	}
 //	defer client.Stop()
 type Client struct {
-	options          ClientOptions
-	process          *exec.Cmd
-	client           *jsonrpc2.Client
-	actualPort       int
-	actualHost       string
-	state            connectionState
-	sessions         map[string]*Session
-	sessionsMux      sync.Mutex
-	isExternalServer bool
-	conn             net.Conn // stores net.Conn for external TCP connections
-	useStdio         bool     // resolved value from options
+	options             ClientOptions
+	process             *exec.Cmd
+	client              *jsonrpc2.Client
+	actualPort          int
+	actualHost          string
+	state               connectionState
+	sessions            map[string]*Session
+	pendingCloudCreates map[string]func(string) (*Session, error)
+	sessionsMux         sync.Mutex
+	isExternalServer    bool
+	conn                net.Conn // stores net.Conn for external TCP connections
+	useStdio            bool     // resolved value from options
 	// resolved process options for the spawned runtime (zero values for UriConnection)
 	cliPath            string
 	cliArgs            []string
@@ -156,12 +157,13 @@ func NewClient(options *ClientOptions) *Client {
 	opts := ClientOptions{}
 
 	client := &Client{
-		options:          opts,
-		state:            stateDisconnected,
-		sessions:         make(map[string]*Session),
-		actualHost:       "localhost",
-		isExternalServer: false,
-		useStdio:         true,
+		options:             opts,
+		state:               stateDisconnected,
+		sessions:            make(map[string]*Session),
+		pendingCloudCreates: make(map[string]func(string) (*Session, error)),
+		actualHost:          "localhost",
+		isExternalServer:    false,
+		useStdio:            true,
 	}
 
 	if options != nil {
@@ -676,73 +678,114 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Traceparent = traceparent
 	req.Tracestate = tracestate
 
+	isCloudCreate := config.Cloud != nil
+
 	sessionID := config.SessionID
 	if sessionID == "" {
 		sessionID = uuid.New().String()
 	}
 	req.SessionID = sessionID
 
-	// Create and register the session before issuing the RPC so that
-	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
-
-	session.registerTools(config.Tools)
-	session.registerPermissionHandler(config.OnPermissionRequest)
-	if config.OnUserInputRequest != nil {
-		session.registerUserInputHandler(config.OnUserInputRequest)
-	}
-	if config.Hooks != nil {
-		session.registerHooks(config.Hooks)
-	}
-	if transformCallbacks != nil {
-		session.registerTransformCallbacks(transformCallbacks)
-	}
-	if config.OnEvent != nil {
-		session.On(config.OnEvent)
-	}
-	if len(config.Commands) > 0 {
-		session.registerCommands(config.Commands)
-	}
-	if config.OnElicitationRequest != nil {
-		session.registerElicitationHandler(config.OnElicitationRequest)
-	}
-	if config.OnExitPlanModeRequest != nil {
-		session.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
-	}
-	if config.OnAutoModeSwitchRequest != nil {
-		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
-	}
-	if config.CanvasHandler != nil {
-		session.registerCanvasHandler(config.CanvasHandler)
-	}
-
-	c.sessionsMux.Lock()
-	c.sessions[sessionID] = session
-	c.sessionsMux.Unlock()
-
-	if c.options.SessionFs != nil {
-		if config.CreateSessionFsProvider == nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
+	var materializedSessionID string
+	var materializedMux sync.Mutex
+	materializeSession := func(createdSessionID string) (*Session, error) {
+		c.sessionsMux.Lock()
+		if existing := c.sessions[createdSessionID]; existing != nil {
 			c.sessionsMux.Unlock()
-			return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
+			materializedMux.Lock()
+			materializedSessionID = createdSessionID
+			materializedMux.Unlock()
+			return existing, nil
 		}
-		provider := config.CreateSessionFsProvider(session)
-		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
-			if _, ok := provider.(SessionFsSqliteProvider); !ok {
+		c.sessionsMux.Unlock()
+
+		session := newSession(createdSessionID, c.client, "")
+		session.registerTools(config.Tools)
+		session.registerPermissionHandler(config.OnPermissionRequest)
+		if config.OnUserInputRequest != nil {
+			session.registerUserInputHandler(config.OnUserInputRequest)
+		}
+		if config.Hooks != nil {
+			session.registerHooks(config.Hooks)
+		}
+		if transformCallbacks != nil {
+			session.registerTransformCallbacks(transformCallbacks)
+		}
+		if config.OnEvent != nil {
+			session.On(config.OnEvent)
+		}
+		if len(config.Commands) > 0 {
+			session.registerCommands(config.Commands)
+		}
+		if config.OnElicitationRequest != nil {
+			session.registerElicitationHandler(config.OnElicitationRequest)
+		}
+		if config.OnExitPlanModeRequest != nil {
+			session.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
+		}
+		if config.OnAutoModeSwitchRequest != nil {
+			session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
+		}
+		if config.CanvasHandler != nil {
+			session.registerCanvasHandler(config.CanvasHandler)
+		}
+
+		c.sessionsMux.Lock()
+		c.sessions[createdSessionID] = session
+		c.sessionsMux.Unlock()
+		materializedMux.Lock()
+		materializedSessionID = createdSessionID
+		materializedMux.Unlock()
+
+		if c.options.SessionFs != nil {
+			if config.CreateSessionFsProvider == nil {
 				c.sessionsMux.Lock()
-				delete(c.sessions, sessionID)
+				delete(c.sessions, createdSessionID)
 				c.sessionsMux.Unlock()
-				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+				return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
 			}
+			provider := config.CreateSessionFsProvider(session)
+			if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
+				if _, ok := provider.(SessionFsSqliteProvider); !ok {
+					c.sessionsMux.Lock()
+					delete(c.sessions, createdSessionID)
+					c.sessionsMux.Unlock()
+					return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+				}
+			}
+			session.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
 		}
-		session.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
+
+		return session, nil
+	}
+
+	var session *Session
+	if isCloudCreate {
+		c.sessionsMux.Lock()
+		c.pendingCloudCreates[sessionID] = materializeSession
+		c.sessionsMux.Unlock()
+	} else {
+		var err error
+		session, err = materializeSession(sessionID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	result, err := c.client.Request("session.create", req)
 	if err != nil {
 		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
+		delete(c.pendingCloudCreates, sessionID)
+		materializedMux.Lock()
+		if materializedSessionID != "" {
+			delete(c.sessions, materializedSessionID)
+		}
+		materializedMux.Unlock()
+		if session != nil {
+			delete(c.sessions, session.SessionID)
+		} else if sessionID != "" {
+			delete(c.sessions, sessionID)
+		}
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -750,9 +793,29 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	var response createSessionResponse
 	if err := json.Unmarshal(result, &response); err != nil {
 		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
+		delete(c.pendingCloudCreates, sessionID)
+		materializedMux.Lock()
+		if materializedSessionID != "" {
+			delete(c.sessions, materializedSessionID)
+		}
+		materializedMux.Unlock()
+		if session != nil {
+			delete(c.sessions, session.SessionID)
+		} else if sessionID != "" {
+			delete(c.sessions, sessionID)
+		}
 		c.sessionsMux.Unlock()
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if isCloudCreate {
+		c.sessionsMux.Lock()
+		session = c.sessions[response.SessionID]
+		delete(c.pendingCloudCreates, sessionID)
+		c.sessionsMux.Unlock()
+		if session == nil {
+			return nil, fmt.Errorf("cloud session was not registered: %s", response.SessionID)
+		}
 	}
 
 	session.workspacePath = response.WorkspacePath
@@ -1242,6 +1305,22 @@ func (c *Client) OnEventType(eventType SessionLifecycleEventType, handler Sessio
 
 // handleLifecycleEvent dispatches a lifecycle event to all registered handlers
 func (c *Client) handleLifecycleEvent(event SessionLifecycleEvent) {
+	if event.Type == SessionLifecycleCreated && event.ClientSessionID != "" {
+		c.sessionsMux.Lock()
+		_, alreadyRegistered := c.sessions[event.SessionID]
+		var materialize func(string) (*Session, error)
+		if !alreadyRegistered {
+			materialize = c.pendingCloudCreates[event.ClientSessionID]
+			delete(c.pendingCloudCreates, event.ClientSessionID)
+		}
+		c.sessionsMux.Unlock()
+		if materialize != nil {
+			if _, err := materialize(event.SessionID); err != nil {
+				fmt.Printf("Error materializing cloud session %s: %v\n", event.SessionID, err)
+			}
+		}
+	}
+
 	c.lifecycleHandlersMux.Lock()
 	// Copy handlers to avoid holding lock during callbacks
 	typedHandlers := make([]SessionLifecycleHandler, 0)

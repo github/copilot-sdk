@@ -5,8 +5,11 @@ use parking_lot::Mutex;
 use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
 
+use crate::PendingCloudCreate;
 use crate::jsonrpc::{JsonRpcNotification, JsonRpcRequest};
-use crate::types::{SessionEventNotification, SessionId};
+use crate::types::{
+    SessionEventNotification, SessionId, SessionLifecycleEvent, SessionLifecycleEventType,
+};
 
 /// Per-session channels created by the router during session registration.
 pub(crate) struct SessionChannels {
@@ -85,6 +88,7 @@ impl SessionRouter {
         &self,
         notification_tx: &broadcast::Sender<JsonRpcNotification>,
         request_rx: &Mutex<Option<mpsc::UnboundedReceiver<JsonRpcRequest>>>,
+        pending_cloud_creates: &Arc<Mutex<HashMap<SessionId, PendingCloudCreate>>>,
     ) {
         let mut started = self.started.lock();
         if *started {
@@ -94,11 +98,40 @@ impl SessionRouter {
 
         // Notification routing task
         let sessions = self.sessions.clone();
+        let pending_cloud_creates = Arc::clone(pending_cloud_creates);
         let mut notif_rx = notification_tx.subscribe();
         tokio::spawn(async move {
             loop {
                 match notif_rx.recv().await {
                     Ok(notification) => {
+                        if notification.method == "session.lifecycle" {
+                            let Some(params) = notification.params else {
+                                continue;
+                            };
+                            let event: SessionLifecycleEvent = match serde_json::from_value(params)
+                            {
+                                Ok(event) => event,
+                                Err(e) => {
+                                    warn!(error = %e, "failed to deserialize session.lifecycle notification");
+                                    continue;
+                                }
+                            };
+                            if event.event_type == SessionLifecycleEventType::Created
+                                && let Some(client_session_id) = event.client_session_id
+                            {
+                                let already_registered =
+                                    sessions.lock().contains_key(&event.session_id);
+                                let materialize = if already_registered {
+                                    None
+                                } else {
+                                    pending_cloud_creates.lock().remove(&client_session_id)
+                                };
+                                if let Some(materialize) = materialize {
+                                    materialize(event.session_id);
+                                }
+                            }
+                            continue;
+                        }
                         if notification.method != "session.event" {
                             continue;
                         }

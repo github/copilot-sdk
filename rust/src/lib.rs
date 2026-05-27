@@ -71,6 +71,8 @@ mod sdk_protocol_version;
 pub use sdk_protocol_version::{SDK_PROTOCOL_VERSION, get_sdk_protocol_version};
 pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvError};
 
+pub(crate) type PendingCloudCreate = Box<dyn FnOnce(SessionId) + Send + 'static>;
+
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
 
@@ -894,6 +896,8 @@ struct ClientInner {
     negotiated_protocol_version: OnceLock<u32>,
     state: parking_lot::Mutex<ConnectionState>,
     lifecycle_tx: broadcast::Sender<SessionLifecycleEvent>,
+    pending_cloud_creates:
+        Arc<parking_lot::Mutex<std::collections::HashMap<SessionId, PendingCloudCreate>>>,
     on_list_models: Option<Arc<dyn ListModelsHandler>>,
     models_cache: parking_lot::Mutex<Arc<tokio::sync::OnceCell<Vec<Model>>>>,
     session_fs_configured: bool,
@@ -1215,6 +1219,9 @@ impl Client {
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(256).0,
+                pending_cloud_creates: Arc::new(parking_lot::Mutex::new(
+                    std::collections::HashMap::new(),
+                )),
                 on_list_models,
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured,
@@ -1580,9 +1587,11 @@ impl Client {
         &self,
         session_id: &SessionId,
     ) -> crate::router::SessionChannels {
-        self.inner
-            .router
-            .ensure_started(&self.inner.notification_tx, &self.inner.request_rx);
+        self.inner.router.ensure_started(
+            &self.inner.notification_tx,
+            &self.inner.request_rx,
+            &self.inner.pending_cloud_creates,
+        );
         self.inner.router.register(session_id)
     }
 
@@ -2601,6 +2610,9 @@ mod tests {
                 negotiated_protocol_version: OnceLock::new(),
                 state: parking_lot::Mutex::new(ConnectionState::Connected),
                 lifecycle_tx: broadcast::channel(16).0,
+                pending_cloud_creates: Arc::new(parking_lot::Mutex::new(
+                    std::collections::HashMap::new(),
+                )),
                 on_list_models: Some(handler),
                 models_cache: parking_lot::Mutex::new(Arc::new(tokio::sync::OnceCell::new())),
                 session_fs_configured: false,

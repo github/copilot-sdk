@@ -2230,6 +2230,7 @@ public sealed class CloudSessionRepository
 /// <summary>
 /// Options for creating a remote session in the cloud.
 /// </summary>
+[Experimental(Diagnostics.Experimental)]
 public sealed class CloudSessionOptions
 {
     /// <summary>
@@ -2546,6 +2547,7 @@ public sealed class SessionConfig : SessionConfigBase
     /// Creates a remote session in the cloud instead of a local session.
     /// The optional repository is associated with the cloud session.
     /// </summary>
+    [Experimental(Diagnostics.Experimental)]
     public CloudSessionOptions? Cloud { get; set; }
 
     /// <summary>
@@ -3029,6 +3031,13 @@ public class SessionLifecycleEvent
     /// </summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Provisional client-generated session ID supplied for cloud session creation.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    [JsonPropertyName("clientSessionId")]
+    public string? ClientSessionId { get; set; }
 
     /// <summary>
     /// Metadata associated with the session lifecycle event.
