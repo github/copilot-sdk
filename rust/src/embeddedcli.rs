@@ -26,12 +26,29 @@ use tracing::{info, warn};
 
 // When the `bundled-cli` cargo feature is enabled and the target platform is
 // supported, build.rs generates `bundled_cli.rs` exposing the raw archive
-// bytes plus the version + binary-name constants the runtime install path
-// consumes.
+// bytes. The CLI version is exposed crate-wide via the
+// `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` emit (see `build.rs`), and the
+// binary name is OS-derived — so no other generated constants are needed.
 #[cfg(has_bundled_cli)]
 mod build_time {
     include!(concat!(env!("OUT_DIR"), "/bundled_cli.rs"));
 }
+
+// Pinned at build time and consumed by both install paths (path/install_at).
+// Sourced from the unconditional `COPILOT_SDK_CLI_VERSION` env emit in
+// build.rs — the single source of truth for "what version did build.rs
+// target", shared with the runtime resolver used when `bundled-cli` is off.
+#[cfg(has_bundled_cli)]
+const CLI_VERSION: &str = env!("COPILOT_SDK_CLI_VERSION");
+
+// OS-derived; matches the release-archive entry name and the on-disk
+// filename. No need to bake this — `cfg(windows)` reflects the target
+// the runtime is running on, which by definition is the same target
+// build.rs targeted.
+#[cfg(all(has_bundled_cli, windows))]
+const CLI_BINARY_NAME: &str = "copilot.exe";
+#[cfg(all(has_bundled_cli, not(windows)))]
+const CLI_BINARY_NAME: &str = "copilot";
 
 #[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -56,10 +73,10 @@ pub(crate) fn path() -> Option<PathBuf> {
         .get_or_init(|| {
             #[cfg(has_bundled_cli)]
             {
-                let dir = default_install_dir(build_time::CLI_VERSION);
+                let dir = default_install_dir(CLI_VERSION);
                 match install(&dir, build_time::CLI_ARCHIVE) {
                     Ok(path) => {
-                        info!(path = %path.display(), version = build_time::CLI_VERSION, "embedded CLI installed");
+                        info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
                         return Some(path);
                     }
                     Err(e) => {
@@ -85,7 +102,7 @@ pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
     {
         match install(extract_dir, build_time::CLI_ARCHIVE) {
             Ok(path) => {
-                info!(path = %path.display(), version = build_time::CLI_VERSION, "embedded CLI installed");
+                info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
                 return Some(path);
             }
             Err(e) => {
@@ -117,7 +134,7 @@ fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliErr
 
     fs::create_dir_all(install_dir).map_err(EmbeddedCliError::CreateDir)?;
 
-    let final_path = install_dir.join(build_time::CLI_BINARY_NAME);
+    let final_path = install_dir.join(CLI_BINARY_NAME);
 
     // Per-version install dir means a present file at this path is the
     // binary we want — no need to hash-verify the bytes are unchanged.
@@ -129,7 +146,7 @@ fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliErr
     }
 
     let start = std::time::Instant::now();
-    let bytes = extract_binary(archive, build_time::CLI_BINARY_NAME)?;
+    let bytes = extract_binary(archive, CLI_BINARY_NAME)?;
     write_binary(&final_path, &bytes)?;
 
     if verbose {

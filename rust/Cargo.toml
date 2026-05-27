@@ -27,7 +27,7 @@ name = "github_copilot_sdk"
 
 [features]
 default = ["bundled-cli"]
-bundled-cli = ["dep:dirs", "dep:tar", "dep:flate2", "dep:zip"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 derive = ["dep:schemars"]
 test-support = []
 
@@ -48,7 +48,7 @@ tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", 
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
 tracing = "0.1"
-dirs = { version = "5", optional = true }
+dirs = "5"
 parking_lot = "0.12"
 regex = "1"
 getrandom = "0.2"

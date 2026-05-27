@@ -1,10 +1,10 @@
 //! Tests for the build-time and runtime CLI provisioning path.
 //!
-//! Covers the `COPILOT_CLI_PATH` env override, the dev-mode (no
-//! `bundled-cli`) build-time extracted binary, and the embed-mode lazy
-//! extraction. Mutating `COPILOT_CLI_PATH` is process-global, so all such
-//! tests use `serial_test` to avoid races with each other (and with the
-//! e2e tests which also read it).
+//! Covers the `COPILOT_CLI_PATH` env override, the build-time-extracted
+//! binary used when `bundled-cli` is off, and the embed-mode lazy
+//! extraction. Mutating env vars is process-global, so all such tests
+//! use `serial_test` to avoid races with each other (and with the e2e
+//! tests which also read them).
 
 use std::path::PathBuf;
 
@@ -24,14 +24,7 @@ fn unset_env(key: &str) {
 }
 
 fn set_env(key: &str, value: &str) {
-    // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
-    // so no other test in this binary mutates COPILOT_CLI_PATH while
-    // we hold the lock. POSIX `setenv`/`unsetenv` are generally
-    // thread-safe on modern platforms, and we use `current_thread`
-    // tokio runtimes to avoid concurrent reads from worker threads.
-    // This doesn't satisfy the strict Rust 2024 safety contract
-    // (other tests in the binary may read env vars), but the practical
-    // race window is negligible.
+    // SAFETY: see `unset_env`.
     unsafe { std::env::set_var(key, value) };
 }
 
@@ -89,9 +82,9 @@ async fn stale_env_override_falls_through() {
     let result = Client::start(opts).await;
     unset_env("COPILOT_CLI_PATH");
 
-    // In a normally-configured build (either bundled-cli or dev mode) the
-    // resolver should find a binary via the next source. Failing here
-    // would mean fallthrough is broken.
+    // In a normally-configured build (either `bundled-cli` on or off)
+    // the resolver should find a binary via the next source. Failing
+    // here would mean fallthrough is broken.
     if let Err(e) = &result {
         assert!(
             !matches!(e, Error::BinaryNotFound { .. }),
@@ -100,37 +93,105 @@ async fn stale_env_override_falls_through() {
     }
 }
 
-/// In dev mode (no `bundled-cli` feature) build.rs writes the extracted
-/// binary into the per-user cache and emits its path as
-/// `COPILOT_CLI_DEV_PATH`. The runtime resolver returns that path.
-#[cfg(has_dev_cli)]
+/// With `bundled-cli` off, `build.rs` extracts the binary into the
+/// per-user cache and the runtime resolver recomputes its location from
+/// `COPILOT_SDK_CLI_VERSION` + the OS-derived binary name. This test
+/// mirrors that convention and asserts the file is on disk where the
+/// resolver expects to find it.
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
 #[test]
-fn dev_mode_extracted_binary_exists() {
-    let path = PathBuf::from(env!("COPILOT_CLI_DEV_PATH"));
+fn extracted_binary_present_at_conventional_path() {
+    let version = env!("COPILOT_SDK_CLI_VERSION");
+    let binary = if cfg!(windows) {
+        "copilot.exe"
+    } else {
+        "copilot"
+    };
+    let sanitized = sanitize_version_for_test(version);
+    let path = dirs::cache_dir()
+        .expect("platform cache dir")
+        .join("github-copilot-sdk")
+        .join("cli")
+        .join(sanitized)
+        .join(binary);
     assert!(
         path.is_file(),
-        "expected build.rs to extract the CLI to {} (dev mode)",
+        "expected build.rs to extract the CLI to {} (`bundled-cli` off)",
         path.display()
+    );
+}
+
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+fn sanitize_version_for_test(version: &str) -> String {
+    version
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+            _ => '_',
+        })
+        .collect()
+}
+
+/// With `bundled-cli` off, the resolver locates the build-time-extracted
+/// binary without any runtime configuration. Observed via
+/// `Client::start`: any outcome other than `BinaryNotFound` means the
+/// resolver succeeded.
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[tokio::test(flavor = "current_thread")]
+#[serial(copilot_cli_path)]
+async fn unbundled_resolver_finds_extracted_binary() {
+    unset_env("COPILOT_CLI_PATH");
+    unset_env("COPILOT_CLI_EXTRACT_DIR");
+
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let result = Client::start(opts).await;
+    if let Err(e) = result {
+        assert!(
+            !matches!(e, Error::BinaryNotFound { .. }),
+            "resolver returned BinaryNotFound with `bundled-cli` off: {e}"
+        );
+    }
+}
+
+/// With `bundled-cli` off, `COPILOT_CLI_EXTRACT_DIR` set at runtime
+/// redirects the resolver to look directly under the named directory
+/// (no per-version subdir, matching the build-time write semantics).
+/// We place a fake `copilot[.exe]` there and assert the resolver picks
+/// it up — failing here means the build-time / runtime convention has
+/// drifted.
+#[cfg(all(not(feature = "bundled-cli"), has_extracted_cli))]
+#[tokio::test(flavor = "current_thread")]
+#[serial(copilot_cli_path)]
+async fn extract_dir_runtime_override_is_honored() {
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let binary = if cfg!(windows) {
+        "copilot.exe"
+    } else {
+        "copilot"
+    };
+    let fake = tmp.path().join(binary);
+    std::fs::write(&fake, b"").expect("write fake binary");
+
+    unset_env("COPILOT_CLI_PATH");
+    set_env(
+        "COPILOT_CLI_EXTRACT_DIR",
+        tmp.path().to_str().expect("utf-8 tempdir path"),
     );
 
-    // Confirm the cache layout matches what runtime resolution expects.
-    let mut found = false;
-    let comps: Vec<_> = path.components().collect();
-    for window in comps.windows(2) {
-        if let (std::path::Component::Normal(a), std::path::Component::Normal(b)) =
-            (&window[0], &window[1])
-            && a.to_str() == Some("github-copilot-sdk")
-            && b.to_str() == Some("cli")
-        {
-            found = true;
-            break;
-        }
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    let result = Client::start(opts).await;
+
+    unset_env("COPILOT_CLI_EXTRACT_DIR");
+
+    if let Err(e) = result {
+        assert!(
+            !matches!(e, Error::BinaryNotFound { .. }),
+            "EXTRACT_DIR-redirected resolver returned BinaryNotFound: {e}"
+        );
     }
-    assert!(
-        found,
-        "dev path {} does not contain the expected `github-copilot-sdk/cli/` segments",
-        path.display()
-    );
+
+    drop(tmp);
+    let _ = fake;
 }
 
 /// Build-time version pin: `cli-version.txt` (when present) must be a

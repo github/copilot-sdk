@@ -5,11 +5,28 @@ use std::time::Duration;
 use sha2::Digest;
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=COPILOT_SKIP_CLI_DOWNLOAD");
+    println!("cargo:rerun-if-env-changed=COPILOT_CLI_EXTRACT_DIR");
     println!("cargo:rerun-if-env-changed=BUNDLED_CLI_CACHE_DIR");
     println!("cargo::rustc-check-cfg=cfg(has_bundled_cli)");
-    println!("cargo::rustc-check-cfg=cfg(has_dev_cli)");
+    println!("cargo::rustc-check-cfg=cfg(has_extracted_cli)");
     println!("cargo:rerun-if-changed=cli-version.txt");
     println!("cargo:rerun-if-changed=../nodejs/package-lock.json");
+
+    // Hard opt-out: disable the entire download / bundle / cache mechanism
+    // in one step. For consumers who always supply the CLI via
+    // `CliProgram::Path` or `COPILOT_CLI_PATH` and don't want build.rs to
+    // touch the network (offline builds, locked-down CI, etc.). Works
+    // regardless of the `bundled-cli` cargo feature state — with neither
+    // `has_bundled_cli` nor `has_extracted_cli` emitted, runtime resolution
+    // falls straight through to `Error::BinaryNotFound` unless an explicit
+    // path source resolves first.
+    if std::env::var_os("COPILOT_SKIP_CLI_DOWNLOAD").is_some() {
+        println!(
+            "cargo:warning=COPILOT_SKIP_CLI_DOWNLOAD is set — skipping CLI download/bundle/cache"
+        );
+        return;
+    }
 
     let Some(platform) = target_platform() else {
         println!("cargo:warning=Unsupported target platform for Copilot CLI bundling — skipping");
@@ -31,7 +48,15 @@ fn main() {
     //      the .NET `_GetCopilotCliVersion` MSBuild target and the Go
     //      `cmd/bundler` tool.
     let (version, expected_hash) = resolve_version_and_hash(platform.asset_name);
-    let asset_name = platform.asset_name;
+
+    // Bake the version into the crate regardless of mode. This is the
+    // single source of truth for "what CLI version did build.rs target",
+    // consumed by both the embed-mode path computation in embeddedcli.rs
+    // and the runtime path computation in resolve.rs (when `bundled-cli`
+    // is off). It's a small, machine-independent datum: no absolute
+    // paths, no username/home leakage, so sccache / cross-machine
+    // `target/` reuse stays cache-coherent.
+    println!("cargo:rustc-env=COPILOT_SDK_CLI_VERSION={version}");
 
     let base_url = format!("https://github.com/github/copilot-cli/releases/download/v{version}");
     let cache_dir = std::env::var("BUNDLED_CLI_CACHE_DIR")
@@ -39,53 +64,82 @@ fn main() {
         .map(std::path::PathBuf::from);
 
     // Versioned cache key since copilot asset names don't include the version.
-    let cache_key = format!("v{version}-{asset_name}");
-
-    // Download the archive (or read from cache) and verify SHA-256. Shared
-    // by both build modes — embed mode includes the bytes, dev mode extracts
-    // them into the per-user cache.
-    let archive = cached_download(
-        &format!("{base_url}/{asset_name}"),
-        &cache_key,
-        &expected_hash,
-        &cache_dir,
-    );
-
-    // Sanity check: the extraction path expects `binary_name` inside the
-    // archive. Fail the build now (with a clear message) rather than
-    // shipping a broken bundle / cache if the upstream archive layout ever
-    // changes.
-    verify_binary_present_in_archive(&archive, platform.binary_name, asset_name);
+    let cache_key = format!("v{version}-{}", platform.asset_name);
 
     if std::env::var_os("CARGO_FEATURE_BUNDLED_CLI").is_some() {
-        emit_embedded(out, &archive, &version, platform.binary_name);
+        // Embed mode: we need the archive bytes to bake into the rlib, so
+        // always run the download (cache hit short-circuits inside
+        // `cached_download`).
+        let archive = cached_download(
+            &format!("{base_url}/{}", platform.asset_name),
+            &cache_key,
+            &expected_hash,
+            &cache_dir,
+        );
+        verify_binary_present_in_archive(&archive, platform.binary_name, platform.asset_name);
+        emit_embedded(out, &archive);
         println!("cargo:rustc-cfg=has_bundled_cli");
     } else {
-        let dev_path = extract_to_cache(&archive, &version, platform);
-        // Path is set as a build-time env var so `env!()` in resolve.rs can
-        // read it without runtime fs probing. The cargo cfg makes the
-        // dev-mode branch in resolve.rs discoverable.
-        println!(
-            "cargo:rustc-env=COPILOT_CLI_DEV_PATH={}",
-            dev_path.display()
-        );
-        println!("cargo:rustc-cfg=has_dev_cli");
+        // With `bundled-cli` off the extracted binary *is* the cache.
+        // Skip the upstream download entirely when it already exists at
+        // the expected path. No two separate caches.
+        //
+        // Runtime resolution (see `src/resolve.rs::extracted_cli_path`)
+        // recomputes this same path from `COPILOT_SDK_CLI_VERSION` + the
+        // OS-derived binary name + optional `COPILOT_CLI_EXTRACT_DIR`,
+        // so we don't bake an absolute path into the crate.
+        let install_dir = extracted_install_dir(&version);
+        let final_path = install_dir.join(platform.binary_name);
+
+        if !final_path.is_file() {
+            let archive = cached_download(
+                &format!("{base_url}/{}", platform.asset_name),
+                &cache_key,
+                &expected_hash,
+                &cache_dir,
+            );
+            verify_binary_present_in_archive(&archive, platform.binary_name, platform.asset_name);
+            extract_to_cache(&archive, &install_dir, platform);
+        }
+
+        println!("cargo:rustc-cfg=has_extracted_cli");
+    }
+}
+
+/// Install directory used when `bundled-cli` is off. Mirrors the runtime
+/// convention in `src/resolve.rs::extracted_cli_path`: both sides MUST
+/// compute the same path from the same inputs, otherwise the runtime
+/// resolver won't find what build.rs extracted.
+///
+/// If `COPILOT_CLI_EXTRACT_DIR` is set the binary lives directly under
+/// that directory (no per-version subdir) — useful for vendored slots and
+/// for `.cargo/config.toml [env]`-style pinning that's symmetric between
+/// build-time write and runtime read. Otherwise the binary lives under
+/// `<platform cache>/github-copilot-sdk/cli/<sanitized version>/`.
+fn extracted_install_dir(version: &str) -> PathBuf {
+    if let Some(custom) = std::env::var_os("COPILOT_CLI_EXTRACT_DIR") {
+        PathBuf::from(custom)
+    } else {
+        let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+        cache
+            .join("github-copilot-sdk")
+            .join("cli")
+            .join(sanitize_version(version))
     }
 }
 
 /// Emit the `bundled_cli.rs` glue + `copilot_cli.archive` blob into `OUT_DIR`
-/// for embed mode (`bundled-cli` cargo feature on).
-fn emit_embedded(out: &Path, archive: &[u8], version: &str, binary_name: &str) {
+/// for embed mode (`bundled-cli` cargo feature on). The version is exposed
+/// crate-wide via the unconditional `cargo:rustc-env=COPILOT_SDK_CLI_VERSION`
+/// emit; the binary name is OS-derived at runtime — so all we need to
+/// generate here is the archive blob include.
+fn emit_embedded(out: &Path, archive: &[u8]) {
     std::fs::write(out.join("copilot_cli.archive"), archive)
         .expect("failed to write copilot_cli.archive");
 
-    let generated = format!(
-        r#"// Auto-generated by github-copilot-sdk build.rs. Do not edit.
+    let generated = r#"// Auto-generated by github-copilot-sdk build.rs. Do not edit.
 pub(super) static CLI_ARCHIVE: &[u8] = include_bytes!("copilot_cli.archive");
-pub(super) static CLI_VERSION: &str = "{version}";
-pub(super) static CLI_BINARY_NAME: &str = "{binary_name}";
-"#,
-    );
+"#;
 
     std::fs::write(out.join("bundled_cli.rs"), generated).expect("failed to write bundled_cli.rs");
 }
@@ -230,27 +284,26 @@ fn target_platform() -> Option<Platform> {
     }
 }
 
-/// Dev-mode extraction: write the single binary entry from `archive` to
-/// `<platform cache>/github-copilot-sdk/cli/<sanitized version>/<binary_name>`.
+/// Write the single binary entry from `archive` to
+/// `<install_dir>/<binary_name>` and return the resulting path.
 /// Idempotent — returns the existing path if a previous build already
-/// populated the target. Mirrors `embeddedcli::install` exactly (including
-/// `sanitize_version`) so the dev-mode and embed-mode paths share the same
-/// cache layout on every platform.
-fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBuf {
-    let cache_root = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
-    let install_dir = cache_root
-        .join("github-copilot-sdk")
-        .join("cli")
-        .join(sanitize_version(version));
+/// populated the target.
+///
+/// Uses file-level staging + atomic rename so a concurrent reader during
+/// a parallel `cargo build` race never observes a partially-written
+/// binary. `fs::rename` for files is atomic on both Unix and Windows
+/// (Windows uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`); for
+/// directories it is not, which is why we stage at file granularity.
+fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> PathBuf {
     let final_path = install_dir.join(platform.binary_name);
 
-    // Per-version install dir means a present file at this path is the
-    // binary we want — no need to re-extract. Matches embeddedcli::install.
+    // Caller already gated on `final_path.is_file()`; this is a safety
+    // net for any future caller that forgets.
     if final_path.is_file() {
         return final_path;
     }
 
-    std::fs::create_dir_all(&install_dir).unwrap_or_else(|e| {
+    std::fs::create_dir_all(install_dir).unwrap_or_else(|e| {
         panic!(
             "failed to create install dir {}: {e}",
             install_dir.display()
@@ -258,14 +311,49 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
     });
 
     let bytes = extract_binary_bytes(archive, platform);
-    std::fs::write(&final_path, &bytes)
-        .unwrap_or_else(|e| panic!("failed to write {}: {e}", final_path.display()));
+
+    // Staging file is a sibling of the final binary so the rename stays
+    // on the same filesystem (cross-fs rename is not atomic). PID + nanos
+    // disambiguate concurrent builds racing on the same cache.
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let staging_path = install_dir.join(format!(
+        ".{}.staging-{}-{nanos}",
+        platform.binary_name,
+        std::process::id(),
+    ));
+
+    if let Err(e) = std::fs::write(&staging_path, &bytes) {
+        let _ = std::fs::remove_file(&staging_path);
+        panic!(
+            "failed to write staging file {}: {e}",
+            staging_path.display()
+        );
+    }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&final_path, std::fs::Permissions::from_mode(0o755))
-            .unwrap_or_else(|e| panic!("failed to chmod {}: {e}", final_path.display()));
+        if let Err(e) =
+            std::fs::set_permissions(&staging_path, std::fs::Permissions::from_mode(0o755))
+        {
+            let _ = std::fs::remove_file(&staging_path);
+            panic!("failed to chmod {}: {e}", staging_path.display());
+        }
+    }
+
+    // Atomic file-replace on both Unix and Windows. If a concurrent build
+    // already produced the same file the rename overwrites it; the bytes
+    // are SHA-verified-identical so replacement is safe.
+    if let Err(e) = std::fs::rename(&staging_path, &final_path) {
+        let _ = std::fs::remove_file(&staging_path);
+        panic!(
+            "failed to rename {} -> {}: {e}",
+            staging_path.display(),
+            final_path.display()
+        );
     }
 
     final_path
@@ -273,8 +361,8 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
 
 /// Replace characters outside `[a-zA-Z0-9._-]` with `_` so the version
 /// string is always safe to use as a path component. Kept in sync with
-/// `embeddedcli::sanitize_version` so embed-mode and dev-mode resolve to
-/// the same cache directory for any given version.
+/// `embeddedcli::sanitize_version` and `resolve::sanitize_version` so all
+/// three resolve to the same cache directory for any given version.
 fn sanitize_version(version: &str) -> String {
     version
         .chars()
@@ -286,9 +374,10 @@ fn sanitize_version(version: &str) -> String {
 }
 
 /// Extract the single `binary_name` entry from the release archive. Reused
-/// between embed mode's `verify_binary_present_in_archive` and dev mode's
-/// `extract_to_cache`. Panics if the entry isn't found — callers have
-/// already invoked `verify_binary_present_in_archive`.
+/// between embed mode's `verify_binary_present_in_archive` and the
+/// `extract_to_cache` path used when `bundled-cli` is off. Panics if the
+/// entry isn't found — callers have already invoked
+/// `verify_binary_present_in_archive`.
 fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
     if platform.asset_name.ends_with(".zip") {
         let cursor = std::io::Cursor::new(archive);
@@ -330,7 +419,7 @@ fn extract_binary_bytes(archive: &[u8], platform: Platform) -> Vec<u8> {
         }
     }
     panic!(
-        "binary `{}` not found in archive `{}` (extract_to_cache)",
+        "binary `{}` not found in archive `{}`",
         platform.binary_name, platform.asset_name
     );
 }

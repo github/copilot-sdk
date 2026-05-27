@@ -424,11 +424,13 @@ pub struct ClientOptions {
     /// redirect the extraction (e.g. to a session-scoped temp directory in
     /// CI runners) without changing the global cache layout.
     ///
-    /// Ignored when the SDK was built without a bundled CLI (i.e. with
-    /// `default-features = false` to disable the `bundled-cli` feature): in
-    /// that dev mode, build.rs has already extracted the binary to the per-user
-    /// cache and baked its path into the crate. Use [`CliProgram::Path`] or
-    /// `COPILOT_CLI_PATH` to point at a different binary.
+    /// Only applies when the `bundled-cli` cargo feature is on (the
+    /// default). With `bundled-cli` disabled (`default-features = false`)
+    /// there is no archive to re-extract at runtime — the binary lives
+    /// at a build-time-known conventional path. To relocate that
+    /// extraction, set `COPILOT_CLI_EXTRACT_DIR` (honored symmetrically
+    /// at build and runtime); to point the runtime at a different
+    /// binary altogether, use [`CliProgram::Path`] or `COPILOT_CLI_PATH`.
     pub bundled_cli_extract_dir: Option<PathBuf>,
 }
 
@@ -832,9 +834,12 @@ impl ClientOptions {
     /// Override the directory where the bundled CLI binary is extracted on
     /// first use. See [`Self::bundled_cli_extract_dir`].
     ///
-    /// This only affects builds with the default `bundled-cli` feature enabled.
-    /// In `default-features = false` dev builds, build.rs has already extracted
-    /// the CLI and this option is ignored.
+    /// Only applies when the `bundled-cli` cargo feature is on. With
+    /// `bundled-cli` disabled (`default-features = false`), set
+    /// `COPILOT_CLI_EXTRACT_DIR` to relocate the build-time extraction
+    /// (honored symmetrically at build and runtime), or use
+    /// [`CliProgram::Path`] / `COPILOT_CLI_PATH` to point at a different
+    /// binary at runtime.
     pub fn with_bundled_cli_extract_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.bundled_cli_extract_dir = Some(dir.into());
         self
