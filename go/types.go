@@ -130,6 +130,15 @@ type ClientOptions struct {
 	// directory are accessible from GitHub web and mobile.
 	// Ignored when connecting to an existing runtime via [UriConnection].
 	EnableRemoteSessions bool
+	// Mode controls the default tool surface and feature flags presented to
+	// sessions created by this client. The zero value ([ModeCopilotCli])
+	// matches legacy CLI defaults. Set to [ModeEmpty] to opt in to
+	// multi-tenant safe defaults — see [ClientMode] for details.
+	//
+	// When Mode is [ModeEmpty], NewClient requires either BaseDirectory,
+	// SessionFs, or a [UriConnection] so the runtime has persistent storage
+	// for session state.
+	Mode ClientMode
 }
 
 // CloudSessionRepository is GitHub repository metadata associated with a cloud session.
@@ -920,6 +929,19 @@ type SessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
+	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
+	SkipCustomInstructions *bool
+	// CustomAgentsLocalOnly, when non-nil, restricts custom agents to those
+	// defined locally. See also [ClientOptions.Mode] = [ModeEmpty].
+	CustomAgentsLocalOnly *bool
+	// CoauthorEnabled, when non-nil, controls whether the `coauthor` tool is
+	// exposed. See also [ClientOptions.Mode] = [ModeEmpty].
+	CoauthorEnabled *bool
+	// ManageScheduleEnabled, when non-nil, controls whether the
+	// `manage_schedule` tool is exposed. See also [ClientOptions.Mode] =
+	// [ModeEmpty].
+	ManageScheduleEnabled *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1149,6 +1171,19 @@ type ResumeSessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
+	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
+	SkipCustomInstructions *bool
+	// CustomAgentsLocalOnly, when non-nil, restricts custom agents to those
+	// defined locally. See also [ClientOptions.Mode] = [ModeEmpty].
+	CustomAgentsLocalOnly *bool
+	// CoauthorEnabled, when non-nil, controls whether the `coauthor` tool is
+	// exposed. See also [ClientOptions.Mode] = [ModeEmpty].
+	CoauthorEnabled *bool
+	// ManageScheduleEnabled, when non-nil, controls whether the
+	// `manage_schedule` tool is exposed. See also [ClientOptions.Mode] =
+	// [ModeEmpty].
+	ManageScheduleEnabled *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1468,8 +1503,13 @@ type createSessionRequest struct {
 	SystemMessage                  *SystemMessageConfig           `json:"systemMessage,omitempty"`
 	AvailableTools                 []string                       `json:"availableTools"`
 	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
+	ToolFilterPrecedence           *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                       *ProviderConfig                `json:"provider,omitempty"`
 	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
+	SkipCustomInstructions         *bool                          `json:"skipCustomInstructions,omitempty"`
+	CustomAgentsLocalOnly          *bool                          `json:"customAgentsLocalOnly,omitempty"`
+	CoauthorEnabled                *bool                          `json:"coauthorEnabled,omitempty"`
+	ManageScheduleEnabled          *bool                          `json:"manageScheduleEnabled,omitempty"`
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
@@ -1526,8 +1566,13 @@ type resumeSessionRequest struct {
 	SystemMessage                  *SystemMessageConfig           `json:"systemMessage,omitempty"`
 	AvailableTools                 []string                       `json:"availableTools"`
 	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
+	ToolFilterPrecedence           *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	Provider                       *ProviderConfig                `json:"provider,omitempty"`
 	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
+	SkipCustomInstructions         *bool                          `json:"skipCustomInstructions,omitempty"`
+	CustomAgentsLocalOnly          *bool                          `json:"customAgentsLocalOnly,omitempty"`
+	CoauthorEnabled                *bool                          `json:"coauthorEnabled,omitempty"`
+	ManageScheduleEnabled          *bool                          `json:"manageScheduleEnabled,omitempty"`
 	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
 	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
