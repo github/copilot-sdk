@@ -764,6 +764,13 @@ For development you usually want the smaller dev build:
 github-copilot-sdk = { version = "0.1", default-features = false }
 ```
 
+> **Dev-mode only.** This mode is intended for local development. The
+> resulting binary is not self-contained — it depends on the extracted
+> CLI living in the build machine's per-user cache. Distributed builds
+> (release artifacts, signed installers, etc.) should keep `bundled-cli`
+> enabled or supply an explicit CLI path at runtime via
+> [`CliProgram::Path`] / `COPILOT_CLI_PATH`.
+
 This still pins, downloads, and SHA-verifies the same CLI version, but extracts the binary into a per-user cache instead of embedding it. The runtime resolver returns that cached path. The cache is shared across crates and across embed/dev builds.
 
 ### How it works

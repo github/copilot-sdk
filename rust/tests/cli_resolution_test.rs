@@ -8,30 +8,44 @@
 
 use std::path::PathBuf;
 
-use github_copilot_sdk::{CliProgram, Client, ClientOptions};
+use github_copilot_sdk::{CliProgram, Client, ClientOptions, Error};
 use serial_test::serial;
 
 fn unset_env(key: &str) {
-    // SAFETY: tests are serialized with #[serial], so no other thread can
-    // observe the env mid-write. This is the standard pattern for testing
-    // env-driven behavior in this crate.
+    // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
+    // so no other test in this binary mutates COPILOT_CLI_PATH while
+    // we hold the lock. POSIX `setenv`/`unsetenv` are generally
+    // thread-safe on modern platforms, and we use `current_thread`
+    // tokio runtimes to avoid concurrent reads from worker threads.
+    // This doesn't satisfy the strict Rust 2024 safety contract
+    // (other tests in the binary may read env vars), but the practical
+    // race window is negligible.
     unsafe { std::env::remove_var(key) };
 }
 
 fn set_env(key: &str, value: &str) {
+    // SAFETY: these tests are serialized with #[serial(copilot_cli_path)]
+    // so no other test in this binary mutates COPILOT_CLI_PATH while
+    // we hold the lock. POSIX `setenv`/`unsetenv` are generally
+    // thread-safe on modern platforms, and we use `current_thread`
+    // tokio runtimes to avoid concurrent reads from worker threads.
+    // This doesn't satisfy the strict Rust 2024 safety contract
+    // (other tests in the binary may read env vars), but the practical
+    // race window is negligible.
     unsafe { std::env::set_var(key, value) };
 }
 
 /// COPILOT_CLI_PATH wins when it points at a real file, regardless of
 /// build mode.
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn env_override_resolves_to_pointed_file() {
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
-    // Make the temp file executable on POSIX so resolve doesn't reject it;
-    // resolve only checks `is_file()`, but downstream `Client::start`
-    // wants to exec the binary. We only need the resolver to return the
-    // path here, so a `--version`-like wrapper isn't required.
+    // resolve.rs only checks `is_file()` for COPILOT_CLI_PATH, so a plain
+    // tempfile is sufficient — we don't need it to be executable. The
+    // downstream `Client::start` call will fail to exec an empty file,
+    // which we tolerate below; we just need to observe that the resolver
+    // returned the env-override path rather than `BinaryNotFound`.
     let path = tmp.path().to_path_buf();
 
     set_env(
@@ -67,7 +81,7 @@ async fn env_override_resolves_to_pointed_file() {
 
 /// A stale (non-existent) COPILOT_CLI_PATH falls through to the next
 /// resolution source (embed or dev) rather than failing outright.
-#[tokio::test]
+#[tokio::test(flavor = "current_thread")]
 #[serial(copilot_cli_path)]
 async fn stale_env_override_falls_through() {
     set_env("COPILOT_CLI_PATH", "/definitely/does/not/exist/copilot");
@@ -79,10 +93,9 @@ async fn stale_env_override_falls_through() {
     // resolver should find a binary via the next source. Failing here
     // would mean fallthrough is broken.
     if let Err(e) = &result {
-        let msg = format!("{e}");
         assert!(
-            !msg.contains("BinaryNotFound") && !msg.contains("not bundled"),
-            "stale COPILOT_CLI_PATH should fall through to bundled/dev CLI; got {msg}"
+            !matches!(e, Error::BinaryNotFound { .. }),
+            "stale COPILOT_CLI_PATH should fall through; got BinaryNotFound: {e}"
         );
     }
 }
@@ -90,7 +103,7 @@ async fn stale_env_override_falls_through() {
 /// In dev mode (no `bundled-cli` feature) build.rs writes the extracted
 /// binary into the per-user cache and emits its path as
 /// `COPILOT_CLI_DEV_PATH`. The runtime resolver returns that path.
-#[cfg(not(feature = "bundled-cli"))]
+#[cfg(has_dev_cli)]
 #[test]
 fn dev_mode_extracted_binary_exists() {
     let path = PathBuf::from(env!("COPILOT_CLI_DEV_PATH"));
@@ -101,11 +114,22 @@ fn dev_mode_extracted_binary_exists() {
     );
 
     // Confirm the cache layout matches what runtime resolution expects.
-    let display = path.display().to_string();
+    let mut found = false;
+    let comps: Vec<_> = path.components().collect();
+    for window in comps.windows(2) {
+        if let (std::path::Component::Normal(a), std::path::Component::Normal(b)) =
+            (&window[0], &window[1])
+            && a.to_str() == Some("github-copilot-sdk")
+            && b.to_str() == Some("cli")
+        {
+            found = true;
+            break;
+        }
+    }
     assert!(
-        display.contains("github-copilot-sdk") && display.contains("/cli/"),
-        "dev path {} does not match expected `github-copilot-sdk/cli/<version>/` layout",
-        display
+        found,
+        "dev path {} does not contain the expected `github-copilot-sdk/cli/` segments",
+        path.display()
     );
 }
 

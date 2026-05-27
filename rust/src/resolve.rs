@@ -1,6 +1,6 @@
 //! Internal resolution of the GitHub Copilot CLI binary.
 //!
-//! Resolution order (matches the .NET and TypeScript SDKs):
+//! Resolution order:
 //!
 //! 1. An explicit path supplied by the application via
 //!    [`CliProgram::Path`](crate::CliProgram::Path).
