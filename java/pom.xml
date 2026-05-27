@@ -12,7 +12,7 @@
 
     <name>GitHub Copilot SDK :: Java</name>
     <description>SDK for programmatic control of GitHub Copilot CLI</description>
-    <url>https://github.com/github/copilot-sdk-java</url>
+    <url>https://github.com/github/copilot-sdk</url>
 
     <licenses>
         <license>
@@ -30,9 +30,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/github/copilot-sdk-java.git</connection>
-        <developerConnection>scm:git:https://github.com/github/copilot-sdk-java.git</developerConnection>
-        <url>https://github.com/github/copilot-sdk-java</url>
+        <connection>scm:git:https://github.com/github/copilot-sdk.git</connection>
+        <developerConnection>scm:git:https://github.com/github/copilot-sdk.git</developerConnection>
+        <url>https://github.com/github/copilot-sdk</url>
         <tag>HEAD</tag>
     </scm>
 
