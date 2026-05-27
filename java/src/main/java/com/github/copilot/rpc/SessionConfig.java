@@ -354,9 +354,11 @@ public class SessionConfig {
      * {@code .github/copilot-instructions.md}, {@code AGENTS.md}) from the working
      * directory.
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session creation request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true}
+     * (skip); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value
+     * is forwarded only when explicitly set.
      *
      * @param skipCustomInstructions
      *            whether to skip custom instructions
@@ -394,9 +396,11 @@ public class SessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory (no organisation-level discovery).
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session creation request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
+     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
+     * forwarded only when explicitly set.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -434,9 +438,11 @@ public class SessionConfig {
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
      * trailer when it commits on behalf of the user.
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session creation request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
      *
      * @param coauthorEnabled
      *            whether coauthor is enabled
@@ -474,9 +480,11 @@ public class SessionConfig {
      * Sets whether to enable the {@code manage_schedule} tool (host scheduler
      * integration).
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session creation request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
      *
      * @param manageScheduleEnabled
      *            whether manage schedule is enabled

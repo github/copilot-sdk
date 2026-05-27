@@ -297,9 +297,11 @@ public class ResumeSessionConfig {
     /**
      * Sets whether to suppress loading of custom instruction files.
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session resume request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true}
+     * (skip); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value
+     * is forwarded only when explicitly set.
      *
      * @param skipCustomInstructions
      *            whether to skip custom instructions
@@ -336,9 +338,11 @@ public class ResumeSessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory.
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session resume request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
+     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
+     * forwarded only when explicitly set.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -375,9 +379,11 @@ public class ResumeSessionConfig {
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
      * trailer.
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session resume request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
      *
      * @param coauthorEnabled
      *            whether coauthor is enabled
@@ -413,9 +419,11 @@ public class ResumeSessionConfig {
     /**
      * Sets whether to enable the {@code manage_schedule} tool.
      * <p>
-     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
-     * reserved for future SDK defaulting behavior. Setting it currently has no
-     * effect on the session resume request.
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
      *
      * @param manageScheduleEnabled
      *            whether manage schedule is enabled
