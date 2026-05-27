@@ -231,18 +231,13 @@ fn target_platform() -> Option<Platform> {
 }
 
 /// Dev-mode extraction: write the single binary entry from `archive` to
-/// `<platform cache>/github-copilot-sdk/cli/<version>/<binary_name>` (staging
-/// file + atomic rename). Idempotent — returns the existing path if a previous
-/// build already populated the target. Mirrors the cache layout
-/// `embeddedcli::default_install_dir` uses at runtime so the two modes are
-/// interchangeable.
-///
-/// Uses file-level (not directory-level) atomic rename so the recovery path
-/// works on Windows too: `std::fs::rename` on Windows atomically replaces
-/// existing files via `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, but
-/// **cannot** replace an existing directory. Staging the binary alongside
-/// its final location and renaming the file is portable; staging an entire
-/// directory and renaming it is not.
+/// `<platform cache>/github-copilot-sdk/cli/<version>/<binary_name>`.
+/// Idempotent — returns the existing path if a previous build already
+/// populated the target. Mirrors `embeddedcli::install` exactly so the
+/// dev-mode and embed-mode paths share the same proven semantics on every
+/// platform (notably Windows, where directory-level atomic rename isn't
+/// available and the embed path has shipped to users without staging for
+/// some time).
 fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBuf {
     let cache_root = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
     let install_dir = cache_root
@@ -251,6 +246,8 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
         .join(version);
     let final_path = install_dir.join(platform.binary_name);
 
+    // Per-version install dir means a present file at this path is the
+    // binary we want — no need to re-extract. Matches embeddedcli::install.
     if final_path.is_file() {
         return final_path;
     }
@@ -262,44 +259,15 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
         )
     });
 
-    // Staging file is a sibling of the final binary so the rename stays on
-    // the same filesystem. PID + nanos disambiguate parallel builds racing
-    // on the same cache.
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let staging_binary = install_dir.join(format!(
-        ".{binary_name}.staging-{pid}-{nanos}",
-        binary_name = platform.binary_name,
-        pid = std::process::id(),
-    ));
-
     let bytes = extract_binary_bytes(archive, platform);
-    std::fs::write(&staging_binary, &bytes)
-        .unwrap_or_else(|e| panic!("failed to write {}: {e}", staging_binary.display()));
+    std::fs::write(&final_path, &bytes)
+        .unwrap_or_else(|e| panic!("failed to write {}: {e}", final_path.display()));
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&staging_binary, std::fs::Permissions::from_mode(0o755))
-            .unwrap_or_else(|e| panic!("failed to chmod {}: {e}", staging_binary.display()));
-    }
-
-    // Atomic on both Unix and Windows for file-to-file renames. If a
-    // concurrent build already won the race, the rename replaces their
-    // bytes with ours — the SHA-verified inputs are identical, so this is
-    // safe.
-    match std::fs::rename(&staging_binary, &final_path) {
-        Ok(()) => {}
-        Err(e) => {
-            let _ = std::fs::remove_file(&staging_binary);
-            panic!(
-                "failed to rename {} -> {}: {e}",
-                staging_binary.display(),
-                final_path.display()
-            );
-        }
+        std::fs::set_permissions(&final_path, std::fs::Permissions::from_mode(0o755))
+            .unwrap_or_else(|e| panic!("failed to chmod {}: {e}", final_path.display()));
     }
 
     final_path
