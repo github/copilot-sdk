@@ -3301,10 +3301,10 @@ pub struct McpServer {
     pub status: McpServerStatus,
 }
 
-/// Additional authentication configuration for this server.
+/// Authentication settings with optional redirect port configuration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpServerConfigHttpAuth {
+pub struct McpServerAuthConfigRedirectPort {
     /// Fixed port for the OAuth redirect callback server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_port: Option<i32>,
@@ -3314,9 +3314,9 @@ pub struct McpServerConfigHttpAuth {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerConfigHttp {
-    /// Additional authentication configuration for this server.
+    /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<McpServerConfigHttpAuth>,
+    pub auth: Option<serde_json::Value>,
     /// Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_mapping: Option<serde_json::Value>,
@@ -3335,7 +3335,7 @@ pub struct McpServerConfigHttp {
     /// Whether the configured OAuth client is public and does not require a client secret.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oauth_public_client: Option<bool>,
-    /// OIDC token configuration. When truthy, a token is automatically gathered.
+    /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc: Option<serde_json::Value>,
     /// Timeout in milliseconds for tool calls to this server.
@@ -3358,7 +3358,7 @@ pub struct McpServerConfigStdio {
     /// Command-line arguments passed to the Stdio MCP server process.
     #[serde(default)]
     pub args: Vec<String>,
-    /// Authentication configuration for this server.
+    /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<serde_json::Value>,
     /// Executable command used to start the Stdio MCP server process.
@@ -3375,7 +3375,7 @@ pub struct McpServerConfigStdio {
     /// Whether this server is a built-in fallback used when the user has not configured their own server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_default_server: Option<bool>,
-    /// OIDC token configuration. When truthy, a token is automatically gathered.
+    /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc: Option<serde_json::Value>,
     /// Timeout in milliseconds for tool calls to this server.
@@ -7635,6 +7635,9 @@ pub struct SessionUpdateOptionsParams {
     /// Whether to skip loading custom instruction sources.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip_custom_instructions: Option<bool>,
+    /// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,
     /// Optional path for trajectory output.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trajectory_file: Option<String>,
@@ -13736,6 +13739,28 @@ pub enum OptionsUpdateEnvValueMode {
     /// Resolve MCP server environment values from host-side references.
     #[serde(rename = "indirect")]
     Indirect,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OptionsUpdateToolFilterPrecedence {
+    /// If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.
+    #[serde(rename = "available")]
+    Available,
+    /// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.
+    #[serde(rename = "excluded")]
+    Excluded,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
