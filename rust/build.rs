@@ -356,6 +356,15 @@ fn extract_to_cache(archive: &[u8], install_dir: &Path, platform: Platform) -> P
         );
     }
 
+    // Surface where the binary landed so contributors can find it. Quiet
+    // on the hot path: the caller's `is_file()` short-circuit (and the
+    // safety net at the top of this function) means this only fires on a
+    // true cache miss.
+    println!(
+        "cargo:warning=Extracted Copilot CLI to {}",
+        final_path.display()
+    );
+
     final_path
 }
 
