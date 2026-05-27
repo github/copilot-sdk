@@ -17,8 +17,9 @@
 //!
 //! Provider methods return [`Result<T, FsError>`]. The SDK adapts these into
 //! the schema's `{ ..., error: Option<SessionFsError> }` payload, mapping
-//! [`FsError::NotFound`] to the wire's `ENOENT` and everything else to
-//! `UNKNOWN`. A [`From<std::io::Error>`] conversion is provided so handlers
+//! [`FsErrorKind::NotFound`](crate::session_fs::FsErrorKind::NotFound) to
+//! the wire's `ENOENT` and everything else to `UNKNOWN`.
+//! A [`From<std::io::Error>`] conversion is provided so handlers
 //! backed by [`tokio::fs`](https://docs.rs/tokio/latest/tokio/fs/index.html)
 //! can propagate `io::Error` with `?`.
 //!
@@ -40,7 +41,9 @@
 //! }
 //! ```
 
+use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
+use std::fmt;
 
 use async_trait::async_trait;
 
@@ -49,6 +52,7 @@ use crate::generated::api_types::{
     SessionFsError, SessionFsErrorCode, SessionFsReaddirWithTypesEntry,
     SessionFsReaddirWithTypesEntryType, SessionFsSetProviderConventions, SessionFsStatResult,
 };
+use crate::{Custom, Repr};
 
 /// Optional capabilities declared by a session filesystem provider.
 #[non_exhaustive]
@@ -135,36 +139,117 @@ impl SessionFsConventions {
     }
 }
 
-/// Error returned by a [`SessionFsProvider`] method.
+/// Error kind returned by a [`SessionFsProvider`] method.
 ///
-/// The SDK maps this onto the wire schema's [`SessionFsError`]:
-/// [`FsError::NotFound`] becomes `ENOENT`, everything else becomes `UNKNOWN`.
+/// The SDK maps this onto the wire schema's `SessionFsError`:
+/// [`FsErrorKind::NotFound`] becomes `ENOENT`, everything else becomes `UNKNOWN`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum FsError {
+pub enum FsErrorKind {
     /// File or directory does not exist.
-    #[error("not found: {0}")]
     NotFound(String),
 
     /// Any other filesystem error (permission denied, I/O error, etc.).
-    ///
-    /// The wire mapping always uses `UNKNOWN` as the code; the message is
-    /// preserved for diagnostics.
-    #[error("{0}")]
-    Other(String),
+    Other,
+}
+
+impl fmt::Display for FsErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FsErrorKind::NotFound(path) => write!(f, "not found: {path}"),
+            FsErrorKind::Other => write!(f, "filesystem error"),
+        }
+    }
+}
+
+/// Error returned by a [`crate::session_fs::SessionFsProvider`] method.
+///
+/// The SDK maps this onto the wire schema's `SessionFsError`:
+/// [`FsErrorKind::NotFound`] becomes `ENOENT`, everything else becomes `UNKNOWN`.
+#[derive(Debug)]
+pub struct FsError {
+    repr: Repr<FsErrorKind>,
 }
 
 impl FsError {
+    /// Construct a `FsError` wrapping a source error.
+    pub fn new<E>(kind: FsErrorKind, error: E) -> Self
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        Self {
+            repr: Repr::Custom(Custom {
+                kind,
+                error: error.into(),
+            }),
+        }
+    }
+
+    /// The [`FsErrorKind`] of this error.
+    pub fn kind(&self) -> &FsErrorKind {
+        match &self.repr {
+            Repr::Simple(k) | Repr::SimpleMessage(k, ..) | Repr::Custom(Custom { kind: k, .. }) => {
+                k
+            }
+        }
+    }
+
+    /// The message provided when this error was constructed, or `None`.
+    pub fn message(&self) -> Option<&str> {
+        match &self.repr {
+            Repr::SimpleMessage(_, m) => Some(m.borrow()),
+            _ => None,
+        }
+    }
+
+    /// Create a `FsError` with a custom message.
+    #[must_use]
+    pub fn with_message<C>(kind: FsErrorKind, message: C) -> Self
+    where
+        C: Into<Cow<'static, str>>,
+    {
+        Self {
+            repr: Repr::SimpleMessage(kind, message.into()),
+        }
+    }
+
     pub(crate) fn into_wire(self) -> SessionFsError {
-        match self {
-            Self::NotFound(message) => SessionFsError {
+        match self.kind() {
+            FsErrorKind::NotFound(message) => SessionFsError {
                 code: SessionFsErrorCode::ENOENT,
-                message: Some(message),
+                message: Some(message.clone()),
             },
-            Self::Other(message) => SessionFsError {
+            FsErrorKind::Other => SessionFsError {
                 code: SessionFsErrorCode::UNKNOWN,
-                message: Some(message),
+                message: Some(self.to_string()),
             },
+        }
+    }
+}
+
+impl fmt::Display for FsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.repr {
+            Repr::Simple(k) => write!(f, "{k}"),
+            Repr::SimpleMessage(_, m) => write!(f, "{m}"),
+            Repr::Custom(Custom { error, .. }) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for FsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.repr {
+            Repr::Custom(Custom { error, .. }) => Some(&**error),
+            _ => None,
+        }
+    }
+}
+
+impl From<FsErrorKind> for FsError {
+    fn from(kind: FsErrorKind) -> Self {
+        Self {
+            repr: Repr::Simple(kind),
         }
     }
 }
@@ -172,8 +257,8 @@ impl FsError {
 impl From<std::io::Error> for FsError {
     fn from(err: std::io::Error) -> Self {
         match err.kind() {
-            std::io::ErrorKind::NotFound => Self::NotFound(err.to_string()),
-            _ => Self::Other(err.to_string()),
+            std::io::ErrorKind::NotFound => Self::new(FsErrorKind::NotFound(err.to_string()), err),
+            _ => Self::new(FsErrorKind::Other, err),
         }
     }
 }
@@ -296,7 +381,7 @@ impl DirEntry {
 /// # Forward compatibility
 ///
 /// Methods on this trait have default implementations that return
-/// `Err(FsError::Other("operation not supported".into()))`. When the CLI
+/// `Err(FsError::with_message(FsErrorKind::Other, "operation not supported"))`. When the CLI
 /// schema grows new `sessionFs.*` methods, the SDK adds them to this trait
 /// with default impls so existing implementations continue to compile.
 /// Override only the methods relevant to your backing store.
@@ -305,7 +390,10 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     /// Read the full contents of a file as UTF-8.
     async fn read_file(&self, path: &str) -> Result<String, FsError> {
         let _ = path;
-        Err(FsError::Other("read_file not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "read_file not supported",
+        ))
     }
 
     /// Write content to a file, creating parent directories if needed.
@@ -316,7 +404,10 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         mode: Option<i64>,
     ) -> Result<(), FsError> {
         let _ = (path, content, mode);
-        Err(FsError::Other("write_file not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "write_file not supported",
+        ))
     }
 
     /// Append content to a file, creating parent directories if needed.
@@ -327,40 +418,56 @@ pub trait SessionFsProvider: Send + Sync + 'static {
         mode: Option<i64>,
     ) -> Result<(), FsError> {
         let _ = (path, content, mode);
-        Err(FsError::Other("append_file not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "append_file not supported",
+        ))
     }
 
     /// Check whether a path exists.
     ///
-    /// Returns `Ok(false)` for non-existent paths, not [`FsError::NotFound`].
+    /// Returns `Ok(false)` for non-existent paths, not [`FsErrorKind::NotFound`].
     async fn exists(&self, path: &str) -> Result<bool, FsError> {
         let _ = path;
-        Err(FsError::Other("exists not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "exists not supported",
+        ))
     }
 
     /// Get metadata about a file or directory.
     async fn stat(&self, path: &str) -> Result<FileInfo, FsError> {
         let _ = path;
-        Err(FsError::Other("stat not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "stat not supported",
+        ))
     }
 
     /// Create a directory. When `recursive`, missing parents are also created.
     async fn mkdir(&self, path: &str, recursive: bool, mode: Option<i64>) -> Result<(), FsError> {
         let _ = (path, recursive, mode);
-        Err(FsError::Other("mkdir not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "mkdir not supported",
+        ))
     }
 
     /// List entry names in a directory.
     async fn readdir(&self, path: &str) -> Result<Vec<String>, FsError> {
         let _ = path;
-        Err(FsError::Other("readdir not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "readdir not supported",
+        ))
     }
 
     /// List directory entries with type information.
     async fn readdir_with_types(&self, path: &str) -> Result<Vec<DirEntry>, FsError> {
         let _ = path;
-        Err(FsError::Other(
-            "readdir_with_types not supported".to_string(),
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "readdir_with_types not supported",
         ))
     }
 
@@ -368,13 +475,19 @@ pub trait SessionFsProvider: Send + Sync + 'static {
     /// error. When `recursive`, directory contents are removed as well.
     async fn rm(&self, path: &str, recursive: bool, force: bool) -> Result<(), FsError> {
         let _ = (path, recursive, force);
-        Err(FsError::Other("rm not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "rm not supported",
+        ))
     }
 
     /// Rename or move a file or directory.
     async fn rename(&self, src: &str, dest: &str) -> Result<(), FsError> {
         let _ = (src, dest);
-        Err(FsError::Other("rename not supported".to_string()))
+        Err(FsError::with_message(
+            FsErrorKind::Other,
+            "rename not supported",
+        ))
     }
 
     /// Return a reference to the SQLite provider, if this provider supports
@@ -443,7 +556,9 @@ mod tests {
     fn fs_error_maps_io_not_found_to_enoent() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing.txt");
         let fs_err: FsError = io_err.into();
-        assert!(matches!(fs_err, FsError::NotFound(_)));
+        assert!(
+            matches!(fs_err.kind(), FsErrorKind::NotFound(message) if message == "missing.txt")
+        );
         let wire = fs_err.into_wire();
         assert_eq!(wire.code, SessionFsErrorCode::ENOENT);
     }
@@ -452,7 +567,7 @@ mod tests {
     fn fs_error_maps_other_io_to_unknown() {
         let io_err = std::io::Error::other("disk full");
         let fs_err: FsError = io_err.into();
-        assert!(matches!(fs_err, FsError::Other(_)));
+        assert!(matches!(fs_err.kind(), FsErrorKind::Other));
         let wire = fs_err.into_wire();
         assert_eq!(wire.code, SessionFsErrorCode::UNKNOWN);
         assert!(wire.message.unwrap().contains("disk full"));
@@ -478,6 +593,8 @@ mod tests {
     async fn default_impls_return_unsupported() {
         let p = DefaultProvider;
         let err = p.read_file("/x").await.unwrap_err();
-        assert!(matches!(err, FsError::Other(ref m) if m.contains("not supported")));
+        assert!(
+            matches!(err.kind(), FsErrorKind::Other) && err.to_string().contains("not supported")
+        );
     }
 }

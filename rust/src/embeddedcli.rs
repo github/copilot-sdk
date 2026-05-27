@@ -17,7 +17,7 @@ use std::fs;
 #[cfg(all(has_bundled_cli, not(windows)))]
 use std::io::Read;
 #[cfg(has_bundled_cli)]
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -132,7 +132,8 @@ fn default_install_dir(version: &str) -> PathBuf {
 fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     let verbose = std::env::var("COPILOT_CLI_INSTALL_VERBOSE").ok().as_deref() == Some("1");
 
-    fs::create_dir_all(install_dir).map_err(EmbeddedCliError::CreateDir)?;
+    fs::create_dir_all(install_dir)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
 
     let final_path = install_dir.join(CLI_BINARY_NAME);
 
@@ -164,35 +165,45 @@ fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliErr
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let gz = flate2::read::GzDecoder::new(archive);
     let mut tar = tar::Archive::new(gz);
-    for entry in tar.entries().map_err(EmbeddedCliError::Archive)? {
-        let mut entry = entry.map_err(EmbeddedCliError::Archive)?;
-        let path = entry.path().map_err(EmbeddedCliError::Archive)?;
+    for entry in tar
+        .entries()
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
+    {
+        let mut entry =
+            entry.map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+        let path = entry
+            .path()
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
         let name = path.to_string_lossy();
         if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
             entry
                 .read_to_end(&mut bytes)
-                .map_err(EmbeddedCliError::Archive)?;
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
             return Ok(bytes);
         }
     }
-    Err(EmbeddedCliError::BinaryNotFoundInArchive)
+    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
 #[cfg(all(has_bundled_cli, windows))]
 fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
     let cursor = std::io::Cursor::new(archive);
-    let mut zip = zip::ZipArchive::new(cursor).map_err(EmbeddedCliError::Zip)?;
+    let mut zip = zip::ZipArchive::new(cursor)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
     for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(EmbeddedCliError::Zip)?;
+        let mut entry = zip
+            .by_index(i)
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
         let name = entry.name().to_string();
         if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
             let mut bytes = Vec::with_capacity(entry.size() as usize);
-            std::io::copy(&mut entry, &mut bytes).map_err(EmbeddedCliError::Io)?;
+            std::io::copy(&mut entry, &mut bytes)
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
             return Ok(bytes);
         }
     }
-    Err(EmbeddedCliError::BinaryNotFoundInArchive)
+    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
 #[cfg(has_bundled_cli)]
@@ -213,38 +224,107 @@ fn write_binary(path: &Path, data: &[u8]) -> Result<(), EmbeddedCliError> {
         .create(true)
         .truncate(true)
         .open(path)
-        .map_err(EmbeddedCliError::Io)?;
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
 
-    file.write_all(data).map_err(EmbeddedCliError::Io)?;
+    file.write_all(data)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o755))
-            .map_err(EmbeddedCliError::Io)?;
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
     }
 
     Ok(())
 }
 
 #[cfg(has_bundled_cli)]
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
-enum EmbeddedCliError {
-    #[error("failed to create install directory: {0}")]
-    CreateDir(io::Error),
-
+enum EmbeddedCliErrorKind {
+    CreateDir,
     #[cfg(not(windows))]
-    #[error("failed to read archive entry: {0}")]
-    Archive(io::Error),
-
+    Archive,
     #[cfg(windows)]
-    #[error("failed to read zip archive: {0}")]
-    Zip(zip::result::ZipError),
-
-    #[error("CLI binary not found in embedded archive")]
+    Zip,
     BinaryNotFoundInArchive,
+    Io,
+}
 
-    #[error("I/O error: {0}")]
-    Io(io::Error),
+#[cfg(has_bundled_cli)]
+impl std::fmt::Display for EmbeddedCliErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EmbeddedCliErrorKind::CreateDir => f.write_str("failed to create install directory"),
+            #[cfg(not(windows))]
+            EmbeddedCliErrorKind::Archive => f.write_str("failed to read archive entry"),
+            #[cfg(windows)]
+            EmbeddedCliErrorKind::Zip => f.write_str("failed to read zip archive"),
+            EmbeddedCliErrorKind::BinaryNotFoundInArchive => {
+                f.write_str("CLI binary not found in embedded archive")
+            }
+            EmbeddedCliErrorKind::Io => f.write_str("I/O error"),
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+#[allow(dead_code)]
+struct EmbeddedCliError {
+    repr: crate::errors::Repr<EmbeddedCliErrorKind>,
+}
+
+#[cfg(has_bundled_cli)]
+impl EmbeddedCliError {
+    fn new<E>(kind: EmbeddedCliErrorKind, error: E) -> Self
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        Self {
+            repr: crate::errors::Repr::Custom(crate::errors::Custom {
+                kind,
+                error: error.into(),
+            }),
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl From<EmbeddedCliErrorKind> for EmbeddedCliError {
+    fn from(kind: EmbeddedCliErrorKind) -> Self {
+        Self {
+            repr: crate::errors::Repr::Simple(kind),
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl std::fmt::Display for EmbeddedCliError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.repr {
+            crate::errors::Repr::Simple(kind) => write!(f, "{kind}"),
+            crate::errors::Repr::SimpleMessage(_, msg) => write!(f, "{msg}"),
+            crate::errors::Repr::Custom(crate::errors::Custom { kind, error }) => {
+                write!(f, "{kind}: {error}")
+            }
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl std::fmt::Debug for EmbeddedCliError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EmbeddedCliError({self})")
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl std::error::Error for EmbeddedCliError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.repr {
+            crate::errors::Repr::Custom(crate::errors::Custom { error, .. }) => Some(&**error),
+            _ => None,
+        }
+    }
 }

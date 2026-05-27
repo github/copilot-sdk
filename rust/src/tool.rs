@@ -621,7 +621,7 @@ mod tests {
         use serde::Deserialize;
 
         use super::super::*;
-        use crate::SessionId;
+        use crate::{ErrorKind, SessionId};
 
         #[derive(Deserialize, schemars::JsonSchema)]
         struct GetWeatherParams {
@@ -712,7 +712,7 @@ mod tests {
             };
 
             let err = tool.call(inv).await.unwrap_err();
-            assert!(matches!(err, Error::Json(_)));
+            assert!(matches!(err.kind(), ErrorKind::Json));
         }
 
         #[tokio::test]

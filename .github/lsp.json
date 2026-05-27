@@ -21,6 +21,24 @@
         ".go": "go"
       },
       "rootUri": "go"
+    },
+    "rust-analyzer": {
+      "command": "rust-analyzer",
+      "fileExtensions": {
+        ".rs": "rust"
+      },
+      "initializationOptions": {
+        "cargo": {
+          "buildScripts": {
+            "enable": true
+          },
+          "allFeatures": true
+        },
+        "checkOnSave": true,
+        "check": {
+          "command": "clippy"
+        }
+      }
     }
   }
 }

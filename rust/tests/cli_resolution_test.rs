@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, Error};
+use github_copilot_sdk::{CliProgram, Client, ClientOptions, ErrorKind};
 use serial_test::serial;
 
 fn unset_env(key: &str) {
@@ -87,7 +87,7 @@ async fn stale_env_override_falls_through() {
     // here would mean fallthrough is broken.
     if let Err(e) = &result {
         assert!(
-            !matches!(e, Error::BinaryNotFound { .. }),
+            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
             "stale COPILOT_CLI_PATH should fall through; got BinaryNotFound: {e}"
         );
     }
@@ -147,7 +147,7 @@ async fn unbundled_resolver_finds_extracted_binary() {
     let result = Client::start(opts).await;
     if let Err(e) = result {
         assert!(
-            !matches!(e, Error::BinaryNotFound { .. }),
+            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
             "resolver returned BinaryNotFound with `bundled-cli` off: {e}"
         );
     }
@@ -185,7 +185,7 @@ async fn extract_dir_runtime_override_is_honored() {
 
     if let Err(e) = result {
         assert!(
-            !matches!(e, Error::BinaryNotFound { .. }),
+            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
             "EXTRACT_DIR-redirected resolver returned BinaryNotFound: {e}"
         );
     }

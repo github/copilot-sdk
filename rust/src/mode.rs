@@ -47,10 +47,13 @@ fn validate_name(kind: &str, name: &str) -> Result<(), crate::Error> {
         return Ok(());
     }
     if !is_valid_tool_name(name) {
-        return Err(crate::Error::InvalidConfig(format!(
-            "Invalid {kind} tool name '{name}': tool names must match \
+        return Err(crate::Error::with_message(
+            crate::ErrorKind::InvalidConfig,
+            format!(
+                "Invalid {kind} tool name '{name}': tool names must match \
              /^[a-zA-Z0-9_-]+$/ or be the wildcard '*'."
-        )));
+            ),
+        ));
     }
     Ok(())
 }
@@ -185,11 +188,14 @@ pub(crate) fn validate_tool_filter_list(
     let Some(list) = list else { return Ok(()) };
     for item in list {
         if item == "*" {
-            return Err(crate::Error::InvalidConfig(format!(
-                "{field} contains a bare '*' which matches no tool. Use \
+            return Err(crate::Error::with_message(
+                crate::ErrorKind::InvalidConfig,
+                format!(
+                    "{field} contains a bare '*' which matches no tool. Use \
                  source-qualified wildcards instead: \
                  ToolSet::new().add_builtin(\"*\").add_mcp(\"*\").add_custom(\"*\")."
-            )));
+                ),
+            ));
         }
     }
     Ok(())

@@ -31,6 +31,7 @@
   - Java single test: `cd java && mvn test -Dtest=CopilotClientTest` | single method: `mvn test -Dtest=ToolsTest#testToolInvocation`
   - Java format check only: `mvn spotless:check` | Build without tests: `mvn clean package -DskipTests`
   - **Java testing note:** Always use `mvn verify` without `-q` and without piping through `grep`. Never add `InternalsVisibleTo` equivalent — tests must only access public APIs.
+- Use configured LSPs for supported operations like finding references instead of pattern matching, renaming symbols, etc.
 
 ## Testing & E2E tips ⚙️
 

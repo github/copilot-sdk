@@ -13,11 +13,10 @@ Opinionated Rust rules for the Copilot Rust SDK (`rust/`). Priority order:
 
 ## Error handling
 
-The SDK's public error type is `crate::Error` (`rust/src/error.rs`). Add new
-variants there rather than introducing parallel error enums per module — every
-public failure mode is part of the API contract and should be expressible in one
-type. Internal modules can use `thiserror` enums when a richer local taxonomy
-helps; convert at the boundary.
+The SDK's public error type is `crate::Error` (`rust/src/errors.rs`). Add new
+variants to `crate::ErrorKind` rather than introducing parallel error enums
+per module — every public failure mode is part of the API contract and should
+be expressible in one type.
 
 `anyhow` is reserved for binaries and example code. Library code never returns
 `anyhow::Result` — callers can't pattern-match on `anyhow::Error`, so it would
@@ -42,7 +41,7 @@ it on shutdown. Fire-and-forget spawns silently swallow panics and outlive the
 session; don't.
 
 Blocking calls (filesystem, subprocess wait) belong in
-`tokio::task::spawn_blocking`, *not* on the async runtime. The blocking pool is
+`tokio::task::spawn_blocking`, _not_ on the async runtime. The blocking pool is
 bounded, so for genuinely long-lived workers (think: file watchers that run for
 the lifetime of a session) prefer `std::thread::spawn` with a channel back into
 async land.
@@ -81,12 +80,12 @@ Trivial field re-shaping is best inlined. Closures should stay short (under ~10 
 
 **Channels, not callback closures, for event flow.** Closures fight `Send + Sync + 'static` and don't compose with `select!`. Channel choice by semantics:
 
-| Use case | Primitive |
-|---|---|
-| One producer → one consumer with backpressure | `tokio::sync::mpsc` (cap 1) or `tokio::sync::oneshot` for single value |
-| Many producers → one consumer | `tokio::sync::mpsc` |
-| One producer → many consumers, every event delivered (pub/sub) | `tokio::sync::broadcast` |
-| One producer → many consumers, only the latest value matters | `tokio::sync::watch` |
+| Use case                                                       | Primitive                                                              |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| One producer → one consumer with backpressure                  | `tokio::sync::mpsc` (cap 1) or `tokio::sync::oneshot` for single value |
+| Many producers → one consumer                                  | `tokio::sync::mpsc`                                                    |
+| One producer → many consumers, every event delivered (pub/sub) | `tokio::sync::broadcast`                                               |
+| One producer → many consumers, only the latest value matters   | `tokio::sync::watch`                                                   |
 
 For the **public** API, prefer returning `impl Stream<Item = Event>` (wrap a `broadcast::Receiver` in `tokio_stream::wrappers::BroadcastStream`). `Stream` composes with `select!`, `take`, `map`, `filter`, `timeout`. See `EventSubscription` and `LifecycleSubscription`.
 
@@ -115,7 +114,7 @@ JSON: `#[serde(rename_all = "camelCase")]` at the type level, per-field `#[serde
 Banned via `clippy.toml`. Use manual spans with `error_span!`:
 
 - **Almost always use `error_span!`**, not `info_span!`. Span level controls
-  the *minimum* filter at which the span appears. An `info_span` disappears when
+  the _minimum_ filter at which the span appears. An `info_span` disappears when
   the filter is `warn` or `error` — taking all child events with it, even
   errors. `error_span!` ensures the span is always present.
 - **Spawned tasks lose parent context.** Attach a span with `.instrument()` or
@@ -239,9 +238,9 @@ Match those exact commands locally before pushing.
 
 JSON-RPC and session-event types are generated from the Copilot CLI schema:
 
-| Source | Output |
-|---|---|
-| `nodejs/node_modules/@github/copilot/schemas/api.schema.json` | `rust/src/generated/api_types.rs` |
+| Source                                                                   | Output                                 |
+| ------------------------------------------------------------------------ | -------------------------------------- |
+| `nodejs/node_modules/@github/copilot/schemas/api.schema.json`            | `rust/src/generated/api_types.rs`      |
 | `nodejs/node_modules/@github/copilot/schemas/session-events.schema.json` | `rust/src/generated/session_events.rs` |
 
 Regenerate with:

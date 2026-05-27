@@ -32,7 +32,10 @@ use crate::types::{
     SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
     UiInputOptions, ensure_attachment_display_names,
 };
-use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
+use crate::{
+    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
+    error_codes,
+};
 
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
@@ -68,7 +71,7 @@ struct IdleWaiter {
 /// Without this, an outer cancellation between "install waiter" and
 /// "drain channel" would leave the slot occupied, causing all subsequent
 /// `send` and `send_and_wait` calls on the session to return
-/// [`SendWhileWaiting`](SessionError::SendWhileWaiting). Closes RFD-400
+/// [`SendWhileWaiting`](SessionErrorKind::SendWhileWaiting). Closes RFD-400
 /// review finding #2.
 struct WaiterGuard {
     slot: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
@@ -257,7 +260,7 @@ impl Session {
     ///
     /// Each subscriber maintains its own queue. If a consumer cannot keep
     /// up, the oldest events are dropped and `recv` returns
-    /// [`RecvError::Lagged`](crate::subscription::RecvError::Lagged)
+    /// [`RecvErrorKind::Lagged`](crate::subscription::RecvErrorKind::Lagged)
     /// reporting the count of skipped events. Slow consumers do not block
     /// the session's event loop.
     ///
@@ -311,9 +314,9 @@ impl Session {
         }
         // Fail any pending send_and_wait so it returns immediately.
         if let Some(waiter) = self.idle_waiter.lock().take() {
-            let _ = waiter
-                .tx
-                .send(Err(Error::Session(SessionError::EventLoopClosed)));
+            let _ = waiter.tx.send(Err(
+                ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()
+            ));
         }
     }
 
@@ -343,7 +346,7 @@ impl Session {
     /// message ID.
     pub async fn send(&self, opts: impl Into<MessageOptions>) -> Result<String, Error> {
         if self.idle_waiter.lock().is_some() {
-            return Err(Error::Session(SessionError::SendWhileWaiting));
+            return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
         }
         self.send_inner(opts.into()).await
     }
@@ -424,7 +427,7 @@ impl Session {
         {
             let mut guard = self.idle_waiter.lock();
             if guard.is_some() {
-                return Err(Error::Session(SessionError::SendWhileWaiting));
+                return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
             }
             *guard = Some(IdleWaiter {
                 tx,
@@ -446,7 +449,7 @@ impl Session {
             self.send_inner(opts).await?;
             match rx.await {
                 Ok(result) => result,
-                Err(_) => Err(Error::Session(SessionError::EventLoopClosed)),
+                Err(_) => Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()),
             }
         })
         .await;
@@ -468,7 +471,7 @@ impl Session {
                     completed_by = "timeout",
                     "Session::send_and_wait failed"
                 );
-                Err(Error::Session(SessionError::Timeout(timeout_duration)))
+                Err(ErrorKind::Session(SessionErrorKind::Timeout(timeout_duration)).into())
             }
         }
     }
@@ -605,7 +608,7 @@ impl Session {
             .and_then(|u| u.elicitation)
             != Some(true)
         {
-            return Err(Error::Session(SessionError::ElicitationNotSupported));
+            return Err(ErrorKind::Session(SessionErrorKind::ElicitationNotSupported).into());
         }
         Ok(())
     }
@@ -803,11 +806,11 @@ impl Client {
         }
         let mode = self.inner.mode;
         if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "ClientMode::Empty requires available_tools to be set on the session config. \
                  Use ToolSet to specify which tools the session may use (e.g. \
-                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED))."
-                    .to_string(),
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
             ));
         }
         crate::mode::validate_tool_filter_list(
@@ -847,16 +850,16 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
-            return Err(Error::Session(SessionError::SessionFsProviderRequired));
+            return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
         if self.inner.session_fs_sqlite_declared
             && let Some(ref provider) = session_fs_provider
             && provider.sqlite().is_none()
         {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare SQLite support but the provider \
-                 does not implement SessionFsSqliteProvider"
-                    .to_string(),
+                 does not implement SessionFsSqliteProvider",
             ));
         }
 
@@ -917,10 +920,11 @@ impl Client {
         };
         if create_result.session_id != session_id {
             registration.cleanup(event_loop).await;
-            return Err(Error::Session(SessionError::SessionIdMismatch {
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: session_id,
                 returned: create_result.session_id,
-            }));
+            })
+            .into());
         }
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
 
@@ -976,11 +980,11 @@ impl Client {
         }
         let mode = self.inner.mode;
         if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "ClientMode::Empty requires available_tools to be set on the session config. \
                  Use ToolSet to specify which tools the session may use (e.g. \
-                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED))."
-                    .to_string(),
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
             ));
         }
         crate::mode::validate_tool_filter_list(
@@ -1020,16 +1024,16 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
-            return Err(Error::Session(SessionError::SessionFsProviderRequired));
+            return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
         if self.inner.session_fs_sqlite_declared
             && let Some(ref provider) = session_fs_provider
             && provider.sqlite().is_none()
         {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare SQLite support but the provider \
-                 does not implement SessionFsSqliteProvider"
-                    .to_string(),
+                 does not implement SessionFsSqliteProvider",
             ));
         }
 
@@ -1096,10 +1100,11 @@ impl Client {
             .unwrap_or_else(|| session_id.clone());
         if cli_session_id != session_id {
             registration.cleanup(event_loop).await;
-            return Err(Error::Session(SessionError::SessionIdMismatch {
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: session_id,
                 returned: cli_session_id,
-            }));
+            })
+            .into());
         }
 
         // Reload skills after resume (best-effort).
@@ -1284,7 +1289,7 @@ fn spawn_event_loop(
             if let Some(waiter) = idle_waiter.lock().take() {
                 let _ = waiter
                     .tx
-                    .send(Err(Error::Session(SessionError::EventLoopClosed)));
+                    .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
             }
         }
         .instrument(span),
@@ -1387,9 +1392,10 @@ async fn handle_notification(
                                             .map(|s| s.to_string())
                                     })
                                     .unwrap_or_else(|| "session error".to_string());
-                                let _ = waiter
-                                    .tx
-                                    .send(Err(Error::Session(SessionError::AgentError(error_msg))));
+                                let _ = waiter.tx.send(Err(Error::with_message(
+                                    ErrorKind::Session(SessionErrorKind::AgentError),
+                                    error_msg,
+                                )));
                             }
                         }
                     }
