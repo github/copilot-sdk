@@ -1,9 +1,9 @@
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.McpStdioServerConfig;
-import com.github.copilot.sdk.json.MessageOptions;
-import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.SystemMessageConfig;
-import com.github.copilot.sdk.SystemMessageMode;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.McpStdioServerConfig;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.SystemMessageConfig;
+import com.github.copilot.SystemMessageMode;
 
 import java.util.HashMap;
 import java.util.List;
@@ -11,7 +11,7 @@ import java.util.Map;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        var mcpServers = new HashMap<String, com.github.copilot.sdk.json.McpServerConfig>();
+        var mcpServers = new HashMap<String, com.github.copilot.rpc.McpServerConfig>();
         var mcpServerCmd = System.getenv("MCP_SERVER_CMD");
         if (mcpServerCmd != null && !mcpServerCmd.isEmpty()) {
             var mcpArgs = System.getenv("MCP_SERVER_ARGS");

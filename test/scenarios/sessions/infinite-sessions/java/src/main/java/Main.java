@@ -1,9 +1,9 @@
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.InfiniteSessionConfig;
-import com.github.copilot.sdk.json.MessageOptions;
-import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.SystemMessageConfig;
-import com.github.copilot.sdk.SystemMessageMode;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.InfiniteSessionConfig;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.SystemMessageConfig;
+import com.github.copilot.SystemMessageMode;
 
 import java.util.List;
 

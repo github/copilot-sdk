@@ -1,8 +1,8 @@
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.MessageOptions;
-import com.github.copilot.sdk.json.PermissionHandler;
-import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.ToolDefinition;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.ToolDefinition;
 
 import java.util.List;
 import java.util.Map;

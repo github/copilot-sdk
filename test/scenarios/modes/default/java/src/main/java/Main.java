@@ -1,6 +1,6 @@
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.MessageOptions;
-import com.github.copilot.sdk.json.SessionConfig;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.SessionConfig;
 
 public class Main {
     public static void main(String[] args) throws Exception {

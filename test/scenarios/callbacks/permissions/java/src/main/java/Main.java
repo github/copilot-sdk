@@ -1,12 +1,12 @@
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.MessageOptions;
-import com.github.copilot.sdk.json.PermissionHandler;
-import com.github.copilot.sdk.json.PermissionRequest;
-import com.github.copilot.sdk.json.PermissionRequestResult;
-import com.github.copilot.sdk.json.PermissionRequestResultKind;
-import com.github.copilot.sdk.json.PreToolUseHookOutput;
-import com.github.copilot.sdk.json.SessionConfig;
-import com.github.copilot.sdk.json.SessionHooks;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.PermissionRequest;
+import com.github.copilot.rpc.PermissionRequestResult;
+import com.github.copilot.rpc.PermissionRequestResultKind;
+import com.github.copilot.rpc.PreToolUseHookOutput;
+import com.github.copilot.rpc.SessionConfig;
+import com.github.copilot.rpc.SessionHooks;
 
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
