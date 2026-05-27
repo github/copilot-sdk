@@ -1,5 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <NoWarn>$(NoWarn);GHCP001</NoWarn>
-  </PropertyGroup>
-</Project>
