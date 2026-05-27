@@ -231,19 +231,17 @@ fn target_platform() -> Option<Platform> {
 }
 
 /// Dev-mode extraction: write the single binary entry from `archive` to
-/// `<platform cache>/github-copilot-sdk/cli/<version>/<binary_name>`.
+/// `<platform cache>/github-copilot-sdk/cli/<sanitized version>/<binary_name>`.
 /// Idempotent — returns the existing path if a previous build already
-/// populated the target. Mirrors `embeddedcli::install` exactly so the
-/// dev-mode and embed-mode paths share the same proven semantics on every
-/// platform (notably Windows, where directory-level atomic rename isn't
-/// available and the embed path has shipped to users without staging for
-/// some time).
+/// populated the target. Mirrors `embeddedcli::install` exactly (including
+/// `sanitize_version`) so the dev-mode and embed-mode paths share the same
+/// cache layout on every platform.
 fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBuf {
     let cache_root = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
     let install_dir = cache_root
         .join("github-copilot-sdk")
         .join("cli")
-        .join(version);
+        .join(sanitize_version(version));
     let final_path = install_dir.join(platform.binary_name);
 
     // Per-version install dir means a present file at this path is the
@@ -271,6 +269,20 @@ fn extract_to_cache(archive: &[u8], version: &str, platform: Platform) -> PathBu
     }
 
     final_path
+}
+
+/// Replace characters outside `[a-zA-Z0-9._-]` with `_` so the version
+/// string is always safe to use as a path component. Kept in sync with
+/// `embeddedcli::sanitize_version` so embed-mode and dev-mode resolve to
+/// the same cache directory for any given version.
+fn sanitize_version(version: &str) -> String {
+    version
+        .chars()
+        .map(|c| match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+            _ => '_',
+        })
+        .collect()
 }
 
 /// Extract the single `binary_name` entry from the release archive. Reused
