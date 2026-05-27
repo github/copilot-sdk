@@ -1114,8 +1114,21 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     private void shutdownOwnedExecutor() {
-        if (ownedExecutor != null) {
-            ownedExecutor.shutdown();
+        if (ownedExecutor == null) {
+            return;
+        }
+
+        ownedExecutor.shutdown();
+        try {
+            if (!ownedExecutor.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                LOG.log(Level.FINE, "Owned executor did not terminate within {0} seconds; forcing shutdown.",
+                        AUTOCLOSEABLE_TIMEOUT_SECONDS);
+                ownedExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            ownedExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+            LOG.log(Level.FINE, "Interrupted while waiting for owned executor to terminate", e);
         }
     }
 
