@@ -45,6 +45,7 @@ public class MessageOptions {
     private String prompt;
     private List<MessageAttachment> attachments;
     private String mode;
+    private AgentMode agentMode;
     private Map<String, String> requestHeaders;
 
     /**
@@ -127,6 +128,30 @@ public class MessageOptions {
     }
 
     /**
+     * Sets the per-message agent UI mode.
+     * <p>
+     * Defaults to the session's current mode when unset.
+     *
+     * @param agentMode
+     *            the agent mode (for example {@link AgentMode#PLAN} or
+     *            {@link AgentMode#AUTOPILOT})
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setAgentMode(AgentMode agentMode) {
+        this.agentMode = agentMode;
+        return this;
+    }
+
+    /**
+     * Gets the per-message agent UI mode.
+     *
+     * @return the agent mode, or {@code null} if not set
+     */
+    public AgentMode getAgentMode() {
+        return agentMode;
+    }
+
+    /**
      * Gets the custom per-turn HTTP headers for outbound model requests.
      *
      * @return the headers map, or {@code null} if not set
@@ -167,6 +192,7 @@ public class MessageOptions {
         copy.prompt = this.prompt;
         copy.attachments = this.attachments != null ? new ArrayList<>(this.attachments) : null;
         copy.mode = this.mode;
+        copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
         return copy;
     }

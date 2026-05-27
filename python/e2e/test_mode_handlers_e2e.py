@@ -113,7 +113,7 @@ class TestModeHandlers:
 
             response = await session.send_and_wait(
                 PLAN_PROMPT,
-                mode="plan",  # type: ignore[arg-type]
+                agent_mode="plan",
             )
 
             assert len(exit_plan_mode_requests) == 1

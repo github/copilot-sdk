@@ -104,7 +104,7 @@ describe("Mode handlers", async () => {
 
             const response = await session.sendAndWait({
                 prompt: PLAN_PROMPT,
-                mode: "plan" as unknown as NonNullable<Parameters<typeof session.send>[0]["mode"]>,
+                agentMode: "plan",
             });
 
             expect(exitPlanModeRequests).toHaveLength(1);

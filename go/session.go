@@ -289,6 +289,7 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 		Prompt:         options.Prompt,
 		Attachments:    options.Attachments,
 		Mode:           options.Mode,
+		AgentMode:      options.AgentMode,
 		Traceparent:    traceparent,
 		Tracestate:     tracestate,
 		RequestHeaders: options.RequestHeaders,

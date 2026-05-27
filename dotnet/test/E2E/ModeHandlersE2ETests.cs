@@ -53,7 +53,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var response = await session.SendAndWaitAsync(new MessageOptions
         {
-            Mode = "plan",
+            AgentMode = AgentMode.Plan,
             Prompt = "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.",
         }, timeout: TimeSpan.FromSeconds(120));
 

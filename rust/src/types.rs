@@ -2944,6 +2944,24 @@ pub enum DeliveryMode {
     Immediate,
 }
 
+/// The UI mode the agent is in for a given turn, used by
+/// [`MessageOptions::agent_mode`].
+///
+/// Wire values: `"interactive"`, `"plan"`, `"autopilot"`, `"shell"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AgentMode {
+    /// The agent is responding interactively to the user.
+    Interactive,
+    /// The agent is preparing a plan before making changes.
+    Plan,
+    /// The agent is working autonomously toward task completion.
+    Autopilot,
+    /// The agent is in shell-focused UI mode.
+    Shell,
+}
+
 /// Options for sending a user message to the agent.
 ///
 /// Used by both [`Session::send`](crate::session::Session::send) and
@@ -2983,6 +3001,10 @@ pub struct MessageOptions {
     /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
     /// runs immediately ([`DeliveryMode::Immediate`]).
     pub mode: Option<DeliveryMode>,
+    /// Optional UI mode the agent was in when this message was sent
+    /// (for example [`AgentMode::Plan`] or [`AgentMode::Autopilot`]).
+    /// Defaults to the session's current mode when `None`.
+    pub agent_mode: Option<AgentMode>,
     /// Optional attachments to include with the message.
     pub attachments: Option<Vec<Attachment>>,
     /// Maximum time to wait for the session to go idle. Honored only by
@@ -3011,6 +3033,7 @@ impl MessageOptions {
         Self {
             prompt: prompt.into(),
             mode: None,
+            agent_mode: None,
             attachments: None,
             wait_timeout: None,
             request_headers: None,
@@ -3026,6 +3049,14 @@ impl MessageOptions {
     /// prompt behind in-flight work.
     pub fn with_mode(mut self, mode: DeliveryMode) -> Self {
         self.mode = Some(mode);
+        self
+    }
+
+    /// Set the per-message agent UI mode for this turn.
+    ///
+    /// When `None`, the session's current mode is used.
+    pub fn with_agent_mode(mut self, agent_mode: AgentMode) -> Self {
+        self.agent_mode = Some(agent_mode);
         self
     }
 
@@ -3623,11 +3654,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType,
-        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
+        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
+        GitHubReferenceType, InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig,
+        SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool, ToolBinaryResult,
+        ToolResult, ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -4162,6 +4193,25 @@ mod tests {
         );
         let parsed: DeliveryMode = serde_json::from_str("\"immediate\"").unwrap();
         assert_eq!(parsed, DeliveryMode::Immediate);
+    }
+
+    #[test]
+    fn agent_mode_serializes_to_kebab_case_strings() {
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Interactive).unwrap(),
+            "\"interactive\""
+        );
+        assert_eq!(serde_json::to_string(&AgentMode::Plan).unwrap(), "\"plan\"");
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Autopilot).unwrap(),
+            "\"autopilot\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Shell).unwrap(),
+            "\"shell\""
+        );
+        let parsed: AgentMode = serde_json::from_str("\"plan\"").unwrap();
+        assert_eq!(parsed, AgentMode::Plan);
     }
 
     #[test]

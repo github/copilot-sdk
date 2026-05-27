@@ -1929,6 +1929,12 @@ export interface MessageOptions {
     mode?: "enqueue" | "immediate";
 
     /**
+     * The UI mode the agent was in when this message was sent (for example "plan" or "autopilot").
+     * Defaults to the session's current mode when unset.
+     */
+    agentMode?: "interactive" | "plan" | "autopilot" | "shell";
+
+    /**
      * Custom HTTP headers to include in outbound model requests for this turn.
      */
     requestHeaders?: Record<string, string>;

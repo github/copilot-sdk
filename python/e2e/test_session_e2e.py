@@ -1077,8 +1077,8 @@ class TestSessions:
             pytest.fail("disconnect from within handler appears to have deadlocked")
 
     async def test_should_send_with_mode_property(self, ctx: E2ETestContext):
-        """Per-message `mode` is accepted but not echoed back on user.message."""
-        from copilot.generated.session_events import UserMessageData
+        """Per-message `agent_mode` is forwarded and echoed back on user.message."""
+        from copilot.generated.session_events import UserMessageAgentMode, UserMessageData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
@@ -1086,7 +1086,7 @@ class TestSessions:
 
         await session.send_and_wait(
             "Say mode ok.",
-            mode="plan",  # type: ignore[arg-type]
+            agent_mode="plan",
         )
 
         messages = await session.get_events()
@@ -1094,8 +1094,7 @@ class TestSessions:
         assert user_messages
         last = user_messages[-1].data
         assert last.content == "Say mode ok."
-        # The runtime accepts the per-message mode but does not echo it back.
-        assert last.agent_mode is None
+        assert last.agent_mode == UserMessageAgentMode.PLAN
 
         await session.disconnect()
 

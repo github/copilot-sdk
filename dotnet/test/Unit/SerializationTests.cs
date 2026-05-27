@@ -57,7 +57,7 @@ public class SerializationTests
         var original = new MessageOptions
         {
             Prompt = "real prompt",
-            Mode = "plan",
+            Mode = "enqueue",
             RequestHeaders = new Dictionary<string, string> { ["X-Trace"] = "trace-value" }
         };
 
@@ -65,13 +65,13 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         Assert.Equal("real prompt", root.GetProperty("prompt").GetString());
-        Assert.Equal("plan", root.GetProperty("mode").GetString());
+        Assert.Equal("enqueue", root.GetProperty("mode").GetString());
         Assert.Equal("trace-value", root.GetProperty("requestHeaders").GetProperty("X-Trace").GetString());
 
         var deserialized = JsonSerializer.Deserialize<MessageOptions>(json, options);
         Assert.NotNull(deserialized);
         Assert.Equal("real prompt", deserialized.Prompt);
-        Assert.Equal("plan", deserialized.Mode);
+        Assert.Equal("enqueue", deserialized.Mode);
         Assert.Equal("trace-value", deserialized.RequestHeaders!["X-Trace"]);
     }
 
@@ -84,7 +84,7 @@ public class SerializationTests
             requestType,
             ("SessionId", "session-id"),
             ("Prompt", "real prompt"),
-            ("Mode", "plan"),
+            ("Mode", "enqueue"),
             ("RequestHeaders", new Dictionary<string, string> { ["X-Trace"] = "trace-value" }));
 
         var json = JsonSerializer.Serialize(request, requestType, options);
@@ -92,7 +92,7 @@ public class SerializationTests
         var root = document.RootElement;
         Assert.Equal("session-id", root.GetProperty("sessionId").GetString());
         Assert.Equal("real prompt", root.GetProperty("prompt").GetString());
-        Assert.Equal("plan", root.GetProperty("mode").GetString());
+        Assert.Equal("enqueue", root.GetProperty("mode").GetString());
         Assert.Equal("trace-value", root.GetProperty("requestHeaders").GetProperty("X-Trace").GetString());
     }
 

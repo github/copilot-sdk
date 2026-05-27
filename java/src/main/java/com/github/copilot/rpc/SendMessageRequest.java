@@ -37,6 +37,9 @@ public final class SendMessageRequest {
     @JsonProperty("mode")
     private String mode;
 
+    @JsonProperty("agentMode")
+    private AgentMode agentMode;
+
     @JsonProperty("requestHeaders")
     private Map<String, String> requestHeaders;
 
@@ -78,6 +81,16 @@ public final class SendMessageRequest {
     /** Sets the mode. @param mode the message mode */
     public void setMode(String mode) {
         this.mode = mode;
+    }
+
+    /** Gets the per-message agent UI mode. @return the agent mode */
+    public AgentMode getAgentMode() {
+        return agentMode;
+    }
+
+    /** Sets the per-message agent UI mode. @param agentMode the agent mode */
+    public void setAgentMode(AgentMode agentMode) {
+        this.agentMode = agentMode;
     }
 
     /** Gets the per-turn request headers. @return the headers map */
