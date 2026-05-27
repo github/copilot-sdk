@@ -78,6 +78,97 @@ client.stop().await?;
 
 With the default `CliProgram::Resolve`, `Client::start()` resolves the CLI in this order: an explicit `CliProgram::Path(path)`, the `COPILOT_CLI_PATH` env var, then the bundled CLI that was embedded at build time. There is no PATH scanning — if you've opted out of bundling (`default-features = false`) you must supply either `CliProgram::Path` or `COPILOT_CLI_PATH`.
 
+### Session capabilities
+
+The `SessionCapability` enum lets callers enable or disable named runtime features on a **per-session** basis. Capabilities are sent to the runtime as part of the `session.create` / `session.resume` JSON-RPC calls via two wire fields:
+
+- `enabledCapabilities` -- capabilities to opt the session into (extends the `SDK_CAPABILITIES` baseline)
+- `disabledCapabilities` -- capabilities to opt the session out of (disable wins on overlap)
+
+This approach works for every transport -- including `Transport::External` (Desktop app / shared CLI server) -- because it does not rely on CLI spawn arguments.
+
+> **Experimental.** Per-session capability controls are an experimental
+> wire-protocol surface and may change or be removed in future SDK or CLI
+> releases. The Rust SDK marks the relevant fields and builders with a
+> `<div class="warning">**Experimental.**</div>` rustdoc block (the
+> repository convention used in `rust/src/generated/`); there is no
+> `#[experimental]` attribute, so the marker is documentation-only.
+
+> **Runtime dependency.** Per-session capability controls require
+> [github/copilot-agent-runtime#8918](https://github.com/github/copilot-agent-runtime/pull/8918)
+> or later. On older runtimes the fields are silently ignored.
+> Pairs with [github/agents#1081](https://github.com/github/agents/issues/1081)
+> (Desktop app missing memory capability).
+
+Use `SessionConfig::with_enable_capability` / `with_disable_capability` (and their plural counterparts):
+
+```rust,ignore
+use github_copilot_sdk::{SessionCapability, SessionConfig};
+
+let session = client.create_session(
+    SessionConfig::default()
+        .with_enable_capability(SessionCapability::Memory),
+    "What is 2 + 2?".into(),
+).await?;
+```
+
+On resume, use the same builders on `ResumeSessionConfig`:
+
+```rust,ignore
+use github_copilot_sdk::{ResumeSessionConfig, SessionCapability};
+
+let session = client.resume_session(
+    ResumeSessionConfig::new(session_id)
+        .with_enable_capability(SessionCapability::Memory),
+    None,
+).await?;
+```
+
+**Variants:**
+
+| Variant              | Wire name               | Description                                           |
+| -------------------- | ----------------------- | ----------------------------------------------------- |
+| `TuiHints`           | `tui-hints`             | TUI keyboard shortcuts                                |
+| `PlanMode`           | `plan-mode`             | `[[PLAN]]` handling and plan-mode instructions        |
+| `Memory`             | `memory`                | `store_memory` tool and `<memories>` system-prompt section |
+| `CliDocumentation`   | `cli-documentation`     | `fetch_copilot_cli_documentation` tool and `<self_documentation>` section |
+| `AskUser`            | `ask-user`              | `ask_user` tool for interactive clarification         |
+| `InteractiveMode`    | `interactive-mode`      | Interactive-CLI identity (vs headless)                |
+| `SystemNotifications`| `system-notifications`  | Automatic batched system notifications to the agent   |
+| `Elicitation`        | `elicitation`           | Elicitation prompts (confirm / select / input)        |
+| `McpApps`            | `mcp-apps`              | MCP-Apps `ui://` resource passthrough (SEP-1865)      |
+| `CanvasRenderer`     | `canvas-renderer`       | Host-rendered extension canvases                      |
+| `Other(String)`      | *(verbatim)*            | Forward-compat escape hatch for unknown future names  |
+
+**Disable-wins semantics.** If the same capability appears in both
+`enabled_capabilities` and `disabled_capabilities`, disable wins. The runtime
+starts from an `SDK_CAPABILITIES` baseline; enabled capabilities extend it and
+disabled capabilities remove from it, in that order.
+
+**Forward compatibility.** The enum is `#[non_exhaustive]` and carries an
+`Other(String)` variant so callers on older SDK builds can opt into
+capabilities that the runtime adds ahead of a new SDK release, without any
+recompile-blocking enum-variant additions:
+
+```rust,ignore
+use github_copilot_sdk::{SessionCapability, SessionConfig};
+
+// Opt into a capability the SDK doesn't know about yet.
+let config = SessionConfig::default()
+    .with_enable_capability(SessionCapability::Other("future-cap".to_string()));
+```
+
+`&str` and `String` implement `Into<SessionCapability>`, so you can also pass
+string literals directly to the builders:
+
+```rust,ignore
+use github_copilot_sdk::SessionConfig;
+
+let config = SessionConfig::default()
+    .with_enable_capability("memory")          // &str coerces to SessionCapability
+    .with_disable_capability("plan-mode");
+```
+
 ### Session
 
 Created via `Client::create_session` or `Client::resume_session`. Owns an internal event loop that dispatches CLI callbacks to the focused handler traits you install on `SessionConfig`, and broadcasts session events through `subscribe()`.
@@ -714,6 +805,14 @@ gets to be Rust here — cross-SDK parity for these is a post-release
 conversation, not a release blocker. None of these are deprecated and
 none of them are scheduled for removal.
 
+- **`SessionCapability` enum** -- typed, `#[non_exhaustive]` enum for per-session
+  capability opt-in / opt-out, with an `Other(String)` escape hatch for
+  forward compatibility. Sent via `enabledCapabilities` /
+  `disabledCapabilities` on the `session.create` and `session.resume` wire
+  calls -- works for all transports including `Transport::External`. See
+  [Session capabilities](#session-capabilities) above. Marked
+  **experimental** via the repository's `<div class="warning">` rustdoc
+  convention. Node/Python/Go/.NET accept stringly-typed flags.
 - **Typed newtypes** — `SessionId` and `RequestId` are `#[serde(transparent)]`
   newtypes around `String`, so the type system distinguishes a session
   identifier from an arbitrary `String` at compile time. Node/Python/Go

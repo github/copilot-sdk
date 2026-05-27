@@ -402,6 +402,129 @@ impl OtelExporterType {
     }
 }
 
+/// A named session capability sent in the `session.create` and
+/// `session.resume` wire payloads.
+///
+/// Capabilities gate optional CLI features (extra tools, system-prompt
+/// sections, host-rendered surfaces). The runtime starts from a
+/// hard-coded `SDK_CAPABILITIES` set; use
+/// [`SessionConfig::with_enable_capability`] /
+/// [`SessionConfig::with_disable_capability`] (and their plural
+/// counterparts) to opt individual sessions in or out.
+///
+/// > **Not** the same as [`SessionCapabilities`] — that struct is the
+/// > *runtime-negotiated* capability descriptor reported by the CLI on
+/// > `session.create`. [`SessionCapability`] is the *opt-in / opt-out
+/// > toggle name* sent with each `session.create` / `session.resume`.
+///
+/// The runtime's overlap semantics are **disable-wins**: if a capability
+/// appears in both the enabled and disabled lists, the disable wins.
+/// The SDK preserves the order callers add capabilities in so the
+/// resulting wire payload is deterministic.
+///
+/// The enum is `#[non_exhaustive]` and carries an [`Other`](Self::Other)
+/// variant so forward-compat capabilities the runtime grows ahead of an
+/// SDK release can still be opted into without waiting for a new
+/// enum variant.
+///
+/// Requires github/copilot-agent-runtime#8918 or later.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum SessionCapability {
+    /// TUI-only prompt hints (keyboard shortcuts).
+    TuiHints,
+    /// `[[PLAN]]` handling and plan-mode instructions.
+    PlanMode,
+    /// `store_memory` tool and the `<memories>` system-prompt section.
+    Memory,
+    /// `fetch_copilot_cli_documentation` tool plus the
+    /// `<self_documentation>` system-prompt section.
+    CliDocumentation,
+    /// `ask_user` tool for interactive clarification.
+    AskUser,
+    /// Interactive-CLI identity (vs non-interactive / headless).
+    InteractiveMode,
+    /// Automatic system notifications to the agent (batched, hidden
+    /// from the user timeline).
+    SystemNotifications,
+    /// Elicitation support (confirm / select / input prompts).
+    Elicitation,
+    /// MCP-Apps (SEP-1865) `ui://` resource passthrough.
+    McpApps,
+    /// Extension-provided canvases rendered by the host.
+    CanvasRenderer,
+    /// A capability name the SDK doesn't have a typed variant for yet.
+    ///
+    /// Pass any kebab-case capability string here to forward it
+    /// verbatim to the runtime.
+    Other(String),
+}
+
+impl SessionCapability {
+    /// The kebab-case wire string sent in `enabledCapabilities` /
+    /// `disabledCapabilities` on `session.create` and `session.resume`.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::TuiHints => "tui-hints",
+            Self::PlanMode => "plan-mode",
+            Self::Memory => "memory",
+            Self::CliDocumentation => "cli-documentation",
+            Self::AskUser => "ask-user",
+            Self::InteractiveMode => "interactive-mode",
+            Self::SystemNotifications => "system-notifications",
+            Self::Elicitation => "elicitation",
+            Self::McpApps => "mcp-apps",
+            Self::CanvasRenderer => "canvas-renderer",
+            Self::Other(name) => name.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for SessionCapability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for SessionCapability {
+    type Err = std::convert::Infallible;
+
+    /// Parse a kebab-case capability name. Unknown names round-trip
+    /// through [`SessionCapability::Other`] so old SDK builds stay
+    /// useful against CLIs that add new capabilities. Always returns
+    /// `Ok` — the error type is [`Infallible`](std::convert::Infallible).
+    fn from_str(s: &str) -> std::result::Result<Self, std::convert::Infallible> {
+        Ok(match s {
+            "tui-hints" => Self::TuiHints,
+            "plan-mode" => Self::PlanMode,
+            "memory" => Self::Memory,
+            "cli-documentation" => Self::CliDocumentation,
+            "ask-user" => Self::AskUser,
+            "interactive-mode" => Self::InteractiveMode,
+            "system-notifications" => Self::SystemNotifications,
+            "elicitation" => Self::Elicitation,
+            "mcp-apps" => Self::McpApps,
+            "canvas-renderer" => Self::CanvasRenderer,
+            other => Self::Other(other.to_owned()),
+        })
+    }
+}
+
+impl From<&str> for SessionCapability {
+    fn from(s: &str) -> Self {
+        // FromStr::from_str is Infallible — unwrap is safe.
+        s.parse()
+            .expect("SessionCapability::from_str is Infallible")
+    }
+}
+
+impl From<String> for SessionCapability {
+    fn from(s: String) -> Self {
+        s.as_str().into()
+    }
+}
+
 /// OpenTelemetry configuration forwarded to the spawned GitHub Copilot CLI
 /// process.
 ///
@@ -2377,6 +2500,47 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(Client::remote_args(&opts), vec!["--remote".to_string()]);
+    }
+
+    #[test]
+    fn session_capability_round_trips_via_str() {
+        for cap in [
+            SessionCapability::TuiHints,
+            SessionCapability::PlanMode,
+            SessionCapability::Memory,
+            SessionCapability::CliDocumentation,
+            SessionCapability::AskUser,
+            SessionCapability::InteractiveMode,
+            SessionCapability::SystemNotifications,
+            SessionCapability::Elicitation,
+            SessionCapability::McpApps,
+            SessionCapability::CanvasRenderer,
+        ] {
+            let s = cap.to_string();
+            let parsed: SessionCapability = s.parse().unwrap();
+            assert_eq!(parsed, cap, "round-trip failed for {s}");
+        }
+    }
+
+    #[test]
+    fn session_capability_from_str_falls_back_to_other_for_unknown_names() {
+        let parsed: SessionCapability = "brand-new-cap".parse().unwrap();
+        assert_eq!(
+            parsed,
+            SessionCapability::Other("brand-new-cap".to_string())
+        );
+        assert_eq!(parsed.as_str(), "brand-new-cap");
+    }
+
+    #[test]
+    fn session_capability_into_from_str_and_string() {
+        let from_str: SessionCapability = "memory".into();
+        let from_string: SessionCapability = "memory".to_string().into();
+        assert_eq!(from_str, SessionCapability::Memory);
+        assert_eq!(from_string, SessionCapability::Memory);
+        // Unknown names go to Other
+        let other: SessionCapability = "future-cap".into();
+        assert_eq!(other, SessionCapability::Other("future-cap".to_string()));
     }
 
     #[test]

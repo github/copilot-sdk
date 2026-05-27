@@ -12,6 +12,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::SessionCapability;
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 use crate::generated::api_types::OpenCanvasInstance;
 /// Context window tier for models that support tiered context windows.
@@ -1369,6 +1370,33 @@ pub struct SessionConfig {
     /// `session.options.update` after create/resume. Defaults to `false` in
     /// [`crate::ClientMode::Empty`] when unset.
     pub manage_schedule_enabled: Option<bool>,
+    /// Capabilities to opt this session into via `enabledCapabilities` on
+    /// the `session.create` wire call. The runtime starts from a
+    /// `SDK_CAPABILITIES` baseline; this list extends it.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later. On older
+    /// runtimes the field is silently ignored.
+    pub enabled_capabilities: Vec<SessionCapability>,
+    /// Capabilities to opt this session out of via `disabledCapabilities`
+    /// on the `session.create` wire call. Disable wins over enable on
+    /// overlap. See [`SessionCapability`].
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub disabled_capabilities: Vec<SessionCapability>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1476,6 +1504,8 @@ impl std::fmt::Debug for SessionConfig {
                 "system_message_transform",
                 &self.system_message_transform.as_ref().map(|_| "<set>"),
             )
+            .field("enabled_capabilities", &self.enabled_capabilities)
+            .field("disabled_capabilities", &self.disabled_capabilities)
             .finish()
     }
 }
@@ -1550,11 +1580,11 @@ impl Default for SessionConfig {
             custom_agents_local_only: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            enabled_capabilities: Vec::new(),
+            disabled_capabilities: Vec::new(),
         }
     }
 }
-
-/// Runtime-only bundle drained out of a [`SessionConfig`] or
 /// [`ResumeSessionConfig`] by [`SessionConfig::into_wire`] /
 /// [`ResumeSessionConfig::into_wire`]. Holds the trait-object handlers,
 /// session-fs provider, and slash commands so the wire payload struct
@@ -1623,6 +1653,26 @@ impl SessionConfig {
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
 
+        let enabled_capabilities = if self.enabled_capabilities.is_empty() {
+            None
+        } else {
+            Some(
+                self.enabled_capabilities
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect(),
+            )
+        };
+        let disabled_capabilities = if self.disabled_capabilities.is_empty() {
+            None
+        } else {
+            Some(
+                self.disabled_capabilities
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect(),
+            )
+        };
         let wire = crate::wire::SessionCreateWire {
             session_id,
             model: self.model,
@@ -1679,6 +1729,8 @@ impl SessionConfig {
             cloud: self.cloud,
             include_sub_agent_streaming_events: self.include_sub_agent_streaming_events,
             commands: wire_commands,
+            enabled_capabilities,
+            disabled_capabilities,
         };
 
         let runtime = SessionConfigRuntime {
@@ -1886,6 +1938,90 @@ impl SessionConfig {
     /// SDK silently.
     pub fn with_extension_sdk_path(mut self, path: impl Into<String>) -> Self {
         self.extension_sdk_path = Some(path.into());
+        self
+    }
+
+    /// Opt this session into a capability via `enabledCapabilities` on
+    /// `session.create`. Appends to [`Self::enabled_capabilities`],
+    /// preserving insertion order.
+    ///
+    /// See [`SessionCapability`] for the disable-wins overlap rules
+    /// and the [`SessionCapability::Other`] forward-compat escape hatch.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use github_copilot_sdk::{SessionCapability, SessionConfig};
+    /// let config = SessionConfig::default()
+    ///     .with_enable_capability(SessionCapability::Memory);
+    /// ```
+    pub fn with_enable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
+        self.enabled_capabilities.push(capability.into());
+        self
+    }
+
+    /// Opt this session out of a capability via `disabledCapabilities` on
+    /// `session.create`. Disable wins over enable on overlap.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_disable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
+        self.disabled_capabilities.push(capability.into());
+        self
+    }
+
+    /// Replace [`Self::enabled_capabilities`] with the given iterable.
+    /// Insertion order is preserved.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_enabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    where
+        I: IntoIterator<Item = C>,
+        C: Into<SessionCapability>,
+    {
+        self.enabled_capabilities = capabilities.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Replace [`Self::disabled_capabilities`] with the given iterable.
+    /// Insertion order is preserved. Disable wins over enable on overlap.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_disabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    where
+        I: IntoIterator<Item = C>,
+        C: Into<SessionCapability>,
+    {
+        self.disabled_capabilities = capabilities.into_iter().map(Into::into).collect();
         self
     }
 
@@ -2346,6 +2482,30 @@ pub struct ResumeSessionConfig {
     pub coauthor_enabled: Option<bool>,
     /// See [`SessionConfig::manage_schedule_enabled`].
     pub manage_schedule_enabled: Option<bool>,
+    /// Capabilities to opt this session into via `enabledCapabilities` on
+    /// the `session.resume` wire call. See [`SessionConfig::enabled_capabilities`].
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub enabled_capabilities: Vec<SessionCapability>,
+    /// Capabilities to opt this session out of via `disabledCapabilities` on
+    /// the `session.resume` wire call. Disable wins over enable on overlap.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub disabled_capabilities: Vec<SessionCapability>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -2454,6 +2614,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
             )
             .field("suppress_resume_event", &self.suppress_resume_event)
             .field("continue_pending_work", &self.continue_pending_work)
+            .field("enabled_capabilities", &self.enabled_capabilities)
+            .field("disabled_capabilities", &self.disabled_capabilities)
             .finish()
     }
 }
@@ -2501,6 +2663,27 @@ impl ResumeSessionConfig {
         });
         let wire_canvases = self.canvases.clone();
         let canvas_handler = self.canvas_handler.clone();
+
+        let enabled_capabilities = if self.enabled_capabilities.is_empty() {
+            None
+        } else {
+            Some(
+                self.enabled_capabilities
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect(),
+            )
+        };
+        let disabled_capabilities = if self.disabled_capabilities.is_empty() {
+            None
+        } else {
+            Some(
+                self.disabled_capabilities
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect(),
+            )
+        };
 
         let wire = crate::wire::SessionResumeWire {
             session_id: self.session_id,
@@ -2559,6 +2742,8 @@ impl ResumeSessionConfig {
             commands: wire_commands,
             suppress_resume_event: self.suppress_resume_event,
             continue_pending_work: self.continue_pending_work,
+            enabled_capabilities,
+            disabled_capabilities,
         };
 
         let runtime = SessionConfigRuntime {
@@ -2648,6 +2833,8 @@ impl ResumeSessionConfig {
             custom_agents_local_only: None,
             coauthor_enabled: None,
             manage_schedule_enabled: None,
+            enabled_capabilities: Vec::new(),
+            disabled_capabilities: Vec::new(),
         }
     }
 
@@ -2821,6 +3008,76 @@ impl ResumeSessionConfig {
     /// bundled SDK silently.
     pub fn with_extension_sdk_path(mut self, path: impl Into<String>) -> Self {
         self.extension_sdk_path = Some(path.into());
+        self
+    }
+
+    /// Opt this resumed session into a capability via `enabledCapabilities`
+    /// on `session.resume`. See [`SessionConfig::with_enable_capability`].
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_enable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
+        self.enabled_capabilities.push(capability.into());
+        self
+    }
+
+    /// Opt this resumed session out of a capability. Disable wins on overlap.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_disable_capability(mut self, capability: impl Into<SessionCapability>) -> Self {
+        self.disabled_capabilities.push(capability.into());
+        self
+    }
+
+    /// Replace [`Self::enabled_capabilities`] with the given iterable.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_enabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    where
+        I: IntoIterator<Item = C>,
+        C: Into<SessionCapability>,
+    {
+        self.enabled_capabilities = capabilities.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Replace [`Self::disabled_capabilities`] with the given iterable.
+    /// Disable wins over enable on overlap.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This is part of an experimental wire-protocol
+    /// surface and may change or be removed in future SDK or CLI releases.
+    ///
+    /// </div>
+    ///
+    /// Requires github/copilot-agent-runtime#8918 or later.
+    pub fn with_disabled_capabilities<I, C>(mut self, capabilities: I) -> Self
+    where
+        I: IntoIterator<Item = C>,
+        C: Into<SessionCapability>,
+    {
+        self.disabled_capabilities = capabilities.into_iter().map(Into::into).collect();
         self
     }
 
@@ -5336,5 +5593,88 @@ mod permission_builder_tests {
             dispatch(&hb).await,
             PermissionResult::Decision(PermissionDecision::ApproveOnce(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod capability_tests {
+    use super::*;
+    use crate::SessionCapability;
+
+    fn create_session_wire(config: SessionConfig) -> crate::wire::SessionCreateWire {
+        let (wire, _) = config
+            .into_wire(Some(SessionId::new("test-session")))
+            .unwrap();
+        wire
+    }
+
+    fn resume_session_wire(config: ResumeSessionConfig) -> crate::wire::SessionResumeWire {
+        let (wire, _) = config.into_wire().unwrap();
+        wire
+    }
+
+    #[test]
+    fn session_config_empty_capabilities_omitted_from_wire() {
+        let wire = create_session_wire(SessionConfig::default());
+        assert!(wire.enabled_capabilities.is_none());
+        assert!(wire.disabled_capabilities.is_none());
+    }
+
+    #[test]
+    fn session_config_enabled_capabilities_serialized_on_wire() {
+        let config = SessionConfig::default()
+            .with_enable_capability(SessionCapability::Memory)
+            .with_enable_capability(SessionCapability::PlanMode);
+        let wire = create_session_wire(config);
+        let enabled = wire.enabled_capabilities.as_ref().unwrap();
+        assert_eq!(enabled, &["memory".to_string(), "plan-mode".to_string()]);
+        assert!(wire.disabled_capabilities.is_none());
+    }
+
+    #[test]
+    fn session_config_disabled_capabilities_serialized_on_wire() {
+        let config = SessionConfig::default().with_disable_capability(SessionCapability::PlanMode);
+        let wire = create_session_wire(config);
+        assert!(wire.enabled_capabilities.is_none());
+        let disabled = wire.disabled_capabilities.as_ref().unwrap();
+        assert_eq!(disabled, &["plan-mode".to_string()]);
+    }
+
+    #[test]
+    fn session_config_with_enabled_capabilities_replaces() {
+        let config = SessionConfig::default()
+            .with_enable_capability(SessionCapability::Memory)
+            .with_enabled_capabilities([SessionCapability::PlanMode]);
+        let wire = create_session_wire(config);
+        let enabled = wire.enabled_capabilities.as_ref().unwrap();
+        assert_eq!(enabled, &["plan-mode".to_string()]);
+    }
+
+    #[test]
+    fn session_config_other_capability_round_trips_through_wire() {
+        let config = SessionConfig::default()
+            .with_enable_capability(SessionCapability::Other("custom-cap".to_string()));
+        let wire = create_session_wire(config);
+        let enabled = wire.enabled_capabilities.as_ref().unwrap();
+        assert_eq!(enabled, &["custom-cap".to_string()]);
+    }
+
+    #[test]
+    fn resume_session_config_empty_capabilities_omitted_from_wire() {
+        let wire = resume_session_wire(ResumeSessionConfig::new("sid".into()));
+        assert!(wire.enabled_capabilities.is_none());
+        assert!(wire.disabled_capabilities.is_none());
+    }
+
+    #[test]
+    fn resume_session_config_capabilities_serialized_on_wire() {
+        let config = ResumeSessionConfig::new("sid".into())
+            .with_enable_capability(SessionCapability::Memory)
+            .with_disable_capability(SessionCapability::PlanMode);
+        let wire = resume_session_wire(config);
+        let enabled = wire.enabled_capabilities.as_ref().unwrap();
+        let disabled = wire.disabled_capabilities.as_ref().unwrap();
+        assert_eq!(enabled, &["memory".to_string()]);
+        assert_eq!(disabled, &["plan-mode".to_string()]);
     }
 }
