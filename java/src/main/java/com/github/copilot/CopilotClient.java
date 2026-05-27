@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CreateSessionResponse;
 import com.github.copilot.generated.rpc.ConnectParams;
@@ -142,6 +143,18 @@ public final class CopilotClient implements AutoCloseable {
         this.effectiveConnectionToken = this.options.getTcpConnectionToken() != null
                 ? this.options.getTcpConnectionToken()
                 : (sdkSpawnsCli ? java.util.UUID.randomUUID().toString() : null);
+
+        // Empty mode: validate at construction time that the app supplied a
+        // per-session persistence location.
+        if (this.options.getMode() == CopilotClientMode.EMPTY) {
+            boolean hasPersistence = (this.options.getCopilotHome() != null && !this.options.getCopilotHome().isEmpty())
+                    || (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty());
+            if (!hasPersistence) {
+                throw new IllegalArgumentException(
+                        "CopilotClient was created with Mode = EMPTY but CopilotHome was not set. "
+                                + "Empty mode requires an explicit per-session persistence location.");
+            }
+        }
 
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
@@ -459,6 +472,17 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
+            // Empty mode: validate availableTools and set toolFilterPrecedence
+            if (options.getMode() == CopilotClientMode.EMPTY) {
+                if (config.getAvailableTools() == null) {
+                    throw new IllegalArgumentException(
+                            "CopilotClient is in Mode = EMPTY but the session config did not specify "
+                                    + "availableTools. Empty mode requires every session to explicitly opt into "
+                                    + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
+                }
+                request.setToolFilterPrecedence("excluded");
+            }
+
             long rpcNanos = System.nanoTime();
             return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
                 LoggingHelpers.logTiming(LOG, Level.FINE,
@@ -542,6 +566,11 @@ public final class CopilotClient implements AutoCloseable {
             var request = SessionRequestBuilder.buildResumeRequest(sessionId, config);
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
+            }
+
+            // Empty mode: set toolFilterPrecedence for resume path
+            if (options.getMode() == CopilotClientMode.EMPTY) {
+                request.setToolFilterPrecedence("excluded");
             }
 
             long rpcNanos = System.nanoTime();

@@ -81,6 +81,7 @@ import com.github.copilot.rpc.PermissionRequest;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.PostToolUseHookInput;
+import com.github.copilot.rpc.PostToolUseFailureHookInput;
 import com.github.copilot.rpc.PreMcpToolCallHookInput;
 import com.github.copilot.rpc.PreToolUseHookInput;
 import com.github.copilot.rpc.SendMessageRequest;
@@ -1560,6 +1561,14 @@ public final class CopilotSession implements AutoCloseable {
                     if (hooks.getOnPostToolUse() != null) {
                         PostToolUseHookInput postInput = MAPPER.treeToValue(input, PostToolUseHookInput.class);
                         return hooks.getOnPostToolUse().handle(postInput, invocation)
+                                .thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "postToolUseFailure" :
+                    if (hooks.getOnPostToolUseFailure() != null) {
+                        PostToolUseFailureHookInput failureInput = MAPPER.treeToValue(input,
+                                PostToolUseFailureHookInput.class);
+                        return hooks.getOnPostToolUseFailure().handle(failureInput, invocation)
                                 .thenApply(output -> (Object) output);
                     }
                     break;

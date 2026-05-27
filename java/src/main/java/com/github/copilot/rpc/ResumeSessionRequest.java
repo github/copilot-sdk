@@ -50,6 +50,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("excludedTools")
     private List<String> excludedTools;
 
+    @JsonProperty("toolFilterPrecedence")
+    private String toolFilterPrecedence;
+
     @JsonProperty("provider")
     private ProviderConfig provider;
 
@@ -214,6 +217,19 @@ public final class ResumeSessionRequest {
     /** Sets excluded tools. @param excludedTools the excluded tool names */
     public void setExcludedTools(List<String> excludedTools) {
         this.excludedTools = excludedTools;
+    }
+
+    /** Gets the tool filter precedence. @return the precedence value */
+    public String getToolFilterPrecedence() {
+        return toolFilterPrecedence;
+    }
+
+    /**
+     * Sets the tool filter precedence. @param toolFilterPrecedence the precedence
+     * ("excluded" or null)
+     */
+    public void setToolFilterPrecedence(String toolFilterPrecedence) {
+        this.toolFilterPrecedence = toolFilterPrecedence;
     }
 
     /** Gets the provider config. @return the provider */

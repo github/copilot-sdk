@@ -48,6 +48,10 @@ public class SessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean skipCustomInstructions;
+    private Boolean customAgentsLocalOnly;
+    private Boolean coauthorEnabled;
+    private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
@@ -331,6 +335,167 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom instruction file loading is suppressed.
+     *
+     * @return {@code true} to suppress, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getSkipCustomInstructions() {
+        return Optional.ofNullable(skipCustomInstructions);
+    }
+
+    /**
+     * Sets whether to suppress loading of custom instruction files (e.g.
+     * {@code .github/copilot-instructions.md}, {@code AGENTS.md}) from the working
+     * directory.
+     * <p>
+     * When {@code null}, the SDK chooses based on
+     * {@link CopilotClientOptions#getMode()}: {@code true} under
+     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     *
+     * @param skipCustomInstructions
+     *            whether to skip custom instructions
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setSkipCustomInstructions(boolean skipCustomInstructions) {
+        this.skipCustomInstructions = skipCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Clears the skipCustomInstructions setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearSkipCustomInstructions() {
+        this.skipCustomInstructions = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom-agent discovery is restricted to local only.
+     *
+     * @return {@code true} for local only, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCustomAgentsLocalOnly() {
+        return Optional.ofNullable(customAgentsLocalOnly);
+    }
+
+    /**
+     * Sets whether custom-agent discovery is restricted to the session's local
+     * working directory (no organisation-level discovery).
+     * <p>
+     * When {@code null}, the SDK chooses based on
+     * {@link CopilotClientOptions#getMode()}: {@code true} under
+     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     *
+     * @param customAgentsLocalOnly
+     *            whether to restrict to local agents
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setCustomAgentsLocalOnly(boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
+        return this;
+    }
+
+    /**
+     * Clears the customAgentsLocalOnly setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearCustomAgentsLocalOnly() {
+        this.customAgentsLocalOnly = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the runtime may append a Co-authored-by trailer.
+     *
+     * @return the coauthor enabled flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCoauthorEnabled() {
+        return Optional.ofNullable(coauthorEnabled);
+    }
+
+    /**
+     * Sets whether the runtime is allowed to append a {@code Co-authored-by}
+     * trailer when it commits on behalf of the user.
+     * <p>
+     * When {@code null}, the SDK chooses based on
+     * {@link CopilotClientOptions#getMode()}: {@code false} under
+     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     *
+     * @param coauthorEnabled
+     *            whether coauthor is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setCoauthorEnabled(boolean coauthorEnabled) {
+        this.coauthorEnabled = coauthorEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the coauthorEnabled setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearCoauthorEnabled() {
+        this.coauthorEnabled = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the manage_schedule tool is enabled.
+     *
+     * @return the manage schedule flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getManageScheduleEnabled() {
+        return Optional.ofNullable(manageScheduleEnabled);
+    }
+
+    /**
+     * Sets whether to enable the {@code manage_schedule} tool (host scheduler
+     * integration).
+     * <p>
+     * When {@code null}, the SDK chooses based on
+     * {@link CopilotClientOptions#getMode()}: {@code false} under
+     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     *
+     * @param manageScheduleEnabled
+     *            whether manage schedule is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setManageScheduleEnabled(boolean manageScheduleEnabled) {
+        this.manageScheduleEnabled = manageScheduleEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the manageScheduleEnabled setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearManageScheduleEnabled() {
+        this.manageScheduleEnabled = null;
         return this;
     }
 
@@ -1033,6 +1198,10 @@ public class SessionConfig {
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.skipCustomInstructions = this.skipCustomInstructions;
+        copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
+        copy.coauthorEnabled = this.coauthorEnabled;
+        copy.manageScheduleEnabled = this.manageScheduleEnabled;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;

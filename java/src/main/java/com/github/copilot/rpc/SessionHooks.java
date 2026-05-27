@@ -40,6 +40,7 @@ public class SessionHooks {
     private PreToolUseHandler onPreToolUse;
     private PreMcpToolCallHandler onPreMcpToolCall;
     private PostToolUseHandler onPostToolUse;
+    private PostToolUseFailureHandler onPostToolUseFailure;
     private UserPromptSubmittedHandler onUserPromptSubmitted;
     private SessionStartHandler onSessionStart;
     private SessionEndHandler onSessionEnd;
@@ -107,6 +108,32 @@ public class SessionHooks {
      */
     public SessionHooks setOnPostToolUse(PostToolUseHandler onPostToolUse) {
         this.onPostToolUse = onPostToolUse;
+        return this;
+    }
+
+    /**
+     * Gets the post-tool-use-failure handler.
+     *
+     * @return the handler, or {@code null} if not set
+     * @since 1.3.0
+     */
+    public PostToolUseFailureHandler getOnPostToolUseFailure() {
+        return onPostToolUseFailure;
+    }
+
+    /**
+     * Sets the handler called after a tool execution whose result was a failure.
+     * <p>
+     * {@link #getOnPostToolUse()} only fires for successful tool executions;
+     * register this handler in addition to observe failed tool calls.
+     *
+     * @param onPostToolUseFailure
+     *            the handler
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionHooks setOnPostToolUseFailure(PostToolUseFailureHandler onPostToolUseFailure) {
+        this.onPostToolUseFailure = onPostToolUseFailure;
         return this;
     }
 
@@ -185,7 +212,7 @@ public class SessionHooks {
      * @return {@code true} if at least one hook handler is set
      */
     public boolean hasHooks() {
-        return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null
+        return onPreToolUse != null || onPreMcpToolCall != null || onPostToolUse != null || onPostToolUseFailure != null
                 || onUserPromptSubmitted != null || onSessionStart != null || onSessionEnd != null;
     }
 }
