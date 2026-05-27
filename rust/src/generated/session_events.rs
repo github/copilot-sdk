@@ -25,6 +25,8 @@ pub enum SessionEventType {
     SessionScheduleCreated,
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled,
+    #[serde(rename = "session.autopilot_objective_changed")]
+    SessionAutopilotObjectiveChanged,
     #[serde(rename = "session.info")]
     SessionInfo,
     #[serde(rename = "session.warning")]
@@ -33,6 +35,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
+    #[serde(rename = "session.permissions_changed")]
+    SessionPermissionsChanged,
     #[serde(rename = "session.plan_changed")]
     SessionPlanChanged,
     #[serde(rename = "session.workspace_file_changed")]
@@ -109,6 +113,8 @@ pub enum SessionEventType {
     HookStart,
     #[serde(rename = "hook.end")]
     HookEnd,
+    #[serde(rename = "hook.progress")]
+    HookProgress,
     #[serde(rename = "system.message")]
     SystemMessage,
     #[serde(rename = "system.notification")]
@@ -205,6 +211,8 @@ pub enum SessionEventData {
     SessionScheduleCreated(SessionScheduleCreatedData),
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled(SessionScheduleCancelledData),
+    #[serde(rename = "session.autopilot_objective_changed")]
+    SessionAutopilotObjectiveChanged(SessionAutopilotObjectiveChangedData),
     #[serde(rename = "session.info")]
     SessionInfo(SessionInfoData),
     #[serde(rename = "session.warning")]
@@ -213,6 +221,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
+    #[serde(rename = "session.permissions_changed")]
+    SessionPermissionsChanged(SessionPermissionsChangedData),
     #[serde(rename = "session.plan_changed")]
     SessionPlanChanged(SessionPlanChangedData),
     #[serde(rename = "session.workspace_file_changed")]
@@ -289,6 +299,8 @@ pub enum SessionEventData {
     HookStart(HookStartData),
     #[serde(rename = "hook.end")]
     HookEnd(HookEndData),
+    #[serde(rename = "hook.progress")]
+    HookProgress(HookProgressData),
     #[serde(rename = "system.message")]
     SystemMessage(SystemMessageData),
     #[serde(rename = "system.notification")]
@@ -568,6 +580,20 @@ pub struct SessionScheduleCancelledData {
     pub id: i64,
 }
 
+/// Session event "session.autopilot_objective_changed". Autopilot objective state file operation details indicating what changed
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutopilotObjectiveChangedData {
+    /// Current autopilot objective id, if one exists
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    /// The type of operation performed on the autopilot objective state file
+    pub operation: AutopilotObjectiveChangedOperation,
+    /// Current autopilot objective status, if one exists
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<AutopilotObjectiveChangedStatus>,
+}
+
 /// Session event "session.info". Informational message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -634,6 +660,16 @@ pub struct SessionModeChangedData {
     pub new_mode: SessionMode,
     /// The session mode the agent is operating in
     pub previous_mode: SessionMode,
+}
+
+/// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionsChangedData {
+    /// Aggregate allow-all flag after the change
+    pub allow_all_permissions: bool,
+    /// Aggregate allow-all flag before the change
+    pub previous_allow_all_permissions: bool,
 }
 
 /// Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -1462,6 +1498,9 @@ pub struct ToolExecutionStartData {
     /// Arguments passed to the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_verbatim: Option<bool>,
     /// Name of the MCP server hosting this tool, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
@@ -1987,6 +2026,14 @@ pub struct HookEndData {
     pub output: Option<serde_json::Value>,
     /// Whether the hook completed successfully
     pub success: bool,
+}
+
+/// Session event "hook.progress". Ephemeral progress update from a running hook process
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookProgressData {
+    /// Human-readable progress message from the hook process
+    pub message: String,
 }
 
 /// Metadata about the prompt template and its construction
@@ -2844,6 +2891,9 @@ pub struct ExternalToolRequestedData {
     /// W3C Trace Context tracestate header for the execute_tool span
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tracestate: Option<String>,
+    /// Active session working directory, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
 }
 
 /// Session event "external_tool.completed". External tool completion notification signaling UI dismissal
@@ -3290,6 +3340,45 @@ pub enum ReasoningSummary {
     /// Request a detailed summary of the model's reasoning.
     #[serde(rename = "detailed")]
     Detailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The type of operation performed on the autopilot objective state file
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutopilotObjectiveChangedOperation {
+    /// Autopilot objective state file was created for a new objective.
+    #[serde(rename = "create")]
+    Create,
+    /// Autopilot objective state file was updated for an existing objective.
+    #[serde(rename = "update")]
+    Update,
+    /// Autopilot objective state file was deleted or cleared.
+    #[serde(rename = "delete")]
+    Delete,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current autopilot objective status, if one exists
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutopilotObjectiveChangedStatus {
+    /// Objective is active and can drive autopilot continuations.
+    #[serde(rename = "active")]
+    Active,
+    /// Objective is paused and will not drive autopilot continuations.
+    #[serde(rename = "paused")]
+    Paused,
+    /// Legacy objective state indicating the previous continuation cap was reached.
+    #[serde(rename = "cap_reached")]
+    CapReached,
+    /// Objective was completed by the agent.
+    #[serde(rename = "completed")]
+    Completed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
