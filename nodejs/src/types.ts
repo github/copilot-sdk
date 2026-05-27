@@ -1647,6 +1647,43 @@ export interface SessionConfigBase {
     enableSessionTelemetry?: boolean;
 
     /**
+     * When true, the runtime skips loading custom-instruction sources
+     * (e.g. `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`).
+     *
+     * Defaults to `false` (custom instructions are loaded). Under
+     * {@link CopilotClientOptions.mode} = `"empty"`, defaults to `true`; apps
+     * can pass `false` here to opt back in.
+     */
+    skipCustomInstructions?: boolean;
+
+    /**
+     * When true, custom agents default to local-only execution and are not
+     * dispatched to remote workers.
+     *
+     * Defaults to `false`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `true`; apps can pass `false` here to opt back in.
+     */
+    customAgentsLocalOnly?: boolean;
+
+    /**
+     * When true, the runtime instructs the agent to include a `Co-authored-by`
+     * trailer in commit messages it composes.
+     *
+     * Defaults to `true`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `false`; apps can pass `true` here to opt back in.
+     */
+    coauthorEnabled?: boolean;
+
+    /**
+     * When true, the `manage_schedule` tool is exposed to the agent.
+     *
+     * Defaults to whatever the runtime exposes (typically gated to staff
+     * users). Under {@link CopilotClientOptions.mode} = `"empty"`, defaults to
+     * `false`; apps can pass `true` here to opt back in.
+     */
+    manageScheduleEnabled?: boolean;
+
+    /**
      * Optional handler for permission requests from the server.
      * When omitted, permission requests are surfaced as events and left pending for
      * the consumer to resolve via the pending permission RPC.

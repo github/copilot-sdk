@@ -31,7 +31,7 @@ import {
     createInternalServerRpc,
     registerClientSessionApiHandlers,
 } from "./generated/rpc.js";
-import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type { OpenCanvasInstance, SessionUpdateOptionsParams } from "./generated/rpc.js";
 import { getSdkProtocolVersion } from "./sdkProtocolVersion.js";
 import { CopilotSession } from "./session.js";
 import { createSessionFsAdapter, type SessionFsProvider } from "./sessionFsProvider.js";
@@ -938,16 +938,36 @@ export class CopilotClient {
         }
     }
 
-    /** Mode-specific options applied via session.options.update after create/resume. */
-    private async updateSessionOptionsForMode(session: CopilotSession): Promise<void> {
+    /**
+     * Mode-specific options applied via session.options.update after create/resume.
+     *
+     * In empty mode, defaults the four overridable feature flags to safe values
+     * (caller values from `config` win). `installedPlugins=[]` is unconditional
+     * in empty mode — apps that need custom plugins should switch modes.
+     */
+    private async updateSessionOptionsForMode(
+        session: CopilotSession,
+        config: SessionConfigBase
+    ): Promise<void> {
+        const patch: SessionUpdateOptionsParams = {};
         if (this.options.mode === "empty") {
-            await session.rpc.options.update({
-                skipCustomInstructions: true,
-                customAgentsLocalOnly: true,
-                coauthorEnabled: false,
-                manageScheduleEnabled: false,
-                installedPlugins: [],
-            });
+            patch.skipCustomInstructions = config.skipCustomInstructions ?? true;
+            patch.customAgentsLocalOnly = config.customAgentsLocalOnly ?? true;
+            patch.coauthorEnabled = config.coauthorEnabled ?? false;
+            patch.manageScheduleEnabled = config.manageScheduleEnabled ?? false;
+            patch.installedPlugins = [];
+        } else {
+            if (config.skipCustomInstructions !== undefined)
+                patch.skipCustomInstructions = config.skipCustomInstructions;
+            if (config.customAgentsLocalOnly !== undefined)
+                patch.customAgentsLocalOnly = config.customAgentsLocalOnly;
+            if (config.coauthorEnabled !== undefined)
+                patch.coauthorEnabled = config.coauthorEnabled;
+            if (config.manageScheduleEnabled !== undefined)
+                patch.manageScheduleEnabled = config.manageScheduleEnabled;
+        }
+        if (Object.keys(patch).length > 0) {
+            await session.rpc.options.update(patch);
         }
     }
 
@@ -1067,7 +1087,7 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
 
-            await this.updateSessionOptionsForMode(session);
+            await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -1218,7 +1238,7 @@ export class CopilotClient {
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
 
-            await this.updateSessionOptionsForMode(session);
+            await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -1764,6 +1784,14 @@ export class CopilotClient {
 
             if (this.options.baseDirectory) {
                 envWithoutNodeDebug.COPILOT_HOME = this.options.baseDirectory;
+            }
+
+            // In empty mode, disable the system keychain. Keytar reads from a
+            // process-wide store that's shared across sessions, which is unsafe
+            // for multi-tenant hosts. The runtime falls back to file-based
+            // credential storage scoped to COPILOT_HOME.
+            if (this.options.mode === "empty") {
+                envWithoutNodeDebug.COPILOT_DISABLE_KEYTAR = "1";
             }
 
             if (!this.resolvedCliPath) {

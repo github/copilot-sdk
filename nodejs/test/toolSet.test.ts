@@ -439,4 +439,42 @@ describe("Empty-mode safe defaults", () => {
         const patch = spy.mock.calls.find(([m]) => m === "session.options.update")![1] as any;
         expect(patch.skipCustomInstructions).toBe(true);
     });
+
+    it("respects app-supplied overrides for the four post-create flags in empty mode", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            skipCustomInstructions: false,
+            customAgentsLocalOnly: false,
+            coauthorEnabled: true,
+            manageScheduleEnabled: true,
+        });
+        const patch = patchCall(spy);
+        expect(patch).toMatchObject({
+            skipCustomInstructions: false,
+            customAgentsLocalOnly: false,
+            coauthorEnabled: true,
+            manageScheduleEnabled: true,
+            installedPlugins: [],
+        });
+    });
+
+    it("forwards the four flags in copilot-cli mode when the app sets them", async () => {
+        const { client, spy } = await setupClient("copilot-cli");
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: ["builtin:bash"],
+            skipCustomInstructions: true,
+            manageScheduleEnabled: true,
+        });
+        const patch = patchCall(spy);
+        expect(patch).toMatchObject({
+            skipCustomInstructions: true,
+            manageScheduleEnabled: true,
+        });
+        expect(patch.customAgentsLocalOnly).toBeUndefined();
+        expect(patch.coauthorEnabled).toBeUndefined();
+        expect(patch.installedPlugins).toBeUndefined();
+    });
 });
