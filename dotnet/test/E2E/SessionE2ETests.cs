@@ -858,13 +858,12 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
         await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Say mode ok.",
-            Mode = "plan",
+            AgentMode = AgentMode.Plan,
         });
 
         var userMessage = (await session.GetEventsAsync()).OfType<UserMessageEvent>().Last();
         Assert.Equal("Say mode ok.", userMessage.Data.Content);
-        // The current runtime accepts the per-message mode option but does not echo it on user.message.
-        Assert.Null(userMessage.Data.AgentMode);
+        Assert.Equal(UserMessageAgentMode.Plan, userMessage.Data.AgentMode);
     }
 
     [Fact]

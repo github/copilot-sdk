@@ -214,6 +214,7 @@ export class CopilotSession {
             prompt: options.prompt,
             attachments: options.attachments,
             mode: options.mode,
+            agentMode: options.agentMode,
             requestHeaders: options.requestHeaders,
         });
 

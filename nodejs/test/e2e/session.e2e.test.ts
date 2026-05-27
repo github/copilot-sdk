@@ -840,9 +840,7 @@ describe("Sessions", async () => {
 
         await session.sendAndWait({
             prompt: "Say mode ok.",
-            // The runtime accepts arbitrary agent mode strings (e.g. "plan", "interactive")
-            // but the public TS type currently constrains mode to send-time values.
-            mode: "plan" as unknown as NonNullable<Parameters<typeof session.send>[0]["mode"]>,
+            agentMode: "plan",
         });
 
         const messages = await session.getEvents();
@@ -851,9 +849,7 @@ describe("Sessions", async () => {
             | undefined;
         expect(userMessage).toBeDefined();
         expect(userMessage!.data.content).toBe("Say mode ok.");
-        // The current runtime accepts the per-message mode option but does not echo it
-        // on the user.message event.
-        expect(userMessage!.data.agentMode ?? null).toBeNull();
+        expect(userMessage!.data.agentMode).toBe("plan");
 
         await session.disconnect();
     });
