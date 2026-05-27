@@ -801,6 +801,29 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
+        let mode = self.inner.mode;
+        if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
+            return Err(Error::InvalidConfig(
+                "ClientMode::Empty requires available_tools to be set on the session config. \
+                 Use ToolSet to specify which tools the session may use (e.g. \
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED))."
+                    .to_string(),
+            ));
+        }
+        crate::mode::validate_tool_filter_list(
+            "available_tools",
+            config.available_tools.as_deref(),
+        )?;
+        crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
+        config.system_message =
+            crate::mode::system_message_for_mode(mode, config.system_message.take());
+        if mode == crate::ClientMode::Empty && config.enable_session_telemetry.is_none() {
+            config.enable_session_telemetry = Some(false);
+        }
+        let opt_skip_custom_instructions = config.skip_custom_instructions;
+        let opt_custom_agents_local_only = config.custom_agents_local_only;
+        let opt_coauthor_enabled = config.coauthor_enabled;
+        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
         let (wire, mut runtime) = config.into_wire(session_id.clone())?;
 
         let permission_handler = crate::permission::resolve_handler(
@@ -907,7 +930,7 @@ impl Client {
             "Client::create_session complete"
         );
         registration.disarm();
-        Ok(Session {
+        let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
             workspace_path: create_result.workspace_path,
@@ -919,7 +942,17 @@ impl Client {
             capabilities,
             open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
             event_tx,
-        })
+        };
+        apply_mode_post_create_patch(
+            &session,
+            mode,
+            opt_skip_custom_instructions,
+            opt_custom_agents_local_only,
+            opt_coauthor_enabled,
+            opt_manage_schedule_enabled,
+        )
+        .await?;
+        Ok(session)
     }
 
     /// Resume an existing session on the CLI.
@@ -941,6 +974,29 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
+        let mode = self.inner.mode;
+        if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
+            return Err(Error::InvalidConfig(
+                "ClientMode::Empty requires available_tools to be set on the session config. \
+                 Use ToolSet to specify which tools the session may use (e.g. \
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED))."
+                    .to_string(),
+            ));
+        }
+        crate::mode::validate_tool_filter_list(
+            "available_tools",
+            config.available_tools.as_deref(),
+        )?;
+        crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
+        config.system_message =
+            crate::mode::system_message_for_mode(mode, config.system_message.take());
+        if mode == crate::ClientMode::Empty && config.enable_session_telemetry.is_none() {
+            config.enable_session_telemetry = Some(false);
+        }
+        let opt_skip_custom_instructions = config.skip_custom_instructions;
+        let opt_custom_agents_local_only = config.custom_agents_local_only;
+        let opt_coauthor_enabled = config.coauthor_enabled;
+        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
         let (wire, mut runtime) = config.into_wire()?;
 
         let permission_handler = crate::permission::resolve_handler(
@@ -1080,7 +1136,7 @@ impl Client {
             "Client::resume_session complete"
         );
         registration.disarm();
-        Ok(Session {
+        let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
             workspace_path: resume_result.workspace_path,
@@ -1092,11 +1148,68 @@ impl Client {
             capabilities,
             open_canvases,
             event_tx,
-        })
+        };
+        apply_mode_post_create_patch(
+            &session,
+            mode,
+            opt_skip_custom_instructions,
+            opt_custom_agents_local_only,
+            opt_coauthor_enabled,
+            opt_manage_schedule_enabled,
+        )
+        .await?;
+        Ok(session)
     }
 }
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
+
+async fn apply_mode_post_create_patch(
+    session: &Session,
+    mode: crate::ClientMode,
+    opt_skip_custom_instructions: Option<bool>,
+    opt_custom_agents_local_only: Option<bool>,
+    opt_coauthor_enabled: Option<bool>,
+    opt_manage_schedule_enabled: Option<bool>,
+) -> Result<(), Error> {
+    use crate::generated::api_types::SessionUpdateOptionsParams;
+    let mut patch = SessionUpdateOptionsParams::default();
+    let should_send = if mode == crate::ClientMode::Empty {
+        patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
+        patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
+        patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
+        patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
+        patch.installed_plugins = Vec::new();
+        true
+    } else {
+        let mut any = false;
+        if let Some(v) = opt_skip_custom_instructions {
+            patch.skip_custom_instructions = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_custom_agents_local_only {
+            patch.custom_agents_local_only = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_coauthor_enabled {
+            patch.coauthor_enabled = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_manage_schedule_enabled {
+            patch.manage_schedule_enabled = Some(v);
+            any = true;
+        }
+        any
+    };
+    if !should_send {
+        return Ok(());
+    }
+    if let Err(error) = session.rpc().options().update(patch).await {
+        let _ = session.disconnect().await;
+        return Err(error);
+    }
+    Ok(())
+}
 
 fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<CommandHandlerMap> {
     let map = match commands {

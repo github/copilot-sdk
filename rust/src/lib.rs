@@ -39,6 +39,12 @@ mod wire;
 /// Auto-generated protocol types from Copilot JSON Schemas.
 pub mod generated;
 
+/// Client-level mode ([`ClientMode`]) and the [`ToolSet`] builder for
+/// source-qualified tool filter patterns.
+pub mod mode;
+
+pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
+
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -432,6 +438,10 @@ pub struct ClientOptions {
     /// at build and runtime); to point the runtime at a different
     /// binary altogether, use [`CliProgram::Path`] or `COPILOT_CLI_PATH`.
     pub bundled_cli_extract_dir: Option<PathBuf>,
+    /// SDK-level mode controlling whether sessions get CLI-style defaults
+    /// (the default) or are stripped to a minimal/safe baseline. See
+    /// [`ClientMode`] for the contract and trade-offs.
+    pub mode: ClientMode,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -674,6 +684,7 @@ impl Default for ClientOptions {
             base_directory: None,
             enable_remote_sessions: false,
             bundled_cli_extract_dir: None,
+            mode: ClientMode::default(),
         }
     }
 }
@@ -844,6 +855,15 @@ impl ClientOptions {
         self.bundled_cli_extract_dir = Some(dir.into());
         self
     }
+
+    /// Set the SDK [`ClientMode`]. Use [`ClientMode::Empty`] for any
+    /// scenario where CLI-like ambient behavior is unsafe (e.g. multi-user
+    /// servers). Empty mode additionally requires [`Self::base_directory`]
+    /// or [`Self::session_fs`] to be set, validated at [`Client::start`].
+    pub fn with_mode(mut self, mode: ClientMode) -> Self {
+        self.mode = mode;
+        self
+    }
 }
 
 /// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
@@ -917,6 +937,9 @@ struct ClientInner {
     /// `None` for stdio and for external-server transport without an
     /// explicit token.
     effective_connection_token: Option<String>,
+    /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
+    /// defaults inside `create_session` / `resume_session`.
+    pub(crate) mode: ClientMode,
 }
 
 impl Client {
@@ -934,6 +957,16 @@ impl Client {
     /// backend.
     pub async fn start(options: ClientOptions) -> Result<Self, Error> {
         let start_time = Instant::now();
+        if options.mode == ClientMode::Empty
+            && options.base_directory.is_none()
+            && options.session_fs.is_none()
+        {
+            return Err(Error::InvalidConfig(
+                "ClientMode::Empty requires either `base_directory` or \
+                 `session_fs` to be set (no implicit ~/.copilot fallback)."
+                    .to_string(),
+            ));
+        }
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
         }
@@ -1049,6 +1082,7 @@ impl Client {
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
+                    options.mode,
                 )?
             }
             Transport::Tcp {
@@ -1075,6 +1109,7 @@ impl Client {
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
+                    options.mode,
                 )?
             }
             Transport::Stdio => {
@@ -1092,6 +1127,7 @@ impl Client {
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
+                    options.mode,
                 )?
             }
         };
@@ -1139,7 +1175,18 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, false, None, None)
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            None,
+            None,
+            ClientMode::default(),
+        )
     }
 
     /// Construct a [`Client`] from raw streams with a
@@ -1166,6 +1213,7 @@ impl Client {
             false,
             Some(provider),
             None,
+            ClientMode::default(),
         )
     }
 
@@ -1179,7 +1227,18 @@ impl Client {
         cwd: PathBuf,
         token: Option<String>,
     ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, false, None, token)
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            None,
+            token,
+            ClientMode::default(),
+        )
     }
 
     /// Public test-only wrapper around the random connection-token
@@ -1203,6 +1262,7 @@ impl Client {
         session_fs_sqlite_declared: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
         effective_connection_token: Option<String>,
+        mode: ClientMode,
     ) -> Result<Self, Error> {
         let setup_start = Instant::now();
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
@@ -1234,6 +1294,7 @@ impl Client {
                 session_fs_sqlite_declared,
                 on_get_trace_context,
                 effective_connection_token,
+                mode,
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1320,6 +1381,11 @@ impl Client {
         }
         if let Some(dir) = &options.base_directory {
             command.env("COPILOT_HOME", dir);
+        }
+        // Empty mode disables the process-wide system keychain so the CLI
+        // falls back to file-based credentials scoped to COPILOT_HOME.
+        if options.mode == ClientMode::Empty {
+            command.env("COPILOT_DISABLE_KEYTAR", "1");
         }
         if let Transport::Tcp {
             connection_token: Some(token),
@@ -1500,6 +1566,11 @@ impl Client {
     /// Returns the working directory of the CLI process.
     pub fn cwd(&self) -> &PathBuf {
         &self.inner.cwd
+    }
+
+    /// Returns the SDK [`ClientMode`] this client was started with.
+    pub fn mode(&self) -> ClientMode {
+        self.inner.mode
     }
 
     /// Typed RPC namespace for server-level methods.
@@ -2620,6 +2691,7 @@ mod tests {
                 session_fs_sqlite_declared: false,
                 on_get_trace_context: None,
                 effective_connection_token: None,
+                mode: ClientMode::default(),
             }),
         }
     }
