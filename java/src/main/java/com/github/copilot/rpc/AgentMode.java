@@ -4,6 +4,7 @@
 
 package com.github.copilot.rpc;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 /**
@@ -43,5 +44,29 @@ public enum AgentMode {
     @JsonValue
     public String getValue() {
         return value;
+    }
+
+    /**
+     * Deserializes a JSON string value into the corresponding {@code AgentMode}
+     * enum constant.
+     *
+     * @param value
+     *            the JSON string value
+     * @return the matching {@code AgentMode}, or {@code null} if value is
+     *         {@code null}
+     * @throws IllegalArgumentException
+     *             if the value does not match any known agent mode
+     */
+    @JsonCreator
+    public static AgentMode fromValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        for (AgentMode mode : values()) {
+            if (mode.value.equals(value)) {
+                return mode;
+            }
+        }
+        throw new IllegalArgumentException("Unknown AgentMode value: " + value);
     }
 }
