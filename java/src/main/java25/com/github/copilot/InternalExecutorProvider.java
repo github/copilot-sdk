@@ -5,18 +5,19 @@
 package com.github.copilot;
 
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-final class DefaultExecutorProvider {
+final class InternalExecutorProvider {
 
-    private DefaultExecutorProvider() {
+    private InternalExecutorProvider() {
     }
 
     static Executor create() {
-        return ForkJoinPool.commonPool();
+        return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     static boolean isOwned(Executor executor) {
-        return false;
+        return executor instanceof ExecutorService;
     }
 }

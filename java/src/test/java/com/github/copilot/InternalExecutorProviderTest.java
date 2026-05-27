@@ -10,8 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -31,14 +32,15 @@ import org.junit.jupiter.api.Test;
 
 import com.github.copilot.rpc.CopilotClientOptions;
 
-class DefaultExecutorProviderTest {
+class InternalExecutorProviderTest {
 
     @Test
     void baseProviderUsesCommonPoolWithoutOwnership() {
-        Executor executor = DefaultExecutorProvider.create();
+        Executor executor = InternalExecutorProvider.create();
 
         assertSame(ForkJoinPool.commonPool(), executor);
-        assertFalse(DefaultExecutorProvider.isOwned(executor));
+        assertFalse(InternalExecutorProvider.isOwned(executor));
+        assertFalse(Modifier.isPublic(InternalExecutorProvider.class.getModifiers()));
     }
 
     @Test
@@ -62,17 +64,17 @@ class DefaultExecutorProviderTest {
         }
 
         Path classes = Path.of("target", "classes");
-        Path baseClass = classes.resolve("com/github/copilot/DefaultExecutorProvider.class");
-        Path java25Class = classes.resolve("META-INF/versions/25/com/github/copilot/DefaultExecutorProvider.class");
-        assertTrue(Files.exists(baseClass), "Base DefaultExecutorProvider class must be compiled");
+        Path baseClass = classes.resolve("com/github/copilot/InternalExecutorProvider.class");
+        Path java25Class = classes.resolve("META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class");
+        assertTrue(Files.exists(baseClass), "Base InternalExecutorProvider class must be compiled");
         assertTrue(Files.exists(java25Class), "JDK 25 build must compile the multi-release executor provider");
 
-        Path jar = Files.createTempFile("copilot-sdk-default-executor", ".jar");
+        Path jar = Files.createTempFile("copilot-sdk-internal-executor", ".jar");
         try {
             createProviderJar(jar, baseClass, java25Class);
 
             try (var loader = new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)) {
-                Class<?> provider = Class.forName("com.github.copilot.DefaultExecutorProvider", true, loader);
+                Class<?> provider = Class.forName("com.github.copilot.InternalExecutorProvider", true, loader);
                 Method create = provider.getDeclaredMethod("create");
                 Method isOwned = provider.getDeclaredMethod("isOwned", Executor.class);
                 create.setAccessible(true);
@@ -103,7 +105,7 @@ class DefaultExecutorProviderTest {
         }
 
         Path classes = Path.of("target", "classes");
-        Path jar = Files.createTempFile("copilot-sdk-client-default-executor", ".jar");
+        Path jar = Files.createTempFile("copilot-sdk-client-internal-executor", ".jar");
         try {
             createClassesJar(jar, classes);
 
@@ -144,8 +146,8 @@ class DefaultExecutorProviderTest {
         attributes.putValue("Multi-Release", "true");
 
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar), manifest)) {
-            addClass(output, "com/github/copilot/DefaultExecutorProvider.class", baseClass);
-            addClass(output, "META-INF/versions/25/com/github/copilot/DefaultExecutorProvider.class", java25Class);
+            addClass(output, "com/github/copilot/InternalExecutorProvider.class", baseClass);
+            addClass(output, "META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class", java25Class);
         }
     }
 
