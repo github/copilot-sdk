@@ -6,3 +6,5 @@ conversations:
         content: ${system}
       - role: user
         content: Say hi.
+      - role: assistant
+        content: Hi!

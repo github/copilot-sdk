@@ -8,7 +8,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { approveAll, BuiltInTools, ToolSet } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
-import { retry } from "./harness/sdkTestHelper.js";
 
 /**
  * E2E coverage for the Mode = "empty" SDK surface and source-qualified tool
@@ -29,15 +28,8 @@ describe("Mode = empty + ToolSet patterns", async () => {
     });
 
     async function getToolsExposedToLLM(): Promise<string[]> {
-        await retry(
-            "capture chat completion request",
-            async () => {
-                const exchanges = await openAiEndpoint.getExchanges();
-                expect(exchanges.length).toBeGreaterThanOrEqual(1);
-            },
-            1_200
-        );
         const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThanOrEqual(1);
         const tools = exchanges[exchanges.length - 1].request.tools ?? [];
         return tools.flatMap((t) =>
             t.type === "function" && t.function?.name ? [t.function.name] : []
@@ -45,15 +37,8 @@ describe("Mode = empty + ToolSet patterns", async () => {
     }
 
     async function getSystemMessageSentToLLM(): Promise<string> {
-        await retry(
-            "capture chat completion request",
-            async () => {
-                const exchanges = await openAiEndpoint.getExchanges();
-                expect(exchanges.length).toBeGreaterThanOrEqual(1);
-            },
-            1_200
-        );
         const exchanges = await openAiEndpoint.getExchanges();
+        expect(exchanges.length).toBeGreaterThanOrEqual(1);
         const messages = exchanges[exchanges.length - 1].request.messages ?? [];
         const sys = messages.find((m) => m.role === "system");
         const content = sys?.content;
@@ -71,7 +56,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
         });
-        await session.send({ prompt: "Say hi." }).catch(() => {});
+        await session.sendAndWait({ prompt: "Say hi." });
 
         const toolNames = await getToolsExposedToLLM();
         // Isolated should not contain shell / fs editing / web fetch / grep.
@@ -91,7 +76,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
             onPermissionRequest: approveAll,
             availableTools: new ToolSet().addBuiltIn("*"),
         });
-        await session.send({ prompt: "Say hi." }).catch(() => {});
+        await session.sendAndWait({ prompt: "Say hi." });
 
         const toolNames = await getToolsExposedToLLM();
         // The shell tool name differs by platform (bash vs powershell);
@@ -110,7 +95,7 @@ describe("Mode = empty + ToolSet patterns", async () => {
             availableTools: new ToolSet().addBuiltIn("*"),
             excludedTools: [`builtin:${shellToolName}`],
         });
-        await session.send({ prompt: "Say hi." }).catch(() => {});
+        await session.sendAndWait({ prompt: "Say hi." });
 
         const toolNames = await getToolsExposedToLLM();
         // The platform shell is in builtin:* but explicitly excluded → must not be exposed.
