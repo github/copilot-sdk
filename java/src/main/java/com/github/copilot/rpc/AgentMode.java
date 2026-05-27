@@ -14,7 +14,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * specific mode; defaults to the session's current mode when unset.
  *
  * @see MessageOptions
- * @since 1.1.0
+ * @since 1.0.0
  */
 public enum AgentMode {
 
@@ -67,6 +67,6 @@ public enum AgentMode {
                 return mode;
             }
         }
-        throw new IllegalArgumentException("Unknown AgentMode: " + value);
+        throw new IllegalArgumentException("Unknown AgentMode value: " + value);
     }
 }
