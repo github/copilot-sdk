@@ -2520,10 +2520,6 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     [JsonPropertyName("chronicle_sync_dismissed")]
     public bool? ChronicleSyncDismissed { get; set; }
 
-    /// <summary>Gets or sets the <c>client_name</c> value.</summary>
-    [JsonPropertyName("client_name")]
-    public string? ClientName { get; set; }
-
     /// <summary>Gets or sets the <c>created_at</c> value.</summary>
     [JsonPropertyName("created_at")]
     public DateTimeOffset? CreatedAt { get; set; }
@@ -3876,10 +3872,6 @@ internal sealed class McpOauthLoginRequest
     [JsonPropertyName("callbackSuccessMessage")]
     public string? CallbackSuccessMessage { get; set; }
 
-    /// <summary>Optional override for the OAuth client display name shown on the consent screen. Applies to newly registered dynamic clients only — existing registrations keep the name they were created with. When omitted, the runtime applies a neutral fallback; callers driving interactive auth should pass their own surface-specific label so the consent screen matches the product the user sees.</summary>
-    [JsonPropertyName("clientName")]
-    public string? ClientName { get; set; }
-
     /// <summary>When true, clears any cached OAuth token for the server and runs a full new authorization. Use when the user explicitly wants to switch accounts or believes their session is stuck.</summary>
     [JsonPropertyName("forceReauth")]
     public bool? ForceReauth { get; set; }
@@ -4278,10 +4270,6 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Allowlist of tool names available to this session.</summary>
     [JsonPropertyName("availableTools")]
     public IList<string>? AvailableTools { get; set; }
-
-    /// <summary>Identifier of the client driving the session.</summary>
-    [JsonPropertyName("clientName")]
-    public string? ClientName { get; set; }
 
     /// <summary>Whether to include the `Co-authored-by` trailer in commit messages.</summary>
     [JsonPropertyName("coauthorEnabled")]
