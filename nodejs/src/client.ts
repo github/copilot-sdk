@@ -891,7 +891,15 @@ export class CopilotClient {
     /** Mode-specific defaults spread under the caller's config (app values win). */
     private configDefaultsForMode(): Partial<SessionConfigBase> {
         if (this.options.mode === "empty") {
-            return { enableSessionTelemetry: false };
+            return {
+                enableSessionTelemetry: false,
+                skipEmbeddingRetrieval: true,
+                enableOnDemandInstructionDiscovery: false,
+                enableFileHooks: false,
+                enableHostGitOperations: false,
+                enableSessionStore: false,
+                enableSkills: false,
+            };
         }
         return {};
     }
@@ -1087,6 +1095,14 @@ export class CopilotClient {
                 agent: config.agent,
                 configDir: config.configDir,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
+                organizationCustomInstructions: config.organizationCustomInstructions,
+                enableOnDemandInstructionDiscovery:
+                    config.enableOnDemandInstructionDiscovery,
+                enableFileHooks: config.enableFileHooks,
+                enableHostGitOperations: config.enableHostGitOperations,
+                enableSessionStore: config.enableSessionStore,
+                enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
@@ -1227,6 +1243,14 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDir,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
+                organizationCustomInstructions: config.organizationCustomInstructions,
+                enableOnDemandInstructionDiscovery:
+                    config.enableOnDemandInstructionDiscovery,
+                enableFileHooks: config.enableFileHooks,
+                enableHostGitOperations: config.enableHostGitOperations,
+                enableSessionStore: config.enableSessionStore,
+                enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),

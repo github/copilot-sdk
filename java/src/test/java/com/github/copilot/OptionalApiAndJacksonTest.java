@@ -354,6 +354,34 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
+    void sessionConfig_newSessionFieldsValue() {
+        var cfg = new SessionConfig();
+        assertTrue(cfg.getSkipEmbeddingRetrieval().isEmpty());
+        assertNull(cfg.getOrganizationCustomInstructions());
+        assertTrue(cfg.getEnableOnDemandInstructionDiscovery().isEmpty());
+        assertTrue(cfg.getEnableFileHooks().isEmpty());
+        assertTrue(cfg.getEnableHostGitOperations().isEmpty());
+        assertTrue(cfg.getEnableSessionStore().isEmpty());
+        assertTrue(cfg.getEnableSkills().isEmpty());
+
+        cfg.setSkipEmbeddingRetrieval(true);
+        cfg.setOrganizationCustomInstructions("Org instructions");
+        cfg.setEnableOnDemandInstructionDiscovery(false);
+        cfg.setEnableFileHooks(true);
+        cfg.setEnableHostGitOperations(false);
+        cfg.setEnableSessionStore(true);
+        cfg.setEnableSkills(false);
+
+        assertTrue(cfg.getSkipEmbeddingRetrieval().get());
+        assertEquals("Org instructions", cfg.getOrganizationCustomInstructions());
+        assertFalse(cfg.getEnableOnDemandInstructionDiscovery().get());
+        assertTrue(cfg.getEnableFileHooks().get());
+        assertFalse(cfg.getEnableHostGitOperations().get());
+        assertTrue(cfg.getEnableSessionStore().get());
+        assertFalse(cfg.getEnableSkills().get());
+    }
+
+    @Test
     void resumeSessionConfig_enableSessionTelemetryValue() {
         var cfg = new ResumeSessionConfig();
         assertTrue(cfg.getEnableSessionTelemetry().isEmpty());
@@ -381,6 +409,34 @@ class OptionalApiAndJacksonTest {
 
         cfg.setIncludeSubAgentStreamingEvents(false);
         assertFalse(cfg.getIncludeSubAgentStreamingEvents().get());
+    }
+
+    @Test
+    void resumeSessionConfig_newSessionFieldsValue() {
+        var cfg = new ResumeSessionConfig();
+        assertTrue(cfg.getSkipEmbeddingRetrieval().isEmpty());
+        assertNull(cfg.getOrganizationCustomInstructions());
+        assertTrue(cfg.getEnableOnDemandInstructionDiscovery().isEmpty());
+        assertTrue(cfg.getEnableFileHooks().isEmpty());
+        assertTrue(cfg.getEnableHostGitOperations().isEmpty());
+        assertTrue(cfg.getEnableSessionStore().isEmpty());
+        assertTrue(cfg.getEnableSkills().isEmpty());
+
+        cfg.setSkipEmbeddingRetrieval(false);
+        cfg.setOrganizationCustomInstructions("Resume org instructions");
+        cfg.setEnableOnDemandInstructionDiscovery(true);
+        cfg.setEnableFileHooks(false);
+        cfg.setEnableHostGitOperations(true);
+        cfg.setEnableSessionStore(false);
+        cfg.setEnableSkills(true);
+
+        assertFalse(cfg.getSkipEmbeddingRetrieval().get());
+        assertEquals("Resume org instructions", cfg.getOrganizationCustomInstructions());
+        assertTrue(cfg.getEnableOnDemandInstructionDiscovery().get());
+        assertFalse(cfg.getEnableFileHooks().get());
+        assertTrue(cfg.getEnableHostGitOperations().get());
+        assertFalse(cfg.getEnableSessionStore().get());
+        assertTrue(cfg.getEnableSkills().get());
     }
 
     @Test

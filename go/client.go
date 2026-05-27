@@ -608,6 +608,13 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
+	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
+	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
+	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
+	req.EnableFileHooks = config.EnableFileHooks
+	req.EnableHostGitOperations = config.EnableHostGitOperations
+	req.EnableSessionStore = config.EnableSessionStore
+	req.EnableSkills = config.EnableSkills
 	req.Tools = config.Tools
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
@@ -866,6 +873,13 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
+	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
+	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
+	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
+	req.EnableFileHooks = config.EnableFileHooks
+	req.EnableHostGitOperations = config.EnableHostGitOperations
+	req.EnableSessionStore = config.EnableSessionStore
+	req.EnableSkills = config.EnableSkills
 	if config.SuppressResumeEvent {
 		req.DisableResume = Bool(true)
 	}

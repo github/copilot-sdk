@@ -216,6 +216,28 @@ class ConfigCloneTest {
     }
 
     @Test
+    void sessionConfigNewSessionFieldsCopied() {
+        SessionConfig original = new SessionConfig()
+                .setSkipEmbeddingRetrieval(true)
+                .setOrganizationCustomInstructions("Org instructions")
+                .setEnableOnDemandInstructionDiscovery(false)
+                .setEnableFileHooks(true)
+                .setEnableHostGitOperations(false)
+                .setEnableSessionStore(true)
+                .setEnableSkills(false);
+
+        SessionConfig cloned = original.clone();
+
+        assertTrue(cloned.getSkipEmbeddingRetrieval().orElse(false));
+        assertEquals("Org instructions", cloned.getOrganizationCustomInstructions());
+        assertFalse(cloned.getEnableOnDemandInstructionDiscovery().orElse(true));
+        assertTrue(cloned.getEnableFileHooks().orElse(false));
+        assertFalse(cloned.getEnableHostGitOperations().orElse(true));
+        assertTrue(cloned.getEnableSessionStore().orElse(false));
+        assertFalse(cloned.getEnableSkills().orElse(true));
+    }
+
+    @Test
     void resumeSessionConfigEnableSessionTelemetryCopied() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setEnableSessionTelemetry(false);
@@ -232,6 +254,28 @@ class ConfigCloneTest {
         ResumeSessionConfig cloned = original.clone();
 
         assertTrue(cloned.getEnableSessionTelemetry().isEmpty());
+    }
+
+    @Test
+    void resumeSessionConfigNewSessionFieldsCopied() {
+        ResumeSessionConfig original = new ResumeSessionConfig()
+                .setSkipEmbeddingRetrieval(false)
+                .setOrganizationCustomInstructions("Resume org instructions")
+                .setEnableOnDemandInstructionDiscovery(true)
+                .setEnableFileHooks(false)
+                .setEnableHostGitOperations(true)
+                .setEnableSessionStore(false)
+                .setEnableSkills(true);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertFalse(cloned.getSkipEmbeddingRetrieval().orElse(true));
+        assertEquals("Resume org instructions", cloned.getOrganizationCustomInstructions());
+        assertTrue(cloned.getEnableOnDemandInstructionDiscovery().orElse(false));
+        assertFalse(cloned.getEnableFileHooks().orElse(true));
+        assertTrue(cloned.getEnableHostGitOperations().orElse(false));
+        assertFalse(cloned.getEnableSessionStore().orElse(true));
+        assertTrue(cloned.getEnableSkills().orElse(false));
     }
 
     @Test

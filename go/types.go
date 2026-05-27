@@ -886,6 +886,34 @@ type SessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
+	// SkipEmbeddingRetrieval, when non-nil and true, skips embedding-based retrieval
+	// for this session. Use in multitenant deployments to prevent cross-session
+	// information leakage through the shared embedding cache.
+	SkipEmbeddingRetrieval *bool
+	// OrganizationCustomInstructions provides organization-level custom instructions
+	// to include in the system prompt. Allows hosts to inject organization-specific
+	// guidance without relying on filesystem-based instruction discovery.
+	OrganizationCustomInstructions string
+	// EnableOnDemandInstructionDiscovery, when non-nil and true, enables on-demand
+	// discovery of instruction files (AGENTS.md, .github/copilot-instructions.md, etc.)
+	// after successful file views.
+	EnableOnDemandInstructionDiscovery *bool
+	// EnableFileHooks, when non-nil and true, enables loading of file-based hooks
+	// from .github/hooks/. This is separate from the Hooks callback parameter which
+	// gates SDK hook event registration.
+	EnableFileHooks *bool
+	// EnableHostGitOperations, when non-nil and true, enables git operations on the
+	// host filesystem (branch detection, file status, commit history). When false,
+	// no git context is surfaced in the system prompt.
+	EnableHostGitOperations *bool
+	// EnableSessionStore, when non-nil and true, enables the cross-session store for
+	// search and retrieval across sessions. When false, session content is not written
+	// to or read from the shared session store.
+	EnableSessionStore *bool
+	// EnableSkills, when non-nil and true, enables skill loading (including builtin
+	// skills and discovered skill directories). When false, no skills are loaded
+	// regardless of SkillDirectories or EnableConfigDiscovery settings.
+	EnableSkills *bool
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
 	Tools []Tool
@@ -1210,6 +1238,27 @@ type ResumeSessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
+	// SkipEmbeddingRetrieval, when non-nil and true, skips embedding-based retrieval
+	// for this session. Use in multitenant deployments to prevent cross-session
+	// information leakage through the shared embedding cache.
+	SkipEmbeddingRetrieval *bool
+	// OrganizationCustomInstructions provides organization-level custom instructions
+	// to include in the system prompt.
+	OrganizationCustomInstructions string
+	// EnableOnDemandInstructionDiscovery, when non-nil and true, enables on-demand
+	// discovery of instruction files after successful file views.
+	EnableOnDemandInstructionDiscovery *bool
+	// EnableFileHooks, when non-nil and true, enables loading of file-based hooks
+	// from .github/hooks/.
+	EnableFileHooks *bool
+	// EnableHostGitOperations, when non-nil and true, enables git operations on the
+	// host filesystem.
+	EnableHostGitOperations *bool
+	// EnableSessionStore, when non-nil and true, enables the cross-session store for
+	// search and retrieval across sessions.
+	EnableSessionStore *bool
+	// EnableSkills, when non-nil and true, enables skill loading.
+	EnableSkills *bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
 	// events with deltaContent are sent as the response is generated.
@@ -1526,6 +1575,13 @@ type createSessionRequest struct {
 	Agent                          string                                 `json:"agent,omitempty"`
 	ConfigDir                      string                                 `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
+	SkipEmbeddingRetrieval         *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
+	OrganizationCustomInstructions string                                 `json:"organizationCustomInstructions,omitempty"`
+	EnableOnDemandInstructionDiscovery *bool                              `json:"enableOnDemandInstructionDiscovery,omitempty"`
+	EnableFileHooks                *bool                                  `json:"enableFileHooks,omitempty"`
+	EnableHostGitOperations        *bool                                  `json:"enableHostGitOperations,omitempty"`
+	EnableSessionStore             *bool                                  `json:"enableSessionStore,omitempty"`
+	EnableSkills                   *bool                                  `json:"enableSkills,omitempty"`
 	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
 	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
@@ -1582,6 +1638,13 @@ type resumeSessionRequest struct {
 	WorkingDirectory               string                                 `json:"workingDirectory,omitempty"`
 	ConfigDir                      string                                 `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
+	SkipEmbeddingRetrieval         *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
+	OrganizationCustomInstructions string                                 `json:"organizationCustomInstructions,omitempty"`
+	EnableOnDemandInstructionDiscovery *bool                              `json:"enableOnDemandInstructionDiscovery,omitempty"`
+	EnableFileHooks                *bool                                  `json:"enableFileHooks,omitempty"`
+	EnableHostGitOperations        *bool                                  `json:"enableHostGitOperations,omitempty"`
+	EnableSessionStore             *bool                                  `json:"enableSessionStore,omitempty"`
+	EnableSkills                   *bool                                  `json:"enableSkills,omitempty"`
 	DisableResume                  *bool                                  `json:"disableResume,omitempty"`
 	ContinuePendingWork            *bool                                  `json:"continuePendingWork,omitempty"`
 	Streaming                      *bool                                  `json:"streaming,omitempty"`

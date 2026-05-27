@@ -75,6 +75,20 @@ pub(crate) struct SessionCreateWire {
     pub env_value_mode: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_embedding_retrieval: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_custom_instructions: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_hooks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_host_git_operations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_skills: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
@@ -153,6 +167,20 @@ pub(crate) struct SessionResumeWire {
     pub env_value_mode: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_embedding_retrieval: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_custom_instructions: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_hooks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_host_git_operations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_skills: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,

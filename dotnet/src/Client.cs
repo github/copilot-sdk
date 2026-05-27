@@ -572,6 +572,12 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (_options.Mode == CopilotClientMode.Empty)
         {
             config.EnableSessionTelemetry ??= false;
+            config.SkipEmbeddingRetrieval ??= true;
+            config.EnableOnDemandInstructionDiscovery ??= false;
+            config.EnableFileHooks ??= false;
+            config.EnableHostGitOperations ??= false;
+            config.EnableSessionStore ??= false;
+            config.EnableSkills ??= false;
         }
     }
 
@@ -829,6 +835,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Agent,
                 config.ConfigDir,
                 config.EnableConfigDiscovery,
+                config.SkipEmbeddingRetrieval,
+                config.OrganizationCustomInstructions,
+                config.EnableOnDemandInstructionDiscovery,
+                config.EnableFileHooks,
+                config.EnableHostGitOperations,
+                config.EnableSessionStore,
+                config.EnableSkills,
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
@@ -995,6 +1008,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.WorkingDirectory,
                 config.ConfigDir,
                 config.EnableConfigDiscovery,
+                config.SkipEmbeddingRetrieval,
+                config.OrganizationCustomInstructions,
+                config.EnableOnDemandInstructionDiscovery,
+                config.EnableFileHooks,
+                config.EnableHostGitOperations,
+                config.EnableSessionStore,
+                config.EnableSkills,
                 config.SuppressResumeEvent is true ? true : null,
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
@@ -2110,6 +2130,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Agent,
         string? ConfigDir,
         bool? EnableConfigDiscovery,
+        bool? SkipEmbeddingRetrieval,
+        string? OrganizationCustomInstructions,
+        bool? EnableOnDemandInstructionDiscovery,
+        bool? EnableFileHooks,
+        bool? EnableHostGitOperations,
+        bool? EnableSessionStore,
+        bool? EnableSkills,
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
@@ -2174,6 +2201,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkingDirectory,
         string? ConfigDir,
         bool? EnableConfigDiscovery,
+        bool? SkipEmbeddingRetrieval,
+        string? OrganizationCustomInstructions,
+        bool? EnableOnDemandInstructionDiscovery,
+        bool? EnableFileHooks,
+        bool? EnableHostGitOperations,
+        bool? EnableSessionStore,
+        bool? EnableSkills,
         bool? SuppressResumeEvent,
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,

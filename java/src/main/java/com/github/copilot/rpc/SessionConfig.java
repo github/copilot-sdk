@@ -64,6 +64,13 @@ public class SessionConfig {
     private List<String> disabledSkills;
     private String configDir;
     private Boolean enableConfigDiscovery;
+    private Boolean skipEmbeddingRetrieval;
+    private String organizationCustomInstructions;
+    private Boolean enableOnDemandInstructionDiscovery;
+    private Boolean enableFileHooks;
+    private Boolean enableHostGitOperations;
+    private Boolean enableSessionStore;
+    private Boolean enableSkills;
     private ModelCapabilitiesOverride modelCapabilities;
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
@@ -713,6 +720,238 @@ public class SessionConfig {
     }
 
     /**
+     * Gets whether embedding-based retrieval is skipped.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to skip
+     *         embedding retrieval or {@code false} to force it, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getSkipEmbeddingRetrieval() {
+        return Optional.ofNullable(skipEmbeddingRetrieval);
+    }
+
+    /**
+     * Sets whether to skip embedding-based retrieval.
+     *
+     * @param skipEmbeddingRetrieval
+     *            {@code true} to skip embedding retrieval, {@code false} to keep
+     *            it enabled
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {
+        this.skipEmbeddingRetrieval = skipEmbeddingRetrieval;
+        return this;
+    }
+
+    /**
+     * Clears the skipEmbeddingRetrieval setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearSkipEmbeddingRetrieval() {
+        this.skipEmbeddingRetrieval = null;
+        return this;
+    }
+
+    /**
+     * Gets the organization-level custom instructions.
+     *
+     * @return the organization-level custom instructions, or {@code null} if not
+     *         set
+     */
+    public String getOrganizationCustomInstructions() {
+        return organizationCustomInstructions;
+    }
+
+    /**
+     * Sets organization-level custom instructions.
+     *
+     * @param organizationCustomInstructions
+     *            the organization-level custom instructions
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setOrganizationCustomInstructions(String organizationCustomInstructions) {
+        this.organizationCustomInstructions = organizationCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Gets whether on-demand instruction file discovery is enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable
+     *         on-demand discovery or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableOnDemandInstructionDiscovery() {
+        return Optional.ofNullable(enableOnDemandInstructionDiscovery);
+    }
+
+    /**
+     * Sets whether instruction files are discovered on demand.
+     *
+     * @param enableOnDemandInstructionDiscovery
+     *            {@code true} to enable on-demand instruction discovery,
+     *            {@code false} to disable it
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableOnDemandInstructionDiscovery(boolean enableOnDemandInstructionDiscovery) {
+        this.enableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery;
+        return this;
+    }
+
+    /**
+     * Clears the enableOnDemandInstructionDiscovery setting, reverting to the
+     * default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableOnDemandInstructionDiscovery() {
+        this.enableOnDemandInstructionDiscovery = null;
+        return this;
+    }
+
+    /**
+     * Gets whether file-based hooks are enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable file
+     *         hooks or {@code false} to disable them, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableFileHooks() {
+        return Optional.ofNullable(enableFileHooks);
+    }
+
+    /**
+     * Sets whether file-based hooks from {@code .github/hooks/} are enabled.
+     *
+     * @param enableFileHooks
+     *            {@code true} to enable file hooks, {@code false} to disable them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableFileHooks(boolean enableFileHooks) {
+        this.enableFileHooks = enableFileHooks;
+        return this;
+    }
+
+    /**
+     * Clears the enableFileHooks setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableFileHooks() {
+        this.enableFileHooks = null;
+        return this;
+    }
+
+    /**
+     * Gets whether host git operations are enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable host
+     *         git operations or {@code false} to disable them, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableHostGitOperations() {
+        return Optional.ofNullable(enableHostGitOperations);
+    }
+
+    /**
+     * Sets whether git operations on the host filesystem are enabled.
+     *
+     * @param enableHostGitOperations
+     *            {@code true} to enable host git operations, {@code false} to
+     *            disable them
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableHostGitOperations(boolean enableHostGitOperations) {
+        this.enableHostGitOperations = enableHostGitOperations;
+        return this;
+    }
+
+    /**
+     * Clears the enableHostGitOperations setting, reverting to the default
+     * behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableHostGitOperations() {
+        this.enableHostGitOperations = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the cross-session store is enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable the
+     *         session store or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableSessionStore() {
+        return Optional.ofNullable(enableSessionStore);
+    }
+
+    /**
+     * Sets whether the cross-session store is enabled.
+     *
+     * @param enableSessionStore
+     *            {@code true} to enable the session store, {@code false} to disable
+     *            it
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableSessionStore(boolean enableSessionStore) {
+        this.enableSessionStore = enableSessionStore;
+        return this;
+    }
+
+    /**
+     * Clears the enableSessionStore setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableSessionStore() {
+        this.enableSessionStore = null;
+        return this;
+    }
+
+    /**
+     * Gets whether skill loading is enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable skill
+     *         loading or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the runtime default
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableSkills() {
+        return Optional.ofNullable(enableSkills);
+    }
+
+    /**
+     * Sets whether skill loading is enabled.
+     *
+     * @param enableSkills
+     *            {@code true} to enable skill loading, {@code false} to disable it
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableSkills(boolean enableSkills) {
+        this.enableSkills = enableSkills;
+        return this;
+    }
+
+    /**
+     * Clears the enableSkills setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEnableSkills() {
+        this.enableSkills = null;
+        return this;
+    }
+
+    /**
      * Gets whether sub-agent streaming events are included.
      *
      * @return an {@link java.util.Optional} containing {@code true} to include
@@ -1051,6 +1290,13 @@ public class SessionConfig {
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.configDir = this.configDir;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
+        copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
+        copy.organizationCustomInstructions = this.organizationCustomInstructions;
+        copy.enableOnDemandInstructionDiscovery = this.enableOnDemandInstructionDiscovery;
+        copy.enableFileHooks = this.enableFileHooks;
+        copy.enableHostGitOperations = this.enableHostGitOperations;
+        copy.enableSessionStore = this.enableSessionStore;
+        copy.enableSkills = this.enableSkills;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;

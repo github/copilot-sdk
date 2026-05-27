@@ -1808,6 +1808,64 @@ export interface SessionConfigBase {
     gitHubToken?: string;
 
     /**
+     * When true, skips embedding-based retrieval for this session.
+     * Use in multitenant deployments to prevent cross-session information leakage
+     * through the shared embedding cache.
+     */
+    skipEmbeddingRetrieval?: boolean;
+
+    /**
+     * Organization-level custom instructions to include in the system prompt.
+     * Allows hosts to inject organization-specific guidance without relying on
+     * filesystem-based instruction discovery.
+     */
+    organizationCustomInstructions?: string;
+
+    /**
+     * When true, enables on-demand discovery of instruction files (AGENTS.md,
+     * .github/copilot-instructions.md, etc.) after successful file views.
+     *
+     * @default false
+     */
+    enableOnDemandInstructionDiscovery?: boolean;
+
+    /**
+     * When true, enables loading of file-based hooks from `.github/hooks/`.
+     * This is separate from the `hooks` callback parameter which gates SDK
+     * hook event registration.
+     *
+     * @default false
+     */
+    enableFileHooks?: boolean;
+
+    /**
+     * When true, enables git operations on the host filesystem (branch detection,
+     * file status, commit history). When false, no git context is surfaced in
+     * the system prompt.
+     *
+     * @default false
+     */
+    enableHostGitOperations?: boolean;
+
+    /**
+     * When true, enables the cross-session store for search and retrieval
+     * across sessions. When false, session content is not written to or
+     * read from the shared session store.
+     *
+     * @default false
+     */
+    enableSessionStore?: boolean;
+
+    /**
+     * When true, enables skill loading (including builtin skills and discovered
+     * skill directories). When false, no skills are loaded regardless of
+     * `skillDirectories` or `enableConfigDiscovery` settings.
+     *
+     * @default false
+     */
+    enableSkills?: boolean;
+
+    /**
      * Per-session remote behavior control:
      * - `"off"` — local only, no remote export (default)
      * - `"export"` — export session events to GitHub without enabling remote steering

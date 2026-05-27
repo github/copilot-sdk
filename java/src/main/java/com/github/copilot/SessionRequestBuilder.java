@@ -133,6 +133,15 @@ final class SessionRequestBuilder {
         request.setDisabledSkills(config.getDisabledSkills());
         request.setConfigDir(config.getConfigDir());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
+        config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
+        if (config.getOrganizationCustomInstructions() != null) {
+            request.setOrganizationCustomInstructions(config.getOrganizationCustomInstructions());
+        }
+        config.getEnableOnDemandInstructionDiscovery().ifPresent(request::setEnableOnDemandInstructionDiscovery);
+        config.getEnableFileHooks().ifPresent(request::setEnableFileHooks);
+        config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
+        config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
+        config.getEnableSkills().ifPresent(request::setEnableSkills);
         request.setModelCapabilities(config.getModelCapabilities());
 
         if (config.getCommands() != null && !config.getCommands().isEmpty()) {
@@ -212,6 +221,15 @@ final class SessionRequestBuilder {
         request.setWorkingDirectory(config.getWorkingDirectory());
         request.setConfigDir(config.getConfigDir());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
+        config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
+        if (config.getOrganizationCustomInstructions() != null) {
+            request.setOrganizationCustomInstructions(config.getOrganizationCustomInstructions());
+        }
+        config.getEnableOnDemandInstructionDiscovery().ifPresent(request::setEnableOnDemandInstructionDiscovery);
+        config.getEnableFileHooks().ifPresent(request::setEnableFileHooks);
+        config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
+        config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
+        config.getEnableSkills().ifPresent(request::setEnableSkills);
         if (config.isDisableResume()) {
             request.setDisableResume(true);
         }

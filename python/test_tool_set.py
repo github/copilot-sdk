@@ -6,10 +6,16 @@ import pytest
 
 from copilot import BUILTIN_TOOLS_ISOLATED, CopilotClient, ToolSet, UriRuntimeConnection
 from copilot._mode import (
+    _enable_file_hooks_default,
+    _enable_host_git_operations_default,
+    _enable_on_demand_instruction_discovery_default,
+    _enable_session_store_default,
     _enable_session_telemetry_default,
+    _enable_skills_default,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
     _require_storage_for_empty_mode,
+    _skip_embedding_retrieval_default,
     _system_message_for_mode,
     _validate_tool_filter_list,
 )

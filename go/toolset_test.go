@@ -247,3 +247,84 @@ func TestApplyConfigDefaultsForMode_copilotCliLeavesNil(t *testing.T) {
 		t.Errorf("non-empty mode must not default telemetry")
 	}
 }
+
+func TestApplyConfigDefaultsForMode_emptyDefaultsGranularFlags(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.SkipEmbeddingRetrieval == nil || *cfg.SkipEmbeddingRetrieval != true {
+		t.Errorf("expected SkipEmbeddingRetrieval=true in empty mode, got %v", cfg.SkipEmbeddingRetrieval)
+	}
+	if cfg.EnableOnDemandInstructionDiscovery == nil || *cfg.EnableOnDemandInstructionDiscovery != false {
+		t.Errorf("expected EnableOnDemandInstructionDiscovery=false in empty mode, got %v", cfg.EnableOnDemandInstructionDiscovery)
+	}
+	if cfg.EnableFileHooks == nil || *cfg.EnableFileHooks != false {
+		t.Errorf("expected EnableFileHooks=false in empty mode, got %v", cfg.EnableFileHooks)
+	}
+	if cfg.EnableHostGitOperations == nil || *cfg.EnableHostGitOperations != false {
+		t.Errorf("expected EnableHostGitOperations=false in empty mode, got %v", cfg.EnableHostGitOperations)
+	}
+	if cfg.EnableSessionStore == nil || *cfg.EnableSessionStore != false {
+		t.Errorf("expected EnableSessionStore=false in empty mode, got %v", cfg.EnableSessionStore)
+	}
+	if cfg.EnableSkills == nil || *cfg.EnableSkills != false {
+		t.Errorf("expected EnableSkills=false in empty mode, got %v", cfg.EnableSkills)
+	}
+}
+
+func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	falseVal := false
+	trueVal := true
+	cfg := &SessionConfig{
+		SkipEmbeddingRetrieval:            &falseVal,
+		EnableOnDemandInstructionDiscovery: &trueVal,
+		EnableFileHooks:                   &trueVal,
+		EnableHostGitOperations:           &trueVal,
+		EnableSessionStore:                &trueVal,
+		EnableSkills:                      &trueVal,
+	}
+	c.applyConfigDefaultsForMode(cfg)
+	if *cfg.SkipEmbeddingRetrieval != false {
+		t.Errorf("caller-supplied SkipEmbeddingRetrieval must win")
+	}
+	if *cfg.EnableOnDemandInstructionDiscovery != true {
+		t.Errorf("caller-supplied EnableOnDemandInstructionDiscovery must win")
+	}
+	if *cfg.EnableFileHooks != true {
+		t.Errorf("caller-supplied EnableFileHooks must win")
+	}
+	if *cfg.EnableHostGitOperations != true {
+		t.Errorf("caller-supplied EnableHostGitOperations must win")
+	}
+	if *cfg.EnableSessionStore != true {
+		t.Errorf("caller-supplied EnableSessionStore must win")
+	}
+	if *cfg.EnableSkills != true {
+		t.Errorf("caller-supplied EnableSkills must win")
+	}
+}
+
+func TestApplyConfigDefaultsForMode_copilotCliLeavesGranularFlagsNil(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.SkipEmbeddingRetrieval != nil {
+		t.Errorf("non-empty mode must not default SkipEmbeddingRetrieval")
+	}
+	if cfg.EnableOnDemandInstructionDiscovery != nil {
+		t.Errorf("non-empty mode must not default EnableOnDemandInstructionDiscovery")
+	}
+	if cfg.EnableFileHooks != nil {
+		t.Errorf("non-empty mode must not default EnableFileHooks")
+	}
+	if cfg.EnableHostGitOperations != nil {
+		t.Errorf("non-empty mode must not default EnableHostGitOperations")
+	}
+	if cfg.EnableSessionStore != nil {
+		t.Errorf("non-empty mode must not default EnableSessionStore")
+	}
+	if cfg.EnableSkills != nil {
+		t.Errorf("non-empty mode must not default EnableSkills")
+	}
+}

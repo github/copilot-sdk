@@ -212,6 +212,50 @@ public class SessionRequestBuilderTest {
         assertEquals("my-app", request.getClientName());
     }
 
+    @Test
+    void testBuildCreateRequestPropagatesNewSessionFields() {
+        var config = new SessionConfig()
+                .setSkipEmbeddingRetrieval(true)
+                .setOrganizationCustomInstructions("Create org instructions")
+                .setEnableOnDemandInstructionDiscovery(false)
+                .setEnableFileHooks(true)
+                .setEnableHostGitOperations(false)
+                .setEnableSessionStore(true)
+                .setEnableSkills(false);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertTrue(request.getSkipEmbeddingRetrieval());
+        assertEquals("Create org instructions", request.getOrganizationCustomInstructions());
+        assertFalse(request.getEnableOnDemandInstructionDiscovery());
+        assertTrue(request.getEnableFileHooks());
+        assertFalse(request.getEnableHostGitOperations());
+        assertTrue(request.getEnableSessionStore());
+        assertFalse(request.getEnableSkills());
+    }
+
+    @Test
+    void testBuildResumeRequestPropagatesNewSessionFields() {
+        var config = new ResumeSessionConfig()
+                .setSkipEmbeddingRetrieval(false)
+                .setOrganizationCustomInstructions("Resume org instructions")
+                .setEnableOnDemandInstructionDiscovery(true)
+                .setEnableFileHooks(false)
+                .setEnableHostGitOperations(true)
+                .setEnableSessionStore(false)
+                .setEnableSkills(true);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
+
+        assertFalse(request.getSkipEmbeddingRetrieval());
+        assertEquals("Resume org instructions", request.getOrganizationCustomInstructions());
+        assertTrue(request.getEnableOnDemandInstructionDiscovery());
+        assertFalse(request.getEnableFileHooks());
+        assertTrue(request.getEnableHostGitOperations());
+        assertFalse(request.getEnableSessionStore());
+        assertTrue(request.getEnableSkills());
+    }
+
     // =========================================================================
     // configureSession (ResumeSessionConfig overload)
     // =========================================================================

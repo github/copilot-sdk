@@ -460,6 +460,88 @@ describe("Empty-mode safe defaults", () => {
         });
     });
 
+    it("applies restrictive defaults for granular multitenancy flags in empty mode", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        const payload = createPayload(spy);
+        expect(payload.skipEmbeddingRetrieval).toBe(true);
+        expect(payload.enableOnDemandInstructionDiscovery).toBe(false);
+        expect(payload.enableFileHooks).toBe(false);
+        expect(payload.enableHostGitOperations).toBe(false);
+        expect(payload.enableSessionStore).toBe(false);
+        expect(payload.enableSkills).toBe(false);
+    });
+
+    it("respects app-supplied overrides for granular multitenancy flags in empty mode", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            skipEmbeddingRetrieval: false,
+            enableOnDemandInstructionDiscovery: true,
+            enableFileHooks: true,
+            enableHostGitOperations: true,
+            enableSessionStore: true,
+            enableSkills: true,
+        });
+        const payload = createPayload(spy);
+        expect(payload.skipEmbeddingRetrieval).toBe(false);
+        expect(payload.enableOnDemandInstructionDiscovery).toBe(true);
+        expect(payload.enableFileHooks).toBe(true);
+        expect(payload.enableHostGitOperations).toBe(true);
+        expect(payload.enableSessionStore).toBe(true);
+        expect(payload.enableSkills).toBe(true);
+    });
+
+    it("passes organizationCustomInstructions through on create", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            organizationCustomInstructions: "Follow org coding standards",
+        });
+        const payload = createPayload(spy);
+        expect(payload.organizationCustomInstructions).toBe("Follow org coding standards");
+    });
+
+    it("does NOT apply granular multitenancy flag defaults in copilot-cli mode", async () => {
+        const { client, spy } = await setupClient("copilot-cli");
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: ["builtin:bash"],
+        });
+        const payload = createPayload(spy);
+        expect(payload.skipEmbeddingRetrieval).toBeUndefined();
+        expect(payload.enableOnDemandInstructionDiscovery).toBeUndefined();
+        expect(payload.enableFileHooks).toBeUndefined();
+        expect(payload.enableHostGitOperations).toBeUndefined();
+        expect(payload.enableSessionStore).toBeUndefined();
+        expect(payload.enableSkills).toBeUndefined();
+    });
+
+    it("applies granular multitenancy flag defaults on session.resume in empty mode", async () => {
+        const { client, spy } = await setupClient();
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        spy.mockClear();
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        const resumePayload = spy.mock.calls.find(([m]) => m === "session.resume")![1] as any;
+        expect(resumePayload.skipEmbeddingRetrieval).toBe(true);
+        expect(resumePayload.enableOnDemandInstructionDiscovery).toBe(false);
+        expect(resumePayload.enableFileHooks).toBe(false);
+        expect(resumePayload.enableHostGitOperations).toBe(false);
+        expect(resumePayload.enableSessionStore).toBe(false);
+        expect(resumePayload.enableSkills).toBe(false);
+    });
+
     it("forwards the four flags in copilot-cli mode when the app sets them", async () => {
         const { client, spy } = await setupClient("copilot-cli");
         await client.createSession({
