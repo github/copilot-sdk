@@ -168,7 +168,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .discover(SkillsDiscoverRequest {
                         project_paths: None,
                         skill_directories: Some(vec![
-                            skill_directory.to_string_lossy().to_string()
+                            skill_directory.to_string_lossy().to_string(),
                         ]),
                     })
                     .await
@@ -194,7 +194,7 @@ async fn should_discover_server_mcp_and_skills() {
                     .discover(SkillsDiscoverRequest {
                         project_paths: None,
                         skill_directories: Some(vec![
-                            skill_directory.to_string_lossy().to_string()
+                            skill_directory.to_string_lossy().to_string(),
                         ]),
                     })
                     .await

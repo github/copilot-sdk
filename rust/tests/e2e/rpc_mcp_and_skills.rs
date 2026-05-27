@@ -417,10 +417,7 @@ async fn should_round_trip_mcp_app_host_context() {
                 assert_eq!(context.time_zone.as_deref(), Some("Etc/UTC"));
                 assert_eq!(context.user_agent.as_deref(), Some("rust-e2e"));
                 assert_eq!(
-                    context
-                        .available_display_modes
-                        .as_ref()
-                        .map_or(0, Vec::len),
+                    context.available_display_modes.as_ref().map_or(0, Vec::len),
                     2
                 );
 
