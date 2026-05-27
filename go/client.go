@@ -777,14 +777,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 	}); err != nil {
-		// In empty mode, refuse to expose a session whose safe-defaults
-		// patch was rejected: tear it down so callers never get a
-		// permissive session.
-		_ = session.Disconnect()
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
-		return nil, fmt.Errorf("failed to apply mode-specific session options: %w", err)
+		return nil, err
 	}
 
 	return session, nil
@@ -1002,11 +995,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		CoauthorEnabled:        config.CoauthorEnabled,
 		ManageScheduleEnabled:  config.ManageScheduleEnabled,
 	}); err != nil {
-		_ = session.Disconnect()
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
-		return nil, fmt.Errorf("failed to apply mode-specific session options: %w", err)
+		return nil, err
 	}
 
 	return session, nil

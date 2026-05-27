@@ -899,8 +899,11 @@ export class CopilotClient {
     /**
      * Returns the systemMessage config to use, adjusted for the current mode.
      * In empty mode we ensure the environment_context section is removed
-     * unless the app has already taken control of it; append mode is rejected
-     * because it would leave environment info in the prompt.
+     * unless the app has already taken control of it. `append` (and
+     * unspecified) mode is promoted to `customize` so we can also strip
+     * environment_context; the caller's `content` is preserved verbatim
+     * because the runtime appends it as additional instructions in both
+     * customize and append modes.
      */
     private getSystemMessageConfigForMode(
         supplied: SystemMessageConfig | undefined
@@ -966,8 +969,22 @@ export class CopilotClient {
             if (config.manageScheduleEnabled !== undefined)
                 patch.manageScheduleEnabled = config.manageScheduleEnabled;
         }
-        if (Object.keys(patch).length > 0) {
+        if (Object.keys(patch).length === 0) {
+            return;
+        }
+        try {
             await session.rpc.options.update(patch);
+        } catch (e) {
+            // The runtime session exists but the post-create options
+            // patch failed — best-effort disconnect so we don't leak
+            // it (in empty mode it would otherwise keep running with
+            // permissive defaults).
+            try {
+                await session.disconnect();
+            } catch {
+                // Swallow: original error is the one the caller needs.
+            }
+            throw e;
         }
     }
 

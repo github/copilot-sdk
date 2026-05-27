@@ -105,11 +105,21 @@ BUILTIN_TOOLS_ISOLATED: list[str] = [
 
 
 def _normalize_tool_filter(value: Any) -> list[str] | None:
-    """Accept ``ToolSet``, ``list[str]``, or ``None``; return a list or ``None``."""
+    """Accept ``ToolSet``, ``list[str]``, or ``None``; return a list or ``None``.
+
+    Reject plain ``str`` explicitly — ``list("foo")`` would silently shred it
+    into characters, sending an invalid tool filter list on the wire.
+    """
     if value is None:
         return None
     if isinstance(value, ToolSet):
         return value.to_list()
+    if isinstance(value, str):
+        raise TypeError(
+            "tool filter must be a ToolSet or list[str], not str. "
+            'Pass a single-element list (e.g. ["builtin:bash"]) or a '
+            "ToolSet (e.g. ToolSet().add_builtin('bash'))."
+        )
     return list(value)
 
 

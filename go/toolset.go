@@ -39,9 +39,9 @@ const (
 // built-in, even if an MCP server or custom-agent extension happens to
 // register a tool with the same wire name.
 //
-// ToolSet's zero value is ready to use. ToolSet implements implicit conversion
-// to []string via [ToolSet.ToSlice], and the [SessionConfig] fields accept
-// []string directly; pass tools as `(&ToolSet{}).AddBuiltIn(...).ToSlice()`.
+// ToolSet's zero value is ready to use. Convert to []string via [ToolSet.ToSlice]
+// before passing to [SessionConfig] fields, e.g.
+// `(&ToolSet{}).AddBuiltIn(...).ToSlice()`.
 type ToolSet struct {
 	items []string
 }

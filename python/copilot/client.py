@@ -3283,7 +3283,10 @@ class CopilotClient:
         except BaseException:
             with self._sessions_lock:
                 self._sessions.pop(session.session_id, None)
-            await session.disconnect()
+            try:
+                await session.disconnect()
+            except BaseException:
+                pass
             raise
 
     async def _set_session_fs_provider(self) -> None:

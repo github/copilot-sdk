@@ -193,8 +193,17 @@ func (c *Client) updateSessionOptionsForMode(ctx context.Context, session *Sessi
 	if !hasAny {
 		return nil
 	}
-	_, err := session.RPC.Options.Update(ctx, patch)
-	return err
+	if _, err := session.RPC.Options.Update(ctx, patch); err != nil {
+		// The runtime session exists but the post-create options patch
+		// failed — best-effort disconnect so we don't leak it (in empty
+		// mode it would otherwise keep running with permissive defaults).
+		_ = session.Disconnect()
+		c.sessionsMux.Lock()
+		delete(c.sessions, session.SessionID)
+		c.sessionsMux.Unlock()
+		return fmt.Errorf("failed to apply mode-specific session options: %w", err)
+	}
+	return nil
 }
 
 // optBackInFields is the subset of SessionConfig / ResumeSessionConfig shared

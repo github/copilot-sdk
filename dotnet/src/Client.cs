@@ -677,15 +677,34 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
 
         if (!hasAnyPatch) return;
 
+        try
+        {
 #pragma warning disable GHCP001
-        await session.Rpc.Options.UpdateAsync(
-            skipCustomInstructions: skipCustomInstructions,
-            customAgentsLocalOnly: customAgentsLocalOnly,
-            coauthorEnabled: coauthorEnabled,
-            manageScheduleEnabled: manageScheduleEnabled,
-            installedPlugins: installedPlugins,
-            cancellationToken: cancellationToken).ConfigureAwait(false);
+            await session.Rpc.Options.UpdateAsync(
+                skipCustomInstructions: skipCustomInstructions,
+                customAgentsLocalOnly: customAgentsLocalOnly,
+                coauthorEnabled: coauthorEnabled,
+                manageScheduleEnabled: manageScheduleEnabled,
+                installedPlugins: installedPlugins,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 #pragma warning restore GHCP001
+        }
+        catch
+        {
+            // The runtime session exists but the post-create options
+            // patch failed — best-effort destroy so we don't leak it
+            // (in empty mode it would otherwise stay alive with
+            // permissive defaults).
+            try
+            {
+                await session.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                // Swallow: original error is what the caller needs.
+            }
+            throw;
+        }
     }
 
     /// <summary>
