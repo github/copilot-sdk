@@ -110,16 +110,19 @@ public class SessionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             }
         });
 
-        await session.SendAsync(new MessageOptions { Prompt = "Who are you?" });
-        var assistantMessage = await TestHelper.GetFinalAssistantMessageAsync(session);
-        Assert.NotNull(assistantMessage);
-
-        var traffic = await Ctx.GetExchangesAsync();
-        Assert.NotEmpty(traffic);
-        var systemMessage = GetSystemMessage(traffic[0]);
-        Assert.Contains(customTone, systemMessage);
-        Assert.Contains(appendedContent, systemMessage);
-        Assert.DoesNotContain("<code_change_instructions>", systemMessage);
+        try
+        {
+            await session.SendAsync(new MessageOptions { Prompt = "Who are you?" });
+            var traffic = await WaitForExchangesAsync();
+            var systemMessage = GetSystemMessage(traffic[0]);
+            Assert.Contains(customTone, systemMessage);
+            Assert.Contains(appendedContent, systemMessage);
+            Assert.DoesNotContain("<code_change_instructions>", systemMessage);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
