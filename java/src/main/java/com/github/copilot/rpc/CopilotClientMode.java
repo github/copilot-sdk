@@ -20,8 +20,8 @@ public enum CopilotClientMode {
      * When this mode is selected:
      * <ul>
      * <li>The client constructor requires
-     * {@link CopilotClientOptions#getCopilotHome()} or a session filesystem to be
-     * set.</li>
+     * {@link CopilotClientOptions#getCopilotHome()} or
+     * {@link CopilotClientOptions#getCliUrl()} to be set.</li>
      * <li>{@link SessionConfig#getAvailableTools()} must be supplied on every
      * session — no tools are exposed by default.</li>
      * <li>{@code session.create} always sets

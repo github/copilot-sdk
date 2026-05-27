@@ -354,9 +354,9 @@ public class SessionConfig {
      * {@code .github/copilot-instructions.md}, {@code AGENTS.md}) from the working
      * directory.
      * <p>
-     * When {@code null}, the SDK chooses based on
-     * {@link CopilotClientOptions#getMode()}: {@code true} under
-     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session creation request.
      *
      * @param skipCustomInstructions
      *            whether to skip custom instructions
@@ -394,9 +394,9 @@ public class SessionConfig {
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory (no organisation-level discovery).
      * <p>
-     * When {@code null}, the SDK chooses based on
-     * {@link CopilotClientOptions#getMode()}: {@code true} under
-     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session creation request.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -434,9 +434,9 @@ public class SessionConfig {
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
      * trailer when it commits on behalf of the user.
      * <p>
-     * When {@code null}, the SDK chooses based on
-     * {@link CopilotClientOptions#getMode()}: {@code false} under
-     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session creation request.
      *
      * @param coauthorEnabled
      *            whether coauthor is enabled
@@ -474,9 +474,9 @@ public class SessionConfig {
      * Sets whether to enable the {@code manage_schedule} tool (host scheduler
      * integration).
      * <p>
-     * When {@code null}, the SDK chooses based on
-     * {@link CopilotClientOptions#getMode()}: {@code false} under
-     * {@link CopilotClientMode#EMPTY}, {@code null} otherwise.
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session creation request.
      *
      * @param manageScheduleEnabled
      *            whether manage schedule is enabled

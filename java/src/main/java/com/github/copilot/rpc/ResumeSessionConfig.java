@@ -296,6 +296,10 @@ public class ResumeSessionConfig {
 
     /**
      * Sets whether to suppress loading of custom instruction files.
+     * <p>
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session resume request.
      *
      * @param skipCustomInstructions
      *            whether to skip custom instructions
@@ -308,8 +312,9 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Clears the skipCustomInstructions setting. @return this instance for method
-     * chaining
+     * Clears the skipCustomInstructions setting.
+     *
+     * @return this instance for method chaining
      */
     public ResumeSessionConfig clearSkipCustomInstructions() {
         this.skipCustomInstructions = null;
@@ -330,6 +335,10 @@ public class ResumeSessionConfig {
     /**
      * Sets whether custom-agent discovery is restricted to the session's local
      * working directory.
+     * <p>
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session resume request.
      *
      * @param customAgentsLocalOnly
      *            whether to restrict to local agents
@@ -342,8 +351,9 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Clears the customAgentsLocalOnly setting. @return this instance for method
-     * chaining
+     * Clears the customAgentsLocalOnly setting.
+     *
+     * @return this instance for method chaining
      */
     public ResumeSessionConfig clearCustomAgentsLocalOnly() {
         this.customAgentsLocalOnly = null;
@@ -364,6 +374,10 @@ public class ResumeSessionConfig {
     /**
      * Sets whether the runtime is allowed to append a {@code Co-authored-by}
      * trailer.
+     * <p>
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session resume request.
      *
      * @param coauthorEnabled
      *            whether coauthor is enabled
@@ -376,7 +390,9 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Clears the coauthorEnabled setting. @return this instance for method chaining
+     * Clears the coauthorEnabled setting.
+     *
+     * @return this instance for method chaining
      */
     public ResumeSessionConfig clearCoauthorEnabled() {
         this.coauthorEnabled = null;
@@ -396,6 +412,10 @@ public class ResumeSessionConfig {
 
     /**
      * Sets whether to enable the {@code manage_schedule} tool.
+     * <p>
+     * <b>Note:</b> This option is not yet propagated to the wire protocol. It is
+     * reserved for future SDK defaulting behavior. Setting it currently has no
+     * effect on the session resume request.
      *
      * @param manageScheduleEnabled
      *            whether manage schedule is enabled
@@ -408,8 +428,9 @@ public class ResumeSessionConfig {
     }
 
     /**
-     * Clears the manageScheduleEnabled setting. @return this instance for method
-     * chaining
+     * Clears the manageScheduleEnabled setting.
+     *
+     * @return this instance for method chaining
      */
     public ResumeSessionConfig clearManageScheduleEnabled() {
         this.manageScheduleEnabled = null;

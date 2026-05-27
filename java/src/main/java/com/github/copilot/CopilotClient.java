@@ -151,7 +151,7 @@ public final class CopilotClient implements AutoCloseable {
                     || (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty());
             if (!hasPersistence) {
                 throw new IllegalArgumentException(
-                        "CopilotClient was created with Mode = EMPTY but CopilotHome was not set. "
+                        "CopilotClient was created with Mode = EMPTY but neither CopilotHome nor CliUrl was set. "
                                 + "Empty mode requires an explicit per-session persistence location.");
             }
         }
@@ -568,8 +568,15 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
-            // Empty mode: set toolFilterPrecedence for resume path
+            // Empty mode: validate availableTools and set toolFilterPrecedence for resume
+            // path
             if (options.getMode() == CopilotClientMode.EMPTY) {
+                if (config.getAvailableTools() == null) {
+                    throw new IllegalArgumentException(
+                            "CopilotClient is in Mode = EMPTY but the resume session config did not specify "
+                                    + "availableTools. Empty mode requires every session to explicitly opt into "
+                                    + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
+                }
                 request.setToolFilterPrecedence("excluded");
             }
 
