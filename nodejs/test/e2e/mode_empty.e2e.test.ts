@@ -44,6 +44,28 @@ describe("Mode = empty + ToolSet patterns", async () => {
         );
     }
 
+    async function getSystemMessageSentToLLM(): Promise<string> {
+        await retry(
+            "capture chat completion request",
+            async () => {
+                const exchanges = await openAiEndpoint.getExchanges();
+                expect(exchanges.length).toBeGreaterThanOrEqual(1);
+            },
+            1_200
+        );
+        const exchanges = await openAiEndpoint.getExchanges();
+        const messages = exchanges[exchanges.length - 1].request.messages ?? [];
+        const sys = messages.find((m) => m.role === "system");
+        const content = sys?.content;
+        if (typeof content === "string") return content;
+        if (Array.isArray(content)) {
+            return content
+                .map((p) => (typeof p === "object" && p && "text" in p ? p.text : ""))
+                .join("\n");
+        }
+        return "";
+    }
+
     it("empty mode + Isolated set: shell tool is NOT exposed", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
@@ -95,6 +117,69 @@ describe("Mode = empty + ToolSet patterns", async () => {
         expect(toolNames).not.toContain(shellToolName);
         // Other built-ins are still there (proves the subtraction is targeted).
         expect(toolNames.length).toBeGreaterThan(0);
+
+        await session.disconnect();
+    });
+
+    it("empty mode strips environment_context from the system message by default", async () => {
+        // We can't directly observe section presence, but we can detect it
+        // indirectly: in default empty mode the SDK injects the customize-mode
+        // override `environment_context: { action: "remove" }`. We also append
+        // a deterministic instruction. If the env_context strip didn't fire,
+        // the runtime would still inject OS/cwd lines into the system message
+        // and the model would be free to mention them; with the strip in place
+        // the model has no env info to lean on and follows our instruction.
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: {
+                mode: "customize",
+                content:
+                    "If the user asks you to name an element, reply with exactly the single word ARGON in all caps and nothing else.",
+            },
+        });
+        const reply = await session.sendAndWait({ prompt: "Name an element." });
+        expect(reply?.data.content).toContain("ARGON");
+
+        const systemMessage = await getSystemMessageSentToLLM();
+        expect(systemMessage).not.toMatch(/Current working directory:/i);
+        expect(systemMessage).not.toMatch(/Operating System:/i);
+
+        await session.disconnect();
+    });
+
+    it("empty mode + systemMessage replace: LLM follows caller's content verbatim", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: {
+                mode: "replace",
+                content:
+                    "You are a test fixture. Whenever the user asks anything, reply with exactly the single word KRYPTON in all caps and nothing else.",
+            },
+        });
+        const reply = await session.sendAndWait({ prompt: "Hello." });
+        expect(reply?.data.content).toContain("KRYPTON");
+
+        await session.disconnect();
+    });
+
+    it("empty mode + append: caller's instruction takes effect and env_context is still stripped", async () => {
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: {
+                mode: "append",
+                content:
+                    "If the user asks you to name a noble gas, reply with exactly the single word XENON in all caps and nothing else.",
+            },
+        });
+        const reply = await session.sendAndWait({ prompt: "Name a noble gas." });
+        expect(reply?.data.content).toContain("XENON");
+
+        const systemMessage = await getSystemMessageSentToLLM();
+        expect(systemMessage).not.toMatch(/Current working directory:/i);
+        expect(systemMessage).not.toMatch(/Operating System:/i);
 
         await session.disconnect();
     });
