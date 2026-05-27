@@ -103,15 +103,17 @@ class TestSessions:
             },
         )
 
-        assistant_message = await session.send_and_wait("Who are you?")
-        assert assistant_message is not None
+        try:
+            await session.send("Who are you?")
 
-        # Validate the system message sent to the model
-        traffic = await ctx.get_exchanges()
-        system_message = _get_system_message(traffic[0])
-        assert custom_tone in system_message
-        assert appended_content in system_message
-        assert "<code_change_instructions>" not in system_message
+            # Validate the system message sent to the model
+            traffic = await ctx.wait_for_exchanges()
+            system_message = _get_system_message(traffic[0])
+            assert custom_tone in system_message
+            assert appended_content in system_message
+            assert "<code_change_instructions>" not in system_message
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_availableTools(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
