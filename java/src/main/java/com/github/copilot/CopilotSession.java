@@ -81,6 +81,7 @@ import com.github.copilot.rpc.PermissionRequest;
 import com.github.copilot.rpc.PermissionRequestResult;
 import com.github.copilot.rpc.PermissionRequestResultKind;
 import com.github.copilot.rpc.PostToolUseHookInput;
+import com.github.copilot.rpc.PostToolUseFailureHookInput;
 import com.github.copilot.rpc.PreMcpToolCallHookInput;
 import com.github.copilot.rpc.PreToolUseHookInput;
 import com.github.copilot.rpc.SendMessageRequest;
@@ -1545,44 +1546,73 @@ public final class CopilotSession implements AutoCloseable {
                 case "preToolUse" :
                     if (hooks.getOnPreToolUse() != null) {
                         PreToolUseHookInput preInput = MAPPER.treeToValue(input, PreToolUseHookInput.class);
-                        return hooks.getOnPreToolUse().handle(preInput, invocation)
-                                .thenApply(output -> (Object) output);
+                        var preResult = hooks.getOnPreToolUse().handle(preInput, invocation);
+                        if (preResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return preResult.thenApply(output -> (Object) output);
                     }
                     break;
                 case "preMcpToolCall" :
                     if (hooks.getOnPreMcpToolCall() != null) {
                         PreMcpToolCallHookInput mcpInput = MAPPER.treeToValue(input, PreMcpToolCallHookInput.class);
-                        return hooks.getOnPreMcpToolCall().handle(mcpInput, invocation)
-                                .thenApply(output -> (Object) output);
+                        var mcpResult = hooks.getOnPreMcpToolCall().handle(mcpInput, invocation);
+                        if (mcpResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return mcpResult.thenApply(output -> (Object) output);
                     }
                     break;
                 case "postToolUse" :
                     if (hooks.getOnPostToolUse() != null) {
                         PostToolUseHookInput postInput = MAPPER.treeToValue(input, PostToolUseHookInput.class);
-                        return hooks.getOnPostToolUse().handle(postInput, invocation)
-                                .thenApply(output -> (Object) output);
+                        var postResult = hooks.getOnPostToolUse().handle(postInput, invocation);
+                        if (postResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return postResult.thenApply(output -> (Object) output);
+                    }
+                    break;
+                case "postToolUseFailure" :
+                    if (hooks.getOnPostToolUseFailure() != null) {
+                        PostToolUseFailureHookInput failureInput = MAPPER.treeToValue(input,
+                                PostToolUseFailureHookInput.class);
+                        var failureResult = hooks.getOnPostToolUseFailure().handle(failureInput, invocation);
+                        if (failureResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return failureResult.thenApply(output -> (Object) output);
                     }
                     break;
                 case "userPromptSubmitted" :
                     if (hooks.getOnUserPromptSubmitted() != null) {
                         UserPromptSubmittedHookInput promptInput = MAPPER.treeToValue(input,
                                 UserPromptSubmittedHookInput.class);
-                        return hooks.getOnUserPromptSubmitted().handle(promptInput, invocation)
-                                .thenApply(output -> (Object) output);
+                        var promptResult = hooks.getOnUserPromptSubmitted().handle(promptInput, invocation);
+                        if (promptResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return promptResult.thenApply(output -> (Object) output);
                     }
                     break;
                 case "sessionStart" :
                     if (hooks.getOnSessionStart() != null) {
                         SessionStartHookInput startInput = MAPPER.treeToValue(input, SessionStartHookInput.class);
-                        return hooks.getOnSessionStart().handle(startInput, invocation)
-                                .thenApply(output -> (Object) output);
+                        var startResult = hooks.getOnSessionStart().handle(startInput, invocation);
+                        if (startResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return startResult.thenApply(output -> (Object) output);
                     }
                     break;
                 case "sessionEnd" :
                     if (hooks.getOnSessionEnd() != null) {
                         SessionEndHookInput endInput = MAPPER.treeToValue(input, SessionEndHookInput.class);
-                        return hooks.getOnSessionEnd().handle(endInput, invocation)
-                                .thenApply(output -> (Object) output);
+                        var endResult = hooks.getOnSessionEnd().handle(endInput, invocation);
+                        if (endResult == null) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return endResult.thenApply(output -> (Object) output);
                     }
                     break;
                 default :

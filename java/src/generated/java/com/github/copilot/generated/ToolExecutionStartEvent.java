@@ -47,6 +47,8 @@ public final class ToolExecutionStartEvent extends SessionEvent {
         @JsonProperty("mcpToolName") String mcpToolName,
         /** Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event */
         @JsonProperty("turnId") String turnId,
+        /** When true, the tool output should be displayed expanded (verbatim) in the CLI timeline */
+        @JsonProperty("displayVerbatim") Boolean displayVerbatim,
         /** Tool call ID of the parent tool invocation when this event originates from a sub-agent */
         @JsonProperty("parentToolCallId") String parentToolCallId
     ) {

@@ -14,7 +14,7 @@ import java.util.List;
 import javax.annotation.processing.Generated;
 
 /**
- * The same metadata records, with summary and context fields backfilled where available.
+ * The enriched metadata records, with summary and context fields backfilled where available. Sessions confirmed empty and unnamed are omitted.
  *
  * @since 1.0.0
  */
@@ -22,7 +22,7 @@ import javax.annotation.processing.Generated;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SessionsEnrichMetadataResult(
-    /** Same records, with summary and context backfilled */
+    /** Enriched records, with summary and context backfilled. Sessions confirmed empty and unnamed may be omitted. */
     @JsonProperty("sessions") List<SessionMetadata> sessions
 ) {
 }
