@@ -10,7 +10,8 @@ use super::session_events::{
     AbortReason, McpServerSource, McpServerStatus, PermissionPromptRequest, PermissionRule,
     ReasoningSummary, SessionMode, ShutdownType, SkillSource, UserToolSessionApproval,
 };
-use crate::types::{RequestId, SessionEvent, SessionId};
+use crate::types::SessionEvent;
+use crate::types::{RequestId, SessionId};
 
 /// JSON-RPC method name constants.
 pub mod rpc_methods {
@@ -515,8 +516,8 @@ pub struct AgentInfo {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    #[serde(default)]
-    pub mcp_servers: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<HashMap<String, serde_json::Value>>,
     /// Preferred model id for this agent. When omitted, inherits the outer agent's model.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -526,14 +527,14 @@ pub struct AgentInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     /// Skill names preloaded into this agent's context. Omitted means none.
-    #[serde(default)]
-    pub skills: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skills: Option<Vec<String>>,
     /// Where the agent definition was loaded from
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<AgentInfoSource>,
     /// Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Whether the agent can be selected directly by the user. Agents marked `false` are subagent-only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_invocable: Option<bool>,
@@ -1068,8 +1069,11 @@ pub struct CopilotUserResponse {
     pub endpoints: Option<CopilotUserResponseEndpoints>,
     #[serde(rename = "is_mcp_enabled", skip_serializing_if = "Option::is_none")]
     pub is_mcp_enabled: Option<serde_json::Value>,
-    #[serde(rename = "limited_user_quotas", default)]
-    pub limited_user_quotas: HashMap<String, f64>,
+    #[serde(
+        rename = "limited_user_quotas",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub limited_user_quotas: Option<HashMap<String, f64>>,
     #[serde(
         rename = "limited_user_reset_date",
         skip_serializing_if = "Option::is_none"
@@ -1077,12 +1081,15 @@ pub struct CopilotUserResponse {
     pub limited_user_reset_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub login: Option<String>,
-    #[serde(rename = "monthly_quotas", default)]
-    pub monthly_quotas: HashMap<String, f64>,
+    #[serde(rename = "monthly_quotas", skip_serializing_if = "Option::is_none")]
+    pub monthly_quotas: Option<HashMap<String, f64>>,
     #[serde(rename = "organization_list", skip_serializing_if = "Option::is_none")]
     pub organization_list: Option<serde_json::Value>,
-    #[serde(rename = "organization_login_list", default)]
-    pub organization_login_list: Vec<String>,
+    #[serde(
+        rename = "organization_login_list",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub organization_login_list: Option<Vec<String>>,
     #[serde(rename = "quota_reset_date", skip_serializing_if = "Option::is_none")]
     pub quota_reset_date: Option<String>,
     #[serde(
@@ -1243,8 +1250,8 @@ pub struct CanvasInvokeActionResult {
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredCanvas {
     /// Actions the agent or host may invoke on an open instance
-    #[serde(default)]
-    pub actions: Vec<CanvasAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actions: Option<Vec<CanvasAction>>,
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Short, single-sentence description shown to the agent in canvas catalogs.
@@ -1515,8 +1522,8 @@ pub struct SlashCommandInput {
 #[serde(rename_all = "camelCase")]
 pub struct SlashCommandInfo {
     /// Canonical aliases without leading slashes
-    #[serde(default)]
-    pub aliases: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aliases: Option<Vec<String>>,
     /// Whether the command may run while an agent turn is active
     pub allow_during_agent_execution: bool,
     /// Human-readable command description
@@ -2058,8 +2065,8 @@ pub struct ExternalToolTextResultForLlmBinaryResultsForLlm {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Optional metadata from the producing tool.
-    #[serde(default)]
-    pub metadata: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, serde_json::Value>>,
     /// MIME type of the binary data
     pub mime_type: String,
     /// Binary result type discriminator. Use "image" for images and "resource" for other binary data.
@@ -2078,11 +2085,11 @@ pub struct ExternalToolTextResultForLlmBinaryResultsForLlm {
 #[serde(rename_all = "camelCase")]
 pub struct ExternalToolTextResultForLlm {
     /// Base64-encoded binary results returned to the model
-    #[serde(default)]
-    pub binary_results_for_llm: Vec<ExternalToolTextResultForLlmBinaryResultsForLlm>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_results_for_llm: Option<Vec<ExternalToolTextResultForLlmBinaryResultsForLlm>>,
     /// Structured content blocks from the tool
-    #[serde(default)]
-    pub contents: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contents: Option<Vec<serde_json::Value>>,
     /// Optional error message for failed executions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -2095,8 +2102,8 @@ pub struct ExternalToolTextResultForLlm {
     /// Text result returned to the model
     pub text_result_for_llm: String,
     /// Optional tool-specific telemetry
-    #[serde(default)]
-    pub tool_telemetry: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_telemetry: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Audio content block with base64-encoded data
@@ -2169,8 +2176,8 @@ pub struct ExternalToolTextResultForLlmContentResourceLinkIcon {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
     /// Available icon sizes (e.g., ['16x16', '32x32'])
-    #[serde(default)]
-    pub sizes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sizes: Option<Vec<String>>,
     /// URL or path to the icon image
     pub src: String,
     /// Theme variant this icon is intended for
@@ -2193,8 +2200,8 @@ pub struct ExternalToolTextResultForLlmContentResourceLink {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Icons associated with this resource
-    #[serde(default)]
-    pub icons: Vec<ExternalToolTextResultForLlmContentResourceLinkIcon>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<ExternalToolTextResultForLlmContentResourceLinkIcon>>,
     /// MIME type of the resource content
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
@@ -2653,8 +2660,8 @@ pub struct InstalledPluginSourceUrl {
 #[serde(rename_all = "camelCase")]
 pub struct InstructionsSources {
     /// Glob pattern(s) from frontmatter — when set, this instruction applies only to matching files
-    #[serde(default)]
-    pub apply_to: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub apply_to: Option<Vec<String>>,
     /// Raw content of the instruction file
     pub content: String,
     /// When true, this source starts disabled and must be toggled on by the user
@@ -2769,8 +2776,8 @@ pub struct LspInitializeRequest {
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsCallToolRequest {
     /// Tool arguments
-    #[serde(default)]
-    pub arguments: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<HashMap<String, serde_json::Value>>,
     /// **Required.** Server whose ui:// view issued the request. Per SEP-1865 ('callable by the app from this server only'), the call is rejected when this differs from `serverName`, and rejected outright when missing.
     pub origin_server_name: String,
     /// MCP server hosting the tool
@@ -2863,8 +2870,8 @@ pub struct McpAppsDiagnoseResult {
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsHostContextDetails {
     /// Display modes the host supports
-    #[serde(default)]
-    pub available_display_modes: Vec<McpAppsHostContextDetailsAvailableDisplayMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_display_modes: Option<Vec<McpAppsHostContextDetailsAvailableDisplayMode>>,
     /// Current display mode (SEP-1865)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_mode: Option<McpAppsHostContextDetailsDisplayMode>,
@@ -2961,8 +2968,8 @@ pub struct McpAppsReadResourceRequest {
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsResourceContent {
     /// Resource-level metadata (CSP, permissions, etc.)
-    #[serde(rename = "_meta", default)]
-    pub meta: HashMap<String, serde_json::Value>,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    pub meta: Option<HashMap<String, serde_json::Value>>,
     /// Base64-encoded binary content
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blob: Option<String>,
@@ -3003,8 +3010,8 @@ pub struct McpAppsReadResourceResult {
 #[serde(rename_all = "camelCase")]
 pub struct McpAppsSetHostContextDetails {
     /// Display modes the host supports
-    #[serde(default)]
-    pub available_display_modes: Vec<McpAppsSetHostContextDetailsAvailableDisplayMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_display_modes: Option<Vec<McpAppsSetHostContextDetailsAvailableDisplayMode>>,
     /// Current display mode (SEP-1865)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_mode: Option<McpAppsSetHostContextDetailsDisplayMode>,
@@ -3321,8 +3328,8 @@ pub struct McpServerConfigHttp {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_mapping: Option<serde_json::Value>,
     /// HTTP headers to include in requests to the remote MCP server.
-    #[serde(default)]
-    pub headers: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub headers: Option<HashMap<String, String>>,
     /// Whether this server is a built-in fallback used when the user has not configured their own server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_default_server: Option<bool>,
@@ -3342,8 +3349,8 @@ pub struct McpServerConfigHttp {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
     /// Tools to include. Defaults to all tools if not specified.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
     /// Remote transport type. Defaults to "http" when omitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#type: Option<McpServerConfigHttpType>,
@@ -3356,8 +3363,8 @@ pub struct McpServerConfigHttp {
 #[serde(rename_all = "camelCase")]
 pub struct McpServerConfigStdio {
     /// Command-line arguments passed to the Stdio MCP server process.
-    #[serde(default)]
-    pub args: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<String>>,
     /// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<serde_json::Value>,
@@ -3367,8 +3374,8 @@ pub struct McpServerConfigStdio {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
     /// Environment variables to pass to the Stdio MCP server process.
-    #[serde(default)]
-    pub env: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<HashMap<String, String>>,
     /// Content filtering mode to apply to all tools, or a map of tool name to content filtering mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter_mapping: Option<serde_json::Value>,
@@ -3382,8 +3389,8 @@ pub struct McpServerConfigStdio {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout: Option<i64>,
     /// Tools to include. Defaults to all tools if not specified.
-    #[serde(default)]
-    pub tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
 }
 
 /// MCP servers configured for the session, with their connection status.
@@ -3826,8 +3833,8 @@ pub struct Model {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub policy: Option<ModelPolicy>,
     /// Supported reasoning effort levels (only present if model supports reasoning effort)
-    #[serde(default)]
-    pub supported_reasoning_efforts: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_reasoning_efforts: Option<Vec<String>>,
 }
 
 /// Vision-specific limits
@@ -3851,8 +3858,11 @@ pub struct ModelCapabilitiesOverrideLimitsVision {
     #[serde(rename = "max_prompt_images", skip_serializing_if = "Option::is_none")]
     pub max_prompt_images: Option<i64>,
     /// MIME types the model accepts
-    #[serde(rename = "supported_media_types", default)]
-    pub supported_media_types: Vec<String>,
+    #[serde(
+        rename = "supported_media_types",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub supported_media_types: Option<Vec<String>>,
 }
 
 /// Token limits for prompts, outputs, and context window
@@ -4995,8 +5005,8 @@ pub struct PermissionPathsAllowedCheckResult {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionPathsConfig {
     /// Additional directories to allow tool access to (in addition to the session's working directory). When `unrestricted` is true, these are still pre-populated on the UnrestrictedPathManager so they remain visible via getDirectories() (e.g. for @-mention completion).
-    #[serde(default)]
-    pub additional_directories: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_directories: Option<Vec<String>>,
     /// Whether to include the system temp directory in the allowed list (defaults to true). Ignored when `unrestricted` is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_temp_directory: Option<bool>,
@@ -5143,10 +5153,10 @@ pub struct PermissionsConfigureAdditionalContentExclusionPolicyRuleSource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsConfigureAdditionalContentExclusionPolicyRule {
-    #[serde(default)]
-    pub if_any_match: Vec<String>,
-    #[serde(default)]
-    pub if_none_match: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub if_any_match: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub if_none_match: Option<Vec<String>>,
     pub paths: Vec<String>,
     /// Schema for the `PermissionsConfigureAdditionalContentExclusionPolicyRuleSource` type.
     pub source: PermissionsConfigureAdditionalContentExclusionPolicyRuleSource,
@@ -5182,8 +5192,8 @@ pub struct PermissionsConfigureAdditionalContentExclusionPolicy {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionUrlsConfig {
     /// Initial list of allowed URL/domain patterns. Patterns may include path components. Ignored when `unrestricted` is true.
-    #[serde(default)]
-    pub initial_allowed: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_allowed: Option<Vec<String>>,
     /// If true, the runtime allows access to all URLs without prompting. Initial allow-list is ignored when this is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unrestricted: Option<bool>,
@@ -5201,9 +5211,9 @@ pub struct PermissionUrlsConfig {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsConfigureParams {
     /// If specified, replaces the host-supplied GitHub Content Exclusion policies on the session (combined with natively-discovered policies when evaluating tool/file access). Omit to leave the current policies unchanged.
-    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub additional_content_exclusion_policies:
-        Vec<PermissionsConfigureAdditionalContentExclusionPolicy>,
+        Option<Vec<PermissionsConfigureAdditionalContentExclusionPolicy>>,
     /// If specified, sets whether path/URL read permission requests are auto-approved. Omit to leave the current value unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub approve_all_read_permission_requests: Option<bool>,
@@ -5290,11 +5300,11 @@ pub struct PermissionsLocationsAddToolApprovalResult {
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsModifyRulesParams {
     /// Rules to add to the scope. Applied before `remove`/`removeAll`.
-    #[serde(default)]
-    pub add: Vec<PermissionRule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub add: Option<Vec<PermissionRule>>,
     /// Specific rules to remove from the scope. Ignored when `removeAll` is true.
-    #[serde(default)]
-    pub remove: Vec<PermissionRule>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remove: Option<Vec<PermissionRule>>,
     /// When true, removes every rule currently in the scope (after any `add` is applied). Useful for clearing the location scope wholesale.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remove_all: Option<bool>,
@@ -6100,8 +6110,8 @@ pub struct SendRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<SendAgentMode>,
     /// Optional attachments (files, directories, selections, blobs, GitHub references) to include with the message
-    #[serde(default)]
-    pub attachments: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<serde_json::Value>>,
     /// If false, this message will not trigger a Premium Request Unit charge. User messages default to billable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billable: Option<bool>,
@@ -6117,8 +6127,8 @@ pub struct SendRequest {
     /// The user message text
     pub prompt: String,
     /// Custom HTTP headers to include in outbound model requests for this turn. Merged with session-level provider headers; per-turn headers augment and overwrite session-level headers with the same key.
-    #[serde(default)]
-    pub request_headers: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_headers: Option<HashMap<String, String>>,
     /// If set, the request will fail if the named tool is not available when this message is among the user messages at the start of the current exchange
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required_tool: Option<String>,
@@ -6663,8 +6673,8 @@ pub struct SessionFsSqliteQueryRequest {
     /// How to execute the query: 'exec' for DDL/multi-statement (no results), 'query' for SELECT (returns rows), 'run' for INSERT/UPDATE/DELETE (returns rowsAffected)
     pub query_type: SessionFsSqliteQueryType,
     /// Optional named bind parameters
-    #[serde(default)]
-    pub params: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Query results including rows, columns, and rows affected, or a filesystem error if execution failed.
@@ -7381,8 +7391,8 @@ pub struct SessionsPruneOldRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dry_run: Option<bool>,
     /// Session IDs that should never be considered for pruning
-    #[serde(default)]
-    pub exclude_session_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_session_ids: Option<Vec<String>>,
     /// When true, named sessions (set via /rename) are also eligible for pruning
     #[serde(skip_serializing_if = "Option::is_none")]
     pub include_named: Option<bool>,
@@ -7520,8 +7530,8 @@ pub struct SessionUpdateOptionsParams {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    #[serde(default)]
-    pub additional_content_exclusion_policies: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_content_exclusion_policies: Option<Vec<serde_json::Value>>,
     /// Runtime context discriminator (e.g., `cli`, `actions`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_context: Option<String>,
@@ -7529,8 +7539,8 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ask_user_disabled: Option<bool>,
     /// Allowlist of tool names available to this session.
-    #[serde(default)]
-    pub available_tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_tools: Option<Vec<String>>,
     /// Identifier of the client driving the session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
@@ -7547,11 +7557,11 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_agents_local_only: Option<bool>,
     /// Instruction source IDs to exclude from the system prompt.
-    #[serde(default)]
-    pub disabled_instruction_sources: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_instruction_sources: Option<Vec<String>>,
     /// Skill IDs that should be excluded from this session.
-    #[serde(default)]
-    pub disabled_skills: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled_skills: Option<Vec<String>>,
     /// Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_on_demand_instruction_discovery: Option<bool>,
@@ -7571,14 +7581,14 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub events_log_directory: Option<String>,
     /// Denylist of tool names for this session.
-    #[serde(default)]
-    pub excluded_tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_tools: Option<Vec<String>>,
     /// Map of feature-flag IDs to their boolean enabled state.
-    #[serde(default)]
-    pub feature_flags: HashMap<String, bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feature_flags: Option<HashMap<String, bool>>,
     /// Full set of installed plugins for the session. Replaces the existing list; the runtime invalidates the skills cache only when the list materially changes.
-    #[serde(default)]
-    pub installed_plugins: Vec<SessionInstalledPlugin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed_plugins: Option<Vec<SessionInstalledPlugin>>,
     /// Stable integration identifier used for analytics and rate-limit attribution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub integration_id: Option<String>,
@@ -7627,11 +7637,11 @@ pub struct SessionUpdateOptionsParams {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_init_profile: Option<String>,
     /// Per-shell process flags (e.g., `pwsh` arguments).
-    #[serde(default)]
-    pub shell_process_flags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_process_flags: Option<Vec<String>>,
     /// Additional directories to search for skills.
-    #[serde(default)]
-    pub skill_directories: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_directories: Option<Vec<String>>,
     /// Whether to skip loading custom instruction sources.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip_custom_instructions: Option<bool>,
@@ -7821,11 +7831,11 @@ pub struct SkillsDisableRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SkillsDiscoverRequest {
     /// Optional list of project directory paths to scan for project-scoped skills
-    #[serde(default)]
-    pub project_paths: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_paths: Option<Vec<String>>,
     /// Optional list of additional skill directory paths to include
-    #[serde(default)]
-    pub skill_directories: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skill_directories: Option<Vec<String>>,
 }
 
 /// Name of the skill to enable for the session.
@@ -7855,8 +7865,8 @@ pub struct SkillsEnableRequest {
 #[serde(rename_all = "camelCase")]
 pub struct SkillsInvokedSkill {
     /// Tools that should be auto-approved when this skill is active, captured at invocation time
-    #[serde(default)]
-    pub allowed_tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_tools: Option<Vec<String>>,
     /// Full content of the skill file
     pub content: String,
     /// Turn number when the skill was invoked
@@ -8494,8 +8504,8 @@ pub struct Tool {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub namespaced_name: Option<String>,
     /// JSON Schema for the tool's input parameters
-    #[serde(default)]
-    pub parameters: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Built-in tools available for the requested model, with their parameters and instructions.
@@ -8571,8 +8581,8 @@ pub struct UIElicitationArrayAnyOfFieldItems {
 #[serde(rename_all = "camelCase")]
 pub struct UIElicitationArrayAnyOfField {
     /// Default values selected when the form is first shown.
-    #[serde(default)]
-    pub default: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<Vec<String>>,
     /// Help text describing the field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -8620,8 +8630,8 @@ pub struct UIElicitationArrayEnumFieldItems {
 #[serde(rename_all = "camelCase")]
 pub struct UIElicitationArrayEnumField {
     /// Default values selected when the form is first shown.
-    #[serde(default)]
-    pub default: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<Vec<String>>,
     /// Help text describing the field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -8654,8 +8664,8 @@ pub struct UIElicitationSchema {
     /// Form field definitions, keyed by field name
     pub properties: HashMap<String, serde_json::Value>,
     /// List of required field names
-    #[serde(default)]
-    pub required: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
     /// Schema type indicator (always 'object')
     pub r#type: UIElicitationSchemaType,
 }
@@ -8691,8 +8701,8 @@ pub struct UIElicitationResponse {
     /// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
     pub action: UIElicitationResponseAction,
     /// The form values submitted by the user (present when action is 'accept')
-    #[serde(default)]
-    pub content: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
@@ -8817,8 +8827,8 @@ pub struct UIElicitationStringEnumField {
     /// Allowed string values.
     pub r#enum: Vec<String>,
     /// Optional display labels for each enum value, in the same order as `enum`.
-    #[serde(default)]
-    pub enum_names: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enum_names: Option<Vec<String>>,
     /// Human-readable label for the field.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -9159,8 +9169,8 @@ pub struct UsageMetricsModelMetric {
     /// Request count and cost metrics for this model
     pub requests: UsageMetricsModelMetricRequests,
     /// Token count details per type
-    #[serde(default)]
-    pub token_details: HashMap<String, UsageMetricsModelMetricTokenDetail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, UsageMetricsModelMetricTokenDetail>>,
     /// Accumulated nano-AI units cost for this model
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total_nano_aiu: Option<f64>,
@@ -9208,8 +9218,8 @@ pub struct UsageGetMetricsResult {
     /// ISO 8601 timestamp when the session started
     pub session_start_time: String,
     /// Session-wide per-token-type accumulated token counts
-    #[serde(default)]
-    pub token_details: HashMap<String, UsageMetricsTokenDetail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, UsageMetricsTokenDetail>>,
     /// Total time spent in model API calls (milliseconds)
     pub total_api_duration_ms: i64,
     /// Session-wide accumulated nano-AI units cost
@@ -11301,8 +11311,8 @@ pub struct SessionUiElicitationResult {
     /// The user's response: accept (submitted), decline (rejected), or cancel (dismissed)
     pub action: UIElicitationResponseAction,
     /// The form values submitted by the user (present when action is 'accept')
-    #[serde(default)]
-    pub content: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Indicates whether the elicitation response was accepted; false if it was already resolved by another client.
@@ -12337,8 +12347,8 @@ pub struct SessionUsageGetMetricsResult {
     /// ISO 8601 timestamp when the session started
     pub session_start_time: String,
     /// Session-wide per-token-type accumulated token counts
-    #[serde(default)]
-    pub token_details: HashMap<String, UsageMetricsTokenDetail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, UsageMetricsTokenDetail>>,
     /// Total time spent in model API calls (milliseconds)
     pub total_api_duration_ms: i64,
     /// Session-wide accumulated nano-AI units cost

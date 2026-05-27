@@ -808,14 +808,16 @@ function resolveRustType(
 
 function wrapOption(rustType: string, isRequired: boolean): string {
 	if (isRequired) return rustType;
-	// Don't double-wrap Option, Vec, or HashMap (they're already nullable-ish)
-	if (
-		rustType.startsWith("Option<") ||
-		rustType.startsWith("Vec<") ||
-		rustType.startsWith("HashMap<")
-	) {
+	// Already wrapped in Option — don't double-wrap.
+	if (rustType.startsWith("Option<")) {
 		return rustType;
 	}
+	// Non-required Vec/HashMap must be Option<Vec<…>> / Option<HashMap<…>>
+	// so the SDK can distinguish "field omitted" (None) from "explicitly
+	// empty" (Some(vec![])). Bare Vec/HashMap with #[serde(default)] would
+	// serialize as `[]`/`{}` for unset fields, which patch-style request
+	// types (e.g. SessionUpdateOptionsParams) interpret as "clear the
+	// list" — silently wiping server-side state set elsewhere.
 	return `Option<${rustType}>`;
 }
 

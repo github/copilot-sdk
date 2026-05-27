@@ -391,10 +391,10 @@ async fn should_round_trip_mcp_app_host_context() {
                     .apps()
                     .set_host_context(McpAppsSetHostContextRequest {
                         context: McpAppsSetHostContextDetails {
-                            available_display_modes: vec![
+                            available_display_modes: Some(vec![
                                 McpAppsSetHostContextDetailsAvailableDisplayMode::Inline,
                                 McpAppsSetHostContextDetailsAvailableDisplayMode::Fullscreen,
-                            ],
+                            ]),
                             display_mode: Some(McpAppsSetHostContextDetailsDisplayMode::Inline),
                             locale: Some("en-US".to_string()),
                             platform: Some(McpAppsSetHostContextDetailsPlatform::Desktop),
@@ -416,7 +416,13 @@ async fn should_round_trip_mcp_app_host_context() {
                 assert_eq!(context.locale.as_deref(), Some("en-US"));
                 assert_eq!(context.time_zone.as_deref(), Some("Etc/UTC"));
                 assert_eq!(context.user_agent.as_deref(), Some("rust-e2e"));
-                assert_eq!(context.available_display_modes.len(), 2);
+                assert_eq!(
+                    context
+                        .available_display_modes
+                        .as_ref()
+                        .map_or(0, Vec::len),
+                    2
+                );
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -473,7 +479,7 @@ async fn should_diagnose_and_report_mcp_app_capability_errors() {
                         .mcp()
                         .apps()
                         .call_tool(McpAppsCallToolRequest {
-                            arguments: HashMap::new(),
+                            arguments: Some(HashMap::new()),
                             server_name: server_name.to_string(),
                             origin_server_name: server_name.to_string(),
                             tool_name: "missing-tool".to_string(),

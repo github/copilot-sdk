@@ -341,7 +341,10 @@ pub(crate) async fn sqlite_query(
             return;
         }
     };
-    let sqlite_params = (!params.params.is_empty()).then_some(&params.params);
+    let sqlite_params = params
+        .params
+        .as_ref()
+        .filter(|p| !p.is_empty());
     let result = match sqlite
         .sqlite_query(params.query_type, &params.query, sqlite_params)
         .await

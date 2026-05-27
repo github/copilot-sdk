@@ -1179,7 +1179,7 @@ async fn apply_mode_post_create_patch(
         patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
         patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
         patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
-        patch.installed_plugins = Vec::new();
+        patch.installed_plugins = Some(Vec::new());
         true
     } else {
         let mut any = false;
