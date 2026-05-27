@@ -429,11 +429,11 @@
                             <propertyName>testExecutionAgentArgs</propertyName>
                             <!-- Focus on SDK package, exclude test harness utilities -->
                             <includes>
-                                <include>com/github/copilot/sdk/**</include>
+                                <include>com/github/copilot/**</include>
                             </includes>
                             <excludes>
-                                <exclude>com/github/copilot/sdk/E2ETestContext*</exclude>
-                                <exclude>com/github/copilot/sdk/CapiProxy*</exclude>
+                                <exclude>com/github/copilot/E2ETestContext*</exclude>
+                                <exclude>com/github/copilot/CapiProxy*</exclude>
                             </excludes>
                         </configuration>
                     </execution>
