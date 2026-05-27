@@ -129,6 +129,9 @@ describe("Tool filter wiring", () => {
                 if (method === "session.create" || method === "session.resume") {
                     return { sessionId: params.sessionId };
                 }
+                if (method === "session.options.update") {
+                    return { success: true };
+                }
                 throw new Error(`Unexpected method: ${method}`);
             });
         return { client, spy };
@@ -207,5 +210,233 @@ describe("Tool filter wiring", () => {
         const payload = spy.mock.calls.find(([m]) => m === "session.resume")![1] as any;
         expect(payload.availableTools).toEqual(["builtin:view", "builtin:task_complete"]);
         expect(payload.toolFilterPrecedence).toBe("excluded");
+    });
+});
+
+describe("Empty-mode safe defaults", () => {
+    async function setupClient(mode: "empty" | "copilot-cli" = "empty") {
+        const client = new CopilotClient({
+            mode,
+            baseDirectory: mode === "empty" ? "/tmp/copilot-test" : undefined,
+        });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create" || method === "session.resume") {
+                    return { sessionId: params.sessionId };
+                }
+                if (method === "session.options.update") {
+                    return { success: true };
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        return { client, spy };
+    }
+
+    function createPayload(spy: ReturnType<typeof vi.spyOn>) {
+        return (spy as any).mock.calls.find(([m]: [string]) => m === "session.create")![1] as any;
+    }
+
+    function patchCall(spy: ReturnType<typeof vi.spyOn>) {
+        return (spy as any).mock.calls.find(
+            ([m]: [string]) => m === "session.options.update"
+        )![1] as any;
+    }
+
+    it("forces enableSessionTelemetry=false when app didn't opt in", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        expect(createPayload(spy).enableSessionTelemetry).toBe(false);
+    });
+
+    it("respects app-supplied enableSessionTelemetry=true override", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            enableSessionTelemetry: true,
+        });
+        expect(createPayload(spy).enableSessionTelemetry).toBe(true);
+    });
+
+    it("injects environment_context removal when app didn't pass systemMessage", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        const payload = createPayload(spy);
+        expect(payload.systemMessage).toEqual({
+            mode: "customize",
+            sections: { environment_context: { action: "remove" } },
+        });
+    });
+
+    it("passes through app-supplied systemMessage in replace mode", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: { mode: "replace", content: "you are a haiku bot" },
+        });
+        expect(createPayload(spy).systemMessage).toEqual({
+            mode: "replace",
+            content: "you are a haiku bot",
+        });
+    });
+
+    it("promotes append-mode systemMessage to customize with env_context removal in empty mode", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: { mode: "append", content: "extra rules" },
+        });
+        expect(createPayload(spy).systemMessage).toEqual({
+            mode: "customize",
+            content: "extra rules",
+            sections: { environment_context: { action: "remove" } },
+        });
+    });
+
+    it("promotes default-mode (append) systemMessage in empty mode", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: { content: "extra rules" },
+        });
+        expect(createPayload(spy).systemMessage).toEqual({
+            mode: "customize",
+            content: "extra rules",
+            sections: { environment_context: { action: "remove" } },
+        });
+    });
+
+    it("adds environment_context removal to customize mode when app didn't set it", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: {
+                mode: "customize",
+                sections: { tool_use: { action: "remove" } },
+            },
+        });
+        expect(createPayload(spy).systemMessage).toEqual({
+            mode: "customize",
+            sections: {
+                tool_use: { action: "remove" },
+                environment_context: { action: "remove" },
+            },
+        });
+    });
+
+    it("leaves customize-mode systemMessage alone when app set environment_context", async () => {
+        const { client, spy } = await setupClient();
+        const supplied = {
+            mode: "customize" as const,
+            sections: {
+                environment_context: { action: "replace" as const, content: "custom env" },
+            },
+        };
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            systemMessage: supplied,
+        });
+        expect(createPayload(spy).systemMessage).toEqual(supplied);
+    });
+
+    it("sends session.options.update with safe defaults after session.create", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        const patch = patchCall(spy);
+        expect(patch).toMatchObject({
+            skipCustomInstructions: true,
+            customAgentsLocalOnly: true,
+            coauthorEnabled: false,
+            manageScheduleEnabled: false,
+            installedPlugins: [],
+        });
+        expect(patch.sessionId).toBeDefined();
+    });
+
+    it("sends the patch AFTER session.create succeeds (order matters)", async () => {
+        const { client, spy } = await setupClient();
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        const methods = spy.mock.calls.map(([m]) => m);
+        const createIdx = methods.indexOf("session.create");
+        const patchIdx = methods.indexOf("session.options.update");
+        expect(createIdx).toBeGreaterThanOrEqual(0);
+        expect(patchIdx).toBeGreaterThan(createIdx);
+    });
+
+    it("does NOT send patch or systemMessage override in copilot-cli mode", async () => {
+        const { client, spy } = await setupClient("copilot-cli");
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: ["builtin:bash"],
+        });
+        const methods = spy.mock.calls.map(([m]) => m);
+        expect(methods).not.toContain("session.options.update");
+        expect(createPayload(spy).systemMessage).toBeUndefined();
+        expect(createPayload(spy).enableSessionTelemetry).toBeUndefined();
+    });
+
+    it("tears the session down if the post-create patch fails", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+        vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
+            async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.options.update") {
+                    throw new Error("update rejected");
+                }
+                throw new Error(`Unexpected method: ${method}`);
+            }
+        );
+        await expect(
+            client.createSession({
+                onPermissionRequest: approveAll,
+                availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+            })
+        ).rejects.toThrowError(/update rejected/);
+        // Session must not remain registered after the failed patch.
+        expect((client as any).sessions.size).toBe(0);
+    });
+
+    it("also applies overrides on session.resume", async () => {
+        const { client, spy } = await setupClient();
+        // First create so we have a session id to resume.
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        spy.mockClear();
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            availableTools: new ToolSet().addBuiltIn(BuiltInTools.Isolated),
+        });
+        const resumePayload = spy.mock.calls.find(([m]) => m === "session.resume")![1] as any;
+        expect(resumePayload.enableSessionTelemetry).toBe(false);
+        expect(resumePayload.systemMessage).toEqual({
+            mode: "customize",
+            sections: { environment_context: { action: "remove" } },
+        });
+        const patch = spy.mock.calls.find(([m]) => m === "session.options.update")![1] as any;
+        expect(patch.skipCustomInstructions).toBe(true);
     });
 });

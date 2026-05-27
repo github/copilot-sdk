@@ -54,6 +54,8 @@ import type {
     ResumeSessionConfig,
     SectionTransformFn,
     SessionConfig,
+    SessionConfigBase,
+    SystemMessageConfig,
     SessionCapabilities,
     SessionEvent,
     SessionFsConfig,
@@ -886,10 +888,76 @@ export class CopilotClient {
         return { availableTools, excludedTools, toolFilterPrecedence: "excluded" };
     }
 
+    /** Mode-specific defaults spread under the caller's config (app values win). */
+    private configDefaultsForMode(): Partial<SessionConfigBase> {
+        if (this.options.mode === "empty") {
+            return { enableSessionTelemetry: false };
+        }
+        return {};
+    }
+
+    /**
+     * Returns the systemMessage config to use, adjusted for the current mode.
+     * In empty mode we ensure the environment_context section is removed
+     * unless the app has already taken control of it; append mode is rejected
+     * because it would leave environment info in the prompt.
+     */
+    private getSystemMessageConfigForMode(
+        supplied: SystemMessageConfig | undefined
+    ): SystemMessageConfig | undefined {
+        if (this.options.mode !== "empty") return supplied;
+        if (!supplied) {
+            return {
+                mode: "customize",
+                sections: { environment_context: { action: "remove" } },
+            };
+        }
+        switch (supplied.mode) {
+            case "replace":
+                return supplied;
+            case "customize":
+                if (supplied.sections?.environment_context) return supplied;
+                return {
+                    ...supplied,
+                    sections: {
+                        ...supplied.sections,
+                        environment_context: { action: "remove" },
+                    },
+                };
+            case "append":
+            case undefined:
+                // Promote to customize so we can also strip environment_context.
+                // The runtime appends `content` to additional instructions in
+                // both customize and append modes, so the caller's text is
+                // preserved verbatim.
+                return {
+                    mode: "customize",
+                    content: supplied.content,
+                    sections: { environment_context: { action: "remove" } },
+                };
+        }
+    }
+
+    /** Mode-specific options applied via session.options.update after create/resume. */
+    private async updateSessionOptionsForMode(session: CopilotSession): Promise<void> {
+        if (this.options.mode === "empty") {
+            await session.rpc.options.update({
+                skipCustomInstructions: true,
+                customAgentsLocalOnly: true,
+                coauthorEnabled: false,
+                manageScheduleEnabled: false,
+                installedPlugins: [],
+            });
+        }
+    }
+
     async createSession(config: SessionConfig): Promise<CopilotSession> {
         if (!this.connection) {
             await this.start();
         }
+
+        config = { ...this.configDefaultsForMode(), ...config };
+        config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
         const sessionId = config.sessionId ?? randomUUID();
 
@@ -998,6 +1066,8 @@ export class CopilotClient {
             };
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
+
+            await this.updateSessionOptionsForMode(session);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
@@ -1063,7 +1133,9 @@ export class CopilotClient {
             session.registerHooks(config.hooks);
         }
 
-        // Extract transform callbacks from system message config before serialization.
+        config = { ...this.configDefaultsForMode(), ...config };
+        config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
+
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
             config.systemMessage
         );
@@ -1145,6 +1217,8 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
+
+            await this.updateSessionOptionsForMode(session);
         } catch (e) {
             this.sessions.delete(sessionId);
             throw e;
