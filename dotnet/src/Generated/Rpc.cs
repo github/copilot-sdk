@@ -2457,7 +2457,7 @@ internal sealed class CanvasCloseRequest
 
 /// <summary>Canvas action invocation result.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class CanvasInvokeActionResult
+public sealed class CanvasActionInvokeResult
 {
     /// <summary>Provider-supplied action result.</summary>
     [JsonPropertyName("result")]
@@ -2466,7 +2466,7 @@ public sealed class CanvasInvokeActionResult
 
 /// <summary>Canvas action invocation parameters.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class CanvasInvokeActionRequest
+internal sealed class CanvasActionInvokeRequest
 {
     /// <summary>Action name to invoke.</summary>
     [JsonPropertyName("actionName")]
@@ -13484,20 +13484,38 @@ public sealed class CanvasApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.close", [request], cancellationToken);
     }
 
+    /// <summary>Action APIs.</summary>
+    public CanvasActionApi Action =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+}
+
+/// <summary>Provides session-scoped CanvasAction APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasActionApi
+{
+    private readonly CopilotSession _session;
+
+    internal CanvasActionApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
     /// <summary>Invokes an action on an open canvas instance.</summary>
     /// <param name="instanceId">Open canvas instance identifier.</param>
     /// <param name="actionName">Action name to invoke.</param>
     /// <param name="input">Action input.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Canvas action invocation result.</returns>
-    public async Task<CanvasInvokeActionResult> InvokeActionAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
+    public async Task<CanvasActionInvokeResult> InvokeAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(instanceId);
         ArgumentNullException.ThrowIfNull(actionName);
         _session.ThrowIfDisposed();
 
-        var request = new CanvasInvokeActionRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
-        return await CopilotClient.InvokeRpcAsync<CanvasInvokeActionResult>(_session.Rpc, "session.canvas.invokeAction", [request], cancellationToken);
+        var request = new CanvasActionInvokeRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
+        return await CopilotClient.InvokeRpcAsync<CanvasActionInvokeResult>(_session.Rpc, "session.canvas.action.invoke", [request], cancellationToken);
     }
 }
 
@@ -15681,7 +15699,7 @@ public interface ICanvasHandler
     /// <param name="request">Canvas action invocation parameters sent to the provider.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Provider-supplied action result.</returns>
-    Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
+    Task<object> InvokeAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -15788,11 +15806,11 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
             await handler.CloseAsync(request, cancellationToken);
         }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("canvas.invokeAction", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
+        rpc.SetLocalRpcMethod("canvas.action.invoke", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).Canvas;
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
-            return await handler.InvokeActionAsync(request, cancellationToken);
+            return await handler.InvokeAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -16068,11 +16086,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(CanvasAction))]
+[JsonSerializable(typeof(CanvasActionInvokeRequest))]
+[JsonSerializable(typeof(CanvasActionInvokeResult))]
 [JsonSerializable(typeof(CanvasCloseRequest))]
 [JsonSerializable(typeof(CanvasHostContext))]
 [JsonSerializable(typeof(CanvasHostContextCapabilities))]
-[JsonSerializable(typeof(CanvasInvokeActionRequest))]
-[JsonSerializable(typeof(CanvasInvokeActionResult))]
 [JsonSerializable(typeof(CanvasList))]
 [JsonSerializable(typeof(CanvasListOpenResult))]
 [JsonSerializable(typeof(CanvasOpenRequest))]

@@ -106,8 +106,8 @@ pub mod rpc_methods {
     pub const SESSION_CANVAS_OPEN: &str = "session.canvas.open";
     /// `session.canvas.close`
     pub const SESSION_CANVAS_CLOSE: &str = "session.canvas.close";
-    /// `session.canvas.invokeAction`
-    pub const SESSION_CANVAS_INVOKEACTION: &str = "session.canvas.invokeAction";
+    /// `session.canvas.action.invoke`
+    pub const SESSION_CANVAS_ACTION_INVOKE: &str = "session.canvas.action.invoke";
     /// `session.model.getCurrent`
     pub const SESSION_MODEL_GETCURRENT: &str = "session.model.getCurrent";
     /// `session.model.switchTo`
@@ -412,8 +412,8 @@ pub mod rpc_methods {
     pub const CANVAS_OPEN: &str = "canvas.open";
     /// `canvas.close`
     pub const CANVAS_CLOSE: &str = "canvas.close";
-    /// `canvas.invokeAction`
-    pub const CANVAS_INVOKEACTION: &str = "canvas.invokeAction";
+    /// `canvas.action.invoke`
+    pub const CANVAS_ACTION_INVOKE: &str = "canvas.action.invoke";
 }
 
 /// Parameters for aborting the current turn
@@ -1154,6 +1154,42 @@ pub struct CanvasAction {
     pub name: String,
 }
 
+/// Canvas action invocation parameters.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasActionInvokeRequest {
+    /// Action name to invoke
+    pub action_name: String,
+    /// Action input
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    /// Open canvas instance identifier
+    pub instance_id: String,
+}
+
+/// Canvas action invocation result.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasActionInvokeResult {
+    /// Provider-supplied action result
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<serde_json::Value>,
+}
+
 /// Canvas close parameters.
 ///
 /// <div class="warning">
@@ -1199,42 +1235,6 @@ pub struct CanvasHostContext {
     /// Host capabilities
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<CanvasHostContextCapabilities>,
-}
-
-/// Canvas action invocation parameters.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasInvokeActionRequest {
-    /// Action name to invoke
-    pub action_name: String,
-    /// Action input
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub input: Option<serde_json::Value>,
-    /// Open canvas instance identifier
-    pub instance_id: String,
-}
-
-/// Canvas action invocation result.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CanvasInvokeActionResult {
-    /// Provider-supplied action result
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result: Option<serde_json::Value>,
 }
 
 /// Canvas available in the current session.
@@ -9963,7 +9963,7 @@ pub struct SessionCanvasOpenResult {
 /// </div>
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionCanvasInvokeActionResult {
+pub struct SessionCanvasActionInvokeResult {
     /// Provider-supplied action result
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,

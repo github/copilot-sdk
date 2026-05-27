@@ -77,7 +77,7 @@ public class CanvasE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
             extensionId: canvas.ExtensionId,
             input: new Dictionary<string, object> { ["start"] = 41 });
 
-        var result = await session.Rpc.Canvas.InvokeActionAsync(
+        var result = await session.Rpc.Canvas.Action.InvokeAsync(
             instanceId: "counter-1",
             actionName: "increment",
             input: new Dictionary<string, object> { ["delta"] = 1 });

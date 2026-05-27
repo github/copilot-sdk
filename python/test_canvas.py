@@ -160,7 +160,7 @@ async def test_register_canvas_handler_wires_generated_canvas_adapter():
         session_id="sess-1",
         input={"value": 1},
     )
-    action_result = await adapter.invoke_action(action_request)
+    action_result = await adapter.invoke(action_request)
     assert action_result == {"echo": {"value": 1}}
     assert handler.action_calls == [action_request]
 

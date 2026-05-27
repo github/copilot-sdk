@@ -1008,7 +1008,7 @@ type SessionConfig struct {
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
 	RequestExtensions *bool
-	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.invokeAction
+	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
 	// requests for this session. The SDK does not maintain a per-canvas registry;
 	// the handler must dispatch on CanvasProviderOpenRequest.CanvasID itself.
 	CanvasHandler CanvasHandler `json:"-"`

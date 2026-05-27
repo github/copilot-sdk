@@ -70,7 +70,7 @@ func CanvasErrorNoHandler() *CanvasError {
 //
 // A session installs a single CanvasHandler (via SessionConfig.CanvasHandler).
 // The handler receives every inbound `canvas.open` / `canvas.close` /
-// `canvas.invokeAction` JSON-RPC request the runtime issues for this session
+// `canvas.action.invoke` JSON-RPC request the runtime issues for this session
 // and decides — typically by inspecting CanvasProviderOpenRequest.CanvasID — which
 // application-side canvas should handle the call.
 //

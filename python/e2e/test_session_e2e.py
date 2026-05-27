@@ -519,19 +519,27 @@ class TestSessions:
     async def test_should_receive_session_events(self, ctx: E2ETestContext):
         import asyncio
 
-        # Use on_event to capture events dispatched during session creation.
-        # session.start is emitted during the session.create RPC; if the session
-        # weren't registered in the sessions map before the RPC, it would be dropped.
+        # Use on_event to capture events dispatched after session creation begins.
+        # session.start is emitted during or shortly after the session.create RPC;
+        # if the session weren't registered in the sessions map before the RPC,
+        # the event would be dropped.
         early_events = []
+        session_start_event = asyncio.Event()
 
         def capture_early(event):
             early_events.append(event)
+            if event.type.value == "session.start":
+                session_start_event.set()
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
             on_event=capture_early,
         )
 
+        try:
+            await asyncio.wait_for(session_start_event.wait(), timeout=10)
+        except TimeoutError:
+            pytest.fail("Timed out waiting for session.start event")
         assert any(e.type.value == "session.start" for e in early_events)
 
         received_events = []

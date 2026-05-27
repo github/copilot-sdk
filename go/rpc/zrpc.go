@@ -493,6 +493,26 @@ type CanvasAction struct {
 	Name string `json:"name"`
 }
 
+// Canvas action invocation parameters.
+// Experimental: CanvasActionInvokeRequest is part of an experimental API and may change or
+// be removed.
+type CanvasActionInvokeRequest struct {
+	// Action name to invoke
+	ActionName string `json:"actionName"`
+	// Action input
+	Input any `json:"input,omitempty"`
+	// Open canvas instance identifier
+	InstanceID string `json:"instanceId"`
+}
+
+// Canvas action invocation result.
+// Experimental: CanvasActionInvokeResult is part of an experimental API and may change or
+// be removed.
+type CanvasActionInvokeResult struct {
+	// Provider-supplied action result
+	Result any `json:"result,omitempty"`
+}
+
 // Canvas close parameters.
 // Experimental: CanvasCloseRequest is part of an experimental API and may change or be
 // removed.
@@ -520,26 +540,6 @@ type CanvasHostContext struct {
 type CanvasHostContextCapabilities struct {
 	// Whether canvas rendering is supported
 	Canvases *bool `json:"canvases,omitempty"`
-}
-
-// Canvas action invocation parameters.
-// Experimental: CanvasInvokeActionRequest is part of an experimental API and may change or
-// be removed.
-type CanvasInvokeActionRequest struct {
-	// Action name to invoke
-	ActionName string `json:"actionName"`
-	// Action input
-	Input any `json:"input,omitempty"`
-	// Open canvas instance identifier
-	InstanceID string `json:"instanceId"`
-}
-
-// Canvas action invocation result.
-// Experimental: CanvasInvokeActionResult is part of an experimental API and may change or
-// be removed.
-type CanvasInvokeActionResult struct {
-	// Provider-supplied action result
-	Result any `json:"result,omitempty"`
 }
 
 // JSON Schema for canvas open input
@@ -8909,33 +8909,6 @@ func (a *CanvasApi) Close(ctx context.Context, params *CanvasCloseRequest) (*Ses
 	return &result, nil
 }
 
-// InvokeAction invokes an action on an open canvas instance.
-//
-// RPC method: session.canvas.invokeAction.
-//
-// Parameters: Canvas action invocation parameters.
-//
-// Returns: Canvas action invocation result.
-func (a *CanvasApi) InvokeAction(ctx context.Context, params *CanvasInvokeActionRequest) (*CanvasInvokeActionResult, error) {
-	req := map[string]any{"sessionId": a.sessionID}
-	if params != nil {
-		req["actionName"] = params.ActionName
-		if params.Input != nil {
-			req["input"] = params.Input
-		}
-		req["instanceId"] = params.InstanceID
-	}
-	raw, err := a.client.Request("session.canvas.invokeAction", req)
-	if err != nil {
-		return nil, err
-	}
-	var result CanvasInvokeActionResult
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
 // Lists canvases declared for the session.
 //
 // RPC method: session.canvas.list.
@@ -9000,6 +8973,41 @@ func (a *CanvasApi) Open(ctx context.Context, params *CanvasOpenRequest) (*OpenC
 		return nil, err
 	}
 	return &result, nil
+}
+
+// Experimental: CanvasActionApi contains experimental APIs that may change or be removed.
+type CanvasActionApi sessionApi
+
+// Invokes an action on an open canvas instance.
+//
+// RPC method: session.canvas.action.invoke.
+//
+// Parameters: Canvas action invocation parameters.
+//
+// Returns: Canvas action invocation result.
+func (a *CanvasActionApi) Invoke(ctx context.Context, params *CanvasActionInvokeRequest) (*CanvasActionInvokeResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		req["actionName"] = params.ActionName
+		if params.Input != nil {
+			req["input"] = params.Input
+		}
+		req["instanceId"] = params.InstanceID
+	}
+	raw, err := a.client.Request("session.canvas.action.invoke", req)
+	if err != nil {
+		return nil, err
+	}
+	var result CanvasActionInvokeResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// Experimental: Action returns experimental APIs that may change or be removed.
+func (s *CanvasApi) Action() *CanvasActionApi {
+	return (*CanvasActionApi)(s)
 }
 
 // Experimental: CommandsApi contains experimental APIs that may change or be removed.
@@ -12378,14 +12386,14 @@ type CanvasHandler interface {
 	//
 	// Parameters: Canvas close parameters sent to the provider.
 	Close(request *CanvasProviderCloseRequest) (*CanvasCloseResult, error)
-	// InvokeAction invokes an action on an open canvas instance via the provider.
+	// Invokes an action on an open canvas instance via the provider.
 	//
-	// RPC method: canvas.invokeAction.
+	// RPC method: canvas.action.invoke.
 	//
 	// Parameters: Canvas action invocation parameters sent to the provider.
 	//
 	// Returns: Provider-supplied action result.
-	InvokeAction(request *CanvasProviderInvokeActionRequest) (any, error)
+	Invoke(request *CanvasProviderInvokeActionRequest) (any, error)
 	// Opens a canvas instance on the provider.
 	//
 	// RPC method: canvas.open.
@@ -12551,7 +12559,7 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		}
 		return raw, nil
 	})
-	client.SetRequestHandler("canvas.invokeAction", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
+	client.SetRequestHandler("canvas.action.invoke", func(params json.RawMessage) (json.RawMessage, *jsonrpc2.Error) {
 		var request CanvasProviderInvokeActionRequest
 		if err := json.Unmarshal(params, &request); err != nil {
 			return nil, &jsonrpc2.Error{Code: -32602, Message: fmt.Sprintf("Invalid params: %v", err)}
@@ -12560,7 +12568,7 @@ func RegisterClientSessionApiHandlers(client *jsonrpc2.Client, getHandlers func(
 		if handlers == nil || handlers.Canvas == nil {
 			return nil, &jsonrpc2.Error{Code: -32603, Message: fmt.Sprintf("No canvas handler registered for session: %s", request.SessionID)}
 		}
-		result, err := handlers.Canvas.InvokeAction(&request)
+		result, err := handlers.Canvas.Invoke(&request)
 		if err != nil {
 			return nil, clientSessionHandlerError(err)
 		}

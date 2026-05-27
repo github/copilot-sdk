@@ -3321,6 +3321,11 @@ function emitMethod(lines: string[], name: string, method: RpcMethod, isSession:
     lines.push(``);
 }
 
+function clientSessionHandlerMethodName(rpcMethod: string): string {
+    const parts = rpcMethod.split(".");
+    return toSnakeCase(parts[parts.length - 1]);
+}
+
 function emitClientSessionApiRegistration(
     lines: string[],
     node: Record<string, unknown>,
@@ -3339,9 +3344,9 @@ function emitClientSessionApiRegistration(
             pushPyExperimentalApiGroupComment(lines);
         }
         lines.push(`class ${handlerName}(Protocol):`);
-        for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {
-            if (!isRpcMethod(value)) continue;
-            emitClientSessionHandlerMethod(lines, methodName, value, resolveType, groupExperimental, groupDeprecated);
+        const methods = collectRpcMethods(groupNode as Record<string, unknown>);
+        for (const method of methods) {
+            emitClientSessionHandlerMethod(lines, method, resolveType, groupExperimental, groupDeprecated);
         }
         lines.push(``);
     }
@@ -3366,13 +3371,12 @@ function emitClientSessionApiRegistration(
         lines.push(`    return`);
     } else {
         for (const [groupName, groupNode] of groups) {
-            for (const [methodName, value] of Object.entries(groupNode as Record<string, unknown>)) {
-                if (!isRpcMethod(value)) continue;
+            const methods = collectRpcMethods(groupNode as Record<string, unknown>);
+            for (const method of methods) {
                 emitClientSessionRegistrationMethod(
                     lines,
                     groupName,
-                    methodName,
-                    value,
+                    method,
                     resolveType
                 );
             }
@@ -3383,7 +3387,6 @@ function emitClientSessionApiRegistration(
 
 function emitClientSessionHandlerMethod(
     lines: string[],
-    name: string,
     method: RpcMethod,
     resolveType: (name: string) => string,
     groupExperimental = false,
@@ -3400,7 +3403,8 @@ function emitClientSessionHandlerMethod(
     } else {
         resultType = "None";
     }
-    lines.push(`    async def ${toSnakeCase(name)}(self, params: ${paramsType}) -> ${resultType}:`);
+    const methodName = clientSessionHandlerMethodName(method.rpcMethod);
+    lines.push(`    async def ${methodName}(self, params: ${paramsType}) -> ${resultType}:`);
     pushPyRpcMethodDocstring(lines, "        ", method, {
         paramsName: "params",
         paramsDescription: rpcParamsDescription(method, getMethodParamsSchema(method)),
@@ -3414,17 +3418,17 @@ function emitClientSessionHandlerMethod(
 function emitClientSessionRegistrationMethod(
     lines: string[],
     groupName: string,
-    methodName: string,
     method: RpcMethod,
     resolveType: (name: string) => string
 ): void {
-    const handlerVariableName = `handle_${toSnakeCase(groupName)}_${toSnakeCase(methodName)}`;
+    const rpcSegments = method.rpcMethod.split(".");
+    const handlerVariableName = `handle_${rpcSegments.map(toSnakeCase).join("_")}`;
     const paramsType = resolveType(pythonParamsTypeName(method));
     const resultSchema = getMethodResultSchema(method);
     const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
     const hasResult = !isVoidSchema(resultSchema) && !nullableInner;
     const handlerField = toSnakeCase(groupName);
-    const handlerMethod = toSnakeCase(methodName);
+    const handlerMethod = clientSessionHandlerMethodName(method.rpcMethod);
 
     lines.push(`    async def ${handlerVariableName}(params: dict) -> dict | None:`);
     lines.push(`        request = ${paramsType}.from_dict(params)`);

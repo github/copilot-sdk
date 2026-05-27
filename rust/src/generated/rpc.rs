@@ -1724,6 +1724,13 @@ pub struct SessionRpcCanvas<'a> {
 }
 
 impl<'a> SessionRpcCanvas<'a> {
+    /// `session.canvas.action.*` sub-namespace.
+    pub fn action(&self) -> SessionRpcCanvasAction<'a> {
+        SessionRpcCanvasAction {
+            session: self.session,
+        }
+    }
+
     /// Lists canvases declared for the session.
     ///
     /// Wire method: `session.canvas.list`.
@@ -1829,10 +1836,18 @@ impl<'a> SessionRpcCanvas<'a> {
             .await?;
         Ok(())
     }
+}
 
+/// `session.canvas.action.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct SessionRpcCanvasAction<'a> {
+    pub(crate) session: &'a Session,
+}
+
+impl<'a> SessionRpcCanvasAction<'a> {
     /// Invokes an action on an open canvas instance.
     ///
-    /// Wire method: `session.canvas.invokeAction`.
+    /// Wire method: `session.canvas.action.invoke`.
     ///
     /// # Parameters
     ///
@@ -1849,16 +1864,16 @@ impl<'a> SessionRpcCanvas<'a> {
     /// SDK and CLI versions if your code depends on it.
     ///
     /// </div>
-    pub async fn invoke_action(
+    pub async fn invoke(
         &self,
-        params: CanvasInvokeActionRequest,
-    ) -> Result<CanvasInvokeActionResult, Error> {
+        params: CanvasActionInvokeRequest,
+    ) -> Result<CanvasActionInvokeResult, Error> {
         let mut wire_params = serde_json::to_value(params)?;
         wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
         let _value = self
             .session
             .client()
-            .call(rpc_methods::SESSION_CANVAS_INVOKEACTION, Some(wire_params))
+            .call(rpc_methods::SESSION_CANVAS_ACTION_INVOKE, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }

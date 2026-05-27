@@ -1015,7 +1015,7 @@ class _CanvasHandlerAdapter:
         except Exception as err:
             raise _canvas_handler_error(err) from err
 
-    async def invoke_action(self, params: CanvasProviderInvokeActionRequest) -> Any:
+    async def invoke(self, params: CanvasProviderInvokeActionRequest) -> Any:
         try:
             return await self._handler.on_action(params)
         except CanvasError as err:

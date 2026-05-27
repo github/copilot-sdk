@@ -156,7 +156,7 @@ func TestCanvasAdapter_DispatchesToHandler(t *testing.T) {
 		t.Fatalf("response URL not propagated: %+v", openResp)
 	}
 
-	actionResp, err := session.clientSessionApis.Canvas.InvokeAction(&rpc.CanvasProviderInvokeActionRequest{
+	actionResp, err := session.clientSessionApis.Canvas.Invoke(&rpc.CanvasProviderInvokeActionRequest{
 		SessionID:   "s1",
 		ExtensionID: "project:echo",
 		CanvasID:    "echo",
@@ -284,7 +284,7 @@ func TestCanvasRegisterClientSessionApiHandlers_RawJSONRoundTrip(t *testing.T) {
 		t.Fatalf("expected status=ready, got %v", decoded["status"])
 	}
 
-	actionRaw, err := requester.Request("canvas.invokeAction", map[string]any{
+	actionRaw, err := requester.Request("canvas.action.invoke", map[string]any{
 		"sessionId":   "s1",
 		"extensionId": "ext",
 		"canvasId":    "echo",

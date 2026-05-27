@@ -152,7 +152,7 @@ func (a *canvasClientSessionAdapter) Close(request *rpc.CanvasProviderCloseReque
 	return nil, nil
 }
 
-func (a *canvasClientSessionAdapter) InvokeAction(request *rpc.CanvasProviderInvokeActionRequest) (any, error) {
+func (a *canvasClientSessionAdapter) Invoke(request *rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	if request == nil {
 		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing canvas action request"))
 	}

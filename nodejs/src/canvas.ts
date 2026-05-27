@@ -17,7 +17,7 @@ export type { CanvasJsonSchema, CanvasHostContext } from "./generated/rpc.js";
  * `joinSession({ canvases: [createCanvas({...})] })`.
  *
  * The runtime sends provider callbacks as `canvas.open`, `canvas.close`, and
- * `canvas.invokeAction` JSON-RPC requests via the codegen client session API
+ * `canvas.action.invoke` JSON-RPC requests via the codegen client session API
  * pipeline. The SDK routes those requests by `canvasId` to the in-process
  * handlers bound by `createCanvas`. Re-opening with an existing `instanceId`
  * is how the host focuses an existing panel; reload is a renderer-only concern.
