@@ -11,7 +11,22 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(has_bundled_cli)");
     println!("cargo::rustc-check-cfg=cfg(has_extracted_cli)");
     println!("cargo:rerun-if-changed=cli-version.txt");
-    println!("cargo:rerun-if-changed=../nodejs/package-lock.json");
+
+    // Only declare the lockfile rerun when the lockfile actually exists.
+    // Cargo treats `rerun-if-changed` for a missing path as "always rerun"
+    // — so unconditionally declaring this on consumers without a sibling
+    // `nodejs/` (vendored slots, published crates) would force build.rs
+    // to re-run on every `cargo build` even when nothing has changed.
+    // The lockfile path is only the source-of-truth in this repo's
+    // contributor builds; everywhere else `cli-version.txt` is canonical.
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set");
+    let lockfile = Path::new(&manifest_dir)
+        .join("..")
+        .join("nodejs")
+        .join("package-lock.json");
+    if lockfile.is_file() {
+        println!("cargo:rerun-if-changed={}", lockfile.display());
+    }
 
     // Hard opt-out: disable the entire download / bundle / cache mechanism
     // in one step. For consumers who always supply the CLI via
