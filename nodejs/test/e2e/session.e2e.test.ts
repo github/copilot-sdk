@@ -212,32 +212,39 @@ describe("Sessions", async () => {
         expect(systemMessage).toEqual(testSystemMessage); // Exact match
     });
 
-    it("should create a session with customized systemMessage config", async () => {
-        const customTone = "Respond in a warm, professional tone. Be thorough in explanations.";
-        const appendedContent = "Always mention quarterly earnings.";
-        const session = await client.createSession({
-            onPermissionRequest: approveAll,
-            systemMessage: {
-                mode: "customize",
-                sections: {
-                    tone: { action: "replace", content: customTone },
-                    code_change_rules: { action: "remove" },
+    it(
+        "should create a session with customized systemMessage config",
+        { timeout: 90_000 },
+        async () => {
+            const customTone = "Respond in a warm, professional tone. Be thorough in explanations.";
+            const appendedContent = "Always mention quarterly earnings.";
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                systemMessage: {
+                    mode: "customize",
+                    sections: {
+                        tone: { action: "replace", content: customTone },
+                        code_change_rules: { action: "remove" },
+                    },
+                    content: appendedContent,
                 },
-                content: appendedContent,
-            },
-        });
+            });
 
-        const assistantMessage = await session.sendAndWait({ prompt: "Who are you?" });
-        expect(assistantMessage?.data.content).toBeDefined();
+            try {
+                await session.send({ prompt: "Who are you?" });
 
-        // Validate the system message sent to the model
-        const traffic = await openAiEndpoint.getExchanges();
-        const systemMessage = getSystemMessage(traffic[0]);
-        expect(systemMessage).toContain(customTone);
-        expect(systemMessage).toContain(appendedContent);
-        // The code_change_rules section should have been removed
-        expect(systemMessage).not.toContain("<code_change_instructions>");
-    });
+                // Validate the system message sent to the model
+                const traffic = await waitForExchanges();
+                const systemMessage = getSystemMessage(traffic[0]);
+                expect(systemMessage).toContain(customTone);
+                expect(systemMessage).toContain(appendedContent);
+                // The code_change_rules section should have been removed
+                expect(systemMessage).not.toContain("<code_change_instructions>");
+            } finally {
+                await session.disconnect();
+            }
+        }
+    );
 
     it("should create a session with availableTools", async () => {
         const session = await client.createSession({

@@ -2003,6 +2003,23 @@ type McpServer struct {
 	Status McpServerStatus `json:"status"`
 }
 
+// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
+type McpServerAuthConfig interface {
+	mcpServerAuthConfig()
+}
+
+type McpServerAuthConfigBoolean bool
+
+func (McpServerAuthConfigBoolean) mcpServerAuthConfig() {}
+
+func (McpServerAuthConfigRedirectPort) mcpServerAuthConfig() {}
+
+// Authentication settings with optional redirect port configuration.
+type McpServerAuthConfigRedirectPort struct {
+	// Fixed port for the OAuth redirect callback server.
+	RedirectPort *int32 `json:"redirectPort,omitempty"`
+}
+
 // MCP server configuration (stdio process or remote HTTP/SSE)
 type McpServerConfig interface {
 	mcpServerConfig()
@@ -2016,8 +2033,8 @@ func (RawMcpServerConfigData) mcpServerConfig() {}
 
 // Remote MCP server configuration accessed over HTTP or SSE.
 type McpServerConfigHTTP struct {
-	// Additional authentication configuration for this server.
-	Auth *McpServerConfigHTTPAuth `json:"auth,omitempty"`
+	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
+	Auth McpServerAuthConfig `json:"auth,omitempty"`
 	// Content filtering mode to apply to all tools, or a map of tool name to content filtering
 	// mode.
 	FilterMapping FilterMapping `json:"filterMapping,omitempty"`
@@ -2032,8 +2049,8 @@ type McpServerConfigHTTP struct {
 	OauthGrantType *McpServerConfigHTTPOauthGrantType `json:"oauthGrantType,omitempty"`
 	// Whether the configured OAuth client is public and does not require a client secret.
 	OauthPublicClient *bool `json:"oauthPublicClient,omitempty"`
-	// OIDC token configuration. When truthy, a token is automatically gathered.
-	Oidc McpServerConfigHTTPOidc `json:"oidc,omitempty"`
+	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
+	Oidc McpServerAuthConfig `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -2050,8 +2067,8 @@ func (McpServerConfigHTTP) mcpServerConfig() {}
 type McpServerConfigStdio struct {
 	// Command-line arguments passed to the Stdio MCP server process.
 	Args []string `json:"args,omitempty"`
-	// Authentication configuration for this server.
-	Auth McpServerConfigStdioAuth `json:"auth,omitempty"`
+	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
+	Auth McpServerAuthConfig `json:"auth,omitempty"`
 	// Executable command used to start the Stdio MCP server process.
 	Command string `json:"command"`
 	// Working directory for the Stdio MCP server process.
@@ -2064,8 +2081,8 @@ type McpServerConfigStdio struct {
 	// Whether this server is a built-in fallback used when the user has not configured their
 	// own server.
 	IsDefaultServer *bool `json:"isDefaultServer,omitempty"`
-	// OIDC token configuration. When truthy, a token is automatically gathered.
-	Oidc McpServerConfigStdioOidc `json:"oidc,omitempty"`
+	// Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
+	Oidc McpServerAuthConfig `json:"oidc,omitempty"`
 	// Timeout in milliseconds for tool calls to this server.
 	Timeout *int64 `json:"timeout,omitempty"`
 	// Tools to include. Defaults to all tools if not specified.
@@ -2073,51 +2090,6 @@ type McpServerConfigStdio struct {
 }
 
 func (McpServerConfigStdio) mcpServerConfig() {}
-
-// Additional authentication configuration for this server.
-type McpServerConfigHTTPAuth struct {
-	// Fixed port for the OAuth redirect callback server.
-	RedirectPort *int32 `json:"redirectPort,omitempty"`
-}
-
-// OIDC token configuration. When truthy, a token is automatically gathered.
-type McpServerConfigHTTPOidc interface {
-	mcpServerConfigHTTPOidc()
-}
-
-type McpServerConfigHTTPOidcAnyMap map[string]any
-
-func (McpServerConfigHTTPOidcAnyMap) mcpServerConfigHTTPOidc() {}
-
-type McpServerConfigHTTPOidcBoolean bool
-
-func (McpServerConfigHTTPOidcBoolean) mcpServerConfigHTTPOidc() {}
-
-// Authentication configuration for this server.
-type McpServerConfigStdioAuth interface {
-	mcpServerConfigStdioAuth()
-}
-
-type McpServerConfigStdioAuthAnyMap map[string]any
-
-func (McpServerConfigStdioAuthAnyMap) mcpServerConfigStdioAuth() {}
-
-type McpServerConfigStdioAuthBoolean bool
-
-func (McpServerConfigStdioAuthBoolean) mcpServerConfigStdioAuth() {}
-
-// OIDC token configuration. When truthy, a token is automatically gathered.
-type McpServerConfigStdioOidc interface {
-	mcpServerConfigStdioOidc()
-}
-
-type McpServerConfigStdioOidcAnyMap map[string]any
-
-func (McpServerConfigStdioOidcAnyMap) mcpServerConfigStdioOidc() {}
-
-type McpServerConfigStdioOidcBoolean bool
-
-func (McpServerConfigStdioOidcBoolean) mcpServerConfigStdioOidc() {}
 
 // MCP servers configured for the session, with their connection status.
 // Experimental: McpServerList is part of an experimental API and may change or be removed.
@@ -5133,6 +5105,9 @@ type SessionUpdateOptionsParams struct {
 	SkillDirectories []string `json:"skillDirectories,omitempty"`
 	// Whether to skip loading custom instruction sources.
 	SkipCustomInstructions *bool `json:"skipCustomInstructions,omitempty"`
+	// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
+	// are set.
+	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
 	// Optional path for trajectory output.
 	TrajectoryFile *string `json:"trajectoryFile,omitempty"`
 	// Absolute working-directory path for shell tools.
@@ -7309,6 +7284,22 @@ const (
 	OptionsUpdateEnvValueModeDirect OptionsUpdateEnvValueMode = "direct"
 	// Resolve MCP server environment values from host-side references.
 	OptionsUpdateEnvValueModeIndirect OptionsUpdateEnvValueMode = "indirect"
+)
+
+// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
+// are set.
+// Experimental: OptionsUpdateToolFilterPrecedence is part of an experimental API and may
+// change or be removed.
+type OptionsUpdateToolFilterPrecedence string
+
+const (
+	// If availableTools is set, it is the only constraint that applies (excludedTools is
+	// ignored). Preserves CLI / pre-existing client behavior. Default.
+	OptionsUpdateToolFilterPrecedenceAvailable OptionsUpdateToolFilterPrecedence = "available"
+	// A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND
+	// it does not match the denylist. Makes 'all except X' expressible by combining the two
+	// lists.
+	OptionsUpdateToolFilterPrecedenceExcluded OptionsUpdateToolFilterPrecedence = "excluded"
 )
 
 // Kind discriminator for PermissionDecisionApproveForLocationApproval.
@@ -10382,6 +10373,9 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.SkipCustomInstructions != nil {
 			req["skipCustomInstructions"] = *params.SkipCustomInstructions
+		}
+		if params.ToolFilterPrecedence != nil {
+			req["toolFilterPrecedence"] = *params.ToolFilterPrecedence
 		}
 		if params.TrajectoryFile != nil {
 			req["trajectoryFile"] = *params.TrajectoryFile
