@@ -265,6 +265,31 @@ session.on((event) => {
 <details>
 <summary><strong>Python</strong></summary>
 
+<!-- docs-validate: hidden -->
+```python
+import asyncio
+from copilot import CopilotClient
+from copilot.session import PermissionHandler
+
+async def main():
+    client = CopilotClient()
+    await client.start()
+    session = await client.create_session(
+        on_permission_request=PermissionHandler.approve_all,
+    )
+
+    def handle_event(event):
+        if event.type == "subagent.started":
+            print(f"Started {event.data.agent_display_name}")
+        elif event.type == "subagent.completed":
+            print(f"Completed {event.data.agent_display_name}")
+
+    unsubscribe = session.on(handle_event)
+
+asyncio.run(main())
+```
+<!-- /docs-validate: hidden -->
+
 ```python
 def handle_event(event):
     if event.type == "subagent.started":

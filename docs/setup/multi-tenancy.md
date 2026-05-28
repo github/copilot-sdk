@@ -198,11 +198,41 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
 import java.util.List;
 import com.github.copilot.CopilotClient;
-import com.github.copilot.rpc.*;
+import com.github.copilot.rpc.CopilotClientOptions;
+import com.github.copilot.rpc.CopilotClientMode;
+import com.github.copilot.rpc.SessionConfig;
 
+public class MultiTenancyExample {
+    record User(String id, String gitHubToken) {}
+
+    public static void main(String[] args) throws Exception {
+        String runtimeUrl = "http://localhost:4321";
+        String requestId = "req-1";
+        User user = new User("u1", "ghu_token");
+
+        // setCopilotHome and setSessionIdleTimeoutSeconds are ignored when
+        // setCliUrl is used; configure those on the runtime process instead.
+        var client = new CopilotClient(new CopilotClientOptions()
+            .setMode(CopilotClientMode.EMPTY)
+            .setCliUrl(runtimeUrl)
+        );
+
+        var session = client.createSession(new SessionConfig()
+            .setSessionId("user-" + user.id() + "-" + requestId)
+            .setModel("gpt-4.1")
+            .setAvailableTools(List.of("custom:lookupOrder", "custom:createTicket"))
+            .setGitHubToken(user.gitHubToken())
+        ).get();
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
+```java
 // setCopilotHome and setSessionIdleTimeoutSeconds are ignored when
 // setCliUrl is used; configure those on the runtime process instead.
 var client = new CopilotClient(new CopilotClientOptions()

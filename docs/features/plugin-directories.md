@@ -170,10 +170,27 @@ await client.StartAsync();
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
 import com.github.copilot.CopilotClient;
-import com.github.copilot.CopilotClientOptions;
+import com.github.copilot.rpc.CopilotClientOptions;
 
+public class PluginDirectoriesExample {
+    public static void main(String[] args) throws Exception {
+        var options = new CopilotClientOptions()
+            .setCliArgs(new String[] {
+                "--plugin-dir", "./plugins/code-reviewer",
+                "--plugin-dir", "./plugins/lint-fix",
+            });
+
+        var client = new CopilotClient(options);
+        client.start().get();
+    }
+}
+```
+<!-- /docs-validate: hidden -->
+
+```java
 var options = new CopilotClientOptions()
     .setCliArgs(new String[] {
         "--plugin-dir", "./plugins/code-reviewer",
@@ -189,7 +206,24 @@ client.start().get();
 <details>
 <summary><strong>Rust</strong></summary>
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```rust
+use github_copilot_sdk::{Client, ClientOptions};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let _client = Client::start(
+        ClientOptions::new().with_extra_args([
+            "--plugin-dir", "./plugins/code-reviewer",
+            "--plugin-dir", "./plugins/lint-fix",
+        ]),
+    )
+    .await?;
+    Ok(())
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```rust
 use github_copilot_sdk::{Client, ClientOptions};
 
