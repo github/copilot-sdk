@@ -83,6 +83,13 @@ impl<'a> ClientRpc<'a> {
         }
     }
 
+    /// `user.*` sub-namespace.
+    pub fn user(&self) -> ClientRpcUser<'a> {
+        ClientRpcUser {
+            client: self.client,
+        }
+    }
+
     /// Checks server responsiveness and returns protocol information.
     ///
     /// Wire method: `ping`.
@@ -344,6 +351,18 @@ impl<'a> ClientRpcMcpConfig<'a> {
         let _value = self
             .client
             .call(rpc_methods::MCP_CONFIG_DISABLE, Some(wire_params))
+            .await?;
+        Ok(())
+    }
+
+    /// Drops this runtime process's in-memory MCP server-definition cache so the next MCP config read observes disk.
+    ///
+    /// Wire method: `mcp.config.reload`.
+    pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::MCP_CONFIG_RELOAD, Some(wire_params))
             .await?;
         Ok(())
     }
@@ -1159,6 +1178,41 @@ impl<'a> ClientRpcTools<'a> {
             .call(rpc_methods::TOOLS_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
+    }
+}
+
+/// `user.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcUser<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcUser<'a> {
+    /// `user.settings.*` sub-namespace.
+    pub fn settings(&self) -> ClientRpcUserSettings<'a> {
+        ClientRpcUserSettings {
+            client: self.client,
+        }
+    }
+}
+
+/// `user.settings.*` RPCs.
+#[derive(Clone, Copy)]
+pub struct ClientRpcUserSettings<'a> {
+    pub(crate) client: &'a Client,
+}
+
+impl<'a> ClientRpcUserSettings<'a> {
+    /// Drops this runtime process's in-memory user settings cache so the next settings read observes disk.
+    ///
+    /// Wire method: `user.settings.reload`.
+    pub async fn reload(&self) -> Result<(), Error> {
+        let wire_params = serde_json::json!({});
+        let _value = self
+            .client
+            .call(rpc_methods::USER_SETTINGS_RELOAD, Some(wire_params))
+            .await?;
+        Ok(())
     }
 }
 
@@ -3439,7 +3493,7 @@ impl<'a> SessionRpcModel<'a> {
     ///
     /// # Parameters
     ///
-    /// * `params` - Target model identifier and optional reasoning effort, summary, and capability overrides.
+    /// * `params` - Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
     ///
     /// # Returns
     ///
@@ -3498,6 +3552,64 @@ impl<'a> SessionRpcModel<'a> {
                 rpc_methods::SESSION_MODEL_SETREASONINGEFFORT,
                 Some(wire_params),
             )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists models available to this session using its own auth and integration context. Connected hosts (CLI TUI, GitHub App) should call this through the session client so remote sessions return the remote CLI's available models rather than the caller's.
+    ///
+    /// Wire method: `session.model.list`.
+    ///
+    /// # Returns
+    ///
+    /// The list of models available to this session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list(&self) -> Result<SessionModelList, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_LIST, Some(wire_params))
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Lists models available to this session using its own auth and integration context. Connected hosts (CLI TUI, GitHub App) should call this through the session client so remote sessions return the remote CLI's available models rather than the caller's.
+    ///
+    /// Wire method: `session.model.list`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Optional listing options.
+    ///
+    /// # Returns
+    ///
+    /// The list of models available to this session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn list_with_params(
+        &self,
+        params: ModelListRequest,
+    ) -> Result<SessionModelList, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(rpc_methods::SESSION_MODEL_LIST, Some(wire_params))
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
@@ -5445,6 +5557,34 @@ impl<'a> SessionRpcTools<'a> {
             .client()
             .call(
                 rpc_methods::SESSION_TOOLS_INITIALIZEANDVALIDATE,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
+
+    /// Returns lightweight metadata for the session's currently initialized tools.
+    ///
+    /// Wire method: `session.tools.getCurrentMetadata`.
+    ///
+    /// # Returns
+    ///
+    /// Current lightweight tool metadata snapshot for the session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn get_current_metadata(&self) -> Result<ToolsGetCurrentMetadataResult, Error> {
+        let wire_params = serde_json::json!({ "sessionId": self.session.id() });
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_TOOLS_GETCURRENTMETADATA,
                 Some(wire_params),
             )
             .await?;

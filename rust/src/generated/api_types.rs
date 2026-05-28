@@ -38,12 +38,16 @@ pub mod rpc_methods {
     pub const MCP_CONFIG_ENABLE: &str = "mcp.config.enable";
     /// `mcp.config.disable`
     pub const MCP_CONFIG_DISABLE: &str = "mcp.config.disable";
+    /// `mcp.config.reload`
+    pub const MCP_CONFIG_RELOAD: &str = "mcp.config.reload";
     /// `mcp.discover`
     pub const MCP_DISCOVER: &str = "mcp.discover";
     /// `skills.config.setDisabledSkills`
     pub const SKILLS_CONFIG_SETDISABLEDSKILLS: &str = "skills.config.setDisabledSkills";
     /// `skills.discover`
     pub const SKILLS_DISCOVER: &str = "skills.discover";
+    /// `user.settings.reload`
+    pub const USER_SETTINGS_RELOAD: &str = "user.settings.reload";
     /// `sessionFs.setProvider`
     pub const SESSIONFS_SETPROVIDER: &str = "sessionFs.setProvider";
     /// `sessions.fork`
@@ -114,6 +118,8 @@ pub mod rpc_methods {
     pub const SESSION_MODEL_SWITCHTO: &str = "session.model.switchTo";
     /// `session.model.setReasoningEffort`
     pub const SESSION_MODEL_SETREASONINGEFFORT: &str = "session.model.setReasoningEffort";
+    /// `session.model.list`
+    pub const SESSION_MODEL_LIST: &str = "session.model.list";
     /// `session.mode.get`
     pub const SESSION_MODE_GET: &str = "session.mode.get";
     /// `session.mode.set`
@@ -243,6 +249,8 @@ pub mod rpc_methods {
     pub const SESSION_TOOLS_HANDLEPENDINGTOOLCALL: &str = "session.tools.handlePendingToolCall";
     /// `session.tools.initializeAndValidate`
     pub const SESSION_TOOLS_INITIALIZEANDVALIDATE: &str = "session.tools.initializeAndValidate";
+    /// `session.tools.getCurrentMetadata`
+    pub const SESSION_TOOLS_GETCURRENTMETADATA: &str = "session.tools.getCurrentMetadata";
     /// `session.commands.list`
     pub const SESSION_COMMANDS_LIST: &str = "session.commands.list";
     /// `session.commands.invoke`
@@ -1792,6 +1800,38 @@ pub struct CurrentModel {
     /// Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+}
+
+/// Lightweight metadata for a currently initialized session tool
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentToolMetadata {
+    /// Whether the tool is loaded on demand via tool search
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_loading: Option<bool>,
+    /// Tool description
+    pub description: String,
+    /// JSON Schema for tool input
+    #[serde(rename = "input_schema", skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<HashMap<String, serde_json::Value>>,
+    /// MCP server name for MCP-backed tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_server_name: Option<String>,
+    /// Raw MCP tool name for MCP-backed tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_tool_name: Option<String>,
+    /// Model-facing tool name
+    pub name: String,
+    /// Optional MCP/config namespaced tool name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespaced_name: Option<String>,
 }
 
 /// Schema for the `DiscoveredMcpServer` type.
@@ -3469,6 +3509,8 @@ pub struct MetadataContextInfoResultContextInfo {
     pub conversation_tokens: i64,
     /// Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
     pub limit: i64,
+    /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
+    pub mcp_tools_tokens: i64,
     /// The model used for token counting
     pub model_name: String,
     /// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
@@ -3938,6 +3980,22 @@ pub struct ModelList {
     pub models: Vec<Model>,
 }
 
+/// Optional listing options.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelListRequest {
+    /// If true, bypasses the per-session model list cache and re-fetches from CAPI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_cache: Option<bool>,
+}
+
 /// Reasoning effort level to apply to the currently selected model.
 ///
 /// <div class="warning">
@@ -3977,7 +4035,7 @@ pub struct ModelsListRequest {
     pub git_hub_token: Option<String>,
 }
 
-/// Target model identifier and optional reasoning effort, summary, and capability overrides.
+/// Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
 ///
 /// <div class="warning">
 ///
@@ -3988,6 +4046,9 @@ pub struct ModelsListRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSwitchToRequest {
+    /// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ModelSwitchToRequestContextTier>,
     /// Override individual model capabilities resolved by the runtime
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
@@ -6282,6 +6343,8 @@ pub struct SessionContextInfo {
     pub conversation_tokens: i64,
     /// Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
     pub limit: i64,
+    /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
+    pub mcp_tools_tokens: i64,
     /// The model used for token counting
     pub model_name: String,
     /// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
@@ -6986,6 +7049,24 @@ pub struct SessionMetadataSnapshot {
     pub workspace: Option<SessionMetadataSnapshotWorkspace>,
     /// Absolute path to the session's workspace directory on disk, or null if the session has no associated workspace
     pub workspace_path: Option<String>,
+}
+
+/// The list of models available to this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelList {
+    /// Available models, ordered with the most preferred default first.
+    pub list: Vec<serde_json::Value>,
+    /// Per-quota snapshots returned alongside the model list, keyed by quota type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_snapshots: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes freed, and the dry-run flag.
@@ -8515,6 +8596,21 @@ pub struct ToolList {
     pub tools: Vec<Tool>,
 }
 
+/// Current lightweight tool metadata snapshot for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsGetCurrentMetadataResult {
+    /// Current tool metadata, or null when tools have not been initialized yet
+    pub tools: Option<Vec<CurrentToolMetadata>>,
+}
+
 /// Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.
 ///
 /// <div class="warning">
@@ -10034,6 +10130,24 @@ pub struct SessionModelSetReasoningEffortResult {
     pub reasoning_effort: String,
 }
 
+/// The list of models available to this session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionModelListResult {
+    /// Available models, ordered with the most preferred default first.
+    pub list: Vec<serde_json::Value>,
+    /// Per-quota snapshots returned alongside the model list, keyed by quota type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quota_snapshots: Option<HashMap<String, serde_json::Value>>,
+}
+
 /// Identifies the target session.
 ///
 /// <div class="warning">
@@ -11220,6 +11334,36 @@ pub struct SessionToolsInitializeAndValidateParams {
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolsInitializeAndValidateResult {}
 
+/// Identifies the target session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionToolsGetCurrentMetadataParams {
+    /// Target session identifier
+    pub session_id: SessionId,
+}
+
+/// Current lightweight tool metadata snapshot for the session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionToolsGetCurrentMetadataResult {
+    /// Current tool metadata, or null when tools have not been initialized yet
+    pub tools: Option<Vec<CurrentToolMetadata>>,
+}
+
 /// Slash commands available in the session, after applying any include/exclude filters.
 ///
 /// <div class="warning">
@@ -11915,6 +12059,8 @@ pub struct SessionMetadataContextInfoResultContextInfo {
     pub conversation_tokens: i64,
     /// Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.
     pub limit: i64,
+    /// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
+    pub mcp_tools_tokens: i64,
     /// The model used for token counting
     pub model_name: String,
     /// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
@@ -13726,6 +13872,20 @@ pub enum ModelPolicyState {
     /// No explicit policy is configured for the model.
     #[serde(rename = "unconfigured")]
     Unconfigured,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelSwitchToRequestContextTier {
+    /// Use the model's default context window.
+    #[serde(rename = "default")]
+    Default,
+    /// Pin the session to the long-context tier when supported.
+    #[serde(rename = "long_context")]
+    LongContext,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
