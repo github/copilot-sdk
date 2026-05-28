@@ -53,6 +53,7 @@ public class CopilotClientOptions {
     private Executor executor;
     private String gitHubToken;
     private String logLevel = "info";
+    private CopilotClientMode mode = CopilotClientMode.COPILOT_CLI;
     private Supplier<CompletableFuture<List<ModelInfo>>> onListModels;
     private int port;
     private TelemetryConfig telemetry;
@@ -393,6 +394,35 @@ public class CopilotClientOptions {
      */
     public CopilotClientOptions setLogLevel(String logLevel) {
         this.logLevel = Objects.requireNonNull(logLevel, "logLevel must not be null");
+        return this;
+    }
+
+    /**
+     * Gets the SDK defaulting strategy.
+     *
+     * @return the client mode (never {@code null})
+     * @since 1.3.0
+     */
+    public CopilotClientMode getMode() {
+        return mode;
+    }
+
+    /**
+     * Sets the SDK defaulting strategy.
+     * <p>
+     * When set to {@link CopilotClientMode#EMPTY}, the SDK validates that the app
+     * has supplied the required configuration (e.g.
+     * {@link #setCopilotHome(String)}) and translates session creation requests
+     * into runtime options that flip tool filter precedence to
+     * {@code excluded}-wins so exclusions are expressible.
+     *
+     * @param mode
+     *            the client mode
+     * @return this options instance for method chaining
+     * @since 1.3.0
+     */
+    public CopilotClientOptions setMode(CopilotClientMode mode) {
+        this.mode = Objects.requireNonNull(mode, "mode must not be null");
         return this;
     }
 

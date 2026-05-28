@@ -190,8 +190,9 @@ async fn canvas_invoke_action_round_trip() {
             let result = session
                 .rpc()
                 .canvas()
-                .invoke_action(
-                    github_copilot_sdk::generated::api_types::CanvasInvokeActionRequest {
+                .action()
+                .invoke(
+                    github_copilot_sdk::generated::api_types::CanvasActionInvokeRequest {
                         instance_id: "counter-2".to_string(),
                         action_name: "increment".to_string(),
                         input: Some(json!({ "delta": 1 })),

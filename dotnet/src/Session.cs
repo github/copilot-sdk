@@ -274,6 +274,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             SessionId = SessionId,
             Prompt = options.Prompt,
+            DisplayPrompt = options.DisplayPrompt,
             Attachments = options.Attachments,
             Mode = options.Mode,
             AgentMode = options.AgentMode,
@@ -939,7 +940,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
         }
 
-        public async Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
+        public async Task<object> InvokeAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -1664,6 +1665,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         public string SessionId { get; init; } = string.Empty;
         public string Prompt { get; init; } = string.Empty;
+        public string? DisplayPrompt { get; init; }
         public IList<UserMessageAttachment>? Attachments { get; init; }
         public string? Mode { get; init; }
         [JsonPropertyName("agentMode")]

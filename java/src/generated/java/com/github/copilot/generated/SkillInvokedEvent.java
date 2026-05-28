@@ -44,12 +44,16 @@ public final class SkillInvokedEvent extends SessionEvent {
         @JsonProperty("content") String content,
         /** Tool names that should be auto-approved when this skill is active */
         @JsonProperty("allowedTools") List<String> allowedTools,
+        /** Source identifier for where the skill was discovered. Known values include: project (workspace skill), inherited (parent-directory skill), personal-copilot (~/.copilot/skills), personal-agents (~/.agents/skills), personal-claude (~/.claude/skills), custom (configured directory), plugin (installed plugin), builtin (bundled runtime skill), and remote (org/enterprise skill) */
+        @JsonProperty("source") String source,
         /** Name of the plugin this skill originated from, when applicable */
         @JsonProperty("pluginName") String pluginName,
         /** Version of the plugin this skill originated from, when applicable */
         @JsonProperty("pluginVersion") String pluginVersion,
         /** Description of the skill from its SKILL.md frontmatter */
-        @JsonProperty("description") String description
+        @JsonProperty("description") String description,
+        /** What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent) */
+        @JsonProperty("trigger") SkillInvokedTrigger trigger
     ) {
     }
 }

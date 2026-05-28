@@ -12,7 +12,7 @@
 
     <name>GitHub Copilot SDK :: Java</name>
     <description>SDK for programmatic control of GitHub Copilot CLI</description>
-    <url>https://github.com/github/copilot-sdk-java</url>
+    <url>https://github.com/github/copilot-sdk</url>
 
     <licenses>
         <license>
@@ -30,9 +30,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/github/copilot-sdk-java.git</connection>
-        <developerConnection>scm:git:https://github.com/github/copilot-sdk-java.git</developerConnection>
-        <url>https://github.com/github/copilot-sdk-java</url>
+        <connection>scm:git:https://github.com/github/copilot-sdk.git</connection>
+        <developerConnection>scm:git:https://github.com/github/copilot-sdk.git</developerConnection>
+        <url>https://github.com/github/copilot-sdk</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -94,7 +94,7 @@
             reference-impl-sync workflow and deal with the subsequent
             PR.
         -->
-        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.52-1</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.55-5</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
 
     </properties>
 

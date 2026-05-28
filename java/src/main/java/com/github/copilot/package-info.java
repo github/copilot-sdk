@@ -51,7 +51,7 @@
  *
  * @see com.github.copilot.CopilotClient
  * @see com.github.copilot.CopilotSession
- * @see <a href= "https://github.com/github/copilot-sdk-java">GitHub
+ * @see <a href="https://github.com/github/copilot-sdk/tree/main/java">GitHub
  *      Repository</a>
  */
 package com.github.copilot;

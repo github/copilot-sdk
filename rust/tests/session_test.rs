@@ -383,7 +383,7 @@ async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
     server
         .send_request(
             42,
-            "canvas.invokeAction",
+            "canvas.action.invoke",
             serde_json::json!({
                 "sessionId": session.id(),
                 "extensionId": "project:counter",
@@ -490,6 +490,48 @@ async fn send_omits_request_headers_when_unset_or_empty() {
     assert!(
         request["params"].get("requestHeaders").is_none(),
         "requestHeaders should be omitted for empty map, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_serializes_display_prompt() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("hi").with_display_prompt("Show this to user"))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "hi");
+    assert_eq!(request["params"]["displayPrompt"], "Show this to user");
+
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_omits_display_prompt_when_unset() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("displayPrompt").is_none(),
+        "displayPrompt should be omitted when unset, got: {}",
         request["params"]
     );
     server.respond(&request, serde_json::json!({})).await;

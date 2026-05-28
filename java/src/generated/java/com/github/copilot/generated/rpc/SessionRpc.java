@@ -30,6 +30,8 @@ public final class SessionRpc {
 
     /** API methods for the {@code auth} namespace. */
     public final SessionAuthApi auth;
+    /** API methods for the {@code canvas} namespace. */
+    public final SessionCanvasApi canvas;
     /** API methods for the {@code model} namespace. */
     public final SessionModelApi model;
     /** API methods for the {@code mode} namespace. */
@@ -97,6 +99,7 @@ public final class SessionRpc {
         this.caller = caller;
         this.sessionId = sessionId;
         this.auth = new SessionAuthApi(caller, sessionId);
+        this.canvas = new SessionCanvasApi(caller, sessionId);
         this.model = new SessionModelApi(caller, sessionId);
         this.mode = new SessionModeApi(caller, sessionId);
         this.name = new SessionNameApi(caller, sessionId);
