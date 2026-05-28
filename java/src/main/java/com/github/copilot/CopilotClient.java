@@ -81,9 +81,24 @@ public final class CopilotClient implements AutoCloseable {
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
+
+    /**
+     * One-shot dispatcher used to run the owned-executor shutdown off any caller
+     * thread that might itself belong to that executor (e.g. the
+     * {@link #forceStop()} continuation, which is chained off async work scheduled
+     * on the internal executor). Spawning a fresh daemon thread guarantees
+     * {@link java.util.concurrent.ExecutorService#awaitTermination(long, TimeUnit)}
+     * is never called from inside the very executor it is waiting on.
+     */
+    private static final Executor SHUTDOWN_DISPATCHER = runnable -> {
+        Thread t = new Thread(runnable, "copilot-client-shutdown");
+        t.setDaemon(true);
+        t.start();
+    };
+
     private final CopilotClientOptions options;
     private final Executor executor;
-    private final ExecutorService ownedExecutor;
+    private final boolean executorCanBeShutdown;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
@@ -171,10 +186,9 @@ public final class CopilotClient implements AutoCloseable {
             this.optionsPort = null;
         }
 
-        Executor providedExecutor = this.options.getExecutor();
-        this.executor = providedExecutor != null ? providedExecutor : InternalExecutorProvider.create();
-        this.ownedExecutor = providedExecutor == null && InternalExecutorProvider.isOwned(this.executor)
-                && this.executor instanceof ExecutorService executorService ? executorService : null;
+        InternalExecutorProvider executorProvider = new InternalExecutorProvider(this.options.getExecutor());
+        this.executor = executorProvider.get();
+        this.executorCanBeShutdown = executorProvider.canBeShutdown();
 
         this.serverManager = new CliServerManager(this.options);
         this.serverManager.setConnectionToken(this.effectiveConnectionToken);
@@ -360,7 +374,12 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         disposed = true;
         sessions.clear();
-        return cleanupConnection().whenComplete((ignored, error) -> shutdownOwnedExecutor());
+        // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
+        // cleanupConnection() is chained off async work running on the owned
+        // executor, so a plain whenComplete(...) here could land the awaitTermination
+        // call on one of the very threads it is waiting to drain, forcing the full
+        // AUTOCLOSEABLE_TIMEOUT_SECONDS timeout followed by shutdownNow().
+        return cleanupConnection().whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(), SHUTDOWN_DISPATCHER);
     }
 
     private CompletableFuture<Void> cleanupConnection() {
@@ -1114,19 +1133,36 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     private void shutdownOwnedExecutor() {
-        if (ownedExecutor == null) {
+        if (!executorCanBeShutdown) {
             return;
         }
 
-        ownedExecutor.shutdown();
+        ExecutorService serviceToShutdown = executor instanceof ExecutorService es ? es : null;
+        if (serviceToShutdown == null) {
+            LOG.log(Level.FINE, "Executor is not an ExecutorService; skipping shutdown");
+            return;
+        }
+
+        // Short-circuit when the owned executor is already shut down. close() and
+        // forceStop() can each call this method (e.g. forceStop() invoked before a
+        // subsequent close() in user code), and re-entering shutdown() +
+        // awaitTermination()
+        // is redundant. Logging at FINE aids diagnostics without spamming normal
+        // output.
+        if (serviceToShutdown.isShutdown()) {
+            LOG.log(Level.FINE, "Owned executor was already shut down; skipping redundant shutdown call.");
+            return;
+        }
+
+        serviceToShutdown.shutdown();
         try {
-            if (!ownedExecutor.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            if (!serviceToShutdown.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 LOG.log(Level.FINE, "Owned executor did not terminate within {0} seconds; forcing shutdown.",
                         AUTOCLOSEABLE_TIMEOUT_SECONDS);
-                ownedExecutor.shutdownNow();
+                serviceToShutdown.shutdownNow();
             }
         } catch (InterruptedException e) {
-            ownedExecutor.shutdownNow();
+            serviceToShutdown.shutdownNow();
             Thread.currentThread().interrupt();
             LOG.log(Level.FINE, "Interrupted while waiting for owned executor to terminate", e);
         }
