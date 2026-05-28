@@ -11,13 +11,15 @@ These guides cover the capabilities you can add to your Copilot SDK application.
 | [The Agent Loop](./agent-loop.md) | How the CLI processes a prompt—the tool-use loop, turns, and completion signals |
 | [Hooks](./hooks.md) | Intercept and customize session behavior—control tool execution, transform results, handle errors |
 | [Custom Agents](./custom-agents.md) | Define specialized sub-agents with scoped tools and instructions |
+| [Fleet Mode](./fleet-mode.md) | Dispatch multiple sub-agents in parallel for large, independent workstreams |
 | [MCP Servers](./mcp.md) | Integrate Model Context Protocol servers for external tool access |
 | [Skills](./skills.md) | Load reusable prompt modules from directories |
 | [Image Input](./image-input.md) | Send images to sessions as attachments |
 | [Streaming Events](./streaming-events.md) | Subscribe to real-time session events (40+ event types) |
 | [Steering & Queueing](./steering-and-queueing.md) | Control message delivery—immediate steering vs. sequential queueing |
 | [Session Persistence](./session-persistence.md) | Resume sessions across restarts, manage session storage |
-| [Remote Sessions](./remote-sessions.md) | Share sessions to GitHub web and mobile via Mission Control |
+| [Remote Sessions](./remote-sessions.md) | Share locally hosted sessions to GitHub web and mobile via Mission Control |
+| [Cloud Sessions](./cloud-sessions.md) | Run sessions on GitHub-hosted compute through Mission Control |
 
 ## Related
 

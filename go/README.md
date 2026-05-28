@@ -2,8 +2,6 @@
 
 A Go SDK for programmatic access to the GitHub Copilot CLI.
 
-> **Note:** This SDK is in public preview and may change in breaking ways.
-
 ## Installation
 
 ```bash
@@ -104,13 +102,13 @@ That's it! When your application calls `copilot.NewClient` without a `Connection
 - `Start(ctx context.Context) error` - Start the CLI server
 - `Stop() error` - Stop the CLI server
 - `ForceStop()` - Forcefully stop without graceful cleanup
-- `CreateSession(config *SessionConfig) (*Session, error)` - Create a new session
-- `ResumeSession(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
-- `ResumeSessionWithOptions(sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
-- `ListSessions(filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
-- `DeleteSession(sessionID string) error` - Delete a session permanently
+- `CreateSession(ctx context.Context, config *SessionConfig) (*Session, error)` - Create a new session
+- `ResumeSession(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume an existing session
+- `ResumeSessionWithOptions(ctx context.Context, sessionID string, config *ResumeSessionConfig) (*Session, error)` - Resume with additional configuration
+- `ListSessions(ctx context.Context, filter *SessionListFilter) ([]SessionMetadata, error)` - List sessions (with optional filter)
+- `DeleteSession(ctx context.Context, sessionID string) error` - Delete a session permanently
 - `GetLastSessionID(ctx context.Context) (*string, error)` - Get the ID of the most recently updated session
-- `Ping(message string) (*PingResponse, error)` - Ping the server
+- `Ping(ctx context.Context, message string) (*PingResponse, error)` - Ping the server
 - `RuntimePort() int` - TCP port the runtime is listening on (0 if stdio)
 - `GetForegroundSessionID(ctx context.Context) (*string, error)` - Get the session ID currently displayed in TUI (TUI+server mode only)
 - `SetForegroundSessionID(ctx context.Context, sessionID string) error` - Request TUI to display a specific session (TUI+server mode only)

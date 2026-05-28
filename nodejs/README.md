@@ -2,8 +2,6 @@
 
 TypeScript SDK for programmatic control of GitHub Copilot CLI via JSON-RPC.
 
-> **Note:** This SDK is in public preview and may change in breaking ways.
-
 ## Installation
 
 ```bash
@@ -57,7 +55,7 @@ await session.disconnect();
 await client.stop();
 ```
 
-Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+/Node.js 18.0+):
+Sessions also support `Symbol.asyncDispose` for use with [`await using`](https://github.com/tc39/proposal-explicit-resource-management) (TypeScript 5.2+ / Node.js 20+):
 
 ```typescript
 await using session = await client.createSession({
@@ -82,14 +80,20 @@ new CopilotClient(options?: CopilotClientOptions)
 - `connection?: RuntimeConnection` - How to connect to the Copilot runtime. Construct via the factory functions on `RuntimeConnection`:
     - `RuntimeConnection.forStdio({ path?, args? })` (default) — spawn the runtime and communicate over its stdin/stdout.
     - `RuntimeConnection.forTcp({ port?, connectionToken?, path?, args? })` — spawn the runtime as a TCP server.
-    - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`).
-- `cwd?: string` - Working directory for the runtime process (default: current process cwd).
+    - `RuntimeConnection.forUri(url, { connectionToken? })` — connect to an already-running runtime (mutually exclusive with `gitHubToken`/`useLoggedInUser`). There is no top-level `cliUrl` shortcut; use this factory for URL-based connections.
+- `mode?: "empty" | "copilot-cli"` - Defaulting strategy. Use `"empty"` for multi-user server mode; defaults to `"copilot-cli"`.
+- `workingDirectory?: string` - Working directory for the runtime process (default: current process cwd).
 - `baseDirectory?: string` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime. When not set, the runtime defaults to `~/.copilot`. Ignored when connecting via `RuntimeConnection.forUri`.
-- `logLevel?: string` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
+- `logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all"` - Log level. When omitted, the runtime uses its own default (currently `"info"`).
+- `env?: Record<string, string | undefined>` - Environment variables for the runtime process. When omitted, inherits `process.env`.
 - `gitHubToken?: string` - GitHub token for authentication. When provided, takes priority over other auth methods.
 - `useLoggedInUser?: boolean` - Whether to use logged-in user for authentication (default: true, but false when `gitHubToken` is provided). Cannot be used with `RuntimeConnection.forUri`.
+- `onListModels?: () => Promise<ModelInfo[]> | ModelInfo[]` - Optional model-list provider, useful when using a custom provider.
 - `telemetry?: TelemetryConfig` - OpenTelemetry configuration for the runtime process. Providing this object enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
 - `onGetTraceContext?: TraceContextProvider` - Advanced: callback for linking your application's own OpenTelemetry spans into the same distributed trace as the runtime's spans. Not needed for normal telemetry collection. See [Telemetry](#telemetry) below.
+- `sessionFs?: SessionFsConfig` - Custom session filesystem provider.
+- `sessionIdleTimeoutSeconds?: number` - Server-wide idle timeout for sessions in seconds. Ignored when connecting via `RuntimeConnection.forUri`.
+- `enableRemoteSessions?: boolean` - Enable Mission Control remote session support. Ignored when connecting via `RuntimeConnection.forUri`.
 
 #### Methods
 
@@ -163,7 +167,7 @@ Get the ID of the session currently displayed in the TUI. Only available when co
 
 Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
 
-##### `on(eventType: SessionLifecycleEventType, handler): () => void`
+##### `onLifecycle(eventType: SessionLifecycleEventType, handler): () => void`
 
 Subscribe to a specific session lifecycle event type. Returns an unsubscribe function.
 
@@ -173,7 +177,7 @@ const unsubscribe = client.onLifecycle("session.foreground", (event) => {
 });
 ```
 
-##### `on(handler: SessionLifecycleHandler): () => void`
+##### `onLifecycle(handler: SessionLifecycleHandler): () => void`
 
 Subscribe to all session lifecycle events. Returns an unsubscribe function.
 

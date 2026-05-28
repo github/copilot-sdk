@@ -50,6 +50,7 @@ You're building tools for your team or company. Users are employees who need to 
 1. **[Backend Services](./backend-services.md)**—Run the SDK in your internal services
 
 **If scaling beyond a single server:**
+1. **[Multi-tenancy and server deployments](./multi-tenancy.md)**—Configure SDK options for multi-user server mode
 1. **[Scaling & Multi-Tenancy](./scaling.md)**—Handle multiple users and services
 
 ### 🚀 App developer (ISV)
@@ -62,6 +63,7 @@ You're building a product for customers. You need to handle authentication for y
 1. **[Backend Services](./backend-services.md)**—Power your product from server-side code
 
 **For production:**
+1. **[Multi-tenancy and server deployments](./multi-tenancy.md)**—Use `mode: "empty"`, per-session tokens, and isolated runtime state
 1. **[Scaling & Multi-Tenancy](./scaling.md)**—Serve many customers reliably
 
 ### 🏗️ Platform developer
@@ -70,6 +72,7 @@ You're embedding Copilot into a platform—APIs, developer tools, or infrastruct
 
 **Start with:**
 1. **[Backend Services](./backend-services.md)**—Core server-side integration
+1. **[Multi-tenancy and server deployments](./multi-tenancy.md)**—SDK-level isolation, per-session auth, and shared runtime options
 1. **[Scaling & Multi-Tenancy](./scaling.md)**—Session isolation, horizontal scaling, persistence
 
 **Depending on your auth model:**
@@ -88,6 +91,7 @@ Use this table to find the right guides based on what you need to do:
 | Use your own model keys (OpenAI, Azure, etc.) | [BYOK](../auth/byok.md) |
 | Azure BYOK with Managed Identity (no API keys) | [Azure Managed Identity](./azure-managed-identity.md) |
 | Run the SDK on a server | [Backend Services](./backend-services.md) |
+| Configure SDK options for concurrent users | [Multi-tenancy and server deployments](./multi-tenancy.md) |
 | Serve multiple users / scale horizontally | [Scaling & Multi-Tenancy](./scaling.md) |
 
 ## Configuration comparison

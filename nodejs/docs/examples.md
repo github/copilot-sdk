@@ -158,7 +158,7 @@ Hooks intercept and modify behavior at key lifecycle points. Register them in th
 | `onPreToolUse`          | Before a tool executes                   | Tool args, permission decision, add context |
 | `onPostToolUse`         | After a tool executes successfully       | Tool result, add context                    |
 | `onPostToolUseFailure`  | After a tool execution returns a failure | Add hidden guidance to the model            |
-| `onSessionStart`        | Session starts or resumes                | Add context, modify config                  |
+| `onSessionStart`        | Session starts or resumes                | Add context                                 |
 | `onSessionEnd`          | Session ends                             | Cleanup actions, summary                    |
 | `onErrorOccurred`       | An error occurs                          | Error handling strategy (retry/skip/abort)  |
 
@@ -415,7 +415,7 @@ session.on("assistant.message", (event) => {
 | Event Type                  | Description                                      | Key Data Fields                                        |
 | --------------------------- | ------------------------------------------------ | ------------------------------------------------------ |
 | `assistant.message`         | Agent's final response                           | `content`, `messageId`, `toolRequests`                 |
-| `assistant.streaming_delta` | Token-by-token streaming (ephemeral)             | `totalResponseSizeBytes`                               |
+| `assistant.message_delta`   | Message content chunks (ephemeral)               | `deltaContent`                                         |
 | `tool.execution_start`      | A tool is about to run                           | `toolCallId`, `toolName`, `arguments`                  |
 | `tool.execution_complete`   | A tool finished running                          | `toolCallId`, `toolName`, `success`, `result`, `error` |
 | `user.message`              | User sent a message                              | `content`, `attachments`, `source`                     |
@@ -629,8 +629,11 @@ const session = await joinSession({
         onPreToolUse: async (input) => {
             if (input.toolName === "bash") {
                 const cmd = String(input.toolArgs?.command || "");
-                if (/rm\\s+-rf\\s+\\/ / i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
-                    return { permissionDecision: "deny" };
+                if (/rm\\s+-rf\\s+\//i.test(cmd) || /Remove-Item\\s+.*-Recurse/i.test(cmd)) {
+                    return {
+                        permissionDecision: "deny",
+                        permissionDecisionReason: "Destructive commands are not allowed.",
+                    };
                 }
             }
         },

@@ -18,7 +18,7 @@ Copilot: In Tokyo it's 75°F and sunny. Great day to be outside!
 
 Before you begin, make sure you have:
 
-* **GitHub Copilot CLI** installed and authenticated ([Installation guide](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli))
+* **GitHub Copilot CLI** installed and authenticated (the Node.js, Python, and .NET SDKs bundle the CLI automatically—see [Bundled CLI](./setup/bundled-cli.md). Required for Go, Java, and Rust unless using their application-level CLI bundling features.)
 * Your preferred language runtime:
   * **Node.js** 20+ or **Python** 3.11+ or **Go** 1.24+ or **Rust** 1.94+ or **Java** 17+ or **.NET** 8.0+
 
@@ -264,7 +264,7 @@ use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::start(ClientOptions::default()).await?;
     let session = client
-        .create_session(SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)))
+        .create_session(SessionConfig::default().with_permission_handler(Arc::new(ApproveAllHandler)))
         .await?;
 
     let response = session
@@ -514,7 +514,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = SessionConfig::default();
     config.streaming = Some(true);
     let session = client
-        .create_session(config.with_handler(Arc::new(ApproveAllHandler)))
+        .create_session(config.with_permission_handler(Arc::new(ApproveAllHandler)))
         .await?;
 
     // Listen for response chunks
@@ -1086,7 +1086,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{JsonSchema, ToolHandlerRouter, define_tool};
+use github_copilot_sdk::tool::{define_tool, JsonSchema};
 use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig, ToolResult};
 use serde::Deserialize;
 
@@ -1098,27 +1098,28 @@ struct GetWeatherParams {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define a tool that Copilot can call
-    let router = ToolHandlerRouter::new(
-        vec![define_tool(
-            "get_weather",
-            "Get the current weather for a city",
-            |_inv, params: GetWeatherParams| async move {
-                Ok(ToolResult::Text(format!(
-                    "{}: 62°F and sunny",
-                    params.city
-                )))
-            },
-        )],
-        Arc::new(ApproveAllHandler),
-    );
-    let tools = router.tools();
+    let tools = vec![define_tool(
+        "get_weather",
+        "Get the current weather for a city",
+        |_inv, params: GetWeatherParams| async move {
+            Ok(ToolResult::Text(format!(
+                "{}: 62°F and sunny",
+                params.city
+            )))
+        },
+    )];
 
     let client = Client::start(ClientOptions::default()).await?;
 
     let mut config = SessionConfig::default();
     config.streaming = Some(true);
-    config.tools = Some(tools);
-    let session = client.create_session(config.with_handler(Arc::new(router))).await?;
+    let session = client
+        .create_session(
+            config
+                .with_tools(tools)
+                .with_permission_handler(Arc::new(ApproveAllHandler)),
+        )
+        .await?;
 
     let mut events = session.subscribe();
     tokio::spawn(async move {
@@ -1546,7 +1547,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{JsonSchema, ToolHandlerRouter, define_tool};
+use github_copilot_sdk::tool::{define_tool, JsonSchema};
 use github_copilot_sdk::{Client, ClientOptions, MessageOptions, SessionConfig, ToolResult};
 use serde::Deserialize;
 
@@ -1567,27 +1568,28 @@ fn read_line() -> Option<String> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let router = ToolHandlerRouter::new(
-        vec![define_tool(
-            "get_weather",
-            "Get the current weather for a city",
-            |_inv, params: GetWeatherParams| async move {
-                Ok(ToolResult::Text(format!(
-                    "{}: 62°F and sunny",
-                    params.city
-                )))
-            },
-        )],
-        Arc::new(ApproveAllHandler),
-    );
-    let tools = router.tools();
+    let tools = vec![define_tool(
+        "get_weather",
+        "Get the current weather for a city",
+        |_inv, params: GetWeatherParams| async move {
+            Ok(ToolResult::Text(format!(
+                "{}: 62°F and sunny",
+                params.city
+            )))
+        },
+    )];
 
     let client = Client::start(ClientOptions::default()).await?;
 
     let mut config = SessionConfig::default();
     config.streaming = Some(true);
-    config.tools = Some(tools);
-    let session = client.create_session(config.with_handler(Arc::new(router))).await?;
+    let session = client
+        .create_session(
+            config
+                .with_tools(tools)
+                .with_permission_handler(Arc::new(ApproveAllHandler)),
+        )
+        .await?;
 
     let mut events = session.subscribe();
     tokio::spawn(async move {
@@ -2054,7 +2056,7 @@ let client = Client::start(options).await?;
 
 // Use the client normally
 let session = client
-    .create_session(SessionConfig::default().with_handler(Arc::new(ApproveAllHandler)))
+    .create_session(SessionConfig::default().with_permission_handler(Arc::new(ApproveAllHandler)))
     .await?;
 // ...
 ```

@@ -1,6 +1,6 @@
 # Custom agents and sub-agent orchestration
 
-Define specialized agents with scoped tools and prompts, then let Copilot orchestrate them as sub-agents within a single session.
+Define specialized agents with scoped tools and prompts, then let Copilot orchestrate them as sub-agents within a single session. For dispatching multiple sub-agents in parallel, see [Fleet Mode](./fleet-mode.md).
 
 ## Overview
 

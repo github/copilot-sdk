@@ -13,24 +13,24 @@
 
 ## Background
 
-> ℹ️ **Public Preview:** This SDK tracks the [GitHub Copilot SDKs](https://github.com/github/copilot-sdk) for [.NET](https://github.com/github/copilot-sdk/tree/main/dotnet) and [Node.js](https://github.com/github/copilot-sdk/tree/main/nodejs). While in public preview, minor breaking changes may still occur between releases.
-
-Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build AI-powered applications and agentic workflows.
+Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build AI-powered applications and agentic workflows. The Java SDK tracks the official GitHub Copilot SDK family (TypeScript, Python, Go, .NET, and Rust).
 
 ## Installation
 
 ### Requirements
 
-- Java 17 or later. **JDK 25 recommended**. Selecting JDK 25 enables the use of virtual threads, as shown in the [Quick Start](#quick-start).
+- Java 17 or later. **JDK 21 or later recommended** for virtual thread support, as shown in the [Quick Start](#quick-start).
 - GitHub Copilot CLI 1.0.17 or later installed and in `PATH` (or provide custom `cliPath`)
 
 ### Maven
+
+Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```xml
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.4</version>
+    <version>${copilot.sdk.version}</version>
 </dependency>
 ```
 
@@ -56,8 +56,10 @@ Snapshot builds of the next development version are published to Maven Central S
 
 ### Gradle
 
+Replace `${copilot.sdk.version}` with the latest release from Maven Central.
+
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.0-beta-java.4'
+implementation 'com.github:copilot-sdk-java:${copilot.sdk.version}'
 ```
 
 ## Quick Start
@@ -78,8 +80,8 @@ public class CopilotSDK {
         var lastMessage = new String[]{null};
 
         // Create and start client
-        try (var client = new CopilotClient()) {  // JDK 25+: comment out this line
-        // JDK 25+: uncomment the following 3 lines for virtual thread support
+        try (var client = new CopilotClient()) {  // JDK 21+: comment out this line
+        // JDK 21+: uncomment the following 3 lines for virtual thread support
         // var options = new CopilotClientOptions()
         //     .setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         // try (var client = new CopilotClient(options)) {

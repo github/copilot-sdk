@@ -36,6 +36,8 @@ flowchart TB
 * Multiple SDK clients can share one CLI server
 * Works with any auth method (GitHub tokens, env vars, BYOK)
 
+For multi-user server mode, configure SDK clients with `mode: "empty"`, pass user credentials per session, and explicitly allow tools for each session. See [Multi-Tenancy & Server Deployments](./multi-tenancy.md) for the full pattern.
+
 ## Architecture: auto-managed vs. external CLI
 
 ```mermaid
@@ -127,11 +129,14 @@ import { CopilotClient } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
     cliUrl: "localhost:4321",
+    mode: "empty",
 });
 
 const session = await client.createSession({
     sessionId: `user-${userId}-${Date.now()}`,
     model: "gpt-4.1",
+    availableTools: ["custom:*"],
+    gitHubToken: user.githubToken,
 });
 
 const response = await session.sendAndWait({ prompt: req.body.message });
@@ -318,17 +323,18 @@ copilot --headless --port 4321
 Pass individual user tokens when creating sessions. See [GitHub OAuth](./github-oauth.md) for the full flow.
 
 ```typescript
+const client = new CopilotClient({
+    cliUrl: "localhost:4321",
+    mode: "empty",
+});
+
 // Your API receives user tokens from your auth layer
 app.post("/chat", authMiddleware, async (req, res) => {
-    const client = new CopilotClient({
-        cliUrl: "localhost:4321",
-        gitHubToken: req.user.githubToken,
-        useLoggedInUser: false,
-    });
-
     const session = await client.createSession({
         sessionId: `user-${req.user.id}-chat`,
         model: "gpt-4.1",
+        availableTools: ["custom:*"],
+        gitHubToken: req.user.githubToken,
     });
 
     const response = await session.sendAndWait({
@@ -385,9 +391,10 @@ import { CopilotClient } from "@github/copilot-sdk";
 const app = express();
 app.use(express.json());
 
-// Single shared CLI connection
+// Single shared CLI connection for multi-user server mode
 const client = new CopilotClient({
     cliUrl: process.env.CLI_URL || "localhost:4321",
+    mode: "empty",
 });
 
 app.post("/api/chat", async (req, res) => {
@@ -401,6 +408,8 @@ app.post("/api/chat", async (req, res) => {
         session = await client.createSession({
             sessionId,
             model: "gpt-4.1",
+            availableTools: ["custom:*"],
+            gitHubToken: req.user.githubToken,
         });
     }
 
@@ -538,11 +547,13 @@ setInterval(() => cleanupSessions(24 * 60 * 60 * 1000), 60 * 60 * 1000);
 | Need | Next Guide |
 |------|-----------|
 | Multiple CLI servers / high availability | [Scaling & Multi-Tenancy](./scaling.md) |
+| SDK isolation for concurrent users | [Multi-Tenancy & Server Deployments](./multi-tenancy.md) |
 | GitHub account auth for users | [GitHub OAuth](./github-oauth.md) |
 | Your own model keys | [BYOK](../auth/byok.md) |
 
 ## Next steps
 
+* **[Multi-Tenancy & Server Deployments](./multi-tenancy.md)**: Configure SDK isolation for concurrent users
 * **[Scaling & Multi-Tenancy](./scaling.md)**: Handle more users, add redundancy
 * **[Session Persistence](../features/session-persistence.md)**: Resume sessions across restarts
 * **[GitHub OAuth](./github-oauth.md)**: Add user authentication
