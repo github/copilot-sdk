@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot;
@@ -2767,6 +2768,7 @@ public sealed class MessageOptions
         Mode = other.Mode;
         AgentMode = other.AgentMode;
         Prompt = other.Prompt;
+        DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
             : null;
@@ -2794,6 +2796,10 @@ public sealed class MessageOptions
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>
     public IDictionary<string, string>? RequestHeaders { get; set; }
+    /// <summary>
+    /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
+    /// </summary>
+    public string? DisplayPrompt { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
@@ -3281,6 +3287,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
+[JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(object))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(string[]))]

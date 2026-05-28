@@ -25,8 +25,10 @@ import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
 
 /**
- * Tests for the session-map re-key cleanup paths in CopilotClient when the
- * server returns a different session ID than the client-supplied one.
+ * Tests that CopilotClient rejects session.create responses whose sessionId
+ * differs from the client-supplied one. Re-keying the sessions map at runtime
+ * is intentionally not supported — the server must honor the client-supplied
+ * sessionId (or generate one when none is supplied).
  */
 class CreateSessionReKeyEntryTest {
 
@@ -177,7 +179,7 @@ class CreateSessionReKeyEntryTest {
     }
 
     @Test
-    void createSessionReKeyEntry_successfulReKey_removesOldKeyAndAddsNewKey() throws Exception {
+    void createSession_serverReturnsDifferentSessionId_throwsAndRemovesPreRegisteredEntry() throws Exception {
         String clientSessionId = "client-supplied-id";
         String serverSessionId = "server-returned-id";
 
@@ -188,26 +190,26 @@ class CreateSessionReKeyEntryTest {
             var config = new SessionConfig().setSessionId(clientSessionId)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL);
 
-            CopilotSession session = client.createSession(config).get();
+            ExecutionException ex = assertThrows(ExecutionException.class, () -> client.createSession(config).get());
+            assertNotNull(ex.getCause());
+            assertTrue(ex.getCause().getMessage().contains(serverSessionId),
+                    "Error message should mention the server-returned sessionId");
+            assertTrue(ex.getCause().getMessage().contains(clientSessionId),
+                    "Error message should mention the client-requested sessionId");
 
             Map<String, CopilotSession> sessions = getSessionsMap(client);
-
-            // The old client-supplied key should be removed
             assertNull(sessions.get(clientSessionId),
-                    "Old client-supplied sessionId should be removed from sessions map after re-key");
-            // The new server-returned key should be present
-            assertSame(session, sessions.get(serverSessionId),
-                    "Server-returned sessionId should be the key in sessions map");
-            // The session object should report the server-returned ID
-            assertEquals(serverSessionId, session.getSessionId(),
-                    "Session should report the server-returned sessionId");
+                    "Pre-registered client-supplied sessionId should be removed after rejection");
+            assertNull(sessions.get(serverSessionId),
+                    "Server-returned sessionId should never be registered after rejection");
+            assertTrue(sessions.isEmpty(), "Sessions map should be empty after rejected create");
 
             client.close();
         }
     }
 
     @Test
-    void createSessionReKeyEntry_failureAfterReKey_removesBothKeys() throws Exception {
+    void createSession_serverReturnsDifferentSessionIdWithSkipCustomInstructions_throwsAndCleansUp() throws Exception {
         String clientSessionId = "client-supplied-id";
         String serverSessionId = "server-returned-id";
 
@@ -215,29 +217,27 @@ class CreateSessionReKeyEntryTest {
             var client = new CopilotClient(new CopilotClientOptions().setAutoStart(false));
             injectConnection(client, server.rpcClient);
 
-            // Set skipCustomInstructions so that session.options.update is actually invoked
+            // Even when skipCustomInstructions would trigger session.options.update,
+            // the sessionId-mismatch error fires first and short-circuits the flow.
             var config = new SessionConfig().setSessionId(clientSessionId)
                     .setOnPermissionRequest(PermissionHandler.APPROVE_ALL).setSkipCustomInstructions(true);
 
-            // The session.options.update will fail, triggering the exceptionally handler
             ExecutionException ex = assertThrows(ExecutionException.class, () -> client.createSession(config).get());
             assertNotNull(ex.getCause());
 
             Map<String, CopilotSession> sessions = getSessionsMap(client);
-
-            // Both the original and re-keyed entries should be cleaned up
             assertNull(sessions.get(clientSessionId),
-                    "Original client-supplied sessionId should be removed on failure");
+                    "Pre-registered client-supplied sessionId should be removed on failure");
             assertNull(sessions.get(serverSessionId),
-                    "Re-keyed server-returned sessionId should be removed on failure");
-            assertTrue(sessions.isEmpty(), "Sessions map should be empty after failed create with re-key");
+                    "Server-returned sessionId should never be registered on failure");
+            assertTrue(sessions.isEmpty(), "Sessions map should be empty after failed create");
 
             client.close();
         }
     }
 
     @Test
-    void createSessionReKeyEntry_noReKey_sameIdKept() throws Exception {
+    void createSession_serverReturnsSameSessionId_sessionKeptUnderClientId() throws Exception {
         String sessionId = "same-id-for-both";
 
         try (var server = new ReKeyServer(sessionId, false)) {

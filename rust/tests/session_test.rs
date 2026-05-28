@@ -497,6 +497,48 @@ async fn send_omits_request_headers_when_unset_or_empty() {
 }
 
 #[tokio::test]
+async fn send_serializes_display_prompt() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("hi").with_display_prompt("Show this to user"))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "hi");
+    assert_eq!(request["params"]["displayPrompt"], "Show this to user");
+
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_omits_display_prompt_when_unset() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("displayPrompt").is_none(),
+        "displayPrompt should be omitted when unset, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
 async fn session_rpc_methods_send_correct_method_names() {
     let (session, mut server) = create_session_pair().await;
     let session = Arc::new(session);

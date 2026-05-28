@@ -56,7 +56,7 @@ class TestCommands:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -98,7 +98,7 @@ class TestCommands:
 
             captured: dict = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": params["sessionId"]}
@@ -146,7 +146,7 @@ class TestCommands:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.commands.handlePendingCommand":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -215,7 +215,7 @@ class TestCommands:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.commands.handlePendingCommand":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -269,7 +269,7 @@ class TestCommands:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.commands.handlePendingCommand":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -322,7 +322,7 @@ class TestUiElicitation:
         try:
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.create":
                     result = await original_request(method, params)
                     return {**result, "capabilities": {"ui": {"elicitation": True}}}
@@ -415,7 +415,7 @@ class TestOnElicitationContext:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -447,7 +447,7 @@ class TestOnElicitationContext:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -475,7 +475,7 @@ class TestOnElicitationContext:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 return await original_request(method, params)
 
@@ -516,7 +516,7 @@ class TestOnElicitationContext:
             )
             captured: dict = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": params["sessionId"]}
@@ -620,7 +620,7 @@ class TestOnElicitationContext:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.ui.handlePendingElicitation":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -667,7 +667,7 @@ class TestOnElicitationContext:
             rpc_calls: list[tuple] = []
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.ui.handlePendingElicitation":
                     rpc_calls.append((method, params))
                     return {"success": True}
@@ -727,7 +727,7 @@ class TestOnElicitationContext:
 
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 if method == "session.ui.handlePendingElicitation":
                     return {"success": True}
                 return await original_request(method, params)

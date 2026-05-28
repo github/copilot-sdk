@@ -1845,82 +1845,140 @@ class CopilotClient:
             raise RuntimeError("Client not connected")
 
         total_start = time.perf_counter()
-        actual_session_id = session_id or str(uuid.uuid4())
-        payload["sessionId"] = actual_session_id
+        # For cloud sessions, let the CLI/server assign the session id and
+        # register the session lazily once the response arrives. For non-cloud
+        # sessions we generate the id client-side (when the caller didn't
+        # supply one) so the session can be registered BEFORE the RPC — the
+        # CLI may issue session-scoped requests (e.g. ``sessionFs.writeFile``
+        # for workspace metadata) during ``session.create`` processing, before
+        # it has sent the response.
+        use_server_generated_id = cloud is not None and session_id is None
+        local_session_id: str | None = (
+            None if use_server_generated_id else (session_id or str(uuid.uuid4()))
+        )
+        if local_session_id is not None:
+            payload["sessionId"] = local_session_id
 
         # Propagate W3C Trace Context to CLI if OpenTelemetry is active
         trace_ctx = get_trace_context()
         payload.update(trace_ctx)
 
-        # Create and register the session before issuing the RPC so that
-        # events emitted by the CLI (e.g. session.start) are not dropped.
-        setup_start = time.perf_counter()
-        session = CopilotSession(actual_session_id, self._client, workspace_path=None)
-        if self._session_fs_config:
-            if create_session_fs_handler is None:
-                raise ValueError(
-                    "create_session_fs_handler is required in session config when "
-                    "session_fs is enabled in client options."
-                )
-            fs_provider: SessionFsProvider = create_session_fs_handler(session)
-            caps = self._session_fs_config.get("capabilities")
-            if caps and caps.get("sqlite"):
-                from .session_fs_provider import SessionFsSqliteProvider
+        def _initialize_session(sid: str) -> CopilotSession:
+            """Create the session, wire up handlers, and register it.
 
-                if not isinstance(fs_provider, SessionFsSqliteProvider):
+            Invoked from the reader thread the instant the session.create
+            response arrives (synchronously, before the next message is
+            dispatched) so notifications for the new session id are routed
+            to a registered session.
+            """
+            setup_start = time.perf_counter()
+            s = CopilotSession(sid, self._client, workspace_path=None)
+            if self._session_fs_config:
+                if create_session_fs_handler is None:
                     raise ValueError(
-                        "SessionFs capabilities declare SQLite support but the provider "
-                        "does not implement SessionFsSqliteProvider"
+                        "create_session_fs_handler is required in session config when "
+                        "session_fs is enabled in client options."
                     )
-            session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
-        session._register_tools(tools)
-        session._register_commands(commands)
-        session._register_permission_handler(on_permission_request)
-        if on_user_input_request:
-            session._register_user_input_handler(on_user_input_request)
-        if on_elicitation_request:
-            session._register_elicitation_handler(on_elicitation_request)
-        if on_exit_plan_mode_request:
-            session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
-        if on_auto_mode_switch_request:
-            session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
-        if canvas_handler is not None:
-            session._register_canvas_handler(canvas_handler)
-        if hooks:
-            session._register_hooks(hooks)
-        if transform_callbacks:
-            session._register_transform_callbacks(transform_callbacks)
-        if on_event:
-            session.on(on_event)
-        with self._sessions_lock:
-            self._sessions[actual_session_id] = session
-        log_timing(
-            logger,
-            logging.DEBUG,
-            "CopilotClient.create_session local setup complete",
-            setup_start,
-            session_id=actual_session_id,
-            tools_count=len(tools or []),
-            commands_count=len(commands or []),
-            has_hooks=hooks is not None,
-        )
+                fs_provider: SessionFsProvider = create_session_fs_handler(s)
+                caps = self._session_fs_config.get("capabilities")
+                if caps and caps.get("sqlite"):
+                    from .session_fs_provider import SessionFsSqliteProvider
+
+                    if not isinstance(fs_provider, SessionFsSqliteProvider):
+                        raise ValueError(
+                            "SessionFs capabilities declare SQLite support but the provider "
+                            "does not implement SessionFsSqliteProvider"
+                        )
+                s._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+            s._register_tools(tools)
+            s._register_commands(commands)
+            s._register_permission_handler(on_permission_request)
+            if on_user_input_request:
+                s._register_user_input_handler(on_user_input_request)
+            if on_elicitation_request:
+                s._register_elicitation_handler(on_elicitation_request)
+            if on_exit_plan_mode_request:
+                s._register_exit_plan_mode_handler(on_exit_plan_mode_request)
+            if on_auto_mode_switch_request:
+                s._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+            if canvas_handler is not None:
+                s._register_canvas_handler(canvas_handler)
+            if hooks:
+                s._register_hooks(hooks)
+            if transform_callbacks:
+                s._register_transform_callbacks(transform_callbacks)
+            if on_event:
+                s.on(on_event)
+            with self._sessions_lock:
+                self._sessions[sid] = s
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotClient.create_session local setup complete",
+                setup_start,
+                session_id=sid,
+                tools_count=len(tools or []),
+                commands_count=len(commands or []),
+                has_hooks=hooks is not None,
+            )
+            return s
+
+        session: CopilotSession | None = None
+        registered_session_id: str | None = None
+
+        # Pre-register non-cloud sessions BEFORE issuing the RPC so any
+        # session-scoped requests the CLI emits during session.create
+        # processing (e.g. sessionFs.writeFile for workspace metadata) can be
+        # routed to the correct handlers.
+        if local_session_id is not None:
+            session = _initialize_session(local_session_id)
+            registered_session_id = local_session_id
 
         try:
             rpc_start = time.perf_counter()
-            response = await self._client.request("session.create", payload)
+
+            # For the server-assigned (cloud) path, register the session
+            # synchronously from the reader thread the instant the response
+            # arrives, before the next message can be dispatched. The
+            # awaiter's continuation otherwise runs after the event loop has
+            # already processed the first session.event notification, which
+            # would silently drop because the session id isn't yet
+            # registered. Non-cloud sessions are already registered above.
+            def _register_inline(raw_response: Any) -> None:
+                nonlocal session, registered_session_id
+                if session is not None:
+                    return
+                if not isinstance(raw_response, dict):
+                    return
+                sid = raw_response.get("sessionId")
+                if isinstance(sid, str) and sid:
+                    session = _initialize_session(sid)
+                    registered_session_id = sid
+
+            response = await self._client.request(
+                "session.create", payload, on_response_inline=_register_inline
+            )
             log_timing(
                 logger,
                 logging.DEBUG,
                 "CopilotClient.create_session session creation request completed successfully",
                 rpc_start,
-                session_id=actual_session_id,
+                session_id=registered_session_id,
             )
+            if session is None:
+                raise RuntimeError("session.create response did not include a sessionId")
+            if local_session_id is not None and response.get("sessionId") != local_session_id:
+                raise RuntimeError(
+                    f"session.create returned sessionId {response.get('sessionId')} "
+                    f"but the caller requested {local_session_id}"
+                )
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
         except BaseException as exc:
-            with self._sessions_lock:
-                self._sessions.pop(actual_session_id, None)
+            if registered_session_id is not None:
+                with self._sessions_lock:
+                    self._sessions.pop(registered_session_id, None)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -1928,7 +1986,7 @@ class CopilotClient:
                     "CopilotClient.create_session failed",
                     total_start,
                     exc_info=True,
-                    session_id=actual_session_id,
+                    session_id=registered_session_id,
                 )
             raise
 
@@ -1946,7 +2004,7 @@ class CopilotClient:
             logging.DEBUG,
             "CopilotClient.create_session complete",
             total_start,
-            session_id=actual_session_id,
+            session_id=registered_session_id,
         )
         return session
 
