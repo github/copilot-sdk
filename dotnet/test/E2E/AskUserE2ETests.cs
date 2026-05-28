@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class AskUserE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "ask_user", output)
 {
@@ -93,12 +93,10 @@ public class AskUserE2ETests(E2ETestFixture fixture, ITestOutputHelper output) :
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        var response = await session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Ask me a question using ask_user and then include my answer in your response. The question should be 'What is your favorite color?'"
-        });
-
-        var response = await TestHelper.GetFinalAssistantMessageAsync(session);
+        }, TimeSpan.FromSeconds(120));
 
         // Should have received a request
         Assert.NotEmpty(userInputRequests);

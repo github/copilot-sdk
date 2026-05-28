@@ -19,8 +19,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 
 	t.Run("should list available custom agents", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -74,8 +73,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 
 	t.Run("should return null when no agent is selected", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -114,8 +112,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 
 	t.Run("should select and get current agent", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -169,8 +166,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 
 	t.Run("should deselect current agent", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -220,8 +216,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 
 	t.Run("should return no custom agents when none configured", func(t *testing.T) {
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 
@@ -264,8 +259,7 @@ func TestAgentSelectionRpcE2E(t *testing.T) {
 		}
 
 		client := copilot.NewClient(&copilot.ClientOptions{
-			CLIPath:  cliPath,
-			UseStdio: copilot.Bool(true),
+			Connection: copilot.StdioConnection{Path: cliPath},
 		})
 		t.Cleanup(func() { client.ForceStop() })
 

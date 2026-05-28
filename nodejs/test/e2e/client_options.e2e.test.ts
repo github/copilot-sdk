@@ -6,7 +6,7 @@ import * as fs from "fs";
 import * as net from "net";
 import * as path from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { approveAll, CopilotClient } from "../../src/index.js";
+import { approveAll, CopilotClient, RuntimeConnection } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const FAKE_STDIO_CLI_SCRIPT = `const fs = require("fs");
@@ -140,12 +140,11 @@ function assertArgumentValue(
 describe("Client options", async () => {
     const { copilotClient: defaultClient, env, workDir } = await createSdkTestContext();
 
-    it("autostart false requires explicit start", async () => {
+    it("createSession starts the client lazily", async () => {
         const client = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
-            autoStart: false,
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
         });
         onTestFinished(async () => {
             try {
@@ -154,15 +153,6 @@ describe("Client options", async () => {
                 // Ignore cleanup errors
             }
         });
-
-        expect(client.getState()).toBe("disconnected");
-
-        await expect(client.createSession({ onPermissionRequest: approveAll })).rejects.toThrow(
-            /start/i
-        );
-
-        await client.start();
-        expect(client.getState()).toBe("connected");
 
         const session = await client.createSession({ onPermissionRequest: approveAll });
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
@@ -173,11 +163,12 @@ describe("Client options", async () => {
     it("should listen on configured tcp port", async () => {
         const port = await getAvailableTcpPort();
         const client = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
-            useStdio: false,
-            port,
+            connection: RuntimeConnection.forTcp({
+                path: process.env.COPILOT_CLI_PATH,
+                port,
+            }),
         });
         onTestFinished(async () => {
             try {
@@ -189,8 +180,7 @@ describe("Client options", async () => {
 
         await client.start();
 
-        expect(client.getState()).toBe("connected");
-        expect((client as unknown as { actualPort: number }).actualPort).toBe(port);
+        expect((client as unknown as { runtimePort: number }).runtimePort).toBe(port);
 
         const response = await client.ping("fixed-port");
         expect(response.message).toBe("pong: fixed-port");
@@ -206,9 +196,9 @@ describe("Client options", async () => {
         // a custom cwd to assert that the custom cwd is honored.
         void defaultClient;
         const client = new CopilotClient({
-            cwd: clientCwd,
+            workingDirectory: clientCwd,
             env,
-            cliPath: process.env.COPILOT_CLI_PATH,
+            connection: RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH }),
             gitHubToken: process.env.CI ? "fake-token-for-e2e-tests" : undefined,
         });
         onTestFinished(async () => {
@@ -245,12 +235,13 @@ describe("Client options", async () => {
         fs.writeFileSync(cliPath, FAKE_STDIO_CLI_SCRIPT);
 
         const client = new CopilotClient({
-            cwd: workDir,
+            workingDirectory: workDir,
             env: { ...env, COPILOT_HOME: copilotHomeFromEnv },
-            autoStart: false,
-            cliPath,
-            cliArgs: ["--capture-file", capturePath],
-            copilotHome: copilotHomeFromOption,
+            connection: RuntimeConnection.forStdio({
+                path: cliPath,
+                args: ["--capture-file", capturePath],
+            }),
+            baseDirectory: copilotHomeFromOption,
             gitHubToken: "process-option-token",
             logLevel: "debug",
             sessionIdleTimeoutSeconds: 17,
@@ -321,19 +312,19 @@ describe("Client options", async () => {
         await session.disconnect();
     });
 
-    it("should throw when githubtoken used with cliurl", () => {
+    it("should throw when gitHubToken used with forUri", () => {
         expect(() => {
             new CopilotClient({
-                cliUrl: "localhost:8080",
+                connection: RuntimeConnection.forUri("localhost:8080"),
                 gitHubToken: "gho_test_token",
             });
         }).toThrow();
     });
 
-    it("should throw when useloggedinuser used with cliurl", () => {
+    it("should throw when useLoggedInUser used with forUri", () => {
         expect(() => {
             new CopilotClient({
-                cliUrl: "localhost:8080",
+                connection: RuntimeConnection.forUri("localhost:8080"),
                 useLoggedInUser: false,
             });
         }).toThrow();

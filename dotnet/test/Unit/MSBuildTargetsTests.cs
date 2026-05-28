@@ -7,7 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 /// <summary>
 /// Integration tests for the MSBuild targets shipped in

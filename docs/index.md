@@ -1,4 +1,4 @@
-# GitHub Copilot SDK documentation
+# Copilot SDK 
 
 Welcome to the GitHub Copilot SDK docs. Whether you're building your first Copilot-powered app or deploying to production, you'll find what you need here.
 

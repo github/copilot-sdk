@@ -32,7 +32,7 @@ impl SessionHooks for AuditHooks {
                     "[audit] session {} started (source={}, cwd={})",
                     ctx.session_id,
                     input.source,
-                    input.cwd.display(),
+                    input.working_directory.display(),
                 );
                 HookOutput::SessionStart(SessionStartOutput {
                     additional_context: Some("You are being audited. Be concise.".to_string()),
@@ -103,7 +103,7 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
 
     // hooks: true is set automatically when a hooks handler is provided.
     let config = SessionConfig::default()
-        .with_handler(Arc::new(ApproveAllHandler))
+        .with_permission_handler(Arc::new(ApproveAllHandler))
         .with_hooks(Arc::new(AuditHooks));
     let session = client.create_session(config).await?;
 
@@ -128,6 +128,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         println!("\n{text}");
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

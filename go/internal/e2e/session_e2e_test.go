@@ -33,7 +33,7 @@ func TestSessionE2E(t *testing.T) {
 			t.Errorf("Expected session ID to match UUID pattern, got %q", session.SessionID)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -55,9 +55,9 @@ func TestSessionE2E(t *testing.T) {
 			t.Fatalf("Failed to disconnect session: %v", err)
 		}
 
-		_, err = session.GetMessages(t.Context())
+		_, err = session.GetEvents(t.Context())
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Errorf("Expected GetMessages to fail with 'not found' after disconnect, got %v", err)
+			t.Errorf("Expected GetEvents to fail with 'not found' after disconnect, got %v", err)
 		}
 	})
 
@@ -209,20 +209,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
-		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Who are you?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Who are you?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
 		// Validate the system message sent to the model
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
+		traffic := ctx.WaitForExchanges(t, 1)
 		systemMessage := getSystemMessage(traffic[0])
 		if !strings.Contains(systemMessage, customTone) {
 			t.Errorf("Expected system message to contain custom tone, got %q", systemMessage)
@@ -245,26 +240,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		// Validate that only the specified tools are present
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
-
+		traffic := ctx.WaitForExchanges(t, 1)
 		toolNames := getToolNames(traffic[0])
 		if len(toolNames) != 2 {
 			t.Errorf("Expected exactly 2 tools, got %d: %v", len(toolNames), toolNames)
@@ -284,26 +268,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		// Validate that excluded tool is not present but others are
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
-
+		traffic := ctx.WaitForExchanges(t, 1)
 		toolNames := getToolNames(traffic[0])
 		if contains(toolNames, "view") {
 			t.Errorf("Expected 'view' to be excluded, got %v", toolNames)
@@ -338,26 +311,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
 		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "What is 1+1?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		_, err = testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get assistant message: %v", err)
-		}
-
 		// The real assertion: verify the runtime excluded the tool from the CAPI request
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
-
+		traffic := ctx.WaitForExchanges(t, 1)
 		toolNames := getToolNames(traffic[0])
 		if contains(toolNames, "secret_tool") {
 			t.Errorf("Expected 'secret_tool' to be excluded from default agent, got %v", toolNames)
@@ -525,7 +487,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// When resuming with a new client, we check messages contain expected types
-		messages, err := session2.GetMessages(t.Context())
+		messages, err := session2.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -660,7 +622,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// The session should still be alive and usable after abort
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages after abort: %v", err)
 		}
@@ -781,7 +743,7 @@ func TestSessionE2E(t *testing.T) {
 		}
 
 		// Verify the assistant response contains the expected answer.
-		// session.idle is ephemeral and not in GetMessages(), but we already
+		// session.idle is ephemeral and not in GetEvents(), but we already
 		// confirmed idle via the live event handler above.
 		assistantMessage, err := testharness.GetFinalAssistantMessage(t.Context(), session, true)
 		if err != nil {
@@ -882,10 +844,10 @@ func TestSessionE2E(t *testing.T) {
 			if sessionData.SessionID == "" {
 				t.Error("Expected sessionId to be non-empty")
 			}
-			if sessionData.StartTime == "" {
+			if sessionData.StartTime.IsZero() {
 				t.Error("Expected startTime to be non-empty")
 			}
-			if sessionData.ModifiedTime == "" {
+			if sessionData.ModifiedTime.IsZero() {
 				t.Error("Expected modifiedTime to be non-empty")
 			}
 			// isRemote is a boolean, so it's always set
@@ -894,8 +856,8 @@ func TestSessionE2E(t *testing.T) {
 		// Verify context field is present on sessions
 		for _, s := range sessions {
 			if s.Context != nil {
-				if s.Context.Cwd == "" {
-					t.Error("Expected context.Cwd to be non-empty when context is present")
+				if s.Context.WorkingDirectory == "" {
+					t.Error("Expected context.WorkingDirectory to be non-empty when context is present")
 				}
 			}
 		}
@@ -989,24 +951,25 @@ func TestSessionE2E(t *testing.T) {
 
 		if metadata == nil {
 			t.Fatal("Expected metadata to be non-nil")
+			return
 		}
 
 		if metadata.SessionID != session.SessionID {
 			t.Errorf("Expected sessionId %s, got %s", session.SessionID, metadata.SessionID)
 		}
 
-		if metadata.StartTime == "" {
+		if metadata.StartTime.IsZero() {
 			t.Error("Expected startTime to be non-empty")
 		}
 
-		if metadata.ModifiedTime == "" {
+		if metadata.ModifiedTime.IsZero() {
 			t.Error("Expected modifiedTime to be non-empty")
 		}
 
 		// Verify context field
 		if metadata.Context != nil {
-			if metadata.Context.Cwd == "" {
-				t.Error("Expected context.Cwd to be non-empty when context is present")
+			if metadata.Context.WorkingDirectory == "" {
+				t.Error("Expected context.WorkingDirectory to be non-empty when context is present")
 			}
 		}
 
@@ -1043,6 +1006,7 @@ func TestSessionE2E(t *testing.T) {
 
 		if lastSessionID == nil {
 			t.Fatal("Expected last session ID to be non-nil")
+			return
 		}
 
 		if *lastSessionID != session.SessionID {
@@ -1293,7 +1257,7 @@ func getEventMessage(evt copilot.SessionEvent) string {
 
 // TestSessionAttachments mirrors the C# Should_Send_With_*_Attachment tests in SessionTests.cs.
 // Each subtest exercises a different UserMessageAttachment shape end-to-end through SendAndWait
-// and verifies the resulting user.message event captured by GetMessages.
+// and verifies the resulting user.message event captured by GetEvents.
 func TestSessionAttachmentsE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	client := ctx.NewClient()
@@ -1455,7 +1419,7 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 			t.Fatalf("CreateSession failed: %v", err)
 		}
 
-		number := float64(1234)
+		number := int64(1234)
 		referenceType := copilot.UserMessageAttachmentGithubReferenceTypeIssue
 		state := "open"
 		title := "Add E2E attachment coverage"
@@ -1499,9 +1463,9 @@ func TestSessionAttachmentsE2E(t *testing.T) {
 // lastUserAttachment returns the single attachment from the most recent user.message event.
 func lastUserAttachment(t *testing.T, session *copilot.Session) copilot.Attachment {
 	t.Helper()
-	messages, err := session.GetMessages(t.Context())
+	messages, err := session.GetEvents(t.Context())
 	if err != nil {
-		t.Fatalf("GetMessages failed: %v", err)
+		t.Fatalf("GetEvents failed: %v", err)
 	}
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Type() != copilot.SessionEventTypeUserMessage {
@@ -1541,16 +1505,16 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		}
 
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Say mode ok.",
-			Mode:   "plan",
+			Prompt:    "Say mode ok.",
+			AgentMode: copilot.AgentModePlan,
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
-			t.Fatalf("GetMessages failed: %v", err)
+			t.Fatalf("GetEvents failed: %v", err)
 		}
 		var userMsg *copilot.UserMessageData
 		for i := len(messages) - 1; i >= 0; i-- {
@@ -1561,14 +1525,13 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		}
 		if userMsg == nil {
 			t.Fatal("No user.message event found")
+			return
 		}
 		if userMsg.Content != "Say mode ok." {
 			t.Errorf("Expected Content 'Say mode ok.', got %q", userMsg.Content)
 		}
-		// The current runtime accepts the per-message mode option but does not
-		// echo it back on the user.message event.
-		if userMsg.AgentMode != nil {
-			t.Errorf("Expected AgentMode=nil, got %v", *userMsg.AgentMode)
+		if userMsg.AgentMode == nil || *userMsg.AgentMode != copilot.UserMessageAgentModePlan {
+			t.Errorf("Expected AgentMode=plan, got %v", userMsg.AgentMode)
 		}
 	})
 

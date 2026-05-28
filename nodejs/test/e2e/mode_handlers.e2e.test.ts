@@ -73,7 +73,7 @@ describe("Mode handlers", async () => {
         session = await client.createSession({
             gitHubToken: MODE_HANDLER_TOKEN,
             onPermissionRequest: approveAll,
-            onExitPlanMode: async (request, invocation): Promise<ExitPlanModeResult> => {
+            onExitPlanModeRequest: async (request, invocation): Promise<ExitPlanModeResult> => {
                 exitPlanModeRequests.push(request);
                 expect(invocation.sessionId).toBe(session?.sessionId);
 
@@ -104,7 +104,7 @@ describe("Mode handlers", async () => {
 
             const response = await session.sendAndWait({
                 prompt: PLAN_PROMPT,
-                mode: "plan" as unknown as NonNullable<Parameters<typeof session.send>[0]["mode"]>,
+                agentMode: "plan",
             });
 
             expect(exitPlanModeRequests).toHaveLength(1);
@@ -133,7 +133,7 @@ describe("Mode handlers", async () => {
         session = await client.createSession({
             gitHubToken: MODE_HANDLER_TOKEN,
             onPermissionRequest: approveAll,
-            onAutoModeSwitch: (request, invocation) => {
+            onAutoModeSwitchRequest: (request, invocation) => {
                 autoModeSwitchRequests.push(request);
                 expect(invocation.sessionId).toBe(session?.sessionId);
                 return "yes";

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -178,22 +177,19 @@ class TestEventFidelity:
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all
         )
-        pending_task: asyncio.Future = asyncio.get_event_loop().create_future()
-
-        def on_event(event):
-            if isinstance(event.data, PendingMessagesModifiedData) and not pending_task.done():
-                pending_task.set_result(event)
-
-        unsubscribe = session.on(on_event)
+        events = []
+        unsubscribe = session.on(events.append)
         try:
-            # Fire-and-forget to trigger pending_messages.modified; then wait for it
-            asyncio.ensure_future(session.send("What is 9+9? Reply with just the number."))
-            pending_event = await asyncio.wait_for(pending_task, timeout=60.0)
+            # send_and_wait collects everything in one round trip and matches the
+            # pattern of every other test in this file (and the Rust E2E equivalent),
+            # avoiding the split fire-and-forget + helper pattern that previously
+            # made this test prone to flakes.
+            answer = await session.send_and_wait("What is 9+9? Reply with just the number.")
+
+            pending_event = next(
+                (e for e in events if isinstance(e.data, PendingMessagesModifiedData)), None
+            )
             assert pending_event is not None
-
-            from .testharness.helper import get_final_assistant_message
-
-            answer = await get_final_assistant_message(session, timeout=60.0)
             assert answer is not None
             assert "18" in (answer.data.content or "")
         finally:
@@ -211,7 +207,7 @@ class TestEventFidelity:
         try:
             await session.send_and_wait("Read the file 'order.txt' and tell me what the number is.")
 
-            messages = await session.get_messages()
+            messages = await session.get_events()
             types = [m.type.value for m in messages]
 
             # Verify complete event ordering contract:

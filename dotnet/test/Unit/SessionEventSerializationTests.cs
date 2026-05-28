@@ -5,7 +5,7 @@
 using System.Text.Json;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 public class SessionEventSerializationTests
 {
@@ -66,7 +66,7 @@ public class SessionEventSerializationTests
                         Content = "ok",
                         DetailedContent = "ok",
                     },
-                    ToolTelemetry = new Dictionary<string, object>
+                    ToolTelemetry = new Dictionary<string, JsonElement>
                     {
                         ["properties"] = ParseJsonElement("""{"command":"view"}"""),
                         ["metrics"] = ParseJsonElement("""{"resultLength":2}"""),
@@ -84,8 +84,7 @@ public class SessionEventSerializationTests
                 Data = new SessionShutdownData
                 {
                     ShutdownType = ShutdownType.Routine,
-                    TotalPremiumRequests = 1,
-                    TotalApiDurationMs = TimeSpan.FromMilliseconds(100),
+                    TotalApiDuration = TimeSpan.FromMilliseconds(100),
                     SessionStartTime = 1773609948932,
                     CodeChanges = new ShutdownCodeChanges
                     {

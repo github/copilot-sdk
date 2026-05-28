@@ -77,7 +77,7 @@ client := copilot.NewClient(nil)
 <summary><strong>.NET</strong></summary>
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 // Default: uses logged-in user credentials
 await using var client = new CopilotClient();
@@ -89,7 +89,7 @@ await using var client = new CopilotClient();
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.CopilotClient;
 
 // Default: uses logged-in user credentials
 var client = new CopilotClient();
@@ -179,23 +179,23 @@ client := copilot.NewClient(&copilot.ClientOptions{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var userAccessToken = "token";
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,
+    GitHubToken = userAccessToken,
     UseLoggedInUser = false,
 });
 ```
 <!-- /docs-validate: hidden -->
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient(new CopilotClientOptions
 {
-    GithubToken = userAccessToken,     // Token from OAuth flow
+    GitHubToken = userAccessToken,     // Token from OAuth flow
     UseLoggedInUser = false,           // Don't use stored CLI credentials
 });
 ```
@@ -205,9 +205,10 @@ await using var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setGitHubToken(userAccessToken)  // Token from OAuth flow
@@ -384,8 +385,8 @@ await using var client = new CopilotClient(new CopilotClientOptions
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setUseLoggedInUser(false)  // Only use explicit tokens

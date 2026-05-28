@@ -1,12 +1,12 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "mode_handlers", output)
@@ -28,7 +28,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnExitPlanMode = (request, invocation) =>
+            OnExitPlanModeRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(new ExitPlanModeResult
@@ -53,7 +53,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var response = await session.SendAndWaitAsync(new MessageOptions
         {
-            Mode = "plan",
+            AgentMode = AgentMode.Plan,
             Prompt = "Create a brief implementation plan for adding a greeting.txt file, then request approval with exit_plan_mode.",
         }, timeout: TimeSpan.FromSeconds(120));
 
@@ -96,16 +96,17 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         {
             GitHubToken = Token,
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            OnAutoModeSwitch = (request, invocation) =>
+            OnAutoModeSwitchRequest = (request, invocation) =>
             {
                 handlerTask.TrySetResult((request, invocation));
                 return Task.FromResult(AutoModeSwitchResponse.Yes);
             },
         });
 
+        const long expectedRetryAfter = 1;
         var requestedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchRequestedEvent>(
             session,
-            evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == 1,
+            evt => evt.Data.ErrorCode == "user_weekly_rate_limited" && evt.Data.RetryAfterSeconds == expectedRetryAfter,
             TimeSpan.FromSeconds(30),
             timeoutDescription: "auto_mode_switch.requested event");
         var completedEventTask = GetNextEventOfTypeAllowingRateLimitAsync<AutoModeSwitchCompletedEvent>(
@@ -137,7 +138,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
 
         var requestedEvent = await requestedEventTask;
         Assert.Equal(request.ErrorCode, requestedEvent.Data.ErrorCode);
-        Assert.Equal(request.RetryAfterSeconds, requestedEvent.Data.RetryAfterSeconds);
+        Assert.Equal(expectedRetryAfter, requestedEvent.Data.RetryAfterSeconds);
 
         var completedEvent = await completedEventTask;
         Assert.Equal(AutoModeSwitchResponse.Yes, completedEvent.Data.Response);
@@ -175,7 +176,7 @@ public class ModeHandlersE2ETests(E2ETestFixture fixture, ITestOutputHelper outp
         var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cts = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(30));
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             if (evt is T matched && predicate(matched))
             {

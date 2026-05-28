@@ -7,7 +7,7 @@ SDK for programmatic control of GitHub Copilot CLI.
 ## Installation
 
 ```bash
-dotnet add package GitHub.Copilot.SDK
+dotnet add package GitHub.Copilot
 ```
 
 ## Run the Samples
@@ -27,7 +27,7 @@ dotnet run --file dotnet/samples/ManualToolResume.cs
 ## Quick Start
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 // Create and start client
 await using var client = new CopilotClient();
@@ -43,7 +43,7 @@ await using var session = await client.CreateSessionAsync(new SessionConfig
 // Wait for the response using the session.idle event
 var done = new TaskCompletionSource();
 
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     if (evt is AssistantMessageEvent msg)
     {
@@ -72,20 +72,24 @@ new CopilotClient(CopilotClientOptions? options = null)
 
 **Options:**
 
-- `CliPath` - Path to CLI executable (default: `COPILOT_CLI_PATH` env var, or bundled CLI)
-- `CliArgs` - Extra arguments prepended before SDK-managed flags
-- `CliUrl` - URL of existing CLI server to connect to (e.g., `"localhost:8080"`). When provided, the client will not spawn a CLI process.
-- `Port` - Server port (default: 0 for random)
-- `UseStdio` - Use stdio transport instead of TCP (default: true)
-- `LogLevel` - Log level (default: "info")
-- `AutoStart` - Auto-start server (default: true)
-- `Cwd` - Working directory for the CLI process
-- `CopilotHome` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned CLI process. When not set, the CLI defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when using `CliUrl`.
-- `Environment` - Environment variables to pass to the CLI process
-- `Logger` - `ILogger` instance for SDK logging
+- `Connection` - How to connect to the Copilot runtime. Defaults to `null` (equivalent to `RuntimeConnection.ForStdio()` with the bundled runtime). See "RuntimeConnection" below.
+- `LogLevel` - Runtime log level. Accepts well-known values `CopilotLogLevel.None`, `Error`, `Warning`, `Info`, `Debug`, `All`. Defaults to null (the runtime's own default).
+- `WorkingDirectory` - Working directory for the runtime process.
+- `BaseDirectory` - Base directory for Copilot data (session state, config, etc.). Sets `COPILOT_HOME` on the spawned runtime process. When not set, the runtime defaults to `~/.copilot`. Useful in restricted environments where only specific directories are writable. Ignored when connecting via `RuntimeConnection.ForUri(...)`.
+- `EnableRemoteSessions` - Enables remote-session features.
+- `Environment` - Environment variables to pass to the runtime process.
+- `Logger` - `ILogger` instance for SDK logging.
 - `GitHubToken` - GitHub token for authentication. When provided, takes priority over other auth methods.
-- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `CliUrl`.
-- `Telemetry` - OpenTelemetry configuration for the CLI process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+- `UseLoggedInUser` - Whether to use logged-in user for authentication (default: true, but false when `GitHubToken` is provided). Cannot be used with `RuntimeConnection.ForUri(...)`.
+- `Telemetry` - OpenTelemetry configuration for the runtime process. Providing this enables telemetry — no separate flag needed. See [Telemetry](#telemetry) below.
+
+#### RuntimeConnection
+
+`CopilotClientOptions.Connection` describes how the SDK reaches a Copilot runtime. There are three flavors, all constructed via static factories:
+
+- `RuntimeConnection.ForStdio(path?, args?)` — spawns the runtime as a child process and communicates over stdio. This is the default when `Connection` is null.
+- `RuntimeConnection.ForTcp(port = 0, connectionToken?, path?, args?)` — spawns the runtime as a child process listening on a TCP port. `port = 0` auto-allocates; if a non-zero port is already in use, startup fails (no fallback). Use `CopilotClient.RuntimePort` after `StartAsync` to read the assigned port. `connectionToken` is required if other clients will connect via `RuntimeConnection.ForUri(...)`.
+- `RuntimeConnection.ForUri(url, connectionToken?)` — connects to an already-running runtime at `url` (e.g., `"localhost:8080"`). Does not spawn a process.
 
 #### Methods
 
@@ -153,23 +157,19 @@ Get the ID of the session currently displayed in the TUI. Only available when co
 
 Request the TUI to switch to displaying the specified session. Only available in TUI+server mode.
 
-##### `On(Action<SessionLifecycleEvent> handler): IDisposable`
+##### `OnLifecycle<T>(Action<T> handler): IDisposable where T : SessionLifecycleEvent`
 
-Subscribe to all session lifecycle events. Returns an `IDisposable` that unsubscribes when disposed.
+Subscribe to session lifecycle events. Pass a derived type to filter by kind, or `SessionLifecycleEvent` to receive every lifecycle event. Returns an `IDisposable` that unsubscribes when disposed.
 
 ```csharp
-using var subscription = client.On(evt =>
+// Receive every lifecycle event:
+using var subscription = client.OnLifecycle<SessionLifecycleEvent>(evt =>
 {
     Console.WriteLine($"Session {evt.SessionId}: {evt.Type}");
 });
-```
 
-##### `On(string eventType, Action<SessionLifecycleEvent> handler): IDisposable`
-
-Subscribe to a specific lifecycle event type. Use `SessionLifecycleEventTypes` constants.
-
-```csharp
-using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
+// Only receive foreground events:
+using var foreground = client.OnLifecycle<SessionForegroundEvent>(evt =>
 {
     Console.WriteLine($"Session {evt.SessionId} is now in foreground");
 });
@@ -177,11 +177,11 @@ using var subscription = client.On(SessionLifecycleEventTypes.Foreground, evt =>
 
 **Lifecycle Event Types:**
 
-- `SessionLifecycleEventTypes.Created` - A new session was created
-- `SessionLifecycleEventTypes.Deleted` - A session was deleted
-- `SessionLifecycleEventTypes.Updated` - A session was updated
-- `SessionLifecycleEventTypes.Foreground` - A session became the foreground session in TUI
-- `SessionLifecycleEventTypes.Background` - A session is no longer the foreground session
+- `SessionCreatedEvent` — A new session was created
+- `SessionDeletedEvent` — A session was deleted
+- `SessionUpdatedEvent` — A session was updated
+- `SessionForegroundEvent` — A session became the foreground session in TUI
+- `SessionBackgroundEvent` — A session is no longer the foreground session
 
 ---
 
@@ -208,12 +208,12 @@ Send a message to the session.
 
 Returns the message ID.
 
-##### `On(SessionEventHandler handler): IDisposable`
+##### `On(Action<SessionEvent> handler): IDisposable`
 
 Subscribe to session events. Returns a disposable to unsubscribe.
 
 ```csharp
-var subscription = session.On(evt =>
+var subscription = session.On<SessionEvent>(evt =>
 {
     Console.WriteLine($"Event: {evt.Type}");
 });
@@ -226,7 +226,7 @@ subscription.Dispose();
 
 Abort the currently processing message in this session.
 
-##### `GetMessagesAsync(): Task<IReadOnlyList<SessionEvent>>`
+##### `GetEventsAsync(): Task<IReadOnlyList<SessionEvent>>`
 
 Get all events/messages from this session.
 
@@ -262,7 +262,7 @@ Sessions emit various events during processing. Each event type is a class that 
 Use pattern matching to handle specific event types:
 
 ```csharp
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     switch (evt)
     {
@@ -330,7 +330,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 // Use TaskCompletionSource to wait for completion
 var done = new TaskCompletionSource();
 
-session.On(evt =>
+session.On<SessionEvent>(evt =>
 {
     switch (evt)
     {
@@ -558,7 +558,7 @@ if (session.Capabilities.Ui?.Elicitation == true)
         ["production", "staging", "dev"]);
 
     // Text input — returns string or null
-    string? name = await session.Ui.InputAsync("Project name:", new InputOptions
+    string? name = await session.Ui.InputAsync("Project name:", new UiInputOptions
     {
         Title = "Name",
         MinLength = 1,
@@ -566,7 +566,7 @@ if (session.Capabilities.Ui?.Elicitation == true)
     });
 
     // Generic elicitation with full schema control
-    ElicitationResult result = await session.Ui.ElicitationAsync(new ElicitationParams
+    ElicitationResult result = await session.Ui.ElicitAsync(new ElicitationParams
     {
         Message = "Configure deployment",
         RequestedSchema = new ElicitationSchema
@@ -627,18 +627,18 @@ var session = await client.CreateSessionAsync(new SessionConfig
     SystemMessage = new SystemMessageConfig
     {
         Mode = SystemMessageMode.Customize,
-        Sections = new Dictionary<string, SectionOverride>
+        Sections = new Dictionary<SystemMessageSection, SectionOverride>
         {
-            [SystemPromptSections.Tone] = new() { Action = SectionOverrideAction.Replace, Content = "Respond in a warm, professional tone. Be thorough in explanations." },
-            [SystemPromptSections.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
-            [SystemPromptSections.Guidelines] = new() { Action = SectionOverrideAction.Append, Content = "\n* Always cite data sources" },
+            [SystemMessageSection.Tone] = new() { Action = SectionOverrideAction.Replace, Content = "Respond in a warm, professional tone. Be thorough in explanations." },
+            [SystemMessageSection.CodeChangeRules] = new() { Action = SectionOverrideAction.Remove },
+            [SystemMessageSection.Guidelines] = new() { Action = SectionOverrideAction.Append, Content = "\n* Always cite data sources" },
         },
         Content = "Focus on financial analysis and reporting."
     }
 });
 ```
 
-Available section IDs are defined as constants on `SystemPromptSections`: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `LastInstructions`.
+Available section IDs are defined as static properties on the `SystemMessageSection` struct: `Identity`, `Tone`, `ToolEfficiency`, `EnvironmentContext`, `CodeChangeRules`, `Guidelines`, `Safety`, `ToolInstructions`, `CustomInstructions`, `RuntimeInstructions`, `LastInstructions`.
 
 Each section override supports four actions: `Replace`, `Remove`, `Append`, and `Prepend`. Unknown section IDs are handled gracefully: content is appended to additional instructions, and `Remove` overrides are silently ignored.
 
@@ -738,7 +738,7 @@ An `OnPermissionRequest` handler is optional when you create or resume a session
 Use the built-in `PermissionHandler.ApproveAll` helper to allow every tool call without any checks:
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 var session = await client.CreateSessionAsync(new SessionConfig
 {
@@ -749,7 +749,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Custom Permission Handler
 
-Provide your own `PermissionRequestHandler` delegate to inspect each request and apply custom logic:
+Provide your own permission handler (`Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>`) to inspect each request and apply custom logic:
 
 ```csharp
 var session = await client.CreateSessionAsync(new SessionConfig
@@ -757,43 +757,29 @@ var session = await client.CreateSessionAsync(new SessionConfig
     Model = "gpt-5",
     OnPermissionRequest = async (request, invocation) =>
     {
-        // request.Kind — string discriminator for the type of operation being requested:
-        //   "shell"       — executing a shell command
-        //   "write"       — writing or editing a file
-        //   "read"        — reading a file
-        //   "mcp"         — calling an MCP tool
-        //   "custom_tool" — calling one of your registered tools
-        //   "url"         — fetching a URL
-        //   "memory"      — accessing or modifying assistant memory
-        //   "hook"        — invoking a registered hook
-        // request.ToolCallId      — the tool call that triggered this request
-        // request.ToolName        — name of the tool (for custom-tool / mcp)
-        // request.FileName        — file being written (for write)
-        // request.FullCommandText — full shell command text (for shell)
-
-        if (request.Kind == "shell")
+        // Pattern-match on the discriminated PermissionRequest union to access
+        // per-kind fields (FullCommandText, Path, ToolName, …).
+        return request switch
         {
-            // Deny shell commands
-            return new PermissionRequestResult { Kind = PermissionRequestResultKind.Rejected };
-        }
-
-        return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+            PermissionRequestShell s => PermissionDecision.Reject($"Refusing shell: {s.FullCommandText}"),
+            _ => PermissionDecision.ApproveOnce(),
+        };
     }
 });
 ```
 
-### Permission Result Kinds
+### Permission Decisions
 
-The `Kind` property must be one of the canonical `PermissionRequestResultKind` values. Approval decisions are present-tense — they describe the decision to apply, not the past-tense outcome reported back on `permission.completed` session events.
+The handler returns a `PermissionDecision`. Use the static factories for common cases (returned types are the strongly-typed variant classes — full IntelliSense via `PermissionDecision.<dot>`):
 
-| Value                                       | Wire value             | Meaning                                                                                                                                                |
-| ------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `PermissionRequestResultKind.Approved`      | `"approve-once"`       | Allow this single request                                                                                                                              |
-| `PermissionRequestResultKind.Rejected`      | `"reject"`             | Deny the request                                                                                                                                       |
-| `PermissionRequestResultKind.UserNotAvailable` | `"user-not-available"` | Deny the request because no user is available to confirm it                                                                                            |
-| `PermissionRequestResultKind.NoResult`      | `"no-result"`          | Leave the permission request unanswered (the SDK returns without calling the RPC). Not allowed for protocol v2 permission requests (will be rejected). |
+| Factory                                | Meaning                                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `PermissionDecision.ApproveOnce()`     | Allow this single request                                                                    |
+| `PermissionDecision.Reject(feedback)`  | Deny the request, optionally forwarding feedback to the LLM                                  |
+| `PermissionDecision.UserNotAvailable()`| Deny the request because no user is available to confirm it                                  |
+| `PermissionDecision.NoResult()`        | Decline to respond, allowing another connected client to answer instead                      |
 
-> The past-tense names `PermissionRequestResultKind.DeniedInteractivelyByUser`, `PermissionRequestResultKind.DeniedCouldNotRequestFromUser`, and `PermissionRequestResultKind.DeniedByRules` remain as `[Obsolete]` aliases for backward compatibility — prefer the canonical members above in new code.
+For richer decisions that need an `Approval` payload — `PermissionDecisionApproveForSession`, `PermissionDecisionApproveForLocation`, `PermissionDecisionApprovePermanently` — instantiate the variant class directly.
 
 ### Resuming Sessions
 
@@ -873,6 +859,19 @@ var session = await client.CreateSessionAsync(new SessionConfig
             };
         },
 
+        // Called when a tool execution result was a failure. OnPostToolUse only
+        // fires on success, so register OnPostToolUseFailure to observe failed
+        // tool calls. The CLI extracts the failure message and passes it as
+        // input.Error.
+        OnPostToolUseFailure = async (input, invocation) =>
+        {
+            Console.WriteLine($"Tool {input.ToolName} failed: {input.Error}");
+            return new PostToolUseFailureHookOutput
+            {
+                AdditionalContext = $"Retry guidance for {input.ToolName}"
+            };
+        },
+
         // Called when user submits a prompt
         OnUserPromptSubmitted = async (input, invocation) =>
         {
@@ -916,7 +915,8 @@ var session = await client.CreateSessionAsync(new SessionConfig
 **Available hooks:**
 
 - `OnPreToolUse` - Intercept tool calls before execution. Can allow/deny or modify arguments.
-- `OnPostToolUse` - Process tool results after execution. Can modify results or add context.
+- `OnPostToolUse` - Process tool results after successful execution. Can modify results or add context.
+- `OnPostToolUseFailure` - Observe failed tool executions and inject extra context to guide the model's next step.
 - `OnUserPromptSubmitted` - Intercept user prompts. Can modify the prompt before processing.
 - `OnSessionStart` - Run logic when a session starts or resumes.
 - `OnSessionEnd` - Cleanup or logging when session ends.
@@ -987,7 +987,7 @@ catch (Exception ex)
 ## Requirements
 
 - .NET 8.0 or later
-- GitHub Copilot CLI installed and in PATH (or provide custom `CliPath`)
+- GitHub Copilot CLI installed and in PATH (or provide custom `Connection = RuntimeConnection.ForStdio(path: ...)`)
 
 ## License
 

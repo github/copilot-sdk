@@ -3,11 +3,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System.Collections.Concurrent;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SubagentHooksE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "subagent_hooks", output)

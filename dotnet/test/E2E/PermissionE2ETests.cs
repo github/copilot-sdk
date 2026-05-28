@@ -2,14 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "permissions", output)
 {
@@ -43,20 +44,20 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     writePermissionRequestReceived.TrySetResult(writeRequest);
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "test.txt"), "original content");
 
-        await session.SendAsync(new MessageOptions
+        var sendTask = session.SendAndWaitAsync(new MessageOptions
         {
             Prompt = "Edit test.txt and replace 'original' with 'modified'"
         });
 
         var readRequest = await readPermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
         var writeRequest = await writePermissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
-        await TestHelper.GetFinalAssistantMessageAsync(session);
+        await sendTask;
 
         List<PermissionRequest> observedPermissionRequests;
         lock (permissionRequestsLock)
@@ -86,10 +87,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                return Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.Rejected
-                });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.Reject());
             }
         });
 
@@ -100,7 +98,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         // for the reject decision, which lets us assert the decision was honored
         // — not merely that the operation didn't happen.
         var userRejectedToolCall = false;
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
@@ -135,11 +133,11 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
         });
         var permissionDenied = false;
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
@@ -181,7 +179,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             {
                 permissionRequestReceived = true;
                 await Task.Yield();
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
@@ -212,7 +210,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (request, invocation) =>
             {
                 permissionRequestReceived = true;
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -228,24 +226,46 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task Should_Handle_Permission_Handler_Errors_Gracefully()
     {
+        var permissionRequestReceived =
+            new TaskCompletionSource<PermissionRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
         var session = await CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = (request, invocation) =>
             {
-                // Simulate an error in the handler
+                permissionRequestReceived.TrySetResult(request);
                 throw new InvalidOperationException("Handler error");
             }
         });
 
-        await session.SendAsync(new MessageOptions
+        try
         {
-            Prompt = "Run 'echo test'. If you can't, say 'failed'."
-        });
+            var exchanges = await SendAndWaitForExchangesAsync(
+                session,
+                new MessageOptions
+                {
+                    Prompt = "Run 'echo test'. If you can't, say 'failed'."
+                },
+                minimumCount: 2);
 
-        var message = await TestHelper.GetFinalAssistantMessageAsync(session);
+            var permissionRequest = await permissionRequestReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.IsType<PermissionRequestShell>(permissionRequest);
 
-        // Should handle the error and deny permission
-        Assert.Matches("fail|cannot|unable|permission", message?.Data.Content?.ToLowerInvariant() ?? string.Empty);
+            var toolResultMessage = exchanges
+                .SelectMany(exchange => exchange.Request.Messages)
+                .LastOrDefault(message =>
+                    message.Role == "tool" &&
+                    message.StringContent?.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) == true);
+
+            Assert.NotNull(toolResultMessage);
+            Assert.Contains(
+                "could not request permission",
+                toolResultMessage.StringContent ?? string.Empty,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await session.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -262,11 +282,11 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         var session2 = await Client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
         {
             OnPermissionRequest = (_, _) =>
-                Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.UserNotAvailable })
+                Task.FromResult<PermissionDecision>(PermissionDecision.UserNotAvailable())
         });
         var permissionDenied = false;
 
-        session2.On(evt =>
+        session2.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt &&
                 !toolEvt.Data.Success &&
@@ -297,7 +317,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 {
                     receivedToolCallId = true;
                 }
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             }
         });
 
@@ -340,11 +360,11 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 handlerEntered.TrySetResult();
                 await releaseHandler.Task.WaitAsync(TimeSpan.FromSeconds(30));
                 AddLifecycleEvent("permission-complete", shellRequest.ToolCallId);
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             switch (evt)
             {
@@ -438,11 +458,11 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
                 }
 
                 await bothPermissionRequestsStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
-                return new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved };
+                return PermissionDecision.ApproveOnce();
             }
         });
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt)
             {
@@ -515,7 +535,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (_, _) =>
             {
                 permissionCalled.TrySetResult(true);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.NoResult });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.NoResult());
             }
         });
 
@@ -541,7 +561,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
             OnPermissionRequest = (_, _) =>
             {
                 Interlocked.Increment(ref handlerCallCount);
-                return Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 
@@ -554,7 +574,7 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         try
         {
             var toolCompleted = new TaskCompletionSource<ToolExecutionCompleteEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using var subscription = session.On(evt =>
+            using var subscription = session.On<SessionEvent>(evt =>
             {
                 if (evt is ToolExecutionCompleteEvent done && done.Data.Success)
                 {
@@ -576,5 +596,178 @@ public partial class PermissionE2ETests(E2ETestFixture fixture, ITestOutputHelpe
         {
             await session.Rpc.Permissions.SetApproveAllAsync(false);
         }
+    }
+
+    [Fact]
+    public async Task Should_Configure_And_Update_Permission_Paths()
+    {
+        var session = await CreateSessionAsync();
+        var configuredAllowedDirectory = CreateUniqueWorkDirectory("configured-allowed");
+        var addedAllowedDirectory = CreateUniqueWorkDirectory("added-allowed");
+        var newPrimaryDirectory = CreateUniqueWorkDirectory("new-primary");
+
+        var configureResult = await session.Rpc.Permissions.ConfigureAsync(
+            approveAllToolPermissionRequests: false,
+            approveAllReadPermissionRequests: true,
+            rules: new PermissionRulesSet
+            {
+                Approved = [new PermissionRule { Kind = "read", Argument = null }],
+                Denied = [new PermissionRule { Kind = "write", Argument = null }],
+            },
+            paths: new PermissionPathsConfig
+            {
+                WorkspacePath = Ctx.WorkDir,
+                AdditionalDirectories = [configuredAllowedDirectory],
+                IncludeTempDirectory = false,
+                Unrestricted = false,
+            },
+            urls: new PermissionUrlsConfig
+            {
+                InitialAllowed = ["https://example.invalid/permissions-configure"],
+                Unrestricted = false,
+            });
+        Assert.True(configureResult.Success);
+
+        var configuredList = await session.Rpc.Permissions.Paths.ListAsync();
+        AssertPathEqual(Ctx.WorkDir, configuredList.Primary);
+        AssertContainsPath(configuredList.Directories, Ctx.WorkDir);
+        AssertContainsPath(configuredList.Directories, configuredAllowedDirectory);
+
+        var addResult = await session.Rpc.Permissions.Paths.AddAsync(addedAllowedDirectory);
+        Assert.True(addResult.Success);
+
+        var allowedCheck = await session.Rpc.Permissions.Paths.IsPathWithinAllowedDirectoriesAsync(
+            Path.Join(addedAllowedDirectory, "child.txt"));
+        Assert.True(allowedCheck.Allowed);
+
+        var updatePrimaryResult = await session.Rpc.Permissions.Paths.UpdatePrimaryAsync(newPrimaryDirectory);
+        Assert.True(updatePrimaryResult.Success);
+
+        var updatedList = await session.Rpc.Permissions.Paths.ListAsync();
+        AssertPathEqual(newPrimaryDirectory, updatedList.Primary);
+        AssertContainsPath(updatedList.Directories, newPrimaryDirectory);
+
+        var newPrimaryWorkspaceCheck = await session.Rpc.Permissions.Paths.IsPathWithinWorkspaceAsync(
+            Path.Join(newPrimaryDirectory, "child.txt"));
+        Assert.True(newPrimaryWorkspaceCheck.Allowed);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_Permission_State_Rpc_Apis()
+    {
+        var session = await CreateSessionAsync();
+
+        var pendingRequests = await session.Rpc.Permissions.PendingRequestsAsync();
+        Assert.Empty(pendingRequests.Items);
+
+        var setRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(true);
+        Assert.True(setRequiredResult.Success);
+
+        var clearRequiredResult = await session.Rpc.Permissions.SetRequiredAsync(false);
+        Assert.True(clearRequiredResult.Success);
+
+        var promptShownResult = await session.Rpc.Permissions.NotifyPromptShownAsync(
+            $"Permission prompt shown from {nameof(Should_Invoke_Permission_State_Rpc_Apis)}");
+        Assert.True(promptShownResult.Success);
+
+        var rule = new PermissionRule
+        {
+            Kind = "commands",
+            Argument = $"dotnet-permission-e2e-{Guid.NewGuid():N}",
+        };
+
+        var addRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
+            PermissionsModifyRulesScope.Session,
+            add: [rule]);
+        Assert.True(addRuleResult.Success);
+
+        var removeRuleResult = await session.Rpc.Permissions.ModifyRulesAsync(
+            PermissionsModifyRulesScope.Session,
+            remove: [rule]);
+        Assert.True(removeRuleResult.Success);
+
+        var enableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(true);
+        Assert.True(enableUrlsResult.Success);
+
+        var disableUrlsResult = await session.Rpc.Permissions.Urls.SetUnrestrictedModeAsync(false);
+        Assert.True(disableUrlsResult.Success);
+    }
+
+    [Fact]
+    public async Task Should_Invoke_Permission_Location_And_FolderTrust_Rpc_Apis()
+    {
+        var session = await CreateSessionAsync();
+        var locationDirectory = CreateUniqueWorkDirectory("permission-location");
+        var trustedDirectory = CreateUniqueWorkDirectory("folder-trust");
+        var commandIdentifier = $"dotnet-permission-location-{Guid.NewGuid():N}";
+
+        var resolved = await session.Rpc.Permissions.Locations.ResolveAsync(locationDirectory);
+        Assert.Equal(PermissionLocationType.Dir, resolved.LocationType);
+        AssertPathEqual(locationDirectory, resolved.LocationKey);
+
+        var addToolApprovalResult = await session.Rpc.Permissions.Locations.AddToolApprovalAsync(
+            resolved.LocationKey,
+            new PermissionsLocationsAddToolApprovalDetailsCommands
+            {
+                CommandIdentifiers = [commandIdentifier],
+            });
+        Assert.True(addToolApprovalResult.Success);
+
+        var applied = await session.Rpc.Permissions.Locations.ApplyAsync(locationDirectory);
+        Assert.Equal(resolved.LocationType, applied.LocationType);
+        AssertPathEqual(resolved.LocationKey, applied.LocationKey);
+        Assert.True(applied.AppliedRuleCount >= 1);
+        Assert.Contains(applied.AppliedRules, rule =>
+            string.Equals(rule.Kind, "shell", StringComparison.Ordinal) &&
+            string.Equals(rule.Argument, commandIdentifier, StringComparison.Ordinal));
+
+        var initialTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
+        Assert.False(initialTrust.Trusted);
+
+        var addTrustedResult = await session.Rpc.Permissions.FolderTrust.AddTrustedAsync(trustedDirectory);
+        Assert.True(addTrustedResult.Success);
+
+        var updatedTrust = await session.Rpc.Permissions.FolderTrust.IsTrustedAsync(trustedDirectory);
+        Assert.True(updatedTrust.Trusted);
+    }
+
+    private string CreateUniqueWorkDirectory(string prefix)
+    {
+        var path = Path.Join(Ctx.WorkDir, $"{prefix}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void AssertContainsPath(IEnumerable<string> paths, string expected)
+    {
+        Assert.Contains(paths, actual => PathsEqual(expected, actual));
+    }
+
+    private static void AssertPathEqual(string expected, string actual)
+    {
+        Assert.True(
+            PathsEqual(expected, actual),
+            $"Expected path '{expected}' to equal '{actual}'.");
+    }
+
+    private static bool PathsEqual(string expected, string actual)
+    {
+        return string.Equals(
+            NormalizePath(expected),
+            NormalizePath(actual),
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        var root = Path.GetPathRoot(fullPath) ?? string.Empty;
+        while (fullPath.Length > root.Length &&
+            (fullPath[fullPath.Length - 1] == Path.DirectorySeparatorChar ||
+             fullPath[fullPath.Length - 1] == Path.AltDirectorySeparatorChar))
+        {
+            fullPath = fullPath.Substring(0, fullPath.Length - 1);
+        }
+        return fullPath;
     }
 }

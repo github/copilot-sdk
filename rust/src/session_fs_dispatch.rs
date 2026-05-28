@@ -341,7 +341,7 @@ pub(crate) async fn sqlite_query(
             return;
         }
     };
-    let sqlite_params = (!params.params.is_empty()).then_some(&params.params);
+    let sqlite_params = params.params.as_ref().filter(|p| !p.is_empty());
     let result = match sqlite
         .sqlite_query(params.query_type, &params.query, sqlite_params)
         .await
@@ -350,7 +350,7 @@ pub(crate) async fn sqlite_query(
             columns: result.columns,
             rows: result.rows,
             rows_affected: result.rows_affected,
-            last_insert_rowid: result.last_insert_rowid.map(|v| v as f64),
+            last_insert_rowid: result.last_insert_rowid,
             error: None,
         },
         Ok(None) => GeneratedSqliteQueryResult {

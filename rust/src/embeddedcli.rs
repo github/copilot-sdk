@@ -1,56 +1,82 @@
-#[cfg(any(has_bundled_cli, test))]
+//! Lazy runtime installer for the CLI binary that build.rs embedded in this
+//! crate (gated on the `bundled-cli` cargo feature, which is in the default
+//! feature set).
+//!
+//! build.rs downloads the platform's `copilot-{platform}.{tar.gz,zip}`
+//! archive from GitHub Releases, SHA-256 verifies it against the version
+//! pinned in `cli-version.txt` (or `../nodejs/package-lock.json` when
+//! building inside the github/copilot-sdk repo itself), and embeds the
+//! **raw archive bytes**
+//! into the consumer's compiled artifact via `include_bytes!()`. Extraction
+//! to a real on-disk path is deferred until the first call to
+//! [`path`] / [`install_at`] — at which point the bytes are part of the
+//! consumer's signed binary and trusted, so no further hashing is done.
+
+#[cfg(has_bundled_cli)]
 use std::fs;
-#[cfg(any(has_bundled_cli, test))]
-use std::io::{self, Read, Write};
-#[cfg(any(has_bundled_cli, test))]
-use std::path::Path;
-use std::path::PathBuf;
+#[cfg(all(has_bundled_cli, not(windows)))]
+use std::io::Read;
+#[cfg(has_bundled_cli)]
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 #[cfg(has_bundled_cli)]
 use tracing::{info, warn};
 
-// When the SDK is built with COPILOT_CLI_VERSION set, build.rs generates
-// bundled_cli.rs with the compressed binary bytes, hash, and version.
+// When the `bundled-cli` cargo feature is enabled and the target platform is
+// supported, build.rs generates `bundled_cli.rs` exposing the raw archive
+// bytes. The CLI version is exposed crate-wide via the
+// `cargo:rustc-env=COPILOT_SDK_CLI_VERSION` emit (see `build.rs`), and the
+// binary name is OS-derived — so no other generated constants are needed.
 #[cfg(has_bundled_cli)]
 mod build_time {
     include!(concat!(env!("OUT_DIR"), "/bundled_cli.rs"));
 }
 
+// Pinned at build time and consumed by both install paths (path/install_at).
+// Sourced from the unconditional `COPILOT_SDK_CLI_VERSION` env emit in
+// build.rs — the single source of truth for "what version did build.rs
+// target", shared with the runtime resolver used when `bundled-cli` is off.
+#[cfg(has_bundled_cli)]
+const CLI_VERSION: &str = env!("COPILOT_SDK_CLI_VERSION");
+
+// OS-derived; matches the release-archive entry name and the on-disk
+// filename. No need to bake this — `cfg(windows)` reflects the target
+// the runtime is running on, which by definition is the same target
+// build.rs targeted.
+#[cfg(all(has_bundled_cli, windows))]
+const CLI_BINARY_NAME: &str = "copilot.exe";
+#[cfg(all(has_bundled_cli, not(windows)))]
+const CLI_BINARY_NAME: &str = "copilot";
+
+#[cfg(feature = "bundled-cli")]
 static INSTALLED_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
 
-/// Returns the bundled CLI version string, if one was embedded at build time.
-pub fn bundled_version() -> Option<&'static str> {
-    #[cfg(has_bundled_cli)]
-    {
-        Some(build_time::CLI_VERSION)
-    }
-    #[cfg(not(has_bundled_cli))]
-    {
-        None
-    }
-}
-
-/// Returns the path to the installed CLI binary, lazily extracting on first call.
+/// Returns the path to the installed CLI binary, lazily extracting the
+/// embedded archive on first call.
 ///
-/// When the SDK was built with `COPILOT_CLI_VERSION` set, this extracts the
-/// embedded binary to `~/.cache/github-copilot-sdk-{version}/copilot` (or
-/// `copilot.exe` on Windows), verifies the SHA-256 hash, and returns the
-/// path. Subsequent calls return the cached result.
+/// On first call this extracts the embedded archive to
+/// `<platform cache dir>/github-copilot-sdk/cli/<version>/copilot[.exe]`
+/// and returns the resulting path. The cache dir comes from
+/// [`dirs::cache_dir()`] — `%LOCALAPPDATA%` on Windows,
+/// `~/Library/Caches/` on macOS, `$XDG_CACHE_HOME` (or `~/.cache/`) on
+/// Linux. Subsequent calls return the cached result. The extraction
+/// is skipped when the target file already exists — the per-version
+/// install directory and the assumption that the consumer's binary is
+/// trusted mean no further hashing is needed.
 ///
 /// Returns `None` if no CLI was embedded at build time.
-pub fn path() -> Option<PathBuf> {
+#[cfg(feature = "bundled-cli")]
+pub(crate) fn path() -> Option<PathBuf> {
     INSTALLED_PATH
         .get_or_init(|| {
             #[cfg(has_bundled_cli)]
             {
-                match install(
-                    build_time::CLI_BYTES,
-                    build_time::CLI_HASH,
-                    build_time::CLI_VERSION,
-                ) {
+                let dir = default_install_dir(CLI_VERSION);
+                match install(&dir, build_time::CLI_ARCHIVE) {
                     Ok(path) => {
-                        info!(path = %path.display(), version = build_time::CLI_VERSION, "embedded CLI installed");
+                        info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
                         return Some(path);
                     }
                     Err(e) => {
@@ -63,55 +89,70 @@ pub fn path() -> Option<PathBuf> {
         .clone()
 }
 
+/// Install the embedded CLI binary into the given directory instead of the
+/// default `<platform cache dir>/github-copilot-sdk/cli/<version>/` location
+/// (see [`path`] for the per-platform mapping).
+///
+/// Idempotent: skips extraction if the target binary already exists.
+/// Returns `None` when the SDK was built without a bundled CLI.
+#[cfg(feature = "bundled-cli")]
+#[allow(dead_code)] // Used by resolve.rs when ClientOptions::bundled_cli_extract_dir is set.
+pub(crate) fn install_at(extract_dir: &Path) -> Option<PathBuf> {
+    #[cfg(has_bundled_cli)]
+    {
+        match install(extract_dir, build_time::CLI_ARCHIVE) {
+            Ok(path) => {
+                info!(path = %path.display(), version = CLI_VERSION, "embedded CLI installed");
+                return Some(path);
+            }
+            Err(e) => {
+                warn!(error = %e, "embedded CLI installation failed");
+            }
+        }
+    }
+    #[cfg(not(has_bundled_cli))]
+    {
+        let _ = extract_dir;
+    }
+    None
+}
+
 #[cfg(has_bundled_cli)]
-fn install(
-    compressed: &[u8],
-    expected_hash: [u8; 32],
-    version: &str,
-) -> Result<PathBuf, EmbeddedCliError> {
+fn default_install_dir(version: &str) -> PathBuf {
+    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
+    let root = cache.join("github-copilot-sdk").join("cli");
+    if version.is_empty() {
+        root.join("unversioned")
+    } else {
+        root.join(sanitize_version(version))
+    }
+}
+
+#[cfg(has_bundled_cli)]
+fn install(install_dir: &Path, archive: &[u8]) -> Result<PathBuf, EmbeddedCliError> {
     let verbose = std::env::var("COPILOT_CLI_INSTALL_VERBOSE").ok().as_deref() == Some("1");
 
-    let cache = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
-    // Use a versioned directory so multiple versions can coexist,
-    // but keep the binary named `copilot` — the CLI checks argv[0]
-    // for this exact name.
-    let install_dir = if version.is_empty() {
-        cache.join("github-copilot-sdk")
-    } else {
-        cache.join(format!("github-copilot-sdk-{}", sanitize_version(version)))
-    };
-    fs::create_dir_all(&install_dir).map_err(EmbeddedCliError::CreateDir)?;
+    fs::create_dir_all(install_dir)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::CreateDir, e))?;
 
-    let binary_name = binary_name();
-    let final_path = install_dir.join(&binary_name);
+    let final_path = install_dir.join(CLI_BINARY_NAME);
 
-    // If the binary already exists and hash matches, skip extraction.
+    // Per-version install dir means a present file at this path is the
+    // binary we want — no need to hash-verify the bytes are unchanged.
     if final_path.is_file() {
-        let existing_hash = hash_file(&final_path)?;
-        if existing_hash == expected_hash {
-            if verbose {
-                eprintln!("embedded CLI already installed at {}", final_path.display());
-            }
-            return Ok(final_path);
-        }
         if verbose {
-            eprintln!("embedded CLI hash mismatch, reinstalling");
+            eprintln!("embedded CLI already installed at {}", final_path.display());
         }
+        return Ok(final_path);
     }
 
     let start = std::time::Instant::now();
-    let decompressed = decompress(compressed)?;
-
-    let actual_hash = sha256(&decompressed);
-    if actual_hash != expected_hash {
-        return Err(EmbeddedCliError::HashMismatch);
-    }
-
-    write_binary(&final_path, &decompressed)?;
+    let bytes = extract_binary(archive, CLI_BINARY_NAME)?;
+    write_binary(&final_path, &bytes)?;
 
     if verbose {
         eprintln!(
-            "embedded CLI installed at {} in {:?}",
+            "embedded CLI extracted to {} in {:?}",
             final_path.display(),
             start.elapsed()
         );
@@ -120,13 +161,49 @@ fn install(
     Ok(final_path)
 }
 
-#[cfg(any(has_bundled_cli, test))]
-fn binary_name() -> String {
-    if cfg!(target_os = "windows") {
-        "copilot.exe".to_string()
-    } else {
-        "copilot".to_string()
+#[cfg(all(has_bundled_cli, not(windows)))]
+fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
+    let gz = flate2::read::GzDecoder::new(archive);
+    let mut tar = tar::Archive::new(gz);
+    for entry in tar
+        .entries()
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?
+    {
+        let mut entry =
+            entry.map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+        let path = entry
+            .path()
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+        let name = path.to_string_lossy();
+        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
+            let mut bytes = Vec::with_capacity(entry.size() as usize);
+            entry
+                .read_to_end(&mut bytes)
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Archive, e))?;
+            return Ok(bytes);
+        }
     }
+    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
+}
+
+#[cfg(all(has_bundled_cli, windows))]
+fn extract_binary(archive: &[u8], binary_name: &str) -> Result<Vec<u8>, EmbeddedCliError> {
+    let cursor = std::io::Cursor::new(archive);
+    let mut zip = zip::ZipArchive::new(cursor)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
+    for i in 0..zip.len() {
+        let mut entry = zip
+            .by_index(i)
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Zip, e))?;
+        let name = entry.name().to_string();
+        if name == binary_name || name.ends_with(&format!("/{binary_name}")) {
+            let mut bytes = Vec::with_capacity(entry.size() as usize);
+            std::io::copy(&mut entry, &mut bytes)
+                .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
+            return Ok(bytes);
+        }
+    }
+    Err(EmbeddedCliErrorKind::BinaryNotFoundInArchive.into())
 }
 
 #[cfg(has_bundled_cli)]
@@ -140,139 +217,114 @@ fn sanitize_version(version: &str) -> String {
         .collect()
 }
 
-#[cfg(any(has_bundled_cli, test))]
-fn decompress(data: &[u8]) -> Result<Vec<u8>, EmbeddedCliError> {
-    let mut decoder = zstd::Decoder::new(data).map_err(EmbeddedCliError::Decompress)?;
-    let mut out = Vec::new();
-    decoder
-        .read_to_end(&mut out)
-        .map_err(EmbeddedCliError::Decompress)?;
-    Ok(out)
-}
-
-#[cfg(any(has_bundled_cli, test))]
-fn sha256(data: &[u8]) -> [u8; 32] {
-    use sha2::Digest;
-    let mut hasher = sha2::Sha256::new();
-    hasher.update(data);
-    hasher.finalize().into()
-}
-
 #[cfg(has_bundled_cli)]
-fn hash_file(path: &Path) -> Result<[u8; 32], EmbeddedCliError> {
-    use sha2::Digest;
-    let mut file = fs::File::open(path).map_err(EmbeddedCliError::Io)?;
-    let mut hasher = sha2::Sha256::new();
-    let mut buf = [0u8; 8192];
-    loop {
-        let n = file.read(&mut buf).map_err(EmbeddedCliError::Io)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hasher.finalize().into())
-}
-
-#[cfg(any(has_bundled_cli, test))]
 fn write_binary(path: &Path, data: &[u8]) -> Result<(), EmbeddedCliError> {
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create(true)
         .truncate(true)
         .open(path)
-        .map_err(EmbeddedCliError::Io)?;
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
 
-    file.write_all(data).map_err(EmbeddedCliError::Io)?;
+    file.write_all(data)
+        .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o755))
-            .map_err(EmbeddedCliError::Io)?;
+            .map_err(|e| EmbeddedCliError::new(EmbeddedCliErrorKind::Io, e))?;
     }
 
     Ok(())
 }
 
-#[cfg(any(has_bundled_cli, test))]
-#[derive(Debug, thiserror::Error)]
+#[cfg(has_bundled_cli)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
-enum EmbeddedCliError {
-    #[error("failed to create install directory: {0}")]
-    CreateDir(io::Error),
-
-    #[error("decompression failed: {0}")]
-    Decompress(io::Error),
-
-    #[error("SHA-256 hash of decompressed binary does not match expected hash")]
-    HashMismatch,
-
-    #[error("I/O error: {0}")]
-    Io(io::Error),
+enum EmbeddedCliErrorKind {
+    CreateDir,
+    #[cfg(not(windows))]
+    Archive,
+    #[cfg(windows)]
+    Zip,
+    BinaryNotFoundInArchive,
+    Io,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn install_extracts_to_cache_dir() {
-        let temp = tempfile::tempdir().expect("should create temp dir");
-        let original = b"fake copilot binary";
-        let hash = sha256(original);
-        let compressed = zstd::encode_all(&original[..], 3).expect("compression should succeed");
-
-        // Override cache dir via env for test isolation.
-        let path = install_to_dir(&temp, &compressed, hash);
-        let expected_name = binary_name();
-        assert!(path.is_file());
-        assert_eq!(
-            path.file_name().and_then(|s| s.to_str()),
-            Some(expected_name.as_str())
-        );
-
-        let installed_content = fs::read(&path).expect("should read installed binary");
-        assert_eq!(installed_content, original);
-
-        // Second install should be idempotent (hash matches, skips extraction).
-        let path2 = install_to_dir(&temp, &compressed, hash);
-        assert_eq!(path, path2);
-    }
-
-    #[test]
-    fn install_rejects_hash_mismatch() {
-        let temp = tempfile::tempdir().expect("should create temp dir");
-        let original = b"fake copilot binary";
-        let wrong_hash = [0u8; 32];
-        let compressed = zstd::encode_all(&original[..], 3).expect("compression should succeed");
-
-        let result = install_to_dir_result(&temp, &compressed, wrong_hash);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("SHA-256"),);
-    }
-
-    // Test helpers that install to a specific directory instead of the global cache.
-    fn install_to_dir(temp: &tempfile::TempDir, compressed: &[u8], hash: [u8; 32]) -> PathBuf {
-        install_to_dir_result(temp, compressed, hash).expect("install should succeed")
-    }
-
-    fn install_to_dir_result(
-        temp: &tempfile::TempDir,
-        compressed: &[u8],
-        hash: [u8; 32],
-    ) -> Result<PathBuf, EmbeddedCliError> {
-        let install_dir = temp.path().to_path_buf();
-        fs::create_dir_all(&install_dir).expect("create dir");
-        let binary_name = binary_name();
-        let final_path = install_dir.join(&binary_name);
-
-        let decompressed = decompress(compressed)?;
-        let actual_hash = sha256(&decompressed);
-        if actual_hash != hash {
-            return Err(EmbeddedCliError::HashMismatch);
+#[cfg(has_bundled_cli)]
+impl std::fmt::Display for EmbeddedCliErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EmbeddedCliErrorKind::CreateDir => f.write_str("failed to create install directory"),
+            #[cfg(not(windows))]
+            EmbeddedCliErrorKind::Archive => f.write_str("failed to read archive entry"),
+            #[cfg(windows)]
+            EmbeddedCliErrorKind::Zip => f.write_str("failed to read zip archive"),
+            EmbeddedCliErrorKind::BinaryNotFoundInArchive => {
+                f.write_str("CLI binary not found in embedded archive")
+            }
+            EmbeddedCliErrorKind::Io => f.write_str("I/O error"),
         }
-        write_binary(&final_path, &decompressed)?;
-        Ok(final_path)
+    }
+}
+
+#[cfg(has_bundled_cli)]
+#[allow(dead_code)]
+struct EmbeddedCliError {
+    repr: crate::errors::Repr<EmbeddedCliErrorKind>,
+}
+
+#[cfg(has_bundled_cli)]
+impl EmbeddedCliError {
+    fn new<E>(kind: EmbeddedCliErrorKind, error: E) -> Self
+    where
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        Self {
+            repr: crate::errors::Repr::Custom(crate::errors::Custom {
+                kind,
+                error: error.into(),
+            }),
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl From<EmbeddedCliErrorKind> for EmbeddedCliError {
+    fn from(kind: EmbeddedCliErrorKind) -> Self {
+        Self {
+            repr: crate::errors::Repr::Simple(kind),
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl std::fmt::Display for EmbeddedCliError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.repr {
+            crate::errors::Repr::Simple(kind) => write!(f, "{kind}"),
+            crate::errors::Repr::SimpleMessage(_, msg) => write!(f, "{msg}"),
+            crate::errors::Repr::Custom(crate::errors::Custom { kind, error }) => {
+                write!(f, "{kind}: {error}")
+            }
+        }
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl std::fmt::Debug for EmbeddedCliError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EmbeddedCliError({self})")
+    }
+}
+
+#[cfg(has_bundled_cli)]
+impl std::error::Error for EmbeddedCliError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.repr {
+            crate::errors::Repr::Custom(crate::errors::Custom { error, .. }) => Some(&**error),
+            _ => None,
+        }
     }
 }

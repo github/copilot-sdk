@@ -34,16 +34,16 @@ type SessionFsProvider interface {
 	Stat(path string) (*SessionFsFileInfo, error)
 	// Mkdir creates a directory. If recursive is true, create parent directories as needed.
 	// mode is an optional POSIX-style permission mode (e.g., 0o755). Pass nil to use the OS default.
-	Mkdir(path string, recursive bool, mode *int) error
+	MakeDirectory(path string, recursive bool, mode *int) error
 	// Readdir lists the names of entries in a directory.
 	// Return os.ErrNotExist if the directory does not exist.
-	Readdir(path string) ([]string, error)
+	ReadDirectory(path string) ([]string, error)
 	// ReaddirWithTypes lists entries with type information.
 	// Return os.ErrNotExist if the directory does not exist.
-	ReaddirWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error)
+	ReadDirectoryWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error)
 	// Rm removes a file or directory. If recursive is true, remove contents too.
 	// If force is true, do not return an error when the path does not exist.
-	Rm(path string, recursive bool, force bool) error
+	Remove(path string, recursive bool, force bool) error
 	// Rename moves/renames a file or directory.
 	Rename(src string, dest string) error
 }
@@ -152,14 +152,14 @@ func (a *sessionFsAdapter) Mkdir(request *rpc.SessionFsMkdirRequest) (*rpc.Sessi
 		m := int(*request.Mode)
 		mode = &m
 	}
-	if err := a.provider.Mkdir(request.Path, recursive, mode); err != nil {
+	if err := a.provider.MakeDirectory(request.Path, recursive, mode); err != nil {
 		return toSessionFsError(err), nil
 	}
 	return nil, nil
 }
 
 func (a *sessionFsAdapter) Readdir(request *rpc.SessionFsReaddirRequest) (*rpc.SessionFsReaddirResult, error) {
-	entries, err := a.provider.Readdir(request.Path)
+	entries, err := a.provider.ReadDirectory(request.Path)
 	if err != nil {
 		return &rpc.SessionFsReaddirResult{Error: toSessionFsError(err)}, nil
 	}
@@ -167,7 +167,7 @@ func (a *sessionFsAdapter) Readdir(request *rpc.SessionFsReaddirRequest) (*rpc.S
 }
 
 func (a *sessionFsAdapter) ReaddirWithTypes(request *rpc.SessionFsReaddirWithTypesRequest) (*rpc.SessionFsReaddirWithTypesResult, error) {
-	entries, err := a.provider.ReaddirWithTypes(request.Path)
+	entries, err := a.provider.ReadDirectoryWithTypes(request.Path)
 	if err != nil {
 		return &rpc.SessionFsReaddirWithTypesResult{Error: toSessionFsError(err)}, nil
 	}
@@ -177,7 +177,7 @@ func (a *sessionFsAdapter) ReaddirWithTypes(request *rpc.SessionFsReaddirWithTyp
 func (a *sessionFsAdapter) Rm(request *rpc.SessionFsRmRequest) (*rpc.SessionFsError, error) {
 	recursive := request.Recursive != nil && *request.Recursive
 	force := request.Force != nil && *request.Force
-	if err := a.provider.Rm(request.Path, recursive, force); err != nil {
+	if err := a.provider.Remove(request.Path, recursive, force); err != nil {
 		return toSessionFsError(err), nil
 	}
 	return nil, nil
@@ -217,10 +217,10 @@ func (a *sessionFsAdapter) SqliteQuery(request *rpc.SessionFsSqliteQueryRequest)
 			RowsAffected: 0,
 		}, nil
 	}
-	var wireRowid *float64
+	var wireRowid *int64
 	if result.LastInsertRowid != nil {
-		f := float64(*result.LastInsertRowid)
-		wireRowid = &f
+		rowid := *result.LastInsertRowid
+		wireRowid = &rowid
 	}
 	return &rpc.SessionFsSqliteQueryResult{
 		Columns:         result.Columns,

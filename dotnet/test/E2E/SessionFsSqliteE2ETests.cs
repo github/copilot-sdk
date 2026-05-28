@@ -1,20 +1,20 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
     : E2ETestBase(fixture, "session_fs_sqlite", output)
 {
     private static readonly SessionFsConfig SessionFsConfig = new()
     {
-        InitialCwd = "/",
+        InitialWorkingDirectory = "/",
         SessionStatePath = "/session-state",
         Conventions = SessionFsSetProviderConventions.Posix,
         Capabilities = new SessionFsSetProviderCapabilities { Sqlite = true },
@@ -22,7 +22,11 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
 
     private readonly List<SqliteCall> _sqliteCalls = [];
 
+#if NETFRAMEWORK
+    [Fact(Skip = "Microsoft.Data.Sqlite native library loading is not supported on .NET Framework")]
+#else
     [Fact]
+#endif
     public async Task Should_Route_Sql_Queries_Through_The_Sessionfs_Sqlite_Handler()
     {
         await using var client = CreateSessionFsClient();
@@ -30,7 +34,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            CreateSessionFsHandler = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
+            CreateSessionFsProvider = s => new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls),
         });
 
         var msg = await session.SendAndWaitAsync(new MessageOptions
@@ -51,7 +55,11 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         await session.DisposeAsync();
     }
 
+#if NETFRAMEWORK
+    [Fact(Skip = "Microsoft.Data.Sqlite native library loading is not supported on .NET Framework")]
+#else
     [Fact]
+#endif
     public async Task Should_Allow_Subagents_To_Use_Sql_Tool_Via_Inherited_Sessionfs()
     {
         await using var client = CreateSessionFsClient();
@@ -60,7 +68,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            CreateSessionFsHandler = s =>
+            CreateSessionFsProvider = s =>
             {
                 handler = new InMemorySessionFsSqliteHandler(s.SessionId, _sqliteCalls);
                 return handler;
@@ -68,7 +76,7 @@ public class SessionFsSqliteE2ETests(E2ETestFixture fixture, ITestOutputHelper o
         });
 
         var events = new List<SessionEvent>();
-        using var _ = session.On(evt => events.Add(evt));
+        using var _ = session.On<SessionEvent>(evt => events.Add(evt));
 
         await session.SendAndWaitAsync(new MessageOptions
         {

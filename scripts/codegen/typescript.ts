@@ -18,6 +18,7 @@ import {
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     postProcessSchema,
+    propagateInternalVisibility,
     writeGeneratedFile,
     collectExternalSchemaRefNames,
     collectDefinitionCollections,
@@ -36,7 +37,9 @@ import {
     isNodeFullyDeprecated,
     isVoidSchema,
     isSchemaExperimental,
+    appendPropertyMarkerTagsToDescriptions,
     getEnumValueDescriptions,
+    stripOpaqueJsonMarker,
     type ApiSchema,
     type DefinitionCollections,
     type RpcMethod,
@@ -280,6 +283,13 @@ export function normalizeSchemaForTypeScript(schema: JSONSchema7): JSONSchema7 {
             Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, rewrite(child)])
         ) as Record<string, unknown>;
 
+        // The TypeScript codegen doesn't distinguish opaque JSON from any
+        // other unconstrained value, so drop the marker before feeding the
+        // schema to json-schema-to-typescript. C# codegen reads the marker
+        // from its own (un-normalized) view of the schema and emits
+        // `JsonElement` instead.
+        stripOpaqueJsonMarker(rewritten);
+
         const enumValueDescriptions = getEnumValueDescriptions(rewritten as JSONSchema7);
         if (enumValueDescriptions && Array.isArray(rewritten.enum) && rewritten.enum.every((entry) => typeof entry === "string")) {
             rewritten.tsType = (rewritten.enum as string[])
@@ -330,13 +340,14 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7;
-    const processed = postProcessSchema(schema);
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
     const definitionCollections = collectDefinitionCollections(processed as Record<string, unknown>);
     const sessionEvent =
         resolveSchema({ $ref: "#/definitions/SessionEvent" }, definitionCollections) ??
         resolveSchema({ $ref: "#/$defs/SessionEvent" }, definitionCollections) ??
         processed;
     const schemaForCompile = withSharedDefinitions(sessionEvent, definitionCollections);
+    appendPropertyMarkerTagsToDescriptions(schemaForCompile);
 
     const ts = await compile(normalizeSchemaForTypeScript(schemaForCompile), "SessionEvent", {
         bannerComment: `/**
@@ -345,9 +356,30 @@ async function generateSessionEvents(schemaPath?: string): Promise<void> {
  */`,
         style: { semi: true, singleQuote: false, trailingComma: "all" },
         additionalProperties: false,
+        strictIndexSignatures: true,
     });
 
-    const annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
+    let annotatedTs = annotateTypeScriptTypes(ts, experimentalDefinitionNames(definitionCollections), TS_EXPERIMENTAL_JSDOC);
+    // Add @internal JSDoc annotations for session-event types marked
+    // `visibility: "internal"` in the schema. The tag drives `stripInternal`
+    // so the whole type is dropped from the published .d.ts.
+    const sessionInternalTypes = new Set<string>();
+    for (const [name, def] of Object.entries(definitionCollections.definitions ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            sessionInternalTypes.add(name);
+        }
+    }
+    for (const [name, def] of Object.entries(definitionCollections.$defs ?? {})) {
+        if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+            sessionInternalTypes.add(name);
+        }
+    }
+    for (const intType of sessionInternalTypes) {
+        annotatedTs = annotatedTs.replace(
+            new RegExp(`(^|\\n)(export (?:interface|type) ${intType}\\b)`, "m"),
+            `$1/** @internal */\n$2`
+        );
+    }
     const outPath = await writeGeneratedFile("nodejs/src/generated/session-events.ts", annotatedTs);
     console.log(`  ✓ ${outPath}`);
 }
@@ -578,10 +610,12 @@ import type { MessageConnection } from "vscode-jsonrpc/node.js";
     }
 
     const schemaForCompile = combinedSchema;
+    appendPropertyMarkerTagsToDescriptions(schemaForCompile);
 
     const compiled = await compile(normalizeSchemaForTypeScript(schemaForCompile), "_RpcSchemaRoot", {
         bannerComment: "",
         additionalProperties: false,
+        strictIndexSignatures: true,
         unreachableDefinitions: true,
     });
 
@@ -812,6 +846,9 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>)
         const groupExperimental = isNodeFullyExperimental(clientSchema[groupName] as Record<string, unknown>);
         if (groupDeprecated) {
             lines.push(`/** @deprecated Handler for \`${groupName}\` client session API methods. */`);
+        } else if (groupExperimental) {
+            lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
+            lines.push(TS_EXPERIMENTAL_JSDOC);
         } else {
             lines.push(`/** Handler for \`${groupName}\` client session API methods. */`);
         }
@@ -893,7 +930,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     await generateSessionEvents(sessionSchemaPath);
     try {
         const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-        const sessionSchema = postProcessSchema(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7);
+        const sessionSchema = propagateInternalVisibility(postProcessSchema(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7));
         await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {

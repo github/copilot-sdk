@@ -50,7 +50,7 @@ describe("Shell and fleet RPC", async () => {
         // session message list is the simplest way to wait for a satisfying state.
         const deadline = Date.now() + timeoutMs;
         while (Date.now() < deadline) {
-            const messages = await session.getMessages();
+            const messages = await session.getEvents();
             if (predicate(messages)) {
                 return messages;
             }

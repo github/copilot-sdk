@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{ElicitationHandler, PermissionHandler, PermissionResult};
 use github_copilot_sdk::{
-    ElicitationMode, ElicitationRequest, ElicitationResult, InputFormat, InputOptions, RequestId,
-    ResumeSessionConfig, SessionConfig, SessionId, UiCapabilities,
+    ElicitationMode, ElicitationRequest, ElicitationResult, InputFormat, RequestId,
+    ResumeSessionConfig, SessionConfig, SessionId, UiCapabilities, UiInputOptions,
 };
 use serde_json::json;
 use tokio::sync::Mutex;
@@ -47,10 +47,7 @@ async fn elicitation_throws_when_capability_is_missing() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
 
@@ -97,9 +94,7 @@ async fn sends_requestelicitation_when_handler_provided() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(QueuedElicitationHandler::new([accept(
-                                json!({}),
-                            )]))),
+                            .pipe_handler(QueuedElicitationHandler::new([accept(json!({}))])),
                     )
                     .await
                     .expect("create session");
@@ -131,9 +126,7 @@ async fn should_report_elicitation_capability_based_on_handler_presence() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(QueuedElicitationHandler::new([accept(
-                                json!({}),
-                            )]))),
+                            .pipe_handler(QueuedElicitationHandler::new([accept(json!({}))])),
                     )
                     .await
                     .expect("create elicitation-capable session");
@@ -144,10 +137,7 @@ async fn should_report_elicitation_capability_based_on_handler_presence() {
                 with_handler.disconnect().await.expect("disconnect first");
 
                 let without_handler = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create non-elicitation session");
                 assert_ne!(
@@ -179,10 +169,7 @@ async fn session_without_elicitationhandler_creates_successfully() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_request_elicitation(false),
-                    )
+                    .create_session(ctx.approve_all_session_config())
                     .await
                     .expect("create session");
 
@@ -209,9 +196,9 @@ async fn confirm_returns_true_when_handler_accepts() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(QueuedElicitationHandler::new([accept(
+                            .pipe_handler(QueuedElicitationHandler::new([accept(
                                 json!({ "confirmed": true }),
-                            )]))),
+                            )])),
                     )
                     .await
                     .expect("create session");
@@ -239,7 +226,7 @@ async fn confirm_returns_false_when_handler_declines() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(QueuedElicitationHandler::new([decline()]))),
+                            .pipe_handler(QueuedElicitationHandler::new([decline()])),
                     )
                     .await
                     .expect("create session");
@@ -264,9 +251,9 @@ async fn select_returns_selected_option() {
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(QueuedElicitationHandler::new([accept(
+                        .pipe_handler(QueuedElicitationHandler::new([accept(
                             json!({ "selection": "beta" }),
-                        )]))),
+                        )])),
                 )
                 .await
                 .expect("create session");
@@ -298,19 +285,19 @@ async fn input_returns_freeform_value() {
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(QueuedElicitationHandler::new([accept(
+                        .pipe_handler(QueuedElicitationHandler::new([accept(
                             json!({ "value": "typed value" }),
-                        )]))),
+                        )])),
                 )
                 .await
                 .expect("create session");
-            let options = InputOptions {
+            let options = UiInputOptions {
                 title: Some("Value"),
                 description: Some("A value to test"),
                 min_length: Some(1),
                 max_length: Some(20),
                 default: Some("default"),
-                ..InputOptions::default()
+                ..UiInputOptions::default()
             };
 
             assert_eq!(
@@ -343,11 +330,11 @@ async fn elicitation_returns_all_action_shapes() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(QueuedElicitationHandler::new([
+                            .pipe_handler(QueuedElicitationHandler::new([
                                 accept(json!({ "name": "Mona" })),
                                 decline(),
                                 cancel(),
-                            ]))),
+                            ])),
                     )
                     .await
                     .expect("create session");
@@ -396,6 +383,7 @@ async fn session_capabilities_types_are_properly_structured() {
     let capabilities = github_copilot_sdk::SessionCapabilities {
         ui: Some(UiCapabilities {
             elicitation: Some(true),
+            canvases: None,
         }),
     };
 
@@ -465,7 +453,7 @@ async fn elicitation_result_types_are_properly_structured() {
 
 #[tokio::test]
 async fn input_options_has_all_properties() {
-    let options = InputOptions {
+    let options = UiInputOptions {
         title: Some("Email Address"),
         description: Some("Enter your email"),
         min_length: Some(5),
@@ -506,27 +494,35 @@ async fn elicitation_context_has_all_properties() {
 
 #[tokio::test]
 async fn session_config_onelicitationrequest_is_cloned() {
-    let handler: Arc<dyn SessionHandler> = Arc::new(QueuedElicitationHandler::new([cancel()]));
-    let config = SessionConfig::default().with_handler(handler);
+    let handler = Arc::new(QueuedElicitationHandler::new([cancel()]));
+    let config = SessionConfig::default()
+        .with_elicitation_handler(handler.clone() as Arc<dyn ElicitationHandler>);
 
     let clone = config.clone();
 
     assert!(Arc::ptr_eq(
-        config.handler.as_ref().expect("original handler"),
-        clone.handler.as_ref().expect("cloned handler")
+        config
+            .elicitation_handler
+            .as_ref()
+            .expect("original handler"),
+        clone.elicitation_handler.as_ref().expect("cloned handler")
     ));
 }
 
 #[tokio::test]
 async fn resume_config_onelicitationrequest_is_cloned() {
-    let handler: Arc<dyn SessionHandler> = Arc::new(QueuedElicitationHandler::new([cancel()]));
-    let config = ResumeSessionConfig::new(SessionId::from("session-1")).with_handler(handler);
+    let handler = Arc::new(QueuedElicitationHandler::new([cancel()]));
+    let config = ResumeSessionConfig::new(SessionId::from("session-1"))
+        .with_elicitation_handler(handler.clone() as Arc<dyn ElicitationHandler>);
 
     let clone = config.clone();
 
     assert!(Arc::ptr_eq(
-        config.handler.as_ref().expect("original handler"),
-        clone.handler.as_ref().expect("cloned handler")
+        config
+            .elicitation_handler
+            .as_ref()
+            .expect("original handler"),
+        clone.elicitation_handler.as_ref().expect("cloned handler")
     ));
 }
 
@@ -543,17 +539,20 @@ impl QueuedElicitationHandler {
 }
 
 #[async_trait]
-impl SessionHandler for QueuedElicitationHandler {
-    async fn on_permission_request(
+impl PermissionHandler for QueuedElicitationHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
         _data: github_copilot_sdk::PermissionRequestData,
     ) -> PermissionResult {
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
+}
 
-    async fn on_elicitation(
+#[async_trait]
+impl ElicitationHandler for QueuedElicitationHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -564,6 +563,25 @@ impl SessionHandler for QueuedElicitationHandler {
             .await
             .pop_front()
             .expect("queued elicitation response")
+    }
+}
+
+/// Test helper: install a single struct that implements both
+/// [`PermissionHandler`] and [`ElicitationHandler`] on a [`SessionConfig`].
+trait PipeHandler {
+    fn pipe_handler<H>(self, handler: H) -> Self
+    where
+        H: PermissionHandler + ElicitationHandler + 'static;
+}
+
+impl PipeHandler for SessionConfig {
+    fn pipe_handler<H>(self, handler: H) -> Self
+    where
+        H: PermissionHandler + ElicitationHandler + 'static,
+    {
+        let handler = Arc::new(handler);
+        self.with_permission_handler(handler.clone() as Arc<dyn PermissionHandler>)
+            .with_elicitation_handler(handler as Arc<dyn ElicitationHandler>)
     }
 }
 

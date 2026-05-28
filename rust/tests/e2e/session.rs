@@ -7,7 +7,7 @@ use github_copilot_sdk::generated::session_events::{
     SessionStartData, SessionWarningData, UserMessageData,
 };
 use github_copilot_sdk::handler::ApproveAllHandler;
-use github_copilot_sdk::tool::{ToolHandler, ToolHandlerRouter};
+use github_copilot_sdk::tool::ToolHandler;
 use github_copilot_sdk::types::LogLevel as SessionLogLevel;
 use github_copilot_sdk::{
     Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
@@ -37,7 +37,7 @@ async fn shouldcreateanddisconnectsessions() {
                 .expect("create session");
 
             assert_uuid_like(session.id());
-            let messages = session.get_messages().await.expect("get messages");
+            let messages = session.get_events().await.expect("get messages");
             assert!(!messages.is_empty(), "expected initial session events");
             let start = messages[0]
                 .typed_data::<SessionStartData>()
@@ -46,7 +46,7 @@ async fn shouldcreateanddisconnectsessions() {
 
             session.disconnect().await.expect("disconnect session");
             assert!(
-                session.get_messages().await.is_err(),
+                session.get_events().await.is_err(),
                 "disconnected session should no longer serve message history"
             );
             client.stop().await.expect("stop client");
@@ -273,7 +273,11 @@ async fn should_create_a_session_with_availabletools() {
                     .await
                     .expect("create session");
 
-                session.send_and_wait("What is 1+1?").await.expect("send");
+                session.send("What is 1+1?").await.expect("send");
+                wait_for_condition("captured CAPI exchange", || async {
+                    !ctx.exchanges().is_empty()
+                })
+                .await;
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert_eq!(tool_names.len(), 2);
@@ -305,7 +309,11 @@ async fn should_create_a_session_with_excludedtools() {
                     .await
                     .expect("create session");
 
-                session.send_and_wait("What is 1+1?").await.expect("send");
+                session.send("What is 1+1?").await.expect("send");
+                wait_for_condition("captured CAPI exchange", || async {
+                    !ctx.exchanges().is_empty()
+                })
+                .await;
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert!(!tool_names.contains(&"view".to_string()));
@@ -329,15 +337,12 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
             Box::pin(async move {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
-                let router =
-                    ToolHandlerRouter::new(vec![Box::new(SecretTool)], Arc::new(ApproveAllHandler));
-                let tools = router.tools();
                 let session = client
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(router))
-                            .with_tools(tools)
+                            .with_permission_handler(Arc::new(ApproveAllHandler))
+                            .with_tools(vec![secret_tool()])
                             .with_default_agent(DefaultAgentConfig {
                                 excluded_tools: Some(vec!["secret_tool".to_string()]),
                             }),
@@ -345,7 +350,11 @@ async fn should_create_a_session_with_defaultagent_excludedtools() {
                     .await
                     .expect("create session");
 
-                session.send_and_wait("What is 1+1?").await.expect("send");
+                session.send("What is 1+1?").await.expect("send");
+                wait_for_condition("captured CAPI exchange", || async {
+                    !ctx.exchanges().is_empty()
+                })
+                .await;
                 let exchanges = ctx.exchanges();
                 let tool_names = get_tool_names(&exchanges[0]);
                 assert!(!tool_names.contains(&"secret_tool".to_string()));
@@ -364,17 +373,12 @@ async fn should_create_session_with_custom_tool() {
         Box::pin(async move {
             ctx.set_default_copilot_user();
             let client = ctx.start_client().await;
-            let router = ToolHandlerRouter::new(
-                vec![Box::new(SecretNumberTool)],
-                Arc::new(ApproveAllHandler),
-            );
-            let tools = router.tools();
             let session = client
                 .create_session(
                     SessionConfig::default()
                         .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                        .with_handler(Arc::new(router))
-                        .with_tools(tools),
+                        .with_permission_handler(Arc::new(ApproveAllHandler))
+                        .with_tools(vec![secret_number_tool()]),
                 )
                 .await
                 .expect("create session");
@@ -405,7 +409,7 @@ async fn should_throw_error_when_resuming_non_existent_session() {
                 let config = ResumeSessionConfig::new(github_copilot_sdk::SessionId::new(
                     "non-existent-session-id",
                 ))
-                .with_handler(Arc::new(ApproveAllHandler))
+                .with_permission_handler(Arc::new(ApproveAllHandler))
                 .with_github_token(super::support::DEFAULT_TEST_TOKEN);
 
                 assert!(client.resume_session(config).await.is_err());
@@ -447,7 +451,7 @@ async fn should_abort_a_session() {
             session.abort().await.expect("abort session");
             idle.await.expect("idle task");
 
-            let messages = session.get_messages().await.expect("get messages");
+            let messages = session.get_events().await.expect("get messages");
             assert!(messages
                 .iter()
                 .any(|event| event.parsed_type() == SessionEventType::Abort));
@@ -494,7 +498,9 @@ async fn should_resume_a_session_using_the_same_client() {
                 let resumed = client
                     .resume_session(
                         ResumeSessionConfig::new(session_id.clone())
-                            .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
+                            .with_permission_handler(Arc::new(
+                                github_copilot_sdk::handler::ApproveAllHandler,
+                            ))
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN),
                     )
                     .await
@@ -551,14 +557,16 @@ async fn should_resume_a_session_using_a_new_client() {
                     .resume_session(
                         ResumeSessionConfig::new(session_id.clone())
                             .with_continue_pending_work(true)
-                            .with_handler(Arc::new(github_copilot_sdk::handler::ApproveAllHandler))
+                            .with_permission_handler(Arc::new(
+                                github_copilot_sdk::handler::ApproveAllHandler,
+                            ))
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN),
                     )
                     .await
                     .expect("resume session");
                 assert_eq!(resumed.id(), &session_id);
 
-                let messages = resumed.get_messages().await.expect("get messages");
+                let messages = resumed.get_events().await.expect("get messages");
                 assert!(
                     messages
                         .iter()
@@ -1096,7 +1104,8 @@ async fn should_send_with_file_attachment() {
             let attachments = user
                 .typed_data::<UserMessageData>()
                 .expect("user message data")
-                .attachments;
+                .attachments
+                .expect("attachments");
             assert_eq!(attachments.len(), 1);
             assert_eq!(
                 attachments[0]
@@ -1159,7 +1168,8 @@ async fn should_send_with_directory_attachment() {
             let attachments = user
                 .typed_data::<UserMessageData>()
                 .expect("user message data")
-                .attachments;
+                .attachments
+                .expect("attachments");
             assert_eq!(attachments.len(), 1);
             assert_eq!(
                 attachments[0]
@@ -1227,6 +1237,7 @@ async fn should_send_with_selection_attachment() {
                 .typed_data::<UserMessageData>()
                 .expect("user message data")
                 .attachments
+                .expect("attachments")
                 .into_iter()
                 .next()
                 .expect("attachment");
@@ -1286,6 +1297,7 @@ async fn should_send_with_github_reference_attachment() {
                     .typed_data::<UserMessageData>()
                     .expect("user message data")
                     .attachments
+                    .expect("attachments")
                     .into_iter()
                     .next()
                     .expect("attachment");
@@ -1389,7 +1401,7 @@ async fn should_send_with_mode_property() {
             .await;
 
             let user_message = session
-                .get_messages()
+                .get_events()
                 .await
                 .expect("get messages")
                 .into_iter()
@@ -1485,7 +1497,7 @@ async fn should_resume_session_with_custom_provider() {
                 let session_id = session.id().clone();
 
                 let mut config = ResumeSessionConfig::new(session_id.clone())
-                    .with_handler(Arc::new(ApproveAllHandler));
+                    .with_permission_handler(Arc::new(ApproveAllHandler));
                 config.provider = Some(
                     ProviderConfig::new("https://api.openai.com/v1")
                         .with_provider_type("openai")
@@ -1507,7 +1519,7 @@ async fn latest_user_message(
     session: &github_copilot_sdk::session::Session,
 ) -> github_copilot_sdk::SessionEvent {
     session
-        .get_messages()
+        .get_events()
         .await
         .expect("get messages")
         .into_iter()
@@ -1520,10 +1532,6 @@ struct SecretNumberTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for SecretNumberTool {
-    fn tool(&self) -> Tool {
-        secret_number_tool()
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let key = invocation
             .arguments
@@ -1538,22 +1546,23 @@ impl ToolHandler for SecretNumberTool {
     }
 }
 
+fn secret_tool() -> Tool {
+    Tool::new("secret_tool")
+        .with_description("A secret tool hidden from the default agent")
+        .with_parameters(json!({
+            "type": "object",
+            "properties": {
+                "input": { "type": "string" }
+            },
+            "required": ["input"]
+        }))
+        .with_handler(Arc::new(SecretTool))
+}
+
 struct SecretTool;
 
 #[async_trait::async_trait]
 impl ToolHandler for SecretTool {
-    fn tool(&self) -> Tool {
-        Tool::new("secret_tool")
-            .with_description("A secret tool hidden from the default agent")
-            .with_parameters(json!({
-                "type": "object",
-                "properties": {
-                    "input": { "type": "string" }
-                },
-                "required": ["input"]
-            }))
-    }
-
     async fn call(&self, _invocation: ToolInvocation) -> Result<ToolResult, Error> {
         Ok(ToolResult::Text("SECRET".to_string()))
     }
@@ -1572,4 +1581,5 @@ fn secret_number_tool() -> Tool {
             },
             "required": ["key"]
         }))
+        .with_handler(Arc::new(SecretNumberTool))
 }

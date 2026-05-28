@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
 using System.Text.Json;
@@ -10,7 +10,7 @@ using System.Text.Json.Serialization;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "tool_results", output)
 {
@@ -113,8 +113,8 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
                 ResultType = "success",
                 ToolTelemetry = new Dictionary<string, object>
                 {
-                    ["metrics"] = new Dictionary<string, object> { ["analysisTimeMs"] = 150 },
-                    ["properties"] = new Dictionary<string, object> { ["analyzer"] = "eslint" },
+                    ["metrics"] = JsonDocument.Parse("""{"analysisTimeMs":150}""").RootElement.Clone(),
+                    ["properties"] = JsonDocument.Parse("""{"analyzer":"eslint"}""").RootElement.Clone(),
                 },
             });
     }
@@ -131,7 +131,7 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt)
             {
@@ -181,7 +181,7 @@ public partial class ToolResultsE2ETests(E2ETestFixture fixture, ITestOutputHelp
             OnPermissionRequest = PermissionHandler.ApproveAll,
         });
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is ToolExecutionCompleteEvent toolEvt)
             {

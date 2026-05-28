@@ -84,7 +84,7 @@ type PreToolUseHandler func(
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
     PreToolUseHookInput input,
@@ -102,10 +102,25 @@ public delegate Task<PreToolUseHookOutput?> PreToolUseHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: hidden -->
 ```java
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.rpc.*;
+import java.util.concurrent.CompletableFuture;
 
-PreToolUseHandler preToolUseHandler;
+public class PreToolUseSignature {
+    PreToolUseHandler handler = (PreToolUseHookInput input, HookInvocation invocation) ->
+        CompletableFuture.completedFuture(PreToolUseHookOutput.allow());
+    public static void main(String[] args) {}
+}
+```
+<!-- /docs-validate: hidden -->
+```java
+@FunctionalInterface
+public interface PreToolUseHandler {
+    CompletableFuture<PreToolUseHookOutput> handle(
+        PreToolUseHookInput input,
+        HookInvocation invocation);
+}
 ```
 
 </details>
@@ -228,7 +243,7 @@ session, _ := client.CreateSession(context.Background(), &copilot.SessionConfig{
 
 <!-- docs-validate: hidden -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 public static class PreToolUseExample
 {
@@ -275,9 +290,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 var hooks = new SessionHooks()

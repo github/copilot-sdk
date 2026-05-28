@@ -14,7 +14,7 @@ The Microsoft Agent Framework is the unified successor to Semantic Kernel and Au
 | **A2A protocol** | Agent-to-Agent communication standard supported by the framework |
 
 > [!NOTE]
-> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, and Java, use the Copilot SDK directly—the standard SDK APIs already provide tool calling, streaming, and custom agents.
+> MAF integration packages are available for **.NET** and **Python**. For TypeScript, Go, Java, and Rust, use the Copilot SDK directly—the standard SDK APIs already provide tool calling, streaming, and custom agents.
 
 ## Prerequisites
 
@@ -74,7 +74,7 @@ Wrap the Copilot SDK client as a MAF agent with a single method call. The result
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 
 await using var copilotClient = new CopilotClient();
@@ -116,9 +116,8 @@ async def main():
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient();
 client.start().get();
@@ -146,7 +145,7 @@ Extend your Copilot agent with custom function tools. Tools defined through the 
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.AI;
 using Microsoft.Agents.AI;
 
@@ -232,9 +231,8 @@ await session.sendAndWait({ prompt: "What's the weather like in Seattle?" });
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -282,7 +280,7 @@ Run agents one after another, passing output from one to the next:
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Orchestration;
 
@@ -353,9 +351,8 @@ async def main():
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 // Java uses the standard SDK directly — no MAF orchestrator needed
 var client = new CopilotClient();
@@ -395,7 +392,7 @@ Run multiple agents in parallel and aggregate their results:
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Orchestration;
 
@@ -428,9 +425,8 @@ Console.WriteLine(combinedResult);
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 // Java uses CompletableFuture for concurrent execution
@@ -472,7 +468,7 @@ When building interactive applications, stream agent responses to show real-time
 
 <!-- docs-validate: skip -->
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Agents.AI;
 
 await using var copilotClient = new CopilotClient();
@@ -539,10 +535,10 @@ await session.sendAndWait({ prompt: "Write a quicksort implementation in TypeScr
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient();
 client.start().get();

@@ -100,7 +100,7 @@ func (p *inMemorySqliteProvider) Stat(path string) (*copilot.SessionFsFileInfo, 
 	return nil, fmt.Errorf("not found: %s", path)
 }
 
-func (p *inMemorySqliteProvider) Mkdir(path string, recursive bool, mode *int) error {
+func (p *inMemorySqliteProvider) MakeDirectory(path string, recursive bool, mode *int) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if recursive {
@@ -114,7 +114,7 @@ func (p *inMemorySqliteProvider) Mkdir(path string, recursive bool, mode *int) e
 	return nil
 }
 
-func (p *inMemorySqliteProvider) Readdir(path string) ([]string, error) {
+func (p *inMemorySqliteProvider) ReadDirectory(path string) ([]string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	prefix := strings.TrimRight(path, "/") + "/"
@@ -143,7 +143,7 @@ func (p *inMemorySqliteProvider) Readdir(path string) ([]string, error) {
 	return result, nil
 }
 
-func (p *inMemorySqliteProvider) ReaddirWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
+func (p *inMemorySqliteProvider) ReadDirectoryWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	prefix := strings.TrimRight(path, "/") + "/"
@@ -176,7 +176,7 @@ func (p *inMemorySqliteProvider) ReaddirWithTypes(path string) ([]rpc.SessionFsR
 	return result, nil
 }
 
-func (p *inMemorySqliteProvider) Rm(path string, recursive bool, force bool) error {
+func (p *inMemorySqliteProvider) Remove(path string, recursive bool, force bool) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.files, path)
@@ -243,10 +243,10 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 	ctx := testharness.NewTestContext(t)
 	sessionStatePath := createSessionStatePath(t)
 	sessionFsConfig := &copilot.SessionFsConfig{
-		InitialCwd:       "/",
-		SessionStatePath: sessionStatePath,
-		Conventions:      rpc.SessionFsSetProviderConventionsPosix,
-		Capabilities:     &copilot.SessionFsCapabilities{Sqlite: true},
+		InitialWorkingDirectory: "/",
+		SessionStatePath:        sessionStatePath,
+		Conventions:             rpc.SessionFsSetProviderConventionsPosix,
+		Capabilities:            &copilot.SessionFsCapabilities{Sqlite: true},
 	}
 
 	var sqliteCalls []sqliteCall
@@ -268,8 +268,8 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 		sqliteCalls = nil
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -306,8 +306,8 @@ func TestSessionFsSqliteE2E(t *testing.T) {
 		sqliteCalls = nil
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)

@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "system_message_transform", output)
 {
@@ -22,9 +22,9 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    ["identity"] = new SectionOverride
+                    [SystemMessageSection.Identity] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {
@@ -33,7 +33,7 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
                             return content;
                         }
                     },
-                    ["tone"] = new SectionOverride
+                    [SystemMessageSection.Tone] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {
@@ -68,9 +68,9 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    ["identity"] = new SectionOverride
+                    [SystemMessageSection.Identity] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {
@@ -108,13 +108,13 @@ public class SystemMessageTransformE2ETests(E2ETestFixture fixture, ITestOutputH
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Customize,
-                Sections = new Dictionary<string, SectionOverride>
+                Sections = new Dictionary<SystemMessageSection, SectionOverride>
                 {
-                    ["safety"] = new SectionOverride
+                    [SystemMessageSection.Safety] = new SectionOverride
                     {
                         Action = SectionOverrideAction.Remove
                     },
-                    ["identity"] = new SectionOverride
+                    [SystemMessageSection.Identity] = new SectionOverride
                     {
                         Transform = async (content) =>
                         {

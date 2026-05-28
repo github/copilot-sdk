@@ -11,14 +11,14 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func TestMultiClientE2E(t *testing.T) {
 	// Use TCP mode so a second client can connect to the same CLI process
 	ctx := testharness.NewTestContext(t)
 	client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-		opts.UseStdio = copilot.Bool(false)
-		opts.TCPConnectionToken = sharedTcpToken
+		opts.Connection = copilot.TcpConnection{Path: opts.Connection.(copilot.StdioConnection).Path, ConnectionToken: sharedTcpToken}
 	})
 	t.Cleanup(func() { client1.ForceStop() })
 
@@ -31,14 +31,13 @@ func TestMultiClientE2E(t *testing.T) {
 	}
 	initSession.Disconnect()
 
-	actualPort := client1.ActualPort()
-	if actualPort == 0 {
+	runtimePort := client1.RuntimePort()
+	if runtimePort == 0 {
 		t.Fatalf("Expected non-zero port from TCP mode client")
 	}
 
 	client2 := copilot.NewClient(&copilot.ClientOptions{
-		CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
-		TCPConnectionToken: sharedTcpToken,
+		Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 	})
 	t.Cleanup(func() { client2.ForceStop() })
 
@@ -141,11 +140,11 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Client 1 creates a session and manually approves permission requests
 		session1, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				mu.Lock()
 				client1PermissionRequests = append(client1PermissionRequests, request)
 				mu.Unlock()
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -154,8 +153,8 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Client 2 observes the permission request but leaves the decision to client 1.
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionNoResult{}, nil
 			},
 		})
 		if err != nil {
@@ -241,8 +240,8 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Client 1 creates a session and denies all permission requests
 		session1, err := client1.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionReject{}, nil
 			},
 		})
 		if err != nil {
@@ -251,8 +250,8 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Client 2 observes the permission request but leaves the decision to client 1.
 		session2, err := client2.ResumeSession(t.Context(), session1.SessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionNoResult{}, nil
 			},
 		})
 		if err != nil {
@@ -377,6 +376,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if response1 == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		rd1, ok := response1.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -394,6 +394,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if response2 == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		rd2, ok := response2.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -450,6 +451,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if stableResponse == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		srd, ok := stableResponse.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -467,6 +469,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if ephemeralResponse == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		erd, ok := ephemeralResponse.Data.(*copilot.AssistantMessageData)
 		if !ok {
@@ -484,8 +487,7 @@ func TestMultiClientE2E(t *testing.T) {
 
 		// Recreate client2 for cleanup (but don't rejoin the session)
 		client2 = copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl:             fmt.Sprintf("localhost:%d", actualPort),
-			TCPConnectionToken: sharedTcpToken,
+			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort), ConnectionToken: sharedTcpToken},
 		})
 
 		// Now only stable_tool should be available
@@ -497,6 +499,7 @@ func TestMultiClientE2E(t *testing.T) {
 		}
 		if afterResponse == nil {
 			t.Fatalf("Expected response with content")
+			return
 		}
 		ard, ok := afterResponse.Data.(*copilot.AssistantMessageData)
 		if !ok {

@@ -9,7 +9,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { CopilotClient } from "../../src/client.js";
-import { createSessionFsAdapter } from "../../src/index.js";
+import { createSessionFsAdapter, RuntimeConnection } from "../../src/index.js";
 import type { SessionFsReaddirWithTypesEntry } from "../../src/generated/rpc.js";
 import {
     approveAll,
@@ -34,7 +34,7 @@ describe("Session Fs", async () => {
     // Single provider for the describe block — session IDs are unique per test,
     // so no cross-contamination between tests.
     const provider = new MemoryProvider();
-    const createSessionFsHandler = (session: CopilotSession) =>
+    const createSessionFsProvider = (session: CopilotSession) =>
         createTestSessionFsHandler(session, provider);
 
     // Helpers to build session-namespaced paths for direct provider assertions
@@ -51,7 +51,7 @@ describe("Session Fs", async () => {
         async () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                createSessionFsHandler,
+                createSessionFsProvider,
             });
 
             const errors: SessionEvent[] = [];
@@ -79,7 +79,7 @@ describe("Session Fs", async () => {
     it("should load session data from fs provider on resume", async () => {
         const session1 = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
         const sessionId = session1.sessionId;
 
@@ -92,7 +92,7 @@ describe("Session Fs", async () => {
 
         const session2 = await client.resumeSession(sessionId, {
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         // Send another message to verify the session is functional after resume
@@ -104,22 +104,23 @@ describe("Session Fs", async () => {
     it("should reject setProvider when sessions already exist", async () => {
         const tcpConnectionToken = "session-fs-test-token";
         const client = new CopilotClient({
-            useStdio: false, // Use TCP so we can connect from a second client
-            tcpConnectionToken,
+            // Use TCP so we can connect from a second client
+            connection: RuntimeConnection.forTcp({ connectionToken: tcpConnectionToken }),
             env,
         });
         onTestFinished(() => client.forceStop());
-        await client.createSession({ onPermissionRequest: approveAll, createSessionFsHandler });
+        await client.createSession({ onPermissionRequest: approveAll, createSessionFsProvider });
 
-        const { actualPort: port } = client as unknown as { actualPort: number };
+        const { runtimePort: port } = client as unknown as { runtimePort: number };
 
         // Second client tries to connect with a session fs — should fail
         // because sessions already exist on the runtime.
         const client2 = new CopilotClient({
             env,
             logLevel: "error",
-            cliUrl: `localhost:${port}`,
-            tcpConnectionToken,
+            connection: RuntimeConnection.forUri(`localhost:${port}`, {
+                connectionToken: tcpConnectionToken,
+            }),
             sessionFs: sessionFsConfig,
         });
         onTestFinished(() => client2.forceStop());
@@ -131,7 +132,7 @@ describe("Session Fs", async () => {
         const suppliedFileContent = "x".repeat(100_000);
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
             tools: [
                 defineTool("get_big_string", {
                     description: "Returns a large string",
@@ -145,7 +146,7 @@ describe("Session Fs", async () => {
         });
 
         // The tool result should reference a temp file under the session state path
-        const messages = await session.getMessages();
+        const messages = await session.getEvents();
         const toolResult = findToolCallResult(messages, "get_big_string");
         expect(toolResult).toContain(`${sessionStatePath}/temp/`);
         const filename = toolResult?.match(
@@ -162,7 +163,7 @@ describe("Session Fs", async () => {
     it("should write workspace metadata via sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         const msg = await session.sendAndWait({ prompt: "What is 7 * 8?" });
@@ -184,7 +185,7 @@ describe("Session Fs", async () => {
     it("should persist plan.md via sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         // Write a plan via the session RPC
@@ -202,7 +203,7 @@ describe("Session Fs", async () => {
     it("should succeed with compaction while using sessionFs", async () => {
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            createSessionFsHandler,
+            createSessionFsProvider,
         });
 
         let compactionEvent: SessionCompactionCompleteEvent | undefined;
@@ -216,12 +217,12 @@ describe("Session Fs", async () => {
         expect(contentBefore).not.toContain("checkpointNumber");
 
         await session.rpc.history.compact();
-        await expect.poll(() => compactionEvent).toBeDefined();
+        await expect.poll(() => compactionEvent, { timeout: 30_000 }).toBeDefined();
         expect(compactionEvent!.data.success).toBe(true);
 
         // Verify the events file was rewritten with a checkpoint via sessionFs
         await expect
-            .poll(() => provider.readFile(eventsPath, "utf8"))
+            .poll(() => provider.readFile(eventsPath, "utf8"), { timeout: 30_000 })
             .toContain("checkpointNumber");
     });
 });

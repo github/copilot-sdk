@@ -7,6 +7,7 @@ import { z } from "zod";
 import { approveAll, defineTool } from "../../src/index.js";
 import type {
     ErrorOccurredHookInput,
+    PostToolUseFailureHookInput,
     PostToolUseHookInput,
     PreToolUseHookInput,
     SessionEndHookInput,
@@ -37,8 +38,8 @@ describe("Extended session hooks", async () => {
 
         expect(sessionStartInputs.length).toBeGreaterThan(0);
         expect(sessionStartInputs[0].source).toBe("new");
-        expect(sessionStartInputs[0].timestamp).toBeGreaterThan(0);
-        expect(sessionStartInputs[0].cwd).toBeDefined();
+        expect(sessionStartInputs[0].timestamp).toBeInstanceOf(Date);
+        expect(sessionStartInputs[0].workingDirectory).toBeDefined();
 
         await session.disconnect();
     });
@@ -62,8 +63,8 @@ describe("Extended session hooks", async () => {
 
         expect(userPromptInputs.length).toBeGreaterThan(0);
         expect(userPromptInputs[0].prompt).toContain("Say hello");
-        expect(userPromptInputs[0].timestamp).toBeGreaterThan(0);
-        expect(userPromptInputs[0].cwd).toBeDefined();
+        expect(userPromptInputs[0].timestamp).toBeInstanceOf(Date);
+        expect(userPromptInputs[0].workingDirectory).toBeDefined();
 
         await session.disconnect();
     });
@@ -102,8 +103,8 @@ describe("Extended session hooks", async () => {
                 onErrorOccurred: async (input, invocation) => {
                     errorInputs.push(input);
                     expect(invocation.sessionId).toBe(session.sessionId);
-                    expect(input.timestamp).toBeGreaterThan(0);
-                    expect(input.cwd).toBeDefined();
+                    expect(input.timestamp).toBeInstanceOf(Date);
+                    expect(input.workingDirectory).toBeDefined();
                     expect(input.error).toBeDefined();
                     expect(["model_call", "tool_execution", "system", "user_input"]).toContain(
                         input.errorContext
@@ -165,7 +166,7 @@ describe("Extended session hooks", async () => {
 
         expect(inputs.length).toBeGreaterThan(0);
         expect(inputs[0].source).toBe("new");
-        expect(inputs[0].cwd).toBeTruthy();
+        expect(inputs[0].workingDirectory).toBeTruthy();
 
         await session.disconnect();
     });
@@ -296,6 +297,40 @@ describe("Extended session hooks", async () => {
 
         expect(inputs.some((input) => input.toolName === "report_intent")).toBe(true);
         expect(response?.data.content).toBe("Done.");
+
+        await session.disconnect();
+    });
+
+    it("should invoke postToolUseFailure hook for failed tool result", async () => {
+        const failureInputs: PostToolUseFailureHookInput[] = [];
+        const postToolUseInputs: PostToolUseHookInput[] = [];
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: ["report_intent"],
+            hooks: {
+                onPostToolUse: async (input) => {
+                    postToolUseInputs.push(input);
+                },
+                onPostToolUseFailure: async (input, invocation) => {
+                    failureInputs.push(input);
+                    expect(invocation.sessionId).toBe(session.sessionId);
+                    return { additionalContext: "HOOK_FAILURE_GUIDANCE_APPLIED" };
+                },
+            },
+        });
+
+        const response = await session.sendAndWait({
+            prompt: "Call the view tool with path 'missing.txt'. If it fails, use the hook guidance to answer.",
+        });
+
+        expect(postToolUseInputs).toHaveLength(0);
+        expect(failureInputs).toHaveLength(1);
+        expect(failureInputs[0].toolName).toBe("view");
+        expect(failureInputs[0].error).toContain("does not exist");
+        expect((failureInputs[0].toolArgs as { path?: string }).path).toContain("missing.txt");
+        expect(failureInputs[0].timestamp).toBeInstanceOf(Date);
+        expect(failureInputs[0].workingDirectory).toBeTruthy();
+        expect(response?.data.content ?? "").toContain("HOOK_FAILURE_GUIDANCE_APPLIED");
 
         await session.disconnect();
     });

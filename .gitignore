@@ -3,12 +3,17 @@
 docs/.validation/
 .DS_Store
 
-# Rust scenario build artifacts
-test/scenarios/**/rust/target/
-test/scenarios/**/rust/Cargo.lock
 
 # Visual Studio
 .vs/
 
 # C# Dev Kit
 *.csproj.lscache
+
+# Java
+java/target
+java/smoke-test
+java/.classpath
+java/.project
+java/.settings
+java/scripts/codegen/node_modules/

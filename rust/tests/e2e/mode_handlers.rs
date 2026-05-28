@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use github_copilot_sdk::generated::SessionMode;
+use github_copilot_sdk::generated::api_types::ModeSetRequest;
 use github_copilot_sdk::generated::session_events::{
     AutoModeSwitchCompletedData, AutoModeSwitchRequestedData,
     AutoModeSwitchResponse as EventAutoModeSwitchResponse, ExitPlanModeAction,
     ExitPlanModeCompletedData, ExitPlanModeRequestedData, SessionEventType, SessionModelChangeData,
 };
 use github_copilot_sdk::handler::{
-    AutoModeSwitchResponse as HandlerAutoModeSwitchResponse, ExitPlanModeResult, SessionHandler,
+    AutoModeSwitchHandler, AutoModeSwitchResponse as HandlerAutoModeSwitchResponse,
+    ExitPlanModeHandler, ExitPlanModeResult,
 };
 use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
-use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::support::{
@@ -34,12 +36,8 @@ struct AutoModeHandler {
 }
 
 #[async_trait]
-impl SessionHandler for ModeHandler {
-    async fn on_exit_plan_mode(
-        &self,
-        session_id: SessionId,
-        data: ExitPlanModeData,
-    ) -> ExitPlanModeResult {
+impl ExitPlanModeHandler for ModeHandler {
+    async fn handle(&self, session_id: SessionId, data: ExitPlanModeData) -> ExitPlanModeResult {
         let _ = self.requests.send((session_id, data));
         ExitPlanModeResult {
             approved: true,
@@ -50,8 +48,8 @@ impl SessionHandler for ModeHandler {
 }
 
 #[async_trait]
-impl SessionHandler for AutoModeHandler {
-    async fn on_auto_mode_switch(
+impl AutoModeSwitchHandler for AutoModeHandler {
+    async fn handle(
         &self,
         session_id: SessionId,
         error_code: Option<String>,
@@ -78,7 +76,7 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(MODE_HANDLER_TOKEN)
-                            .with_handler(Arc::new(ModeHandler {
+                            .with_exit_plan_mode_handler(Arc::new(ModeHandler {
                                 requests: request_tx,
                             }))
                             .approve_all_permissions(),
@@ -116,22 +114,19 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     |event| event.parsed_type() == SessionEventType::SessionIdle,
                 ));
 
-                let send_result = session
-                    .client()
-                    .call(
-                        "session.send",
-                        Some(json!({
-                            "sessionId": session.id().as_str(),
-                            "prompt": PLAN_PROMPT,
-                            "mode": "plan",
-                        })),
-                    )
+                session
+                    .rpc()
+                    .mode()
+                    .set(ModeSetRequest {
+                        mode: SessionMode::Plan,
+                    })
+                    .await
+                    .expect("set plan mode");
+                let message_id = session
+                    .send(PLAN_PROMPT)
                     .await
                     .expect("send plan-mode prompt");
-                assert!(
-                    send_result.get("messageId").is_some(),
-                    "expected messageId in send result"
-                );
+                assert!(!message_id.is_empty(), "expected messageId in send result");
 
                 let (session_id, request) =
                     recv_with_timeout(&mut request_rx, "exit-plan-mode request").await;
@@ -198,7 +193,7 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(MODE_HANDLER_TOKEN)
-                            .with_handler(Arc::new(AutoModeHandler {
+                            .with_auto_mode_switch_handler(Arc::new(AutoModeHandler {
                                 requests: request_tx,
                             }))
                             .approve_all_permissions(),
@@ -215,7 +210,7 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                                 .typed_data::<AutoModeSwitchRequestedData>()
                                 .is_some_and(|data| {
                                     data.error_code.as_deref() == Some("user_weekly_rate_limited")
-                                        && data.retry_after_seconds == Some(1.0)
+                                        && data.retry_after_seconds == Some(1)
                                 })
                     },
                 ));
@@ -265,7 +260,10 @@ async fn should_invoke_auto_mode_switch_handler_when_rate_limited() {
                     .typed_data::<AutoModeSwitchRequestedData>()
                     .expect("typed requested event");
                 assert_eq!(requested_data.error_code, error_code);
-                assert_eq!(requested_data.retry_after_seconds, retry_after_seconds);
+                assert_eq!(
+                    requested_data.retry_after_seconds.map(|value| value as f64),
+                    retry_after_seconds
+                );
 
                 let completed = completed_event.await.expect("completed task");
                 let completed_data = completed

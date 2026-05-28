@@ -26,6 +26,7 @@ import {
     collectRpcMethodReferencedDefinitionNames,
     findSharedSchemaDefinitions,
     postProcessSchema,
+    propagateInternalVisibility,
     resolveRef,
     resolveObjectSchema,
     resolveSchema,
@@ -36,6 +37,8 @@ import {
     isNodeFullyDeprecated,
     isSchemaDeprecated,
     isSchemaExperimental,
+    isSchemaInternal,
+    isOpaqueJson,
     isObjectSchema,
     isVoidSchema,
     getNullableInner,
@@ -217,6 +220,21 @@ function toPascalCase(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
+function stripDurationMillisecondsSuffix(name: string): string {
+    if (name.length > 2 && name.endsWith("Ms") && /[a-z]/.test(name.charAt(name.length - 3))) {
+        return name.slice(0, -2);
+    }
+    return name;
+}
+
+function toCSharpPropertyName(propName: string, schema: JSONSchema7): string {
+    return toPascalCase(isDurationProperty(schema) ? stripDurationMillisecondsSuffix(propName) : propName);
+}
+
+function isSecondsDurationPropertyName(propName: string | undefined): boolean {
+    return propName !== undefined && /seconds$/i.test(propName);
+}
+
 function typeToClassName(typeName: string): string {
     return splitCSharpIdentifierParts(typeName).map(toPascalCasePart).join("");
 }
@@ -260,7 +278,28 @@ function isNonNullableCSharpValueType(typeName: string): boolean {
         "long",
         "DateTimeOffset",
         "TimeSpan",
+        "JsonElement",
     ].includes(typeName) || generatedEnums.has(typeName) || emittedRpcEnumResultTypes.has(typeName) || externalRpcValueTypes.has(typeName);
+}
+
+/**
+ * Schemas marked `.asOpaqueJson()` on the runtime side carry
+ * `x-opaque-json: true`. These are the only shapes that legitimately surface
+ * as opaque JSON in the SDK (mapped to `JsonElement` in C#). Anything else
+ * that lacks an idiomatic mapping (untyped fields, non-discriminated unions,
+ * etc.) is rejected by the runtime's schema-shape lint, so the codegen
+ * treats reaching an unmappable schema here as a bug.
+ *
+ * The predicate itself lives in {@link "./utils".isOpaqueJson} for reuse.
+ */
+function failUnmappable(context: string, schema: JSONSchema7): never {
+    const summary = JSON.stringify(schema, (key, value) => (key === "description" ? undefined : value)).slice(0, 200);
+    throw new Error(
+        `C# codegen: cannot map schema to an idiomatic C# type (${context}). ` +
+            `On the runtime side, either tighten the Zod schema to a typed shape, or — if it is genuinely free-form JSON — ` +
+            `mark it \`.asOpaqueJson()\` so the schema emits \`x-opaque-json: true\` and the codegen maps it to JsonElement. ` +
+            `Offending schema (truncated): ${summary}`,
+    );
 }
 
 function requiresArgumentNullCheck(typeName: string, isRequired: boolean): boolean {
@@ -293,11 +332,14 @@ function localRequestVariableName(paramEntries: [string, JSONSchema7Definition][
     return hasRequestParameter || paramEntries.some(([name]) => name === "request") ? "rpcRequest" : "request";
 }
 
-function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>): string {
+function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: Map<string, string>, propName?: string): string {
+    if (isOpaqueJson(schema)) {
+        return required ? "JsonElement" : "JsonElement?";
+    }
     const nullableInner = getNullableInner(schema);
     if (nullableInner) {
         // Pass required=true to get the base type, then add "?" for nullable
-        return schemaTypeToCSharp(nullableInner, true, knownTypes) + "?";
+        return schemaTypeToCSharp(nullableInner, true, knownTypes, propName) + "?";
     }
     if (schema.$ref) {
         const refName = schema.$ref.split("/").pop()!;
@@ -318,7 +360,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             return "string?";
         }
         if (nonNullTypes.length === 1 && (nonNullTypes[0] === "number" || nonNullTypes[0] === "integer")) {
-            if (format === "duration") {
+            if (format === "duration" && !isSecondsDurationPropertyName(propName)) {
                 return "TimeSpan?";
             }
             if (nonNullTypes[0] === "integer") {
@@ -334,7 +376,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
         return required ? "string" : "string?";
     }
     if (type === "number" || type === "integer") {
-        if (format === "duration") {
+        if (format === "duration" && !isSecondsDurationPropertyName(propName)) {
             return required ? "TimeSpan" : "TimeSpan?";
         }
         if (type === "integer") {
@@ -346,7 +388,8 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
     if (type === "boolean") return required ? "bool" : "bool?";
     if (type === "array") {
         const items = schema.items as JSONSchema7 | undefined;
-        const itemType = items ? schemaTypeToCSharp(items, true, knownTypes) : "object";
+        if (!items) failUnmappable(`array without items (propName=${propName ?? "?"})`, schema);
+        const itemType = schemaTypeToCSharp(items, true, knownTypes);
         return required ? `${itemType}[]` : `${itemType}[]?`;
     }
     if (type === "object") {
@@ -354,9 +397,9 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
             const valueType = schemaTypeToCSharp(schema.additionalProperties as JSONSchema7, true, knownTypes);
             return required ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
         }
-        return required ? "object" : "object?";
+        failUnmappable(`object without properties or typed additionalProperties (propName=${propName ?? "?"})`, schema);
     }
-    return required ? "object" : "object?";
+    failUnmappable(`unknown/missing type (propName=${propName ?? "?"})`, schema);
 }
 
 /** Tracks whether any TimeSpan property was emitted so the converter can be generated. */
@@ -366,7 +409,7 @@ function schemaTypeToCSharp(schema: JSONSchema7, required: boolean, knownTypes: 
  * Emit C# data-annotation attributes for a JSON Schema property.
  * Returns an array of attribute lines (without trailing newlines).
  */
-function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
+function emitDataAnnotations(schema: JSONSchema7, indent: string, csharpType: string): string[] {
     const attrs: string[] = [];
     const format = schema.format;
 
@@ -376,9 +419,12 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Uri)]`);
     }
 
-    // [StringSyntax(StringSyntaxAttribute.Regex)] for format: "regex"
+    // [StringSyntax(StringSyntaxAttribute.Regex)] and [RegularExpression] for format: "regex"
     if (format === "regex") {
         attrs.push(`${indent}[StringSyntax(StringSyntaxAttribute.Regex)]`);
+        if (typeof schema.pattern === "string") {
+            attrs.push(`${indent}[RegularExpression("${escapeCSharpStringLiteral(schema.pattern)}")]`);
+        }
     }
 
     // [Base64String] for base64-encoded string properties
@@ -386,31 +432,9 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
         attrs.push(`${indent}[Base64String]`);
     }
 
-    // [Range] for minimum/maximum
-    const hasMin = typeof schema.minimum === "number";
-    const hasMax = typeof schema.maximum === "number";
-    if (hasMin || hasMax) {
-        const namedArgs: string[] = [];
-        if (schema.exclusiveMinimum === true) namedArgs.push("MinimumIsExclusive = true");
-        if (schema.exclusiveMaximum === true) namedArgs.push("MaximumIsExclusive = true");
-        const namedSuffix = namedArgs.length > 0 ? `, ${namedArgs.join(", ")}` : "";
-        if (schema.type === "integer") {
-            // Use Range(double, double) for AOT/trimming compatibility.
-            // The Range(Type, string, string) overload uses TypeConverter which triggers IL2026.
-            const min = hasMin ? String(schema.minimum) : "long.MinValue";
-            const max = hasMax ? String(schema.maximum) : "long.MaxValue";
-            attrs.push(`${indent}[Range((double)${min}, (double)${max}${namedSuffix})]`);
-        } else {
-            const min = hasMin ? String(schema.minimum) : "double.MinValue";
-            const max = hasMax ? String(schema.maximum) : "double.MaxValue";
-            attrs.push(`${indent}[Range(${min}, ${max}${namedSuffix})]`);
-        }
-    }
-
-    // [RegularExpression] for pattern
-    if (typeof schema.pattern === "string") {
-        const escaped = schema.pattern.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-        attrs.push(`${indent}[RegularExpression("${escaped}")]`);
+    // [RegularExpression] for pattern constraints on non-regex-format properties
+    if (format !== "regex" && typeof schema.pattern === "string") {
+        attrs.push(`${indent}[RegularExpression("${escapeCSharpStringLiteral(schema.pattern)}")]`);
     }
 
     // [MinLength] / [MaxLength] for string constraints
@@ -432,13 +456,19 @@ function emitDataAnnotations(schema: JSONSchema7, indent: string): string[] {
 /**
  * Returns true when a TimeSpan-typed property needs a [JsonConverter] attribute.
  *
- * NOTE: The runtime schema uses `format: "duration"` on numeric (integer/number) fields
- * to mean "a duration value expressed in milliseconds". This differs from the JSON Schema
- * spec, where `format: "duration"` denotes an ISO 8601 duration string (e.g. "PT1H30M").
- * The generator and runtime agree on this convention, so we map these to TimeSpan with a
- * milliseconds-based JSON converter rather than expecting ISO 8601 strings.
+ * NOTE: The runtime schema generally uses `format: "duration"` on numeric (integer/number)
+ * fields to mean "a duration value expressed in milliseconds". This differs from the JSON
+ * Schema spec, where `format: "duration"` denotes an ISO 8601 duration string (e.g.
+ * "PT1H30M"). The generator and runtime agree on this convention, so we map millisecond
+ * fields to TimeSpan with a milliseconds-based JSON converter rather than expecting ISO
+ * 8601 strings. Seconds-suffixed fields stay numeric because their wire value is seconds.
  */
 function isDurationProperty(schema: JSONSchema7): boolean {
+    const nullableInner = getNullableInner(schema);
+    if (nullableInner) {
+        return isDurationProperty(nullableInner);
+    }
+
     if (schema.format === "duration") {
         const t = schema.type;
         if (t === "number" || t === "integer") return true;
@@ -448,6 +478,10 @@ function isDurationProperty(schema: JSONSchema7): boolean {
         }
     }
     return false;
+}
+
+function isMillisecondsDurationProperty(propName: string | undefined, schema: JSONSchema7): boolean {
+    return isDurationProperty(schema) && !isSecondsDurationPropertyName(propName);
 }
 
 
@@ -481,6 +515,20 @@ function obsoleteAttributeBlock(indent = ""): string {
 
 function pushObsoleteAttributes(lines: string[], indent = ""): void {
     lines.push(...obsoleteAttributes(indent));
+}
+
+/**
+ * Emit the `[JsonInclude]` attribute for an internally-marked property and
+ * return the C# access modifier to use for the property declaration.
+ *
+ * `[JsonInclude]` is required because System.Text.Json only auto-(de)serialises
+ * public members by default; without it, the `internal` setter would silently
+ * be skipped.
+ */
+function pushCSharpInternalAttribute(lines: string[], schema: JSONSchema7, indent = "    "): "public" | "internal" {
+    const propInternal = isSchemaInternal(schema);
+    if (propInternal) lines.push(`${indent}[JsonInclude]`);
+    return propInternal ? "internal" : "public";
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -563,12 +611,12 @@ function getOrCreateEnum(
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override ${enumName} Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            return new(GitHub.Copilot.SDK.GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
+    lines.push(`            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));`);
     lines.push(`        }`, "");
     lines.push(`        /// <inheritdoc />`);
     lines.push(`        public override void Write(Utf8JsonWriter writer, ${enumName} value, JsonSerializerOptions options)`);
     lines.push(`        {`);
-    lines.push(`            GitHub.Copilot.SDK.GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
+    lines.push(`            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(${enumName}));`);
     lines.push(`        }`);
     lines.push(`    }`);
     lines.push(`}`, "");
@@ -734,18 +782,20 @@ function generateFlattenedBooleanDiscriminatedClass(
     const propertyEntries = Array.from(flattenedProperties.entries()).sort(([a], [b]) => a.localeCompare(b));
     for (const [propName, info] of propertyEntries) {
         const isReq = info.variantCount === variants.length && info.requiredCount === variants.length;
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, info.schema);
         const csharpType = resolver(info.schema, renamedBase, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push("");
         lines.push(...xmlDocPropertyComment(info.schema.description, propName, "    "));
-        lines.push(...emitDataAnnotations(info.schema, "    "));
+        lines.push(...emitDataAnnotations(info.schema, "    ", csharpType));
         if (isSchemaDeprecated(info.schema)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(info.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isSchemaExperimental(info.schema)) pushExperimentalAttribute(lines, "    ");
+        if (isMillisecondsDurationProperty(propName, info.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+        const propVisibility = pushCSharpInternalAttribute(lines, info.schema);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
-        lines.push(`    public ${reqMod}${csharpType} ${csharpName} { get; set; }`);
+        lines.push(`    ${propVisibility} ${reqMod}${csharpType} ${csharpName} { get; set; }`);
     }
 
     lines.push(`}`);
@@ -837,17 +887,20 @@ function generateDerivedClass(
             if (propName === discriminatorProperty) continue;
 
             const isReq = required.has(propName);
-            const csharpName = toPascalCase(propName);
-            const csharpType = propertyResolver(propSchema as JSONSchema7, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+            const prop = propSchema as JSONSchema7;
+            const csharpName = toCSharpPropertyName(propName, prop);
+            const csharpType = propertyResolver(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
-            lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
-            lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-            if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
-            if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+            lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+            lines.push(...emitDataAnnotations(prop, "    ", csharpType));
+            if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
+            if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
+            if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
             if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+            const propVisibility = pushCSharpInternalAttribute(lines, prop);
             lines.push(`    [JsonPropertyName("${propName}")]`);
             const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
-            lines.push(`    public ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
+            lines.push(`    ${propVisibility} ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
         }
     }
 
@@ -910,11 +963,11 @@ function getJsonUnionMatchExpression(variant: JsonUnionVariant, variants: JsonUn
     ].join(" && ");
 }
 
-function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description: string | undefined, jsonContextType: string): string {
+function generateJsonUnionClass(className: string, variants: JsonUnionVariant[], description: string | undefined, jsonContextType: string, isInternal: boolean): string {
     const lines: string[] = [];
     lines.push(...xmlDocCommentWithFallback(description, `JSON union data type for <c>${escapeXml(className)}</c>.`, ""));
     lines.push(`[JsonConverter(typeof(Converter))]`);
-    lines.push(`public sealed partial class ${className}`);
+    lines.push(`${isInternal ? "internal" : "public"} sealed partial class ${className}`);
     lines.push(`{`);
 
     for (const variant of variants) {
@@ -1040,7 +1093,7 @@ function tryGenerateSessionJsonUnionType(
         });
     }
 
-    nestedClasses.set(className, generateJsonUnionClass(className, variants, schema.description, "SessionEventsJsonContext"));
+    nestedClasses.set(className, generateJsonUnionClass(className, variants, schema.description, "SessionEventsJsonContext", isSchemaInternal(schema)));
     return className;
 }
 
@@ -1056,23 +1109,25 @@ function generateNestedClass(
     lines.push(...xmlDocCommentWithFallback(schema.description, `Nested data type for <c>${className}</c>.`, ""));
     if (isSchemaExperimental(schema)) pushExperimentalAttribute(lines);
     if (isSchemaDeprecated(schema)) pushObsoleteAttributes(lines);
-    lines.push(`public sealed partial class ${className}`, `{`);
+    lines.push(`${isSchemaInternal(schema) ? "internal" : "public"} sealed partial class ${className}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(schema.properties || {}).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = required.has(propName);
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, prop);
         const csharpType = resolveSessionPropertyType(prop, className, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
+        if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+        const propVisibility = pushCSharpInternalAttribute(lines, prop);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
-        lines.push(`    public ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
+        lines.push(`    ${propVisibility} ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
     }
     if (lines[lines.length - 1] === "") lines.pop();
     lines.push(`}`);
@@ -1088,6 +1143,9 @@ function resolveSessionPropertyType(
     nestedClasses: Map<string, string>,
     enumOutput: string[]
 ): string {
+    if (isOpaqueJson(propSchema)) {
+        return isRequired ? "JsonElement" : "JsonElement?";
+    }
     // Handle $ref by resolving against schema definitions
     if (propSchema.$ref) {
         const className = typeToClassName(refTypeName(propSchema.$ref, sessionDefinitions));
@@ -1138,12 +1196,12 @@ function resolveSessionPropertyType(
         }
         const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
         if (unionType) return isRequired ? unionType : `${unionType}?`;
-        return !isRequired ? "object?" : "object";
+        failUnmappable(`anyOf without discriminator (${parentClassName}.${propName})`, propSchema);
     }
     if (propSchema.oneOf) {
         const unionType = tryGenerateSessionJsonUnionType(propSchema, parentClassName, propName, knownTypes, nestedClasses, enumOutput);
         if (unionType) return isRequired ? unionType : `${unionType}?`;
-        return !isRequired ? "object?" : "object";
+        failUnmappable(`oneOf without discriminator (${parentClassName}.${propName})`, propSchema);
     }
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
         const enumName = getOrCreateEnum(parentClassName, propName, propSchema.enum as string[], enumOutput, propSchema.description, getEnumValueDescriptions(propSchema), propSchema.title as string | undefined, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
@@ -1180,11 +1238,12 @@ function resolveSessionPropertyType(
         );
         return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
-    return schemaTypeToCSharp(propSchema, isRequired, knownTypes);
+    return schemaTypeToCSharp(propSchema, isRequired, knownTypes, propName);
 }
 
 function generateDataClass(variant: EventVariant, knownTypes: Map<string, string>, nestedClasses: Map<string, string>, enumOutput: string[]): string {
-    if (!variant.dataSchema?.properties) return `public sealed partial class ${variant.dataClassName} { }`;
+    const dataVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
+    if (!variant.dataSchema?.properties) return `${dataVisibility} sealed partial class ${variant.dataClassName} { }`;
 
     const required = new Set(variant.dataSchema.required || []);
     const lines: string[] = [];
@@ -1199,22 +1258,25 @@ function generateDataClass(variant: EventVariant, knownTypes: Map<string, string
     if (isSchemaDeprecated(variant.dataSchema)) {
         pushObsoleteAttributes(lines);
     }
-    lines.push(`public sealed partial class ${variant.dataClassName}`, `{`);
+    lines.push(`${dataVisibility} sealed partial class ${variant.dataClassName}`, `{`);
 
     for (const [propName, propSchema] of Object.entries(variant.dataSchema.properties).sort(([a], [b]) => a.localeCompare(b))) {
         if (typeof propSchema !== "object") continue;
         const isReq = required.has(propName);
-        const csharpName = toPascalCase(propName);
-        const csharpType = resolveSessionPropertyType(propSchema as JSONSchema7, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
+        const prop = propSchema as JSONSchema7;
+        const csharpName = toCSharpPropertyName(propName, prop);
+        const csharpType = resolveSessionPropertyType(prop, variant.dataClassName, csharpName, isReq, knownTypes, nestedClasses, enumOutput);
 
-        lines.push(...xmlDocPropertyComment((propSchema as JSONSchema7).description, propName, "    "));
-        lines.push(...emitDataAnnotations(propSchema as JSONSchema7, "    "));
-        if (isSchemaDeprecated(propSchema as JSONSchema7)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(propSchema as JSONSchema7)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
+        if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
+        if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
+        if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
         if (!isReq) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+        const propVisibility = pushCSharpInternalAttribute(lines, prop);
         lines.push(`    [JsonPropertyName("${propName}")]`);
         const reqMod = isReq && !csharpType.endsWith("?") ? "required " : "";
-        lines.push(`    public ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
+        lines.push(`    ${propVisibility} ${reqMod}${csharpType} ${csharpName} { get; set; }`, "");
     }
     if (lines[lines.length - 1] === "") lines.pop();
     lines.push(`}`);
@@ -1227,7 +1289,7 @@ function emitSessionEventEnvelopeProperty(
     nestedClasses: Map<string, string>,
     enumOutput: string[]
 ): string[] {
-    const csharpName = toPascalCase(property.name);
+    const csharpName = toCSharpPropertyName(property.name, property.schema);
     const csharpType = resolveSessionPropertyType(
         property.schema,
         "SessionEvent",
@@ -1240,12 +1302,14 @@ function emitSessionEventEnvelopeProperty(
     const lines: string[] = [];
 
     lines.push(...xmlDocPropertyComment(property.schema.description, property.name, "    "));
-    lines.push(...emitDataAnnotations(property.schema, "    "));
+    lines.push(...emitDataAnnotations(property.schema, "    ", csharpType));
     if (isSchemaDeprecated(property.schema)) pushObsoleteAttributes(lines, "    ");
-    if (isDurationProperty(property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+    if (isSchemaExperimental(property.schema)) pushExperimentalAttribute(lines, "    ");
+    if (isMillisecondsDurationProperty(property.name, property.schema)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
     if (!property.required) lines.push(`    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`);
+    const propVisibility = pushCSharpInternalAttribute(lines, property.schema);
     lines.push(`    [JsonPropertyName("${property.name}")]`);
-    lines.push(`    public ${csharpType} ${csharpName} { get; set; }`, "");
+    lines.push(`    ${propVisibility} ${csharpType} ${csharpName} { get; set; }`, "");
 
     return lines;
 }
@@ -1275,7 +1339,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 `);
 
     // Base class with XML doc
@@ -1312,11 +1376,12 @@ namespace GitHub.Copilot.SDK;
         if (variant.eventExperimental) {
             pushExperimentalAttribute(lines);
         }
-        lines.push(`public sealed partial class ${variant.className} : SessionEvent`, `{`);
+        const variantVisibility = isSchemaInternal(variant.dataSchema) ? "internal" : "public";
+        lines.push(`${variantVisibility} sealed partial class ${variant.className} : SessionEvent`, `{`);
         lines.push(`    /// <inheritdoc />`);
         lines.push(`    [JsonIgnore]`, `    public override string Type => "${variant.typeName}";`, "");
         lines.push(`    /// <summary>The <c>${escapeXml(variant.typeName)}</c> event payload.</summary>`);
-        lines.push(`    [JsonPropertyName("data")]`, `    public required ${variant.dataClassName} Data { get; set; }`, `}`, "");
+        lines.push(`    [JsonPropertyName("data")]`, `    ${variantVisibility} required ${variant.dataClassName} Data { get; set; }`, `}`, "");
     }
 
     // Data classes
@@ -1344,7 +1409,7 @@ export async function generateSessionEvents(schemaPath?: string): Promise<void> 
     console.log("C#: generating session-events...");
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
-    const processed = postProcessSchema(schema);
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
     const code = generateSessionEventsCode(processed);
     const outPath = await writeGeneratedFile("dotnet/src/Generated/SessionEvents.cs", code);
     console.log(`  ✓ ${outPath}`);
@@ -1387,12 +1452,14 @@ function getCSharpSchemaTypeName(schema: JSONSchema7 | null | undefined, fallbac
     return getRpcSchemaTypeName(schema, fallback);
 }
 
-/** Returns the C# type for a method's result, accounting for nullable anyOf wrappers. */
+/** Returns the C# type for a method's result, accounting for nullable anyOf wrappers and opaque JSON. */
 function resolvedResultTypeName(method: RpcMethod): string {
     const schema = getMethodResultSchema(method);
     if (!schema) return resultTypeName(method);
+    if (isOpaqueJson(schema)) return "object";
     const inner = getNullableInner(schema);
     if (inner) {
+        if (isOpaqueJson(inner)) return "object?";
         // Nullable wrapper: resolve the inner $ref type name with "?" suffix
         const innerName = inner.$ref
             ? typeToClassName(refTypeName(inner.$ref, rpcDefinitions))
@@ -1439,6 +1506,9 @@ function stableStringify(value: unknown): string {
 }
 
 function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassName: string, propName: string, classes: string[]): string {
+    if (isOpaqueJson(schema)) {
+        return isRequired ? "JsonElement" : "JsonElement?";
+    }
     // Handle $ref by resolving against schema definitions and generating the referenced class
     if (schema.$ref) {
         const typeName = typeToClassName(refTypeName(schema.$ref, rpcDefinitions));
@@ -1536,7 +1606,7 @@ function resolveRpcType(schema: JSONSchema7, isRequired: boolean, parentClassNam
         const valueType = resolveRpcType(vs, true, parentClassName, `${propName}Value`, classes);
         return isRequired ? `IDictionary<string, ${valueType}>` : `IDictionary<string, ${valueType}>?`;
     }
-    return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes);
+    return schemaTypeToCSharp(schema, isRequired, rpcKnownTypes, propName);
 }
 
 function emitRpcClass(
@@ -1589,20 +1659,21 @@ function emitRpcClass(
         if (typeof propSchema !== "object") continue;
         const prop = propSchema as JSONSchema7;
         const isReq = requiredSet.has(propName);
-        const csharpName = toPascalCase(propName);
+        const csharpName = toCSharpPropertyName(propName, prop);
         const csharpType = resolveRpcType(prop, isReq, className, csharpName, extraClasses);
 
         lines.push(...xmlDocPropertyComment(prop.description, propName, "    "));
-        lines.push(...emitDataAnnotations(prop, "    "));
+        lines.push(...emitDataAnnotations(prop, "    ", csharpType));
         if (isSchemaDeprecated(prop)) pushObsoleteAttributes(lines, "    ");
-        if (isDurationProperty(prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        if (isSchemaExperimental(prop)) pushExperimentalAttribute(lines, "    ");
+        if (isMillisecondsDurationProperty(propName, prop)) lines.push(`    [JsonConverter(typeof(MillisecondsTimeSpanConverter))]`);
+        const propVisibility = pushCSharpInternalAttribute(lines, prop);
         lines.push(`    [JsonPropertyName("${propName}")]`);
 
         let defaultVal = "";
         let propAccessors = "{ get; set; }";
         if (isReq && !csharpType.endsWith("?")) {
             if (csharpType === "string") defaultVal = " = string.Empty;";
-            else if (csharpType === "object") defaultVal = " = null!;";
             else if (csharpType.startsWith("IList<")) {
                 propAccessors = "{ get => field ??= []; set; }";
             } else if (csharpType.startsWith("IDictionary<")) {
@@ -1614,7 +1685,7 @@ function emitRpcClass(
                 defaultVal = " = null!;";
             }
         }
-        lines.push(`    public ${csharpType} ${csharpName} ${propAccessors}${defaultVal}`);
+        lines.push(`    ${propVisibility} ${csharpType} ${csharpName} ${propAccessors}${defaultVal}`);
         if (i < props.length - 1) lines.push("");
     }
     lines.push(`}`);
@@ -1788,12 +1859,43 @@ function emitServerInstanceMethod(
         if (typeof pSchema !== "object") continue;
         const isReq = requiredSet.has(pName);
         const jsonSchema = pSchema as JSONSchema7;
-        const csType = requestClassName
-            ? resolveRpcType(jsonSchema, isReq, requestClassName, toPascalCase(pName), classes)
-            : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes);
+        const csharpName = requestClassName
+            ? toCSharpPropertyName(pName, jsonSchema)
+            : toPascalCase(pName);
+        const naturalType = requestClassName
+            ? resolveRpcType(jsonSchema, isReq, requestClassName, csharpName, classes)
+            : schemaTypeToCSharp(jsonSchema, isReq, rpcKnownTypes, csharpName);
+        // Boundary special-case: if the natural type is JsonElement/JsonElement?
+        // or a list of JsonElement (i.e. the schema is opaque-JSON, possibly
+        // wrapped in an array), accept object/IList<object?> at the public
+        // surface for ergonomics and convert at the call site. DTO fields
+        // keep the JsonElement form.
+        const opaqueRequired = naturalType === "JsonElement";
+        const opaqueOptional = naturalType === "JsonElement?";
+        const opaqueListRequired = naturalType === "IList<JsonElement>";
+        const opaqueListOptional = naturalType === "IList<JsonElement>?";
+        const opaque = opaqueRequired || opaqueOptional || opaqueListRequired || opaqueListOptional;
+        const csType = opaqueRequired
+            ? "object"
+            : opaqueOptional
+                ? "object?"
+                : opaqueListRequired
+                    ? "IList<object?>"
+                    : opaqueListOptional
+                        ? "IList<object?>?"
+                        : naturalType;
         sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-        bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
-        if (requiresArgumentNullCheck(csType, isReq)) {
+        const assignedValue = opaqueRequired
+            ? `CopilotClient.ToJsonElementForWire(${pName})!.Value`
+            : opaqueOptional
+                ? `CopilotClient.ToJsonElementForWire(${pName})`
+                : opaqueListRequired
+                    ? `${pName}.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList()`
+                    : opaqueListOptional
+                        ? `${pName}?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList()`
+                        : pName;
+        bodyAssignments.push(`${csharpName} = ${assignedValue}`);
+        if (opaqueRequired || opaqueListRequired || (!opaque && requiresArgumentNullCheck(csType, isReq))) {
             argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
         }
         parameterDescriptions.push({ name: pName, description: jsonSchema.description });
@@ -1936,20 +2038,47 @@ function emitSessionMethod(key: string, method: RpcMethod, lines: string[], clas
     if (useRequestParameter) {
         sigParams.push(`${requestClassName}? request = null`);
         parameterDescriptions.push({ name: "request", description: rpcParamsDescription(method, effectiveParams) });
-        for (const [pName] of paramEntries) {
-            bodyAssignments.push(`${toPascalCase(pName)} = request?.${toPascalCase(pName)}`);
+        for (const [pName, pSchema] of paramEntries) {
+            if (typeof pSchema !== "object") continue;
+            const csharpName = toCSharpPropertyName(pName, pSchema as JSONSchema7);
+            bodyAssignments.push(`${csharpName} = request?.${csharpName}`);
         }
     } else {
         for (const [pName, pSchema] of paramEntries) {
             if (typeof pSchema !== "object") continue;
             const isReq = requiredSet.has(pName);
-            const csType = resolveRpcType(pSchema as JSONSchema7, isReq, requestClassName, toPascalCase(pName), classes);
+            const jsonSchema = pSchema as JSONSchema7;
+            const csharpName = toCSharpPropertyName(pName, jsonSchema);
+            const naturalType = resolveRpcType(jsonSchema, isReq, requestClassName, csharpName, classes);
+            const opaqueRequired = naturalType === "JsonElement";
+            const opaqueOptional = naturalType === "JsonElement?";
+            const opaqueListRequired = naturalType === "IList<JsonElement>";
+            const opaqueListOptional = naturalType === "IList<JsonElement>?";
+            const opaque = opaqueRequired || opaqueOptional || opaqueListRequired || opaqueListOptional;
+            const csType = opaqueRequired
+                ? "object"
+                : opaqueOptional
+                    ? "object?"
+                    : opaqueListRequired
+                        ? "IList<object?>"
+                        : opaqueListOptional
+                            ? "IList<object?>?"
+                            : naturalType;
             sigParams.push(`${csType} ${pName}${isReq ? "" : " = null"}`);
-            bodyAssignments.push(`${toPascalCase(pName)} = ${pName}`);
-            if (requiresArgumentNullCheck(csType, isReq)) {
+            const assignedValue = opaqueRequired
+                ? `CopilotClient.ToJsonElementForWire(${pName})!.Value`
+                : opaqueOptional
+                    ? `CopilotClient.ToJsonElementForWire(${pName})`
+                    : opaqueListRequired
+                        ? `${pName}.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList()`
+                        : opaqueListOptional
+                            ? `${pName}?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList()`
+                            : pName;
+            bodyAssignments.push(`${csharpName} = ${assignedValue}`);
+            if (opaqueRequired || opaqueListRequired || (!opaque && requiresArgumentNullCheck(csType, isReq))) {
                 argumentNullChecks.push(`${indent}    ArgumentNullException.ThrowIfNull(${pName});`);
             }
-            parameterDescriptions.push({ name: pName, description: (pSchema as JSONSchema7).description });
+            parameterDescriptions.push({ name: pName, description: jsonSchema.description });
         }
     }
     sigParams.push("CancellationToken cancellationToken = default");
@@ -2054,7 +2183,7 @@ function emitClientSessionApiRegistration(clientSchema: Record<string, unknown>,
     for (const { methods } of groups) {
         for (const method of methods) {
             const resultSchema = getMethodResultSchema(method);
-            if (!isVoidSchema(resultSchema)) {
+            if (!isVoidSchema(resultSchema) && !isOpaqueJson(resultSchema)) {
                 emitRpcResultType(resultTypeName(method), resultSchema!, "public", classes);
             }
 
@@ -2229,7 +2358,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 
-namespace GitHub.Copilot.SDK.Rpc;
+namespace GitHub.Copilot.Rpc;
 `);
 
     for (const cls of classes) if (cls) lines.push(cls, "");
@@ -2250,7 +2379,7 @@ namespace GitHub.Copilot.SDK.Rpc;
             if (schemaFile !== "session-events.schema.json") continue;
             for (const name of [...names].sort()) {
                 const typeName = typeToClassName(name);
-                lines.push(`[JsonSerializable(typeof(GitHub.Copilot.SDK.${typeName}), TypeInfoPropertyName = "SessionEvents${typeName}")]`);
+                lines.push(`[JsonSerializable(typeof(GitHub.Copilot.${typeName}), TypeInfoPropertyName = "SessionEvents${typeName}")]`);
             }
         }
         for (const t of typeNames) lines.push(`[JsonSerializable(typeof(${t}))]`);
@@ -2320,7 +2449,7 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     await generateSessionEvents(sessionSchemaPath);
     try {
         const resolvedSessionPath = sessionSchemaPath ?? (await getSessionEventsSchemaPath());
-        const sessionSchema = postProcessSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7));
+        const sessionSchema = propagateInternalVisibility(postProcessSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedSessionPath, "utf-8")) as JSONSchema7)));
         await generateRpc(apiSchemaPath, sessionSchema);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ENOENT" && !apiSchemaPath) {

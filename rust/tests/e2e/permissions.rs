@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use github_copilot_sdk::generated::api_types::PermissionsSetApproveAllRequest;
 use github_copilot_sdk::generated::session_events::{SessionEventType, ToolExecutionCompleteData};
-use github_copilot_sdk::handler::{PermissionResult, SessionHandler};
+use github_copilot_sdk::handler::{PermissionHandler, PermissionResult};
 use github_copilot_sdk::{
     PermissionRequestData, RequestId, ResumeSessionConfig, SessionConfig, SessionId,
 };
@@ -45,9 +45,14 @@ async fn should_work_with_approve_all_permission_handler() {
 
 #[tokio::test]
 async fn should_handle_permission_handler_errors_gracefully() {
-    let result = PermissionResult::UserNotAvailable;
+    let result = PermissionResult::user_not_available();
 
-    assert!(matches!(result, PermissionResult::UserNotAvailable));
+    assert!(matches!(
+        result,
+        PermissionResult::Decision(
+            github_copilot_sdk::types::PermissionDecision::UserNotAvailable(_)
+        )
+    ));
 }
 
 #[tokio::test]
@@ -76,8 +81,8 @@ async fn should_deny_permission_when_handler_returns_denied() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::Denied,
+                            .with_permission_handler(Arc::new(StaticPermissionHandler::new(
+                                PermissionResult::reject(None),
                             ))),
                     )
                     .await
@@ -126,8 +131,8 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::UserNotAvailable,
+                            .with_permission_handler(Arc::new(StaticPermissionHandler::new(
+                                PermissionResult::user_not_available(),
                             ))),
                     )
                     .await
@@ -166,7 +171,9 @@ async fn should_handle_async_permission_handler() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(AsyncPermissionHandler { request_tx })),
+                            .with_permission_handler(Arc::new(AsyncPermissionHandler {
+                                request_tx,
+                            })),
                     )
                     .await
                     .expect("create session");
@@ -216,7 +223,9 @@ async fn should_resume_session_with_permission_handler() {
                     .resume_session(
                         ResumeSessionConfig::new(session_id)
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingPermissionHandler { request_tx })),
+                            .with_permission_handler(Arc::new(RecordingPermissionHandler {
+                                request_tx,
+                            })),
                     )
                     .await
                     .expect("resume session");
@@ -268,8 +277,8 @@ async fn should_deny_tool_operations_when_handler_explicitly_denies_after_resume
                     .resume_session(
                         ResumeSessionConfig::new(session_id)
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(StaticPermissionHandler::new(
-                                PermissionResult::UserNotAvailable,
+                            .with_permission_handler(Arc::new(StaticPermissionHandler::new(
+                                PermissionResult::user_not_available(),
                             ))),
                     )
                     .await
@@ -313,7 +322,9 @@ async fn should_receive_toolcallid_in_permission_requests() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingPermissionHandler { request_tx })),
+                            .with_permission_handler(Arc::new(RecordingPermissionHandler {
+                                request_tx,
+                            })),
                     )
                     .await
                     .expect("create session");
@@ -351,7 +362,7 @@ async fn should_deny_permission_with_noresult_kind() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(NotifyingPermissionHandler {
+                            .with_permission_handler(Arc::new(NotifyingPermissionHandler {
                                 request_tx,
                                 result: PermissionResult::NoResult,
                             })),
@@ -386,14 +397,19 @@ async fn should_short_circuit_permission_handler_when_set_approve_all_enabled() 
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingPermissionHandler { request_tx })),
+                            .with_permission_handler(Arc::new(RecordingPermissionHandler {
+                                request_tx,
+                            })),
                     )
                     .await
                     .expect("create session");
                 let set_result = session
                     .rpc()
                     .permissions()
-                    .set_approve_all(PermissionsSetApproveAllRequest { enabled: true })
+                    .set_approve_all(PermissionsSetApproveAllRequest {
+                        enabled: true,
+                        source: None,
+                    })
                     .await
                     .expect("set approve all");
                 assert!(set_result.success);
@@ -420,7 +436,10 @@ async fn should_short_circuit_permission_handler_when_set_approve_all_enabled() 
                 let reset_result = session
                     .rpc()
                     .permissions()
-                    .set_approve_all(PermissionsSetApproveAllRequest { enabled: false })
+                    .set_approve_all(PermissionsSetApproveAllRequest {
+                        enabled: false,
+                        source: None,
+                    })
                     .await
                     .expect("reset approve all");
                 assert!(reset_result.success);
@@ -448,7 +467,7 @@ async fn should_wait_for_slow_permission_handler() {
                     .create_session(
                         SessionConfig::default()
                             .with_github_token(DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(SlowPermissionHandler {
+                            .with_permission_handler(Arc::new(SlowPermissionHandler {
                                 entered_tx: tokio::sync::Mutex::new(Some(entered_tx)),
                                 release_rx: tokio::sync::Mutex::new(Some(release_rx)),
                             })),
@@ -480,7 +499,7 @@ async fn should_wait_for_slow_permission_handler() {
                 release_tx.send(()).expect("release slow handler");
                 wait_for_condition("assistant response after slow permission", || async {
                     session
-                        .get_messages()
+                        .get_events()
                         .await
                         .expect("get messages")
                         .iter()
@@ -515,7 +534,9 @@ async fn should_invoke_permission_handler_for_write_operations() {
                     .create_session(
                         github_copilot_sdk::SessionConfig::default()
                             .with_github_token(super::support::DEFAULT_TEST_TOKEN)
-                            .with_handler(Arc::new(RecordingPermissionHandler { request_tx })),
+                            .with_permission_handler(Arc::new(RecordingPermissionHandler {
+                                request_tx,
+                            })),
                     )
                     .await
                     .expect("create session");
@@ -613,8 +634,8 @@ impl StaticPermissionHandler {
 }
 
 #[async_trait]
-impl SessionHandler for StaticPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for StaticPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -629,15 +650,15 @@ struct RecordingPermissionHandler {
 }
 
 #[async_trait]
-impl SessionHandler for RecordingPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for RecordingPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
         data: PermissionRequestData,
     ) -> PermissionResult {
         let _ = self.request_tx.send(data);
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -647,8 +668,8 @@ struct NotifyingPermissionHandler {
 }
 
 #[async_trait]
-impl SessionHandler for NotifyingPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for NotifyingPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -664,8 +685,8 @@ struct AsyncPermissionHandler {
 }
 
 #[async_trait]
-impl SessionHandler for AsyncPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for AsyncPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -673,7 +694,7 @@ impl SessionHandler for AsyncPermissionHandler {
     ) -> PermissionResult {
         tokio::task::yield_now().await;
         let _ = self.request_tx.send(data);
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }
 
@@ -683,8 +704,8 @@ struct SlowPermissionHandler {
 }
 
 #[async_trait]
-impl SessionHandler for SlowPermissionHandler {
-    async fn on_permission_request(
+impl PermissionHandler for SlowPermissionHandler {
+    async fn handle(
         &self,
         _session_id: SessionId,
         _request_id: RequestId,
@@ -696,6 +717,6 @@ impl SessionHandler for SlowPermissionHandler {
         if let Some(release_rx) = self.release_rx.lock().await.take() {
             let _ = release_rx.await;
         }
-        PermissionResult::Approved
+        PermissionResult::approve_once()
     }
 }

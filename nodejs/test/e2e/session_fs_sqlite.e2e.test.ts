@@ -45,7 +45,7 @@ describe("Session Fs SQLite", async () => {
      *  re-creates the handler (e.g., on reconnect). */
     const sessionDbs = new Map<string, DatabaseSync>();
 
-    const createSessionFsHandler = (session: CopilotSession) =>
+    const createSessionFsProvider = (session: CopilotSession) =>
         createTestSessionFsHandlerWithSqlite(session, provider, sqliteCalls, sessionDbs);
 
     // Helpers to build session-namespaced paths for direct provider assertions
@@ -62,7 +62,7 @@ describe("Session Fs SQLite", async () => {
         async () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                createSessionFsHandler,
+                createSessionFsProvider,
             });
 
             // Ask the agent to create a table and insert data using the SQL tool
@@ -94,7 +94,7 @@ describe("Session Fs SQLite", async () => {
         async () => {
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
-                createSessionFsHandler,
+                createSessionFsProvider,
             });
 
             const events: SessionEvent[] = [];

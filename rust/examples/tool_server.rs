@@ -30,9 +30,7 @@ use async_trait::async_trait;
 #[cfg(feature = "derive")]
 use github_copilot_sdk::handler::ApproveAllHandler;
 #[cfg(feature = "derive")]
-use github_copilot_sdk::tool::{
-    JsonSchema, ToolHandler, ToolHandlerRouter, schema_for, tool_parameters,
-};
+use github_copilot_sdk::tool::{JsonSchema, ToolHandler, schema_for};
 #[cfg(feature = "derive")]
 use github_copilot_sdk::types::{MessageOptions, SessionConfig, Tool, ToolInvocation, ToolResult};
 #[cfg(feature = "derive")]
@@ -59,14 +57,6 @@ struct GetWeatherTool;
 #[cfg(feature = "derive")]
 #[async_trait]
 impl ToolHandler for GetWeatherTool {
-    fn tool(&self) -> Tool {
-        let mut tool = Tool::default();
-        tool.name = "get_weather".to_string();
-        tool.description = "Get the current weather for a city.".to_string();
-        tool.parameters = tool_parameters(schema_for::<GetWeatherParams>());
-        tool
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let params: GetWeatherParams = serde_json::from_value(invocation.arguments)?;
         let unit = params.unit.as_deref().unwrap_or("celsius");
@@ -90,20 +80,6 @@ struct RollDiceTool;
 #[cfg(feature = "derive")]
 #[async_trait]
 impl ToolHandler for RollDiceTool {
-    fn tool(&self) -> Tool {
-        let mut tool = Tool::default();
-        tool.name = "roll_dice".to_string();
-        tool.description = "Roll one or more dice and return the total.".to_string();
-        tool.parameters = tool_parameters(serde_json::json!({
-            "type": "object",
-            "properties": {
-                "sides": { "type": "integer", "description": "Number of sides per die (default 6, max 1000)." },
-                "count": { "type": "integer", "description": "Number of dice to roll (default 1, max 100)." }
-            }
-        }));
-        tool
-    }
-
     async fn call(&self, invocation: ToolInvocation) -> Result<ToolResult, Error> {
         let sides = invocation
             .arguments
@@ -145,20 +121,26 @@ impl ToolHandler for RollDiceTool {
 #[cfg(feature = "derive")]
 #[tokio::main]
 async fn main() -> Result<(), github_copilot_sdk::Error> {
-    let router = ToolHandlerRouter::new(
-        vec![Box::new(GetWeatherTool), Box::new(RollDiceTool)],
-        Arc::new(ApproveAllHandler),
-    );
-    let tools = router.tools();
-    let handler = Arc::new(router);
-
     let client = Client::start(ClientOptions::default()).await?;
 
-    let config = {
-        let mut cfg = SessionConfig::default();
-        cfg.tools = Some(tools);
-        cfg.with_handler(handler)
-    };
+    let config = SessionConfig::default()
+        .with_permission_handler(Arc::new(ApproveAllHandler))
+        .with_tools(vec![
+            Tool::new("get_weather")
+                .with_description("Get the current weather for a city.")
+                .with_parameters(schema_for::<GetWeatherParams>())
+                .with_handler(Arc::new(GetWeatherTool)),
+            Tool::new("roll_dice")
+                .with_description("Roll one or more dice and return the total.")
+                .with_parameters(serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "sides": { "type": "integer", "description": "Number of sides per die (default 6, max 1000)." },
+                        "count": { "type": "integer", "description": "Number of dice to roll (default 1, max 100)." }
+                    }
+                }))
+                .with_handler(Arc::new(RollDiceTool)),
+        ]);
     let session = client.create_session(config).await?;
 
     println!(
@@ -182,6 +164,6 @@ async fn main() -> Result<(), github_copilot_sdk::Error> {
         println!("{text}");
     }
 
-    session.destroy().await?;
+    session.disconnect().await?;
     Ok(())
 }

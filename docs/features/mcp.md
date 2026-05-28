@@ -120,7 +120,7 @@ func main() {
             "my-local-server": copilot.MCPStdioServerConfig{
                 Command: "node",
                 Args:    []string{"./mcp-server.js"},
-                Tools:   []string{"*"},
+                Tools:   &[]string{"*"},
             },
         },
     })
@@ -136,7 +136,7 @@ func main() {
 ### .NET
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 
 await using var client = new CopilotClient();
 await using var session = await client.CreateSessionAsync(new SessionConfig

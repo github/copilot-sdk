@@ -1,0 +1,14 @@
+{
+  "name": "copilot-sdk-java-codegen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "tsx java.ts",
+    "generate:java": "tsx java.ts"
+  },
+  "dependencies": {
+    "@github/copilot": "^1.0.55-5",
+    "json-schema": "^0.4.0",
+    "tsx": "^4.20.6"
+  }
+}

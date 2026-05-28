@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	copilot "github.com/github/copilot-sdk/go"
 )
@@ -169,6 +170,30 @@ func (c *TestContext) GetExchanges() ([]ParsedHttpExchange, error) {
 	return c.proxy.GetExchanges()
 }
 
+// WaitForExchanges waits until the proxy has captured at least the requested exchanges.
+func (c *TestContext) WaitForExchanges(t *testing.T, minimumCount int) []ParsedHttpExchange {
+	t.Helper()
+
+	deadline := time.Now().Add(120 * time.Second)
+	var lastErr error
+	var exchanges []ParsedHttpExchange
+	for time.Now().Before(deadline) {
+		var err error
+		exchanges, err = c.GetExchanges()
+		if err == nil && len(exchanges) >= minimumCount {
+			return exchanges
+		}
+		lastErr = err
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if lastErr != nil {
+		t.Fatalf("Timed out waiting for %d chat completion request(s): %v", minimumCount, lastErr)
+	}
+	t.Fatalf("Timed out waiting for %d chat completion request(s); captured %d", minimumCount, len(exchanges))
+	return nil
+}
+
 // SetCopilotUserByToken registers a per-token user configuration on the proxy.
 func (c *TestContext) SetCopilotUserByToken(token string, response map[string]interface{}) error {
 	return c.proxy.SetCopilotUserByToken(token, response)
@@ -197,16 +222,17 @@ func (c *TestContext) Env() []string {
 // Optional overrides can be applied to the default ClientOptions via the opts function.
 func (c *TestContext) NewClient(opts ...func(*copilot.ClientOptions)) *copilot.Client {
 	options := &copilot.ClientOptions{
-		CLIPath: c.CLIPath,
-		Cwd:     c.WorkDir,
-		Env:     c.Env(),
+		Connection:       copilot.StdioConnection{Path: c.CLIPath},
+		WorkingDirectory: c.WorkDir,
+		Env:              c.Env(),
 	}
 
 	for _, opt := range opts {
 		opt(options)
 	}
 
-	if options.GitHubToken == "" && options.CLIUrl == "" {
+	_, externalRuntime := options.Connection.(copilot.UriConnection)
+	if options.GitHubToken == "" && !externalRuntime {
 		options.GitHubToken = defaultGitHubToken
 	}
 

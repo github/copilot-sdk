@@ -133,6 +133,35 @@ func TestMcpServerConfigJSONUnion(t *testing.T) {
 	}
 }
 
+func TestTaskProgressUnmarshalsTaskAgentProgressVariants(t *testing.T) {
+	agentProgress, err := unmarshalTaskProgress([]byte(`{"type":"agent","recentActivity":[],"latestIntent":"Summarizing"}`))
+	if err != nil {
+		t.Fatalf("unmarshal agent task progress: %v", err)
+	}
+	agentValue, ok := agentProgress.(*TaskAgentProgress)
+	if !ok {
+		t.Fatalf("agent task progress = %T, want *TaskAgentProgress", agentProgress)
+	}
+	if agentValue.LatestIntent == nil || *agentValue.LatestIntent != "Summarizing" {
+		t.Fatalf("agent latest intent = %v, want Summarizing", agentValue.LatestIntent)
+	}
+
+	shellProgress, err := unmarshalTaskProgress([]byte(`{"type":"shell","recentOutput":"building","pid":123}`))
+	if err != nil {
+		t.Fatalf("unmarshal shell task progress: %v", err)
+	}
+	shellValue, ok := shellProgress.(*TaskShellProgress)
+	if !ok {
+		t.Fatalf("shell task progress = %T, want *TaskShellProgress", shellProgress)
+	}
+	if shellValue.RecentOutput != "building" {
+		t.Fatalf("shell recent output = %q, want building", shellValue.RecentOutput)
+	}
+	if shellValue.Pid == nil || *shellValue.Pid != 123 {
+		t.Fatalf("shell pid = %v, want 123", shellValue.Pid)
+	}
+}
+
 func TestCommandsInvokeUnmarshalsSlashCommandInvocationResult(t *testing.T) {
 	clientToServerReader, clientToServerWriter := io.Pipe()
 	serverToClientReader, serverToClientWriter := io.Pipe()

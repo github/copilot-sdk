@@ -3,99 +3,142 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
-// ConnectionState represents the client connection state
-type ConnectionState string
+// connectionState is the internal client connection state.
+type connectionState string
 
 const (
-	StateDisconnected ConnectionState = "disconnected"
-	StateConnecting   ConnectionState = "connecting"
-	StateConnected    ConnectionState = "connected"
-	StateError        ConnectionState = "error"
+	stateDisconnected connectionState = "disconnected"
+	stateConnecting   connectionState = "connecting"
+	stateConnected    connectionState = "connected"
+	stateError        connectionState = "error"
 )
 
-// ClientOptions configures the CopilotClient
-type ClientOptions struct {
-	// CLIPath is the path to the Copilot CLI executable (default: "copilot")
-	CLIPath string
-	// CLIArgs are extra arguments to pass to the CLI executable (inserted before SDK-managed args)
-	CLIArgs []string
-	// Cwd is the working directory for the CLI process (default: "" = inherit from current process)
-	Cwd string
-	// CopilotHome is the base directory for Copilot data (session state, config, etc.).
-	// Sets the COPILOT_HOME environment variable on the spawned CLI process.
-	// When empty, the CLI defaults to ~/.copilot.
-	// This does not affect where the Go SDK extracts the embedded CLI binary;
-	// use embeddedcli.Config.Dir to control that install/cache location.
-	// This option is only used when the SDK spawns the CLI process; it is ignored
-	// when connecting to an external server via CLIUrl.
-	CopilotHome string
-	// Port for TCP transport (default: 0 = random port)
+// RuntimeConnection describes how a [Client] connects to the Copilot runtime.
+//
+// Construct one with a [StdioConnection], [TcpConnection], or [UriConnection]
+// literal and pass it via [ClientOptions.Connection]. When [ClientOptions.Connection]
+// is nil, the default is an empty [StdioConnection] (the SDK spawns the bundled
+// runtime and communicates over stdin/stdout).
+type RuntimeConnection interface {
+	runtimeConnection()
+}
+
+// StdioConnection spawns a runtime child process and communicates over its
+// stdin/stdout pipes. This is the default when no connection is configured.
+type StdioConnection struct {
+	// Path is the runtime executable. When empty, the bundled runtime is used.
+	Path string
+	// Args are extra command-line arguments inserted before SDK-managed args.
+	Args []string
+}
+
+func (StdioConnection) runtimeConnection() {}
+
+// TcpConnection spawns a runtime child process that listens on a TCP socket
+// and connects to it.
+type TcpConnection struct {
+	// Port is the TCP port the runtime listens on. 0 (the default) lets the
+	// runtime pick a free port; the chosen port is then available via
+	// [Client.RuntimePort] after [Client.Start] returns.
 	Port int
-	// UseStdio controls whether to use stdio transport instead of TCP.
-	// Default: nil (use default = true, i.e. stdio). Use Bool(false) to explicitly select TCP.
-	UseStdio *bool
-	// TCPConnectionToken is the token sent in the `connect` handshake when using TCP transport.
-	// Only meaningful in TCP mode. When the SDK spawns its own CLI in TCP mode and this is
-	// empty, an auto-generated UUID is used so the loopback listener is safe by default.
-	// Combining this with UseStdio=true is rejected (stdio is pre-authenticated by transport).
-	TCPConnectionToken string
-	// CLIUrl is the URL of an existing Copilot CLI server to connect to over TCP
-	// Format: "host:port", "http://host:port", or just "port" (defaults to localhost)
-	// Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
-	// Mutually exclusive with CLIPath, UseStdio
-	CLIUrl string
-	// LogLevel for the CLI server
+	// ConnectionToken is an optional shared secret sent in the `connect`
+	// handshake. When empty, a UUID is generated automatically so the
+	// loopback listener is safe by default.
+	ConnectionToken string
+	// Path is the runtime executable. When empty, the bundled runtime is used.
+	Path string
+	// Args are extra command-line arguments inserted before SDK-managed args.
+	Args []string
+}
+
+func (TcpConnection) runtimeConnection() {}
+
+// UriConnection connects to an already-running runtime at the given URL.
+// The SDK does not spawn a process in this mode.
+type UriConnection struct {
+	// URL of the runtime. Accepts "port", "host:port", or a full URL such
+	// as "http://host:port".
+	URL string
+	// ConnectionToken authenticates the connection; must match what the
+	// remote runtime expects.
+	ConnectionToken string
+}
+
+func (UriConnection) runtimeConnection() {}
+
+// ClientOptions configures the [Client].
+type ClientOptions struct {
+	// Connection describes how to connect to the Copilot runtime. When nil,
+	// defaults to an empty [StdioConnection] (spawn the bundled runtime over
+	// stdio).
+	Connection RuntimeConnection
+	// WorkingDirectory is the working directory for the runtime process.
+	// If empty, inherits the current process's working directory.
+	WorkingDirectory string
+	// BaseDirectory is the base directory for Copilot data (session state,
+	// config, etc.). Sets the COPILOT_HOME environment variable on the
+	// spawned runtime. When empty, the runtime defaults to ~/.copilot.
+	// This does not affect where the Go SDK extracts the embedded CLI
+	// binary; use embeddedcli.Config.Dir to control that install/cache
+	// location.
+	// Ignored when connecting to an existing runtime via [UriConnection].
+	BaseDirectory string
+	// LogLevel for the runtime. When empty (the default), the runtime
+	// uses its own default level; the SDK does not pass --log-level.
+	// Recognized values: "none", "error", "warning", "info", "debug", "all".
 	LogLevel string
-	// AutoStart automatically starts the CLI server on first use (default: true).
-	// Use Bool(false) to disable.
-	AutoStart *bool
-	// Deprecated: AutoRestart has no effect and will be removed in a future release.
-	AutoRestart *bool
-	// Env is the environment variables for the CLI process (default: inherits from current process).
-	// Each entry is of the form "key=value".
-	// If Env is nil, the new process uses the current process's environment.
-	// If Env contains duplicate environment keys, only the last value in the
-	// slice for each duplicate key is used.
+	// Env are the environment variables for the runtime process (default:
+	// inherits from current process). Each entry is of the form "KEY=VALUE".
+	// If Env contains duplicate keys, only the last value for each key is used.
 	Env []string
 	// GitHubToken is the GitHub token to use for authentication.
-	// When provided, the token is passed to the CLI server via environment variable.
-	// This takes priority over other authentication methods.
+	// When provided, the token is passed to the runtime via environment
+	// variable. This takes priority over other authentication methods.
 	GitHubToken string
-	// UseLoggedInUser controls whether to use the logged-in user for authentication.
-	// When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
-	// When false, only explicit tokens (GitHubToken or environment variables) are used.
+	// UseLoggedInUser controls whether to use the logged-in user for
+	// authentication. When true, the runtime attempts to use stored OAuth
+	// tokens or gh CLI auth. When false, only explicit tokens (GitHubToken
+	// or environment variables) are used.
 	// Default: true (but defaults to false when GitHubToken is provided).
-	// Use Bool(false) to explicitly disable.
 	UseLoggedInUser *bool
 	// OnListModels is a custom handler for listing available models.
-	// When provided, client.ListModels() calls this handler instead of
-	// querying the CLI server. Useful in BYOK mode to return models
-	// available from your custom provider.
+	// When provided, [Client.ListModels] calls this handler instead of
+	// querying the runtime. Useful in BYOK mode to return models available
+	// from your custom provider.
 	OnListModels func(ctx context.Context) ([]ModelInfo, error)
 	// SessionFs configures a custom session filesystem provider.
 	// When provided, the client registers as the session filesystem provider
-	// on connection, routing session-scoped file I/O through per-session handlers.
+	// on connection, routing session-scoped file I/O through per-session
+	// handlers.
 	SessionFs *SessionFsConfig
-	// Telemetry configures OpenTelemetry integration for the Copilot CLI process.
-	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated fields
-	// are mapped to the corresponding environment variables.
+	// Telemetry configures OpenTelemetry integration for the runtime.
+	// When non-nil, COPILOT_OTEL_ENABLED=true is set and any populated
+	// fields are mapped to the corresponding environment variables.
 	Telemetry *TelemetryConfig
-	// SessionIdleTimeoutSeconds configures the server-wide session idle timeout in seconds.
-	// Sessions without activity for this duration are automatically cleaned up.
-	// Set to 0 or leave unset to disable (sessions live indefinitely).
-	// This option is only used when the SDK spawns the CLI process; it is ignored
-	// when connecting to an external server via CLIUrl.
+	// SessionIdleTimeoutSeconds configures the server-wide session idle
+	// timeout in seconds. Sessions without activity for this duration are
+	// automatically cleaned up. Set to 0 or leave unset to disable.
+	// Ignored when connecting to an existing runtime via [UriConnection].
 	SessionIdleTimeoutSeconds int
-	// Remote enables remote session support (Mission Control integration).
-	// When true, sessions in a GitHub repository working directory are
-	// accessible from GitHub web and mobile.
-	// This option is only used when the SDK spawns the CLI process; it is ignored
-	// when connecting to an external server via CLIUrl.
-	Remote bool
+	// EnableRemoteSessions enables remote session support (Mission Control
+	// integration). When true, sessions in a GitHub repository working
+	// directory are accessible from GitHub web and mobile.
+	// Ignored when connecting to an existing runtime via [UriConnection].
+	EnableRemoteSessions bool
+	// Mode controls the default tool surface and feature flags presented to
+	// sessions created by this client. The zero value ([ModeCopilotCli])
+	// matches legacy CLI defaults. Set to [ModeEmpty] to opt in to
+	// multi-tenant safe defaults — see [ClientMode] for details.
+	//
+	// When Mode is [ModeEmpty], NewClient requires either BaseDirectory,
+	// SessionFs, or a [UriConnection] so the runtime has persistent storage
+	// for session state.
+	Mode ClientMode
 }
 
 // CloudSessionRepository is GitHub repository metadata associated with a cloud session.
@@ -160,21 +203,36 @@ func Int(v int) *int {
 	return &v
 }
 
-// Known system prompt section identifiers for the "customize" mode.
+// Known system message section identifiers for the "customize" mode.
 const (
-	SectionIdentity           = "identity"
-	SectionTone               = "tone"
-	SectionToolEfficiency     = "tool_efficiency"
+	// SectionIdentity is the agent identity preamble and mode statement.
+	SectionIdentity = "identity"
+	// SectionTone covers response style, conciseness rules, and output formatting preferences.
+	SectionTone = "tone"
+	// SectionToolEfficiency covers tool usage patterns, parallel calling, and batching guidelines.
+	SectionToolEfficiency = "tool_efficiency"
+	// SectionEnvironmentContext covers CWD, OS, git root, directory listing, and available tools.
 	SectionEnvironmentContext = "environment_context"
-	SectionCodeChangeRules    = "code_change_rules"
-	SectionGuidelines         = "guidelines"
-	SectionSafety             = "safety"
-	SectionToolInstructions   = "tool_instructions"
+	// SectionCodeChangeRules covers coding rules, linting/testing, ecosystem tools, and style.
+	SectionCodeChangeRules = "code_change_rules"
+	// SectionGuidelines covers tips, behavioral best practices, and behavioral guidelines.
+	SectionGuidelines = "guidelines"
+	// SectionSafety covers environment limitations, prohibited actions, and security policies.
+	SectionSafety = "safety"
+	// SectionToolInstructions covers per-tool usage instructions.
+	SectionToolInstructions = "tool_instructions"
+	// SectionCustomInstructions covers repository and organization custom instructions.
 	SectionCustomInstructions = "custom_instructions"
-	SectionLastInstructions   = "last_instructions"
+	// SectionRuntimeInstructions targets runtime-provided context and instructions
+	// (e.g. system notifications, memories, workspace context, mode-specific instructions,
+	// content-exclusion policy).
+	SectionRuntimeInstructions = "runtime_instructions"
+	// SectionLastInstructions covers end-of-prompt instructions: parallel tool calling,
+	// persistence, and task completion.
+	SectionLastInstructions = "last_instructions"
 )
 
-// SectionOverrideAction represents the action to perform on a system prompt section.
+// SectionOverrideAction represents the action to perform on a system message section.
 type SectionOverrideAction string
 
 const (
@@ -188,12 +246,12 @@ const (
 	SectionActionPrepend SectionOverrideAction = "prepend"
 )
 
-// SectionTransformFn is a callback that receives the current content of a system prompt section
+// SectionTransformFn is a callback that receives the current content of a system message section
 // and returns the transformed content. Used with the "transform" action to read-then-write
 // modify sections at runtime.
 type SectionTransformFn func(currentContent string) (string, error)
 
-// SectionOverride defines an override operation for a single system prompt section.
+// SectionOverride defines an override operation for a single system message section.
 type SectionOverride struct {
 	// Action is the operation to perform: "replace", "remove", "append", "prepend", or "transform".
 	Action SectionOverrideAction `json:"action,omitempty"`
@@ -234,42 +292,17 @@ type SystemMessageConfig struct {
 	Sections map[string]SectionOverride `json:"sections,omitempty"`
 }
 
-// PermissionRequestResultKind represents the kind of a permission request result.
-type PermissionRequestResultKind string
-
-const (
-	// PermissionRequestResultKindApproved indicates the permission was approved for this one instance.
-	PermissionRequestResultKindApproved PermissionRequestResultKind = "approve-once"
-
-	// PermissionRequestResultKindRejected indicates the permission was denied interactively by the user.
-	PermissionRequestResultKindRejected PermissionRequestResultKind = "reject"
-
-	// PermissionRequestResultKindUserNotAvailable indicates the permission was denied because
-	// user confirmation was unavailable.
-	PermissionRequestResultKindUserNotAvailable PermissionRequestResultKind = "user-not-available"
-
-	// PermissionRequestResultKindNoResult indicates no permission decision was made.
-	PermissionRequestResultKindNoResult PermissionRequestResultKind = "no-result"
-
-	// Deprecated: Use PermissionRequestResultKindRejected instead.
-	PermissionRequestResultKindDeniedInteractivelyByUser = PermissionRequestResultKindRejected
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedCouldNotRequestFromUser = PermissionRequestResultKindUserNotAvailable
-
-	// Deprecated: Use PermissionRequestResultKindUserNotAvailable instead.
-	PermissionRequestResultKindDeniedByRules = PermissionRequestResultKindUserNotAvailable
-)
-
-// PermissionRequestResult represents the result of a permission request
-type PermissionRequestResult struct {
-	Kind  PermissionRequestResultKind `json:"kind"`
-	Rules []any                       `json:"rules,omitempty"`
-}
-
-// PermissionHandlerFunc executes a permission request
-// The handler should return a PermissionRequestResult. Returning an error denies the permission.
-type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (PermissionRequestResult, error)
+// PermissionHandlerFunc executes a permission request.
+// The handler should return a [rpc.PermissionDecision]. Returning an error
+// causes the SDK to respond with [rpc.PermissionDecisionUserNotAvailable].
+//
+// Use the variant types directly:
+//
+//	&rpc.PermissionDecisionApproveOnce{}
+//	&rpc.PermissionDecisionReject{Feedback: &feedback}
+//	&rpc.PermissionDecisionUserNotAvailable{}
+//	&rpc.PermissionDecisionNoResult{}  // decline to respond; another client may answer
+type PermissionHandlerFunc func(request PermissionRequest, invocation PermissionInvocation) (rpc.PermissionDecision, error)
 
 // PermissionInvocation provides context about a permission request
 type PermissionInvocation struct {
@@ -318,8 +351,8 @@ type ExitPlanModeInvocation struct {
 	SessionID string
 }
 
-// ExitPlanModeHandler handles exit-plan-mode requests from the agent.
-type ExitPlanModeHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
+// ExitPlanModeRequestHandler handles exit-plan-mode requests from the agent.
+type ExitPlanModeRequestHandler func(request ExitPlanModeRequest, invocation ExitPlanModeInvocation) (ExitPlanModeResult, error)
 
 // AutoModeSwitchRequest represents a request to switch to auto mode after an eligible rate limit.
 type AutoModeSwitchRequest struct {
@@ -332,16 +365,39 @@ type AutoModeSwitchInvocation struct {
 	SessionID string
 }
 
-// AutoModeSwitchHandler handles auto-mode-switch requests from the agent.
-type AutoModeSwitchHandler func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
+// AutoModeSwitchRequestHandler handles auto-mode-switch requests from the agent.
+type AutoModeSwitchRequestHandler func(request AutoModeSwitchRequest, invocation AutoModeSwitchInvocation) (AutoModeSwitchResponse, error)
 
 // PreToolUseHookInput is the input for a pre-tool-use hook
 type PreToolUseHookInput struct {
-	SessionID string `json:"sessionId"`
-	Timestamp int64  `json:"timestamp"`
-	Cwd       string `json:"cwd"`
-	ToolName  string `json:"toolName"`
-	ToolArgs  any    `json:"toolArgs"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ToolName         string    `json:"toolName"`
+	ToolArgs         any       `json:"toolArgs"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PreToolUseHookInput) MarshalJSON() ([]byte, error) {
+	type alias PreToolUseHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PreToolUseHookInput) UnmarshalJSON(data []byte) error {
+	type alias PreToolUseHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // PreToolUseHookOutput is the output for a pre-tool-use hook
@@ -358,12 +414,35 @@ type PreToolUseHandler func(input PreToolUseHookInput, invocation HookInvocation
 
 // PostToolUseHookInput is the input for a post-tool-use hook
 type PostToolUseHookInput struct {
-	SessionID  string `json:"sessionId"`
-	Timestamp  int64  `json:"timestamp"`
-	Cwd        string `json:"cwd"`
-	ToolName   string `json:"toolName"`
-	ToolArgs   any    `json:"toolArgs"`
-	ToolResult any    `json:"toolResult"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ToolName         string    `json:"toolName"`
+	ToolArgs         any       `json:"toolArgs"`
+	ToolResult       any       `json:"toolResult"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PostToolUseHookInput) MarshalJSON() ([]byte, error) {
+	type alias PostToolUseHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PostToolUseHookInput) UnmarshalJSON(data []byte) error {
+	type alias PostToolUseHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // PostToolUseHookOutput is the output for a post-tool-use hook
@@ -376,12 +455,84 @@ type PostToolUseHookOutput struct {
 // PostToolUseHandler handles post-tool-use hook invocations
 type PostToolUseHandler func(input PostToolUseHookInput, invocation HookInvocation) (*PostToolUseHookOutput, error)
 
+// PostToolUseFailureHookInput is the input for a post-tool-use-failure hook.
+//
+// Fires after a tool execution whose result was "failure". The CLI extracts
+// the failure message from the tool result and passes it as the Error field
+// (rather than passing the full result object).
+type PostToolUseFailureHookInput struct {
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ToolName         string    `json:"toolName"`
+	ToolArgs         any       `json:"toolArgs"`
+	// Error is the failure message from the tool's result.
+	Error string `json:"error"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PostToolUseFailureHookInput) MarshalJSON() ([]byte, error) {
+	type alias PostToolUseFailureHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PostToolUseFailureHookInput) UnmarshalJSON(data []byte) error {
+	type alias PostToolUseFailureHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
+}
+
+// PostToolUseFailureHookOutput is the output for a post-tool-use-failure hook.
+//
+// Only AdditionalContext is consumed by the host CLI — it is appended as
+// hidden guidance to the model alongside the failed tool result.
+type PostToolUseFailureHookOutput struct {
+	AdditionalContext string `json:"additionalContext,omitempty"`
+}
+
+// PostToolUseFailureHandler handles post-tool-use-failure hook invocations.
+type PostToolUseFailureHandler func(input PostToolUseFailureHookInput, invocation HookInvocation) (*PostToolUseFailureHookOutput, error)
+
 // UserPromptSubmittedHookInput is the input for a user-prompt-submitted hook
 type UserPromptSubmittedHookInput struct {
-	SessionID string `json:"sessionId"`
-	Timestamp int64  `json:"timestamp"`
-	Cwd       string `json:"cwd"`
-	Prompt    string `json:"prompt"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Prompt           string    `json:"prompt"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h UserPromptSubmittedHookInput) MarshalJSON() ([]byte, error) {
+	type alias UserPromptSubmittedHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *UserPromptSubmittedHookInput) UnmarshalJSON(data []byte) error {
+	type alias UserPromptSubmittedHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // UserPromptSubmittedHookOutput is the output for a user-prompt-submitted hook
@@ -396,11 +547,34 @@ type UserPromptSubmittedHandler func(input UserPromptSubmittedHookInput, invocat
 
 // SessionStartHookInput is the input for a session-start hook
 type SessionStartHookInput struct {
-	SessionID     string `json:"sessionId"`
-	Timestamp     int64  `json:"timestamp"`
-	Cwd           string `json:"cwd"`
-	Source        string `json:"source"` // "startup", "resume", "new"
-	InitialPrompt string `json:"initialPrompt,omitempty"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Source           string    `json:"source"` // "startup", "resume", "new"
+	InitialPrompt    string    `json:"initialPrompt,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h SessionStartHookInput) MarshalJSON() ([]byte, error) {
+	type alias SessionStartHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *SessionStartHookInput) UnmarshalJSON(data []byte) error {
+	type alias SessionStartHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // SessionStartHookOutput is the output for a session-start hook
@@ -414,12 +588,35 @@ type SessionStartHandler func(input SessionStartHookInput, invocation HookInvoca
 
 // SessionEndHookInput is the input for a session-end hook
 type SessionEndHookInput struct {
-	SessionID    string `json:"sessionId"`
-	Timestamp    int64  `json:"timestamp"`
-	Cwd          string `json:"cwd"`
-	Reason       string `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
-	FinalMessage string `json:"finalMessage,omitempty"`
-	Error        string `json:"error,omitempty"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Reason           string    `json:"reason"` // "complete", "error", "abort", "timeout", "user_exit"
+	FinalMessage     string    `json:"finalMessage,omitempty"`
+	Error            string    `json:"error,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h SessionEndHookInput) MarshalJSON() ([]byte, error) {
+	type alias SessionEndHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *SessionEndHookInput) UnmarshalJSON(data []byte) error {
+	type alias SessionEndHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // SessionEndHookOutput is the output for a session-end hook
@@ -434,12 +631,35 @@ type SessionEndHandler func(input SessionEndHookInput, invocation HookInvocation
 
 // ErrorOccurredHookInput is the input for an error-occurred hook
 type ErrorOccurredHookInput struct {
-	SessionID    string `json:"sessionId"`
-	Timestamp    int64  `json:"timestamp"`
-	Cwd          string `json:"cwd"`
-	Error        string `json:"error"`
-	ErrorContext string `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
-	Recoverable  bool   `json:"recoverable"`
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	Error            string    `json:"error"`
+	ErrorContext     string    `json:"errorContext"` // "model_call", "tool_execution", "system", "user_input"
+	Recoverable      bool      `json:"recoverable"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h ErrorOccurredHookInput) MarshalJSON() ([]byte, error) {
+	type alias ErrorOccurredHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *ErrorOccurredHookInput) UnmarshalJSON(data []byte) error {
+	type alias ErrorOccurredHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
 }
 
 // ErrorOccurredHookOutput is the output for an error-occurred hook
@@ -453,6 +673,49 @@ type ErrorOccurredHookOutput struct {
 // ErrorOccurredHandler handles error-occurred hook invocations
 type ErrorOccurredHandler func(input ErrorOccurredHookInput, invocation HookInvocation) (*ErrorOccurredHookOutput, error)
 
+// PreMcpToolCallHookInput is the input for a pre-mcp-tool-call hook
+type PreMcpToolCallHookInput struct {
+	SessionID        string    `json:"sessionId"`
+	Timestamp        time.Time `json:"-"`
+	WorkingDirectory string    `json:"cwd"`
+	ServerName       string    `json:"serverName"`
+	ToolName         string    `json:"toolName"`
+	Arguments        any       `json:"arguments,omitempty"`
+	ToolCallID       string    `json:"toolCallId,omitempty"`
+	Meta             any       `json:"_meta,omitempty"`
+}
+
+// MarshalJSON implements json.Marshaler, emitting Timestamp as Unix milliseconds.
+func (h PreMcpToolCallHookInput) MarshalJSON() ([]byte, error) {
+	type alias PreMcpToolCallHookInput
+	return json.Marshal(&struct {
+		Timestamp int64 `json:"timestamp"`
+		alias
+	}{Timestamp: h.Timestamp.UnixMilli(), alias: alias(h)})
+}
+
+// UnmarshalJSON implements json.Unmarshaler, parsing Timestamp from Unix milliseconds.
+func (h *PreMcpToolCallHookInput) UnmarshalJSON(data []byte) error {
+	type alias PreMcpToolCallHookInput
+	aux := &struct {
+		Timestamp int64 `json:"timestamp"`
+		*alias
+	}{alias: (*alias)(h)}
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+	h.Timestamp = time.UnixMilli(aux.Timestamp)
+	return nil
+}
+
+// PreMcpToolCallHookOutput is the output for a pre-mcp-tool-call hook
+type PreMcpToolCallHookOutput struct {
+	MetaToUse any `json:"metaToUse"`
+}
+
+// PreMcpToolCallHandler handles pre-mcp-tool-call hook invocations
+type PreMcpToolCallHandler func(input PreMcpToolCallHookInput, invocation HookInvocation) (*PreMcpToolCallHookOutput, error)
+
 // HookInvocation provides context about a hook invocation
 type HookInvocation struct {
 	SessionID string
@@ -462,10 +725,12 @@ type HookInvocation struct {
 type SessionHooks struct {
 	OnPreToolUse          PreToolUseHandler
 	OnPostToolUse         PostToolUseHandler
+	OnPostToolUseFailure  PostToolUseFailureHandler
 	OnUserPromptSubmitted UserPromptSubmittedHandler
 	OnSessionStart        SessionStartHandler
 	OnSessionEnd          SessionEndHandler
 	OnErrorOccurred       ErrorOccurredHandler
+	OnPreMcpToolCall      PreMcpToolCallHandler
 }
 
 // MCPServerConfig is implemented by MCP server configuration types.
@@ -475,13 +740,23 @@ type MCPServerConfig interface {
 }
 
 // MCPStdioServerConfig configures a local/stdio MCP server.
+//
+// The Tools field controls which tools from the server are exposed:
+//   - nil (omitted from the wire): all tools (CLI default)
+//   - &[]string{"*"}: explicit "all tools"
+//   - &[]string{}: no tools
+//   - &[]string{"foo","bar"}: only those tools
+//
+// The pointer-to-slice form is required so that a nil pointer (omitted from
+// the wire) is distinguishable from a non-nil pointer to an empty slice
+// (sent as `"tools": []`).
 type MCPStdioServerConfig struct {
-	Tools   []string          `json:"tools"`
-	Timeout int               `json:"timeout,omitempty"`
-	Command string            `json:"command"`
-	Args    []string          `json:"args"`
-	Env     map[string]string `json:"env,omitempty"`
-	Cwd     string            `json:"cwd,omitempty"`
+	Tools            *[]string         `json:"tools,omitempty"`
+	Timeout          int               `json:"timeout,omitempty"`
+	Command          string            `json:"command"`
+	Args             []string          `json:"args,omitempty"`
+	Env              map[string]string `json:"env,omitempty"`
+	WorkingDirectory string            `json:"cwd,omitempty"`
 }
 
 func (MCPStdioServerConfig) mcpServerConfig() {}
@@ -499,8 +774,10 @@ func (c MCPStdioServerConfig) MarshalJSON() ([]byte, error) {
 }
 
 // MCPHTTPServerConfig configures a remote MCP server (HTTP or SSE).
+//
+// See [MCPStdioServerConfig] for the semantics of the Tools field.
 type MCPHTTPServerConfig struct {
-	Tools   []string          `json:"tools"`
+	Tools   *[]string         `json:"tools,omitempty"`
 	Timeout int               `json:"timeout,omitempty"`
 	URL     string            `json:"url"`
 	Headers map[string]string `json:"headers,omitempty"`
@@ -575,8 +852,8 @@ type SessionFsCapabilities struct {
 
 // SessionFsConfig configures a custom session filesystem provider.
 type SessionFsConfig struct {
-	// InitialCwd is the initial working directory for sessions.
-	InitialCwd string
+	// InitialWorkingDirectory is the initial working directory for sessions.
+	InitialWorkingDirectory string
 	// SessionStatePath is the path within each session's filesystem where the runtime stores
 	// session-scoped files such as events, checkpoints, and temp files.
 	SessionStatePath string
@@ -632,9 +909,10 @@ type SessionConfig struct {
 	// Tool operations will be relative to this directory.
 	WorkingDirectory string
 	// Streaming enables streaming of assistant message and reasoning chunks.
-	// When true, assistant.message_delta and assistant.reasoning_delta events
-	// with deltaContent are sent as the response is generated.
-	Streaming bool
+	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
+	// events with deltaContent are sent as the response is generated.
+	// When nil, the runtime decides (currently defaults to non-streaming).
+	Streaming *bool
 	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
 	// event stream. When true, streaming delta events from sub-agents (e.g.,
 	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
@@ -651,6 +929,19 @@ type SessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
+	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
+	SkipCustomInstructions *bool
+	// CustomAgentsLocalOnly, when non-nil, restricts custom agents to those
+	// defined locally. See also [ClientOptions.Mode] = [ModeEmpty].
+	CustomAgentsLocalOnly *bool
+	// CoauthorEnabled, when non-nil, controls whether the `coauthor` tool is
+	// exposed. See also [ClientOptions.Mode] = [ModeEmpty].
+	CoauthorEnabled *bool
+	// ManageScheduleEnabled, when non-nil, controls whether the
+	// `manage_schedule` tool is exposed. See also [ClientOptions.Mode] =
+	// [ModeEmpty].
+	ManageScheduleEnabled *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -679,9 +970,9 @@ type SessionConfig struct {
 	// handler. Equivalent to calling session.On(handler) immediately after creation,
 	// but executes earlier in the lifecycle so no events are missed.
 	OnEvent SessionEventHandler
-	// CreateSessionFsHandler supplies a handler for session filesystem operations.
+	// CreateSessionFsProvider supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) SessionFsProvider
+	CreateSessionFsProvider func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. Each command appears as
 	// /name in the CLI TUI for the user to invoke. The Handler is called when the
 	// command is executed.
@@ -690,12 +981,12 @@ type SessionConfig struct {
 	// When provided, the server may call back to this client for form-based UI dialogs
 	// (e.g. from MCP tools). Also enables the elicitation capability on the session.
 	OnElicitationRequest ElicitationHandler
-	// OnExitPlanMode is a handler for exit-plan-mode requests from the server.
+	// OnExitPlanModeRequest is a handler for exit-plan-mode requests from the server.
 	// When provided, enables exitPlanMode.request callbacks for the session.
-	OnExitPlanMode ExitPlanModeHandler
-	// OnAutoModeSwitch is a handler for auto-mode-switch requests from the server.
+	OnExitPlanModeRequest ExitPlanModeRequestHandler
+	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
-	OnAutoModeSwitch AutoModeSwitchHandler
+	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -708,6 +999,21 @@ type SessionConfig struct {
 	// Cloud creates a remote session in the cloud instead of a local session.
 	// The optional repository is associated with the cloud session.
 	Cloud *CloudSessionOptions
+	// Canvases declares canvases this session provides. Sent over the wire on
+	// `session.create`. CanvasHandler must be set when this is non-empty (the
+	// SDK does not enforce this — declarations without a handler will surface
+	// canvas RPCs that return a canvas_handler_unset error envelope).
+	Canvases []CanvasDeclaration
+	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
+	RequestCanvasRenderer *bool
+	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	RequestExtensions *bool
+	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
+	// requests for this session. The SDK does not maintain a per-canvas registry;
+	// the handler must dispatch on CanvasProviderOpenRequest.CanvasID itself.
+	CanvasHandler CanvasHandler `json:"-"`
+	// ExtensionInfo identifies the stable extension providing this session's canvases.
+	ExtensionInfo *ExtensionInfo
 }
 type Tool struct {
 	Name                 string         `json:"name"`
@@ -816,8 +1122,8 @@ type ElicitationContext struct {
 // If the handler returns an error the SDK auto-cancels the request.
 type ElicitationHandler func(ctx ElicitationContext) (ElicitationResult, error)
 
-// InputOptions configures a text input field for the Input convenience method.
-type InputOptions struct {
+// UiInputOptions configures a text input field for the Input convenience method.
+type UiInputOptions struct {
 	// Title label for the input field.
 	Title string
 	// Description text shown below the field.
@@ -865,6 +1171,19 @@ type ResumeSessionConfig struct {
 	// regardless of this setting. This is independent of the OpenTelemetry
 	// configuration in ClientOptions.Telemetry.
 	EnableSessionTelemetry *bool
+	// SkipCustomInstructions, when non-nil, controls whether the runtime loads
+	// custom instruction files. See also [ClientOptions.Mode] = [ModeEmpty].
+	SkipCustomInstructions *bool
+	// CustomAgentsLocalOnly, when non-nil, restricts custom agents to those
+	// defined locally. See also [ClientOptions.Mode] = [ModeEmpty].
+	CustomAgentsLocalOnly *bool
+	// CoauthorEnabled, when non-nil, controls whether the `coauthor` tool is
+	// exposed. See also [ClientOptions.Mode] = [ModeEmpty].
+	CoauthorEnabled *bool
+	// ManageScheduleEnabled, when non-nil, controls whether the
+	// `manage_schedule` tool is exposed. See also [ClientOptions.Mode] =
+	// [ModeEmpty].
+	ManageScheduleEnabled *bool
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -892,9 +1211,10 @@ type ResumeSessionConfig struct {
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
-	// When true, assistant.message_delta and assistant.reasoning_delta events
-	// with deltaContent are sent as the response is generated.
-	Streaming bool
+	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
+	// events with deltaContent are sent as the response is generated.
+	// When nil, the runtime decides (currently defaults to non-streaming).
+	Streaming *bool
 	// IncludeSubAgentStreamingEvents includes sub-agent streaming events in the
 	// event stream. When true, streaming delta events from sub-agents (e.g.,
 	// assistant.message_delta, assistant.reasoning_delta, assistant.streaming_delta
@@ -926,9 +1246,9 @@ type ResumeSessionConfig struct {
 	// RemoteSession controls per-session remote behavior.
 	// See SessionConfig.RemoteSession for details.
 	RemoteSession rpc.RemoteSessionMode
-	// DisableResume, when true, skips emitting the session.resume event.
+	// SuppressResumeEvent, when true, skips emitting the session.resume event.
 	// Useful for reconnecting to a session without triggering resume-related side effects.
-	DisableResume bool
+	SuppressResumeEvent bool
 	// ContinuePendingWork, when true, instructs the runtime to continue any tool calls
 	// or permission prompts that were still pending when the session was last suspended.
 	// When false (the default), the runtime treats pending work as interrupted on resume.
@@ -941,20 +1261,35 @@ type ResumeSessionConfig struct {
 	// OnEvent is an optional event handler registered before the session.resume RPC
 	// is issued, ensuring early events are delivered. See SessionConfig.OnEvent.
 	OnEvent SessionEventHandler
-	// CreateSessionFsHandler supplies a handler for session filesystem operations.
+	// CreateSessionFsProvider supplies a handler for session filesystem operations.
 	// This takes effect only when ClientOptions.SessionFs is configured.
-	CreateSessionFsHandler func(session *Session) SessionFsProvider
+	CreateSessionFsProvider func(session *Session) SessionFsProvider
 	// Commands registers slash-commands for this session. See SessionConfig.Commands.
 	Commands []CommandDefinition
 	// OnElicitationRequest is a handler for elicitation requests from the server.
 	// See SessionConfig.OnElicitationRequest.
 	OnElicitationRequest ElicitationHandler
-	// OnExitPlanMode is a handler for exit-plan-mode requests from the server.
-	// See SessionConfig.OnExitPlanMode.
-	OnExitPlanMode ExitPlanModeHandler
-	// OnAutoModeSwitch is a handler for auto-mode-switch requests from the server.
-	// See SessionConfig.OnAutoModeSwitch.
-	OnAutoModeSwitch AutoModeSwitchHandler
+	// OnExitPlanModeRequest is a handler for exit-plan-mode requests from the server.
+	// See SessionConfig.OnExitPlanModeRequest.
+	OnExitPlanModeRequest ExitPlanModeRequestHandler
+	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
+	// See SessionConfig.OnAutoModeSwitchRequest.
+	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+	// Canvases declares canvases this session provides. Sent over the wire on
+	// `session.resume`. See SessionConfig.Canvases.
+	Canvases []CanvasDeclaration
+	// OpenCanvases declares canvas instances the caller knows were open before
+	// this resume so the runtime can re-attach them. Sent over the wire on
+	// `session.resume` as `openCanvases`.
+	OpenCanvases []rpc.OpenCanvasInstance
+	// RequestCanvasRenderer asks the host to enable canvas rendering for this session.
+	RequestCanvasRenderer *bool
+	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
+	RequestExtensions *bool
+	// CanvasHandler receives inbound canvas.* requests for this session. See SessionConfig.CanvasHandler.
+	CanvasHandler CanvasHandler `json:"-"`
+	// ExtensionInfo identifies the stable extension providing this session's canvases.
+	ExtensionInfo *ExtensionInfo
 }
 type ProviderConfig struct {
 	// Type is the provider type: "openai", "azure", or "anthropic". Defaults to "openai".
@@ -983,11 +1318,11 @@ type ProviderConfig struct {
 	// custom fine-tune name) differs from ModelID.
 	// Falls back to ModelID, then SessionConfig.Model.
 	WireModel string `json:"wireModel,omitempty"`
-	// MaxInputTokens overrides the resolved model's default max prompt tokens.
+	// MaxPromptTokens overrides the resolved model's default max prompt tokens.
 	// The runtime triggers conversation compaction before sending a request
 	// when the prompt (system message, history, tool definitions, user
 	// message) would exceed this limit.
-	MaxInputTokens int `json:"maxPromptTokens,omitempty"`
+	MaxPromptTokens int `json:"maxPromptTokens,omitempty"`
 	// MaxOutputTokens overrides the resolved model's default max output
 	// tokens. When hit, the model stops generating and returns a truncated
 	// response.
@@ -1016,9 +1351,27 @@ type MessageOptions struct {
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
 	Mode string
+	// AgentMode is the UI mode the agent was in when this message was sent
+	// (for example "plan" or "autopilot"). Defaults to the session's current
+	// mode when empty.
+	AgentMode AgentMode
 	// RequestHeaders are custom per-turn HTTP headers for outbound model requests.
 	RequestHeaders map[string]string
+	// DisplayPrompt, if provided, is shown in the timeline instead of Prompt.
+	DisplayPrompt string
 }
+
+// AgentMode is the UI mode the agent is in for a given turn. See
+// [MessageOptions.AgentMode].
+type AgentMode = rpc.SendAgentMode
+
+// AgentMode values supported by the runtime.
+const (
+	AgentModeInteractive = rpc.SendAgentModeInteractive
+	AgentModePlan        = rpc.SendAgentModePlan
+	AgentModeAutopilot   = rpc.SendAgentModeAutopilot
+	AgentModeShell       = rpc.SendAgentModeShell
+)
 
 // SessionEventHandler is a callback for session events
 type SessionEventHandler func(event SessionEvent)
@@ -1082,8 +1435,8 @@ type ModelInfo struct {
 
 // SessionContext contains working directory context for a session
 type SessionContext struct {
-	// Cwd is the working directory where the session was created
-	Cwd string `json:"cwd"`
+	// WorkingDirectory is the working directory where the session was created
+	WorkingDirectory string `json:"cwd"`
 	// GitRoot is the git repository root (if in a git repo)
 	GitRoot string `json:"gitRoot,omitempty"`
 	// Repository is the GitHub repository in "owner/repo" format
@@ -1094,8 +1447,8 @@ type SessionContext struct {
 
 // SessionListFilter contains filter options for listing sessions
 type SessionListFilter struct {
-	// Cwd filters by exact working directory match
-	Cwd string `json:"cwd,omitempty"`
+	// WorkingDirectory filters by exact working directory match
+	WorkingDirectory string `json:"cwd,omitempty"`
 	// GitRoot filters by git root
 	GitRoot string `json:"gitRoot,omitempty"`
 	// Repository filters by repository (owner/repo format)
@@ -1107,8 +1460,8 @@ type SessionListFilter struct {
 // SessionMetadata contains metadata about a session
 type SessionMetadata struct {
 	SessionID    string          `json:"sessionId"`
-	StartTime    string          `json:"startTime"`
-	ModifiedTime string          `json:"modifiedTime"`
+	StartTime    time.Time       `json:"startTime"`
+	ModifiedTime time.Time       `json:"modifiedTime"`
 	Summary      *string         `json:"summary,omitempty"`
 	IsRemote     bool            `json:"isRemote"`
 	Context      *SessionContext `json:"context,omitempty"`
@@ -1134,9 +1487,9 @@ type SessionLifecycleEvent struct {
 
 // SessionLifecycleEventMetadata contains optional metadata for lifecycle events
 type SessionLifecycleEventMetadata struct {
-	StartTime    string  `json:"startTime"`
-	ModifiedTime string  `json:"modifiedTime"`
-	Summary      *string `json:"summary,omitempty"`
+	StartTime    time.Time `json:"startTime"`
+	ModifiedTime time.Time `json:"modifiedTime"`
+	Summary      *string   `json:"summary,omitempty"`
 }
 
 // SessionLifecycleHandler is a callback for session lifecycle events
@@ -1144,43 +1497,52 @@ type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
-	Model                          string                         `json:"model,omitempty"`
-	SessionID                      string                         `json:"sessionId,omitempty"`
-	ClientName                     string                         `json:"clientName,omitempty"`
-	ReasoningEffort                string                         `json:"reasoningEffort,omitempty"`
-	Tools                          []Tool                         `json:"tools,omitempty"`
-	SystemMessage                  *SystemMessageConfig           `json:"systemMessage,omitempty"`
-	AvailableTools                 []string                       `json:"availableTools"`
-	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
-	Provider                       *ProviderConfig                `json:"provider,omitempty"`
-	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
-	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
-	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
-	RequestExitPlanMode            *bool                          `json:"requestExitPlanMode,omitempty"`
-	RequestAutoModeSwitch          *bool                          `json:"requestAutoModeSwitch,omitempty"`
-	Hooks                          *bool                          `json:"hooks,omitempty"`
-	WorkingDirectory               string                         `json:"workingDirectory,omitempty"`
-	Streaming                      *bool                          `json:"streaming,omitempty"`
-	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
-	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
-	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
-	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
-	Agent                          string                         `json:"agent,omitempty"`
-	ConfigDir                      string                         `json:"configDir,omitempty"`
-	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
-	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
-	InstructionDirectories         []string                       `json:"instructionDirectories,omitempty"`
-	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
-	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
-	Commands                       []wireCommand                  `json:"commands,omitempty"`
-	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
-	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
-	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
-	Cloud                          *CloudSessionOptions           `json:"cloud,omitempty"`
-	Traceparent                    string                         `json:"traceparent,omitempty"`
-	Tracestate                     string                         `json:"tracestate,omitempty"`
+	Model                          string                                 `json:"model,omitempty"`
+	SessionID                      string                                 `json:"sessionId,omitempty"`
+	ClientName                     string                                 `json:"clientName,omitempty"`
+	ReasoningEffort                string                                 `json:"reasoningEffort,omitempty"`
+	Tools                          []Tool                                 `json:"tools,omitempty"`
+	SystemMessage                  *SystemMessageConfig                   `json:"systemMessage,omitempty"`
+	AvailableTools                 []string                               `json:"availableTools"`
+	ExcludedTools                  []string                               `json:"excludedTools,omitempty"`
+	ToolFilterPrecedence           *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+	Provider                       *ProviderConfig                        `json:"provider,omitempty"`
+	EnableSessionTelemetry         *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	SkipCustomInstructions         *bool                                  `json:"skipCustomInstructions,omitempty"`
+	CustomAgentsLocalOnly          *bool                                  `json:"customAgentsLocalOnly,omitempty"`
+	CoauthorEnabled                *bool                                  `json:"coauthorEnabled,omitempty"`
+	ManageScheduleEnabled          *bool                                  `json:"manageScheduleEnabled,omitempty"`
+	ModelCapabilities              *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
+	RequestPermission              *bool                                  `json:"requestPermission,omitempty"`
+	RequestUserInput               *bool                                  `json:"requestUserInput,omitempty"`
+	RequestExitPlanMode            *bool                                  `json:"requestExitPlanMode,omitempty"`
+	RequestAutoModeSwitch          *bool                                  `json:"requestAutoModeSwitch,omitempty"`
+	Hooks                          *bool                                  `json:"hooks,omitempty"`
+	WorkingDirectory               string                                 `json:"workingDirectory,omitempty"`
+	Streaming                      *bool                                  `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	MCPServers                     map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	EnvValueMode                   string                                 `json:"envValueMode,omitempty"`
+	CustomAgents                   []CustomAgentConfig                    `json:"customAgents,omitempty"`
+	DefaultAgent                   *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
+	Agent                          string                                 `json:"agent,omitempty"`
+	ConfigDir                      string                                 `json:"configDir,omitempty"`
+	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
+	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
+	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
+	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
+	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
+	Commands                       []wireCommand                          `json:"commands,omitempty"`
+	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
+	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
+	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
+	Cloud                          *CloudSessionOptions                   `json:"cloud,omitempty"`
+	Canvases                       []CanvasDeclaration                    `json:"canvases,omitempty"`
+	RequestCanvasRenderer          *bool                                  `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions              *bool                                  `json:"requestExtensions,omitempty"`
+	ExtensionInfo                  *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	Traceparent                    string                                 `json:"traceparent,omitempty"`
+	Tracestate                     string                                 `json:"tracestate,omitempty"`
 }
 
 // wireCommand is the wire representation of a command (name + description only, no handler).
@@ -1198,51 +1560,62 @@ type createSessionResponse struct {
 
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
-	SessionID                      string                         `json:"sessionId"`
-	ClientName                     string                         `json:"clientName,omitempty"`
-	Model                          string                         `json:"model,omitempty"`
-	ReasoningEffort                string                         `json:"reasoningEffort,omitempty"`
-	Tools                          []Tool                         `json:"tools,omitempty"`
-	SystemMessage                  *SystemMessageConfig           `json:"systemMessage,omitempty"`
-	AvailableTools                 []string                       `json:"availableTools"`
-	ExcludedTools                  []string                       `json:"excludedTools,omitempty"`
-	Provider                       *ProviderConfig                `json:"provider,omitempty"`
-	EnableSessionTelemetry         *bool                          `json:"enableSessionTelemetry,omitempty"`
-	ModelCapabilities              *rpc.ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
-	RequestPermission              *bool                          `json:"requestPermission,omitempty"`
-	RequestUserInput               *bool                          `json:"requestUserInput,omitempty"`
-	RequestExitPlanMode            *bool                          `json:"requestExitPlanMode,omitempty"`
-	RequestAutoModeSwitch          *bool                          `json:"requestAutoModeSwitch,omitempty"`
-	Hooks                          *bool                          `json:"hooks,omitempty"`
-	WorkingDirectory               string                         `json:"workingDirectory,omitempty"`
-	ConfigDir                      string                         `json:"configDir,omitempty"`
-	EnableConfigDiscovery          *bool                          `json:"enableConfigDiscovery,omitempty"`
-	DisableResume                  *bool                          `json:"disableResume,omitempty"`
-	ContinuePendingWork            *bool                          `json:"continuePendingWork,omitempty"`
-	Streaming                      *bool                          `json:"streaming,omitempty"`
-	IncludeSubAgentStreamingEvents *bool                          `json:"includeSubAgentStreamingEvents,omitempty"`
-	MCPServers                     map[string]MCPServerConfig     `json:"mcpServers,omitempty"`
-	EnvValueMode                   string                         `json:"envValueMode,omitempty"`
-	CustomAgents                   []CustomAgentConfig            `json:"customAgents,omitempty"`
-	DefaultAgent                   *DefaultAgentConfig            `json:"defaultAgent,omitempty"`
-	Agent                          string                         `json:"agent,omitempty"`
-	SkillDirectories               []string                       `json:"skillDirectories,omitempty"`
-	InstructionDirectories         []string                       `json:"instructionDirectories,omitempty"`
-	DisabledSkills                 []string                       `json:"disabledSkills,omitempty"`
-	InfiniteSessions               *InfiniteSessionConfig         `json:"infiniteSessions,omitempty"`
-	Commands                       []wireCommand                  `json:"commands,omitempty"`
-	RequestElicitation             *bool                          `json:"requestElicitation,omitempty"`
-	GitHubToken                    string                         `json:"gitHubToken,omitempty"`
-	RemoteSession                  rpc.RemoteSessionMode          `json:"remoteSession,omitempty"`
-	Traceparent                    string                         `json:"traceparent,omitempty"`
-	Tracestate                     string                         `json:"tracestate,omitempty"`
+	SessionID                      string                                 `json:"sessionId"`
+	ClientName                     string                                 `json:"clientName,omitempty"`
+	Model                          string                                 `json:"model,omitempty"`
+	ReasoningEffort                string                                 `json:"reasoningEffort,omitempty"`
+	Tools                          []Tool                                 `json:"tools,omitempty"`
+	SystemMessage                  *SystemMessageConfig                   `json:"systemMessage,omitempty"`
+	AvailableTools                 []string                               `json:"availableTools"`
+	ExcludedTools                  []string                               `json:"excludedTools,omitempty"`
+	ToolFilterPrecedence           *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+	Provider                       *ProviderConfig                        `json:"provider,omitempty"`
+	EnableSessionTelemetry         *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	SkipCustomInstructions         *bool                                  `json:"skipCustomInstructions,omitempty"`
+	CustomAgentsLocalOnly          *bool                                  `json:"customAgentsLocalOnly,omitempty"`
+	CoauthorEnabled                *bool                                  `json:"coauthorEnabled,omitempty"`
+	ManageScheduleEnabled          *bool                                  `json:"manageScheduleEnabled,omitempty"`
+	ModelCapabilities              *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
+	RequestPermission              *bool                                  `json:"requestPermission,omitempty"`
+	RequestUserInput               *bool                                  `json:"requestUserInput,omitempty"`
+	RequestExitPlanMode            *bool                                  `json:"requestExitPlanMode,omitempty"`
+	RequestAutoModeSwitch          *bool                                  `json:"requestAutoModeSwitch,omitempty"`
+	Hooks                          *bool                                  `json:"hooks,omitempty"`
+	WorkingDirectory               string                                 `json:"workingDirectory,omitempty"`
+	ConfigDir                      string                                 `json:"configDir,omitempty"`
+	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
+	DisableResume                  *bool                                  `json:"disableResume,omitempty"`
+	ContinuePendingWork            *bool                                  `json:"continuePendingWork,omitempty"`
+	Streaming                      *bool                                  `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	MCPServers                     map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	EnvValueMode                   string                                 `json:"envValueMode,omitempty"`
+	CustomAgents                   []CustomAgentConfig                    `json:"customAgents,omitempty"`
+	DefaultAgent                   *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
+	Agent                          string                                 `json:"agent,omitempty"`
+	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
+	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
+	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
+	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
+	Commands                       []wireCommand                          `json:"commands,omitempty"`
+	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
+	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
+	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
+	Canvases                       []CanvasDeclaration                    `json:"canvases,omitempty"`
+	OpenCanvases                   []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`
+	RequestCanvasRenderer          *bool                                  `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions              *bool                                  `json:"requestExtensions,omitempty"`
+	ExtensionInfo                  *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	Traceparent                    string                                 `json:"traceparent,omitempty"`
+	Tracestate                     string                                 `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume
 type resumeSessionResponse struct {
-	SessionID     string               `json:"sessionId"`
-	WorkspacePath string               `json:"workspacePath"`
-	Capabilities  *SessionCapabilities `json:"capabilities,omitempty"`
+	SessionID     string                   `json:"sessionId"`
+	WorkspacePath string                   `json:"workspacePath"`
+	Capabilities  *SessionCapabilities     `json:"capabilities,omitempty"`
+	OpenCanvases  []rpc.OpenCanvasInstance `json:"openCanvases,omitempty"`
 }
 
 type hooksInvokeRequest struct {
@@ -1316,9 +1689,9 @@ type pingRequest struct {
 
 // PingResponse is the response from a ping request
 type PingResponse struct {
-	Message         string `json:"message"`
-	Timestamp       int64  `json:"timestamp"`
-	ProtocolVersion *int   `json:"protocolVersion,omitempty"`
+	Message         string    `json:"message"`
+	Timestamp       time.Time `json:"timestamp"`
+	ProtocolVersion *int      `json:"protocolVersion,omitempty"`
 }
 
 // getStatusRequest is the request for status.get
@@ -1373,8 +1746,10 @@ type sessionAbortRequest struct {
 type sessionSendRequest struct {
 	SessionID      string            `json:"sessionId"`
 	Prompt         string            `json:"prompt"`
+	DisplayPrompt  string            `json:"displayPrompt,omitempty"`
 	Attachments    []Attachment      `json:"attachments,omitempty"`
 	Mode           string            `json:"mode,omitempty"`
+	AgentMode      AgentMode         `json:"agentMode,omitempty"`
 	Traceparent    string            `json:"traceparent,omitempty"`
 	Tracestate     string            `json:"tracestate,omitempty"`
 	RequestHeaders map[string]string `json:"requestHeaders,omitempty"`

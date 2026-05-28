@@ -7,12 +7,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 /// <summary>
 /// Behavior tests for the SDK's hand-rolled JSON-RPC transport (params shape, serializer
 /// metadata, request/response routing, error propagation). Reflection is used to force
-/// every generated <c>JsonSerializable</c> registration on the <see cref="GitHub.Copilot.SDK.Rpc.RpcJsonSerializerContext"/>,
+/// every generated <c>JsonSerializable</c> registration on the <see cref="GitHub.Copilot.Rpc.RpcJsonSerializerContext"/>,
 /// which guards against regressions in the C# code generator (<c>scripts/codegen/csharp.ts</c>)
 /// silently dropping a registration. Functional behavior of individual RPC methods lives
 /// in the <c>Rpc*Tests</c> classes; this file owns transport- and serializer-shape concerns.
@@ -160,7 +160,7 @@ public class JsonRpcTests
     private sealed class JsonRpcReflection : IDisposable
     {
         private static readonly Type JsonRpcType =
-            typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.SDK.JsonRpc", throwOnError: true)!;
+            typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.JsonRpc", throwOnError: true)!;
 
         private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
         {
@@ -190,7 +190,8 @@ public class JsonRpcTests
                 .GetMethod("InvokeAsync")!
                 .MakeGenericMethod(typeof(T));
 
-            var task = (Task<T>)method.Invoke(_instance, [methodName, args, cancellationToken])!;
+            // Pass null for the optional onResponseInline parameter.
+            var task = (Task<T>)method.Invoke(_instance, [methodName, args, cancellationToken, null])!;
             return await task.ConfigureAwait(false);
         }
 

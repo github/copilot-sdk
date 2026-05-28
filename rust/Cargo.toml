@@ -11,21 +11,23 @@ homepage = "https://github.com/github/copilot-sdk"
 documentation = "https://docs.rs/github-copilot-sdk"
 readme = "README.md"
 license = "MIT"
-exclude = [
-    "RELEASING.md",
-    "rust-toolchain.toml",
-    ".rustfmt.toml",
-    ".rustfmt.nightly.toml",
-    "clippy.toml",
-    ".gitignore",
+include = [
+    "src/**/*",
+    "examples/**/*",
+    "tests/**/*",
+    "build.rs",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "cli-version.txt",
 ]
 
 [lib]
 name = "github_copilot_sdk"
 
 [features]
-default = []
-embedded-cli = ["dep:sha2", "dep:zstd"]
+default = ["bundled-cli"]
+bundled-cli = ["dep:tar", "dep:flate2", "dep:zip"]
 derive = ["dep:schemars"]
 test-support = []
 
@@ -41,7 +43,6 @@ async-trait = "0.1"
 schemars = { version = "1", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-thiserror = "2"
 tokio = { version = "1", features = ["io-util", "sync", "rt", "process", "net", "time", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", default-features = false }
@@ -49,24 +50,39 @@ tracing = "0.1"
 dirs = "5"
 parking_lot = "0.12"
 regex = "1"
-sha2 = { version = "0.10", optional = true }
 getrandom = "0.2"
 uuid = { version = "1", default-features = false, features = ["v4"] }
-zstd = { version = "0.13", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+zip = { version = "2", default-features = false, features = ["deflate"], optional = true }
+
+[target.'cfg(not(windows))'.dependencies]
+flate2 = { version = "1", optional = true }
+tar = { version = "0.4", optional = true }
 
 [dev-dependencies]
 rusqlite = { version = "0.35", features = ["bundled"] }
 schemars = "1"
 serial_test = "3"
 tempfile = "3"
-sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread"] }
-zstd = "0.13"
+
+# Integration tests that call test-support-only Client methods (e.g.
+# `from_streams_with_connection_token`, `from_streams_with_trace_provider`)
+# require the `test-support` feature because `cfg(test)` is not set on the
+# library when Cargo compiles it for integration tests.
+[[test]]
+name = "session_test"
+required-features = ["test-support"]
+
+[[test]]
+name = "protocol_version_test"
+required-features = ["test-support"]
 
 [build-dependencies]
+dirs = "5"
 flate2 = "1"
 sha2 = "0.10"
 tar = "0.4"
 ureq = { version = "2", default-features = false, features = ["tls"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
-zstd = "0.13"

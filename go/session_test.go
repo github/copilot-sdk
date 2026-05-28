@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // newTestSession creates a session with an event channel and starts the consumer goroutine.
@@ -26,24 +24,6 @@ func newTestSession() (*Session, func()) {
 
 func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
-}
-
-func TestRPCPermissionDecisionFromKindPreservesUnknownKind(t *testing.T) {
-	kind := rpc.PermissionDecisionKind("future-decision")
-	decision := rpcPermissionDecisionFromKind(kind)
-
-	data, err := json.Marshal(decision)
-	if err != nil {
-		t.Fatalf("marshal permission decision: %v", err)
-	}
-
-	var serialized map[string]any
-	if err := json.Unmarshal(data, &serialized); err != nil {
-		t.Fatalf("unmarshal serialized permission decision: %v", err)
-	}
-	if serialized["kind"] != string(kind) {
-		t.Fatalf("expected kind %q to round-trip, got %v in %s", kind, serialized["kind"], data)
-	}
 }
 
 func TestSession_On(t *testing.T) {
@@ -573,6 +553,72 @@ func TestSession_ElicitationHandler(t *testing.T) {
 	})
 }
 
+func TestSession_PostToolUseFailureHook(t *testing.T) {
+	t.Run("dispatches with parsed input and returns additional context", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		var captured PostToolUseFailureHookInput
+		session.registerHooks(&SessionHooks{
+			OnPostToolUseFailure: func(input PostToolUseFailureHookInput, _ HookInvocation) (*PostToolUseFailureHookOutput, error) {
+				captured = input
+				return &PostToolUseFailureHookOutput{
+					AdditionalContext: "extra-context: " + input.Error,
+				}, nil
+			},
+		})
+
+		raw := json.RawMessage(`{
+			"sessionId": "sess-1",
+			"timestamp": 1700000000,
+			"cwd": "/work",
+			"toolName": "tool-x",
+			"toolArgs": {"foo": "bar"},
+			"error": "boom"
+		}`)
+		output, err := session.handleHooksInvoke("postToolUseFailure", raw)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if captured.SessionID != "sess-1" {
+			t.Errorf("expected sessionId 'sess-1', got %q", captured.SessionID)
+		}
+		if captured.ToolName != "tool-x" {
+			t.Errorf("expected toolName 'tool-x', got %q", captured.ToolName)
+		}
+		if captured.Error != "boom" {
+			t.Errorf("expected error 'boom', got %q", captured.Error)
+		}
+		if !captured.Timestamp.Equal(time.UnixMilli(1700000000)) {
+			t.Errorf("expected timestamp %v, got %v", time.UnixMilli(1700000000), captured.Timestamp)
+		}
+		if captured.WorkingDirectory != "/work" {
+			t.Errorf("expected WorkingDirectory '/work', got %q", captured.WorkingDirectory)
+		}
+		out, ok := output.(*PostToolUseFailureHookOutput)
+		if !ok {
+			t.Fatalf("expected *PostToolUseFailureHookOutput, got %T", output)
+		}
+		if out.AdditionalContext != "extra-context: boom" {
+			t.Errorf("unexpected AdditionalContext: %q", out.AdditionalContext)
+		}
+	})
+
+	t.Run("no handler registered returns nil without error", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+		session.registerHooks(&SessionHooks{})
+
+		output, err := session.handleHooksInvoke("postToolUseFailure", json.RawMessage(`{"sessionId":"sess-1","timestamp":0,"cwd":"","toolName":"t","toolArgs":null,"error":"e"}`))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if output != nil {
+			t.Errorf("expected nil output, got %v", output)
+		}
+	})
+}
+
 func TestSession_HookForwardCompatibility(t *testing.T) {
 	t.Run("unknown hook type returns nil without error when known hooks are registered", func(t *testing.T) {
 		session, cleanup := newTestSession()
@@ -587,9 +633,9 @@ func TestSession_HookForwardCompatibility(t *testing.T) {
 			},
 		})
 
-		// "postToolUseFailure" is an example of a hook type introduced by a newer
-		// CLI version that the SDK does not yet know about.
-		output, err := session.handleHooksInvoke("postToolUseFailure", json.RawMessage(`{}`))
+		// "futureUnknownHookType" stands in for a hook type introduced by a
+		// newer CLI version that the SDK does not yet know about.
+		output, err := session.handleHooksInvoke("futureUnknownHookType", json.RawMessage(`{}`))
 		if err != nil {
 			t.Errorf("Expected no error for unknown hook type, got: %v", err)
 		}

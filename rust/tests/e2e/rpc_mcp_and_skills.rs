@@ -1,8 +1,16 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use github_copilot_sdk::generated::api_types::{
-    ExtensionsDisableRequest, ExtensionsEnableRequest, McpDisableRequest, McpEnableRequest,
-    McpOauthLoginRequest, SkillsDisableRequest, SkillsEnableRequest,
+    ExtensionsDisableRequest, ExtensionsEnableRequest, McpAppsCallToolRequest,
+    McpAppsDiagnoseRequest, McpAppsListToolsRequest, McpAppsReadResourceRequest,
+    McpAppsSetHostContextDetails, McpAppsSetHostContextDetailsAvailableDisplayMode,
+    McpAppsSetHostContextDetailsDisplayMode, McpAppsSetHostContextDetailsPlatform,
+    McpAppsSetHostContextDetailsTheme, McpAppsSetHostContextRequest,
+    McpCancelSamplingExecutionParams, McpDisableRequest, McpEnableRequest,
+    McpExecuteSamplingParams, McpExecuteSamplingRequest, McpOauthLoginRequest,
+    McpSamplingExecutionAction, McpSetEnvValueModeDetails, McpSetEnvValueModeParams,
+    SkillsDisableRequest, SkillsEnableRequest,
 };
 use github_copilot_sdk::{McpServerConfig, McpStdioServerConfig};
 
@@ -78,6 +86,56 @@ async fn should_list_and_toggle_session_skills() {
 }
 
 #[tokio::test]
+async fn should_ensure_skills_are_loaded_and_list_invoked_skills() {
+    with_e2e_context(
+        "rpc_mcp_and_skills",
+        "should_ensure_skills_are_loaded_and_list_invoked_skills",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let skill_name = "ensure-loaded-rpc-skill-rust";
+                let skills_dir = create_skill_directory(
+                    ctx.work_dir(),
+                    skill_name,
+                    "Skill available to ensureLoaded tests.",
+                );
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(
+                        ctx.approve_all_session_config()
+                            .with_skill_directories([skills_dir]),
+                    )
+                    .await
+                    .expect("create session");
+
+                session
+                    .rpc()
+                    .skills()
+                    .ensure_loaded()
+                    .await
+                    .expect("ensure loaded");
+                assert_skill(
+                    session.rpc().skills().list().await.expect("list skills"),
+                    skill_name,
+                    true,
+                );
+                let invoked = session
+                    .rpc()
+                    .skills()
+                    .get_invoked()
+                    .await
+                    .expect("get invoked skills");
+                assert!(invoked.skills.is_empty());
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_reload_session_skills() {
     with_e2e_context(
         "rpc_mcp_and_skills",
@@ -136,7 +194,7 @@ async fn should_list_mcp_servers_with_configured_server() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_mcp_servers(test_mcp_servers(server_name)),
+                            .with_mcp_servers(test_mcp_servers(ctx.repo_root(), server_name)),
                     )
                     .await
                     .expect("create session");
@@ -148,6 +206,101 @@ async fn should_list_mcp_servers_with_configured_server() {
                         .iter()
                         .any(|server| server.name == server_name)
                 );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_set_mcp_env_value_mode_and_remove_github_server() {
+    with_e2e_context(
+        "rpc_mcp_and_skills",
+        "should_set_mcp_env_value_mode_and_remove_github_server",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let mode = session
+                    .rpc()
+                    .mcp()
+                    .set_env_value_mode(McpSetEnvValueModeParams {
+                        mode: McpSetEnvValueModeDetails::Direct,
+                    })
+                    .await
+                    .expect("set env value mode");
+                assert_eq!(mode.mode, McpSetEnvValueModeDetails::Direct);
+                let removed = session
+                    .rpc()
+                    .mcp()
+                    .remove_git_hub()
+                    .await
+                    .expect("remove github mcp");
+                assert!(!removed.removed);
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_report_mcp_sampling_failure_and_cancel_missing_sampling() {
+    with_e2e_context(
+        "rpc_mcp_and_skills",
+        "should_report_mcp_sampling_failure_and_cancel_missing_sampling",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                assert!(
+                    !session
+                        .rpc()
+                        .mcp()
+                        .cancel_sampling_execution(McpCancelSamplingExecutionParams {
+                            request_id: "missing-sampling".into(),
+                        })
+                        .await
+                        .expect("cancel missing sampling")
+                        .cancelled
+                );
+                match session
+                    .rpc()
+                    .mcp()
+                    .execute_sampling(McpExecuteSamplingParams {
+                        mcp_request_id: serde_json::json!("sampling-request"),
+                        request: McpExecuteSamplingRequest {},
+                        request_id: "sampling-request".into(),
+                        server_name: "missing-server".to_string(),
+                    })
+                    .await
+                {
+                    Ok(result) => {
+                        assert_ne!(result.action, McpSamplingExecutionAction::Success);
+                        assert!(result.result.is_none());
+                    }
+                    Err(err) => {
+                        assert!(
+                            !err.to_string()
+                                .contains("Unhandled method session.mcp.executeSampling")
+                        );
+                    }
+                }
 
                 session.disconnect().await.expect("disconnect session");
                 client.stop().await.expect("stop client");
@@ -219,6 +372,169 @@ async fn should_list_extensions() {
 }
 
 #[tokio::test]
+async fn should_round_trip_mcp_app_host_context() {
+    with_e2e_context(
+        "rpc_mcp_and_skills",
+        "should_round_trip_mcp_app_host_context",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                session
+                    .rpc()
+                    .mcp()
+                    .apps()
+                    .set_host_context(McpAppsSetHostContextRequest {
+                        context: McpAppsSetHostContextDetails {
+                            available_display_modes: Some(vec![
+                                McpAppsSetHostContextDetailsAvailableDisplayMode::Inline,
+                                McpAppsSetHostContextDetailsAvailableDisplayMode::Fullscreen,
+                            ]),
+                            display_mode: Some(McpAppsSetHostContextDetailsDisplayMode::Inline),
+                            locale: Some("en-US".to_string()),
+                            platform: Some(McpAppsSetHostContextDetailsPlatform::Desktop),
+                            theme: Some(McpAppsSetHostContextDetailsTheme::Dark),
+                            time_zone: Some("Etc/UTC".to_string()),
+                            user_agent: Some("rust-e2e".to_string()),
+                        },
+                    })
+                    .await
+                    .expect("set host context");
+                let context = session
+                    .rpc()
+                    .mcp()
+                    .apps()
+                    .get_host_context()
+                    .await
+                    .expect("get host context")
+                    .context;
+                assert_eq!(context.locale.as_deref(), Some("en-US"));
+                assert_eq!(context.time_zone.as_deref(), Some("Etc/UTC"));
+                assert_eq!(context.user_agent.as_deref(), Some("rust-e2e"));
+                assert_eq!(
+                    context.available_display_modes.as_ref().map_or(0, Vec::len),
+                    2
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_diagnose_and_report_mcp_app_capability_errors() {
+    with_e2e_context(
+        "rpc_mcp_and_skills",
+        "should_diagnose_and_report_mcp_app_capability_errors",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let server_name = "missing-app-server";
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let diagnose = session
+                    .rpc()
+                    .mcp()
+                    .apps()
+                    .diagnose(McpAppsDiagnoseRequest {
+                        server_name: server_name.to_string(),
+                    })
+                    .await
+                    .expect("diagnose mcp apps");
+                assert!(!diagnose.server.connected);
+                assert_eq!(diagnose.server.tool_count, 0.0);
+                assert!(diagnose.server.sample_tool_names.is_empty());
+                let _capability = diagnose.capability;
+
+                expect_err_contains(
+                    session
+                        .rpc()
+                        .mcp()
+                        .apps()
+                        .list_tools(McpAppsListToolsRequest {
+                            server_name: server_name.to_string(),
+                            origin_server_name: server_name.to_string(),
+                        }),
+                    "mcp",
+                )
+                .await;
+                expect_err_contains(
+                    session
+                        .rpc()
+                        .mcp()
+                        .apps()
+                        .call_tool(McpAppsCallToolRequest {
+                            arguments: Some(HashMap::new()),
+                            server_name: server_name.to_string(),
+                            origin_server_name: server_name.to_string(),
+                            tool_name: "missing-tool".to_string(),
+                        }),
+                    "mcp",
+                )
+                .await;
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn should_report_error_when_mcp_app_resource_is_not_available() {
+    with_e2e_context(
+        "rpc_mcp_and_skills",
+        "should_report_error_when_mcp_app_resource_is_not_available",
+        |ctx| {
+            Box::pin(async move {
+                ctx.set_default_copilot_user();
+                let client = ctx.start_client().await;
+                let session = client
+                    .create_session(ctx.approve_all_session_config())
+                    .await
+                    .expect("create session");
+
+                let err = session
+                    .rpc()
+                    .mcp()
+                    .apps()
+                    .read_resource(McpAppsReadResourceRequest {
+                        server_name: "missing-app-server".to_string(),
+                        uri: "ui://missing/resource.html".to_string(),
+                    })
+                    .await
+                    .expect_err("missing resource should fail");
+                let message = err.to_string().to_ascii_lowercase();
+                assert!(
+                    message.contains("resource")
+                        || message.contains("not found")
+                        || message.contains("method not found")
+                        || message.contains("mcp"),
+                    "unexpected readResource error: {err}"
+                );
+
+                session.disconnect().await.expect("disconnect session");
+                client.stop().await.expect("stop client");
+            })
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn should_report_error_when_mcp_host_is_not_initialized() {
     with_e2e_context(
         "rpc_mcp_and_skills",
@@ -280,10 +596,9 @@ async fn should_report_error_when_mcp_oauth_server_is_not_configured() {
                 ctx.set_default_copilot_user();
                 let client = ctx.start_client().await;
                 let session = client
-                    .create_session(
-                        ctx.approve_all_session_config()
-                            .with_mcp_servers(test_mcp_servers("configured-stdio-server")),
-                    )
+                    .create_session(ctx.approve_all_session_config().with_mcp_servers(
+                        test_mcp_servers(ctx.repo_root(), "configured-stdio-server"),
+                    ))
                     .await
                     .expect("create session");
 
@@ -319,7 +634,7 @@ async fn should_report_error_when_mcp_oauth_server_is_not_remote() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_mcp_servers(test_mcp_servers(server_name)),
+                            .with_mcp_servers(test_mcp_servers(ctx.repo_root(), server_name)),
                     )
                     .await
                     .expect("create session");
@@ -434,13 +749,24 @@ fn assert_skill(
     skill
 }
 
-fn test_mcp_servers(message: &str) -> HashMap<String, McpServerConfig> {
+fn test_mcp_servers(repo_root: &Path, server_name: &str) -> HashMap<String, McpServerConfig> {
+    let harness_dir = repo_root.join("test").join("harness");
+    let server_path = harness_dir
+        .join("test-mcp-server.mjs")
+        .to_string_lossy()
+        .to_string();
+
     HashMap::from([(
-        message.to_string(),
+        server_name.to_string(),
         McpServerConfig::Stdio(McpStdioServerConfig {
-            tools: vec!["*".to_string()],
-            command: echo_command(),
-            args: echo_args(message),
+            tools: Some(vec!["*".to_string()]),
+            command: if cfg!(windows) {
+                "node.exe".to_string()
+            } else {
+                "node".to_string()
+            },
+            args: vec![server_path],
+            working_directory: Some(harness_dir.to_string_lossy().to_string()),
             ..McpStdioServerConfig::default()
         }),
     )])
@@ -460,24 +786,4 @@ async fn expect_err_contains<T>(
             .contains(&expected.to_ascii_lowercase()),
         "expected error to contain {expected:?}, got {err}"
     );
-}
-
-#[cfg(windows)]
-fn echo_command() -> String {
-    "cmd".to_string()
-}
-
-#[cfg(not(windows))]
-fn echo_command() -> String {
-    "echo".to_string()
-}
-
-#[cfg(windows)]
-fn echo_args(message: &str) -> Vec<String> {
-    vec!["/C".to_string(), "echo".to_string(), message.to_string()]
-}
-
-#[cfg(not(windows))]
-fn echo_args(message: &str) -> Vec<String> {
-    vec![message.to_string()]
 }
