@@ -17,13 +17,17 @@ inputs:
     description: "Name for the check run"
     required: false
     default: "Java SDK Test Results"
+  title:
+    description: "Title for the test report summary"
+    required: false
+    default: "Copilot Java SDK :: Test Results"
 runs:
   using: "composite"
   steps:
     - name: Generate Test Summary
       shell: bash
       run: |
-        echo "## 🧪 Copilot Java SDK :: Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "## 🧪 ${{ inputs.title }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if ls ${{ inputs.report-path }} 1>/dev/null 2>&1; then
