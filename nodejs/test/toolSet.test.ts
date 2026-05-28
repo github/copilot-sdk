@@ -127,7 +127,7 @@ describe("Tool filter wiring", () => {
             .spyOn((client as any).connection!, "sendRequest")
             .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create" || method === "session.resume") {
-                    return { sessionId: params.sessionId };
+                    return { sessionId: params.sessionId ?? "session-id" };
                 }
                 if (method === "session.options.update") {
                     return { success: true };
@@ -225,7 +225,7 @@ describe("Empty-mode safe defaults", () => {
             .spyOn((client as any).connection!, "sendRequest")
             .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create" || method === "session.resume") {
-                    return { sessionId: params.sessionId };
+                    return { sessionId: params.sessionId ?? "session-id" };
                 }
                 if (method === "session.options.update") {
                     return { success: true };
@@ -401,7 +401,8 @@ describe("Empty-mode safe defaults", () => {
         onTestFinished(() => client.forceStop());
         vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
             async (method: string, params: any) => {
-                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
                 if (method === "session.options.update") {
                     throw new Error("update rejected");
                 }

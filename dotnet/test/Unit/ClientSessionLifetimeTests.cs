@@ -307,10 +307,19 @@ public sealed class ClientSessionLifetimeTests
 
         private Dictionary<string, object?> CreateSessionResult(JsonElement request)
         {
-            _lastSessionId = request
-                .GetProperty("params")
-                .GetProperty("sessionId")
-                .GetString();
+            string? sessionId = null;
+            if (request.TryGetProperty("params", out var paramsProp)
+                && paramsProp.ValueKind == JsonValueKind.Object
+                && paramsProp.TryGetProperty("sessionId", out var sidProp)
+                && sidProp.ValueKind == JsonValueKind.String)
+            {
+                sessionId = sidProp.GetString();
+            }
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                sessionId = Guid.NewGuid().ToString();
+            }
+            _lastSessionId = sessionId;
 
             return new Dictionary<string, object?>
             {

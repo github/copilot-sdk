@@ -1,4 +1,11 @@
 //! Canvas declarations, provider callbacks, and host-side canvas RPC types.
+//!
+//! <div class="warning">
+//!
+//! **Experimental.** Canvas types are part of an experimental wire-protocol surface
+//! and may change or be removed in future SDK or CLI releases.
+//!
+//! </div>
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -7,11 +14,25 @@ use serde_json::Value;
 use crate::generated::api_types::CanvasAction;
 
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type CanvasJsonSchema = serde_json::Map<String, Value>;
 
 /// Declarative metadata for a single canvas, sent over the wire on
 /// `session.create` / `session.resume`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CanvasDeclaration {
@@ -53,6 +74,13 @@ impl CanvasDeclaration {
 }
 
 /// Structured error returned from canvas handlers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasError {
@@ -89,9 +117,23 @@ impl CanvasError {
 }
 
 /// Result alias for canvas handler methods.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type CanvasResult<T> = Result<T, CanvasError>;
 
 /// Provider-side canvas lifecycle handler.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This trait is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 ///
 /// A session installs a single [`CanvasHandler`] (via
 /// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).

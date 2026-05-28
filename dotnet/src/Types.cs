@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot;
@@ -3286,6 +3287,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
+[JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(object))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(string[]))]

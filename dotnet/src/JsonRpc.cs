@@ -73,11 +73,22 @@ internal sealed partial class JsonRpc : IDisposable
     /// <summary>
     /// Sends a JSON-RPC request and waits for the response.
     /// </summary>
-    public async Task<T> InvokeAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
+    /// <param name="method">The JSON-RPC method name.</param>
+    /// <param name="args">Positional arguments for the call.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="onResponseInline">
+    /// Optional callback invoked synchronously from the read loop after the
+    /// response is parsed but before the awaiter resumes. Use this when you
+    /// need to mutate client-side state (for example, register a server-assigned
+    /// session id) before any subsequent notification on the same connection is
+    /// dispatched. The callback receives the raw JSON-RPC <c>result</c> element.
+    /// If the callback throws, the exception is propagated to the awaiter.
+    /// </param>
+    public async Task<T> InvokeAsync<T>(string method, object?[]? args, CancellationToken cancellationToken, Action<JsonElement>? onResponseInline = null)
     {
         var timingTimestamp = Stopwatch.GetTimestamp();
         var id = Interlocked.Increment(ref _nextId);
-        var pending = new PendingRequest();
+        var pending = new PendingRequest(onResponseInline);
         _pendingRequests[id] = pending;
 
         CancellationTokenRegistration cancelRegistration = default;
@@ -166,7 +177,7 @@ internal sealed partial class JsonRpc : IDisposable
     /// </summary>
     public void SetLocalRpcMethod(string methodName, Delegate handler, bool singleObjectParam = false)
     {
-        _methods[methodName] = new MethodRegistration(handler, singleObjectParam);
+        _methods[methodName] = new(handler, singleObjectParam);
     }
 
     /// <inheritdoc />
@@ -447,7 +458,24 @@ internal sealed partial class JsonRpc : IDisposable
         }
         else if (message.TryGetProperty("result", out var resultProp))
         {
-            pending.TrySetResult(resultProp.Clone());
+            var cloned = resultProp.Clone();
+            if (pending.OnResultInline is { } inline)
+            {
+                // Run the inline callback synchronously in the read loop so any
+                // state it mutates (e.g. session registration) is visible before
+                // the read loop dispatches the next message.
+                try
+                {
+                    inline(cloned);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Inline response callback for request {RequestId} threw", id);
+                    pending.TrySetException(ex);
+                    return;
+                }
+            }
+            pending.TrySetResult(cloned);
         }
         else
         {
@@ -489,6 +517,13 @@ internal sealed partial class JsonRpc : IDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // `InvokeHandlerAsync` dispatches handlers via reflection
+                // (`Delegate.DynamicInvoke` / `MethodInfo.Invoke`), which wraps
+                // any exception thrown inside the user-supplied handler in a
+                // `TargetInvocationException`. Unwrap so we surface the original
+                // failure (e.g. `LocalRpcInvocationException`, `CanvasException`)
+                // to the JSON-RPC error response instead of the reflection
+                // wrapper.
                 var actual = ex is TargetInvocationException tie && tie.InnerException != null ? tie.InnerException : ex;
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
@@ -765,7 +800,17 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
-    private sealed class PendingRequest() : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+    private sealed class PendingRequest(Action<JsonElement>? onResultInline = null) : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously)
+    {
+        /// <summary>
+        /// Optional callback invoked synchronously from the read loop after the
+        /// response is parsed but before the awaiter resumes. Used to perform
+        /// state changes that must happen before any subsequent notification on
+        /// the same connection is dispatched (e.g. registering a session whose
+        /// id was assigned by the server in the response).
+        /// </summary>
+        public Action<JsonElement>? OnResultInline { get; } = onResultInline;
+    }
 
     private static readonly MethodInfo s_taskGetResult = typeof(Task<>).GetProperty(nameof(Task<int>.Result), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
     private static readonly MethodInfo s_valueTaskAsTask = typeof(ValueTask<>).GetMethod(nameof(ValueTask<int>.AsTask), BindingFlags.Instance | BindingFlags.Public)!;

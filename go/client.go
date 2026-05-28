@@ -689,83 +689,161 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Traceparent = traceparent
 	req.Tracestate = tracestate
 
-	sessionID := config.SessionID
-	if sessionID == "" {
-		sessionID = uuid.New().String()
+	// For cloud sessions, let the CLI/server assign the session id and
+	// register the session lazily once the response arrives. For non-cloud
+	// sessions we generate the id client-side (when the caller didn't
+	// supply one) so the session can be registered BEFORE the RPC — the
+	// CLI may issue session-scoped requests (e.g. sessionFs.writeFile for
+	// workspace metadata) during session.create processing, before it has
+	// sent the response.
+	useServerGeneratedID := config.Cloud != nil && config.SessionID == ""
+	var localSessionID string
+	if useServerGeneratedID {
+		localSessionID = ""
+	} else if config.SessionID != "" {
+		localSessionID = config.SessionID
+	} else {
+		localSessionID = uuid.NewString()
 	}
-	req.SessionID = sessionID
+	req.SessionID = localSessionID
 
-	// Create and register the session before issuing the RPC so that
-	// events emitted by the CLI (e.g. session.start) are not dropped.
-	session := newSession(sessionID, c.client, "")
+	// initializeSession creates the session, wires up handlers, and registers
+	// it in the sessions map. Invoked from the read loop the instant the
+	// session.create response arrives (synchronously, before the next
+	// message is dispatched) so notifications for the new session id are
+	// routed to a registered session.
+	initializeSession := func(sessionID string) (*Session, error) {
+		s := newSession(sessionID, c.client, "")
 
-	session.registerTools(config.Tools)
-	session.registerPermissionHandler(config.OnPermissionRequest)
-	if config.OnUserInputRequest != nil {
-		session.registerUserInputHandler(config.OnUserInputRequest)
-	}
-	if config.Hooks != nil {
-		session.registerHooks(config.Hooks)
-	}
-	if transformCallbacks != nil {
-		session.registerTransformCallbacks(transformCallbacks)
-	}
-	if config.OnEvent != nil {
-		session.On(config.OnEvent)
-	}
-	if len(config.Commands) > 0 {
-		session.registerCommands(config.Commands)
-	}
-	if config.OnElicitationRequest != nil {
-		session.registerElicitationHandler(config.OnElicitationRequest)
-	}
-	if config.OnExitPlanModeRequest != nil {
-		session.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
-	}
-	if config.OnAutoModeSwitchRequest != nil {
-		session.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
-	}
-	if config.CanvasHandler != nil {
-		session.registerCanvasHandler(config.CanvasHandler)
-	}
-
-	c.sessionsMux.Lock()
-	c.sessions[sessionID] = session
-	c.sessionsMux.Unlock()
-
-	if c.options.SessionFs != nil {
-		if config.CreateSessionFsProvider == nil {
-			c.sessionsMux.Lock()
-			delete(c.sessions, sessionID)
-			c.sessionsMux.Unlock()
-			return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
+		s.registerTools(config.Tools)
+		s.registerPermissionHandler(config.OnPermissionRequest)
+		if config.OnUserInputRequest != nil {
+			s.registerUserInputHandler(config.OnUserInputRequest)
 		}
-		provider := config.CreateSessionFsProvider(session)
-		if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
-			if _, ok := provider.(SessionFsSqliteProvider); !ok {
+		if config.Hooks != nil {
+			s.registerHooks(config.Hooks)
+		}
+		if transformCallbacks != nil {
+			s.registerTransformCallbacks(transformCallbacks)
+		}
+		if config.OnEvent != nil {
+			s.On(config.OnEvent)
+		}
+		if len(config.Commands) > 0 {
+			s.registerCommands(config.Commands)
+		}
+		if config.OnElicitationRequest != nil {
+			s.registerElicitationHandler(config.OnElicitationRequest)
+		}
+		if config.OnExitPlanModeRequest != nil {
+			s.registerExitPlanModeHandler(config.OnExitPlanModeRequest)
+		}
+		if config.OnAutoModeSwitchRequest != nil {
+			s.registerAutoModeSwitchHandler(config.OnAutoModeSwitchRequest)
+		}
+		if config.CanvasHandler != nil {
+			s.registerCanvasHandler(config.CanvasHandler)
+		}
+
+		c.sessionsMux.Lock()
+		c.sessions[sessionID] = s
+		c.sessionsMux.Unlock()
+
+		if c.options.SessionFs != nil {
+			if config.CreateSessionFsProvider == nil {
 				c.sessionsMux.Lock()
 				delete(c.sessions, sessionID)
 				c.sessionsMux.Unlock()
-				return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+				return nil, fmt.Errorf("CreateSessionFsProvider is required in session config when SessionFs is enabled in client options")
 			}
+			provider := config.CreateSessionFsProvider(s)
+			if c.options.SessionFs.Capabilities != nil && c.options.SessionFs.Capabilities.Sqlite {
+				if _, ok := provider.(SessionFsSqliteProvider); !ok {
+					c.sessionsMux.Lock()
+					delete(c.sessions, sessionID)
+					c.sessionsMux.Unlock()
+					return nil, fmt.Errorf("SessionFs capabilities declare SQLite support but the provider does not implement SessionFsSqliteProvider")
+				}
+			}
+			s.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
 		}
-		session.clientSessionApis.SessionFs = newSessionFsAdapter(provider)
+		return s, nil
 	}
 
-	result, err := c.client.Request("session.create", req)
+	var session *Session
+	var registeredSessionID string
+
+	// Pre-register non-cloud sessions BEFORE issuing the RPC so any
+	// session-scoped requests the CLI emits during session.create processing
+	// (e.g. sessionFs.writeFile for workspace metadata) can be routed to the
+	// correct handlers.
+	if localSessionID != "" {
+		s, err := initializeSession(localSessionID)
+		if err != nil {
+			return nil, err
+		}
+		session = s
+		registeredSessionID = localSessionID
+	}
+
+	// For the server-assigned (cloud) path, register the session
+	// synchronously from the read loop the instant the response arrives,
+	// before the read loop dispatches the next message. Without this hook
+	// the awaiter goroutine may not run until after the read loop has
+	// dispatched the first session.event notification, which would be
+	// silently dropped because the session id isn't yet in the lookup
+	// table. Non-cloud sessions are already registered above.
+	var inlineCb func(raw json.RawMessage) error
+	if session == nil {
+		inlineCb = func(raw json.RawMessage) error {
+			var early struct {
+				SessionID string `json:"sessionId"`
+			}
+			if err := json.Unmarshal(raw, &early); err != nil {
+				return fmt.Errorf("failed to parse sessionId from response: %w", err)
+			}
+			if early.SessionID == "" {
+				return fmt.Errorf("session.create response did not include a sessionId")
+			}
+			s, err := initializeSession(early.SessionID)
+			if err != nil {
+				return err
+			}
+			session = s
+			registeredSessionID = early.SessionID
+			return nil
+		}
+	}
+
+	result, err := c.client.RequestWithInlineResponse("session.create", req, inlineCb)
 	if err != nil {
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
+		if registeredSessionID != "" {
+			c.sessionsMux.Lock()
+			delete(c.sessions, registeredSessionID)
+			c.sessionsMux.Unlock()
+		}
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	var response createSessionResponse
 	if err := json.Unmarshal(result, &response); err != nil {
-		c.sessionsMux.Lock()
-		delete(c.sessions, sessionID)
-		c.sessionsMux.Unlock()
+		if registeredSessionID != "" {
+			c.sessionsMux.Lock()
+			delete(c.sessions, registeredSessionID)
+			c.sessionsMux.Unlock()
+		}
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if session == nil {
+		return nil, fmt.Errorf("session.create response did not include a sessionId")
+	}
+
+	if localSessionID != "" && response.SessionID != "" && response.SessionID != localSessionID {
+		c.sessionsMux.Lock()
+		delete(c.sessions, registeredSessionID)
+		c.sessionsMux.Unlock()
+		return nil, fmt.Errorf("session.create returned sessionId %s but the caller requested %s", response.SessionID, localSessionID)
 	}
 
 	session.workspacePath = response.WorkspacePath
