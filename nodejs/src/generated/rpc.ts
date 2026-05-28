@@ -666,6 +666,10 @@ export type SessionContextInfo = {
    */
   toolDefinitionsTokens: number;
   /**
+   * Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools)
+   */
+  mcpToolsTokens: number;
+  /**
    * Sum of system, conversation and tool-definition tokens
    */
   totalTokens: number;
@@ -2811,6 +2815,45 @@ export interface CurrentModel {
   reasoningEffort?: string;
 }
 /**
+ * Lightweight metadata for a currently initialized session tool
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CurrentToolMetadata".
+ */
+/** @experimental */
+export interface CurrentToolMetadata {
+  /**
+   * Model-facing tool name
+   */
+  name: string;
+  /**
+   * Optional MCP/config namespaced tool name
+   */
+  namespacedName?: string;
+  /**
+   * MCP server name for MCP-backed tools
+   */
+  mcpServerName?: string;
+  /**
+   * Raw MCP tool name for MCP-backed tools
+   */
+  mcpToolName?: string;
+  /**
+   * Tool description
+   */
+  description: string;
+  /**
+   * JSON Schema for tool input
+   */
+  input_schema?: {
+    [k: string]: unknown | undefined;
+  };
+  /**
+   * Whether the tool is loaded on demand via tool search
+   */
+  deferLoading?: boolean;
+}
+/**
  * Schema for the `DiscoveredMcpServer` type.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4814,6 +4857,19 @@ export interface ModelList {
   models: Model[];
 }
 /**
+ * Optional listing options.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelListRequest".
+ */
+/** @experimental */
+export interface ModelListRequest {
+  /**
+   * If true, bypasses the per-session model list cache and re-fetches from CAPI.
+   */
+  skipCache?: boolean;
+}
+/**
  * Reasoning effort level to apply to the currently selected model.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -4847,7 +4903,7 @@ export interface ModelsListRequest {
   gitHubToken?: string;
 }
 /**
- * Target model identifier and optional reasoning effort, summary, and capability overrides.
+ * Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "ModelSwitchToRequest".
@@ -4864,6 +4920,14 @@ export interface ModelSwitchToRequest {
   reasoningEffort?: string;
   reasoningSummary?: ReasoningSummary;
   modelCapabilities?: ModelCapabilitiesOverride;
+  /**
+   * Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
+   */
+  contextTier?: /** Use the model's default context window. */
+    | "default"
+    /** Pin the session to the long-context tier when supported. */
+    | "long_context"
+    | null;
 }
 /**
  * The model identifier active on the session after the switch.
@@ -7637,6 +7701,25 @@ export interface SessionMetadataSnapshot {
   workspace?: WorkspaceSummary | null;
 }
 /**
+ * The list of models available to this session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SessionModelList".
+ */
+/** @experimental */
+export interface SessionModelList {
+  /**
+   * Available models, ordered with the most preferred default first.
+   */
+  list: unknown[];
+  /**
+   * Per-quota snapshots returned alongside the model list, keyed by quota type.
+   */
+  quotaSnapshots?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
  * Outcome of the prune operation: deleted IDs, dry-run candidates, skipped IDs, total bytes freed, and the dry-run flag.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -9095,6 +9178,19 @@ export interface ToolList {
   tools: Tool[];
 }
 /**
+ * Current lightweight tool metadata snapshot for the session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ToolsGetCurrentMetadataResult".
+ */
+/** @experimental */
+export interface ToolsGetCurrentMetadataResult {
+  /**
+   * Current tool metadata, or null when tools have not been initialized yet
+   */
+  tools: CurrentToolMetadata[] | null;
+}
+/**
  * Resolve, build, and validate the runtime tool list for this session. Subagent sessions and consumer flows that need an initialized tool set before `send` invoke this. Default base-class implementation is a no-op for sessions that don't support tool validation.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -10184,6 +10280,11 @@ export function createServerRpc(connection: MessageConnection) {
                  */
                 disable: async (params: McpConfigDisableRequest): Promise<void> =>
                     connection.sendRequest("mcp.config.disable", params),
+                /**
+                 * Drops this runtime process's in-memory MCP server-definition cache so the next MCP config read observes disk.
+                 */
+                reload: async (): Promise<void> =>
+                    connection.sendRequest("mcp.config.reload", {}),
             },
             /**
              * Discovers MCP servers from user, workspace, plugin, and builtin sources.
@@ -10214,6 +10315,15 @@ export function createServerRpc(connection: MessageConnection) {
              */
             discover: async (params: SkillsDiscoverRequest): Promise<ServerSkillList> =>
                 connection.sendRequest("skills.discover", params),
+        },
+        user: {
+            settings: {
+                /**
+                 * Drops this runtime process's in-memory user settings cache so the next settings read observes disk.
+                 */
+                reload: async (): Promise<void> =>
+                    connection.sendRequest("user.settings.reload", {}),
+            },
         },
         sessionFs: {
             /**
@@ -10549,7 +10659,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Switches the session to a model and optional reasoning configuration.
              *
-             * @param params Target model identifier and optional reasoning effort, summary, and capability overrides.
+             * @param params Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
              *
              * @returns The model identifier active on the session after the switch.
              */
@@ -10564,6 +10674,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             setReasoningEffort: async (params: ModelSetReasoningEffortRequest): Promise<ModelSetReasoningEffortResult> =>
                 connection.sendRequest("session.model.setReasoningEffort", { sessionId, ...params }),
+            /**
+             * Lists models available to this session using its own auth and integration context. Connected hosts (CLI TUI, GitHub App) should call this through the session client so remote sessions return the remote CLI's available models rather than the caller's.
+             *
+             * @param params Optional listing options.
+             *
+             * @returns The list of models available to this session.
+             */
+            list: async (params?: ModelListRequest): Promise<SessionModelList> =>
+                connection.sendRequest("session.model.list", { sessionId, ...params }),
         },
         /** @experimental */
         mode: {
@@ -11099,6 +11218,13 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             initializeAndValidate: async (): Promise<ToolsInitializeAndValidateResult> =>
                 connection.sendRequest("session.tools.initializeAndValidate", { sessionId }),
+            /**
+             * Returns lightweight metadata for the session's currently initialized tools.
+             *
+             * @returns Current lightweight tool metadata snapshot for the session.
+             */
+            getCurrentMetadata: async (): Promise<ToolsGetCurrentMetadataResult> =>
+                connection.sendRequest("session.tools.getCurrentMetadata", { sessionId }),
         },
         /** @experimental */
         commands: {
