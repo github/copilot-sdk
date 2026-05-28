@@ -42,6 +42,7 @@ public class SessionConfig {
     private String clientName;
     private String model;
     private String reasoningEffort;
+    private String reasoningSummary;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
@@ -65,8 +66,10 @@ public class SessionConfig {
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
     private List<String> instructionDirectories;
+    private List<String> pluginDirectories;
+    private LargeToolOutputConfig largeOutput;
     private List<String> disabledSkills;
-    private String configDir;
+    private String configDirectory;
     private Boolean enableConfigDiscovery;
     private ModelCapabilitiesOverride modelCapabilities;
     private Consumer<SessionEvent> onEvent;
@@ -168,6 +171,29 @@ public class SessionConfig {
      */
     public SessionConfig setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+        return this;
+    }
+
+    /**
+     * Gets the reasoning summary mode.
+     *
+     * @return the reasoning summary mode ("none", "concise", or "detailed")
+     */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode for models that support configurable
+     * reasoning summaries. Use {@code "none"} to suppress summary output
+     * regardless of whether reasoning is enabled.
+     *
+     * @param reasoningSummary
+     *            the reasoning summary mode
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
         return this;
     }
 
@@ -797,6 +823,48 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the plugin directories to load Open Plugin definitions from.
+     *
+     * @return the list of plugin directory paths
+     */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /**
+     * Sets the plugin directories to load Open Plugin definitions from.
+     *
+     * @param pluginDirectories
+     *            the list of plugin directory paths
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the configuration for large tool output handling.
+     *
+     * @return the large output config, or {@code null} for default
+     */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /**
+     * Sets the configuration for large tool output handling.
+     *
+     * @param largeOutput
+     *            the large output config
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+        return this;
+    }
+
+    /**
      * Gets the disabled skill names.
      *
      * @return the list of disabled skill names
@@ -825,8 +893,8 @@ public class SessionConfig {
      *
      * @return the config directory path
      */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
     /**
@@ -835,12 +903,12 @@ public class SessionConfig {
      * This allows using a specific directory for session configuration instead of
      * the default location.
      *
-     * @param configDir
+     * @param configDirectory
      *            the configuration directory path
      * @return this config instance for method chaining
      */
-    public SessionConfig setConfigDir(String configDir) {
-        this.configDir = configDir;
+    public SessionConfig setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
         return this;
     }
 
@@ -1200,6 +1268,7 @@ public class SessionConfig {
         copy.clientName = this.clientName;
         copy.model = this.model;
         copy.reasoningEffort = this.reasoningEffort;
+        copy.reasoningSummary = this.reasoningSummary;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
@@ -1225,8 +1294,10 @@ public class SessionConfig {
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
+        copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
+        copy.largeOutput = this.largeOutput;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
-        copy.configDir = this.configDir;
+        copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onEvent = this.onEvent;

@@ -760,7 +760,7 @@ func TestSessionE2E(t *testing.T) {
 		customConfigDir := ctx.HomeDir + "/custom-config"
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			ConfigDir:           customConfigDir,
+			ConfigDirectory:           customConfigDir,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session with custom config dir: %v", err)

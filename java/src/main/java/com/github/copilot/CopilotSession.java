@@ -1729,6 +1729,35 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort,
             com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
+        return setModel(model, reasoningEffort, null, modelCapabilities);
+    }
+
+    /**
+     * Changes the model for this session with optional reasoning effort, reasoning
+     * summary mode, and capability overrides.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved.
+     *
+     * @param model
+     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     * @param reasoningEffort
+     *            reasoning effort level; {@code null} to use default
+     * @param reasoningSummary
+     *            reasoning summary mode ({@code "none"}, {@code "concise"}, or
+     *            {@code "detailed"}); {@code null} to use default. Use
+     *            {@code "none"} to suppress summary output regardless of whether
+     *            reasoning is enabled.
+     * @param modelCapabilities
+     *            per-property overrides for model capabilities; {@code null} to use
+     *            runtime defaults
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.3.0
+     */
+    public CompletableFuture<Void> setModel(String model, String reasoningEffort, String reasoningSummary,
+            com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
         ensureNotTerminated();
         ModelCapabilitiesOverride generatedCapabilities = null;
         if (modelCapabilities != null) {
@@ -1745,9 +1774,12 @@ public final class CopilotSession implements AutoCloseable {
             }
             generatedCapabilities = new ModelCapabilitiesOverride(supports, limits);
         }
+        var generatedReasoningSummary = reasoningSummary == null ? null
+                : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
         return getRpc().model
                 .switchTo(
-                        new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, generatedCapabilities))
+                        new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedReasoningSummary,
+                                generatedCapabilities))
                 .thenApply(r -> null);
     }
 
