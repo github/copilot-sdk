@@ -577,6 +577,46 @@
                             </archive>
                         </configuration>
                     </plugin>
+                    <!--
+                        Structural guard: when this profile is active (JDK 25+
+                        builds), assert that the packaged JAR contains the
+                        JDK 25 multi-release overlay class. Catches accidental
+                        profile-disable / classifier / shading regressions
+                        before the failsafe IT runs.
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-java25-overlay</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <condition property="java25.overlay.present">
+                                            <resourceexists>
+                                                <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar"
+                                                          name="META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class"/>
+                                            </resourceexists>
+                                        </condition>
+                                        <fail unless="java25.overlay.present">
+JDK 25 multi-release overlay class is missing from the packaged JAR.
+Expected entry: META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class
+JAR: ${project.build.directory}/${project.build.finalName}.jar
+
+This usually means the 'java25-multi-release' Maven profile did not activate
+(e.g. the build is running on a JDK older than 25) or maven-compiler-plugin
+did not produce the multi-release output. Re-build on JDK 25+ and verify the
+'compile-java25' execution ran during the 'compile' phase.
+                                        </fail>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                 </plugins>
             </build>
         </profile>
