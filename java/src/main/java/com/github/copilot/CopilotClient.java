@@ -37,7 +37,6 @@ import com.github.copilot.rpc.ModelInfo;
 import com.github.copilot.rpc.PingResponse;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionResponse;
-import com.github.copilot.rpc.SessionCapabilities;
 import com.github.copilot.rpc.SessionConfig;
 import com.github.copilot.rpc.SessionLifecycleHandler;
 import com.github.copilot.rpc.SessionListFilter;
