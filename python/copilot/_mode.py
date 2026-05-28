@@ -200,8 +200,8 @@ def _skip_embedding_retrieval_default(
 
 def _embedding_cache_storage_default(
     mode: CopilotClientMode | None,
-    supplied: str | None,
-) -> str | None:
+    supplied: Literal["persistent", "in-memory"] | None,
+) -> Literal["persistent", "in-memory"] | None:
     """Empty mode defaults embedding cache storage to in-memory; caller value wins."""
     if mode == "empty" and supplied is None:
         return "in-memory"

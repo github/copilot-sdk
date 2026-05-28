@@ -6,6 +6,7 @@ import pytest
 
 from copilot import BUILTIN_TOOLS_ISOLATED, CopilotClient, ToolSet, UriRuntimeConnection
 from copilot._mode import (
+    _embedding_cache_storage_default,
     _enable_file_hooks_default,
     _enable_host_git_operations_default,
     _enable_on_demand_instruction_discovery_default,
@@ -171,6 +172,19 @@ class TestSystemMessageForMode:
         assert out["mode"] == "customize"
         assert out["content"] == "tip"
         assert out["sections"]["environment_context"] == {"action": "remove"}
+
+
+class TestEmptyModeEmbeddingCacheStorageDefaults:
+    def test_empty_mode_defaults_to_in_memory(self):
+        assert _embedding_cache_storage_default("empty", None) == "in-memory"
+
+    def test_caller_wins(self):
+        assert _embedding_cache_storage_default("empty", "persistent") == "persistent"
+        assert _embedding_cache_storage_default("empty", "in-memory") == "in-memory"
+
+    def test_copilot_cli_does_not_change(self):
+        assert _embedding_cache_storage_default("copilot-cli", None) is None
+        assert _embedding_cache_storage_default("copilot-cli", "persistent") == "persistent"
 
 
 class TestEmptyModeBooleanDefaults:
