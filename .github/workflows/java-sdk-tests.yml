@@ -37,10 +37,20 @@ permissions:
 
 jobs:
   java-sdk:
-    name: "Java SDK Tests"
+    name: "Java SDK Tests (JDK ${{ matrix.java-version }})"
     if: github.event.repository.fork == false
 
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # JDK 17 is the baseline --release target; JDK 25 also activates the
+        # java25-multi-release Maven profile, producing the MR-JAR overlay
+        # (META-INF/versions/25/) and exercising the virtual-thread default
+        # executor branch end-to-end via InternalExecutorProviderIT. The
+        # build-time verify-java25-overlay antrun guard fires only when the
+        # profile is active, so it is also exercised on the JDK 25 entry.
+        java-version: ["17", "25"]
     defaults:
       run:
         shell: bash
@@ -52,7 +62,7 @@ jobs:
 
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
-          java-version: "17"
+          java-version: ${{ matrix.java-version }}
           distribution: "microsoft"
           cache: "maven"
 
@@ -86,8 +96,12 @@ jobs:
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: mvn verify
 
+      # Side-effects below (site artifact, JaCoCo badge, badge PR) are scoped
+      # to the JDK 17 matrix entry so the badge source-of-truth and the
+      # uploaded site artifact remain a single, stable baseline regardless
+      # of the second matrix entry's outcome.
       - name: Upload test results for site generation
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/main' && matrix.java-version == '17'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-for-site
@@ -98,12 +112,12 @@ jobs:
           retention-days: 1
 
       - name: Generate JaCoCo badge
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/main' && matrix.java-version == '17'
         working-directory: .
         run: .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
 
       - name: Create PR for JaCoCo badge update
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/main' && matrix.java-version == '17'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
         with:
           commit-message: "Update Java JaCoCo coverage badge"
@@ -121,7 +135,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-test-results
+          name: java-test-results-jdk${{ matrix.java-version }}
           path: |
             java/target/surefire-reports/
             java/target/surefire-reports-isolated/
