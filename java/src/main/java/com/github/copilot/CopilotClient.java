@@ -1180,6 +1180,15 @@ public final class CopilotClient implements AutoCloseable {
             return;
         }
 
+        // Short-circuit when the owned executor is already shut down. close() and
+        // forceStop() can each call this method (e.g. forceStop() invoked before a
+        // subsequent close() in user code), and re-entering shutdown() + awaitTermination()
+        // is redundant. Logging at FINE aids diagnostics without spamming normal output.
+        if (serviceToShutdown.isShutdown()) {
+            LOG.log(Level.FINE, "Owned executor was already shut down; skipping redundant shutdown call.");
+            return;
+        }
+
         serviceToShutdown.shutdown();
         try {
             if (!serviceToShutdown.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
