@@ -226,6 +226,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         {
             Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             Mode = CopilotClientMode.Empty,
+            BaseDirectory = Ctx.WorkDir,
             UseLoggedInUser = false,
         });
 
@@ -234,6 +235,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var session = await client.CreateSessionAsync(new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
+            AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
         });
 
         using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
@@ -416,6 +418,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         {
             Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
             Mode = CopilotClientMode.Empty,
+            BaseDirectory = Ctx.WorkDir,
             UseLoggedInUser = false,
         });
 
@@ -424,6 +427,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         var session = await client.ResumeSessionAsync("resume-empty-session", new ResumeSessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
+            AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
         });
 
         using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));

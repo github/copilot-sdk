@@ -958,7 +958,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable
      *         discovery or {@code false} to disable, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableConfigDiscovery() {

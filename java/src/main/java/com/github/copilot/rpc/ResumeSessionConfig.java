@@ -617,8 +617,9 @@ public class ResumeSessionConfig {
     /**
      * Gets whether automatic configuration discovery is enabled.
      *
-     * @return {@code true} to enable discovery, {@code false} to disable, or
-     *         {@code null} to use the default behavior
+     * @return an {@link java.util.Optional} containing {@code true} to enable
+     *         discovery or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableConfigDiscovery() {
@@ -634,8 +635,7 @@ public class ResumeSessionConfig {
      * explicitly provided configurations.
      *
      * @param enableConfigDiscovery
-     *            {@code true} to enable discovery, {@code false} to disable, or
-     *            {@code null} to use the default behavior
+     *            {@code true} to enable discovery, {@code false} to disable
      * @return this config for method chaining
      */
     public ResumeSessionConfig setEnableConfigDiscovery(boolean enableConfigDiscovery) {
