@@ -288,9 +288,11 @@ public class CopilotClientOptions {
 
     /**
      * Gets the executor used for internal asynchronous operations.
+     * <p>
+     * Returns {@code null} if no executor has been explicitly set, indicating that
+     * the SDK should use its default executor strategy.
      *
-     * @return the executor, or {@code null} to use the default
-     *         {@code ForkJoinPool.commonPool()}
+     * @return the executor, or {@code null} if using SDK defaults
      */
     public Executor getExecutor() {
         return executor;
@@ -300,15 +302,18 @@ public class CopilotClientOptions {
      * Sets the executor used for internal asynchronous operations.
      * <p>
      * When provided, the SDK uses this executor for all internal
-     * {@code CompletableFuture} combinators instead of the default
-     * {@code ForkJoinPool.commonPool()}. This allows callers to isolate SDK work
-     * onto a dedicated thread pool or integrate with container-managed threading.
+     * {@code CompletableFuture} combinators. This allows callers to isolate SDK
+     * work onto a dedicated thread pool or integrate with container-managed
+     * threading.
      * <p>
-     * Passing {@code null} reverts to the default {@code ForkJoinPool.commonPool()}
-     * behavior.
+     * The SDK will not shut down a user-provided executor. If you pass a custom
+     * {@code ExecutorService}, you remain responsible for shutting it down.
+     * <p>
+     * If not set (or set to {@code null}), the SDK uses its default executor:
+     * virtual threads on JDK 25+, {@code ForkJoinPool.commonPool()} on older JDKs.
      *
      * @param executor
-     *            the executor to use, or {@code null} for the default
+     *            the executor to use, or {@code null} for SDK defaults
      * @return this options instance for fluent chaining
      */
     public CopilotClientOptions setExecutor(Executor executor) {
