@@ -32,13 +32,26 @@ public class CanvasTests
         var options = GetSerializerOptions();
         var rpcType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.JsonRpc");
         Assert.NotNull(rpcType);
-        var rpc = Activator.CreateInstance(
-            rpcType!,
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-            binder: null,
-            args: [new MemoryStream(), new MemoryStream(), options, null],
-            culture: null);
-        Assert.NotNull(rpc);
+
+        var inputStream = new MemoryStream();
+        var outputStream = new MemoryStream();
+        object? rpc;
+        try
+        {
+            rpc = Activator.CreateInstance(
+                rpcType!,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                binder: null,
+                args: [inputStream, outputStream, options, null],
+                culture: null);
+            Assert.NotNull(rpc);
+        }
+        catch
+        {
+            inputStream.Dispose();
+            outputStream.Dispose();
+            throw;
+        }
 
         var logger = new TestLogger();
         var ctor = typeof(CopilotSession).GetConstructor(
@@ -47,7 +60,16 @@ public class CanvasTests
             types: [typeof(string), rpcType!, typeof(ILogger), typeof(CopilotClient), typeof(string)],
             modifiers: null);
         Assert.NotNull(ctor);
-        return (CopilotSession)ctor!.Invoke(["session-1", rpc, logger, new CopilotClient(), null]);
+        try
+        {
+            return (CopilotSession)ctor!.Invoke(["session-1", rpc, logger, new CopilotClient(), null]);
+        }
+        catch
+        {
+            inputStream.Dispose();
+            outputStream.Dispose();
+            throw;
+        }
     }
 
     private sealed class TestLogger : ILogger

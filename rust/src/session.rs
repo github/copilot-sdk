@@ -1204,7 +1204,16 @@ impl Client {
         }
 
         *capabilities.write() = resume_result.capabilities.unwrap_or_default();
-        *open_canvases.write() = resume_result.open_canvases.unwrap_or_default();
+        // Upsert resume snapshots rather than replacing wholesale. Live
+        // `session.canvas.opened` notifications can arrive on the event loop
+        // while `session.resume` is in flight; a wholesale replace would
+        // discard those updates.
+        {
+            let mut snapshots = open_canvases.write();
+            for snapshot in resume_result.open_canvases.unwrap_or_default() {
+                upsert_open_canvas_snapshot(&mut snapshots, snapshot);
+            }
+        }
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1493,14 +1502,9 @@ async fn handle_notification(
         _ => {}
     }
 
-    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
-    // only errors when there are no receivers, which is the normal case
-    // before any consumer subscribes.
-    let _ = event_tx.send(event.clone());
-
-    // Update capabilities when the CLI reports changes. The CLI sends
-    // the full updated capabilities object — replace wholesale so removals
-    // and new subfields are handled correctly.
+    // Update the snapshot caches BEFORE broadcasting so subscribers that
+    // call `Session::capabilities()` / `Session::open_canvases()` in
+    // response to the event observe the new state.
     if event_type == SessionEventType::CapabilitiesChanged {
         match serde_json::from_value::<SessionCapabilities>(notification.event.data.clone()) {
             Ok(changed) => *capabilities.write() = changed,
@@ -1515,6 +1519,11 @@ async fn handle_notification(
             Err(e) => warn!(error = %e, "failed to deserialize session.canvas.opened payload"),
         }
     }
+
+    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
+    // only errors when there are no receivers, which is the normal case
+    // before any consumer subscribes.
+    let _ = event_tx.send(event.clone());
 
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
