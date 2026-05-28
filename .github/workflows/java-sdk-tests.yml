@@ -119,11 +119,11 @@ jobs:
           add-paths: .github/badges/
           delete-branch: true
 
-      - name: Generate Test Report Summary
+      - name: Generate Test Report Summary JDK 25
         if: always()
         uses: ./.github/actions/java-test-report
         with:
-          title: "Copilot Java SDK :: Test Results (JDK 25)"
+          title: "Copilot Java SDK :: Test Results JDK 25"
 
       - name: Upload test results on failure
         if: failure()
@@ -153,9 +153,9 @@ jobs:
           java -version
           mvn antrun:run@print-test-jdk-banner surefire:test -Denforcer.skip=true -DtestExecutionAgentArgs=
 
-      - name: Generate Test Report Summary (JDK 17)
+      - name: Generate Test Report Summary JDK 17
         if: always() && (inputs.test-jdk17 == true || inputs.test-jdk17 == null)
         uses: ./.github/actions/java-test-report
         with:
-          title: "Copilot Java SDK :: Test Results (JDK 17)"
+          title: "Copilot Java SDK :: Test Results JDK 17"
           show-coverage: "false"
