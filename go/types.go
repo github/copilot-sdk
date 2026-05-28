@@ -886,33 +886,41 @@ type SessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
-	// SkipEmbeddingRetrieval, when non-nil and true, skips embedding-based retrieval
-	// for this session. Use in multitenant deployments to prevent cross-session
-	// information leakage through the shared embedding cache.
+	// SkipEmbeddingRetrieval controls embedding-based retrieval for this session.
+	// When nil, the runtime default is used. When non-nil, the value (true or false)
+	// is passed through to the runtime. Use in multitenant deployments to prevent
+	// cross-session information leakage through the shared embedding cache.
 	SkipEmbeddingRetrieval *bool
 	// OrganizationCustomInstructions provides organization-level custom instructions
-	// to include in the system prompt. Allows hosts to inject organization-specific
-	// guidance without relying on filesystem-based instruction discovery.
-	OrganizationCustomInstructions string
-	// EnableOnDemandInstructionDiscovery, when non-nil and true, enables on-demand
-	// discovery of instruction files (AGENTS.md, .github/copilot-instructions.md, etc.)
-	// after successful file views.
+	// to include in the system prompt. When nil, the runtime default is used. When
+	// non-nil, the value (including an empty string) is passed through to the runtime.
+	// Allows hosts to inject organization-specific guidance without relying on
+	// filesystem-based instruction discovery.
+	OrganizationCustomInstructions *string
+	// EnableOnDemandInstructionDiscovery controls on-demand discovery of instruction
+	// files (AGENTS.md, .github/copilot-instructions.md, etc.) after successful file
+	// views. When nil, the runtime default is used. When non-nil, the value (true or
+	// false) is passed through to the runtime.
 	EnableOnDemandInstructionDiscovery *bool
-	// EnableFileHooks, when non-nil and true, enables loading of file-based hooks
-	// from .github/hooks/. This is separate from the Hooks callback parameter which
-	// gates SDK hook event registration.
+	// EnableFileHooks controls loading of file-based hooks from .github/hooks/.
+	// When nil, the runtime default is used. When non-nil, the value (true or false)
+	// is passed through to the runtime. This is separate from the Hooks callback
+	// parameter which gates SDK hook event registration.
 	EnableFileHooks *bool
-	// EnableHostGitOperations, when non-nil and true, enables git operations on the
-	// host filesystem (branch detection, file status, commit history). When false,
-	// no git context is surfaced in the system prompt.
+	// EnableHostGitOperations controls git operations on the host filesystem (branch
+	// detection, file status, commit history). When nil, the runtime default is used.
+	// When non-nil, the value (true or false) is passed through to the runtime. When
+	// false, no git context is surfaced in the system prompt.
 	EnableHostGitOperations *bool
-	// EnableSessionStore, when non-nil and true, enables the cross-session store for
-	// search and retrieval across sessions. When false, session content is not written
-	// to or read from the shared session store.
+	// EnableSessionStore controls the cross-session store for search and retrieval
+	// across sessions. When nil, the runtime default is used. When non-nil, the value
+	// (true or false) is passed through to the runtime. When false, session content is
+	// not written to or read from the shared session store.
 	EnableSessionStore *bool
-	// EnableSkills, when non-nil and true, enables skill loading (including builtin
-	// skills and discovered skill directories). When false, no skills are loaded
-	// regardless of SkillDirectories or EnableConfigDiscovery settings.
+	// EnableSkills controls skill loading (including builtin skills and discovered
+	// skill directories). When nil, the runtime default is used. When non-nil, the
+	// value (true or false) is passed through to the runtime. When false, no skills
+	// are loaded regardless of SkillDirectories or EnableConfigDiscovery settings.
 	EnableSkills *bool
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
@@ -1238,26 +1246,33 @@ type ResumeSessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
-	// SkipEmbeddingRetrieval, when non-nil and true, skips embedding-based retrieval
-	// for this session. Use in multitenant deployments to prevent cross-session
-	// information leakage through the shared embedding cache.
+	// SkipEmbeddingRetrieval controls embedding-based retrieval for this session.
+	// When nil, the runtime default is used. When non-nil, the value (true or false)
+	// is passed through to the runtime. Use in multitenant deployments to prevent
+	// cross-session information leakage through the shared embedding cache.
 	SkipEmbeddingRetrieval *bool
 	// OrganizationCustomInstructions provides organization-level custom instructions
-	// to include in the system prompt.
-	OrganizationCustomInstructions string
-	// EnableOnDemandInstructionDiscovery, when non-nil and true, enables on-demand
-	// discovery of instruction files after successful file views.
+	// to include in the system prompt. When nil, the runtime default is used. When
+	// non-nil, the value (including an empty string) is passed through to the runtime.
+	OrganizationCustomInstructions *string
+	// EnableOnDemandInstructionDiscovery controls on-demand discovery of instruction
+	// files after successful file views. When nil, the runtime default is used. When
+	// non-nil, the value (true or false) is passed through to the runtime.
 	EnableOnDemandInstructionDiscovery *bool
-	// EnableFileHooks, when non-nil and true, enables loading of file-based hooks
-	// from .github/hooks/.
+	// EnableFileHooks controls loading of file-based hooks from .github/hooks/.
+	// When nil, the runtime default is used. When non-nil, the value (true or false)
+	// is passed through to the runtime.
 	EnableFileHooks *bool
-	// EnableHostGitOperations, when non-nil and true, enables git operations on the
-	// host filesystem.
+	// EnableHostGitOperations controls git operations on the host filesystem. When
+	// nil, the runtime default is used. When non-nil, the value (true or false) is
+	// passed through to the runtime.
 	EnableHostGitOperations *bool
-	// EnableSessionStore, when non-nil and true, enables the cross-session store for
-	// search and retrieval across sessions.
+	// EnableSessionStore controls the cross-session store for search and retrieval
+	// across sessions. When nil, the runtime default is used. When non-nil, the value
+	// (true or false) is passed through to the runtime.
 	EnableSessionStore *bool
-	// EnableSkills, when non-nil and true, enables skill loading.
+	// EnableSkills controls skill loading. When nil, the runtime default is used.
+	// When non-nil, the value (true or false) is passed through to the runtime.
 	EnableSkills *bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta
@@ -1544,59 +1559,59 @@ type SessionLifecycleHandler func(event SessionLifecycleEvent)
 
 // createSessionRequest is the request for session.create
 type createSessionRequest struct {
-	Model                          string                                 `json:"model,omitempty"`
-	SessionID                      string                                 `json:"sessionId,omitempty"`
-	ClientName                     string                                 `json:"clientName,omitempty"`
-	ReasoningEffort                string                                 `json:"reasoningEffort,omitempty"`
-	Tools                          []Tool                                 `json:"tools,omitempty"`
-	SystemMessage                  *SystemMessageConfig                   `json:"systemMessage,omitempty"`
-	AvailableTools                 []string                               `json:"availableTools"`
-	ExcludedTools                  []string                               `json:"excludedTools,omitempty"`
-	ToolFilterPrecedence           *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
-	Provider                       *ProviderConfig                        `json:"provider,omitempty"`
-	EnableSessionTelemetry         *bool                                  `json:"enableSessionTelemetry,omitempty"`
-	SkipCustomInstructions         *bool                                  `json:"skipCustomInstructions,omitempty"`
-	CustomAgentsLocalOnly          *bool                                  `json:"customAgentsLocalOnly,omitempty"`
-	CoauthorEnabled                *bool                                  `json:"coauthorEnabled,omitempty"`
-	ManageScheduleEnabled          *bool                                  `json:"manageScheduleEnabled,omitempty"`
-	ModelCapabilities              *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
-	RequestPermission              *bool                                  `json:"requestPermission,omitempty"`
-	RequestUserInput               *bool                                  `json:"requestUserInput,omitempty"`
-	RequestExitPlanMode            *bool                                  `json:"requestExitPlanMode,omitempty"`
-	RequestAutoModeSwitch          *bool                                  `json:"requestAutoModeSwitch,omitempty"`
-	Hooks                          *bool                                  `json:"hooks,omitempty"`
-	WorkingDirectory               string                                 `json:"workingDirectory,omitempty"`
-	Streaming                      *bool                                  `json:"streaming,omitempty"`
-	IncludeSubAgentStreamingEvents *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
-	MCPServers                     map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
-	EnvValueMode                   string                                 `json:"envValueMode,omitempty"`
-	CustomAgents                   []CustomAgentConfig                    `json:"customAgents,omitempty"`
-	DefaultAgent                   *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
-	Agent                          string                                 `json:"agent,omitempty"`
-	ConfigDir                      string                                 `json:"configDir,omitempty"`
-	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
-	SkipEmbeddingRetrieval         *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
-	OrganizationCustomInstructions string                                 `json:"organizationCustomInstructions,omitempty"`
-	EnableOnDemandInstructionDiscovery *bool                              `json:"enableOnDemandInstructionDiscovery,omitempty"`
-	EnableFileHooks                *bool                                  `json:"enableFileHooks,omitempty"`
-	EnableHostGitOperations        *bool                                  `json:"enableHostGitOperations,omitempty"`
-	EnableSessionStore             *bool                                  `json:"enableSessionStore,omitempty"`
-	EnableSkills                   *bool                                  `json:"enableSkills,omitempty"`
-	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
-	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
-	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
-	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
-	Commands                       []wireCommand                          `json:"commands,omitempty"`
-	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
-	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
-	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
-	Cloud                          *CloudSessionOptions                   `json:"cloud,omitempty"`
-	Canvases                       []CanvasDeclaration                    `json:"canvases,omitempty"`
-	RequestCanvasRenderer          *bool                                  `json:"requestCanvasRenderer,omitempty"`
-	RequestExtensions              *bool                                  `json:"requestExtensions,omitempty"`
-	ExtensionInfo                  *ExtensionInfo                         `json:"extensionInfo,omitempty"`
-	Traceparent                    string                                 `json:"traceparent,omitempty"`
-	Tracestate                     string                                 `json:"tracestate,omitempty"`
+	Model                              string                                 `json:"model,omitempty"`
+	SessionID                          string                                 `json:"sessionId,omitempty"`
+	ClientName                         string                                 `json:"clientName,omitempty"`
+	ReasoningEffort                    string                                 `json:"reasoningEffort,omitempty"`
+	Tools                              []Tool                                 `json:"tools,omitempty"`
+	SystemMessage                      *SystemMessageConfig                   `json:"systemMessage,omitempty"`
+	AvailableTools                     []string                               `json:"availableTools"`
+	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
+	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
+	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
+	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
+	ManageScheduleEnabled              *bool                                  `json:"manageScheduleEnabled,omitempty"`
+	ModelCapabilities                  *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
+	RequestPermission                  *bool                                  `json:"requestPermission,omitempty"`
+	RequestUserInput                   *bool                                  `json:"requestUserInput,omitempty"`
+	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
+	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
+	Hooks                              *bool                                  `json:"hooks,omitempty"`
+	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
+	Streaming                          *bool                                  `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
+	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
+	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
+	Agent                              string                                 `json:"agent,omitempty"`
+	ConfigDir                          string                                 `json:"configDir,omitempty"`
+	EnableConfigDiscovery              *bool                                  `json:"enableConfigDiscovery,omitempty"`
+	SkipEmbeddingRetrieval             *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
+	OrganizationCustomInstructions     *string                                `json:"organizationCustomInstructions,omitempty"`
+	EnableOnDemandInstructionDiscovery *bool                                  `json:"enableOnDemandInstructionDiscovery,omitempty"`
+	EnableFileHooks                    *bool                                  `json:"enableFileHooks,omitempty"`
+	EnableHostGitOperations            *bool                                  `json:"enableHostGitOperations,omitempty"`
+	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
+	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
+	SkillDirectories                   []string                               `json:"skillDirectories,omitempty"`
+	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
+	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
+	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
+	Commands                           []wireCommand                          `json:"commands,omitempty"`
+	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
+	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
+	Cloud                              *CloudSessionOptions                   `json:"cloud,omitempty"`
+	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
+	RequestCanvasRenderer              *bool                                  `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
+	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	Traceparent                        string                                 `json:"traceparent,omitempty"`
+	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
 
 // wireCommand is the wire representation of a command (name + description only, no handler).
@@ -1614,61 +1629,61 @@ type createSessionResponse struct {
 
 // resumeSessionRequest is the request for session.resume
 type resumeSessionRequest struct {
-	SessionID                      string                                 `json:"sessionId"`
-	ClientName                     string                                 `json:"clientName,omitempty"`
-	Model                          string                                 `json:"model,omitempty"`
-	ReasoningEffort                string                                 `json:"reasoningEffort,omitempty"`
-	Tools                          []Tool                                 `json:"tools,omitempty"`
-	SystemMessage                  *SystemMessageConfig                   `json:"systemMessage,omitempty"`
-	AvailableTools                 []string                               `json:"availableTools"`
-	ExcludedTools                  []string                               `json:"excludedTools,omitempty"`
-	ToolFilterPrecedence           *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
-	Provider                       *ProviderConfig                        `json:"provider,omitempty"`
-	EnableSessionTelemetry         *bool                                  `json:"enableSessionTelemetry,omitempty"`
-	SkipCustomInstructions         *bool                                  `json:"skipCustomInstructions,omitempty"`
-	CustomAgentsLocalOnly          *bool                                  `json:"customAgentsLocalOnly,omitempty"`
-	CoauthorEnabled                *bool                                  `json:"coauthorEnabled,omitempty"`
-	ManageScheduleEnabled          *bool                                  `json:"manageScheduleEnabled,omitempty"`
-	ModelCapabilities              *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
-	RequestPermission              *bool                                  `json:"requestPermission,omitempty"`
-	RequestUserInput               *bool                                  `json:"requestUserInput,omitempty"`
-	RequestExitPlanMode            *bool                                  `json:"requestExitPlanMode,omitempty"`
-	RequestAutoModeSwitch          *bool                                  `json:"requestAutoModeSwitch,omitempty"`
-	Hooks                          *bool                                  `json:"hooks,omitempty"`
-	WorkingDirectory               string                                 `json:"workingDirectory,omitempty"`
-	ConfigDir                      string                                 `json:"configDir,omitempty"`
-	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
-	SkipEmbeddingRetrieval         *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
-	OrganizationCustomInstructions string                                 `json:"organizationCustomInstructions,omitempty"`
-	EnableOnDemandInstructionDiscovery *bool                              `json:"enableOnDemandInstructionDiscovery,omitempty"`
-	EnableFileHooks                *bool                                  `json:"enableFileHooks,omitempty"`
-	EnableHostGitOperations        *bool                                  `json:"enableHostGitOperations,omitempty"`
-	EnableSessionStore             *bool                                  `json:"enableSessionStore,omitempty"`
-	EnableSkills                   *bool                                  `json:"enableSkills,omitempty"`
-	DisableResume                  *bool                                  `json:"disableResume,omitempty"`
-	ContinuePendingWork            *bool                                  `json:"continuePendingWork,omitempty"`
-	Streaming                      *bool                                  `json:"streaming,omitempty"`
-	IncludeSubAgentStreamingEvents *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
-	MCPServers                     map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
-	EnvValueMode                   string                                 `json:"envValueMode,omitempty"`
-	CustomAgents                   []CustomAgentConfig                    `json:"customAgents,omitempty"`
-	DefaultAgent                   *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
-	Agent                          string                                 `json:"agent,omitempty"`
-	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
-	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
-	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
-	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
-	Commands                       []wireCommand                          `json:"commands,omitempty"`
-	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
-	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
-	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
-	Canvases                       []CanvasDeclaration                    `json:"canvases,omitempty"`
-	OpenCanvases                   []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`
-	RequestCanvasRenderer          *bool                                  `json:"requestCanvasRenderer,omitempty"`
-	RequestExtensions              *bool                                  `json:"requestExtensions,omitempty"`
-	ExtensionInfo                  *ExtensionInfo                         `json:"extensionInfo,omitempty"`
-	Traceparent                    string                                 `json:"traceparent,omitempty"`
-	Tracestate                     string                                 `json:"tracestate,omitempty"`
+	SessionID                          string                                 `json:"sessionId"`
+	ClientName                         string                                 `json:"clientName,omitempty"`
+	Model                              string                                 `json:"model,omitempty"`
+	ReasoningEffort                    string                                 `json:"reasoningEffort,omitempty"`
+	Tools                              []Tool                                 `json:"tools,omitempty"`
+	SystemMessage                      *SystemMessageConfig                   `json:"systemMessage,omitempty"`
+	AvailableTools                     []string                               `json:"availableTools"`
+	ExcludedTools                      []string                               `json:"excludedTools,omitempty"`
+	ToolFilterPrecedence               *rpc.OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
+	Provider                           *ProviderConfig                        `json:"provider,omitempty"`
+	EnableSessionTelemetry             *bool                                  `json:"enableSessionTelemetry,omitempty"`
+	SkipCustomInstructions             *bool                                  `json:"skipCustomInstructions,omitempty"`
+	CustomAgentsLocalOnly              *bool                                  `json:"customAgentsLocalOnly,omitempty"`
+	CoauthorEnabled                    *bool                                  `json:"coauthorEnabled,omitempty"`
+	ManageScheduleEnabled              *bool                                  `json:"manageScheduleEnabled,omitempty"`
+	ModelCapabilities                  *rpc.ModelCapabilitiesOverride         `json:"modelCapabilities,omitempty"`
+	RequestPermission                  *bool                                  `json:"requestPermission,omitempty"`
+	RequestUserInput                   *bool                                  `json:"requestUserInput,omitempty"`
+	RequestExitPlanMode                *bool                                  `json:"requestExitPlanMode,omitempty"`
+	RequestAutoModeSwitch              *bool                                  `json:"requestAutoModeSwitch,omitempty"`
+	Hooks                              *bool                                  `json:"hooks,omitempty"`
+	WorkingDirectory                   string                                 `json:"workingDirectory,omitempty"`
+	ConfigDir                          string                                 `json:"configDir,omitempty"`
+	EnableConfigDiscovery              *bool                                  `json:"enableConfigDiscovery,omitempty"`
+	SkipEmbeddingRetrieval             *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
+	OrganizationCustomInstructions     *string                                `json:"organizationCustomInstructions,omitempty"`
+	EnableOnDemandInstructionDiscovery *bool                                  `json:"enableOnDemandInstructionDiscovery,omitempty"`
+	EnableFileHooks                    *bool                                  `json:"enableFileHooks,omitempty"`
+	EnableHostGitOperations            *bool                                  `json:"enableHostGitOperations,omitempty"`
+	EnableSessionStore                 *bool                                  `json:"enableSessionStore,omitempty"`
+	EnableSkills                       *bool                                  `json:"enableSkills,omitempty"`
+	DisableResume                      *bool                                  `json:"disableResume,omitempty"`
+	ContinuePendingWork                *bool                                  `json:"continuePendingWork,omitempty"`
+	Streaming                          *bool                                  `json:"streaming,omitempty"`
+	IncludeSubAgentStreamingEvents     *bool                                  `json:"includeSubAgentStreamingEvents,omitempty"`
+	MCPServers                         map[string]MCPServerConfig             `json:"mcpServers,omitempty"`
+	EnvValueMode                       string                                 `json:"envValueMode,omitempty"`
+	CustomAgents                       []CustomAgentConfig                    `json:"customAgents,omitempty"`
+	DefaultAgent                       *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
+	Agent                              string                                 `json:"agent,omitempty"`
+	SkillDirectories                   []string                               `json:"skillDirectories,omitempty"`
+	InstructionDirectories             []string                               `json:"instructionDirectories,omitempty"`
+	DisabledSkills                     []string                               `json:"disabledSkills,omitempty"`
+	InfiniteSessions                   *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
+	Commands                           []wireCommand                          `json:"commands,omitempty"`
+	RequestElicitation                 *bool                                  `json:"requestElicitation,omitempty"`
+	GitHubToken                        string                                 `json:"gitHubToken,omitempty"`
+	RemoteSession                      rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
+	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
+	OpenCanvases                       []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`
+	RequestCanvasRenderer              *bool                                  `json:"requestCanvasRenderer,omitempty"`
+	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
+	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
+	Traceparent                        string                                 `json:"traceparent,omitempty"`
+	Tracestate                         string                                 `json:"tracestate,omitempty"`
 }
 
 // resumeSessionResponse is the response from session.resume

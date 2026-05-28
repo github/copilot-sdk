@@ -1810,58 +1810,57 @@ export interface SessionConfigBase {
     /**
      * When true, skips embedding-based retrieval for this session.
      * Use in multitenant deployments to prevent cross-session information leakage
-     * through the shared embedding cache.
+     * through the shared embedding cache. When omitted, `mode: "empty"` defaults
+     * this to `true`; in other modes, the runtime default applies.
      */
     skipEmbeddingRetrieval?: boolean;
 
     /**
      * Organization-level custom instructions to include in the system prompt.
      * Allows hosts to inject organization-specific guidance without relying on
-     * filesystem-based instruction discovery.
+     * filesystem-based instruction discovery. When omitted, no organization-level
+     * instructions are injected by the SDK.
      */
     organizationCustomInstructions?: string;
 
     /**
      * When true, enables on-demand discovery of instruction files (AGENTS.md,
      * .github/copilot-instructions.md, etc.) after successful file views.
-     *
-     * @default false
+     * When omitted, `mode: "empty"` defaults this to `false`; in other modes,
+     * the runtime default applies.
      */
     enableOnDemandInstructionDiscovery?: boolean;
 
     /**
      * When true, enables loading of file-based hooks from `.github/hooks/`.
      * This is separate from the `hooks` callback parameter which gates SDK
-     * hook event registration.
-     *
-     * @default false
+     * hook event registration. When omitted, `mode: "empty"` defaults this to
+     * `false`; in other modes, the runtime default applies.
      */
     enableFileHooks?: boolean;
 
     /**
      * When true, enables git operations on the host filesystem (branch detection,
      * file status, commit history). When false, no git context is surfaced in
-     * the system prompt.
-     *
-     * @default false
+     * the system prompt. When omitted, `mode: "empty"` defaults this to `false`;
+     * in other modes, the runtime default applies.
      */
     enableHostGitOperations?: boolean;
 
     /**
      * When true, enables the cross-session store for search and retrieval
      * across sessions. When false, session content is not written to or
-     * read from the shared session store.
-     *
-     * @default false
+     * read from the shared session store. When omitted, `mode: "empty"`
+     * defaults this to `false`; in other modes, the runtime default applies.
      */
     enableSessionStore?: boolean;
 
     /**
      * When true, enables skill loading (including builtin skills and discovered
      * skill directories). When false, no skills are loaded regardless of
-     * `skillDirectories` or `enableConfigDiscovery` settings.
-     *
-     * @default false
+     * `skillDirectories` or `enableConfigDiscovery` settings. When omitted,
+     * `mode: "empty"` defaults this to `false`; in other modes, the runtime
+     * default applies.
      */
     enableSkills?: boolean;
 

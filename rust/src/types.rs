@@ -1291,7 +1291,9 @@ impl std::fmt::Debug for SessionConfig {
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
             .field(
                 "organization_custom_instructions",
-                &self.organization_custom_instructions,
+                &self.organization_custom_instructions
+                    .as_ref()
+                    .map(|_| "<redacted>"),
             )
             .field(
                 "enable_on_demand_instruction_discovery",
@@ -2148,7 +2150,9 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
             .field(
                 "organization_custom_instructions",
-                &self.organization_custom_instructions,
+                &self.organization_custom_instructions
+                    .as_ref()
+                    .map(|_| "<redacted>"),
             )
             .field(
                 "enable_on_demand_instruction_discovery",
