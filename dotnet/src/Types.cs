@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot;
@@ -1129,6 +1130,16 @@ public sealed class SessionUiCapabilities
     /// Whether the host supports interactive elicitation dialogs.
     /// </summary>
     public bool? Elicitation { get; set; }
+
+    /// <summary>
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
+    /// to <c>true</c> on create/resume <b>and</b> the runtime's <c>MCP_APPS</c> feature flag
+    /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
+    /// <c>false</c>, indicating the runtime silently dropped the opt-in.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? McpApps { get; set; }
 }
 
 // ============================================================================
@@ -2293,6 +2304,37 @@ public sealed class InfiniteSessionConfig
 }
 
 /// <summary>
+/// Configuration for handling large tool outputs.
+/// </summary>
+/// <remarks>
+/// When a tool produces output exceeding the configured size, the output is
+/// written to a temp file and a reference is returned to the model instead of
+/// returning to it the full payload.
+/// </remarks>
+public sealed class LargeToolOutputConfig
+{
+    /// <summary>
+    /// Whether large output handling is enabled.
+    /// </summary>
+    /// <remarks>The default value is <see langword="true"/>.</remarks>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// Maximum size in bytes before output is written to a temp file.
+    /// </summary>
+    [JsonPropertyName("maxSizeBytes")]
+    public long? MaxSizeBytes { get; set; }
+
+    /// <summary>
+    /// Directory to write temp files to.
+    /// </summary>
+    /// <remarks>The default value is the OS temp directory.</remarks>
+    [JsonPropertyName("outputDir")]
+    public string? OutputDirectory { get; set; }
+}
+
+/// <summary>
 /// GitHub repository metadata to associate with a cloud session.
 /// </summary>
 public sealed class CloudSessionRepository
@@ -2339,7 +2381,7 @@ public abstract class SessionConfigBase
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
         ClientName = other.ClientName;
         Commands = other.Commands is not null ? [.. other.Commands] : null;
-        ConfigDir = other.ConfigDir;
+        ConfigDirectory = other.ConfigDirectory;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
@@ -2352,9 +2394,11 @@ public abstract class SessionConfigBase
         EnableHostGitOperations = other.EnableHostGitOperations;
         EnableSessionStore = other.EnableSessionStore;
         EnableSkills = other.EnableSkills;
+        EnableMcpApps = other.EnableMcpApps;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
+        LargeOutput = other.LargeOutput;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
@@ -2375,6 +2419,7 @@ public abstract class SessionConfigBase
         CoauthorEnabled = other.CoauthorEnabled;
         ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
+        ReasoningSummary = other.ReasoningSummary;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
@@ -2386,6 +2431,7 @@ public abstract class SessionConfigBase
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
@@ -2407,6 +2453,14 @@ public abstract class SessionConfigBase
     /// </summary>
     public string? ReasoningEffort { get; set; }
 
+    /// <summary>
+    /// Reasoning summary mode for models that support configurable reasoning summaries.
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="ReasoningSummary.None"/> to suppress summary output regardless of whether reasoning is enabled.
+    /// </remarks>
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
@@ -2414,7 +2468,7 @@ public abstract class SessionConfigBase
     /// Override the default configuration directory location.
     /// When specified, the session will use this directory for storing config and state.
     /// </summary>
-    public string? ConfigDir { get; set; }
+    public string? ConfigDirectory { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, automatically discovers MCP server configurations
@@ -2563,6 +2617,31 @@ public abstract class SessionConfigBase
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
 
+    /// <summary>
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    /// <para>
+    /// When <c>true</c> <b>and</b> the runtime has MCP Apps enabled (via the
+    /// <c>MCP_APPS</c> feature flag or <c>COPILOT_MCP_APPS=true</c> environment override), the
+    /// runtime adds the <c>mcp-apps</c> capability to the session, which causes it to advertise
+    /// the <c>extensions.io.modelcontextprotocol/ui</c> extension to MCP servers (so they expose
+    /// <c>_meta.ui.resourceUri</c> on tools) and to expose the
+    /// <c>session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,getHostContext,diagnose}</c>
+    /// JSON-RPC methods.
+    /// </para>
+    /// <para>
+    /// If the runtime gate is off, the opt-in is silently dropped server-side (the runtime logs a
+    /// warning); the session is created normally but the MCP Apps surface is unavailable. Inspect
+    /// the runtime's <c>capabilities.ui.mcpApps</c> on the create/resume response to detect this.
+    /// </para>
+    /// <para>
+    /// SDK consumers MUST set this to <c>true</c> only when they have an iframe renderer that can
+    /// display <c>ui://</c> MCP App bundles. Setting it without a renderer will cause MCP servers
+    /// to register UI-enabled tool variants the consumer cannot display.
+    /// </para>
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool EnableMcpApps { get; set; }
+
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }
 
@@ -2613,6 +2692,17 @@ public abstract class SessionConfigBase
     /// <summary>Directories to load skills from.</summary>
     public IList<string>? SkillDirectories { get; set; }
 
+    /// <summary>
+    /// Local filesystem paths to Open Plugins-format directories
+    /// (https://open-plugins.com/) to load for this session.
+    /// </summary>
+    /// <remarks>
+    /// Relative paths resolve against <see cref="WorkingDirectory"/> (or the
+    /// runtime cwd if unset). Treated as an explicit opt-in: plugin agents
+    /// and rules load even when <see cref="EnableConfigDiscovery"/> is false.
+    /// </remarks>
+    public IList<string>? PluginDirectories { get; set; }
+
     /// <summary>Additional directories to search for custom instruction files.</summary>
     public IList<string>? InstructionDirectories { get; set; }
 
@@ -2624,6 +2714,14 @@ public abstract class SessionConfigBase
     /// When enabled (default), sessions automatically manage context limits and persist state.
     /// </summary>
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Configuration for handling large tool outputs. When a tool produces
+    /// output exceeding the configured size, the output is written to a temp
+    /// file and a reference is returned to the model instead of the full
+    /// payload.
+    /// </summary>
+    public LargeToolOutputConfig? LargeOutput { get; set; }
 
     /// <summary>
     /// Optional event handler registered on the session before the session.create / session.resume
@@ -2824,6 +2922,7 @@ public sealed class MessageOptions
         Mode = other.Mode;
         AgentMode = other.AgentMode;
         Prompt = other.Prompt;
+        DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
             : null;
@@ -2851,6 +2950,10 @@ public sealed class MessageOptions
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>
     public IDictionary<string, string>? RequestHeaders { get; set; }
+    /// <summary>
+    /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
+    /// </summary>
+    public string? DisplayPrompt { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
@@ -3338,6 +3441,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
+[JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(object))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(string[]))]

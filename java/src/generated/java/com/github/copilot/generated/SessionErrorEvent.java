@@ -49,6 +49,8 @@ public final class SessionErrorEvent extends SessionEvent {
         @JsonProperty("statusCode") Long statusCode,
         /** GitHub request tracing ID (x-github-request-id header) for correlating with server-side logs */
         @JsonProperty("providerCallId") String providerCallId,
+        /** Copilot service request ID (x-copilot-service-request-id header) for CAPI log correlation */
+        @JsonProperty("serviceRequestId") String serviceRequestId,
         /** Optional URL associated with this error that the user can open in a browser */
         @JsonProperty("url") String url
     ) {

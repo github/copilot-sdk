@@ -49,6 +49,7 @@ import type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InternalRuntimeConnection,
+    LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
     ResumeSessionConfig,
@@ -131,6 +132,22 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
         const { mcpServers, ...rest } = agent;
         return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
     });
+}
+
+/**
+ * Convert a {@link LargeToolOutputConfig} from the public API shape
+ * (`outputDirectory`) to the wire shape (`outputDir`).
+ */
+function toWireLargeOutput(
+    config: LargeToolOutputConfig | undefined
+): Record<string, unknown> | undefined {
+    if (!config) return undefined;
+    const { outputDirectory, ...rest } = config;
+    const wire: Record<string, unknown> = { ...rest };
+    if (outputDirectory !== undefined) {
+        wire.outputDir = outputDirectory;
+    }
+    return wire;
 }
 
 function toolFilterListToArray(value: string[] | ToolSet | undefined): string[] | undefined {
@@ -1004,49 +1021,72 @@ export class CopilotClient {
         config = { ...this.configDefaultsForMode(), ...config };
         config.systemMessage = this.getSystemMessageConfigForMode(config.systemMessage);
 
-        const sessionId = config.sessionId ?? randomUUID();
-
-        // Create and register the session before issuing the RPC so that
-        // events emitted by the CLI (e.g. session.start) are not dropped.
-        const session = new CopilotSession(
-            sessionId,
-            this.connection!,
-            undefined,
-            this.onGetTraceContext
-        );
-        session.registerTools(config.tools);
-        session.registerCanvases(config.canvases);
-        session.registerCommands(config.commands);
-        session.registerPermissionHandler(config.onPermissionRequest);
-        if (config.onUserInputRequest) {
-            session.registerUserInputHandler(config.onUserInputRequest);
-        }
-        if (config.onElicitationRequest) {
-            session.registerElicitationHandler(config.onElicitationRequest);
-        }
-        if (config.onExitPlanModeRequest) {
-            session.registerExitPlanModeHandler(config.onExitPlanModeRequest);
-        }
-        if (config.onAutoModeSwitchRequest) {
-            session.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
-        }
-        if (config.hooks) {
-            session.registerHooks(config.hooks);
-        }
+        // For cloud sessions, let the CLI/server assign the session id and
+        // register the session lazily once the response arrives. For non-cloud
+        // sessions we generate the id client-side (when the caller didn't
+        // supply one) so the session can be registered BEFORE the RPC — the
+        // CLI may issue session-scoped requests (e.g. `sessionFs.writeFile`
+        // for workspace metadata) during `session.create` processing, before
+        // it has sent the response.
+        const callerSessionId = config.sessionId;
+        const useServerGeneratedId = config.cloud != null && callerSessionId == null;
+        const localSessionId = useServerGeneratedId ? undefined : (callerSessionId ?? randomUUID());
 
         // Extract transform callbacks from system message config before serialization.
         const { wirePayload: wireSystemMessage, transformCallbacks } = extractTransformCallbacks(
             config.systemMessage
         );
-        if (transformCallbacks) {
-            session.registerTransformCallbacks(transformCallbacks);
-        }
 
-        if (config.onEvent) {
-            session.on(config.onEvent);
+        // Creates the session object, wires up handlers, and registers it in
+        // the sessions map.
+        const initializeSession = (sessionId: string): CopilotSession => {
+            const s = new CopilotSession(
+                sessionId,
+                this.connection!,
+                undefined,
+                this.onGetTraceContext
+            );
+            s.registerTools(config.tools);
+            s.registerCanvases(config.canvases);
+            s.registerCommands(config.commands);
+            s.registerPermissionHandler(config.onPermissionRequest);
+            if (config.onUserInputRequest) {
+                s.registerUserInputHandler(config.onUserInputRequest);
+            }
+            if (config.onElicitationRequest) {
+                s.registerElicitationHandler(config.onElicitationRequest);
+            }
+            if (config.onExitPlanModeRequest) {
+                s.registerExitPlanModeHandler(config.onExitPlanModeRequest);
+            }
+            if (config.onAutoModeSwitchRequest) {
+                s.registerAutoModeSwitchHandler(config.onAutoModeSwitchRequest);
+            }
+            if (config.hooks) {
+                s.registerHooks(config.hooks);
+            }
+            if (transformCallbacks) {
+                s.registerTransformCallbacks(transformCallbacks);
+            }
+            if (config.onEvent) {
+                s.on(config.onEvent);
+            }
+            this.sessions.set(sessionId, s);
+            this.setupSessionFs(s, config);
+            return s;
+        };
+
+        let session: CopilotSession | undefined;
+        let registeredId: string | undefined;
+
+        // Pre-register non-cloud sessions BEFORE issuing the RPC so any
+        // session-scoped requests the CLI emits during `session.create`
+        // processing (e.g. sessionFs.writeFile for workspace metadata) can be
+        // routed to the correct handlers.
+        if (localSessionId !== undefined) {
+            session = initializeSession(localSessionId);
+            registeredId = localSessionId;
         }
-        this.sessions.set(sessionId, session);
-        this.setupSessionFs(session, config);
 
         const toolFilterOptions = this.resolveToolFilterOptions(config);
 
@@ -1054,9 +1094,10 @@ export class CopilotClient {
             const response = await this.connection!.sendRequest("session.create", {
                 ...(await getTraceContext(this.onGetTraceContext)),
                 model: config.model,
-                sessionId,
+                sessionId: localSessionId,
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
+                reasoningSummary: config.reasoningSummary,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -1079,9 +1120,11 @@ export class CopilotClient {
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
+                largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
@@ -1093,7 +1136,7 @@ export class CopilotClient {
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
-                configDir: config.configDir,
+                configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
                 organizationCustomInstructions: config.organizationCustomInstructions,
@@ -1104,6 +1147,7 @@ export class CopilotClient {
                 enableSessionStore: config.enableSessionStore,
                 enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
+                pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
@@ -1112,17 +1156,37 @@ export class CopilotClient {
                 cloud: config.cloud,
             });
 
-            const { workspacePath, capabilities } = response as {
+            const {
+                sessionId: returnedSessionId,
+                workspacePath,
+                capabilities,
+            } = response as {
                 sessionId: string;
                 workspacePath?: string;
                 capabilities?: SessionCapabilities;
             };
+            if (!returnedSessionId) {
+                throw new Error("session.create response did not include a sessionId");
+            }
+            if (localSessionId !== undefined && localSessionId !== returnedSessionId) {
+                throw new Error(
+                    `session.create returned sessionId ${returnedSessionId} but the caller requested ${localSessionId}`
+                );
+            }
+            if (session === undefined) {
+                // Cloud / server-assigned path: register the session now that
+                // the CLI has told us which id it chose.
+                session = initializeSession(returnedSessionId);
+                registeredId = returnedSessionId;
+            }
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
-            this.sessions.delete(sessionId);
+            if (registeredId !== undefined) {
+                this.sessions.delete(registeredId);
+            }
             throw e;
         }
 
@@ -1211,6 +1275,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
+                reasoningSummary: config.reasoningSummary,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
@@ -1233,15 +1298,17 @@ export class CopilotClient {
                 })),
                 provider: config.provider,
                 modelCapabilities: config.modelCapabilities,
+                largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission:
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
-                configDir: config.configDir,
+                configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
                 organizationCustomInstructions: config.organizationCustomInstructions,
@@ -1259,6 +1326,7 @@ export class CopilotClient {
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
+                pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,

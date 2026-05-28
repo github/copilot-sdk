@@ -69,6 +69,9 @@ from .generated.session_events import (
     SessionIdleData,
     session_event_from_dict,
 )
+from .generated.session_events import (
+    ReasoningSummary as _RpcReasoningSummary,
+)
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -86,6 +89,7 @@ SessionEventTypeAlias = SessionEvent
 # ============================================================================
 
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+ReasoningSummary = Literal["none", "concise", "detailed"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
@@ -397,6 +401,15 @@ class SessionUiCapabilities(TypedDict, total=False):
 
     elicitation: bool
     """Whether the host supports interactive elicitation dialogs."""
+    mcpApps: bool
+    """**Experimental.** This capability is part of an experimental wire-protocol
+    surface (SEP-1865) and may change or be removed in a future release.
+
+    Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    ``True`` when the consumer set ``enable_mcp_apps=True`` on create/resume and
+    the runtime's ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+    override) is on. Otherwise absent or ``False``, indicating the runtime
+    silently dropped the opt-in."""
 
 
 class SessionCapabilities(TypedDict, total=False):
@@ -948,6 +961,23 @@ class InfiniteSessionConfig(TypedDict, total=False):
     buffer_exhaustion_threshold: float
 
 
+class LargeToolOutputConfig(TypedDict, total=False):
+    """
+    Configuration for handling large tool outputs.
+
+    When a tool produces output exceeding the configured size, the output is
+    written to a temp file and a reference is returned to the model instead of
+    the full payload.
+    """
+
+    # Whether large output handling is enabled. Default True.
+    enabled: bool
+    # Maximum size in bytes before output is written to a temp file. Default 50KB.
+    max_size_bytes: int
+    # Directory to write temp files to. Defaults to the OS temp directory.
+    output_directory: str
+
+
 # ============================================================================
 # Session Configuration
 # ============================================================================
@@ -1159,6 +1189,7 @@ class CopilotSession:
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
+        display_prompt: str | None = None,
     ) -> str:
         """
         Send a message to this session.
@@ -1175,6 +1206,8 @@ class CopilotSession:
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
                 session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
+            display_prompt: If provided, this is shown in the timeline instead of
+                ``prompt``.
 
         Returns:
             The message ID assigned by the server, which can be used to correlate events.
@@ -1200,6 +1233,8 @@ class CopilotSession:
             params["agentMode"] = agent_mode
         if request_headers is not None:
             params["requestHeaders"] = request_headers
+        if display_prompt is not None:
+            params["displayPrompt"] = display_prompt
         params.update(get_trace_context())
 
         rpc_start = time.perf_counter()
@@ -1223,6 +1258,7 @@ class CopilotSession:
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
+        display_prompt: str | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
         """
@@ -1242,6 +1278,8 @@ class CopilotSession:
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
                 session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
+            display_prompt: If provided, this is shown in the timeline instead of
+                ``prompt``.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
 
@@ -1301,6 +1339,7 @@ class CopilotSession:
                 mode=mode,
                 agent_mode=agent_mode,
                 request_headers=request_headers,
+                display_prompt=display_prompt,
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:
@@ -2332,6 +2371,7 @@ class CopilotSession:
         model: str,
         *,
         reasoning_effort: str | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
     ) -> None:
         """
@@ -2344,6 +2384,9 @@ class CopilotSession:
             model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
                 (e.g., "low", "medium", "high", "xhigh").
+            reasoning_summary: Optional reasoning summary mode for supported
+                models. Use "none" to suppress summary output regardless of
+                whether reasoning is enabled.
             model_capabilities: Override individual model capabilities resolved by the runtime.
 
         Raises:
@@ -2364,6 +2407,11 @@ class CopilotSession:
             ModelSwitchToRequest(
                 model_id=model,
                 reasoning_effort=reasoning_effort,
+                reasoning_summary=(
+                    _RpcReasoningSummary(reasoning_summary)
+                    if reasoning_summary is not None
+                    else None
+                ),
                 model_capabilities=rpc_caps,
             )
         )

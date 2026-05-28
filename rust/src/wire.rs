@@ -22,9 +22,11 @@ use crate::canvas::CanvasDeclaration;
 use crate::generated::api_types::{
     ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
 };
+use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
     CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
-    InfiniteSessionConfig, McpServerConfig, ProviderConfig, SessionId, SystemMessageConfig, Tool,
+    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, ProviderConfig, SessionId,
+    SystemMessageConfig, Tool,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -42,13 +44,16 @@ pub(crate) struct CommandWireDefinition {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionCreateWire {
-    pub session_id: SessionId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<SessionId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -94,11 +99,16 @@ pub(crate) struct SessionCreateWire {
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
+    pub request_mcp_apps: bool,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub large_output: Option<LargeToolOutputConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -140,6 +150,8 @@ pub(crate) struct SessionResumeWire {
     pub client_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -186,11 +198,16 @@ pub(crate) struct SessionResumeWire {
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
+    pub request_mcp_apps: bool,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub large_output: Option<LargeToolOutputConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

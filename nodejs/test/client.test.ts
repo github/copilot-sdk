@@ -38,7 +38,8 @@ describe("CopilotClient", () => {
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
             .mockImplementation(async (method: string, params: any) => {
-                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
                 throw new Error(`Unexpected method: ${method}`);
             });
 
@@ -103,6 +104,86 @@ describe("CopilotClient", () => {
             name: "counter-provider",
         });
         expect(payload.openCanvasInstances).toBeUndefined();
+    });
+
+    it("forwards reasoningSummary in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            reasoningSummary: "concise",
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            reasoningSummary: "none",
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.reasoningSummary).toBe("concise");
+        expect(resumePayload.reasoningSummary).toBe("none");
+    });
+
+    it("forwards pluginDirectories and largeOutput in session.create and session.resume", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                throw new Error(`Unexpected method: ${method}`);
+            });
+
+        const pluginDirs = ["/tmp/plugins/a", "/tmp/plugins/b"];
+        const largeOutput = {
+            enabled: true,
+            maxSizeBytes: 1024,
+            outputDirectory: "/tmp/large-output",
+        };
+        const expectedWireLargeOutput = {
+            enabled: true,
+            maxSizeBytes: 1024,
+            outputDir: "/tmp/large-output",
+        };
+
+        const session = await client.createSession({
+            onPermissionRequest: approveAll,
+            pluginDirectories: pluginDirs,
+            largeOutput,
+        });
+        await client.resumeSession(session.sessionId, {
+            onPermissionRequest: approveAll,
+            pluginDirectories: pluginDirs,
+            largeOutput,
+        });
+
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
+        expect(createPayload.pluginDirectories).toEqual(pluginDirs);
+        expect(createPayload.largeOutput).toEqual(expectedWireLargeOutput);
+        expect(resumePayload.pluginDirectories).toEqual(pluginDirs);
+        expect(resumePayload.largeOutput).toEqual(expectedWireLargeOutput);
     });
 
     it("routes canvas.action.invoke to registered canvas action handlers via clientSessionApis", async () => {
@@ -398,7 +479,8 @@ describe("CopilotClient", () => {
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
             .mockImplementation(async (method: string, params: any) => {
-                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
                 throw new Error(`Unexpected method: ${method}`);
             });
 
@@ -662,7 +744,7 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
-    it("sends reasoningEffort with session.model.switchTo when provided", async () => {
+    it("sends reasoning options with session.model.switchTo when provided", async () => {
         const client = new CopilotClient();
         await client.start();
         onTestFinished(() => client.forceStop());
@@ -676,12 +758,16 @@ describe("CopilotClient", () => {
                 throw new Error(`Unexpected method: ${method}`);
             });
 
-        await session.setModel("claude-sonnet-4.6", { reasoningEffort: "high" });
+        await session.setModel("claude-sonnet-4.6", {
+            reasoningEffort: "high",
+            reasoningSummary: "detailed",
+        });
 
         expect(spy).toHaveBeenCalledWith("session.model.switchTo", {
             sessionId: session.sessionId,
             modelId: "claude-sonnet-4.6",
             reasoningEffort: "high",
+            reasoningSummary: "detailed",
         });
 
         spy.mockRestore();

@@ -559,7 +559,7 @@ public class CopilotSessionTest {
             String customConfigDir = ctx.getWorkDir().resolve("custom-config").toString();
 
             SessionConfig config = new SessionConfig().setOnPermissionRequest(PermissionHandler.APPROVE_ALL)
-                    .setConfigDir(customConfigDir);
+                    .setConfigDirectory(customConfigDir);
             CopilotSession session = client.createSession(config).get();
 
             assertNotNull(session.getSessionId());

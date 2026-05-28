@@ -47,6 +47,8 @@ public record SessionOptionsUpdateParams(
     @JsonProperty("availableTools") List<String> availableTools,
     /** Denylist of tool names for this session. */
     @JsonProperty("excludedTools") List<String> excludedTools,
+    /** Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set. */
+    @JsonProperty("toolFilterPrecedence") OptionsUpdateToolFilterPrecedence toolFilterPrecedence,
     /** Whether shell-script safety heuristics are enabled. */
     @JsonProperty("enableScriptSafety") Boolean enableScriptSafety,
     /** Shell init profile (`None` or `NonInteractive`). */

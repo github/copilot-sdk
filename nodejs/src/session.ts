@@ -31,6 +31,7 @@ import type {
     PermissionHandler,
     PermissionRequest,
     ReasoningEffort,
+    ReasoningSummary,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -212,6 +213,7 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            displayPrompt: options.displayPrompt,
             attachments: options.attachments,
             mode: options.mode,
             agentMode: options.agentMode,
@@ -1169,6 +1171,7 @@ export class CopilotSession {
         model: string,
         options?: {
             reasoningEffort?: ReasoningEffort;
+            reasoningSummary?: ReasoningSummary;
             modelCapabilities?: ModelCapabilitiesOverride;
         }
     ): Promise<void> {

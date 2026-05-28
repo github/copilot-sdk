@@ -46,13 +46,18 @@ public class ResumeSessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean skipCustomInstructions;
+    private Boolean customAgentsLocalOnly;
+    private Boolean coauthorEnabled;
+    private Boolean manageScheduleEnabled;
     private String reasoningEffort;
+    private String reasoningSummary;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
-    private String configDir;
+    private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
     private String organizationCustomInstructions;
@@ -70,6 +75,8 @@ public class ResumeSessionConfig {
     private String agent;
     private List<String> skillDirectories;
     private List<String> instructionDirectories;
+    private List<String> pluginDirectories;
+    private LargeToolOutputConfig largeOutput;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
@@ -77,6 +84,7 @@ public class ResumeSessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
 
@@ -287,6 +295,168 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets whether custom instruction file loading is suppressed.
+     *
+     * @return {@code true} to suppress, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getSkipCustomInstructions() {
+        return Optional.ofNullable(skipCustomInstructions);
+    }
+
+    /**
+     * Sets whether to suppress loading of custom instruction files.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true}
+     * (skip); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value
+     * is forwarded only when explicitly set.
+     *
+     * @param skipCustomInstructions
+     *            whether to skip custom instructions
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setSkipCustomInstructions(boolean skipCustomInstructions) {
+        this.skipCustomInstructions = skipCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Clears the skipCustomInstructions setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearSkipCustomInstructions() {
+        this.skipCustomInstructions = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom-agent discovery is restricted to local only.
+     *
+     * @return {@code true} for local only, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCustomAgentsLocalOnly() {
+        return Optional.ofNullable(customAgentsLocalOnly);
+    }
+
+    /**
+     * Sets whether custom-agent discovery is restricted to the session's local
+     * working directory.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
+     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
+     * forwarded only when explicitly set.
+     *
+     * @param customAgentsLocalOnly
+     *            whether to restrict to local agents
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setCustomAgentsLocalOnly(boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
+        return this;
+    }
+
+    /**
+     * Clears the customAgentsLocalOnly setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearCustomAgentsLocalOnly() {
+        this.customAgentsLocalOnly = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the runtime may append a Co-authored-by trailer.
+     *
+     * @return the coauthor enabled flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCoauthorEnabled() {
+        return Optional.ofNullable(coauthorEnabled);
+    }
+
+    /**
+     * Sets whether the runtime is allowed to append a {@code Co-authored-by}
+     * trailer.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
+     *
+     * @param coauthorEnabled
+     *            whether coauthor is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setCoauthorEnabled(boolean coauthorEnabled) {
+        this.coauthorEnabled = coauthorEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the coauthorEnabled setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearCoauthorEnabled() {
+        this.coauthorEnabled = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the manage_schedule tool is enabled.
+     *
+     * @return the manage schedule flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getManageScheduleEnabled() {
+        return Optional.ofNullable(manageScheduleEnabled);
+    }
+
+    /**
+     * Sets whether to enable the {@code manage_schedule} tool.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
+     *
+     * @param manageScheduleEnabled
+     *            whether manage schedule is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setManageScheduleEnabled(boolean manageScheduleEnabled) {
+        this.manageScheduleEnabled = manageScheduleEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the manageScheduleEnabled setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearManageScheduleEnabled() {
+        this.manageScheduleEnabled = null;
+        return this;
+    }
+
+    /**
      * Gets the reasoning effort level.
      *
      * @return the reasoning effort level ("low", "medium", "high", or "xhigh")
@@ -306,6 +476,29 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+        return this;
+    }
+
+    /**
+     * Gets the reasoning summary mode.
+     *
+     * @return the reasoning summary mode ("none", "concise", or "detailed")
+     */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode for models that support configurable
+     * reasoning summaries. Use {@code "none"} to suppress summary output regardless
+     * of whether reasoning is enabled.
+     *
+     * @param reasoningSummary
+     *            the reasoning summary mode
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
         return this;
     }
 
@@ -401,8 +594,8 @@ public class ResumeSessionConfig {
      *
      * @return the configuration directory path
      */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
     /**
@@ -410,12 +603,12 @@ public class ResumeSessionConfig {
      * <p>
      * Override the default configuration directory location.
      *
-     * @param configDir
+     * @param configDirectory
      *            the configuration directory path
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setConfigDir(String configDir) {
-        this.configDir = configDir;
+    public ResumeSessionConfig setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
         return this;
     }
 
@@ -926,6 +1119,48 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the plugin directories to load Open Plugin definitions from.
+     *
+     * @return the list of plugin directory paths
+     */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /**
+     * Sets the plugin directories to load Open Plugin definitions from.
+     *
+     * @param pluginDirectories
+     *            the list of plugin directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the configuration for large tool output handling.
+     *
+     * @return the large output config, or {@code null} for default
+     */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /**
+     * Sets the configuration for large tool output handling.
+     *
+     * @param largeOutput
+     *            the large output config
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+        return this;
+    }
+
+    /**
      * Gets the disabled skills.
      *
      * @return the list of disabled skill names
@@ -1042,6 +1277,31 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setOnElicitationRequest(ElicitationHandler onElicitationRequest) {
         this.onElicitationRequest = onElicitationRequest;
+        return this;
+    }
+
+    /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on resume.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on the resumed session. See
+     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics (runtime
+     * gate, capability inspection, renderer requirement).
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support on resume
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
         return this;
     }
 
@@ -1177,12 +1437,13 @@ public class ResumeSessionConfig {
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.reasoningEffort = this.reasoningEffort;
+        copy.reasoningSummary = this.reasoningSummary;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
-        copy.configDir = this.configDir;
+        copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
         copy.organizationCustomInstructions = this.organizationCustomInstructions;
@@ -1202,6 +1463,8 @@ public class ResumeSessionConfig {
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
+        copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
+        copy.largeOutput = this.largeOutput;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;
@@ -1209,6 +1472,7 @@ public class ResumeSessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         return copy;

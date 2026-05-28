@@ -42,12 +42,17 @@ public class SessionConfig {
     private String clientName;
     private String model;
     private String reasoningEffort;
+    private String reasoningSummary;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean skipCustomInstructions;
+    private Boolean customAgentsLocalOnly;
+    private Boolean coauthorEnabled;
+    private Boolean manageScheduleEnabled;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
@@ -61,8 +66,10 @@ public class SessionConfig {
     private InfiniteSessionConfig infiniteSessions;
     private List<String> skillDirectories;
     private List<String> instructionDirectories;
+    private List<String> pluginDirectories;
+    private LargeToolOutputConfig largeOutput;
     private List<String> disabledSkills;
-    private String configDir;
+    private String configDirectory;
     private Boolean enableConfigDiscovery;
     private Boolean skipEmbeddingRetrieval;
     private String organizationCustomInstructions;
@@ -77,6 +84,7 @@ public class SessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
@@ -171,6 +179,29 @@ public class SessionConfig {
      */
     public SessionConfig setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+        return this;
+    }
+
+    /**
+     * Gets the reasoning summary mode.
+     *
+     * @return the reasoning summary mode ("none", "concise", or "detailed")
+     */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode for models that support configurable
+     * reasoning summaries. Use {@code "none"} to suppress summary output regardless
+     * of whether reasoning is enabled.
+     *
+     * @param reasoningSummary
+     *            the reasoning summary mode
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
         return this;
     }
 
@@ -338,6 +369,175 @@ public class SessionConfig {
      */
     public SessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom instruction file loading is suppressed.
+     *
+     * @return {@code true} to suppress, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getSkipCustomInstructions() {
+        return Optional.ofNullable(skipCustomInstructions);
+    }
+
+    /**
+     * Sets whether to suppress loading of custom instruction files (e.g.
+     * {@code .github/copilot-instructions.md}, {@code AGENTS.md}) from the working
+     * directory.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true}
+     * (skip); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value
+     * is forwarded only when explicitly set.
+     *
+     * @param skipCustomInstructions
+     *            whether to skip custom instructions
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setSkipCustomInstructions(boolean skipCustomInstructions) {
+        this.skipCustomInstructions = skipCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Clears the skipCustomInstructions setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearSkipCustomInstructions() {
+        this.skipCustomInstructions = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom-agent discovery is restricted to local only.
+     *
+     * @return {@code true} for local only, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCustomAgentsLocalOnly() {
+        return Optional.ofNullable(customAgentsLocalOnly);
+    }
+
+    /**
+     * Sets whether custom-agent discovery is restricted to the session's local
+     * working directory (no organisation-level discovery).
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
+     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
+     * forwarded only when explicitly set.
+     *
+     * @param customAgentsLocalOnly
+     *            whether to restrict to local agents
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setCustomAgentsLocalOnly(boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
+        return this;
+    }
+
+    /**
+     * Clears the customAgentsLocalOnly setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearCustomAgentsLocalOnly() {
+        this.customAgentsLocalOnly = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the runtime may append a Co-authored-by trailer.
+     *
+     * @return the coauthor enabled flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCoauthorEnabled() {
+        return Optional.ofNullable(coauthorEnabled);
+    }
+
+    /**
+     * Sets whether the runtime is allowed to append a {@code Co-authored-by}
+     * trailer when it commits on behalf of the user.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
+     *
+     * @param coauthorEnabled
+     *            whether coauthor is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setCoauthorEnabled(boolean coauthorEnabled) {
+        this.coauthorEnabled = coauthorEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the coauthorEnabled setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearCoauthorEnabled() {
+        this.coauthorEnabled = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the manage_schedule tool is enabled.
+     *
+     * @return the manage schedule flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getManageScheduleEnabled() {
+        return Optional.ofNullable(manageScheduleEnabled);
+    }
+
+    /**
+     * Sets whether to enable the {@code manage_schedule} tool (host scheduler
+     * integration).
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session creation. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
+     *
+     * @param manageScheduleEnabled
+     *            whether manage schedule is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig setManageScheduleEnabled(boolean manageScheduleEnabled) {
+        this.manageScheduleEnabled = manageScheduleEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the manageScheduleEnabled setting.
+     *
+     * @return this instance for method chaining
+     * @since 1.3.0
+     */
+    public SessionConfig clearManageScheduleEnabled() {
+        this.manageScheduleEnabled = null;
         return this;
     }
 
@@ -631,6 +831,48 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the plugin directories to load Open Plugin definitions from.
+     *
+     * @return the list of plugin directory paths
+     */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /**
+     * Sets the plugin directories to load Open Plugin definitions from.
+     *
+     * @param pluginDirectories
+     *            the list of plugin directory paths
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the configuration for large tool output handling.
+     *
+     * @return the large output config, or {@code null} for default
+     */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /**
+     * Sets the configuration for large tool output handling.
+     *
+     * @param largeOutput
+     *            the large output config
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+        return this;
+    }
+
+    /**
      * Gets the disabled skill names.
      *
      * @return the list of disabled skill names
@@ -659,8 +901,8 @@ public class SessionConfig {
      *
      * @return the config directory path
      */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
     /**
@@ -669,12 +911,12 @@ public class SessionConfig {
      * This allows using a specific directory for session configuration instead of
      * the default location.
      *
-     * @param configDir
+     * @param configDirectory
      *            the configuration directory path
      * @return this config instance for method chaining
      */
-    public SessionConfig setConfigDir(String configDir) {
-        this.configDir = configDir;
+    public SessionConfig setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
         return this;
     }
 
@@ -1100,6 +1342,49 @@ public class SessionConfig {
     }
 
     /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on this
+     * session.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on this session.
+     * <p>
+     * When {@code true} <b>and</b> the runtime has MCP Apps enabled (via the
+     * {@code MCP_APPS} feature flag or {@code COPILOT_MCP_APPS=true} environment
+     * override), the runtime adds the {@code mcp-apps} capability to the session,
+     * which causes it to advertise the
+     * {@code extensions.io.modelcontextprotocol/ui} extension to MCP servers (so
+     * they expose {@code _meta.ui.resourceUri} on tools) and to expose the
+     * {@code session.rpc.mcp.apps.{listTools,callTool,readResource,
+     * setHostContext,getHostContext,diagnose}} JSON-RPC methods.
+     * <p>
+     * If the runtime gate is off, the opt-in is silently dropped server-side (the
+     * runtime logs a warning); the session is created normally but the MCP Apps
+     * surface is unavailable. Inspect {@link SessionUiCapabilities#getMcpApps()} on
+     * {@link com.github.copilot.CopilotSession#getCapabilities()} to detect this.
+     * <p>
+     * SDK consumers MUST set this to {@code true} only when they have an iframe
+     * renderer that can display {@code ui://} MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants the
+     * consumer cannot display.
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1266,12 +1551,17 @@ public class SessionConfig {
         copy.clientName = this.clientName;
         copy.model = this.model;
         copy.reasoningEffort = this.reasoningEffort;
+        copy.reasoningSummary = this.reasoningSummary;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;
         copy.excludedTools = this.excludedTools != null ? new ArrayList<>(this.excludedTools) : null;
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
+        copy.skipCustomInstructions = this.skipCustomInstructions;
+        copy.customAgentsLocalOnly = this.customAgentsLocalOnly;
+        copy.coauthorEnabled = this.coauthorEnabled;
+        copy.manageScheduleEnabled = this.manageScheduleEnabled;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
@@ -1287,8 +1577,10 @@ public class SessionConfig {
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
+        copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
+        copy.largeOutput = this.largeOutput;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
-        copy.configDir = this.configDir;
+        copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
         copy.organizationCustomInstructions = this.organizationCustomInstructions;
@@ -1303,6 +1595,7 @@ public class SessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;

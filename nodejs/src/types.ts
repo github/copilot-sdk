@@ -9,13 +9,17 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
-import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+import type {
+    ReasoningSummary,
+    SessionEvent as GeneratedSessionEvent,
+} from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
+export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -574,6 +578,17 @@ export interface SessionCapabilities {
     ui?: {
         /** Whether the host supports interactive elicitation dialogs. */
         elicitation?: boolean;
+        /**
+         * Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+         * opt-in. `true` when the consumer set `enableMcpApps: true` on
+         * create/resume **and** the runtime's `MCP_APPS` feature flag (or
+         * `COPILOT_MCP_APPS=true` env override) is on. Otherwise absent or
+         * `false`, indicating the runtime silently dropped the opt-in.
+         *
+         * @experimental This property is part of an experimental wire-protocol surface
+         * (SEP-1865) and may change or be removed in a future release.
+         */
+        mcpApps?: boolean;
         /** Whether the host supports canvas rendering. */
         canvases?: boolean;
     };
@@ -1495,6 +1510,32 @@ export interface InfiniteSessionConfig {
 }
 
 /**
+ * Configuration for handling large tool outputs.
+ *
+ * When a tool produces output exceeding the configured size, the output is
+ * written to a temp file and a reference is returned to the model instead of
+ * the full payload.
+ */
+export interface LargeToolOutputConfig {
+    /**
+     * Whether large output handling is enabled.
+     * @default true
+     */
+    enabled?: boolean;
+
+    /**
+     * Maximum size in bytes before output is written to a temp file.
+     * @default 51200
+     */
+    maxSizeBytes?: number;
+
+    /**
+     * Directory to write temp files to. Defaults to the OS temp directory.
+     */
+    outputDirectory?: string;
+}
+
+/**
  * Valid reasoning effort levels for models that support it.
  */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
@@ -1533,14 +1574,28 @@ export interface SessionConfigBase {
      */
     reasoningEffort?: ReasoningEffort;
 
+    /**
+     * Reasoning summary mode for models that support configurable reasoning summaries.
+     * Use "none" to suppress summary output regardless of whether reasoning is enabled.
+     */
+    reasoningSummary?: ReasoningSummary;
+
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
+
+    /**
+     * Configuration for handling large tool outputs. When a tool produces
+     * output exceeding the configured size, the output is written to a temp
+     * file and a reference is returned to the model instead of the full
+     * payload.
+     */
+    largeOutput?: LargeToolOutputConfig;
 
     /**
      * Override the default configuration directory location.
      * When specified, the session will use this directory for storing config and state.
      */
-    configDir?: string;
+    configDirectory?: string;
 
     /**
      * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
@@ -1704,6 +1759,34 @@ export interface SessionConfigBase {
     onElicitationRequest?: ElicitationHandler;
 
     /**
+     * Enable MCP Apps (SEP-1865) UI passthrough on this session.
+     *
+     * When `true` **and** the runtime has MCP Apps enabled (via the
+     * `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+     * override), the runtime adds the `mcp-apps` capability to the session,
+     * which causes it to advertise the `extensions.io.modelcontextprotocol/ui`
+     * extension to MCP servers (so they expose `_meta.ui.resourceUri` on
+     * tools) and to expose the `session.rpc.mcp.apps.{listTools,callTool,
+     * readResource,setHostContext,getHostContext,diagnose}` JSON-RPC methods.
+     *
+     * If the runtime gate is off, the opt-in is silently dropped server-side
+     * (the runtime logs a warning); the session is created normally but the
+     * MCP Apps surface is unavailable. Inspect the runtime's
+     * `capabilities.ui.mcpApps` on the create/resume response to detect this.
+     *
+     * SDK consumers MUST set this to `true` only when they have an iframe
+     * renderer that can display `ui://` MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants
+     * the consumer cannot display.
+     *
+     * @experimental This option is part of an experimental wire-protocol surface
+     * (SEP-1865) and may change or be removed in a future release.
+     *
+     * @default false
+     */
+    enableMcpApps?: boolean;
+
+    /**
      * Handler for exit-plan-mode requests from the agent.
      * When provided, enables `exitPlanMode.request` callbacks.
      */
@@ -1777,6 +1860,21 @@ export interface SessionConfigBase {
      * Directories to load skills from.
      */
     skillDirectories?: string[];
+
+    /**
+     * Local filesystem paths to Open Plugins-format directories
+     * (https://open-plugins.com/) to load for this session.
+     *
+     * Relative paths resolve against `workingDirectory` (or the runtime cwd if
+     * unset); absolute paths are recommended. Invalid entries are logged and
+     * skipped.
+     *
+     * Treated as an explicit opt-in: plugin agents and rules load even when
+     * {@link SessionConfigBase.enableConfigDiscovery} is false. Loaded assets
+     * slot between project (cwd) sources and personal/home sources in the
+     * session-wide precedence order.
+     */
+    pluginDirectories?: string[];
 
     /**
      * Additional directories to search for custom instruction files.
@@ -2072,6 +2170,11 @@ export interface MessageOptions {
      * Custom HTTP headers to include in outbound model requests for this turn.
      */
     requestHeaders?: Record<string, string>;
+
+    /**
+     * If provided, this is shown in the timeline instead of `prompt`.
+     */
+    displayPrompt?: string;
 }
 
 /**

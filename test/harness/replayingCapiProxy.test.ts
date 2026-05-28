@@ -324,6 +324,29 @@ describe("ReplayingCapiProxy", () => {
     expect(result.conversations[0].messages[0].content).toBe("What is 2+2?");
   });
 
+  test("strips plan mode prefix from user messages", async () => {
+    const requestBody = JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: "[[PLAN]] Create a brief implementation plan.",
+        },
+      ],
+    });
+    const responseBody = JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "Plan" } }],
+    });
+
+    const outputPath = await createProxy([
+      { url: "/chat/completions", requestBody, responseBody },
+    ]);
+
+    const result = await readYamlOutput(outputPath);
+    expect(result.conversations[0].messages[0].content).toBe(
+      "Create a brief implementation plan.",
+    );
+  });
+
   test("normalizes task completion notification wording", async () => {
     const unreadNotification = [
       "<system_notification>",

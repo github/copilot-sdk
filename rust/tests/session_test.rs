@@ -11,6 +11,7 @@ use github_copilot_sdk::generated::api_types::{
     CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
     CanvasProviderOpenResult, OpenCanvasInstance,
 };
+use github_copilot_sdk::generated::session_events::ReasoningSummary;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
@@ -18,7 +19,7 @@ use github_copilot_sdk::handler::{
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
-    SessionId, Tool, ToolInvocation, ToolResult,
+    SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
@@ -490,6 +491,48 @@ async fn send_omits_request_headers_when_unset_or_empty() {
     assert!(
         request["params"].get("requestHeaders").is_none(),
         "requestHeaders should be omitted for empty map, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_serializes_display_prompt() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("hi").with_display_prompt("Show this to user"))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "hi");
+    assert_eq!(request["params"]["displayPrompt"], "Show this to user");
+
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_omits_display_prompt_when_unset() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("displayPrompt").is_none(),
+        "displayPrompt should be omitted when unset, got: {}",
         request["params"]
     );
     server.respond(&request, serde_json::json!({})).await;
@@ -1241,12 +1284,24 @@ async fn set_model_sends_switch_to_request() {
 
     let handle = tokio::spawn({
         let session = session.clone();
-        async move { session.set_model("claude-sonnet-4", None).await.unwrap() }
+        async move {
+            session
+                .set_model(
+                    "claude-sonnet-4",
+                    Some(
+                        SetModelOptions::default()
+                            .with_reasoning_summary(ReasoningSummary::Detailed),
+                    ),
+                )
+                .await
+                .unwrap()
+        }
     });
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "session.model.switchTo");
     assert_eq!(request["params"]["modelId"], "claude-sonnet-4");
+    assert_eq!(request["params"]["reasoningSummary"], "detailed");
     server
         .respond(
             &request,
@@ -3033,7 +3088,7 @@ fn session_config_serializes_bucket_b_fields() {
 
     let mut cfg = SessionConfig::default();
     cfg.session_id = Some(SessionId::from("custom-id"));
-    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(false);
@@ -3060,7 +3115,7 @@ fn resume_session_config_serializes_bucket_b_fields() {
 
     let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
-    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);

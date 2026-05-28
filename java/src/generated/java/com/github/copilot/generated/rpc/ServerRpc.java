@@ -40,6 +40,8 @@ public final class ServerRpc {
     public final ServerSessionFsApi sessionFs;
     /** API methods for the {@code sessions} namespace. */
     public final ServerSessionsApi sessions;
+    /** API methods for the {@code agentRegistry} namespace. */
+    public final ServerAgentRegistryApi agentRegistry;
 
     /**
      * Creates a new server RPC client.
@@ -56,6 +58,7 @@ public final class ServerRpc {
         this.skills = new ServerSkillsApi(caller);
         this.sessionFs = new ServerSessionFsApi(caller);
         this.sessions = new ServerSessionsApi(caller);
+        this.agentRegistry = new ServerAgentRegistryApi(caller);
     }
 
     /**

@@ -19,6 +19,7 @@ export {
     type CanvasAction,
     type CanvasDeclaration,
     type CanvasHostContext,
+    type CanvasHostContextCapabilities,
     type CanvasJsonSchema,
     type CanvasOptions,
 } from "./canvas.js";
@@ -72,6 +73,7 @@ export type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InfiniteSessionConfig,
+    LargeToolOutputConfig,
     UiInputOptions,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,

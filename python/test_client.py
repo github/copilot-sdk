@@ -70,10 +70,16 @@ class TestCreateSessionConfig:
         try:
             captured = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.create":
-                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                    # Cloud sessions: server assigns the id if the client didn't.
+                    sid = params.get("sessionId") or "server-assigned-session"
+                    result = {"sessionId": sid, "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
                 return {}
 
             client._client.request = mock_request
@@ -95,6 +101,89 @@ class TestCreateSessionConfig:
                     "branch": "main",
                 }
             }
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_reasoning_summary(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                reasoning_summary="concise",
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                reasoning_summary="none",
+            )
+
+            assert captured["session.create"]["reasoningSummary"] == "concise"
+            assert captured["session.resume"]["reasoningSummary"] == "none"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_plugin_directories_and_large_output(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            plugin_dirs = ["/tmp/plugins/a", "/tmp/plugins/b"]
+            large_output = {
+                "enabled": True,
+                "max_size_bytes": 1024,
+                "output_directory": "/tmp/large-output",
+            }
+            expected_large_output_wire = {
+                "enabled": True,
+                "maxSizeBytes": 1024,
+                "outputDir": "/tmp/large-output",
+            }
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                plugin_directories=plugin_dirs,
+                large_output=large_output,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                plugin_directories=plugin_dirs,
+                large_output=large_output,
+            )
+
+            assert captured["session.create"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.create"]["largeOutput"] == expected_large_output_wire
+            assert captured["session.resume"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.resume"]["largeOutput"] == expected_large_output_wire
         finally:
             await client.force_stop()
 
@@ -263,9 +352,9 @@ class TestOverridesBuiltInTool:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
 
@@ -295,7 +384,7 @@ class TestOverridesBuiltInTool:
 
             captured = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 # Return a fake response instead of calling the real CLI,
                 # which would fail without auth credentials.
@@ -328,10 +417,15 @@ class TestInstructionDirectories:
         try:
             captured = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.create":
-                    return {"sessionId": params["sessionId"], "workspacePath": None}
+                    sid = params.get("sessionId") or "session-id"
+                    result = {"sessionId": sid, "workspacePath": None}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
                 return {}
 
             client._client.request = mock_request
@@ -356,7 +450,7 @@ class TestInstructionDirectories:
         try:
             captured = {}
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": params["sessionId"], "workspacePath": None}
@@ -509,9 +603,9 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -534,12 +628,12 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     # Return a fake response to avoid needing real auth
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -560,9 +654,9 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -586,11 +680,11 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -611,11 +705,16 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.create":
-                    return {"sessionId": params["sessionId"]}
-                return await original_request(method, params)
+                    sid = params.get("sessionId") or "session-id"
+                    result = {"sessionId": sid}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -653,11 +752,11 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -696,11 +795,11 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.send":
                     return {"messageId": "msg-1"}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await session.send(
@@ -724,9 +823,9 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -751,11 +850,11 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -777,9 +876,9 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -800,9 +899,9 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -826,11 +925,11 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -856,11 +955,11 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -885,11 +984,11 @@ class TestSessionConfigForwarding:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -914,11 +1013,11 @@ class TestSessionConfigForwarding:
             captured: dict = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -942,16 +1041,17 @@ class TestSessionConfigForwarding:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.model.switchTo":
                     return {}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
-            await session.set_model("gpt-4.1")
+            await session.set_model("gpt-4.1", reasoning_summary="detailed")
             assert captured["session.model.switchTo"]["sessionId"] == session.session_id
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
+            assert captured["session.model.switchTo"]["reasoningSummary"] == "detailed"
         finally:
             await client.force_stop()
 

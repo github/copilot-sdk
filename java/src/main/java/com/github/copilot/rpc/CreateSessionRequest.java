@@ -36,6 +36,9 @@ public final class CreateSessionRequest {
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
+    @JsonProperty("reasoningSummary")
+    private String reasoningSummary;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -47,6 +50,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("excludedTools")
     private List<String> excludedTools;
+
+    @JsonProperty("toolFilterPrecedence")
+    private String toolFilterPrecedence;
 
     @JsonProperty("provider")
     private ProviderConfig provider;
@@ -96,11 +102,17 @@ public final class CreateSessionRequest {
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
+    @JsonProperty("pluginDirectories")
+    private List<String> pluginDirectories;
+
+    @JsonProperty("largeOutput")
+    private LargeToolOutputConfig largeOutput;
+
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
     @JsonProperty("configDir")
-    private String configDir;
+    private String configDirectory;
 
     @JsonProperty("enableConfigDiscovery")
     private Boolean enableConfigDiscovery;
@@ -138,6 +150,9 @@ public final class CreateSessionRequest {
 
     @JsonProperty("requestElicitation")
     private Boolean requestElicitation;
+
+    @JsonProperty("requestMcpApps")
+    private Boolean requestMcpApps;
 
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
@@ -199,6 +214,19 @@ public final class CreateSessionRequest {
         this.reasoningEffort = reasoningEffort;
     }
 
+    /** Gets the reasoning summary mode. @return the reasoning summary mode */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode. @param reasoningSummary the reasoning
+     * summary mode
+     */
+    public void setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
+    }
+
     /** Gets the tools. @return the tool definitions */
     public List<ToolDefinition> getTools() {
         return tools == null ? null : Collections.unmodifiableList(tools);
@@ -237,6 +265,19 @@ public final class CreateSessionRequest {
     /** Sets excluded tools. @param excludedTools the tool names */
     public void setExcludedTools(List<String> excludedTools) {
         this.excludedTools = excludedTools;
+    }
+
+    /** Gets the tool filter precedence. @return the precedence value */
+    public String getToolFilterPrecedence() {
+        return toolFilterPrecedence;
+    }
+
+    /**
+     * Sets the tool filter precedence. @param toolFilterPrecedence the precedence
+     * ("excluded" or null)
+     */
+    public void setToolFilterPrecedence(String toolFilterPrecedence) {
+        this.toolFilterPrecedence = toolFilterPrecedence;
     }
 
     /** Gets the provider config. @return the provider */
@@ -430,6 +471,26 @@ public final class CreateSessionRequest {
         this.instructionDirectories = instructionDirectories;
     }
 
+    /** Gets plugin directories. @return the plugin directories */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /** Sets plugin directories. @param pluginDirectories the directories */
+    public void setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+    }
+
+    /** Gets large output config. @return the large output config */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /** Sets large output config. @param largeOutput the large output config */
+    public void setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+    }
+
     /** Gets disabled skills. @return the disabled skill names */
     public List<String> getDisabledSkills() {
         return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
@@ -441,13 +502,13 @@ public final class CreateSessionRequest {
     }
 
     /** Gets config directory. @return the config directory path */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
-    /** Sets config directory. @param configDir the config directory path */
-    public void setConfigDir(String configDir) {
-        this.configDir = configDir;
+    /** Sets config directory. @param configDirectory the config directory path */
+    public void setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
     }
 
     /** Gets enable config discovery flag. @return the flag */
@@ -618,6 +679,21 @@ public final class CreateSessionRequest {
      */
     public void clearRequestElicitation() {
         this.requestElicitation = null;
+    }
+
+    /** Gets the requestMcpApps flag. @return the flag */
+    public Boolean getRequestMcpApps() {
+        return requestMcpApps;
+    }
+
+    /** Sets the requestMcpApps flag. @param requestMcpApps the flag */
+    public void setRequestMcpApps(boolean requestMcpApps) {
+        this.requestMcpApps = requestMcpApps;
+    }
+
+    /** Clears the requestMcpApps setting, reverting to the default behavior. */
+    public void clearRequestMcpApps() {
+        this.requestMcpApps = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */
