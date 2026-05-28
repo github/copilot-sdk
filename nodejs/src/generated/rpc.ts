@@ -8330,6 +8330,30 @@ export interface SessionUpdateOptionsParams {
    * Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).
    */
   manageScheduleEnabled?: boolean;
+  /**
+   * Whether to skip embedding retrieval pipeline initialization and execution.
+   */
+  skipEmbeddingRetrieval?: boolean;
+  /**
+   * Organization-level custom instructions to inject into the system prompt.
+   */
+  organizationCustomInstructions?: string;
+  /**
+   * Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.
+   */
+  enableFileHooks?: boolean;
+  /**
+   * Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).
+   */
+  enableHostGitOperations?: boolean;
+  /**
+   * Whether to enable cross-session store writes and reads.
+   */
+  enableSessionStore?: boolean;
+  /**
+   * Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.
+   */
+  enableSkills?: boolean;
 }
 /**
  * Indicates whether the session options patch was applied successfully.

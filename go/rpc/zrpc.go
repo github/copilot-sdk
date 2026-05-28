@@ -5098,6 +5098,12 @@ type SessionUpdateOptionsParams struct {
 	DisabledInstructionSources []string `json:"disabledInstructionSources,omitempty"`
 	// Skill IDs that should be excluded from this session.
 	DisabledSkills []string `json:"disabledSkills,omitempty"`
+	// Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK
+	// callback hook mechanism.
+	EnableFileHooks *bool `json:"enableFileHooks,omitempty"`
+	// Whether to enable host git operations (context resolution, child repo scanning, git info
+	// in system prompt).
+	EnableHostGitOperations *bool `json:"enableHostGitOperations,omitempty"`
 	// Whether to discover custom instructions on demand after successful file views (AGENTS.md
 	// / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with
 	// `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.
@@ -5106,6 +5112,11 @@ type SessionUpdateOptionsParams struct {
 	EnableReasoningSummaries *bool `json:"enableReasoningSummaries,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
+	// Whether to enable cross-session store writes and reads.
+	EnableSessionStore *bool `json:"enableSessionStore,omitempty"`
+	// Whether to enable skill directory scanning and loading. Falls back to
+	// enableConfigDiscovery when unset.
+	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether to stream model responses.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
 	// How env values are passed to MCP servers (`direct` inlines literal values; `indirect`
@@ -5135,6 +5146,8 @@ type SessionUpdateOptionsParams struct {
 	ManageScheduleEnabled *bool `json:"manageScheduleEnabled,omitempty"`
 	// The model ID to use for assistant turns.
 	Model *string `json:"model,omitempty"`
+	// Organization-level custom instructions to inject into the system prompt.
+	OrganizationCustomInstructions *string `json:"organizationCustomInstructions,omitempty"`
 	// Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the
 	// runtime.
 	// Experimental: Provider is part of an experimental API and may change or be removed.
@@ -5154,6 +5167,8 @@ type SessionUpdateOptionsParams struct {
 	SkillDirectories []string `json:"skillDirectories,omitempty"`
 	// Whether to skip loading custom instruction sources.
 	SkipCustomInstructions *bool `json:"skipCustomInstructions,omitempty"`
+	// Whether to skip embedding retrieval pipeline initialization and execution.
+	SkipEmbeddingRetrieval *bool `json:"skipEmbeddingRetrieval,omitempty"`
 	// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
 	// are set.
 	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
@@ -10458,6 +10473,12 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.DisabledSkills != nil {
 			req["disabledSkills"] = params.DisabledSkills
 		}
+		if params.EnableFileHooks != nil {
+			req["enableFileHooks"] = *params.EnableFileHooks
+		}
+		if params.EnableHostGitOperations != nil {
+			req["enableHostGitOperations"] = *params.EnableHostGitOperations
+		}
 		if params.EnableOnDemandInstructionDiscovery != nil {
 			req["enableOnDemandInstructionDiscovery"] = *params.EnableOnDemandInstructionDiscovery
 		}
@@ -10466,6 +10487,12 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.EnableScriptSafety != nil {
 			req["enableScriptSafety"] = *params.EnableScriptSafety
+		}
+		if params.EnableSessionStore != nil {
+			req["enableSessionStore"] = *params.EnableSessionStore
+		}
+		if params.EnableSkills != nil {
+			req["enableSkills"] = *params.EnableSkills
 		}
 		if params.EnableStreaming != nil {
 			req["enableStreaming"] = *params.EnableStreaming
@@ -10503,6 +10530,9 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.Model != nil {
 			req["model"] = *params.Model
 		}
+		if params.OrganizationCustomInstructions != nil {
+			req["organizationCustomInstructions"] = *params.OrganizationCustomInstructions
+		}
 		if params.Provider != nil {
 			req["provider"] = params.Provider
 		}
@@ -10526,6 +10556,9 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.SkipCustomInstructions != nil {
 			req["skipCustomInstructions"] = *params.SkipCustomInstructions
+		}
+		if params.SkipEmbeddingRetrieval != nil {
+			req["skipEmbeddingRetrieval"] = *params.SkipEmbeddingRetrieval
 		}
 		if params.ToolFilterPrecedence != nil {
 			req["toolFilterPrecedence"] = *params.ToolFilterPrecedence

@@ -170,12 +170,14 @@ type (
 	SessionPlanChangedData                                         = rpc.SessionPlanChangedData
 	SessionRemoteSteerableChangedData                              = rpc.SessionRemoteSteerableChangedData
 	SessionResumeData                                              = rpc.SessionResumeData
+	SessionResumeDataContextTier                                   = rpc.SessionResumeDataContextTier
 	SessionScheduleCancelledData                                   = rpc.SessionScheduleCancelledData
 	SessionScheduleCreatedData                                     = rpc.SessionScheduleCreatedData
 	SessionShutdownData                                            = rpc.SessionShutdownData
 	SessionSkillsLoadedData                                        = rpc.SessionSkillsLoadedData
 	SessionSnapshotRewindData                                      = rpc.SessionSnapshotRewindData
 	SessionStartData                                               = rpc.SessionStartData
+	SessionStartDataContextTier                                    = rpc.SessionStartDataContextTier
 	SessionTaskCompleteData                                        = rpc.SessionTaskCompleteData
 	SessionTitleChangedData                                        = rpc.SessionTitleChangedData
 	SessionToolsUpdatedData                                        = rpc.SessionToolsUpdatedData
@@ -472,6 +474,10 @@ const (
 	SessionModelChangeDataContextTierDefault                           = rpc.SessionModelChangeDataContextTierDefault
 	SessionModelChangeDataContextTierLongContext                       = rpc.SessionModelChangeDataContextTierLongContext
 	SessionModePlan                                                    = rpc.SessionModePlan
+	SessionResumeDataContextTierDefault                                = rpc.SessionResumeDataContextTierDefault
+	SessionResumeDataContextTierLongContext                            = rpc.SessionResumeDataContextTierLongContext
+	SessionStartDataContextTierDefault                                 = rpc.SessionStartDataContextTierDefault
+	SessionStartDataContextTierLongContext                             = rpc.SessionStartDataContextTierLongContext
 	ShutdownTypeError                                                  = rpc.ShutdownTypeError
 	ShutdownTypeRoutine                                                = rpc.ShutdownTypeRoutine
 	SkillInvokedTriggerAgentInvoked                                    = rpc.SkillInvokedTriggerAgentInvoked

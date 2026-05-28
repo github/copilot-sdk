@@ -7642,6 +7642,12 @@ pub struct SessionUpdateOptionsParams {
     /// Skill IDs that should be excluded from this session.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
+    /// Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_hooks: Option<bool>,
+    /// Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_host_git_operations: Option<bool>,
     /// Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_on_demand_instruction_discovery: Option<bool>,
@@ -7651,6 +7657,12 @@ pub struct SessionUpdateOptionsParams {
     /// Whether shell-script safety heuristics are enabled.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_script_safety: Option<bool>,
+    /// Whether to enable cross-session store writes and reads.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_store: Option<bool>,
+    /// Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_skills: Option<bool>,
     /// Whether to stream model responses.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_streaming: Option<bool>,
@@ -7687,6 +7699,9 @@ pub struct SessionUpdateOptionsParams {
     /// The model ID to use for assistant turns.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
+    /// Organization-level custom instructions to inject into the system prompt.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_custom_instructions: Option<String>,
     /// Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.
     ///
     /// <div class="warning">
@@ -7725,6 +7740,9 @@ pub struct SessionUpdateOptionsParams {
     /// Whether to skip loading custom instruction sources.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skip_custom_instructions: Option<bool>,
+    /// Whether to skip embedding retrieval pipeline initialization and execution.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_embedding_retrieval: Option<bool>,
     /// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_filter_precedence: Option<OptionsUpdateToolFilterPrecedence>,

@@ -3979,6 +3979,7 @@ class SessionResumeData:
     resume_time: datetime
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
+    context_tier: SessionResumeDataContextTier | None = None
     continue_pending_work: bool | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
@@ -3993,6 +3994,7 @@ class SessionResumeData:
         resume_time = from_datetime(obj.get("resumeTime"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        context_tier = from_union([from_none, lambda x: parse_enum(SessionResumeDataContextTier, x)], obj.get("contextTier"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
@@ -4004,6 +4006,7 @@ class SessionResumeData:
             resume_time=resume_time,
             already_in_use=already_in_use,
             context=context,
+            context_tier=context_tier,
             continue_pending_work=continue_pending_work,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
@@ -4020,6 +4023,8 @@ class SessionResumeData:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
+        if self.context_tier is not None:
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionResumeDataContextTier, x)], self.context_tier)
         if self.continue_pending_work is not None:
             result["continuePendingWork"] = from_union([from_none, from_bool], self.continue_pending_work)
         if self.reasoning_effort is not None:
@@ -4225,6 +4230,7 @@ class SessionStartData:
     version: int
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
+    context_tier: SessionStartDataContextTier | None = None
     detached_from_spawning_parent_session_id: str | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
@@ -4241,6 +4247,7 @@ class SessionStartData:
         version = from_int(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        context_tier = from_union([from_none, lambda x: parse_enum(SessionStartDataContextTier, x)], obj.get("contextTier"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
@@ -4254,6 +4261,7 @@ class SessionStartData:
             version=version,
             already_in_use=already_in_use,
             context=context,
+            context_tier=context_tier,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
@@ -4272,6 +4280,8 @@ class SessionStartData:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
+        if self.context_tier is not None:
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionStartDataContextTier, x)], self.context_tier)
         if self.detached_from_spawning_parent_session_id is not None:
             result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
         if self.reasoning_effort is not None:
@@ -6915,6 +6925,20 @@ class SessionMode(Enum):
 
 
 class SessionModelChangeDataContextTier(Enum):
+    # Default context tier with standard context window size.
+    DEFAULT = "default"
+    # Extended context tier with a larger context window.
+    LONG_CONTEXT = "long_context"
+
+
+class SessionResumeDataContextTier(Enum):
+    # Default context tier with standard context window size.
+    DEFAULT = "default"
+    # Extended context tier with a larger context window.
+    LONG_CONTEXT = "long_context"
+
+
+class SessionStartDataContextTier(Enum):
     # Default context tier with standard context window size.
     DEFAULT = "default"
     # Extended context tier with a larger context window.

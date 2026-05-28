@@ -1297,6 +1297,11 @@ public sealed partial class SessionStartData
     [JsonPropertyName("context")]
     public WorkingDirectoryContext? Context { get; set; }
 
+    /// <summary>Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("contextTier")]
+    public SessionStartDataContextTier? ContextTier { get; set; }
+
     /// <summary>Version string of the Copilot application.</summary>
     [JsonPropertyName("copilotVersion")]
     public required string CopilotVersion { get; set; }
@@ -1355,6 +1360,11 @@ public sealed partial class SessionResumeData
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     [JsonPropertyName("context")]
     public WorkingDirectoryContext? Context { get; set; }
+
+    /// <summary>Context tier currently selected at resume time; null when no tier is active.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("contextTier")]
+    public SessionResumeDataContextTier? ContextTier { get; set; }
 
     /// <summary>When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -5945,6 +5955,67 @@ public readonly struct WorkingDirectoryContextHostType : IEquatable<WorkingDirec
     }
 }
 
+/// <summary>Defines the allowed values.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionStartDataContextTier : IEquatable<SessionStartDataContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionStartDataContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionStartDataContextTier"/>.</param>
+    [JsonConstructor]
+    public SessionStartDataContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionStartDataContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Default context tier with standard context window size.</summary>
+    public static SessionStartDataContextTier Default { get; } = new("default");
+
+    /// <summary>Extended context tier with a larger context window.</summary>
+    public static SessionStartDataContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionStartDataContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionStartDataContextTier left, SessionStartDataContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionStartDataContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionStartDataContextTier left, SessionStartDataContextTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionStartDataContextTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionStartDataContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionStartDataContextTier}"/> for serializing <see cref="SessionStartDataContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionStartDataContextTier>
+    {
+        /// <inheritdoc />
+        public override SessionStartDataContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionStartDataContextTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionStartDataContextTier));
+        }
+    }
+}
+
 /// <summary>Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed").</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -6005,6 +6076,67 @@ public readonly struct ReasoningSummary : IEquatable<ReasoningSummary>
         public override void Write(Utf8JsonWriter writer, ReasoningSummary value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ReasoningSummary));
+        }
+    }
+}
+
+/// <summary>Defines the allowed values.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct SessionResumeDataContextTier : IEquatable<SessionResumeDataContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="SessionResumeDataContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="SessionResumeDataContextTier"/>.</param>
+    [JsonConstructor]
+    public SessionResumeDataContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="SessionResumeDataContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Default context tier with standard context window size.</summary>
+    public static SessionResumeDataContextTier Default { get; } = new("default");
+
+    /// <summary>Extended context tier with a larger context window.</summary>
+    public static SessionResumeDataContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionResumeDataContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(SessionResumeDataContextTier left, SessionResumeDataContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="SessionResumeDataContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(SessionResumeDataContextTier left, SessionResumeDataContextTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is SessionResumeDataContextTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(SessionResumeDataContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{SessionResumeDataContextTier}"/> for serializing <see cref="SessionResumeDataContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<SessionResumeDataContextTier>
+    {
+        /// <inheritdoc />
+        public override SessionResumeDataContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, SessionResumeDataContextTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionResumeDataContextTier));
         }
     }
 }
