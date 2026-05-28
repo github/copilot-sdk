@@ -437,7 +437,7 @@ func TestSessionRequests_ReasoningSummary(t *testing.T) {
 func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	pluginDirs := []string{"/tmp/plugins/a", "/tmp/plugins/b"}
 	enabled := true
-	maxBytes := 1024
+	maxBytes := int64(1024)
 	largeOutput := &LargeToolOutputConfig{
 		Enabled:         &enabled,
 		MaxSizeBytes:    &maxBytes,

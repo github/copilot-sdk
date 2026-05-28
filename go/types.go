@@ -853,7 +853,7 @@ type LargeToolOutputConfig struct {
 	Enabled *bool `json:"enabled,omitempty"`
 	// MaxSizeBytes is the maximum size in bytes before output is written to a
 	// temp file. Default: 50KB.
-	MaxSizeBytes *int `json:"maxSizeBytes,omitempty"`
+	MaxSizeBytes *int64 `json:"maxSizeBytes,omitempty"`
 	// OutputDirectory is the directory to write temp files to. Defaults to the OS
 	// temp directory.
 	OutputDirectory string `json:"outputDir,omitempty"`
