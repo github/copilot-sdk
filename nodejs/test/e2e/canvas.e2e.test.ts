@@ -131,7 +131,7 @@ describe("Canvas RPC", async () => {
             input: {},
         });
 
-        const result = await session.rpc.canvas.invokeAction({
+        const result = await session.rpc.canvas.action.invoke({
             instanceId: "counter-2",
             actionName: "increment",
             input: { amount: 5 },

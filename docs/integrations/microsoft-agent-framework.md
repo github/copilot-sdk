@@ -116,9 +116,8 @@ async def main():
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient();
 client.start().get();
@@ -232,9 +231,8 @@ await session.sendAndWait({ prompt: "What's the weather like in Seattle?" });
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -353,9 +351,8 @@ async def main():
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 // Java uses the standard SDK directly — no MAF orchestrator needed
 var client = new CopilotClient();
@@ -428,9 +425,8 @@ Console.WriteLine(combinedResult);
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 import java.util.concurrent.CompletableFuture;
 
 // Java uses CompletableFuture for concurrent execution
@@ -539,10 +535,10 @@ await session.sendAndWait({ prompt: "Write a quicksort implementation in TypeScr
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient();
 client.start().get();

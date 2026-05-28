@@ -10,8 +10,8 @@ from copilot import (
     CanvasHandler,
 )
 from copilot.generated.rpc import (
+    CanvasActionInvokeRequest,
     CanvasCloseRequest,
-    CanvasInvokeActionRequest,
     CanvasOpenRequest,
     CanvasProviderCloseRequest,
     CanvasProviderInvokeActionRequest,
@@ -130,8 +130,8 @@ class TestCanvasRpc:
                 )
             )
 
-            result = await session.rpc.canvas.invoke_action(
-                CanvasInvokeActionRequest(
+            result = await session.rpc.canvas.action.invoke(
+                CanvasActionInvokeRequest(
                     action_name="increment",
                     instance_id="counter-2",
                     input={"amount": 5},

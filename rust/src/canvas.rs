@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use thiserror::Error;
 
 use crate::generated::api_types::CanvasAction;
 
@@ -54,15 +53,22 @@ impl CanvasDeclaration {
 }
 
 /// Structured error returned from canvas handlers.
-#[derive(Debug, Clone, Error, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-#[error("{code}: {message}")]
 pub struct CanvasError {
     /// Machine-readable error code.
     pub code: String,
     /// Human-readable message.
     pub message: String,
 }
+
+impl std::fmt::Display for CanvasError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for CanvasError {}
 
 impl CanvasError {
     /// Construct a new error envelope with the given code and message.
@@ -90,7 +96,7 @@ pub type CanvasResult<T> = Result<T, CanvasError>;
 /// A session installs a single [`CanvasHandler`] (via
 /// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
 /// The handler receives every inbound `canvas.open` / `canvas.close` /
-/// `canvas.invokeAction` JSON-RPC request the runtime issues for this
+/// `canvas.action.invoke` JSON-RPC request the runtime issues for this
 /// session and decides — typically by inspecting
 /// [`CanvasProviderOpenRequest::canvas_id`](crate::generated::api_types::CanvasProviderOpenRequest::canvas_id)
 /// — which application-side canvas should handle the call.

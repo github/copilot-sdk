@@ -2457,7 +2457,7 @@ internal sealed class CanvasCloseRequest
 
 /// <summary>Canvas action invocation result.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class CanvasInvokeActionResult
+public sealed class CanvasActionInvokeResult
 {
     /// <summary>Provider-supplied action result.</summary>
     [JsonPropertyName("result")]
@@ -2466,7 +2466,7 @@ public sealed class CanvasInvokeActionResult
 
 /// <summary>Canvas action invocation parameters.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class CanvasInvokeActionRequest
+internal sealed class CanvasActionInvokeRequest
 {
     /// <summary>Action name to invoke.</summary>
     [JsonPropertyName("actionName")]
@@ -4648,6 +4648,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Whether to skip loading custom instruction sources.</summary>
     [JsonPropertyName("skipCustomInstructions")]
     public bool? SkipCustomInstructions { get; set; }
+
+    /// <summary>Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</summary>
+    [JsonPropertyName("toolFilterPrecedence")]
+    public OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence { get; set; }
 
     /// <summary>Optional path for trajectory output.</summary>
     [JsonPropertyName("trajectoryFile")]
@@ -10940,6 +10944,69 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
 }
 
 
+/// <summary>Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct OptionsUpdateToolFilterPrecedence : IEquatable<OptionsUpdateToolFilterPrecedence>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="OptionsUpdateToolFilterPrecedence"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="OptionsUpdateToolFilterPrecedence"/>.</param>
+    [JsonConstructor]
+    public OptionsUpdateToolFilterPrecedence(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="OptionsUpdateToolFilterPrecedence"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.</summary>
+    public static OptionsUpdateToolFilterPrecedence Available { get; } = new("available");
+
+    /// <summary>A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.</summary>
+    public static OptionsUpdateToolFilterPrecedence Excluded { get; } = new("excluded");
+
+    /// <summary>Returns a value indicating whether two <see cref="OptionsUpdateToolFilterPrecedence"/> instances are equivalent.</summary>
+    public static bool operator ==(OptionsUpdateToolFilterPrecedence left, OptionsUpdateToolFilterPrecedence right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="OptionsUpdateToolFilterPrecedence"/> instances are not equivalent.</summary>
+    public static bool operator !=(OptionsUpdateToolFilterPrecedence left, OptionsUpdateToolFilterPrecedence right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is OptionsUpdateToolFilterPrecedence other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(OptionsUpdateToolFilterPrecedence other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{OptionsUpdateToolFilterPrecedence}"/> for serializing <see cref="OptionsUpdateToolFilterPrecedence"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<OptionsUpdateToolFilterPrecedence>
+    {
+        /// <inheritdoc />
+        public override OptionsUpdateToolFilterPrecedence Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, OptionsUpdateToolFilterPrecedence value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateToolFilterPrecedence));
+        }
+    }
+}
+
+
 /// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -13417,20 +13484,38 @@ public sealed class CanvasApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.close", [request], cancellationToken);
     }
 
+    /// <summary>Action APIs.</summary>
+    public CanvasActionApi Action =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+}
+
+/// <summary>Provides session-scoped CanvasAction APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasActionApi
+{
+    private readonly CopilotSession _session;
+
+    internal CanvasActionApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
     /// <summary>Invokes an action on an open canvas instance.</summary>
     /// <param name="instanceId">Open canvas instance identifier.</param>
     /// <param name="actionName">Action name to invoke.</param>
     /// <param name="input">Action input.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Canvas action invocation result.</returns>
-    public async Task<CanvasInvokeActionResult> InvokeActionAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
+    public async Task<CanvasActionInvokeResult> InvokeAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(instanceId);
         ArgumentNullException.ThrowIfNull(actionName);
         _session.ThrowIfDisposed();
 
-        var request = new CanvasInvokeActionRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
-        return await CopilotClient.InvokeRpcAsync<CanvasInvokeActionResult>(_session.Rpc, "session.canvas.invokeAction", [request], cancellationToken);
+        var request = new CanvasActionInvokeRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
+        return await CopilotClient.InvokeRpcAsync<CanvasActionInvokeResult>(_session.Rpc, "session.canvas.action.invoke", [request], cancellationToken);
     }
 }
 
@@ -14364,6 +14449,7 @@ public sealed class OptionsApi
     /// <param name="workingDirectory">Absolute working-directory path for shell tools.</param>
     /// <param name="availableTools">Allowlist of tool names available to this session.</param>
     /// <param name="excludedTools">Denylist of tool names for this session.</param>
+    /// <param name="toolFilterPrecedence">Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</param>
     /// <param name="enableScriptSafety">Whether shell-script safety heuristics are enabled.</param>
     /// <param name="shellInitProfile">Shell init profile (`None` or `NonInteractive`).</param>
     /// <param name="shellProcessFlags">Per-shell process flags (e.g., `pwsh` arguments).</param>
@@ -14391,11 +14477,11 @@ public sealed class OptionsApi
     /// <param name="manageScheduleEnabled">Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -15613,7 +15699,7 @@ public interface ICanvasHandler
     /// <param name="request">Canvas action invocation parameters sent to the provider.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Provider-supplied action result.</returns>
-    Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
+    Task<object> InvokeAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -15720,11 +15806,11 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
             await handler.CloseAsync(request, cancellationToken);
         }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("canvas.invokeAction", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
+        rpc.SetLocalRpcMethod("canvas.action.invoke", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).Canvas;
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
-            return await handler.InvokeActionAsync(request, cancellationToken);
+            return await handler.InvokeAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -16000,11 +16086,11 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(CanvasAction))]
+[JsonSerializable(typeof(CanvasActionInvokeRequest))]
+[JsonSerializable(typeof(CanvasActionInvokeResult))]
 [JsonSerializable(typeof(CanvasCloseRequest))]
 [JsonSerializable(typeof(CanvasHostContext))]
 [JsonSerializable(typeof(CanvasHostContextCapabilities))]
-[JsonSerializable(typeof(CanvasInvokeActionRequest))]
-[JsonSerializable(typeof(CanvasInvokeActionResult))]
 [JsonSerializable(typeof(CanvasList))]
 [JsonSerializable(typeof(CanvasListOpenResult))]
 [JsonSerializable(typeof(CanvasOpenRequest))]

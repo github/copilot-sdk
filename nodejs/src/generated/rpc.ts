@@ -587,27 +587,12 @@ export type McpAppsSetHostContextDetailsPlatform =
  */
 export type McpServerConfig = McpServerConfigStdio | McpServerConfigHttp;
 /**
- * OIDC token configuration. When truthy, a token is automatically gathered.
+ * Set to `true` to use defaults, or provide an object with additional auth or OIDC settings.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerConfigStdioOidc".
+ * via the `definition` "McpServerAuthConfig".
  */
-export type McpServerConfigStdioOidc =
-  | boolean
-  | {
-      [k: string]: unknown | undefined;
-    };
-/**
- * Authentication configuration for this server.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerConfigStdioAuth".
- */
-export type McpServerConfigStdioAuth =
-  | boolean
-  | {
-      [k: string]: unknown | undefined;
-    };
+export type McpServerAuthConfig = boolean | McpServerAuthConfigRedirectPort;
 /**
  * Remote transport type. Defaults to "http" when omitted.
  *
@@ -619,17 +604,6 @@ export type McpServerConfigHttpType =
   | "http"
   /** Server-Sent Events transport. */
   | "sse";
-/**
- * OIDC token configuration. When truthy, a token is automatically gathered.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerConfigHttpOidc".
- */
-export type McpServerConfigHttpOidc =
-  | boolean
-  | {
-      [k: string]: unknown | undefined;
-    };
 /**
  * OAuth grant type to use when authenticating to the remote MCP server.
  *
@@ -803,6 +777,18 @@ export type OptionsUpdateEnvValueMode =
   | "direct"
   /** Resolve MCP server environment values from host-side references. */
   | "indirect";
+/**
+ * Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "OptionsUpdateToolFilterPrecedence".
+ */
+/** @experimental */
+export type OptionsUpdateToolFilterPrecedence =
+  /** If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default. */
+  | "available"
+  /** A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists. */
+  | "excluded";
 /**
  * The client's response to the pending permission prompt
  *
@@ -2167,6 +2153,39 @@ export interface CanvasJsonSchema {
   [k: string]: unknown | undefined;
 }
 /**
+ * Canvas action invocation parameters.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasActionInvokeRequest".
+ */
+/** @experimental */
+export interface CanvasActionInvokeRequest {
+  /**
+   * Open canvas instance identifier
+   */
+  instanceId: string;
+  /**
+   * Action name to invoke
+   */
+  actionName: string;
+  /**
+   * Action input
+   */
+  input?: {
+    [k: string]: unknown | undefined;
+  };
+}
+/**
+ * Provider-supplied action result.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "CanvasActionInvokeResult".
+ */
+/** @experimental */
+export interface CanvasActionInvokeResult {
+  [k: string]: unknown | undefined;
+}
+/**
  * Canvas close parameters.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2201,39 +2220,6 @@ export interface CanvasHostContextCapabilities {
    * Whether canvas rendering is supported
    */
   canvases?: boolean;
-}
-/**
- * Canvas action invocation parameters.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CanvasInvokeActionRequest".
- */
-/** @experimental */
-export interface CanvasInvokeActionRequest {
-  /**
-   * Open canvas instance identifier
-   */
-  instanceId: string;
-  /**
-   * Action name to invoke
-   */
-  actionName: string;
-  /**
-   * Action input
-   */
-  input?: {
-    [k: string]: unknown | undefined;
-  };
-}
-/**
- * Provider-supplied action result.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "CanvasInvokeActionResult".
- */
-/** @experimental */
-export interface CanvasInvokeActionResult {
-  [k: string]: unknown | undefined;
 }
 /**
  * Declared canvases available in this session.
@@ -4016,8 +4002,8 @@ export interface McpServerConfigStdio {
    * Timeout in milliseconds for tool calls to this server.
    */
   timeout?: number;
-  oidc?: McpServerConfigStdioOidc;
-  auth?: McpServerConfigStdioAuth;
+  oidc?: McpServerAuthConfig;
+  auth?: McpServerAuthConfig;
   /**
    * Executable command used to start the Stdio MCP server process.
    */
@@ -4036,6 +4022,19 @@ export interface McpServerConfigStdio {
   env?: {
     [k: string]: string | undefined;
   };
+}
+/**
+ * Authentication settings with optional redirect port configuration.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "McpServerAuthConfigRedirectPort".
+ */
+export interface McpServerAuthConfigRedirectPort {
+  /**
+   * Fixed port for the OAuth redirect callback server.
+   */
+  redirectPort?: number;
+  [k: string]: unknown | undefined;
 }
 /**
  * Remote MCP server configuration accessed over HTTP or SSE.
@@ -4058,8 +4057,8 @@ export interface McpServerConfigHttp {
    * Timeout in milliseconds for tool calls to this server.
    */
   timeout?: number;
-  oidc?: McpServerConfigHttpOidc;
-  auth?: McpServerConfigHttpAuth;
+  oidc?: McpServerAuthConfig;
+  auth?: McpServerAuthConfig;
   /**
    * URL of the remote MCP server endpoint.
    */
@@ -4079,19 +4078,6 @@ export interface McpServerConfigHttp {
    */
   oauthPublicClient?: boolean;
   oauthGrantType?: McpServerConfigHttpOauthGrantType;
-}
-/**
- * Additional authentication configuration for this server.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "McpServerConfigHttpAuth".
- */
-export interface McpServerConfigHttpAuth {
-  /**
-   * Fixed port for the OAuth redirect callback server.
-   */
-  redirectPort?: number;
-  [k: string]: unknown | undefined;
 }
 /**
  * MCP server names to disable for new sessions.
@@ -8157,6 +8143,7 @@ export interface SessionUpdateOptionsParams {
    * Denylist of tool names for this session.
    */
   excludedTools?: string[];
+  toolFilterPrecedence?: OptionsUpdateToolFilterPrecedence;
   /**
    * Whether shell-script safety heuristics are enabled.
    */
@@ -10537,15 +10524,18 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             close: async (params: CanvasCloseRequest): Promise<void> =>
                 connection.sendRequest("session.canvas.close", { sessionId, ...params }),
-            /**
-             * Invokes an action on an open canvas instance.
-             *
-             * @param params Canvas action invocation parameters.
-             *
-             * @returns Canvas action invocation result.
-             */
-            invokeAction: async (params: CanvasInvokeActionRequest): Promise<CanvasInvokeActionResult> =>
-                connection.sendRequest("session.canvas.invokeAction", { sessionId, ...params }),
+            /** @experimental */
+            action: {
+                /**
+                 * Invokes an action on an open canvas instance.
+                 *
+                 * @param params Canvas action invocation parameters.
+                 *
+                 * @returns Canvas action invocation result.
+                 */
+                invoke: async (params: CanvasActionInvokeRequest): Promise<CanvasActionInvokeResult> =>
+                    connection.sendRequest("session.canvas.action.invoke", { sessionId, ...params }),
+            },
         },
         /** @experimental */
         model: {
@@ -11815,7 +11805,7 @@ export interface CanvasHandler {
      *
      * @returns Provider-supplied action result.
      */
-    invokeAction(params: CanvasProviderInvokeActionRequest): Promise<CanvasInvokeActionResult>;
+    invoke(params: CanvasProviderInvokeActionRequest): Promise<CanvasActionInvokeResult>;
 }
 
 /** All client session API handler groups. */
@@ -11904,9 +11894,9 @@ export function registerClientSessionApiHandlers(
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
         return handler.close(params);
     });
-    connection.onRequest("canvas.invokeAction", async (params: CanvasProviderInvokeActionRequest) => {
+    connection.onRequest("canvas.action.invoke", async (params: CanvasProviderInvokeActionRequest) => {
         const handler = getHandlers(params.sessionId).canvas;
         if (!handler) throw new Error(`No canvas handler registered for session: ${params.sessionId}`);
-        return handler.invokeAction(params);
+        return handler.invoke(params);
     });
 }

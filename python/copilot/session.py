@@ -1021,7 +1021,7 @@ class _CanvasHandlerAdapter:
         except Exception as err:
             raise _canvas_handler_error(err) from err
 
-    async def invoke_action(self, params: CanvasProviderInvokeActionRequest) -> Any:
+    async def invoke(self, params: CanvasProviderInvokeActionRequest) -> Any:
         try:
             return await self._handler.on_action(params)
         except CanvasError as err:
@@ -1165,6 +1165,7 @@ class CopilotSession:
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
+        display_prompt: str | None = None,
     ) -> str:
         """
         Send a message to this session.
@@ -1181,6 +1182,8 @@ class CopilotSession:
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
                 session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
+            display_prompt: If provided, this is shown in the timeline instead of
+                ``prompt``.
 
         Returns:
             The message ID assigned by the server, which can be used to correlate events.
@@ -1206,6 +1209,8 @@ class CopilotSession:
             params["agentMode"] = agent_mode
         if request_headers is not None:
             params["requestHeaders"] = request_headers
+        if display_prompt is not None:
+            params["displayPrompt"] = display_prompt
         params.update(get_trace_context())
 
         rpc_start = time.perf_counter()
@@ -1229,6 +1234,7 @@ class CopilotSession:
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
+        display_prompt: str | None = None,
         timeout: float = 60.0,
     ) -> SessionEvent | None:
         """
@@ -1248,6 +1254,8 @@ class CopilotSession:
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
                 session's current mode when unset.
             request_headers: Optional per-turn HTTP headers for outbound model requests.
+            display_prompt: If provided, this is shown in the timeline instead of
+                ``prompt``.
             timeout: Timeout in seconds (default: 60). Controls how long to wait;
                 does not abort in-flight agent work.
 
@@ -1307,6 +1315,7 @@ class CopilotSession:
                 mode=mode,
                 agent_mode=agent_mode,
                 request_headers=request_headers,
+                display_prompt=display_prompt,
             )
             await asyncio.wait_for(idle_event.wait(), timeout=timeout)
             if error_event:

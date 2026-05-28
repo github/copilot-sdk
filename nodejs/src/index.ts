@@ -10,6 +10,7 @@
 
 export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
+export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export {
     buildMcpAppsAllowAttribute,
@@ -56,6 +57,7 @@ export type {
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    CopilotClientMode,
     CopilotClientOptions,
     StdioRuntimeConnection,
     TcpRuntimeConnection,

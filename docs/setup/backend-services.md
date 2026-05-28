@@ -260,9 +260,8 @@ var response = await session.SendAndWaitAsync(
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.events.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var userId = "user1";
 var message = "Hello!";

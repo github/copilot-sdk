@@ -1113,7 +1113,7 @@ pub struct SessionConfig {
     /// Canvas declarations this connection provides to the runtime.
     pub canvases: Option<Vec<CanvasDeclaration>>,
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// `canvas.open` / `canvas.close` / `canvas.invokeAction` requests to
+    /// `canvas.open` / `canvas.close` / `canvas.action.invoke` requests to
     /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
     /// to install one.
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
@@ -1258,6 +1258,22 @@ pub struct SessionConfig {
     /// `systemMessage.transform` RPC callbacks to it during the session.
     /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// Whether to skip loading custom-instruction sources for this session.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `true` in [`crate::ClientMode::Empty`] when unset.
+    pub skip_custom_instructions: Option<bool>,
+    /// Whether to constrain custom agents to local-only execution. Applied
+    /// via `session.options.update` after create/resume. Defaults to `true`
+    /// in [`crate::ClientMode::Empty`] when unset.
+    pub custom_agents_local_only: Option<bool>,
+    /// Whether to include the `Co-authored-by` trailer in commit messages.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `false` in [`crate::ClientMode::Empty`] when unset.
+    pub coauthor_enabled: Option<bool>,
+    /// Whether to expose the `manage_schedule` tool. Applied via
+    /// `session.options.update` after create/resume. Defaults to `false` in
+    /// [`crate::ClientMode::Empty`] when unset.
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1395,6 +1411,10 @@ impl Default for SessionConfig {
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 }
@@ -1433,7 +1453,7 @@ impl SessionConfig {
     /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
     pub(crate) fn into_wire(
         mut self,
-        session_id: SessionId,
+        session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
@@ -1449,10 +1469,10 @@ impl SessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -1482,6 +1502,7 @@ impl SessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -1871,6 +1892,30 @@ impl SessionConfig {
         self.cloud = Some(cloud);
         self
     }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
+        self
+    }
 }
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
@@ -2002,6 +2047,14 @@ pub struct ResumeSessionConfig {
     pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. See [`SessionConfig::system_message_transform`].
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// See [`SessionConfig::skip_custom_instructions`].
+    pub skip_custom_instructions: Option<bool>,
+    /// See [`SessionConfig::custom_agents_local_only`].
+    pub custom_agents_local_only: Option<bool>,
+    /// See [`SessionConfig::coauthor_enabled`].
+    pub coauthor_enabled: Option<bool>,
+    /// See [`SessionConfig::manage_schedule_enabled`].
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -2113,10 +2166,10 @@ impl ResumeSessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -2146,6 +2199,7 @@ impl ResumeSessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2245,6 +2299,10 @@ impl ResumeSessionConfig {
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 
@@ -2576,6 +2634,30 @@ impl ResumeSessionConfig {
     /// session from one process to another without losing in-flight work.
     pub fn with_continue_pending_work(mut self, continue_pending: bool) -> Self {
         self.continue_pending_work = Some(continue_pending);
+        self
+    }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
         self
     }
 }
@@ -3072,6 +3154,8 @@ pub struct MessageOptions {
     ///
     /// Per-turn override paired with [`traceparent`](Self::traceparent).
     pub tracestate: Option<String>,
+    /// If provided, this is shown in the timeline instead of `prompt`.
+    pub display_prompt: Option<String>,
 }
 
 impl MessageOptions {
@@ -3086,6 +3170,7 @@ impl MessageOptions {
             request_headers: None,
             traceparent: None,
             tracestate: None,
+            display_prompt: None,
         }
     }
 
@@ -3144,6 +3229,12 @@ impl MessageOptions {
     /// Set the W3C `tracestate` header for this turn.
     pub fn with_tracestate(mut self, tracestate: impl Into<String>) -> Self {
         self.tracestate = Some(tracestate.into());
+        self
+    }
+
+    /// Set the display prompt shown in the timeline instead of `prompt`.
+    pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
+        self.display_prompt = Some(display_prompt.into());
         self
     }
 }
@@ -3836,7 +3927,7 @@ mod tests {
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
         let (wire, _runtime) = cfg
-            .into_wire(SessionId::from("default-flags"))
+            .into_wire(Some(SessionId::from("default-flags")))
             .expect("default config has no duplicate handlers");
         assert!(!wire.request_user_input);
         assert!(!wire.request_permission);
@@ -3910,7 +4001,7 @@ mod tests {
         ));
 
         let (wire, _runtime) = cfg
-            .into_wire(SessionId::from("custom-id"))
+            .into_wire(Some(SessionId::from("custom-id")))
             .expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["sessionId"], "custom-id");
@@ -3926,7 +4017,7 @@ mod tests {
 
         // Unset fields are omitted on the wire.
         let (empty_wire, _) = SessionConfig::default()
-            .into_wire(SessionId::from("empty"))
+            .into_wire(Some(SessionId::from("empty")))
             .expect("default has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("gitHubToken").is_none());
@@ -4125,7 +4216,7 @@ mod tests {
         let cfg =
             SessionConfig::default().with_instruction_directories([PathBuf::from("/tmp/instr")]);
         let (wire, _) = cfg
-            .into_wire(SessionId::from("instr-on"))
+            .into_wire(Some(SessionId::from("instr-on")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
@@ -4135,7 +4226,7 @@ mod tests {
 
         // Unset case — skip_serializing_if must omit the field.
         let (wire, _) = SessionConfig::default()
-            .into_wire(SessionId::from("instr-off"))
+            .into_wire(Some(SessionId::from("instr-off")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("instructionDirectories").is_none());

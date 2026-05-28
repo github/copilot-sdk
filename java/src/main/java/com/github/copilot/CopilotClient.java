@@ -19,8 +19,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.github.copilot.rpc.CopilotClientMode;
 import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.CreateSessionResponse;
+import com.github.copilot.generated.rpc.SessionOptionsUpdateParams;
+import com.github.copilot.generated.rpc.SessionInstalledPlugin;
 import com.github.copilot.generated.rpc.ConnectParams;
 import com.github.copilot.generated.rpc.ServerRpc;
 import com.github.copilot.rpc.DeleteSessionResponse;
@@ -143,6 +146,18 @@ public final class CopilotClient implements AutoCloseable {
         this.effectiveConnectionToken = this.options.getTcpConnectionToken() != null
                 ? this.options.getTcpConnectionToken()
                 : (sdkSpawnsCli ? java.util.UUID.randomUUID().toString() : null);
+
+        // Empty mode: validate at construction time that the app supplied a
+        // per-session persistence location.
+        if (this.options.getMode() == CopilotClientMode.EMPTY) {
+            boolean hasPersistence = (this.options.getCopilotHome() != null && !this.options.getCopilotHome().isEmpty())
+                    || (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty());
+            if (!hasPersistence) {
+                throw new IllegalArgumentException(
+                        "CopilotClient was created with Mode = EMPTY but neither CopilotHome nor CliUrl was set. "
+                                + "Empty mode requires an explicit per-session persistence location.");
+            }
+        }
 
         // Parse CliUrl if provided
         if (this.options.getCliUrl() != null && !this.options.getCliUrl().isEmpty()) {
@@ -453,63 +468,120 @@ public final class CopilotClient implements AutoCloseable {
         }
         return ensureConnected().thenCompose(connection -> {
             long totalNanos = System.nanoTime();
-            // Pre-generate session ID so the session can be registered before the RPC call,
-            // ensuring no events emitted by the CLI during creation are lost.
-            String sessionId = config.getSessionId() != null
-                    ? config.getSessionId()
-                    : java.util.UUID.randomUUID().toString();
+            // For cloud sessions, let the CLI/server assign the session id
+            // and register the session lazily once the response arrives. For
+            // non-cloud sessions we generate the id client-side (when the
+            // caller didn't supply one) so the session can be registered
+            // BEFORE the RPC — the CLI may issue session-scoped requests
+            // (e.g. sessionFs.writeFile for workspace metadata) during
+            // session.create processing, before it has sent the response.
+            String callerSessionId = config.getSessionId();
+            boolean useServerGeneratedId = config.getCloud() != null
+                    && (callerSessionId == null || callerSessionId.isEmpty());
+            String localSessionId = useServerGeneratedId
+                    ? null
+                    : (callerSessionId != null && !callerSessionId.isEmpty()
+                            ? callerSessionId
+                            : java.util.UUID.randomUUID().toString());
 
-            long setupNanos = System.nanoTime();
-            var session = new CopilotSession(sessionId, connection.rpc);
-            if (options.getExecutor() != null) {
-                session.setExecutor(options.getExecutor());
-            }
-            SessionRequestBuilder.configureSession(session, config);
-            sessions.put(sessionId, session);
-            LoggingHelpers.logTiming(LOG, Level.FINE,
-                    "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sessionId,
-                    setupNanos);
-
-            // Extract transform callbacks from the system message config.
-            // Callbacks are registered with the session; a wire-safe copy of the
-            // system message (with transform sections replaced by action="transform")
-            // is used in the RPC request.
+            // Extract transform callbacks from the system message config. Callbacks
+            // are registered with the session; a wire-safe copy of the system
+            // message (with transform sections replaced by action="transform") is
+            // used in the RPC request.
             var extracted = SessionRequestBuilder.extractTransformCallbacks(config.getSystemMessage());
-            if (extracted.transformCallbacks() != null) {
-                session.registerTransformCallbacks(extracted.transformCallbacks());
+
+            // Creates the session, wires up handlers, and registers it in the
+            // sessions map.
+            java.util.function.Function<String, CopilotSession> initializeSession = sid -> {
+                long setupNanos = System.nanoTime();
+                var s = new CopilotSession(sid, connection.rpc);
+                if (options.getExecutor() != null) {
+                    s.setExecutor(options.getExecutor());
+                }
+                SessionRequestBuilder.configureSession(s, config);
+                if (extracted.transformCallbacks() != null) {
+                    s.registerTransformCallbacks(extracted.transformCallbacks());
+                }
+                sessions.put(sid, s);
+                LoggingHelpers.logTiming(LOG, Level.FINE,
+                        "CopilotClient.createSession local setup complete. Elapsed={Elapsed}, SessionId=" + sid,
+                        setupNanos);
+                return s;
+            };
+
+            String[] registeredIdHolder = new String[1];
+            CopilotSession[] preRegisteredSessionHolder = new CopilotSession[1];
+
+            // Pre-register non-cloud sessions BEFORE issuing the RPC so any
+            // session-scoped requests the CLI emits during session.create
+            // processing can be routed to the correct handlers.
+            if (localSessionId != null) {
+                preRegisteredSessionHolder[0] = initializeSession.apply(localSessionId);
+                registeredIdHolder[0] = localSessionId;
             }
 
-            var request = SessionRequestBuilder.buildCreateRequest(config, sessionId);
+            var request = SessionRequestBuilder.buildCreateRequest(config, localSessionId);
             if (extracted.wireSystemMessage() != config.getSystemMessage()) {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
-            long rpcNanos = System.nanoTime();
-            return connection.rpc.invoke("session.create", request, CreateSessionResponse.class).thenApply(response -> {
-                LoggingHelpers.logTiming(LOG, Level.FINE,
-                        "CopilotClient.createSession session creation request completed. Elapsed={Elapsed}, SessionId="
-                                + sessionId,
-                        rpcNanos);
-                session.setWorkspacePath(response.workspacePath());
-                session.setCapabilities(response.capabilities());
-                warnIfMcpAppsDropped(config.isEnableMcpApps(), response.capabilities(), sessionId);
-                // If the server returned a different sessionId (e.g. a v2 CLI that ignores
-                // the client-supplied ID), re-key the sessions map.
-                String returnedId = response.sessionId();
-                if (returnedId != null && !returnedId.equals(sessionId)) {
-                    sessions.remove(sessionId);
-                    session.setActiveSessionId(returnedId);
-                    sessions.put(returnedId, session);
+            // Empty mode: validate availableTools and set toolFilterPrecedence
+            if (options.getMode() == CopilotClientMode.EMPTY) {
+                if (config.getAvailableTools() == null) {
+                    if (registeredIdHolder[0] != null) {
+                        sessions.remove(registeredIdHolder[0]);
+                    }
+                    throw new IllegalArgumentException(
+                            "CopilotClient is in Mode = EMPTY but the session config did not specify "
+                                    + "availableTools. Empty mode requires every session to explicitly opt into "
+                                    + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
-                LoggingHelpers.logTiming(LOG, Level.FINE,
-                        "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
-                return session;
-            }).exceptionally(ex -> {
-                sessions.remove(sessionId);
-                LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
-                        "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
-                throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
-            });
+                request.setToolFilterPrecedence("excluded");
+            }
+
+            long rpcNanos = System.nanoTime();
+            return connection.rpc.invoke("session.create", request, CreateSessionResponse.class)
+                    .thenCompose(response -> {
+                        String returnedId = response.sessionId();
+                        LoggingHelpers.logTiming(LOG, Level.FINE,
+                                "CopilotClient.createSession session creation request completed. Elapsed={Elapsed}, SessionId="
+                                        + (returnedId != null ? returnedId : localSessionId),
+                                rpcNanos);
+                        if (returnedId == null || returnedId.isEmpty()) {
+                            throw new RuntimeException("session.create response did not include a sessionId");
+                        }
+                        if (localSessionId != null && !localSessionId.equals(returnedId)) {
+                            throw new RuntimeException("session.create returned sessionId " + returnedId
+                                    + " but the caller requested " + localSessionId);
+                        }
+                        CopilotSession session = preRegisteredSessionHolder[0] != null
+                                ? preRegisteredSessionHolder[0]
+                                : initializeSession.apply(returnedId);
+                        registeredIdHolder[0] = returnedId;
+                        session.setWorkspacePath(response.workspacePath());
+                        session.setCapabilities(response.capabilities());
+                        warnIfMcpAppsDropped(config.isEnableMcpApps(), response.capabilities(), returnedId);
+
+                        return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
+                                config.getCustomAgentsLocalOnly().orElse(null),
+                                config.getCoauthorEnabled().orElse(null),
+                                config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
+                                    LoggingHelpers.logTiming(LOG, Level.FINE,
+                                            "CopilotClient.createSession complete. Elapsed={Elapsed}, SessionId="
+                                                    + session.getSessionId(),
+                                            totalNanos);
+                                    return session;
+                                });
+                    }).exceptionally(ex -> {
+                        if (registeredIdHolder[0] != null) {
+                            sessions.remove(registeredIdHolder[0]);
+                        }
+                        LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                                "CopilotClient.createSession failed. Elapsed={Elapsed}, SessionId="
+                                        + (registeredIdHolder[0] != null ? registeredIdHolder[0] : "<unassigned>"),
+                                totalNanos);
+                        throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
+                    });
         });
     }
 
@@ -570,31 +642,178 @@ public final class CopilotClient implements AutoCloseable {
                 request.setSystemMessage(extracted.wireSystemMessage());
             }
 
-            long rpcNanos = System.nanoTime();
-            return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class).thenApply(response -> {
-                LoggingHelpers.logTiming(LOG, Level.FINE,
-                        "CopilotClient.resumeSession session resume request completed. Elapsed={Elapsed}, SessionId="
-                                + sessionId,
-                        rpcNanos);
-                session.setWorkspacePath(response.workspacePath());
-                session.setCapabilities(response.capabilities());
-                warnIfMcpAppsDropped(config.isEnableMcpApps(), response.capabilities(), sessionId);
-                // If the server returned a different sessionId than what was requested, re-key.
-                String returnedId = response.sessionId();
-                if (returnedId != null && !returnedId.equals(sessionId)) {
-                    sessions.remove(sessionId);
-                    session.setActiveSessionId(returnedId);
-                    sessions.put(returnedId, session);
+            // Empty mode: validate availableTools and set toolFilterPrecedence for resume
+            // path
+            if (options.getMode() == CopilotClientMode.EMPTY) {
+                if (config.getAvailableTools() == null) {
+                    throw new IllegalArgumentException(
+                            "CopilotClient is in Mode = EMPTY but the resume session config did not specify "
+                                    + "availableTools. Empty mode requires every session to explicitly opt into "
+                                    + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
-                LoggingHelpers.logTiming(LOG, Level.FINE,
-                        "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
-                return session;
-            }).exceptionally(ex -> {
-                sessions.remove(sessionId);
-                LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
-                        "CopilotClient.resumeSession failed. Elapsed={Elapsed}, SessionId=" + sessionId, totalNanos);
-                throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
-            });
+                request.setToolFilterPrecedence("excluded");
+            }
+
+            long rpcNanos = System.nanoTime();
+            return connection.rpc.invoke("session.resume", request, ResumeSessionResponse.class)
+                    .thenCompose(response -> {
+                        LoggingHelpers.logTiming(LOG, Level.FINE,
+                                "CopilotClient.resumeSession session resume request completed. Elapsed={Elapsed}, SessionId="
+                                        + sessionId,
+                                rpcNanos);
+                        session.setWorkspacePath(response.workspacePath());
+                        session.setCapabilities(response.capabilities());
+                        warnIfMcpAppsDropped(config.isEnableMcpApps(), response.capabilities(), sessionId);
+                        // If the server returned a different sessionId than what was requested,
+                        // re-key.
+                        String returnedId = response.sessionId();
+                        if (returnedId != null && !returnedId.equals(sessionId)) {
+                            sessions.remove(sessionId);
+                            session.setActiveSessionId(returnedId);
+                            sessions.put(returnedId, session);
+                        }
+
+                        return updateSessionOptionsForMode(session, config.getSkipCustomInstructions().orElse(null),
+                                config.getCustomAgentsLocalOnly().orElse(null),
+                                config.getCoauthorEnabled().orElse(null),
+                                config.getManageScheduleEnabled().orElse(null)).thenApply(v -> {
+                                    LoggingHelpers.logTiming(LOG, Level.FINE,
+                                            "CopilotClient.resumeSession complete. Elapsed={Elapsed}, SessionId="
+                                                    + sessionId,
+                                            totalNanos);
+                                    return session;
+                                });
+                    }).exceptionally(ex -> {
+                        sessions.remove(sessionId);
+                        // Also remove the re-keyed entry if the server returned a different ID
+                        String activeId = session.getSessionId();
+                        if (!sessionId.equals(activeId)) {
+                            sessions.remove(activeId);
+                        }
+                        LoggingHelpers.logTiming(LOG, Level.WARNING, ex,
+                                "CopilotClient.resumeSession failed. Elapsed={Elapsed}, SessionId=" + sessionId,
+                                totalNanos);
+                        throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
+                    });
+        });
+    }
+
+    /**
+     * Applies the post-create / post-resume {@code session.options.update} patch.
+     * <p>
+     * In {@link CopilotClientMode#EMPTY EMPTY} mode this defaults the four
+     * overridable feature flags to safe values (caller values from the config win);
+     * {@code installedPlugins=[]} is unconditional under empty mode so apps that
+     * need plugins must switch modes. In {@link CopilotClientMode#COPILOT_CLI
+     * COPILOT_CLI} mode only explicitly-set fields are forwarded.
+     *
+     * @param session
+     *            the session to patch
+     * @param skipCustomInstructions
+     *            caller-supplied value, or {@code null} if not set
+     * @param customAgentsLocalOnly
+     *            caller-supplied value, or {@code null} if not set
+     * @param coauthorEnabled
+     *            caller-supplied value, or {@code null} if not set
+     * @param manageScheduleEnabled
+     *            caller-supplied value, or {@code null} if not set
+     * @return a future that completes when the patch has been applied
+     */
+    CompletableFuture<Void> updateSessionOptionsForMode(CopilotSession session, Boolean skipCustomInstructions,
+            Boolean customAgentsLocalOnly, Boolean coauthorEnabled, Boolean manageScheduleEnabled) {
+
+        Boolean patchSkip = null;
+        Boolean patchAgents = null;
+        Boolean patchCoauthor = null;
+        Boolean patchSchedule = null;
+        List<SessionInstalledPlugin> patchPlugins = null;
+        boolean hasAnyPatch = false;
+
+        if (options.getMode() == CopilotClientMode.EMPTY) {
+            patchSkip = skipCustomInstructions != null ? skipCustomInstructions : true;
+            patchAgents = customAgentsLocalOnly != null ? customAgentsLocalOnly : true;
+            patchCoauthor = coauthorEnabled != null ? coauthorEnabled : false;
+            patchSchedule = manageScheduleEnabled != null ? manageScheduleEnabled : false;
+            patchPlugins = List.of();
+            hasAnyPatch = true;
+        } else {
+            if (skipCustomInstructions != null) {
+                patchSkip = skipCustomInstructions;
+                hasAnyPatch = true;
+            }
+            if (customAgentsLocalOnly != null) {
+                patchAgents = customAgentsLocalOnly;
+                hasAnyPatch = true;
+            }
+            if (coauthorEnabled != null) {
+                patchCoauthor = coauthorEnabled;
+                hasAnyPatch = true;
+            }
+            if (manageScheduleEnabled != null) {
+                patchSchedule = manageScheduleEnabled;
+                hasAnyPatch = true;
+            }
+        }
+
+        if (!hasAnyPatch) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        var params = new SessionOptionsUpdateParams(null, // sessionId — set by SessionOptionsApi
+                null, // model
+                null, // reasoningEffort
+                null, // clientName
+                null, // lspClientName
+                null, // integrationId
+                null, // featureFlags
+                null, // isExperimentalMode
+                null, // provider
+                null, // workingDirectory
+                null, // availableTools
+                null, // excludedTools
+                null, // toolFilterPrecedence
+                null, // enableScriptSafety
+                null, // shellInitProfile
+                null, // shellProcessFlags
+                null, // sandboxConfig
+                null, // logInteractiveShells
+                null, // envValueMode
+                null, // skillDirectories
+                null, // disabledSkills
+                null, // enableOnDemandInstructionDiscovery
+                patchPlugins, // installedPlugins
+                patchAgents, // customAgentsLocalOnly
+                patchSkip, // skipCustomInstructions
+                null, // disabledInstructionSources
+                patchCoauthor, // coauthorEnabled
+                null, // trajectoryFile
+                null, // enableStreaming
+                null, // copilotUrl
+                null, // askUserDisabled
+                null, // continueOnAutoMode
+                null, // runningInInteractiveMode
+                null, // enableReasoningSummaries
+                null, // agentContext
+                null, // eventsLogDirectory
+                null, // additionalContentExclusionPolicies
+                patchSchedule // manageScheduleEnabled
+        );
+
+        return session.getRpc().options.update(params).<Void>thenCompose(result -> {
+            LOG.fine("session.options.update applied for session " + session.getSessionId());
+            return CompletableFuture.completedFuture(null);
+        }).exceptionally(ex -> {
+            // The runtime session exists but the post-create options patch failed.
+            // Best-effort disconnect so we don't leak it (in empty mode it would
+            // otherwise stay alive with permissive defaults).
+            LOG.log(Level.WARNING, "session.options.update failed for session " + session.getSessionId(), ex);
+            sessions.remove(session.getSessionId());
+            try {
+                session.close();
+            } catch (Exception closeEx) {
+                // Swallow: original error is the one the caller needs.
+            }
+            throw ex instanceof RuntimeException re ? re : new RuntimeException(ex);
         });
     }
 
