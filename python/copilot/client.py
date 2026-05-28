@@ -91,7 +91,6 @@ from .tools import Tool
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================================
 # Connection Types
 # ============================================================================
@@ -1653,7 +1652,7 @@ class CopilotClient:
                 ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
                 override) is on; otherwise the request is silently dropped.
                 Inspect ``capabilities.ui.mcpApps`` on the create response to
-                detect the drop (the SDK also logs a warning).
+                detect the drop.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -2138,7 +2137,7 @@ class CopilotClient:
                 ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
                 override) is on; otherwise the request is silently dropped.
                 Inspect ``capabilities.ui.mcpApps`` on the resume response to
-                detect the drop (the SDK also logs a warning).
+                detect the drop.
             continue_pending_work: When True, instructs the runtime to continue any
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime

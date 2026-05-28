@@ -1061,7 +1061,7 @@ public class SessionConfig {
      * If the runtime gate is off, the opt-in is silently dropped server-side (the
      * runtime logs a warning); the session is created normally but the MCP Apps
      * surface is unavailable. Inspect {@link SessionUiCapabilities#getMcpApps()} on
-     * {@link com.github.copilot.sdk.CopilotSession#getCapabilities()} to detect
+     * {@link com.github.copilot.CopilotSession#getCapabilities()} to detect
      * this.
      * <p>
      * SDK consumers MUST set this to {@code true} only when they have an iframe

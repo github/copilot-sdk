@@ -1153,8 +1153,8 @@ pub struct SessionConfig {
     /// without a renderer will cause MCP servers to register UI-enabled
     /// tool variants the consumer cannot display.
     ///
-    /// Defaults to `false`.
-    pub enable_mcp_apps: bool,
+    /// Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
@@ -1383,7 +1383,7 @@ impl Default for SessionConfig {
             excluded_tools: None,
             mcp_servers: None,
             enable_config_discovery: None,
-            enable_mcp_apps: false,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1511,7 +1511,7 @@ impl SessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
-            request_mcp_apps: self.enable_mcp_apps,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -1759,9 +1759,9 @@ impl SessionConfig {
     }
 
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
-    /// to `false`. See [`SessionConfig::enable_mcp_apps`].
+    /// to `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
     pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
-        self.enable_mcp_apps = enable;
+        self.enable_mcp_apps = Some(enable);
         self
     }
 
@@ -1963,8 +1963,8 @@ pub struct ResumeSessionConfig {
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
-    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `false`.
-    pub enable_mcp_apps: bool,
+    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
@@ -2208,7 +2208,7 @@ impl ResumeSessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
-            request_mcp_apps: self.enable_mcp_apps,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -2270,7 +2270,7 @@ impl ResumeSessionConfig {
             excluded_tools: None,
             mcp_servers: None,
             enable_config_discovery: None,
-            enable_mcp_apps: false,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -2497,9 +2497,9 @@ impl ResumeSessionConfig {
     }
 
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
-    /// `false`. See [`SessionConfig::enable_mcp_apps`].
+    /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
     pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
-        self.enable_mcp_apps = enable;
+        self.enable_mcp_apps = Some(enable);
         self
     }
 
@@ -3956,7 +3956,7 @@ mod tests {
     #[test]
     fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
         let cfg = SessionConfig::default().with_enable_mcp_apps(true);
-        assert!(cfg.enable_mcp_apps);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
 
         let (wire, _runtime) = cfg
             .into_wire(Some(SessionId::from("enable-mcp-apps")))
@@ -3971,7 +3971,7 @@ mod tests {
     fn resume_session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
         let cfg = ResumeSessionConfig::new(SessionId::from("resume-enable-mcp-apps"))
             .with_enable_mcp_apps(true);
-        assert!(cfg.enable_mcp_apps);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
 
         let (wire, _runtime) = cfg
             .into_wire()
