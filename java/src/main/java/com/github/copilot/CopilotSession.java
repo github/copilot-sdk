@@ -478,6 +478,7 @@ public final class CopilotSession implements AutoCloseable {
         request.setMode(options.getMode());
         request.setAgentMode(options.getAgentMode());
         request.setRequestHeaders(options.getRequestHeaders());
+        request.setDisplayPrompt(options.getDisplayPrompt());
 
         return rpc.invoke("session.send", request, SendMessageResponse.class).thenApply(SendMessageResponse::messageId);
     }

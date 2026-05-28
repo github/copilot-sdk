@@ -371,6 +371,9 @@ impl Session {
         {
             params["requestHeaders"] = serde_json::to_value(headers)?;
         }
+        if let Some(display_prompt) = opts.display_prompt {
+            params["displayPrompt"] = serde_json::to_value(display_prompt)?;
+        }
         let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
             TraceContext {
                 traceparent: opts.traceparent,

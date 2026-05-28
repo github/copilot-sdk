@@ -3107,6 +3107,8 @@ pub struct MessageOptions {
     ///
     /// Per-turn override paired with [`traceparent`](Self::traceparent).
     pub tracestate: Option<String>,
+    /// If provided, this is shown in the timeline instead of `prompt`.
+    pub display_prompt: Option<String>,
 }
 
 impl MessageOptions {
@@ -3121,6 +3123,7 @@ impl MessageOptions {
             request_headers: None,
             traceparent: None,
             tracestate: None,
+            display_prompt: None,
         }
     }
 
@@ -3179,6 +3182,12 @@ impl MessageOptions {
     /// Set the W3C `tracestate` header for this turn.
     pub fn with_tracestate(mut self, tracestate: impl Into<String>) -> Self {
         self.tracestate = Some(tracestate.into());
+        self
+    }
+
+    /// Set the display prompt shown in the timeline instead of `prompt`.
+    pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
+        self.display_prompt = Some(display_prompt.into());
         self
     }
 }

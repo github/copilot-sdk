@@ -43,6 +43,9 @@ public final class SendMessageRequest {
     @JsonProperty("requestHeaders")
     private Map<String, String> requestHeaders;
 
+    @JsonProperty("displayPrompt")
+    private String displayPrompt;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -101,5 +104,20 @@ public final class SendMessageRequest {
     /** Sets the per-turn request headers. @param requestHeaders the headers map */
     public void setRequestHeaders(Map<String, String> requestHeaders) {
         this.requestHeaders = requestHeaders;
+    }
+
+    /** Gets the display prompt. @return the display prompt */
+    public String getDisplayPrompt() {
+        return displayPrompt;
+    }
+
+    /**
+     * Sets the display prompt shown in the timeline instead of the prompt.
+     *
+     * @param displayPrompt
+     *            the display prompt
+     */
+    public void setDisplayPrompt(String displayPrompt) {
+        this.displayPrompt = displayPrompt;
     }
 }
