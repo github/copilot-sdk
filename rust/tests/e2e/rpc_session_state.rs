@@ -75,6 +75,7 @@ async fn should_call_session_rpc_model_switchto() {
                         reasoning_effort: Some("none".to_string()),
                         model_capabilities: None,
                         reasoning_summary: None,
+                        ..Default::default()
                     })
                     .await
                     .expect("switch model");

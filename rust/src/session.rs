@@ -525,6 +525,7 @@ impl Session {
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
             model_capabilities: opts.model_capabilities,
+            ..ModelSwitchToRequest::default()
         };
         self.rpc().model().switch_to(request).await?;
         Ok(())
