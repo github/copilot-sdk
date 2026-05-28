@@ -1720,7 +1720,12 @@ async fn send_and_wait_returns_error_on_session_error() {
         .unwrap()
         .unwrap_err();
     assert!(
-        matches!(err, github_copilot_sdk::Error::Session(github_copilot_sdk::SessionError::AgentError(ref msg)) if msg.contains("something went wrong"))
+        matches!(
+            err.kind(),
+            github_copilot_sdk::ErrorKind::Session(
+                github_copilot_sdk::SessionErrorKind::AgentError
+            )
+        ) && err.to_string().contains("something went wrong")
     );
 }
 
@@ -1749,8 +1754,8 @@ async fn send_and_wait_times_out() {
         .unwrap()
         .unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Session(github_copilot_sdk::SessionError::Timeout(_))
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Session(github_copilot_sdk::SessionErrorKind::Timeout(_))
     ));
 }
 
@@ -2594,17 +2599,17 @@ async fn elicitation_methods_fail_without_capability() {
         .await
         .unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Session(
-            github_copilot_sdk::SessionError::ElicitationNotSupported
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Session(
+            github_copilot_sdk::SessionErrorKind::ElicitationNotSupported
         )
     ));
 
     let err = session.ui().confirm("ok?").await.unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Session(
-            github_copilot_sdk::SessionError::ElicitationNotSupported
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Session(
+            github_copilot_sdk::SessionErrorKind::ElicitationNotSupported
         )
     ));
 }
@@ -3081,8 +3086,11 @@ impl CommandHandler for CountingCommandHandler {
     async fn on_command(&self, ctx: CommandContext) -> Result<(), github_copilot_sdk::Error> {
         *self.last_ctx.lock() = Some(ctx);
         if let Some(message) = &self.error_to_return {
-            Err(github_copilot_sdk::Error::Session(
-                github_copilot_sdk::SessionError::AgentError(message.clone()),
+            Err(github_copilot_sdk::Error::with_message(
+                github_copilot_sdk::ErrorKind::Session(
+                    github_copilot_sdk::SessionErrorKind::AgentError,
+                ),
+                message.clone(),
             ))
         } else {
             Ok(())
@@ -3303,8 +3311,9 @@ async fn command_execute_handler_error_propagates_to_ack() {
 // SessionFsProvider tests --------------------------------------------------
 
 use github_copilot_sdk::session_fs::{
-    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConventions, SessionFsProvider,
-    SessionFsSqliteProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConventions,
+    SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
 };
 
 struct RecordingFsProvider {
@@ -3333,7 +3342,7 @@ impl SessionFsProvider for RecordingFsProvider {
             .lock()
             .get(path)
             .cloned()
-            .ok_or_else(|| FsError::NotFound(path.to_string()))
+            .ok_or_else(|| FsError::from(FsErrorKind::NotFound(path.to_string())))
     }
 
     async fn write_file(
@@ -3352,7 +3361,7 @@ impl SessionFsProvider for RecordingFsProvider {
         let files = self.files.lock();
         let content = files
             .get(path)
-            .ok_or_else(|| FsError::NotFound(path.to_string()))?;
+            .ok_or_else(|| FsError::from(FsErrorKind::NotFound(path.to_string())))?;
         Ok(FileInfo::new(
             true,
             false,
@@ -3372,7 +3381,7 @@ impl SessionFsProvider for RecordingFsProvider {
     async fn rm(&self, path: &str, _recursive: bool, force: bool) -> Result<(), FsError> {
         let mut files = self.files.lock();
         if files.remove(path).is_none() && !force {
-            return Err(FsError::NotFound(path.to_string()));
+            return Err(FsError::from(FsErrorKind::NotFound(path.to_string())));
         }
         Ok(())
     }
@@ -3514,7 +3523,10 @@ async fn session_fs_maps_other_to_unknown() {
     #[async_trait]
     impl SessionFsProvider for AlwaysFails {
         async fn stat(&self, _path: &str) -> Result<FileInfo, FsError> {
-            Err(FsError::Other("backing store unavailable".to_string()))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "backing store unavailable",
+            ))
         }
     }
 
@@ -3605,11 +3617,17 @@ async fn session_fs_maps_sqlite_errors_to_results() {
             _query: &str,
             _params: Option<&std::collections::HashMap<String, serde_json::Value>>,
         ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
-            Err(FsError::Other("sqlite unavailable".to_string()))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "sqlite unavailable",
+            ))
         }
 
         async fn sqlite_exists(&self) -> Result<bool, FsError> {
-            Err(FsError::Other("sqlite unavailable".to_string()))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "sqlite unavailable",
+            ))
         }
     }
 
@@ -3737,7 +3755,7 @@ async fn create_session_errors_when_provider_required_but_missing() {
     // through Client::start; the unit-level behavior is covered by the
     // SessionError::SessionFsProviderRequired variant being constructible.
     // This test asserts the error type's display formatting is stable.
-    let err = github_copilot_sdk::SessionError::SessionFsProviderRequired;
+    let err = github_copilot_sdk::SessionErrorKind::SessionFsProviderRequired;
     assert!(format!("{err}").contains("session_fs"));
 }
 

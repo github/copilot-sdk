@@ -1443,10 +1443,10 @@ impl SessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -2128,10 +2128,10 @@ impl ResumeSessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
