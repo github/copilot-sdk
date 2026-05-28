@@ -435,13 +435,13 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const spy = vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
-            async (method: string, params: any) => {
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
                 if (method === "session.options.update") return {};
                 throw new Error(`Unexpected method: ${method}`);
-            }
-        );
+            });
         await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
 
         const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
@@ -465,13 +465,13 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const spy = vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
-            async (method: string, params: any) => {
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
                 if (method === "session.options.update") return {};
                 throw new Error(`Unexpected method: ${method}`);
-            }
-        );
+            });
         await client.createSession({
             onPermissionRequest: approveAll,
             availableTools: [],
@@ -487,14 +487,14 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const spy = vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
-            async (method: string, params: any) => {
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 if (method === "session.options.update") return {};
                 throw new Error(`Unexpected method: ${method}`);
-            }
-        );
+            });
         await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
         await client.resumeSession("s1", { onPermissionRequest: approveAll, availableTools: [] });
 
@@ -507,14 +507,14 @@ describe("CopilotClient", () => {
         await client.start();
         onTestFinished(() => client.forceStop());
 
-        const spy = vi.spyOn((client as any).connection!, "sendRequest").mockImplementation(
-            async (method: string, params: any) => {
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
                 if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
                 if (method === "session.resume") return { sessionId: params.sessionId };
                 if (method === "session.options.update") return {};
                 throw new Error(`Unexpected method: ${method}`);
-            }
-        );
+            });
         await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
         await client.resumeSession("s1", {
             onPermissionRequest: approveAll,
