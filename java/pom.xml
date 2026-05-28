@@ -307,6 +307,33 @@
                     </execution>
                 </executions>
             </plugin>
+            <!--
+                Failsafe runs integration tests against the actually packaged
+                JAR (after the package phase). Used to validate multi-release
+                JAR behaviour end-to-end without reflecting on private fields
+                or hand-rolling a synthetic JAR. See
+                src/test/java/com/github/copilot/InternalExecutorProviderIT.java.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <project.build.directory>${project.build.directory}</project.build.directory>
+                        <project.build.finalName>${project.build.finalName}</project.build.finalName>
+                        <project.build.testOutputDirectory>${project.build.testOutputDirectory}</project.build.testOutputDirectory>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
