@@ -100,13 +100,9 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildCreateRequestSetsPluginDirectoriesAndLargeOutput() {
-        var largeOutput = new LargeToolOutputConfig()
-                .setEnabled(true)
-                .setMaxSizeBytes(1024L)
+        var largeOutput = new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L)
                 .setOutputDirectory("/tmp/out");
-        var config = new SessionConfig()
-                .setPluginDirectories(List.of("/plugins/a"))
-                .setLargeOutput(largeOutput);
+        var config = new SessionConfig().setPluginDirectories(List.of("/plugins/a")).setLargeOutput(largeOutput);
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertEquals(List.of("/plugins/a"), request.getPluginDirectories());
         assertEquals(largeOutput, request.getLargeOutput());
@@ -243,13 +239,9 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildResumeRequestSetsPluginDirectoriesAndLargeOutput() {
-        var largeOutput = new LargeToolOutputConfig()
-                .setEnabled(false)
-                .setMaxSizeBytes(2048L)
+        var largeOutput = new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L)
                 .setOutputDirectory("/tmp/resume");
-        var config = new ResumeSessionConfig()
-                .setPluginDirectories(List.of("/plugins/r"))
-                .setLargeOutput(largeOutput);
+        var config = new ResumeSessionConfig().setPluginDirectories(List.of("/plugins/r")).setLargeOutput(largeOutput);
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-12", config);
         assertEquals(List.of("/plugins/r"), request.getPluginDirectories());
         assertEquals(largeOutput, request.getLargeOutput());

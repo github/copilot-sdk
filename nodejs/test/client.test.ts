@@ -128,8 +128,12 @@ describe("CopilotClient", () => {
             reasoningSummary: "none",
         });
 
-        const createPayload = spy.mock.calls.find(([method]) => method === "session.create")![1] as any;
-        const resumePayload = spy.mock.calls.find(([method]) => method === "session.resume")![1] as any;
+        const createPayload = spy.mock.calls.find(
+            ([method]) => method === "session.create"
+        )![1] as any;
+        const resumePayload = spy.mock.calls.find(
+            ([method]) => method === "session.resume"
+        )![1] as any;
         expect(createPayload.reasoningSummary).toBe("concise");
         expect(resumePayload.reasoningSummary).toBe("none");
     });

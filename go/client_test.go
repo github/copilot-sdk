@@ -439,9 +439,9 @@ func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	enabled := true
 	maxBytes := 1024
 	largeOutput := &LargeToolOutputConfig{
-		Enabled:      &enabled,
-		MaxSizeBytes: &maxBytes,
-		OutputDirectory:    "/tmp/large-output",
+		Enabled:         &enabled,
+		MaxSizeBytes:    &maxBytes,
+		OutputDirectory: "/tmp/large-output",
 	}
 
 	expectedLargeOutput := map[string]any{

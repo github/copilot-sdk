@@ -1774,13 +1774,11 @@ public final class CopilotSession implements AutoCloseable {
             }
             generatedCapabilities = new ModelCapabilitiesOverride(supports, limits);
         }
-        var generatedReasoningSummary = reasoningSummary == null ? null
+        var generatedReasoningSummary = reasoningSummary == null
+                ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
-        return getRpc().model
-                .switchTo(
-                        new SessionModelSwitchToParams(sessionId, model, reasoningEffort, generatedReasoningSummary,
-                                generatedCapabilities))
-                .thenApply(r -> null);
+        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
+                generatedReasoningSummary, generatedCapabilities)).thenApply(r -> null);
     }
 
     /**

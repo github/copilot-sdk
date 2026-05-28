@@ -117,7 +117,8 @@ class ConfigCloneTest {
         original.setModel("gpt-4o");
         original.setReasoningSummary("detailed");
         original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
-        original.setLargeOutput(new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
+        original.setLargeOutput(
+                new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
         original.setStreaming(true);
 
         SessionConfig cloned = original.clone();
@@ -171,7 +172,8 @@ class ConfigCloneTest {
         original.setModel("o1");
         original.setReasoningSummary("none");
         original.setPluginDirectories(List.of("/plugins/r"));
-        original.setLargeOutput(new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L).setOutputDirectory("/tmp/resume"));
+        original.setLargeOutput(
+                new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L).setOutputDirectory("/tmp/resume"));
         original.setStreaming(false);
 
         ResumeSessionConfig cloned = original.clone();

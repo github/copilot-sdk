@@ -185,8 +185,8 @@ public class SessionConfig {
 
     /**
      * Sets the reasoning summary mode for models that support configurable
-     * reasoning summaries. Use {@code "none"} to suppress summary output
-     * regardless of whether reasoning is enabled.
+     * reasoning summaries. Use {@code "none"} to suppress summary output regardless
+     * of whether reasoning is enabled.
      *
      * @param reasoningSummary
      *            the reasoning summary mode

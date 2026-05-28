@@ -7,8 +7,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Configuration for large tool output handling.
  * <p>
  * When a tool produces output exceeding {@link #getMaxSizeBytes()}, the SDK
- * writes the full output to a file in {@link #getOutputDirectory()} and returns a
- * truncated preview to the model.
+ * writes the full output to a file in {@link #getOutputDirectory()} and returns
+ * a truncated preview to the model.
  *
  * @since 1.3.0
  */

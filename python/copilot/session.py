@@ -64,11 +64,13 @@ from .generated.session_events import (
     ExternalToolRequestedData,
     PermissionRequest,
     PermissionRequestedData,
-    ReasoningSummary as _RpcReasoningSummary,
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
     session_event_from_dict,
+)
+from .generated.session_events import (
+    ReasoningSummary as _RpcReasoningSummary,
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 

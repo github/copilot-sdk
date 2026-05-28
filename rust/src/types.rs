@@ -4084,14 +4084,16 @@ mod tests {
     fn session_config_into_wire_serializes_plugin_directories_and_large_output() {
         use std::path::PathBuf;
 
-        let mut cfg = SessionConfig::default();
-        cfg.plugin_directories = Some(vec![PathBuf::from("/tmp/plugins")]);
-        cfg.large_output = Some(
-            LargeToolOutputConfig::new()
-                .with_enabled(true)
-                .with_max_size_bytes(1024)
-                .with_output_directory(PathBuf::from("/tmp/large-output")),
-        );
+        let cfg = SessionConfig {
+            plugin_directories: Some(vec![PathBuf::from("/tmp/plugins")]),
+            large_output: Some(
+                LargeToolOutputConfig::new()
+                    .with_enabled(true)
+                    .with_max_size_bytes(1024)
+                    .with_output_directory(PathBuf::from("/tmp/large-output")),
+            ),
+            ..Default::default()
+        };
 
         let (wire, _) = cfg
             .into_wire(Some(SessionId::from("sess-1")))

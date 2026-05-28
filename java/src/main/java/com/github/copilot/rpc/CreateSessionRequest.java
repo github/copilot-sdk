@@ -188,7 +188,10 @@ public final class CreateSessionRequest {
         return reasoningSummary;
     }
 
-    /** Sets the reasoning summary mode. @param reasoningSummary the reasoning summary mode */
+    /**
+     * Sets the reasoning summary mode. @param reasoningSummary the reasoning
+     * summary mode
+     */
     public void setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
     }
