@@ -580,6 +580,9 @@ export interface SessionCapabilities {
          * create/resume **and** the runtime's `MCP_APPS` feature flag (or
          * `COPILOT_MCP_APPS=true` env override) is on. Otherwise absent or
          * `false`, indicating the runtime silently dropped the opt-in.
+         *
+         * @experimental This property is part of an experimental wire-protocol surface
+         * (SEP-1865) and may change or be removed in a future release.
          */
         mcpApps?: boolean;
         /** Whether the host supports canvas rendering. */
@@ -1731,6 +1734,9 @@ export interface SessionConfigBase {
      * renderer that can display `ui://` MCP App bundles. Setting it without a
      * renderer will cause MCP servers to register UI-enabled tool variants
      * the consumer cannot display.
+     *
+     * @experimental This option is part of an experimental wire-protocol surface
+     * (SEP-1865) and may change or be removed in a future release.
      *
      * @default false
      */

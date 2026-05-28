@@ -989,6 +989,9 @@ type SessionConfig struct {
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
 	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on this session.
 	//
+	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// surface (SEP-1865) and may change or be removed in a future release.
+	//
 	// When true AND the runtime has MCP Apps enabled (via the MCP_APPS feature
 	// flag or COPILOT_MCP_APPS=true environment override), the runtime adds the
 	// mcp-apps capability to the session, which causes it to advertise the
@@ -1114,6 +1117,9 @@ type UICapabilities struct {
 	// create/resume AND the runtime's MCP_APPS feature flag (or
 	// COPILOT_MCP_APPS=true env override) is on. Otherwise false, indicating
 	// the runtime silently dropped the opt-in.
+	//
+	// Experimental: McpApps is part of an experimental wire-protocol surface
+	// (SEP-1865) and may change or be removed in a future release.
 	McpApps bool `json:"mcpApps,omitempty"`
 }
 
@@ -1303,6 +1309,9 @@ type ResumeSessionConfig struct {
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
 	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on resume.
 	// See SessionConfig.EnableMcpApps.
+	//
+	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// surface (SEP-1865) and may change or be removed in a future release.
 	EnableMcpApps bool
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.resume`. See SessionConfig.Canvases.

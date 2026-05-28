@@ -1138,6 +1138,7 @@ public sealed class SessionUiCapabilities
     /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
     /// <c>false</c>, indicating the runtime silently dropped the opt-in.
     /// </summary>
+    [Experimental(Diagnostics.Experimental)]
     public bool? McpApps { get; set; }
 }
 
@@ -2539,6 +2540,7 @@ public abstract class SessionConfigBase
     /// to register UI-enabled tool variants the consumer cannot display.
     /// </para>
     /// </summary>
+    [Experimental(Diagnostics.Experimental)]
     public bool EnableMcpApps { get; set; }
 
     /// <summary>Hook handlers for session lifecycle events.</summary>

@@ -1131,6 +1131,9 @@ pub struct SessionConfig {
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
     ///
     /// When `true` **and** the runtime has MCP Apps enabled (via the
@@ -1758,6 +1761,9 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
     /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
     /// to `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
     pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
@@ -1962,6 +1968,9 @@ pub struct ResumeSessionConfig {
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
     /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
     pub enable_mcp_apps: Option<bool>,
@@ -2496,6 +2505,9 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
     /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
     /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
     pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
@@ -3640,6 +3652,9 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// **Experimental.** This field is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
     /// Whether the runtime has accepted the session's MCP Apps (SEP-1865)
     /// opt-in. `Some(true)` when the consumer set
     /// [`SessionConfig::enable_mcp_apps`] / [`ResumeSessionConfig::enable_mcp_apps`]

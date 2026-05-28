@@ -1646,8 +1646,10 @@ class CopilotClient:
                 session. Optionally associates repository metadata with the
                 cloud session.
             on_event: Callback for session events.
-            enable_mcp_apps: Opt into MCP Apps (SEP-1865) UI passthrough.
-                When True, the SDK sends ``requestMcpApps: True`` on
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
                 ``session.create``. The runtime only honors the opt-in when its
                 ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
                 override) is on; otherwise the request is silently dropped.
@@ -2131,8 +2133,10 @@ class CopilotClient:
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
-            enable_mcp_apps: Opt into MCP Apps (SEP-1865) UI passthrough on
-                resume. When True, the SDK sends ``requestMcpApps: True`` on
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough on resume. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
                 ``session.resume``. The runtime only honors the opt-in when its
                 ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
                 override) is on; otherwise the request is silently dropped.
