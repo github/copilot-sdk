@@ -2644,6 +2644,103 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
 }
 
 #[tokio::test]
+async fn session_canvas_opened_updates_open_canvas_snapshots() {
+    let (session, mut server) = create_session_pair().await;
+    assert!(session.open_canvases().is_empty());
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "instanceId": "missing-required-fields",
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "extensionName": "Counter Provider",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter",
+                "status": "ready",
+                "url": "https://example.test/counter",
+                "input": { "seed": 1 },
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": "logs-1",
+                "title": "Logs",
+                "reopen": false,
+                "availability": "stale"
+            }),
+        )
+        .await;
+
+    let mut open = Vec::new();
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].title.as_deref(), Some("Counter"));
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
+    assert_eq!(open[1].instance_id, "logs-1");
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "extensionName": "Counter Provider",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter Updated",
+                "status": "reconnected",
+                "url": "https://example.test/counter-updated",
+                "input": { "seed": 2 },
+                "reopen": true,
+                "availability": "stale"
+            }),
+        )
+        .await;
+
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 && open[0].title.as_deref() == Some("Counter Updated") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].title.as_deref(), Some("Counter Updated"));
+    assert_eq!(open[0].status.as_deref(), Some("reconnected"));
+    assert_eq!(
+        open[0].url.as_deref(),
+        Some("https://example.test/counter-updated")
+    );
+    assert_eq!(open[0].input, Some(serde_json::json!({ "seed": 2 })));
+    assert!(open[0].reopen);
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Stale);
+    assert_eq!(open[1].instance_id, "logs-1");
+}
+
+#[tokio::test]
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair().await;
 

@@ -131,9 +131,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// Canvas instances currently known to be open for this session.
     /// </summary>
     /// <remarks>
-    /// Populated from the most recent <c>session.create</c> / <c>session.resume</c>
-    /// response. This snapshot is not refreshed automatically when canvases open or
-    /// close after the session is established.
+    /// Populated from the most recent <c>session.resume</c> response and live
+    /// <c>session.canvas.opened</c> events.
     /// </remarks>
     [Experimental(Diagnostics.Experimental)]
     public IReadOnlyList<OpenCanvasInstance> OpenCanvases => _openCanvases;
@@ -473,6 +472,8 @@ public sealed partial class CopilotSession : IAsyncDisposable
     /// </remarks>
     internal void DispatchEvent(SessionEvent sessionEvent)
     {
+        UpdateOpenCanvasesFromEvent(sessionEvent);
+
         // Fire broadcast work concurrently (fire-and-forget with error logging).
         // This is done outside the channel so broadcast handlers don't block the
         // consumer loop — important when a secondary client's handler intentionally
@@ -887,6 +888,47 @@ public sealed partial class CopilotSession : IAsyncDisposable
         _openCanvases = canvases is { Count: > 0 }
             ? new List<OpenCanvasInstance>(canvases).AsReadOnly()
             : Array.Empty<OpenCanvasInstance>();
+    }
+
+    private void UpdateOpenCanvasesFromEvent(SessionEvent sessionEvent)
+    {
+        if (sessionEvent is not SessionCanvasOpenedEvent canvasEvent)
+            return;
+
+        var data = canvasEvent.Data;
+        if (string.IsNullOrEmpty(data.InstanceId)
+            || string.IsNullOrEmpty(data.CanvasId)
+            || string.IsNullOrEmpty(data.ExtensionId)
+            || string.IsNullOrEmpty(data.Availability.Value))
+        {
+            _logger.LogWarning("failed to deserialize session.canvas.opened payload");
+            return;
+        }
+
+        UpsertOpenCanvas(new OpenCanvasInstance
+        {
+            Availability = new CanvasInstanceAvailability(data.Availability.Value),
+            CanvasId = data.CanvasId,
+            ExtensionId = data.ExtensionId,
+            ExtensionName = data.ExtensionName,
+            Input = data.Input,
+            InstanceId = data.InstanceId,
+            Reopen = data.Reopen,
+            Status = data.Status,
+            Title = data.Title,
+            Url = data.Url,
+        });
+    }
+
+    private void UpsertOpenCanvas(OpenCanvasInstance canvas)
+    {
+        var canvases = _openCanvases.ToList();
+        var index = canvases.FindIndex(open => open.InstanceId == canvas.InstanceId);
+        if (index >= 0)
+            canvases[index] = canvas;
+        else
+            canvases.Add(canvas);
+        _openCanvases = canvases.AsReadOnly();
     }
 
     internal void SetCanvasHandler(ICanvasHandler? handler)

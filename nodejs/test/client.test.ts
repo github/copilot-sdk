@@ -214,6 +214,77 @@ describe("CopilotClient", () => {
         expect(result).toEqual({ actionName: "increment", input: { amount: 1 } });
     });
 
+    it("tracks open canvases from live session.canvas.opened events", () => {
+        const session = new CopilotSession("session-1", {} as any);
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+        (session as any)._dispatchEvent({
+            type: "session.canvas.opened",
+            data: { instanceId: "missing-required-fields" },
+        });
+        (session as any)._dispatchEvent({
+            type: "session.canvas.opened",
+            data: {
+                extensionId: "project:counter",
+                extensionName: "Counter Provider",
+                canvasId: "counter",
+                instanceId: "counter-1",
+                title: "Counter",
+                status: "ready",
+                url: "https://example.test/counter",
+                input: { seed: 1 },
+                reopen: false,
+                availability: "ready",
+            },
+        });
+        (session as any)._dispatchEvent({
+            type: "session.canvas.opened",
+            data: {
+                extensionId: "project:logs",
+                canvasId: "logs",
+                instanceId: "logs-1",
+                title: "Logs",
+                reopen: false,
+                availability: "stale",
+            },
+        });
+
+        expect(warn).toHaveBeenCalledWith("failed to deserialize session.canvas.opened payload");
+        expect(session.openCanvases.map((canvas) => canvas.instanceId)).toEqual([
+            "counter-1",
+            "logs-1",
+        ]);
+
+        (session as any)._dispatchEvent({
+            type: "session.canvas.opened",
+            data: {
+                extensionId: "project:counter",
+                extensionName: "Counter Provider",
+                canvasId: "counter",
+                instanceId: "counter-1",
+                title: "Counter Updated",
+                status: "reconnected",
+                url: "https://example.test/counter-updated",
+                input: { seed: 2 },
+                reopen: true,
+                availability: "stale",
+            },
+        });
+
+        expect(session.openCanvases).toHaveLength(2);
+        expect(session.openCanvases[0]).toMatchObject({
+            instanceId: "counter-1",
+            title: "Counter Updated",
+            status: "reconnected",
+            url: "https://example.test/counter-updated",
+            input: { seed: 2 },
+            reopen: true,
+            availability: "stale",
+        });
+        expect(session.openCanvases[1].instanceId).toBe("logs-1");
+        warn.mockRestore();
+    });
+
     it("returns canvas_action_no_handler when no per-action handler is registered", async () => {
         const canvas = createCanvas({
             id: "counter",
