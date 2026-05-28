@@ -1385,6 +1385,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
             .field(
@@ -1903,6 +1904,15 @@ impl SessionConfig {
         self
     }
 
+    /// Set embedding cache storage mode.
+    pub fn with_embedding_cache_storage(
+        mut self,
+        embedding_cache_storage: impl Into<String>,
+    ) -> Self {
+        self.embedding_cache_storage = Some(embedding_cache_storage.into());
+        self
+    }
+
     /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
@@ -2325,6 +2335,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
             .field(
@@ -2792,6 +2803,15 @@ impl ResumeSessionConfig {
     /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
+    /// Set embedding cache storage mode on resume.
+    pub fn with_embedding_cache_storage(
+        mut self,
+        embedding_cache_storage: impl Into<String>,
+    ) -> Self {
+        self.embedding_cache_storage = Some(embedding_cache_storage.into());
         self
     }
 
