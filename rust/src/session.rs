@@ -890,6 +890,7 @@ impl Client {
         let setup_start = Instant::now();
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
 
@@ -989,6 +990,7 @@ impl Client {
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
+            open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
         );
@@ -1017,7 +1019,7 @@ impl Client {
             shutdown,
             idle_waiter,
             capabilities,
-            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            open_canvases,
             event_tx,
         };
         apply_mode_post_create_patch(
@@ -1121,6 +1123,7 @@ impl Client {
         let setup_start = Instant::now();
         let channels = self.register_session(&session_id);
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
@@ -1135,6 +1138,7 @@ impl Client {
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
+            open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
         );
@@ -1207,9 +1211,16 @@ impl Client {
         }
 
         *capabilities.write() = resume_result.capabilities.unwrap_or_default();
-        let open_canvases = Arc::new(parking_lot::RwLock::new(
-            resume_result.open_canvases.unwrap_or_default(),
-        ));
+        // Upsert resume snapshots rather than replacing wholesale. Live
+        // `session.canvas.opened` notifications can arrive on the event loop
+        // while `session.resume` is in flight; a wholesale replace would
+        // discard those updates.
+        {
+            let mut snapshots = open_canvases.write();
+            for snapshot in resume_result.open_canvases.unwrap_or_default() {
+                upsert_open_canvas_snapshot(&mut snapshots, snapshot);
+            }
+        }
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1304,6 +1315,20 @@ fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<Comm
     Arc::new(map)
 }
 
+fn upsert_open_canvas_snapshot(
+    snapshots: &mut Vec<OpenCanvasInstance>,
+    snapshot: OpenCanvasInstance,
+) {
+    if let Some(existing) = snapshots
+        .iter_mut()
+        .find(|open| open.instance_id == snapshot.instance_id)
+    {
+        *existing = snapshot;
+    } else {
+        snapshots.push(snapshot);
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn spawn_event_loop(
     session_id: SessionId,
@@ -1317,6 +1342,7 @@ fn spawn_event_loop(
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     shutdown: CancellationToken,
 ) -> JoinHandle<()> {
@@ -1343,7 +1369,7 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &event_tx,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -1414,6 +1440,7 @@ async fn handle_notification(
     notification: SessionEventNotification,
     idle_waiter: &Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
+    open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
     let dispatch_start = Instant::now();
@@ -1482,20 +1509,28 @@ async fn handle_notification(
         _ => {}
     }
 
-    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
-    // only errors when there are no receivers, which is the normal case
-    // before any consumer subscribes.
-    let _ = event_tx.send(event.clone());
-
-    // Update capabilities when the CLI reports changes. The CLI sends
-    // the full updated capabilities object — replace wholesale so removals
-    // and new subfields are handled correctly.
+    // Update the snapshot caches BEFORE broadcasting so subscribers that
+    // call `Session::capabilities()` / `Session::open_canvases()` in
+    // response to the event observe the new state.
     if event_type == SessionEventType::CapabilitiesChanged {
         match serde_json::from_value::<SessionCapabilities>(notification.event.data.clone()) {
             Ok(changed) => *capabilities.write() = changed,
             Err(e) => warn!(error = %e, "failed to deserialize capabilities.changed payload"),
         }
     }
+    if event_type == SessionEventType::SessionCanvasOpened {
+        match serde_json::from_value::<OpenCanvasInstance>(notification.event.data.clone()) {
+            Ok(open_canvas) => {
+                upsert_open_canvas_snapshot(&mut open_canvases.write(), open_canvas);
+            }
+            Err(e) => warn!(error = %e, "failed to deserialize session.canvas.opened payload"),
+        }
+    }
+
+    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
+    // only errors when there are no receivers, which is the normal case
+    // before any consumer subscribes.
+    let _ = event_tx.send(event.clone());
 
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
