@@ -4,7 +4,7 @@ inputs:
   report-path:
     description: "Path to the test report XML files (glob pattern)"
     required: false
-    default: "java/target/surefire-reports*/TEST-*.xml"
+    default: "java/target/{surefire-reports*,failsafe-reports}/TEST-*.xml"
   jacoco-path:
     description: "Path to the JaCoCo XML report"
     required: false

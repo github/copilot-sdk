@@ -21,7 +21,7 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 
 ### Runtime requirements
 
-- Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is copiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
+- Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
 - GitHub Copilot CLI 1.0.55-5. or later installed and in `PATH` (or provide custom `cliPath`)
 
 ### Maven
@@ -30,9 +30,15 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.4</version>
+    <version>1.0.0-beta-10-java.0</version>
 </dependency>
 ```
+
+### Gradle
+
+```groovy
+implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.0'
+
 
 #### Snapshot Builds
 
@@ -168,7 +174,7 @@ mvn clean verify
 
 # Set your paths for JDK 17
 # Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
-mvn antrun:run@print-test-jdk-banner surefire:test -Denforcer.skip=true -DtestExecutionAgentArgs=
+mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
 
 The tests require the official [copilot-sdk](https://github.com/github/copilot-sdk) test harness, which is automatically cloned during build.
