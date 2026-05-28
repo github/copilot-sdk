@@ -21,11 +21,21 @@ import com.github.copilot.rpc.CopilotClientOptions;
 class InternalExecutorProviderTest {
 
     @Test
-    void baseProviderUsesCommonPoolWithoutOwnership() {
+    void baseProviderReturnsCommonPool() {
         Executor executor = new InternalExecutorProvider(null).get();
 
         assertSame(ForkJoinPool.commonPool(), executor);
+    }
+
+    @Test
+    void userProvidedExecutorIsNotOwned() {
+        Executor executor = ForkJoinPool.commonPool();
+
         assertFalse(new InternalExecutorProvider(executor).canBeShutdown());
+    }
+
+    @Test
+    void providerIsPackagePrivate() {
         assertFalse(Modifier.isPublic(InternalExecutorProvider.class.getModifiers()));
     }
 
