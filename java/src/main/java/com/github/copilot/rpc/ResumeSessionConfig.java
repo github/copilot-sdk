@@ -250,7 +250,7 @@ public class ResumeSessionConfig {
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
-     * {@link com.github.copilot.rpc.CopilotClientOptions#getTelemetry()
+     * {@link CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
      *
