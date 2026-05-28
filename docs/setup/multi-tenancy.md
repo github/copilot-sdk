@@ -38,10 +38,11 @@ Do not use the default `mode: "copilot-cli"` for shared servers. That mode is in
 ```typescript
 import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
+// baseDirectory and sessionIdleTimeoutSeconds apply when the SDK spawns the
+// runtime. With RuntimeConnection.forUri(...) configure COPILOT_HOME and the
+// idle timeout on the runtime process itself.
 const client = new CopilotClient({
     mode: "empty",
-    baseDirectory: `/var/lib/my-app/copilot/${runtimeInstanceId}`,
-    sessionIdleTimeoutSeconds: 900,
     connection: RuntimeConnection.forUri(process.env.COPILOT_RUNTIME_URL!),
 });
 
@@ -202,10 +203,10 @@ import java.util.List;
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
 
+// setCopilotHome and setSessionIdleTimeoutSeconds are ignored when
+// setCliUrl is used; configure those on the runtime process instead.
 var client = new CopilotClient(new CopilotClientOptions()
     .setMode(CopilotClientMode.EMPTY)
-    .setCopilotHome("/var/lib/my-app/copilot/" + runtimeInstanceId)
-    .setSessionIdleTimeoutSeconds(900)
     .setCliUrl(runtimeUrl)
 );
 
@@ -292,7 +293,7 @@ When the SDK connects to an already-running runtime with `RuntimeConnection.forU
 const client = new CopilotClient({
     mode: "empty",
     sessionFs: {
-        initialWorkingDirectory: "/workspace",
+        initialCwd: "/workspace",
         sessionStatePath: "/session-state",
         conventions: "posix",
     },
@@ -319,7 +320,7 @@ Use an external runtime connection when multiple SDK clients should share one al
 
 | Language | External runtime connection |
 |----------|-----------------------------|
-| TypeScript | `RuntimeConnection.forUri(url)` or `cliUrl` |
+| TypeScript | `RuntimeConnection.forUri(url)` |
 | Python | `RuntimeConnection.for_uri(url)` |
 | Go | `copilot.UriConnection{URL: url}` |
 | .NET | `RuntimeConnection.ForUri(url)` |

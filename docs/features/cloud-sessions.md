@@ -169,17 +169,16 @@ try (var client = new CopilotClient()) {
 ### Rust
 
 ```rust
+use std::sync::Arc;
 use github_copilot_sdk::{CloudSessionOptions, CloudSessionRepository, SessionConfig};
-use github_copilot_sdk::handler::PermissionResult;
+use github_copilot_sdk::handler::ApproveAllHandler;
 
 let session = client.create_session(
     SessionConfig::default()
         .with_cloud(CloudSessionOptions::with_repository(
             CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
         ))
-        .with_permission_handler(|_req, _inv| async {
-            Ok(PermissionResult::approve_once())
-        }),
+        .with_permission_handler(Arc::new(ApproveAllHandler)),
 ).await?;
 ```
 

@@ -125,10 +125,10 @@ Restart=always
 <summary><strong>Node.js / TypeScript</strong></summary>
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    cliUrl: "localhost:4321",
+    connection: RuntimeConnection.forUri("localhost:4321"),
     mode: "empty",
 });
 
@@ -324,7 +324,7 @@ Pass individual user tokens when creating sessions. See [GitHub OAuth](./github-
 
 ```typescript
 const client = new CopilotClient({
-    cliUrl: "localhost:4321",
+    connection: RuntimeConnection.forUri("localhost:4321"),
     mode: "empty",
 });
 
@@ -351,7 +351,7 @@ Use your own API keys for the model provider. See [BYOK](../auth/byok.md) for de
 
 ```typescript
 const client = new CopilotClient({
-    cliUrl: "localhost:4321",
+    connection: RuntimeConnection.forUri("localhost:4321"),
 });
 
 const session = await client.createSession({
@@ -386,14 +386,14 @@ flowchart TB
 
 ```typescript
 import express from "express";
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const app = express();
 app.use(express.json());
 
 // Single shared CLI connection for multi-user server mode
 const client = new CopilotClient({
-    cliUrl: process.env.CLI_URL || "localhost:4321",
+    connection: RuntimeConnection.forUri(process.env.CLI_URL || "localhost:4321"),
     mode: "empty",
 });
 
@@ -426,10 +426,10 @@ app.listen(3000);
 ### Background worker
 
 ```typescript
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, RuntimeConnection } from "@github/copilot-sdk";
 
 const client = new CopilotClient({
-    cliUrl: process.env.CLI_URL || "localhost:4321",
+    connection: RuntimeConnection.forUri(process.env.CLI_URL || "localhost:4321"),
 });
 
 // Process jobs from a queue
