@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.5-SNAPSHOT</version>
+    <version>1.0.0-beta-10-java.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GitHub Copilot SDK :: Java</name>
@@ -242,6 +242,18 @@
                                         <arg value="FETCH_HEAD" />
                                     </exec>
                                 </sequential>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>print-test-jdk-banner</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo level="warning" message="⚠⚠⚠ Using Java ${java.version} (${java.vendor}) to run tests." />
                             </target>
                         </configuration>
                     </execution>
@@ -519,6 +531,44 @@
                     <publishingServerId>central</publishingServerId>
                     <autoPublish>true</autoPublish>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-jdk25</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[25,)</version>
+                                    <message>JDK 25+ is required to build the Multi-Release JAR with the virtual-thread overlay.</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>verify-multi-release-overlay</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireFilesExist>
+                                    <files>
+                                        <file>${project.build.outputDirectory}/META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class</file>
+                                    </files>
+                                    <message>Multi-Release JAR overlay missing: META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class was not compiled. Ensure the build runs on JDK 25+.</message>
+                                </requireFilesExist>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

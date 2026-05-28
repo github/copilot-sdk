@@ -28,6 +28,12 @@ on:
       - "!**/*.gif"
       - "!**/*.svg"
   workflow_dispatch:
+    inputs:
+      test-jdk17:
+        description: "Also run tests on JDK 17 (compatibility check)"
+        type: boolean
+        required: false
+        default: true
   merge_group:
 
 permissions:
@@ -37,20 +43,10 @@ permissions:
 
 jobs:
   java-sdk:
-    name: "Java SDK Tests (JDK ${{ matrix.java-version }})"
+    name: "Java SDK Tests"
     if: github.event.repository.fork == false
 
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # JDK 17 is the baseline --release target; JDK 25 also activates the
-        # java25-multi-release Maven profile, producing the MR-JAR overlay
-        # (META-INF/versions/25/) and exercising the virtual-thread default
-        # executor branch end-to-end via InternalExecutorProviderIT. The
-        # build-time verify-java25-overlay antrun guard fires only when the
-        # profile is active, so it is also exercised on the JDK 25 entry.
-        java-version: ["17", "25"]
     defaults:
       run:
         shell: bash
@@ -62,7 +58,7 @@ jobs:
 
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
-          java-version: ${{ matrix.java-version }}
+          java-version: "25"
           distribution: "microsoft"
           cache: "maven"
 
@@ -96,12 +92,8 @@ jobs:
           COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
         run: mvn verify
 
-      # Side-effects below (site artifact, JaCoCo badge, badge PR) are scoped
-      # to the JDK 17 matrix entry so the badge source-of-truth and the
-      # uploaded site artifact remain a single, stable baseline regardless
-      # of the second matrix entry's outcome.
       - name: Upload test results for site generation
-        if: success() && github.ref == 'refs/heads/main' && matrix.java-version == '17'
+        if: success() && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-for-site
@@ -112,12 +104,12 @@ jobs:
           retention-days: 1
 
       - name: Generate JaCoCo badge
-        if: success() && github.ref == 'refs/heads/main' && matrix.java-version == '17'
+        if: success() && github.ref == 'refs/heads/main'
         working-directory: .
         run: .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
 
       - name: Create PR for JaCoCo badge update
-        if: success() && github.ref == 'refs/heads/main' && matrix.java-version == '17'
+        if: success() && github.ref == 'refs/heads/main'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
         with:
           commit-message: "Update Java JaCoCo coverage badge"
@@ -130,13 +122,40 @@ jobs:
       - name: Generate Test Report Summary
         if: always()
         uses: ./.github/actions/java-test-report
+        with:
+          title: "Copilot Java SDK :: Test Results (JDK 25)"
 
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-test-results-jdk${{ matrix.java-version }}
+          name: java-test-results
           path: |
             java/target/surefire-reports/
             java/target/surefire-reports-isolated/
           retention-days: 7
+
+      - name: Switch to JDK 17
+        if: inputs.test-jdk17 == true || inputs.test-jdk17 == null
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "17"
+          distribution: "microsoft"
+
+      - name: Re-run tests on JDK 17 (no recompilation)
+        if: inputs.test-jdk17 == true || inputs.test-jdk17 == null
+        env:
+          CI: "true"
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
+        run: |
+          echo "Running tests against JDK 25-built classes using JDK 17 runtime..."
+          java -version
+          mvn antrun:run@print-test-jdk-banner surefire:test -Denforcer.skip=true -DtestExecutionAgentArgs=
+
+      - name: Generate Test Report Summary (JDK 17)
+        if: always() && (inputs.test-jdk17 == true || inputs.test-jdk17 == null)
+        uses: ./.github/actions/java-test-report
+        with:
+          title: "Copilot Java SDK :: Test Results (JDK 17)"
+          show-coverage: "false"
