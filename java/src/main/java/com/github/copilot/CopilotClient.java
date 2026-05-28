@@ -81,6 +81,21 @@ public final class CopilotClient implements AutoCloseable {
      */
     public static final int AUTOCLOSEABLE_TIMEOUT_SECONDS = 10;
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
+
+    /**
+     * One-shot dispatcher used to run the owned-executor shutdown off any caller
+     * thread that might itself belong to that executor (e.g. the
+     * {@link #forceStop()} continuation, which is chained off async work scheduled
+     * on the internal executor). Spawning a fresh daemon thread guarantees
+     * {@link java.util.concurrent.ExecutorService#awaitTermination(long, TimeUnit)}
+     * is never called from inside the very executor it is waiting on.
+     */
+    private static final Executor SHUTDOWN_DISPATCHER = runnable -> {
+        Thread t = new Thread(runnable, "copilot-client-shutdown");
+        t.setDaemon(true);
+        t.start();
+    };
+
     private final CopilotClientOptions options;
     private final Executor executor;
     private final boolean executorCanBeShutdown;
@@ -359,7 +374,12 @@ public final class CopilotClient implements AutoCloseable {
     public CompletableFuture<Void> forceStop() {
         disposed = true;
         sessions.clear();
-        return cleanupConnection().whenComplete((ignored, error) -> shutdownOwnedExecutor());
+        // Dispatch the blocking shutdownOwnedExecutor() on a dedicated thread:
+        // cleanupConnection() is chained off async work running on the owned
+        // executor, so a plain whenComplete(...) here could land the awaitTermination
+        // call on one of the very threads it is waiting to drain, forcing the full
+        // AUTOCLOSEABLE_TIMEOUT_SECONDS timeout followed by shutdownNow().
+        return cleanupConnection().whenCompleteAsync((ignored, error) -> shutdownOwnedExecutor(), SHUTDOWN_DISPATCHER);
     }
 
     private CompletableFuture<Void> cleanupConnection() {
