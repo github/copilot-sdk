@@ -490,9 +490,7 @@ public final class CopilotClient implements AutoCloseable {
             java.util.function.Function<String, CopilotSession> initializeSession = sid -> {
                 long setupNanos = System.nanoTime();
                 var s = new CopilotSession(sid, connection.rpc);
-                if (options.getExecutor() != null) {
-                    s.setExecutor(options.getExecutor());
-                }
+                s.setExecutor(executor);
                 SessionRequestBuilder.configureSession(s, config);
                 if (extracted.transformCallbacks() != null) {
                     s.registerTransformCallbacks(extracted.transformCallbacks());
