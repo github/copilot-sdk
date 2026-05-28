@@ -124,6 +124,8 @@ fn main() {
             extract_to_cache(&archive, &install_dir, platform);
         }
 
+        // Re-check after potential download+extract above; not an `else`
+        // because we need to verify the extraction actually produced the file.
         if final_path.is_file() {
             println!("cargo:rustc-cfg=has_extracted_cli");
         }
