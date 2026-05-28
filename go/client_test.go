@@ -402,6 +402,110 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_ReasoningSummary(t *testing.T) {
+	t.Run("create includes reasoningSummary in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ReasoningSummary: ReasoningSummaryConcise}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["reasoningSummary"] != "concise" {
+			t.Errorf("Expected reasoningSummary to be 'concise', got %v", m["reasoningSummary"])
+		}
+	})
+
+	t.Run("resume includes reasoningSummary in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ReasoningSummary: ReasoningSummaryNone}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["reasoningSummary"] != "none" {
+			t.Errorf("Expected reasoningSummary to be 'none', got %v", m["reasoningSummary"])
+		}
+	})
+}
+
+func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
+	pluginDirs := []string{"/tmp/plugins/a", "/tmp/plugins/b"}
+	enabled := true
+	maxBytes := int64(1024)
+	largeOutput := &LargeToolOutputConfig{
+		Enabled:         &enabled,
+		MaxSizeBytes:    &maxBytes,
+		OutputDirectory: "/tmp/large-output",
+	}
+
+	expectedLargeOutput := map[string]any{
+		"enabled":      true,
+		"maxSizeBytes": float64(1024),
+		"outputDir":    "/tmp/large-output",
+	}
+	expectedPluginDirs := []any{"/tmp/plugins/a", "/tmp/plugins/b"}
+
+	t.Run("create includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
+			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
+			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("resume includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
+			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
+			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("create omits pluginDirectories and largeOutput when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["pluginDirectories"]; ok {
+			t.Errorf("Expected pluginDirectories to be omitted")
+		}
+		if _, ok := m["largeOutput"]; ok {
+			t.Errorf("Expected largeOutput to be omitted")
+		}
+	})
+}
+
 func TestCreateSessionRequest_Agent(t *testing.T) {
 	t.Run("includes agent in JSON when set", func(t *testing.T) {
 		req := createSessionRequest{Agent: "test-agent"}
@@ -1006,6 +1110,65 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["requestElicitation"]; ok {
 			t.Error("Expected requestElicitation to be omitted when not set")
+		}
+	})
+}
+
+func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:      "s1",
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
 		}
 	})
 }

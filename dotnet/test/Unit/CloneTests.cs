@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -68,7 +68,8 @@ public class CloneTests
             ClientName = "my-app",
             Model = "gpt-4",
             ReasoningEffort = "high",
-            ConfigDir = "/config",
+            ReasoningSummary = ReasoningSummary.Detailed,
+            ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
             WorkingDirectory = "/workspace",
@@ -92,6 +93,8 @@ public class CloneTests
             SkillDirectories = ["/skills"],
             InstructionDirectories = ["/instructions"],
             DisabledSkills = ["skill1"],
+            PluginDirectories = ["/plugins"],
+            LargeOutput = new LargeToolOutputConfig { Enabled = true, MaxSizeBytes = 2048, OutputDirectory = "/tmp/out" },
             OnExitPlanModeRequest = static (_, _) => Task.FromResult(new ExitPlanModeResult()),
             OnAutoModeSwitchRequest = static (_, _) => Task.FromResult(AutoModeSwitchResponse.No),
         };
@@ -102,7 +105,8 @@ public class CloneTests
         Assert.Equal(original.ClientName, clone.ClientName);
         Assert.Equal(original.Model, clone.Model);
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
-        Assert.Equal(original.ConfigDir, clone.ConfigDir);
+        Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
+        Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
         Assert.Equal(original.WorkingDirectory, clone.WorkingDirectory);
@@ -119,6 +123,8 @@ public class CloneTests
         Assert.Equal(original.SkillDirectories, clone.SkillDirectories);
         Assert.Equal(original.InstructionDirectories, clone.InstructionDirectories);
         Assert.Equal(original.DisabledSkills, clone.DisabledSkills);
+        Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
+        Assert.Same(original.LargeOutput, clone.LargeOutput);
         Assert.Same(original.OnExitPlanModeRequest, clone.OnExitPlanModeRequest);
         Assert.Same(original.OnAutoModeSwitchRequest, clone.OnAutoModeSwitchRequest);
     }
@@ -356,6 +362,35 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.True(clone.ContinuePendingWork);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesReasoningSummary()
+    {
+        var original = new ResumeSessionConfig
+        {
+            ReasoningSummary = ReasoningSummary.None,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesPluginDirectoriesAndLargeOutput()
+    {
+        var largeOutput = new LargeToolOutputConfig { Enabled = false, MaxSizeBytes = 4096, OutputDirectory = "/tmp/resume" };
+        var original = new ResumeSessionConfig
+        {
+            PluginDirectories = ["/resume/plugins"],
+            LargeOutput = largeOutput,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(original.PluginDirectories, clone.PluginDirectories);
+        Assert.Same(original.LargeOutput, clone.LargeOutput);
     }
 
     [Fact]

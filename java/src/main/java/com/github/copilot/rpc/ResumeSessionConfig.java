@@ -51,12 +51,13 @@ public class ResumeSessionConfig {
     private Boolean coauthorEnabled;
     private Boolean manageScheduleEnabled;
     private String reasoningEffort;
+    private String reasoningSummary;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
-    private String configDir;
+    private String configDirectory;
     private Boolean enableConfigDiscovery;
     private boolean disableResume;
     private boolean streaming;
@@ -68,6 +69,8 @@ public class ResumeSessionConfig {
     private String agent;
     private List<String> skillDirectories;
     private List<String> instructionDirectories;
+    private List<String> pluginDirectories;
+    private LargeToolOutputConfig largeOutput;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
@@ -75,6 +78,7 @@ public class ResumeSessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
 
@@ -470,6 +474,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the reasoning summary mode.
+     *
+     * @return the reasoning summary mode ("none", "concise", or "detailed")
+     */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode for models that support configurable
+     * reasoning summaries. Use {@code "none"} to suppress summary output regardless
+     * of whether reasoning is enabled.
+     *
+     * @param reasoningSummary
+     *            the reasoning summary mode
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
+        return this;
+    }
+
+    /**
      * Gets the permission request handler.
      *
      * @return the permission handler
@@ -561,8 +588,8 @@ public class ResumeSessionConfig {
      *
      * @return the configuration directory path
      */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
     /**
@@ -570,12 +597,12 @@ public class ResumeSessionConfig {
      * <p>
      * Override the default configuration directory location.
      *
-     * @param configDir
+     * @param configDirectory
      *            the configuration directory path
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setConfigDir(String configDir) {
-        this.configDir = configDir;
+    public ResumeSessionConfig setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
         return this;
     }
 
@@ -885,6 +912,48 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the plugin directories to load Open Plugin definitions from.
+     *
+     * @return the list of plugin directory paths
+     */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /**
+     * Sets the plugin directories to load Open Plugin definitions from.
+     *
+     * @param pluginDirectories
+     *            the list of plugin directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the configuration for large tool output handling.
+     *
+     * @return the large output config, or {@code null} for default
+     */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /**
+     * Sets the configuration for large tool output handling.
+     *
+     * @param largeOutput
+     *            the large output config
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+        return this;
+    }
+
+    /**
      * Gets the disabled skills.
      *
      * @return the list of disabled skill names
@@ -1001,6 +1070,31 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setOnElicitationRequest(ElicitationHandler onElicitationRequest) {
         this.onElicitationRequest = onElicitationRequest;
+        return this;
+    }
+
+    /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on resume.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on the resumed session. See
+     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics (runtime
+     * gate, capability inspection, renderer requirement).
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support on resume
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
         return this;
     }
 
@@ -1136,12 +1230,13 @@ public class ResumeSessionConfig {
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.reasoningEffort = this.reasoningEffort;
+        copy.reasoningSummary = this.reasoningSummary;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
-        copy.configDir = this.configDir;
+        copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
         copy.disableResume = this.disableResume;
         copy.streaming = this.streaming;
@@ -1154,6 +1249,8 @@ public class ResumeSessionConfig {
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
+        copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
+        copy.largeOutput = this.largeOutput;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;
@@ -1161,6 +1258,7 @@ public class ResumeSessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         return copy;

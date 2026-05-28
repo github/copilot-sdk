@@ -21,6 +21,7 @@ import com.github.copilot.rpc.ElicitationHandler;
 import com.github.copilot.rpc.ElicitationResult;
 import com.github.copilot.rpc.ElicitationResultAction;
 import com.github.copilot.rpc.ExitPlanModeResult;
+import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.ResumeSessionConfig;
 import com.github.copilot.rpc.ResumeSessionRequest;
 import com.github.copilot.rpc.SessionConfig;
@@ -88,6 +89,23 @@ public class SessionRequestBuilderTest {
         var config = new SessionConfig().setClientName("my-app");
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
         assertEquals("my-app", request.getClientName());
+    }
+
+    @Test
+    void testBuildCreateRequestSetsReasoningSummary() {
+        var config = new SessionConfig().setReasoningSummary("concise");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("concise", request.getReasoningSummary());
+    }
+
+    @Test
+    void testBuildCreateRequestSetsPluginDirectoriesAndLargeOutput() {
+        var largeOutput = new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L)
+                .setOutputDirectory("/tmp/out");
+        var config = new SessionConfig().setPluginDirectories(List.of("/plugins/a")).setLargeOutput(largeOutput);
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals(List.of("/plugins/a"), request.getPluginDirectories());
+        assertEquals(largeOutput, request.getLargeOutput());
     }
 
     @Test
@@ -250,6 +268,23 @@ public class SessionRequestBuilderTest {
     void testBuildResumeRequestNullConfigHasNullMcpOAuthTokenStorage() {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", null);
         assertNull(request.getMcpOAuthTokenStorage());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsReasoningSummary() {
+        var config = new ResumeSessionConfig().setReasoningSummary("none");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-14", config);
+        assertEquals("none", request.getReasoningSummary());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsPluginDirectoriesAndLargeOutput() {
+        var largeOutput = new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L)
+                .setOutputDirectory("/tmp/resume");
+        var config = new ResumeSessionConfig().setPluginDirectories(List.of("/plugins/r")).setLargeOutput(largeOutput);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
+        assertEquals(List.of("/plugins/r"), request.getPluginDirectories());
+        assertEquals(largeOutput, request.getLargeOutput());
     }
 
     // =========================================================================

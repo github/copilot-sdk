@@ -604,7 +604,8 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Model = config.Model
 	req.ClientName = config.ClientName
 	req.ReasoningEffort = config.ReasoningEffort
-	req.ConfigDir = config.ConfigDir
+	req.ReasoningSummary = config.ReasoningSummary
+	req.ConfigDir = config.ConfigDirectory
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
@@ -634,9 +635,11 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
+	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
+	req.LargeOutput = config.LargeOutput
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Cloud = config.Cloud
@@ -659,6 +662,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	}
 	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
+	}
+	if config.EnableMcpApps {
+		req.RequestMcpApps = Bool(true)
 	}
 
 	if config.Streaming != nil {
@@ -901,6 +907,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.ClientName = config.ClientName
 	req.Model = config.Model
 	req.ReasoningEffort = config.ReasoningEffort
+	req.ReasoningSummary = config.ReasoningSummary
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
 	req.SystemMessage = wireSystemMessage
@@ -941,7 +948,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.Hooks = Bool(true)
 	}
 	req.WorkingDirectory = config.WorkingDirectory
-	req.ConfigDir = config.ConfigDir
+	req.ConfigDir = config.ConfigDirectory
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
 	}
@@ -958,9 +965,11 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.DefaultAgent = config.DefaultAgent
 	req.Agent = config.Agent
 	req.SkillDirectories = config.SkillDirectories
+	req.PluginDirectories = config.PluginDirectories
 	req.InstructionDirectories = config.InstructionDirectories
 	req.DisabledSkills = config.DisabledSkills
 	req.InfiniteSessions = config.InfiniteSessions
+	req.LargeOutput = config.LargeOutput
 	req.GitHubToken = config.GitHubToken
 	req.RemoteSession = config.RemoteSession
 	req.Canvases = config.Canvases
@@ -986,6 +995,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
+	}
+	if config.EnableMcpApps {
+		req.RequestMcpApps = Bool(true)
 	}
 
 	traceparent, tracestate := getTraceContext(ctx)

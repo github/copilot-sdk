@@ -106,6 +106,7 @@ final class SessionRequestBuilder {
         request.setModel(config.getModel());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
+        request.setReasoningSummary(config.getReasoningSummary());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -131,8 +132,10 @@ final class SessionRequestBuilder {
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setPluginDirectories(config.getPluginDirectories());
+        request.setLargeOutput(config.getLargeOutput());
         request.setDisabledSkills(config.getDisabledSkills());
-        request.setConfigDir(config.getConfigDir());
+        request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
         request.setModelCapabilities(config.getModelCapabilities());
 
@@ -144,6 +147,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
+        }
+        if (config.isEnableMcpApps()) {
+            request.setRequestMcpApps(true);
         }
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
@@ -198,6 +204,7 @@ final class SessionRequestBuilder {
         request.setModel(config.getModel());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
+        request.setReasoningSummary(config.getReasoningSummary());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -211,7 +218,7 @@ final class SessionRequestBuilder {
             request.setHooks(true);
         }
         request.setWorkingDirectory(config.getWorkingDirectory());
-        request.setConfigDir(config.getConfigDir());
+        request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
         if (config.isDisableResume()) {
             request.setDisableResume(true);
@@ -227,6 +234,8 @@ final class SessionRequestBuilder {
         request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setPluginDirectories(config.getPluginDirectories());
+        request.setLargeOutput(config.getLargeOutput());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
@@ -239,6 +248,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
+        }
+        if (config.isEnableMcpApps()) {
+            request.setRequestMcpApps(true);
         }
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);

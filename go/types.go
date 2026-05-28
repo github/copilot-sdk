@@ -844,6 +844,21 @@ type InfiniteSessionConfig struct {
 	BufferExhaustionThreshold *float64 `json:"bufferExhaustionThreshold,omitempty"`
 }
 
+// LargeToolOutputConfig configures handling of large tool outputs. When a tool
+// produces output exceeding the configured size, the output is written to a
+// temp file and a reference is returned to the model instead of the full
+// payload.
+type LargeToolOutputConfig struct {
+	// Enabled controls whether large output handling is enabled. Default: true.
+	Enabled *bool `json:"enabled,omitempty"`
+	// MaxSizeBytes is the maximum size in bytes before output is written to a
+	// temp file. Default: 50KB.
+	MaxSizeBytes *int64 `json:"maxSizeBytes,omitempty"`
+	// OutputDirectory is the directory to write temp files to. Defaults to the OS
+	// temp directory.
+	OutputDirectory string `json:"outputDir,omitempty"`
+}
+
 // SessionFsCapabilities declares optional provider capabilities.
 type SessionFsCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.
@@ -876,9 +891,12 @@ type SessionConfig struct {
 	// Valid values: "low", "medium", "high", "xhigh"
 	// Only applies to models where capabilities.supports.reasoningEffort is true.
 	ReasoningEffort string
-	// ConfigDir overrides the default configuration directory location.
+	// ReasoningSummary mode for models that support configurable reasoning summaries.
+	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
+	ReasoningSummary ReasoningSummary
+	// ConfigDirectory overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
-	ConfigDir string
+	ConfigDirectory string
 	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
 	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
 	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
@@ -962,6 +980,12 @@ type SessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
+	// PluginDirectories is a list of local filesystem paths to Open Plugins-format
+	// directories (https://open-plugins.com/) to load for this session.
+	// Relative paths resolve against WorkingDirectory (or the runtime cwd if unset).
+	// Treated as an explicit opt-in: plugin agents and rules load even when
+	// EnableConfigDiscovery is false.
+	PluginDirectories []string
 	// InstructionDirectories is a list of additional directories to search for custom instruction files
 	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
@@ -969,6 +993,10 @@ type SessionConfig struct {
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	// When enabled (default), sessions automatically manage context limits and persist state.
 	InfiniteSessions *InfiniteSessionConfig
+	// LargeOutput configures handling of large tool outputs. When a tool produces
+	// output exceeding the configured size, the output is written to a temp file
+	// and a reference is returned to the model instead of the full payload.
+	LargeOutput *LargeToolOutputConfig
 	// OnEvent is an optional event handler that is registered on the session before
 	// the session.create RPC is issued. This guarantees that early events emitted
 	// by the CLI during session creation (e.g. session.start) are delivered to the
@@ -992,6 +1020,29 @@ type SessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on this session.
+	//
+	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// surface (SEP-1865) and may change or be removed in a future release.
+	//
+	// When true AND the runtime has MCP Apps enabled (via the MCP_APPS feature
+	// flag or COPILOT_MCP_APPS=true environment override), the runtime adds the
+	// mcp-apps capability to the session, which causes it to advertise the
+	// extensions.io.modelcontextprotocol/ui extension to MCP servers (so they
+	// expose _meta.ui.resourceUri on tools) and to expose the
+	// session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,
+	// getHostContext,diagnose} JSON-RPC methods.
+	//
+	// If the runtime gate is off, the opt-in is silently dropped server-side
+	// (the runtime logs a warning); the session is created normally but the
+	// MCP Apps surface is unavailable. Inspect the runtime's
+	// capabilities.ui.mcpApps on the create/resume response to detect this.
+	//
+	// SDK consumers MUST set this to true only when they have an iframe renderer
+	// that can display ui:// MCP App bundles. Setting it without a renderer will
+	// cause MCP servers to register UI-enabled tool variants the consumer cannot
+	// display.
+	EnableMcpApps bool
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1094,6 +1145,15 @@ type SessionCapabilities struct {
 type UICapabilities struct {
 	// Elicitation indicates whether the host supports interactive elicitation dialogs.
 	Elicitation bool `json:"elicitation,omitempty"`
+	// McpApps indicates whether the runtime has accepted the session's MCP Apps
+	// (SEP-1865) opt-in. True when the consumer set EnableMcpApps=true on
+	// create/resume AND the runtime's MCP_APPS feature flag (or
+	// COPILOT_MCP_APPS=true env override) is on. Otherwise false, indicating
+	// the runtime silently dropped the opt-in.
+	//
+	// Experimental: McpApps is part of an experimental wire-protocol surface
+	// (SEP-1865) and may change or be removed in a future release.
+	McpApps bool `json:"mcpApps,omitempty"`
 }
 
 // ElicitationResult is the user's response to an elicitation dialog.
@@ -1195,6 +1255,9 @@ type ResumeSessionConfig struct {
 	// ReasoningEffort level for models that support it.
 	// Valid values: "low", "medium", "high", "xhigh"
 	ReasoningEffort string
+	// ReasoningSummary mode for models that support configurable reasoning summaries.
+	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
+	ReasoningSummary ReasoningSummary
 	// OnPermissionRequest is an optional handler for permission requests from the server.
 	// When nil, permission requests are surfaced as events and left pending for the
 	// consumer to resolve via pending permission RPCs.
@@ -1206,8 +1269,8 @@ type ResumeSessionConfig struct {
 	// WorkingDirectory is the working directory for the session.
 	// Tool operations will be relative to this directory.
 	WorkingDirectory string
-	// ConfigDir overrides the default configuration directory location.
-	ConfigDir string
+	// ConfigDirectory overrides the default configuration directory location.
+	ConfigDirectory string
 	// EnableConfigDiscovery, when true, automatically discovers MCP server configurations
 	// (e.g. .mcp.json, .vscode/mcp.json) and skill directories from the working directory
 	// and merges them with any explicitly provided MCPServers and SkillDirectories, with
@@ -1243,12 +1306,22 @@ type ResumeSessionConfig struct {
 	Agent string
 	// SkillDirectories is a list of directories to load skills from
 	SkillDirectories []string
+	// PluginDirectories is a list of local filesystem paths to Open Plugins-format
+	// directories (https://open-plugins.com/) to load for this session.
+	// Relative paths resolve against WorkingDirectory (or the runtime cwd if unset).
+	// Treated as an explicit opt-in: plugin agents and rules load even when
+	// EnableConfigDiscovery is false.
+	PluginDirectories []string
 	// InstructionDirectories is a list of additional directories to search for custom instruction files
 	InstructionDirectories []string
 	// DisabledSkills is a list of skill names to disable
 	DisabledSkills []string
 	// InfiniteSessions configures infinite sessions for persistent workspaces and automatic compaction.
 	InfiniteSessions *InfiniteSessionConfig
+	// LargeOutput configures handling of large tool outputs. When a tool produces
+	// output exceeding the configured size, the output is written to a temp file
+	// and a reference is returned to the model instead of the full payload.
+	LargeOutput *LargeToolOutputConfig
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1285,6 +1358,12 @@ type ResumeSessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// See SessionConfig.OnAutoModeSwitchRequest.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on resume.
+	// See SessionConfig.EnableMcpApps.
+	//
+	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// surface (SEP-1865) and may change or be removed in a future release.
+	EnableMcpApps bool
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.resume`. See SessionConfig.Canvases.
 	Canvases []CanvasDeclaration
@@ -1511,6 +1590,7 @@ type createSessionRequest struct {
 	SessionID                      string                                 `json:"sessionId,omitempty"`
 	ClientName                     string                                 `json:"clientName,omitempty"`
 	ReasoningEffort                string                                 `json:"reasoningEffort,omitempty"`
+	ReasoningSummary               ReasoningSummary                       `json:"reasoningSummary,omitempty"`
 	Tools                          []Tool                                 `json:"tools,omitempty"`
 	SystemMessage                  *SystemMessageConfig                   `json:"systemMessage,omitempty"`
 	AvailableTools                 []string                               `json:"availableTools"`
@@ -1540,11 +1620,14 @@ type createSessionRequest struct {
 	ConfigDir                      string                                 `json:"configDir,omitempty"`
 	EnableConfigDiscovery          *bool                                  `json:"enableConfigDiscovery,omitempty"`
 	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
+	PluginDirectories              []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
+	LargeOutput                    *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	Commands                       []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
+	RequestMcpApps                 *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                          *CloudSessionOptions                   `json:"cloud,omitempty"`
@@ -1575,6 +1658,7 @@ type resumeSessionRequest struct {
 	ClientName                     string                                 `json:"clientName,omitempty"`
 	Model                          string                                 `json:"model,omitempty"`
 	ReasoningEffort                string                                 `json:"reasoningEffort,omitempty"`
+	ReasoningSummary               ReasoningSummary                       `json:"reasoningSummary,omitempty"`
 	Tools                          []Tool                                 `json:"tools,omitempty"`
 	SystemMessage                  *SystemMessageConfig                   `json:"systemMessage,omitempty"`
 	AvailableTools                 []string                               `json:"availableTools"`
@@ -1606,11 +1690,14 @@ type resumeSessionRequest struct {
 	DefaultAgent                   *DefaultAgentConfig                    `json:"defaultAgent,omitempty"`
 	Agent                          string                                 `json:"agent,omitempty"`
 	SkillDirectories               []string                               `json:"skillDirectories,omitempty"`
+	PluginDirectories              []string                               `json:"pluginDirectories,omitempty"`
 	InstructionDirectories         []string                               `json:"instructionDirectories,omitempty"`
 	DisabledSkills                 []string                               `json:"disabledSkills,omitempty"`
 	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
+	LargeOutput                    *LargeToolOutputConfig                 `json:"largeOutput,omitempty"`
 	Commands                       []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
+	RequestMcpApps                 *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                       []CanvasDeclaration                    `json:"canvases,omitempty"`

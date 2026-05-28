@@ -14,6 +14,7 @@ use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
 use crate::generated::api_types::OpenCanvasInstance;
+use crate::generated::session_events::ReasoningSummary;
 use crate::handler::{
     AutoModeSwitchHandler, ElicitationHandler, ExitPlanModeHandler, PermissionHandler,
     UserInputHandler,
@@ -673,6 +674,54 @@ pub struct DefaultAgentConfig {
     pub excluded_tools: Option<Vec<String>>,
 }
 
+/// Configuration for large tool output handling.
+///
+/// When a tool produces output exceeding [`max_size_bytes`](Self::max_size_bytes),
+/// the SDK writes the full output to a file in [`output_directory`](Self::output_directory)
+/// and returns a truncated preview to the model.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct LargeToolOutputConfig {
+    /// Whether large tool output handling is enabled. Defaults to `true` on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// Maximum tool output size in bytes before it is redirected to a file.
+    /// Defaults to 50KB on the CLI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_size_bytes: Option<u64>,
+    /// Directory where large tool output files are written. Defaults to
+    /// the OS temp directory on the CLI.
+    #[serde(default, rename = "outputDir", skip_serializing_if = "Option::is_none")]
+    pub output_directory: Option<PathBuf>,
+}
+
+impl LargeToolOutputConfig {
+    /// Construct an empty [`LargeToolOutputConfig`]; all fields default to
+    /// unset (the CLI applies its own defaults).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Toggle large tool output handling on or off.
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = Some(enabled);
+        self
+    }
+
+    /// Set the maximum tool output size in bytes before it is redirected to a file.
+    pub fn with_max_size_bytes(mut self, max_size_bytes: u64) -> Self {
+        self.max_size_bytes = Some(max_size_bytes);
+        self
+    }
+
+    /// Set the directory where large tool output files are written.
+    pub fn with_output_directory<P: Into<PathBuf>>(mut self, output_directory: P) -> Self {
+        self.output_directory = Some(output_directory.into());
+        self
+    }
+}
+
 /// Configures infinite sessions: persistent workspaces with automatic
 /// context-window compaction.
 ///
@@ -1104,6 +1153,10 @@ pub struct SessionConfig {
     pub client_name: Option<String>,
     /// Reasoning effort level (e.g. `"low"`, `"medium"`, `"high"`).
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode for models that support configurable
+    /// reasoning summaries. Use [`ReasoningSummary::None`] to suppress
+    /// summary output regardless of whether reasoning is enabled.
+    pub reasoning_summary: Option<ReasoningSummary>,
     /// Enable streaming token deltas via `assistant.message_delta` events.
     pub streaming: Option<bool>,
     /// Custom system message configuration.
@@ -1139,11 +1192,42 @@ pub struct SessionConfig {
     pub mcp_oauth_token_storage: Option<String>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    ///
+    /// When `true` **and** the runtime has MCP Apps enabled (via the
+    /// `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+    /// override), the runtime adds the `mcp-apps` capability to the
+    /// session, which causes it to advertise the
+    /// `extensions.io.modelcontextprotocol/ui` extension to MCP servers (so
+    /// they expose `_meta.ui.resourceUri` on tools) and to expose the
+    /// `session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,
+    /// getHostContext,diagnose}` JSON-RPC methods.
+    ///
+    /// If the runtime gate is off, the opt-in is silently dropped
+    /// server-side (the runtime logs a warning); the session is created
+    /// normally but the MCP Apps surface is unavailable. Inspect the
+    /// runtime's `capabilities.ui.mcpApps` on the create/resume response to
+    /// detect this.
+    ///
+    /// SDK consumers MUST set this to `true` only when they have an iframe
+    /// renderer that can display `ui://` MCP App bundles. Setting it
+    /// without a renderer will cause MCP servers to register UI-enabled
+    /// tool variants the consumer cannot display.
+    ///
+    /// Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
     /// Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Open Plugin directory paths passed through to the CLI.
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    /// Configuration for large tool output handling, forwarded to the CLI.
+    pub large_output: Option<LargeToolOutputConfig>,
     /// Skill names to disable. Skills in this set will not be available
     /// even if found in skill directories.
     pub disabled_skills: Option<Vec<String>>,
@@ -1180,7 +1264,7 @@ pub struct SessionConfig {
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location. When set,
     /// the session uses this directory for storing config and state.
-    pub config_dir: Option<PathBuf>,
+    pub config_directory: Option<PathBuf>,
     /// Working directory for the session. Tool operations resolve
     /// relative paths against this directory.
     pub working_directory: Option<PathBuf>,
@@ -1267,6 +1351,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("model", &self.model)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
+            .field("reasoning_summary", &self.reasoning_summary)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
@@ -1283,8 +1368,11 @@ impl std::fmt::Debug for SessionConfig {
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("plugin_directories", &self.plugin_directories)
+            .field("large_output", &self.large_output)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -1294,7 +1382,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("provider", &self.provider)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
-            .field("config_dir", &self.config_dir)
+            .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
                 "github_token",
@@ -1355,6 +1443,7 @@ impl Default for SessionConfig {
             model: None,
             client_name: None,
             reasoning_effort: None,
+            reasoning_summary: None,
             streaming: None,
             system_message: None,
             tools: None,
@@ -1368,8 +1457,11 @@ impl Default for SessionConfig {
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
+            plugin_directories: None,
+            large_output: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -1379,7 +1471,7 @@ impl Default for SessionConfig {
             provider: None,
             enable_session_telemetry: None,
             model_capabilities: None,
-            config_dir: None,
+            config_directory: None,
             working_directory: None,
             github_token: None,
             remote_session: None,
@@ -1477,6 +1569,7 @@ impl SessionConfig {
             model: self.model,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
+            reasoning_summary: self.reasoning_summary,
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
@@ -1496,9 +1589,12 @@ impl SessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
+            plugin_directories: self.plugin_directories,
+            large_output: self.large_output,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -1507,7 +1603,7 @@ impl SessionConfig {
             provider: self.provider,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
-            config_dir: self.config_dir,
+            config_dir: self.config_directory,
             working_directory: self.working_directory,
             github_token: self.github_token,
             remote_session: self.remote_session,
@@ -1659,6 +1755,12 @@ impl SessionConfig {
         self
     }
 
+    /// Set [`reasoning_summary`](Self::reasoning_summary).
+    pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
+        self.reasoning_summary = Some(summary);
+        self
+    }
+
     /// Enable streaming token deltas via `assistant.message_delta` events.
     pub fn with_streaming(mut self, streaming: bool) -> Self {
         self.streaming = Some(streaming);
@@ -1753,6 +1855,16 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
+    /// to `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -1772,6 +1884,22 @@ impl SessionConfig {
         P: Into<PathBuf>,
     {
         self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set Open Plugin directory paths passed through to the CLI on session create.
+    pub fn with_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.plugin_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on session create.
+    pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
+        self.large_output = Some(config);
         self
     }
 
@@ -1838,8 +1966,8 @@ impl SessionConfig {
     }
 
     /// Override the default configuration directory location.
-    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
-        self.config_dir = Some(dir.into());
+    pub fn with_config_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_directory = Some(dir.into());
         self
     }
 
@@ -1922,6 +2050,10 @@ pub struct ResumeSessionConfig {
     pub client_name: Option<String>,
     /// Desired reasoning effort to apply after resuming the session.
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode to apply after resuming the session. Use
+    /// [`ReasoningSummary::None`] to suppress summary output regardless of
+    /// whether reasoning is enabled.
+    pub reasoning_summary: Option<ReasoningSummary>,
     /// Enable streaming token deltas.
     pub streaming: Option<bool>,
     /// Re-supply the system message so the agent retains workspace context
@@ -1953,11 +2085,21 @@ pub struct ResumeSessionConfig {
     pub mcp_oauth_token_storage: Option<String>,
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
+    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
     /// resume. Forwarded to the CLI; not the same as [`skill_directories`](Self::skill_directories).
     pub instruction_directories: Option<Vec<PathBuf>>,
+    /// Open Plugin directory paths passed through to the CLI on resume.
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    /// Configuration for large tool output handling, forwarded to the CLI on resume.
+    pub large_output: Option<LargeToolOutputConfig>,
     /// Skill names to disable on resume.
     pub disabled_skills: Option<Vec<String>>,
     /// Enable session hooks on resume.
@@ -1983,7 +2125,7 @@ pub struct ResumeSessionConfig {
     /// Per-property model capability overrides on resume.
     pub model_capabilities: Option<crate::generated::api_types::ModelCapabilitiesOverride>,
     /// Override the default configuration directory location on resume.
-    pub config_dir: Option<PathBuf>,
+    pub config_directory: Option<PathBuf>,
     /// Per-session working directory on resume.
     pub working_directory: Option<PathBuf>,
     /// Per-session GitHub token on resume. See
@@ -2051,6 +2193,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("session_id", &self.session_id)
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
+            .field("reasoning_summary", &self.reasoning_summary)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
@@ -2068,8 +2211,11 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
+            .field("plugin_directories", &self.plugin_directories)
+            .field("large_output", &self.large_output)
             .field("disabled_skills", &self.disabled_skills)
             .field("hooks", &self.hooks)
             .field("custom_agents", &self.custom_agents)
@@ -2079,7 +2225,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("provider", &self.provider)
             .field("enable_session_telemetry", &self.enable_session_telemetry)
             .field("model_capabilities", &self.model_capabilities)
-            .field("config_dir", &self.config_dir)
+            .field("config_directory", &self.config_directory)
             .field("working_directory", &self.working_directory)
             .field(
                 "github_token",
@@ -2177,6 +2323,7 @@ impl ResumeSessionConfig {
             session_id: self.session_id,
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
+            reasoning_summary: self.reasoning_summary,
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
@@ -2197,9 +2344,12 @@ impl ResumeSessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
+            plugin_directories: self.plugin_directories,
+            large_output: self.large_output,
             disabled_skills: self.disabled_skills,
             custom_agents: self.custom_agents,
             default_agent: self.default_agent,
@@ -2208,7 +2358,7 @@ impl ResumeSessionConfig {
             provider: self.provider,
             enable_session_telemetry: self.enable_session_telemetry,
             model_capabilities: self.model_capabilities,
-            config_dir: self.config_dir,
+            config_dir: self.config_directory,
             working_directory: self.working_directory,
             github_token: self.github_token,
             remote_session: self.remote_session,
@@ -2245,6 +2395,7 @@ impl ResumeSessionConfig {
             session_id,
             client_name: None,
             reasoning_effort: None,
+            reasoning_summary: None,
             streaming: None,
             system_message: None,
             tools: None,
@@ -2259,8 +2410,11 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
+            plugin_directories: None,
+            large_output: None,
             disabled_skills: None,
             hooks: None,
             custom_agents: None,
@@ -2270,7 +2424,7 @@ impl ResumeSessionConfig {
             provider: None,
             enable_session_telemetry: None,
             model_capabilities: None,
-            config_dir: None,
+            config_directory: None,
             working_directory: None,
             github_token: None,
             remote_session: None,
@@ -2394,6 +2548,12 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set [`reasoning_summary`](Self::reasoning_summary).
+    pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
+        self.reasoning_summary = Some(summary);
+        self
+    }
+
     /// Enable streaming token deltas via `assistant.message_delta` events.
     pub fn with_streaming(mut self, streaming: bool) -> Self {
         self.streaming = Some(streaming);
@@ -2491,6 +2651,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
+    /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI on resume.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -2510,6 +2680,22 @@ impl ResumeSessionConfig {
         P: Into<PathBuf>,
     {
         self.instruction_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set Open Plugin directory paths passed through to the CLI on resume.
+    pub fn with_plugin_directories<I, P>(mut self, paths: I) -> Self
+    where
+        I: IntoIterator<Item = P>,
+        P: Into<PathBuf>,
+    {
+        self.plugin_directories = Some(paths.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the [`LargeToolOutputConfig`] forwarded to the CLI on resume.
+    pub fn with_large_output(mut self, config: LargeToolOutputConfig) -> Self {
+        self.large_output = Some(config);
         self
     }
 
@@ -2574,8 +2760,8 @@ impl ResumeSessionConfig {
     }
 
     /// Override the default configuration directory location on resume.
-    pub fn with_config_dir(mut self, dir: impl Into<PathBuf>) -> Self {
-        self.config_dir = Some(dir.into());
+    pub fn with_config_directory(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.config_directory = Some(dir.into());
         self
     }
 
@@ -2807,6 +2993,10 @@ pub struct SetModelOptions {
     /// Reasoning effort for the new model (e.g. `"low"`, `"medium"`,
     /// `"high"`, `"xhigh"`).
     pub reasoning_effort: Option<String>,
+    /// Reasoning summary mode for the new model. Use
+    /// [`ReasoningSummary::None`] to suppress summary output regardless of
+    /// whether reasoning is enabled.
+    pub reasoning_summary: Option<ReasoningSummary>,
     /// Override individual model capabilities resolved by the runtime. Only
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
@@ -2817,6 +3007,12 @@ impl SetModelOptions {
     /// Set [`reasoning_effort`](Self::reasoning_effort).
     pub fn with_reasoning_effort(mut self, effort: impl Into<String>) -> Self {
         self.reasoning_effort = Some(effort.into());
+        self
+    }
+
+    /// Set [`reasoning_summary`](Self::reasoning_summary).
+    pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
+        self.reasoning_summary = Some(summary);
         self
     }
 
@@ -3628,6 +3824,18 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// **Experimental.** This field is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+    /// opt-in. `Some(true)` when the consumer set
+    /// [`SessionConfig::enable_mcp_apps`] / [`ResumeSessionConfig::enable_mcp_apps`]
+    /// to `true` on create/resume **and** the runtime's `MCP_APPS` feature
+    /// flag (or `COPILOT_MCP_APPS=true` env override) is on. Otherwise
+    /// absent or `Some(false)`, indicating the runtime silently dropped the
+    /// opt-in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_apps: Option<bool>,
     /// Host-specific canvas capabilities.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canvases: Option<bool>,
@@ -3782,9 +3990,10 @@ mod tests {
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
         AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
-        GitHubReferenceType, InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig,
-        SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool, ToolBinaryResult,
-        ToolResult, ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
+        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, ProviderConfig,
+        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
+        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -3915,6 +4124,7 @@ mod tests {
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
     }
 
     #[test]
@@ -3930,6 +4140,36 @@ mod tests {
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
+    }
+
+    #[test]
+    fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = SessionConfig::default().with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("enable-mcp-apps")))
+            .expect("enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn resume_session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-enable-mcp-apps"))
+            .with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("resume enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
     }
 
     #[test]
@@ -3940,11 +4180,12 @@ mod tests {
         use super::{CloudSessionOptions, CloudSessionRepository};
 
         let mut cfg = SessionConfig::default();
-        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+        cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
         cfg.working_directory = Some(PathBuf::from("/tmp/work"));
         cfg.github_token = Some("ghs_secret".to_string());
         cfg.include_sub_agent_streaming_events = Some(false);
         cfg.enable_session_telemetry = Some(false);
+        cfg.reasoning_summary = Some(ReasoningSummary::Concise);
         cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::Export);
         cfg.cloud = Some(CloudSessionOptions::with_repository(
             CloudSessionRepository::new("github", "copilot-sdk").with_branch("main"),
@@ -3960,6 +4201,7 @@ mod tests {
         assert_eq!(wire_json["gitHubToken"], "ghs_secret");
         assert_eq!(wire_json["includeSubAgentStreamingEvents"], false);
         assert_eq!(wire_json["enableSessionTelemetry"], false);
+        assert_eq!(wire_json["reasoningSummary"], "concise");
         assert_eq!(wire_json["remoteSession"], "export");
         assert_eq!(wire_json["cloud"]["repository"]["owner"], "github");
         assert_eq!(wire_json["cloud"]["repository"]["name"], "copilot-sdk");
@@ -3972,8 +4214,41 @@ mod tests {
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("gitHubToken").is_none());
         assert!(empty_json.get("enableSessionTelemetry").is_none());
+        assert!(empty_json.get("reasoningSummary").is_none());
         assert!(empty_json.get("remoteSession").is_none());
         assert!(empty_json.get("cloud").is_none());
+    }
+
+    #[test]
+    fn session_config_into_wire_serializes_plugin_directories_and_large_output() {
+        use std::path::PathBuf;
+
+        let cfg = SessionConfig {
+            plugin_directories: Some(vec![PathBuf::from("/tmp/plugins")]),
+            large_output: Some(
+                LargeToolOutputConfig::new()
+                    .with_enabled(true)
+                    .with_max_size_bytes(1024)
+                    .with_output_directory(PathBuf::from("/tmp/large-output")),
+            ),
+            ..Default::default()
+        };
+
+        let (wire, _) = cfg
+            .into_wire(Some(SessionId::from("sess-1")))
+            .expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins");
+        assert_eq!(wire_json["largeOutput"]["enabled"], true);
+        assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 1024);
+        assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output");
+
+        let (empty_wire, _) = SessionConfig::default()
+            .into_wire(Some(SessionId::from("empty")))
+            .expect("default has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("largeOutput").is_none());
     }
 
     #[test]
@@ -3982,10 +4257,11 @@ mod tests {
 
         let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
         cfg.working_directory = Some(PathBuf::from("/tmp/work"));
-        cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+        cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
         cfg.github_token = Some("ghs_secret".to_string());
         cfg.include_sub_agent_streaming_events = Some(true);
         cfg.enable_session_telemetry = Some(false);
+        cfg.reasoning_summary = Some(ReasoningSummary::Detailed);
         cfg.remote_session = Some(crate::generated::api_types::RemoteSessionMode::On);
 
         let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
@@ -3996,6 +4272,7 @@ mod tests {
         assert_eq!(wire_json["gitHubToken"], "ghs_secret");
         assert_eq!(wire_json["includeSubAgentStreamingEvents"], true);
         assert_eq!(wire_json["enableSessionTelemetry"], false);
+        assert_eq!(wire_json["reasoningSummary"], "detailed");
         assert_eq!(wire_json["remoteSession"], "on");
 
         // Unset remote_session is omitted on the wire.
@@ -4003,7 +4280,36 @@ mod tests {
             .into_wire()
             .expect("default resume has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("reasoningSummary").is_none());
         assert!(empty_json.get("remoteSession").is_none());
+    }
+
+    #[test]
+    fn resume_session_config_into_wire_serializes_plugin_directories_and_large_output() {
+        use std::path::PathBuf;
+
+        let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
+        cfg.plugin_directories = Some(vec![PathBuf::from("/tmp/plugins-r")]);
+        cfg.large_output = Some(
+            LargeToolOutputConfig::new()
+                .with_enabled(false)
+                .with_max_size_bytes(2048)
+                .with_output_directory(PathBuf::from("/tmp/large-output-r")),
+        );
+
+        let (wire, _) = cfg.into_wire().expect("no duplicate handlers");
+        let wire_json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(wire_json["pluginDirectories"][0], "/tmp/plugins-r");
+        assert_eq!(wire_json["largeOutput"]["enabled"], false);
+        assert_eq!(wire_json["largeOutput"]["maxSizeBytes"], 2048);
+        assert_eq!(wire_json["largeOutput"]["outputDir"], "/tmp/large-output-r");
+
+        let (empty_wire, _) = ResumeSessionConfig::new(SessionId::from("sess-2"))
+            .into_wire()
+            .expect("default resume has no duplicate handlers");
+        let empty_json = serde_json::to_value(&empty_wire).unwrap();
+        assert!(empty_json.get("pluginDirectories").is_none());
+        assert!(empty_json.get("largeOutput").is_none());
     }
 
     #[test]
@@ -4015,6 +4321,7 @@ mod tests {
             .with_model("claude-sonnet-4")
             .with_client_name("test-app")
             .with_reasoning_effort("medium")
+            .with_reasoning_summary(ReasoningSummary::Concise)
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
@@ -4025,7 +4332,7 @@ mod tests {
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
-            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
@@ -4036,6 +4343,7 @@ mod tests {
         assert_eq!(cfg.model.as_deref(), Some("claude-sonnet-4"));
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
         assert_eq!(cfg.reasoning_effort.as_deref(), Some("medium"));
+        assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::Concise));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
@@ -4058,7 +4366,7 @@ mod tests {
             Some(&["broken-skill".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
-        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));
@@ -4075,6 +4383,7 @@ mod tests {
 
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
             .with_client_name("test-app")
+            .with_reasoning_summary(ReasoningSummary::None)
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
@@ -4085,7 +4394,7 @@ mod tests {
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
             .with_agent("researcher")
-            .with_config_dir(PathBuf::from("/tmp/config"))
+            .with_config_directory(PathBuf::from("/tmp/config"))
             .with_working_directory(PathBuf::from("/tmp/work"))
             .with_github_token("ghp_test")
             .with_enable_session_telemetry(false)
@@ -4096,6 +4405,7 @@ mod tests {
 
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
+        assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::None));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
@@ -4118,7 +4428,7 @@ mod tests {
             Some(&["broken-skill".to_string()][..])
         );
         assert_eq!(cfg.agent.as_deref(), Some("researcher"));
-        assert_eq!(cfg.config_dir, Some(PathBuf::from("/tmp/config")));
+        assert_eq!(cfg.config_directory, Some(PathBuf::from("/tmp/config")));
         assert_eq!(cfg.working_directory, Some(PathBuf::from("/tmp/work")));
         assert_eq!(cfg.github_token.as_deref(), Some("ghp_test"));
         assert_eq!(cfg.enable_session_telemetry, Some(false));

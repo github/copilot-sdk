@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -77,9 +77,11 @@ from .session import (
     ElicitationHandler,
     ExitPlanModeHandler,
     InfiniteSessionConfig,
+    LargeToolOutputConfig,
     MCPServerConfig,
     ProviderConfig,
     ReasoningEffort,
+    ReasoningSummary,
     SectionTransformFn,
     SessionFsConfig,
     SessionHooks,
@@ -152,6 +154,18 @@ def _mcp_servers_to_wire(
             config = {**config, "cwd": config["working_directory"]}
             del config["working_directory"]
         wire[name] = config
+    return wire
+
+
+def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``LargeToolOutputConfig`` mapping to wire format."""
+    wire: dict[str, Any] = {}
+    if "enabled" in config:
+        wire["enabled"] = config["enabled"]
+    if "max_size_bytes" in config:
+        wire["maxSizeBytes"] = config["max_size_bytes"]
+    if "output_directory" in config:
+        wire["outputDir"] = config["output_directory"]
     return wire
 
 
@@ -1540,6 +1554,7 @@ class CopilotClient:
         session_id: str | None = None,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
@@ -1561,15 +1576,18 @@ class CopilotClient:
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
-        config_dir: str | None = None,
+        config_directory: str | None = None,
         enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
+        plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
+        large_output: LargeToolOutputConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -1597,6 +1615,9 @@ class CopilotClient:
             session_id: Optional session ID. If not provided, a UUID is generated.
             client_name: Optional client name for identification.
             reasoning_effort: Reasoning effort level for the model.
+            reasoning_summary: Reasoning summary mode for supported models.
+                Use ``"none"`` to suppress summary output regardless of whether
+                reasoning is enabled.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
@@ -1634,7 +1655,7 @@ class CopilotClient:
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
             agent: Agent to use for the session.
-            config_dir: Override for the configuration directory.
+            config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
                 configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
                 directories from the working directory and merges them with any
@@ -1651,6 +1672,15 @@ class CopilotClient:
                 session. Optionally associates repository metadata with the
                 cloud session.
             on_event: Callback for session events.
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
+                ``session.create``. The runtime only honors the opt-in when its
+                ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+                override) is on; otherwise the request is silently dropped.
+                Inspect ``capabilities.ui.mcpApps`` on the create response to
+                detect the drop.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1709,6 +1739,8 @@ class CopilotClient:
             payload["clientName"] = client_name
         if reasoning_effort:
             payload["reasoningEffort"] = reasoning_effort
+        if reasoning_summary:
+            payload["reasoningSummary"] = reasoning_summary
         if tool_defs:
             payload["tools"] = tool_defs
 
@@ -1733,6 +1765,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        if enable_mcp_apps:
+            payload["requestMcpApps"] = True
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -1808,8 +1842,8 @@ class CopilotClient:
             payload["agent"] = agent
 
         # Add config directory override if provided
-        if config_dir:
-            payload["configDir"] = config_dir
+        if config_directory:
+            payload["configDir"] = config_directory
 
         # Add config discovery flag if provided
         if enable_config_discovery is not None:
@@ -1818,6 +1852,10 @@ class CopilotClient:
         # Add skill directories configuration if provided
         if skill_directories:
             payload["skillDirectories"] = skill_directories
+
+        # Add plugin directories configuration if provided
+        if plugin_directories:
+            payload["pluginDirectories"] = plugin_directories
 
         # Add instruction directories configuration if provided
         if instruction_directories is not None:
@@ -1841,6 +1879,9 @@ class CopilotClient:
                     "buffer_exhaustion_threshold"
                 ]
             payload["infiniteSessions"] = wire_config
+
+        if large_output is not None:
+            payload["largeOutput"] = _large_output_to_wire(large_output)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
@@ -2026,6 +2067,7 @@ class CopilotClient:
         model: str | None = None,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
@@ -2047,15 +2089,18 @@ class CopilotClient:
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
-        config_dir: str | None = None,
+        config_directory: str | None = None,
         enable_config_discovery: bool | None = None,
         skill_directories: list[str] | None = None,
+        plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
+        large_output: LargeToolOutputConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -2084,6 +2129,9 @@ class CopilotClient:
             model: The model to use for the resumed session.
             client_name: Optional client name for identification.
             reasoning_effort: Reasoning effort level for the model.
+            reasoning_summary: Reasoning summary mode for supported models.
+                Use ``"none"`` to suppress summary output regardless of whether
+                reasoning is enabled.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
@@ -2121,7 +2169,7 @@ class CopilotClient:
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
             agent: Agent to use for the session.
-            config_dir: Override for the configuration directory.
+            config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
                 configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
                 directories from the working directory and merges them with any
@@ -2135,6 +2183,15 @@ class CopilotClient:
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough on resume. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
+                ``session.resume``. The runtime only honors the opt-in when its
+                ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+                override) is on; otherwise the request is silently dropped.
+                Inspect ``capabilities.ui.mcpApps`` on the resume response to
+                detect the drop.
             continue_pending_work: When True, instructs the runtime to continue any
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
@@ -2198,6 +2255,8 @@ class CopilotClient:
             payload["model"] = model
         if reasoning_effort:
             payload["reasoningEffort"] = reasoning_effort
+        if reasoning_summary:
+            payload["reasoningSummary"] = reasoning_summary
         if tool_defs:
             payload["tools"] = tool_defs
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
@@ -2232,6 +2291,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        if enable_mcp_apps:
+            payload["requestMcpApps"] = True
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -2254,8 +2315,8 @@ class CopilotClient:
 
         if working_directory:
             payload["workingDirectory"] = working_directory
-        if config_dir:
-            payload["configDir"] = config_dir
+        if config_directory:
+            payload["configDir"] = config_directory
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
 
@@ -2284,6 +2345,8 @@ class CopilotClient:
             payload["agent"] = agent
         if skill_directories:
             payload["skillDirectories"] = skill_directories
+        if plugin_directories:
+            payload["pluginDirectories"] = plugin_directories
         if instruction_directories is not None:
             payload["instructionDirectories"] = instruction_directories
         if disabled_skills:
@@ -2302,6 +2365,9 @@ class CopilotClient:
                     "buffer_exhaustion_threshold"
                 ]
             payload["infiniteSessions"] = wire_config
+
+        if large_output is not None:
+            payload["largeOutput"] = _large_output_to_wire(large_output)
 
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
