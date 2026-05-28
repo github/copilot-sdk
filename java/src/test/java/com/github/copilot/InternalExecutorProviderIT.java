@@ -40,15 +40,12 @@ class InternalExecutorProviderIT {
 
         String classpath = packagedJar.toString() + File.pathSeparator + testClasses.toString();
         Process process = new ProcessBuilder(javaBin, "-cp", classpath,
-                "com.github.copilot.InternalExecutorProviderProbe")
-                        .redirectErrorStream(true)
-                        .start();
+                "com.github.copilot.InternalExecutorProviderProbe").redirectErrorStream(true).start();
 
         String output;
         try {
             output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(process.waitFor(30, TimeUnit.SECONDS),
-                    "Probe JVM did not exit within 30s. Output:\n" + output);
+            assertTrue(process.waitFor(30, TimeUnit.SECONDS), "Probe JVM did not exit within 30s. Output:\n" + output);
         } finally {
             if (process.isAlive()) {
                 process.destroyForcibly();
