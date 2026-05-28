@@ -252,14 +252,10 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildCreateRequestPropagatesNewSessionFields() {
-        var config = new SessionConfig()
-                .setSkipEmbeddingRetrieval(true)
+        var config = new SessionConfig().setSkipEmbeddingRetrieval(true)
                 .setOrganizationCustomInstructions("Create org instructions")
-                .setEnableOnDemandInstructionDiscovery(false)
-                .setEnableFileHooks(true)
-                .setEnableHostGitOperations(false)
-                .setEnableSessionStore(true)
-                .setEnableSkills(false);
+                .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true).setEnableHostGitOperations(false)
+                .setEnableSessionStore(true).setEnableSkills(false);
 
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
 
@@ -274,14 +270,10 @@ public class SessionRequestBuilderTest {
 
     @Test
     void testBuildResumeRequestPropagatesNewSessionFields() {
-        var config = new ResumeSessionConfig()
-                .setSkipEmbeddingRetrieval(false)
+        var config = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
                 .setOrganizationCustomInstructions("Resume org instructions")
-                .setEnableOnDemandInstructionDiscovery(true)
-                .setEnableFileHooks(false)
-                .setEnableHostGitOperations(true)
-                .setEnableSessionStore(false)
-                .setEnableSkills(true);
+                .setEnableOnDemandInstructionDiscovery(true).setEnableFileHooks(false).setEnableHostGitOperations(true)
+                .setEnableSessionStore(false).setEnableSkills(true);
 
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
 

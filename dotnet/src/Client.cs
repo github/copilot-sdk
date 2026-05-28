@@ -638,7 +638,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             config.EnableSessionTelemetry ??= false;
             config.SkipEmbeddingRetrieval ??= true;
-            config.EmbeddingCacheStorage ??= "in-memory";
+            config.EmbeddingCacheStorage ??= EmbeddingCacheStorageMode.InMemory;
             config.EnableOnDemandInstructionDiscovery ??= false;
             config.EnableFileHooks ??= false;
             config.EnableHostGitOperations ??= false;
@@ -2203,7 +2203,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
         bool? SkipEmbeddingRetrieval,
-        string? EmbeddingCacheStorage,
+        EmbeddingCacheStorageMode? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
         bool? EnableOnDemandInstructionDiscovery,
         bool? EnableFileHooks,
@@ -2279,7 +2279,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
         bool? SkipEmbeddingRetrieval,
-        string? EmbeddingCacheStorage,
+        EmbeddingCacheStorageMode? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
         bool? EnableOnDemandInstructionDiscovery,
         bool? EnableFileHooks,
@@ -2388,6 +2388,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
+    [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]

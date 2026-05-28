@@ -1010,8 +1010,8 @@ public class SessionConfig {
      * Sets whether to skip embedding-based retrieval.
      *
      * @param skipEmbeddingRetrieval
-     *            {@code true} to skip embedding retrieval, {@code false} to keep
-     *            it enabled
+     *            {@code true} to skip embedding retrieval, {@code false} to keep it
+     *            enabled
      * @return this config instance for method chaining
      */
     public SessionConfig setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {

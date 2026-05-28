@@ -553,12 +553,16 @@ public final class CreateSessionRequest {
         return skipEmbeddingRetrieval;
     }
 
-    /** Sets skip embedding retrieval flag. @param skipEmbeddingRetrieval the flag */
+    /**
+     * Sets skip embedding retrieval flag. @param skipEmbeddingRetrieval the flag
+     */
     public void setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {
         this.skipEmbeddingRetrieval = skipEmbeddingRetrieval;
     }
 
-    /** Clears the skipEmbeddingRetrieval setting, reverting to the default behavior. */
+    /**
+     * Clears the skipEmbeddingRetrieval setting, reverting to the default behavior.
+     */
     public void clearSkipEmbeddingRetrieval() {
         this.skipEmbeddingRetrieval = null;
     }
@@ -568,7 +572,10 @@ public final class CreateSessionRequest {
         return organizationCustomInstructions;
     }
 
-    /** Sets organization custom instructions. @param organizationCustomInstructions the instructions */
+    /**
+     * Sets organization custom instructions. @param organizationCustomInstructions
+     * the instructions
+     */
     public void setOrganizationCustomInstructions(String organizationCustomInstructions) {
         this.organizationCustomInstructions = organizationCustomInstructions;
     }
@@ -587,7 +594,8 @@ public final class CreateSessionRequest {
     }
 
     /**
-     * Clears the enableOnDemandInstructionDiscovery setting, reverting to the default behavior.
+     * Clears the enableOnDemandInstructionDiscovery setting, reverting to the
+     * default behavior.
      */
     public void clearEnableOnDemandInstructionDiscovery() {
         this.enableOnDemandInstructionDiscovery = null;
@@ -613,12 +621,17 @@ public final class CreateSessionRequest {
         return enableHostGitOperations;
     }
 
-    /** Sets enable host git operations flag. @param enableHostGitOperations the flag */
+    /**
+     * Sets enable host git operations flag. @param enableHostGitOperations the flag
+     */
     public void setEnableHostGitOperations(boolean enableHostGitOperations) {
         this.enableHostGitOperations = enableHostGitOperations;
     }
 
-    /** Clears the enableHostGitOperations setting, reverting to the default behavior. */
+    /**
+     * Clears the enableHostGitOperations setting, reverting to the default
+     * behavior.
+     */
     public void clearEnableHostGitOperations() {
         this.enableHostGitOperations = null;
     }
@@ -663,7 +676,9 @@ public final class CreateSessionRequest {
         this.embeddingCacheStorage = embeddingCacheStorage;
     }
 
-    /** Clears the embeddingCacheStorage setting, reverting to the default behavior. */
+    /**
+     * Clears the embeddingCacheStorage setting, reverting to the default behavior.
+     */
     public void clearEmbeddingCacheStorage() {
         this.embeddingCacheStorage = null;
     }

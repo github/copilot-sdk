@@ -1337,8 +1337,10 @@ type ResumeSessionConfig struct {
 	// files after successful file views. When nil, the runtime default is used. When
 	// non-nil, the value (true or false) is passed through to the runtime.
 	EnableOnDemandInstructionDiscovery *bool
+	// EnableFileHooks controls loading of file-based hooks from .github/hooks/.
 	// When nil, the runtime default is used. When non-nil, the value (true or false)
-	// is passed through to the runtime.
+	// is passed through to the runtime. This is separate from the Hooks callback
+	// parameter which gates SDK hook event registration.
 	EnableFileHooks *bool
 	// EnableHostGitOperations controls git operations on the host filesystem. When
 	// nil, the runtime default is used. When non-nil, the value (true or false) is

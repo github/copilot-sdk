@@ -669,8 +669,8 @@ public class ResumeSessionConfig {
      * Sets whether to skip embedding-based retrieval.
      *
      * @param skipEmbeddingRetrieval
-     *            {@code true} to skip embedding retrieval, {@code false} to keep
-     *            it enabled
+     *            {@code true} to skip embedding retrieval, {@code false} to keep it
+     *            enabled
      * @return this config for method chaining
      */
     public ResumeSessionConfig setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {

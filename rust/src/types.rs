@@ -1389,7 +1389,8 @@ impl std::fmt::Debug for SessionConfig {
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
             .field(
                 "organization_custom_instructions",
-                &self.organization_custom_instructions
+                &self
+                    .organization_custom_instructions
                     .as_ref()
                     .map(|_| "<redacted>"),
             )
@@ -1626,6 +1627,7 @@ impl SessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
             skip_embedding_retrieval: self.skip_embedding_retrieval,
@@ -2327,7 +2329,8 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
             .field(
                 "organization_custom_instructions",
-                &self.organization_custom_instructions
+                &self
+                    .organization_custom_instructions
                     .as_ref()
                     .map(|_| "<redacted>"),
             )
@@ -2468,6 +2471,7 @@ impl ResumeSessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
             skip_embedding_retrieval: self.skip_embedding_retrieval,

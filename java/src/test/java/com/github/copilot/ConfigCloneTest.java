@@ -232,20 +232,17 @@ class ConfigCloneTest {
 
     @Test
     void sessionConfigNewSessionFieldsCopied() {
-        SessionConfig original = new SessionConfig()
-                .setSkipEmbeddingRetrieval(true)
-                .setOrganizationCustomInstructions("Org instructions")
-                .setEnableOnDemandInstructionDiscovery(false)
-                .setEnableFileHooks(true)
-                .setEnableHostGitOperations(false)
-                .setEnableSessionStore(true)
-                .setEnableSkills(false);
+        SessionConfig original = new SessionConfig().setSkipEmbeddingRetrieval(true)
+                .setOrganizationCustomInstructions("Org instructions").setEnableOnDemandInstructionDiscovery(false)
+                .setEmbeddingCacheStorage("persistent").setEnableFileHooks(true).setEnableHostGitOperations(false)
+                .setEnableSessionStore(true).setEnableSkills(false);
 
         SessionConfig cloned = original.clone();
 
         assertTrue(cloned.getSkipEmbeddingRetrieval().orElse(false));
         assertEquals("Org instructions", cloned.getOrganizationCustomInstructions());
         assertFalse(cloned.getEnableOnDemandInstructionDiscovery().orElse(true));
+        assertEquals("persistent", cloned.getEmbeddingCacheStorage());
         assertTrue(cloned.getEnableFileHooks().orElse(false));
         assertFalse(cloned.getEnableHostGitOperations().orElse(true));
         assertTrue(cloned.getEnableSessionStore().orElse(false));
@@ -273,13 +270,10 @@ class ConfigCloneTest {
 
     @Test
     void resumeSessionConfigNewSessionFieldsCopied() {
-        ResumeSessionConfig original = new ResumeSessionConfig()
-                .setSkipEmbeddingRetrieval(false)
+        ResumeSessionConfig original = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
                 .setOrganizationCustomInstructions("Resume org instructions")
-                .setEnableOnDemandInstructionDiscovery(true)
-                .setEnableFileHooks(false)
-                .setEnableHostGitOperations(true)
-                .setEnableSessionStore(false)
+                .setEnableOnDemandInstructionDiscovery(true).setEmbeddingCacheStorage("persistent")
+                .setEnableFileHooks(false).setEnableHostGitOperations(true).setEnableSessionStore(false)
                 .setEnableSkills(true);
 
         ResumeSessionConfig cloned = original.clone();
@@ -287,6 +281,7 @@ class ConfigCloneTest {
         assertFalse(cloned.getSkipEmbeddingRetrieval().orElse(true));
         assertEquals("Resume org instructions", cloned.getOrganizationCustomInstructions());
         assertTrue(cloned.getEnableOnDemandInstructionDiscovery().orElse(false));
+        assertEquals("persistent", cloned.getEmbeddingCacheStorage());
         assertFalse(cloned.getEnableFileHooks().orElse(true));
         assertTrue(cloned.getEnableHostGitOperations().orElse(false));
         assertFalse(cloned.getEnableSessionStore().orElse(true));

@@ -1144,8 +1144,7 @@ export class CopilotClient {
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
                 embeddingCacheStorage: config.embeddingCacheStorage,
                 organizationCustomInstructions: config.organizationCustomInstructions,
-                enableOnDemandInstructionDiscovery:
-                    config.enableOnDemandInstructionDiscovery,
+                enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
                 enableFileHooks: config.enableFileHooks,
                 enableHostGitOperations: config.enableHostGitOperations,
                 enableSessionStore: config.enableSessionStore,
@@ -1317,8 +1316,7 @@ export class CopilotClient {
                 skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
                 embeddingCacheStorage: config.embeddingCacheStorage,
                 organizationCustomInstructions: config.organizationCustomInstructions,
-                enableOnDemandInstructionDiscovery:
-                    config.enableOnDemandInstructionDiscovery,
+                enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
                 enableFileHooks: config.enableFileHooks,
                 enableHostGitOperations: config.enableHostGitOperations,
                 enableSessionStore: config.enableSessionStore,

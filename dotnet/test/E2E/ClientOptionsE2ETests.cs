@@ -178,7 +178,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    public async Task Should_Forward_New_Session_Config_Fields_In_Create_Wire_Request()
+    public async Task Should_Forward_Granular_Multitenancy_Fields_In_Create_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
 
@@ -195,6 +195,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             SkipEmbeddingRetrieval = false,
             OrganizationCustomInstructions = "Follow org policy.",
             EnableOnDemandInstructionDiscovery = true,
+            EmbeddingCacheStorage = EmbeddingCacheStorageMode.Persistent,
             EnableFileHooks = true,
             EnableHostGitOperations = false,
             EnableSessionStore = true,
@@ -207,6 +208,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(createRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
         Assert.Equal("Follow org policy.", createRequest.GetProperty("organizationCustomInstructions").GetString());
         Assert.True(createRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("persistent", createRequest.GetProperty("embeddingCacheStorage").GetString());
         Assert.True(createRequest.GetProperty("enableFileHooks").GetBoolean());
         Assert.False(createRequest.GetProperty("enableHostGitOperations").GetBoolean());
         Assert.True(createRequest.GetProperty("enableSessionStore").GetBoolean());
@@ -239,6 +241,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(createRequest.GetProperty("enableSessionTelemetry").GetBoolean());
         Assert.True(createRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
         Assert.False(createRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("in-memory", createRequest.GetProperty("embeddingCacheStorage").GetString());
         Assert.False(createRequest.GetProperty("enableFileHooks").GetBoolean());
         Assert.False(createRequest.GetProperty("enableHostGitOperations").GetBoolean());
         Assert.False(createRequest.GetProperty("enableSessionStore").GetBoolean());
@@ -365,7 +368,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
-    public async Task Should_Forward_New_Session_Config_Fields_In_Resume_Wire_Request()
+    public async Task Should_Forward_Granular_Multitenancy_Fields_In_Resume_Wire_Request()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
 
@@ -382,6 +385,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
             SkipEmbeddingRetrieval = false,
             OrganizationCustomInstructions = "Resume org policy.",
             EnableOnDemandInstructionDiscovery = true,
+            EmbeddingCacheStorage = EmbeddingCacheStorageMode.Persistent,
             EnableFileHooks = true,
             EnableHostGitOperations = false,
             EnableSessionStore = true,
@@ -394,6 +398,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(resumeRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
         Assert.Equal("Resume org policy.", resumeRequest.GetProperty("organizationCustomInstructions").GetString());
         Assert.True(resumeRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("persistent", resumeRequest.GetProperty("embeddingCacheStorage").GetString());
         Assert.True(resumeRequest.GetProperty("enableFileHooks").GetBoolean());
         Assert.False(resumeRequest.GetProperty("enableHostGitOperations").GetBoolean());
         Assert.True(resumeRequest.GetProperty("enableSessionStore").GetBoolean());
@@ -426,6 +431,7 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
         Assert.False(resumeRequest.GetProperty("enableSessionTelemetry").GetBoolean());
         Assert.True(resumeRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
         Assert.False(resumeRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("in-memory", resumeRequest.GetProperty("embeddingCacheStorage").GetString());
         Assert.False(resumeRequest.GetProperty("enableFileHooks").GetBoolean());
         Assert.False(resumeRequest.GetProperty("enableHostGitOperations").GetBoolean());
         Assert.False(resumeRequest.GetProperty("enableSessionStore").GetBoolean());

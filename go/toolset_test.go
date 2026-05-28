@@ -255,6 +255,9 @@ func TestApplyConfigDefaultsForMode_emptyDefaultsGranularFlags(t *testing.T) {
 	if cfg.SkipEmbeddingRetrieval == nil || *cfg.SkipEmbeddingRetrieval != true {
 		t.Errorf("expected SkipEmbeddingRetrieval=true in empty mode, got %v", cfg.SkipEmbeddingRetrieval)
 	}
+	if cfg.EmbeddingCacheStorage == nil || *cfg.EmbeddingCacheStorage != *String("in-memory") {
+		t.Errorf("expected EmbeddingCacheStorage=in-memory in empty mode, got %v", cfg.EmbeddingCacheStorage)
+	}
 	if cfg.EnableOnDemandInstructionDiscovery == nil || *cfg.EnableOnDemandInstructionDiscovery != false {
 		t.Errorf("expected EnableOnDemandInstructionDiscovery=false in empty mode, got %v", cfg.EnableOnDemandInstructionDiscovery)
 	}
@@ -277,16 +280,20 @@ func TestApplyConfigDefaultsForMode_emptyHonorsCallerGranularFlags(t *testing.T)
 	falseVal := false
 	trueVal := true
 	cfg := &SessionConfig{
-		SkipEmbeddingRetrieval:            &falseVal,
+		SkipEmbeddingRetrieval:             &falseVal,
+		EmbeddingCacheStorage:              String("persistent"),
 		EnableOnDemandInstructionDiscovery: &trueVal,
-		EnableFileHooks:                   &trueVal,
-		EnableHostGitOperations:           &trueVal,
-		EnableSessionStore:                &trueVal,
-		EnableSkills:                      &trueVal,
+		EnableFileHooks:                    &trueVal,
+		EnableHostGitOperations:            &trueVal,
+		EnableSessionStore:                 &trueVal,
+		EnableSkills:                       &trueVal,
 	}
 	c.applyConfigDefaultsForMode(cfg)
 	if *cfg.SkipEmbeddingRetrieval != false {
 		t.Errorf("caller-supplied SkipEmbeddingRetrieval must win")
+	}
+	if *cfg.EmbeddingCacheStorage != *String("persistent") {
+		t.Errorf("caller-supplied EmbeddingCacheStorage must win")
 	}
 	if *cfg.EnableOnDemandInstructionDiscovery != true {
 		t.Errorf("caller-supplied EnableOnDemandInstructionDiscovery must win")

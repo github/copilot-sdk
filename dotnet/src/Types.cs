@@ -2097,6 +2097,21 @@ public enum McpOAuthTokenStorageMode
 }
 
 /// <summary>
+/// Controls how the embedding cache is stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<EmbeddingCacheStorageMode>))]
+public enum EmbeddingCacheStorageMode
+{
+    /// <summary>Embeddings are cached on disk, shared across sessions and restarts.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Embeddings are cached in memory only and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
 /// Abstract base class for MCP server configurations.
 /// </summary>
 [JsonPolymorphic(
@@ -2509,11 +2524,11 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Controls how the embedding cache is stored for this session.
-    /// "persistent": Embeddings are cached on disk and shared across sessions/restarts.
-    /// "in-memory": Embeddings are cached in memory only and discarded when the session ends.
-    /// When null, mode "empty" defaults to "in-memory"; in other modes, the runtime default applies.
+    /// <see cref="EmbeddingCacheStorageMode.Persistent"/>: Embeddings are cached on disk and shared across sessions/restarts.
+    /// <see cref="EmbeddingCacheStorageMode.InMemory"/>: Embeddings are cached in memory only and discarded when the session ends.
+    /// When null, mode "empty" defaults to <see cref="EmbeddingCacheStorageMode.InMemory"/>; in other modes, the runtime default applies.
     /// </summary>
-    public string? EmbeddingCacheStorage { get; set; }
+    public EmbeddingCacheStorageMode? EmbeddingCacheStorage { get; set; }
 
     /// <summary>
     /// Organization-level custom instructions to include in the system prompt.
