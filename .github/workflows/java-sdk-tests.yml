@@ -149,4 +149,4 @@ jobs:
         run: |
           echo "Running tests against JDK 25-built classes using JDK 17 runtime..."
           java -version
-          mvn surefire:test -Denforcer.skip=true
+          mvn antrun:run@print-test-jdk-banner surefire:test -Denforcer.skip=true -DtestExecutionAgentArgs=
