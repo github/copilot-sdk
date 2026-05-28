@@ -387,4 +387,30 @@ public class CloneTests
 
         Assert.Null(clone.EnableSessionTelemetry);
     }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesMcpOAuthTokenStorage()
+    {
+        var original = new SessionConfig
+        {
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesMcpOAuthTokenStorage()
+    {
+        var original = new ResumeSessionConfig
+        {
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
+    }
 }

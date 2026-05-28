@@ -982,9 +982,9 @@ class TestMcpOAuthTokenStorage:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -1003,9 +1003,9 @@ class TestMcpOAuthTokenStorage:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.create_session(
@@ -1029,11 +1029,11 @@ class TestMcpOAuthTokenStorage:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
@@ -1057,11 +1057,11 @@ class TestMcpOAuthTokenStorage:
             captured = {}
             original_request = client._client.request
 
-            async def mock_request(method, params):
+            async def mock_request(method, params, **kwargs):
                 captured[method] = params
                 if method == "session.resume":
                     return {"sessionId": session.session_id}
-                return await original_request(method, params)
+                return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
             await client.resume_session(
