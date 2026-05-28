@@ -574,6 +574,17 @@ export interface SessionCapabilities {
     ui?: {
         /** Whether the host supports interactive elicitation dialogs. */
         elicitation?: boolean;
+        /**
+         * Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+         * opt-in. `true` when the consumer set `enableMcpApps: true` on
+         * create/resume **and** the runtime's `MCP_APPS` feature flag (or
+         * `COPILOT_MCP_APPS=true` env override) is on. Otherwise absent or
+         * `false`, indicating the runtime silently dropped the opt-in.
+         *
+         * @experimental This property is part of an experimental wire-protocol surface
+         * (SEP-1865) and may change or be removed in a future release.
+         */
+        mcpApps?: boolean;
         /** Whether the host supports canvas rendering. */
         canvases?: boolean;
     };
@@ -1702,6 +1713,34 @@ export interface SessionConfigBase {
      * Also enables the `elicitation` capability on the session.
      */
     onElicitationRequest?: ElicitationHandler;
+
+    /**
+     * Enable MCP Apps (SEP-1865) UI passthrough on this session.
+     *
+     * When `true` **and** the runtime has MCP Apps enabled (via the
+     * `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+     * override), the runtime adds the `mcp-apps` capability to the session,
+     * which causes it to advertise the `extensions.io.modelcontextprotocol/ui`
+     * extension to MCP servers (so they expose `_meta.ui.resourceUri` on
+     * tools) and to expose the `session.rpc.mcp.apps.{listTools,callTool,
+     * readResource,setHostContext,getHostContext,diagnose}` JSON-RPC methods.
+     *
+     * If the runtime gate is off, the opt-in is silently dropped server-side
+     * (the runtime logs a warning); the session is created normally but the
+     * MCP Apps surface is unavailable. Inspect the runtime's
+     * `capabilities.ui.mcpApps` on the create/resume response to detect this.
+     *
+     * SDK consumers MUST set this to `true` only when they have an iframe
+     * renderer that can display `ui://` MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants
+     * the consumer cannot display.
+     *
+     * @experimental This option is part of an experimental wire-protocol surface
+     * (SEP-1865) and may change or be removed in a future release.
+     *
+     * @default false
+     */
+    enableMcpApps?: boolean;
 
     /**
      * Handler for exit-plan-mode requests from the agent.

@@ -74,6 +74,7 @@ public class SessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
     private CloudSessionOptions cloud;
@@ -1034,6 +1035,49 @@ public class SessionConfig {
     }
 
     /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on this
+     * session.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on this session.
+     * <p>
+     * When {@code true} <b>and</b> the runtime has MCP Apps enabled (via the
+     * {@code MCP_APPS} feature flag or {@code COPILOT_MCP_APPS=true} environment
+     * override), the runtime adds the {@code mcp-apps} capability to the session,
+     * which causes it to advertise the
+     * {@code extensions.io.modelcontextprotocol/ui} extension to MCP servers (so
+     * they expose {@code _meta.ui.resourceUri} on tools) and to expose the
+     * {@code session.rpc.mcp.apps.{listTools,callTool,readResource,
+     * setHostContext,getHostContext,diagnose}} JSON-RPC methods.
+     * <p>
+     * If the runtime gate is off, the opt-in is silently dropped server-side (the
+     * runtime logs a warning); the session is created normally but the MCP Apps
+     * surface is unavailable. Inspect {@link SessionUiCapabilities#getMcpApps()} on
+     * {@link com.github.copilot.CopilotSession#getCapabilities()} to detect this.
+     * <p>
+     * SDK consumers MUST set this to {@code true} only when they have an iframe
+     * renderer that can display {@code ui://} MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants the
+     * consumer cannot display.
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1234,6 +1278,7 @@ public class SessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         copy.cloud = this.cloud;

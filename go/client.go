@@ -659,6 +659,9 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
 	}
+	if config.EnableMcpApps {
+		req.RequestMcpApps = Bool(true)
+	}
 
 	if config.Streaming != nil {
 		req.Streaming = config.Streaming
@@ -984,6 +987,9 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	}
 	if config.OnAutoModeSwitchRequest != nil {
 		req.RequestAutoModeSwitch = Bool(true)
+	}
+	if config.EnableMcpApps {
+		req.RequestMcpApps = Bool(true)
 	}
 
 	traceparent, tracestate := getTraceContext(ctx)

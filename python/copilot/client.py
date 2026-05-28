@@ -1568,6 +1568,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -1645,6 +1646,15 @@ class CopilotClient:
                 session. Optionally associates repository metadata with the
                 cloud session.
             on_event: Callback for session events.
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
+                ``session.create``. The runtime only honors the opt-in when its
+                ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+                override) is on; otherwise the request is silently dropped.
+                Inspect ``capabilities.ui.mcpApps`` on the create response to
+                detect the drop.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1727,6 +1737,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        if enable_mcp_apps:
+            payload["requestMcpApps"] = True
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -2045,6 +2057,7 @@ class CopilotClient:
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -2120,6 +2133,15 @@ class CopilotClient:
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough on resume. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
+                ``session.resume``. The runtime only honors the opt-in when its
+                ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+                override) is on; otherwise the request is silently dropped.
+                Inspect ``capabilities.ui.mcpApps`` on the resume response to
+                detect the drop.
             continue_pending_work: When True, instructs the runtime to continue any
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
@@ -2217,6 +2239,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        if enable_mcp_apps:
+            payload["requestMcpApps"] = True
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 

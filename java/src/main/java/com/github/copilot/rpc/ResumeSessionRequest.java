@@ -119,6 +119,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("requestElicitation")
     private Boolean requestElicitation;
 
+    @JsonProperty("requestMcpApps")
+    private Boolean requestMcpApps;
+
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
 
@@ -526,6 +529,21 @@ public final class ResumeSessionRequest {
      */
     public void clearRequestElicitation() {
         this.requestElicitation = null;
+    }
+
+    /** Gets the requestMcpApps flag. @return the flag */
+    public Boolean getRequestMcpApps() {
+        return requestMcpApps;
+    }
+
+    /** Sets the requestMcpApps flag. @param requestMcpApps the flag */
+    public void setRequestMcpApps(boolean requestMcpApps) {
+        this.requestMcpApps = requestMcpApps;
+    }
+
+    /** Clears the requestMcpApps setting, reverting to the default behavior. */
+    public void clearRequestMcpApps() {
+        this.requestMcpApps = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

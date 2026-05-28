@@ -1131,6 +1131,33 @@ pub struct SessionConfig {
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    ///
+    /// When `true` **and** the runtime has MCP Apps enabled (via the
+    /// `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+    /// override), the runtime adds the `mcp-apps` capability to the
+    /// session, which causes it to advertise the
+    /// `extensions.io.modelcontextprotocol/ui` extension to MCP servers (so
+    /// they expose `_meta.ui.resourceUri` on tools) and to expose the
+    /// `session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,
+    /// getHostContext,diagnose}` JSON-RPC methods.
+    ///
+    /// If the runtime gate is off, the opt-in is silently dropped
+    /// server-side (the runtime logs a warning); the session is created
+    /// normally but the MCP Apps surface is unavailable. Inspect the
+    /// runtime's `capabilities.ui.mcpApps` on the create/resume response to
+    /// detect this.
+    ///
+    /// SDK consumers MUST set this to `true` only when they have an iframe
+    /// renderer that can display `ui://` MCP App bundles. Setting it
+    /// without a renderer will cause MCP servers to register UI-enabled
+    /// tool variants the consumer cannot display.
+    ///
+    /// Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
@@ -1274,6 +1301,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1358,6 +1386,7 @@ impl Default for SessionConfig {
             excluded_tools: None,
             mcp_servers: None,
             enable_config_discovery: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1485,6 +1514,7 @@ impl SessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -1731,6 +1761,16 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
+    /// to `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -1928,6 +1968,12 @@ pub struct ResumeSessionConfig {
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
+    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
@@ -2042,6 +2088,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -2170,6 +2217,7 @@ impl ResumeSessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -2231,6 +2279,7 @@ impl ResumeSessionConfig {
             excluded_tools: None,
             mcp_servers: None,
             enable_config_discovery: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -2453,6 +2502,16 @@ impl ResumeSessionConfig {
     /// Enable or disable CLI config discovery on resume.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
+    /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
         self
     }
 
@@ -3593,6 +3652,18 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// **Experimental.** This field is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+    /// opt-in. `Some(true)` when the consumer set
+    /// [`SessionConfig::enable_mcp_apps`] / [`ResumeSessionConfig::enable_mcp_apps`]
+    /// to `true` on create/resume **and** the runtime's `MCP_APPS` feature
+    /// flag (or `COPILOT_MCP_APPS=true` env override) is on. Otherwise
+    /// absent or `Some(false)`, indicating the runtime silently dropped the
+    /// opt-in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_apps: Option<bool>,
     /// Host-specific canvas capabilities.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canvases: Option<bool>,
@@ -3879,6 +3950,7 @@ mod tests {
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
     }
 
     #[test]
@@ -3893,6 +3965,36 @@ mod tests {
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
+    }
+
+    #[test]
+    fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = SessionConfig::default().with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("enable-mcp-apps")))
+            .expect("enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn resume_session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-enable-mcp-apps"))
+            .with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("resume enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
     }
 
     #[test]

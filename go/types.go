@@ -987,6 +987,29 @@ type SessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// When provided, enables autoModeSwitch.request callbacks for the session.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on this session.
+	//
+	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// surface (SEP-1865) and may change or be removed in a future release.
+	//
+	// When true AND the runtime has MCP Apps enabled (via the MCP_APPS feature
+	// flag or COPILOT_MCP_APPS=true environment override), the runtime adds the
+	// mcp-apps capability to the session, which causes it to advertise the
+	// extensions.io.modelcontextprotocol/ui extension to MCP servers (so they
+	// expose _meta.ui.resourceUri on tools) and to expose the
+	// session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,
+	// getHostContext,diagnose} JSON-RPC methods.
+	//
+	// If the runtime gate is off, the opt-in is silently dropped server-side
+	// (the runtime logs a warning); the session is created normally but the
+	// MCP Apps surface is unavailable. Inspect the runtime's
+	// capabilities.ui.mcpApps on the create/resume response to detect this.
+	//
+	// SDK consumers MUST set this to true only when they have an iframe renderer
+	// that can display ui:// MCP App bundles. Setting it without a renderer will
+	// cause MCP servers to register UI-enabled tool variants the consumer cannot
+	// display.
+	EnableMcpApps bool
 	// GitHubToken is an optional per-session GitHub token used for authentication.
 	// When provided, the session authenticates as the token's owner instead of
 	// using the global client-level auth.
@@ -1089,6 +1112,15 @@ type SessionCapabilities struct {
 type UICapabilities struct {
 	// Elicitation indicates whether the host supports interactive elicitation dialogs.
 	Elicitation bool `json:"elicitation,omitempty"`
+	// McpApps indicates whether the runtime has accepted the session's MCP Apps
+	// (SEP-1865) opt-in. True when the consumer set EnableMcpApps=true on
+	// create/resume AND the runtime's MCP_APPS feature flag (or
+	// COPILOT_MCP_APPS=true env override) is on. Otherwise false, indicating
+	// the runtime silently dropped the opt-in.
+	//
+	// Experimental: McpApps is part of an experimental wire-protocol surface
+	// (SEP-1865) and may change or be removed in a future release.
+	McpApps bool `json:"mcpApps,omitempty"`
 }
 
 // ElicitationResult is the user's response to an elicitation dialog.
@@ -1275,6 +1307,12 @@ type ResumeSessionConfig struct {
 	// OnAutoModeSwitchRequest is a handler for auto-mode-switch requests from the server.
 	// See SessionConfig.OnAutoModeSwitchRequest.
 	OnAutoModeSwitchRequest AutoModeSwitchRequestHandler
+	// EnableMcpApps enables MCP Apps (SEP-1865) UI passthrough on resume.
+	// See SessionConfig.EnableMcpApps.
+	//
+	// Experimental: EnableMcpApps is part of an experimental wire-protocol
+	// surface (SEP-1865) and may change or be removed in a future release.
+	EnableMcpApps bool
 	// Canvases declares canvases this session provides. Sent over the wire on
 	// `session.resume`. See SessionConfig.Canvases.
 	Canvases []CanvasDeclaration
@@ -1534,6 +1572,7 @@ type createSessionRequest struct {
 	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
+	RequestMcpApps                 *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Cloud                          *CloudSessionOptions                   `json:"cloud,omitempty"`
@@ -1599,6 +1638,7 @@ type resumeSessionRequest struct {
 	InfiniteSessions               *InfiniteSessionConfig                 `json:"infiniteSessions,omitempty"`
 	Commands                       []wireCommand                          `json:"commands,omitempty"`
 	RequestElicitation             *bool                                  `json:"requestElicitation,omitempty"`
+	RequestMcpApps                 *bool                                  `json:"requestMcpApps,omitempty"`
 	GitHubToken                    string                                 `json:"gitHubToken,omitempty"`
 	RemoteSession                  rpc.RemoteSessionMode                  `json:"remoteSession,omitempty"`
 	Canvases                       []CanvasDeclaration                    `json:"canvases,omitempty"`

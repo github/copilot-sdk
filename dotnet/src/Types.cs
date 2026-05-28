@@ -1130,6 +1130,16 @@ public sealed class SessionUiCapabilities
     /// Whether the host supports interactive elicitation dialogs.
     /// </summary>
     public bool? Elicitation { get; set; }
+
+    /// <summary>
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
+    /// to <c>true</c> on create/resume <b>and</b> the runtime's <c>MCP_APPS</c> feature flag
+    /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
+    /// <c>false</c>, indicating the runtime silently dropped the opt-in.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? McpApps { get; set; }
 }
 
 // ============================================================================
@@ -2346,6 +2356,7 @@ public abstract class SessionConfigBase
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        EnableMcpApps = other.EnableMcpApps;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2506,6 +2517,31 @@ public abstract class SessionConfigBase
 
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
+
+    /// <summary>
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    /// <para>
+    /// When <c>true</c> <b>and</b> the runtime has MCP Apps enabled (via the
+    /// <c>MCP_APPS</c> feature flag or <c>COPILOT_MCP_APPS=true</c> environment override), the
+    /// runtime adds the <c>mcp-apps</c> capability to the session, which causes it to advertise
+    /// the <c>extensions.io.modelcontextprotocol/ui</c> extension to MCP servers (so they expose
+    /// <c>_meta.ui.resourceUri</c> on tools) and to expose the
+    /// <c>session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,getHostContext,diagnose}</c>
+    /// JSON-RPC methods.
+    /// </para>
+    /// <para>
+    /// If the runtime gate is off, the opt-in is silently dropped server-side (the runtime logs a
+    /// warning); the session is created normally but the MCP Apps surface is unavailable. Inspect
+    /// the runtime's <c>capabilities.ui.mcpApps</c> on the create/resume response to detect this.
+    /// </para>
+    /// <para>
+    /// SDK consumers MUST set this to <c>true</c> only when they have an iframe renderer that can
+    /// display <c>ui://</c> MCP App bundles. Setting it without a renderer will cause MCP servers
+    /// to register UI-enabled tool variants the consumer cannot display.
+    /// </para>
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool EnableMcpApps { get; set; }
 
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }

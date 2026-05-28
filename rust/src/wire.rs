@@ -81,6 +81,7 @@ pub(crate) struct SessionCreateWire {
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
+    pub request_mcp_apps: bool,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
@@ -159,6 +160,7 @@ pub(crate) struct SessionResumeWire {
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
+    pub request_mcp_apps: bool,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,

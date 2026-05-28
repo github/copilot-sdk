@@ -74,6 +74,7 @@ public class ResumeSessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
 
@@ -973,6 +974,31 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on resume.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on the resumed session. See
+     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics (runtime
+     * gate, capability inspection, renderer requirement).
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support on resume
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -1129,6 +1155,7 @@ public class ResumeSessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         return copy;

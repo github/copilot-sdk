@@ -946,6 +946,65 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:      "s1",
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
 func TestResumeSessionRequest_ModeCallbackFlags(t *testing.T) {
 	req := resumeSessionRequest{
 		SessionID:             "s1",
