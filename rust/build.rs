@@ -106,6 +106,13 @@ fn main() {
         let install_dir = extracted_install_dir(&version);
         let final_path = install_dir.join(platform.binary_name);
 
+        // Invalidate build.rs whenever the cached binary disappears (cache GC,
+        // manual rm, OS reset, switching extract dir). Without this, cargo
+        // replays the saved `has_extracted_cli` cfg from its build-script
+        // output cache even when the file is gone, and runtime resolution
+        // fails with BinaryNotFound.
+        println!("cargo:rerun-if-changed={}", final_path.display());
+
         if !final_path.is_file() {
             let archive = cached_download(
                 &format!("{base_url}/{}", platform.asset_name),
@@ -117,7 +124,9 @@ fn main() {
             extract_to_cache(&archive, &install_dir, platform);
         }
 
-        println!("cargo:rustc-cfg=has_extracted_cli");
+        if final_path.is_file() {
+            println!("cargo:rustc-cfg=has_extracted_cli");
+        }
     }
 }
 
