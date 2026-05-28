@@ -4590,6 +4590,14 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("disabledSkills")]
     public IList<string>? DisabledSkills { get; set; }
 
+    /// <summary>Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.</summary>
+    [JsonPropertyName("enableFileHooks")]
+    public bool? EnableFileHooks { get; set; }
+
+    /// <summary>Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).</summary>
+    [JsonPropertyName("enableHostGitOperations")]
+    public bool? EnableHostGitOperations { get; set; }
+
     /// <summary>Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.</summary>
     [JsonPropertyName("enableOnDemandInstructionDiscovery")]
     public bool? EnableOnDemandInstructionDiscovery { get; set; }
@@ -4601,6 +4609,14 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Whether shell-script safety heuristics are enabled.</summary>
     [JsonPropertyName("enableScriptSafety")]
     public bool? EnableScriptSafety { get; set; }
+
+    /// <summary>Whether to enable cross-session store writes and reads.</summary>
+    [JsonPropertyName("enableSessionStore")]
+    public bool? EnableSessionStore { get; set; }
+
+    /// <summary>Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</summary>
+    [JsonPropertyName("enableSkills")]
+    public bool? EnableSkills { get; set; }
 
     /// <summary>Whether to stream model responses.</summary>
     [JsonPropertyName("enableStreaming")]
@@ -4650,6 +4666,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Organization-level custom instructions to inject into the system prompt.</summary>
+    [JsonPropertyName("organizationCustomInstructions")]
+    public string? OrganizationCustomInstructions { get; set; }
+
     /// <summary>Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonPropertyName("provider")]
@@ -4687,6 +4707,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Whether to skip loading custom instruction sources.</summary>
     [JsonPropertyName("skipCustomInstructions")]
     public bool? SkipCustomInstructions { get; set; }
+
+    /// <summary>Whether to skip embedding retrieval pipeline initialization and execution.</summary>
+    [JsonPropertyName("skipEmbeddingRetrieval")]
+    public bool? SkipEmbeddingRetrieval { get; set; }
 
     /// <summary>Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</summary>
     [JsonPropertyName("toolFilterPrecedence")]
@@ -14692,13 +14716,19 @@ public sealed class OptionsApi
     /// <param name="eventsLogDirectory">Override directory for the session-events log. When unset, the runtime's default events log directory is used.</param>
     /// <param name="additionalContentExclusionPolicies">Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.</param>
     /// <param name="manageScheduleEnabled">Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).</param>
+    /// <param name="skipEmbeddingRetrieval">Whether to skip embedding retrieval pipeline initialization and execution.</param>
+    /// <param name="organizationCustomInstructions">Organization-level custom instructions to inject into the system prompt.</param>
+    /// <param name="enableFileHooks">Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.</param>
+    /// <param name="enableHostGitOperations">Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).</param>
+    /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
+    /// <param name="enableSkills">Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }

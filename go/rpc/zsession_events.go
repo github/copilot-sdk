@@ -1087,6 +1087,8 @@ type SessionStartData struct {
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
 	// Working directory and git context at session start
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
+	// Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
+	ContextTier *SessionStartDataContextTier `json:"contextTier,omitempty"`
 	// Version string of the Copilot application
 	CopilotVersion string `json:"copilotVersion"`
 	// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
@@ -1118,6 +1120,8 @@ type SessionResumeData struct {
 	AlreadyInUse *bool `json:"alreadyInUse,omitempty"`
 	// Updated working directory and git context at resume time
 	Context *WorkingDirectoryContext `json:"context,omitempty"`
+	// Context tier currently selected at resume time; null when no tier is active
+	ContextTier *SessionResumeDataContextTier `json:"contextTier,omitempty"`
 	// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
 	ContinuePendingWork *bool `json:"continuePendingWork,omitempty"`
 	// Total number of persisted events in the session at the time of resume
@@ -3272,6 +3276,24 @@ const (
 	SessionModelChangeDataContextTierDefault SessionModelChangeDataContextTier = "default"
 	// Extended context tier with a larger context window.
 	SessionModelChangeDataContextTierLongContext SessionModelChangeDataContextTier = "long_context"
+)
+
+type SessionResumeDataContextTier string
+
+const (
+	// Default context tier with standard context window size.
+	SessionResumeDataContextTierDefault SessionResumeDataContextTier = "default"
+	// Extended context tier with a larger context window.
+	SessionResumeDataContextTierLongContext SessionResumeDataContextTier = "long_context"
+)
+
+type SessionStartDataContextTier string
+
+const (
+	// Default context tier with standard context window size.
+	SessionStartDataContextTierDefault SessionStartDataContextTier = "default"
+	// Extended context tier with a larger context window.
+	SessionStartDataContextTierLongContext SessionStartDataContextTier = "long_context"
 )
 
 // What triggered the skill invocation: `user-invoked` (explicit user action, such as via a slash command or UI affordance), `agent-invoked` (agent requested the skill), or `context-load` (loaded as part of another context, such as preloading skills configured on a custom agent or subagent)

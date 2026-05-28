@@ -437,6 +437,9 @@ pub struct SessionStartData {
     /// Working directory and git context at session start
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
+    /// Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<SessionStartDataContextTier>,
     /// Version string of the Copilot application
     pub copilot_version: String,
     /// When set, identifies a parent session whose context this session continues — e.g., a detached headless rem-agent run launched on the parent's interactive shutdown. Telemetry from this session is reported under the parent's session_id.
@@ -474,6 +477,9 @@ pub struct SessionResumeData {
     /// Updated working directory and git context at resume time
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkingDirectoryContext>,
+    /// Context tier currently selected at resume time; null when no tier is active
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<SessionResumeDataContextTier>,
     /// When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub continue_pending_work: Option<bool>,
@@ -3328,6 +3334,20 @@ pub enum WorkingDirectoryContextHostType {
     Unknown,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionStartDataContextTier {
+    /// Default context tier with standard context window size.
+    #[serde(rename = "default")]
+    Default,
+    /// Extended context tier with a larger context window.
+    #[serde(rename = "long_context")]
+    LongContext,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
 /// Reasoning summary mode used for model calls, if applicable (e.g. "none", "concise", "detailed")
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReasoningSummary {
@@ -3340,6 +3360,20 @@ pub enum ReasoningSummary {
     /// Request a detailed summary of the model's reasoning.
     #[serde(rename = "detailed")]
     Detailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SessionResumeDataContextTier {
+    /// Default context tier with standard context window size.
+    #[serde(rename = "default")]
+    Default,
+    /// Extended context tier with a larger context window.
+    #[serde(rename = "long_context")]
+    LongContext,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

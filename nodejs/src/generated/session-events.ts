@@ -578,6 +578,14 @@ export interface StartData {
   alreadyInUse?: boolean;
   context?: WorkingDirectoryContext;
   /**
+   * Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
+   */
+  contextTier?: /** Default context tier with standard context window size. */
+    | "default"
+    /** Extended context tier with a larger context window. */
+    | "long_context"
+    | null;
+  /**
    * Version string of the Copilot application
    */
   copilotVersion: string;
@@ -688,6 +696,14 @@ export interface ResumeData {
    */
   alreadyInUse?: boolean;
   context?: WorkingDirectoryContext;
+  /**
+   * Context tier currently selected at resume time; null when no tier is active
+   */
+  contextTier?: /** Default context tier with standard context window size. */
+    | "default"
+    /** Extended context tier with a larger context window. */
+    | "long_context"
+    | null;
   /**
    * When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
    */

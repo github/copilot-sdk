@@ -14649,6 +14649,14 @@ class SessionUpdateOptionsParams:
     disabled_skills: list[str] | None = None
     """Skill IDs that should be excluded from this session."""
 
+    enable_file_hooks: bool | None = None
+    """Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK
+    callback hook mechanism.
+    """
+    enable_host_git_operations: bool | None = None
+    """Whether to enable host git operations (context resolution, child repo scanning, git info
+    in system prompt).
+    """
     enable_on_demand_instruction_discovery: bool | None = None
     """Whether to discover custom instructions on demand after successful file views (AGENTS.md
     / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with
@@ -14660,6 +14668,13 @@ class SessionUpdateOptionsParams:
     enable_script_safety: bool | None = None
     """Whether shell-script safety heuristics are enabled."""
 
+    enable_session_store: bool | None = None
+    """Whether to enable cross-session store writes and reads."""
+
+    enable_skills: bool | None = None
+    """Whether to enable skill directory scanning and loading. Falls back to
+    enableConfigDiscovery when unset.
+    """
     enable_streaming: bool | None = None
     """Whether to stream model responses."""
 
@@ -14701,6 +14716,9 @@ class SessionUpdateOptionsParams:
     model: str | None = None
     """The model ID to use for assistant turns."""
 
+    organization_custom_instructions: str | None = None
+    """Organization-level custom instructions to inject into the system prompt."""
+
     provider: Any = None
     """Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the
     runtime.
@@ -14726,6 +14744,9 @@ class SessionUpdateOptionsParams:
     skip_custom_instructions: bool | None = None
     """Whether to skip loading custom instruction sources."""
 
+    skip_embedding_retrieval: bool | None = None
+    """Whether to skip embedding retrieval pipeline initialization and execution."""
+
     tool_filter_precedence: OptionsUpdateToolFilterPrecedence | None = None
     """Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
     are set.
@@ -14750,9 +14771,13 @@ class SessionUpdateOptionsParams:
         custom_agents_local_only = from_union([from_bool, from_none], obj.get("customAgentsLocalOnly"))
         disabled_instruction_sources = from_union([lambda x: from_list(from_str, x), from_none], obj.get("disabledInstructionSources"))
         disabled_skills = from_union([lambda x: from_list(from_str, x), from_none], obj.get("disabledSkills"))
+        enable_file_hooks = from_union([from_bool, from_none], obj.get("enableFileHooks"))
+        enable_host_git_operations = from_union([from_bool, from_none], obj.get("enableHostGitOperations"))
         enable_on_demand_instruction_discovery = from_union([from_bool, from_none], obj.get("enableOnDemandInstructionDiscovery"))
         enable_reasoning_summaries = from_union([from_bool, from_none], obj.get("enableReasoningSummaries"))
         enable_script_safety = from_union([from_bool, from_none], obj.get("enableScriptSafety"))
+        enable_session_store = from_union([from_bool, from_none], obj.get("enableSessionStore"))
+        enable_skills = from_union([from_bool, from_none], obj.get("enableSkills"))
         enable_streaming = from_union([from_bool, from_none], obj.get("enableStreaming"))
         env_value_mode = from_union([MCPSetEnvValueModeDetails, from_none], obj.get("envValueMode"))
         events_log_directory = from_union([from_str, from_none], obj.get("eventsLogDirectory"))
@@ -14765,6 +14790,7 @@ class SessionUpdateOptionsParams:
         lsp_client_name = from_union([from_str, from_none], obj.get("lspClientName"))
         manage_schedule_enabled = from_union([from_bool, from_none], obj.get("manageScheduleEnabled"))
         model = from_union([from_str, from_none], obj.get("model"))
+        organization_custom_instructions = from_union([from_str, from_none], obj.get("organizationCustomInstructions"))
         provider = obj.get("provider")
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         running_in_interactive_mode = from_union([from_bool, from_none], obj.get("runningInInteractiveMode"))
@@ -14773,10 +14799,11 @@ class SessionUpdateOptionsParams:
         shell_process_flags = from_union([lambda x: from_list(from_str, x), from_none], obj.get("shellProcessFlags"))
         skill_directories = from_union([lambda x: from_list(from_str, x), from_none], obj.get("skillDirectories"))
         skip_custom_instructions = from_union([from_bool, from_none], obj.get("skipCustomInstructions"))
+        skip_embedding_retrieval = from_union([from_bool, from_none], obj.get("skipEmbeddingRetrieval"))
         tool_filter_precedence = from_union([OptionsUpdateToolFilterPrecedence, from_none], obj.get("toolFilterPrecedence"))
         trajectory_file = from_union([from_str, from_none], obj.get("trajectoryFile"))
         working_directory = from_union([from_str, from_none], obj.get("workingDirectory"))
-        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, ask_user_disabled, available_tools, client_name, coauthor_enabled, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_streaming, env_value_mode, events_log_directory, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, model, provider, reasoning_effort, running_in_interactive_mode, sandbox_config, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, tool_filter_precedence, trajectory_file, working_directory)
+        return SessionUpdateOptionsParams(additional_content_exclusion_policies, agent_context, ask_user_disabled, available_tools, client_name, coauthor_enabled, continue_on_auto_mode, copilot_url, custom_agents_local_only, disabled_instruction_sources, disabled_skills, enable_file_hooks, enable_host_git_operations, enable_on_demand_instruction_discovery, enable_reasoning_summaries, enable_script_safety, enable_session_store, enable_skills, enable_streaming, env_value_mode, events_log_directory, excluded_tools, feature_flags, installed_plugins, integration_id, is_experimental_mode, log_interactive_shells, lsp_client_name, manage_schedule_enabled, model, organization_custom_instructions, provider, reasoning_effort, running_in_interactive_mode, sandbox_config, shell_init_profile, shell_process_flags, skill_directories, skip_custom_instructions, skip_embedding_retrieval, tool_filter_precedence, trajectory_file, working_directory)
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -14802,12 +14829,20 @@ class SessionUpdateOptionsParams:
             result["disabledInstructionSources"] = from_union([lambda x: from_list(from_str, x), from_none], self.disabled_instruction_sources)
         if self.disabled_skills is not None:
             result["disabledSkills"] = from_union([lambda x: from_list(from_str, x), from_none], self.disabled_skills)
+        if self.enable_file_hooks is not None:
+            result["enableFileHooks"] = from_union([from_bool, from_none], self.enable_file_hooks)
+        if self.enable_host_git_operations is not None:
+            result["enableHostGitOperations"] = from_union([from_bool, from_none], self.enable_host_git_operations)
         if self.enable_on_demand_instruction_discovery is not None:
             result["enableOnDemandInstructionDiscovery"] = from_union([from_bool, from_none], self.enable_on_demand_instruction_discovery)
         if self.enable_reasoning_summaries is not None:
             result["enableReasoningSummaries"] = from_union([from_bool, from_none], self.enable_reasoning_summaries)
         if self.enable_script_safety is not None:
             result["enableScriptSafety"] = from_union([from_bool, from_none], self.enable_script_safety)
+        if self.enable_session_store is not None:
+            result["enableSessionStore"] = from_union([from_bool, from_none], self.enable_session_store)
+        if self.enable_skills is not None:
+            result["enableSkills"] = from_union([from_bool, from_none], self.enable_skills)
         if self.enable_streaming is not None:
             result["enableStreaming"] = from_union([from_bool, from_none], self.enable_streaming)
         if self.env_value_mode is not None:
@@ -14832,6 +14867,8 @@ class SessionUpdateOptionsParams:
             result["manageScheduleEnabled"] = from_union([from_bool, from_none], self.manage_schedule_enabled)
         if self.model is not None:
             result["model"] = from_union([from_str, from_none], self.model)
+        if self.organization_custom_instructions is not None:
+            result["organizationCustomInstructions"] = from_union([from_str, from_none], self.organization_custom_instructions)
         if self.provider is not None:
             result["provider"] = self.provider
         if self.reasoning_effort is not None:
@@ -14848,6 +14885,8 @@ class SessionUpdateOptionsParams:
             result["skillDirectories"] = from_union([lambda x: from_list(from_str, x), from_none], self.skill_directories)
         if self.skip_custom_instructions is not None:
             result["skipCustomInstructions"] = from_union([from_bool, from_none], self.skip_custom_instructions)
+        if self.skip_embedding_retrieval is not None:
+            result["skipEmbeddingRetrieval"] = from_union([from_bool, from_none], self.skip_embedding_retrieval)
         if self.tool_filter_precedence is not None:
             result["toolFilterPrecedence"] = from_union([lambda x: to_enum(OptionsUpdateToolFilterPrecedence, x), from_none], self.tool_filter_precedence)
         if self.trajectory_file is not None:
