@@ -122,6 +122,8 @@ jobs:
       - name: Generate Test Report Summary
         if: always()
         uses: ./.github/actions/java-test-report
+        with:
+          title: "Copilot Java SDK :: Test Results (JDK 25)"
 
       - name: Upload test results on failure
         if: failure()
@@ -150,3 +152,10 @@ jobs:
           echo "Running tests against JDK 25-built classes using JDK 17 runtime..."
           java -version
           mvn antrun:run@print-test-jdk-banner surefire:test -Denforcer.skip=true -DtestExecutionAgentArgs=
+
+      - name: Generate Test Report Summary (JDK 17)
+        if: always() && (inputs.test-jdk17 == true || inputs.test-jdk17 == null)
+        uses: ./.github/actions/java-test-report
+        with:
+          title: "Copilot Java SDK :: Test Results (JDK 17)"
+          show-coverage: "false"

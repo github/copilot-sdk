@@ -1,6 +1,10 @@
 name: "Java Test Report"
 description: "Generate and publish test reports with summary for Java SDK tests."
 inputs:
+  title:
+    description: "Heading to display in the summary (identifies the JDK variant)"
+    required: false
+    default: "Copilot Java SDK :: Test Results"
   report-path:
     description: "Path to the test report XML files (glob pattern)"
     required: false
@@ -13,6 +17,10 @@ inputs:
     description: "Path to the JaCoCo CSV report"
     required: false
     default: "java/target/site/jacoco-coverage/jacoco.csv"
+  show-coverage:
+    description: "Whether to include JaCoCo coverage in the summary"
+    required: false
+    default: "true"
   check-name:
     description: "Name for the check run"
     required: false
@@ -23,7 +31,7 @@ runs:
     - name: Generate Test Summary
       shell: bash
       run: |
-        echo "## 🧪 Copilot Java SDK :: Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "## 🧪 ${{ inputs.title }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if ls ${{ inputs.report-path }} 1>/dev/null 2>&1; then
@@ -81,6 +89,7 @@ runs:
         fi
 
     - name: Generate Coverage Summary
+      if: inputs.show-coverage == 'true'
       shell: bash
       run: |
         JACOCO_XML="${{ inputs.jacoco-path }}"
