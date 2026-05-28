@@ -908,7 +908,17 @@ export class CopilotClient {
     /** Mode-specific defaults spread under the caller's config (app values win). */
     private configDefaultsForMode(): Partial<SessionConfigBase> {
         if (this.options.mode === "empty") {
-            return { enableSessionTelemetry: false, mcpOAuthTokenStorage: "in-memory" };
+            return {
+                enableSessionTelemetry: false,
+                mcpOAuthTokenStorage: "in-memory",
+                skipEmbeddingRetrieval: true,
+                embeddingCacheStorage: "in-memory",
+                enableOnDemandInstructionDiscovery: false,
+                enableFileHooks: false,
+                enableHostGitOperations: false,
+                enableSessionStore: false,
+                enableSkills: false,
+            };
         }
         return {};
     }
@@ -1131,6 +1141,14 @@ export class CopilotClient {
                 agent: config.agent,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
+                embeddingCacheStorage: config.embeddingCacheStorage,
+                organizationCustomInstructions: config.organizationCustomInstructions,
+                enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
+                enableFileHooks: config.enableFileHooks,
+                enableHostGitOperations: config.enableHostGitOperations,
+                enableSessionStore: config.enableSessionStore,
+                enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
                 pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
@@ -1295,6 +1313,14 @@ export class CopilotClient {
                 workingDirectory: config.workingDirectory,
                 configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
+                embeddingCacheStorage: config.embeddingCacheStorage,
+                organizationCustomInstructions: config.organizationCustomInstructions,
+                enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
+                enableFileHooks: config.enableFileHooks,
+                enableHostGitOperations: config.enableHostGitOperations,
+                enableSessionStore: config.enableSessionStore,
+                enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),

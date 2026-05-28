@@ -172,14 +172,80 @@ def _system_message_for_mode(
     return out
 
 
+def _empty_mode_bool_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+    empty_default: bool,
+) -> bool | None:
+    if mode == "empty" and supplied is None:
+        return empty_default
+    return supplied
+
+
 def _enable_session_telemetry_default(
     mode: CopilotClientMode | None,
     supplied: bool | None,
 ) -> bool | None:
     """Empty mode defaults telemetry to False; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, False)
+
+
+def _skip_embedding_retrieval_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults embedding retrieval to off; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, True)
+
+
+def _embedding_cache_storage_default(
+    mode: CopilotClientMode | None,
+    supplied: Literal["persistent", "in-memory"] | None,
+) -> Literal["persistent", "in-memory"] | None:
+    """Empty mode defaults embedding cache storage to in-memory; caller value wins."""
     if mode == "empty" and supplied is None:
-        return False
+        return "in-memory"
     return supplied
+
+
+def _enable_on_demand_instruction_discovery_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults on-demand instruction discovery to False."""
+    return _empty_mode_bool_default(mode, supplied, False)
+
+
+def _enable_file_hooks_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults file hooks to False; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, False)
+
+
+def _enable_host_git_operations_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults host git operations to False; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, False)
+
+
+def _enable_session_store_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults the session store to False; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, False)
+
+
+def _enable_skills_default(
+    mode: CopilotClientMode | None,
+    supplied: bool | None,
+) -> bool | None:
+    """Empty mode defaults skills to False; caller value wins."""
+    return _empty_mode_bool_default(mode, supplied, False)
 
 
 def _mcp_oauth_token_storage_default(

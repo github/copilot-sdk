@@ -251,29 +251,65 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestPropagatesGranularMultitenancyFields() {
+        var config = new SessionConfig().setSkipEmbeddingRetrieval(true)
+                .setOrganizationCustomInstructions("Create org instructions")
+                .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true).setEnableHostGitOperations(false)
+                .setEnableSessionStore(true).setEnableSkills(false);
+
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+
+        assertTrue(request.getSkipEmbeddingRetrieval());
+        assertEquals("Create org instructions", request.getOrganizationCustomInstructions());
+        assertFalse(request.getEnableOnDemandInstructionDiscovery());
+        assertTrue(request.getEnableFileHooks());
+        assertFalse(request.getEnableHostGitOperations());
+        assertTrue(request.getEnableSessionStore());
+        assertFalse(request.getEnableSkills());
+    }
+
+    @Test
+    void testBuildResumeRequestPropagatesGranularMultitenancyFields() {
+        var config = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
+                .setOrganizationCustomInstructions("Resume org instructions")
+                .setEnableOnDemandInstructionDiscovery(true).setEnableFileHooks(false).setEnableHostGitOperations(true)
+                .setEnableSessionStore(false).setEnableSkills(true);
+
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
+
+        assertFalse(request.getSkipEmbeddingRetrieval());
+        assertEquals("Resume org instructions", request.getOrganizationCustomInstructions());
+        assertTrue(request.getEnableOnDemandInstructionDiscovery());
+        assertFalse(request.getEnableFileHooks());
+        assertTrue(request.getEnableHostGitOperations());
+        assertFalse(request.getEnableSessionStore());
+        assertTrue(request.getEnableSkills());
+    }
+
+    @Test
     void testBuildResumeRequestPassesThroughNullMcpOAuthTokenStorage() {
         var config = new ResumeSessionConfig();
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-12", config);
         assertNull(request.getMcpOAuthTokenStorage());
     }
 
     @Test
     void testBuildResumeRequestForwardsExplicitMcpOAuthTokenStorage() {
         var config = new ResumeSessionConfig().setMcpOAuthTokenStorage("persistent");
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-12", config);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", config);
         assertEquals("persistent", request.getMcpOAuthTokenStorage());
     }
 
     @Test
     void testBuildResumeRequestNullConfigHasNullMcpOAuthTokenStorage() {
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", null);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-14", null);
         assertNull(request.getMcpOAuthTokenStorage());
     }
 
     @Test
     void testBuildResumeRequestSetsReasoningSummary() {
         var config = new ResumeSessionConfig().setReasoningSummary("none");
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-14", config);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
         assertEquals("none", request.getReasoningSummary());
     }
 
@@ -282,7 +318,7 @@ public class SessionRequestBuilderTest {
         var largeOutput = new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L)
                 .setOutputDirectory("/tmp/resume");
         var config = new ResumeSessionConfig().setPluginDirectories(List.of("/plugins/r")).setLargeOutput(largeOutput);
-        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-16", config);
         assertEquals(List.of("/plugins/r"), request.getPluginDirectories());
         assertEquals(largeOutput, request.getLargeOutput());
     }

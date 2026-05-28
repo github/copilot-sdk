@@ -837,11 +837,34 @@ impl Client {
         crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
-        if mode == crate::ClientMode::Empty && config.enable_session_telemetry.is_none() {
-            config.enable_session_telemetry = Some(false);
+        if mode == crate::ClientMode::Empty {
+            if config.enable_session_telemetry.is_none() {
+                config.enable_session_telemetry = Some(false);
+            }
+            if config.skip_embedding_retrieval.is_none() {
+                config.skip_embedding_retrieval = Some(true);
+            }
+            if config.enable_on_demand_instruction_discovery.is_none() {
+                config.enable_on_demand_instruction_discovery = Some(false);
+            }
+            if config.enable_file_hooks.is_none() {
+                config.enable_file_hooks = Some(false);
+            }
+            if config.enable_host_git_operations.is_none() {
+                config.enable_host_git_operations = Some(false);
+            }
+            if config.enable_session_store.is_none() {
+                config.enable_session_store = Some(false);
+            }
+            if config.enable_skills.is_none() {
+                config.enable_skills = Some(false);
+            }
         }
         if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
             config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
+        if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
+            config.embedding_cache_storage = Some("in-memory".into());
         }
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
@@ -1069,11 +1092,34 @@ impl Client {
         crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
         config.system_message =
             crate::mode::system_message_for_mode(mode, config.system_message.take());
-        if mode == crate::ClientMode::Empty && config.enable_session_telemetry.is_none() {
-            config.enable_session_telemetry = Some(false);
+        if mode == crate::ClientMode::Empty {
+            if config.enable_session_telemetry.is_none() {
+                config.enable_session_telemetry = Some(false);
+            }
+            if config.skip_embedding_retrieval.is_none() {
+                config.skip_embedding_retrieval = Some(true);
+            }
+            if config.enable_on_demand_instruction_discovery.is_none() {
+                config.enable_on_demand_instruction_discovery = Some(false);
+            }
+            if config.enable_file_hooks.is_none() {
+                config.enable_file_hooks = Some(false);
+            }
+            if config.enable_host_git_operations.is_none() {
+                config.enable_host_git_operations = Some(false);
+            }
+            if config.enable_session_store.is_none() {
+                config.enable_session_store = Some(false);
+            }
+            if config.enable_skills.is_none() {
+                config.enable_skills = Some(false);
+            }
         }
         if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
             config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
+        if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
+            config.embedding_cache_storage = Some("in-memory".into());
         }
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
