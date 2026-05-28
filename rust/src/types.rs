@@ -1182,6 +1182,15 @@ pub struct SessionConfig {
     pub excluded_tools: Option<Vec<String>>,
     /// MCP server configurations passed through to the CLI.
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    /// Controls how MCP OAuth tokens are stored for this session.
+    ///
+    /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
+    /// - `"in-memory"` — tokens are stored in memory and discarded when the session ends.
+    ///
+    /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
+    /// applied automatically at session creation/resume time. `None` means no
+    /// explicit value is set and the runtime default takes effect.
+    pub mcp_oauth_token_storage: Option<String>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
@@ -1358,6 +1367,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
+            .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
@@ -1446,6 +1456,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
+            mcp_oauth_token_storage: None,
             enable_config_discovery: None,
             enable_mcp_apps: None,
             skill_directories: None,
@@ -1571,6 +1582,7 @@ impl SessionConfig {
             excluded_tools: self.excluded_tools,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
             request_user_input,
@@ -1827,6 +1839,18 @@ impl SessionConfig {
         self
     }
 
+    /// Set MCP OAuth token storage mode.
+    ///
+    /// - `"persistent"` — tokens stored in the OS keychain.
+    /// - `"in-memory"` — tokens discarded when the session ends.
+    ///
+    /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
+    /// applied automatically at session creation/resume time.
+    pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
+        self.mcp_oauth_token_storage = Some(mode.into());
+        self
+    }
+
     /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
@@ -2058,6 +2082,9 @@ pub struct ResumeSessionConfig {
     pub excluded_tools: Option<Vec<String>>,
     /// Re-supply MCP servers so they remain available after app restart.
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    /// Controls how MCP OAuth tokens are stored for this session.
+    /// See [`SessionConfig::mcp_oauth_token_storage`] for details.
+    pub mcp_oauth_token_storage: Option<String>,
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
@@ -2184,6 +2211,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
+            .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
@@ -2310,6 +2338,7 @@ impl ResumeSessionConfig {
             excluded_tools: self.excluded_tools,
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
+            mcp_oauth_token_storage: self.mcp_oauth_token_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
             request_user_input,
@@ -2381,6 +2410,7 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
+            mcp_oauth_token_storage: None,
             enable_config_discovery: None,
             enable_mcp_apps: None,
             skill_directories: None,
@@ -2607,6 +2637,13 @@ impl ResumeSessionConfig {
     /// Re-supply MCP server configurations on resume.
     pub fn with_mcp_servers(mut self, servers: HashMap<String, McpServerConfig>) -> Self {
         self.mcp_servers = Some(servers);
+        self
+    }
+
+    /// Set MCP OAuth token storage mode on resume.
+    /// See [`SessionConfig::with_mcp_oauth_token_storage`] for details.
+    pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
+        self.mcp_oauth_token_storage = Some(mode.into());
         self
     }
 
@@ -4076,6 +4113,7 @@ mod tests {
     #[test]
     fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
+        assert_eq!(cfg.mcp_oauth_token_storage, None);
         // Wire flags are derived from handler presence at create_session
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
@@ -4094,6 +4132,7 @@ mod tests {
     #[test]
     fn resume_session_config_new_wire_flags_off_without_handlers() {
         let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
+        assert_eq!(cfg.mcp_oauth_token_storage, None);
         let (wire, _runtime) = cfg
             .into_wire()
             .expect("default resume config has no duplicate handlers");
@@ -4290,6 +4329,7 @@ mod tests {
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
+            .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
@@ -4317,6 +4357,7 @@ mod tests {
             Some(&["dangerous".to_string()][..])
         );
         assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("persistent"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
         assert_eq!(
             cfg.skill_directories.as_deref(),
@@ -4350,6 +4391,7 @@ mod tests {
             .with_available_tools(["bash", "view"])
             .with_excluded_tools(["dangerous"])
             .with_mcp_servers(HashMap::new())
+            .with_mcp_oauth_token_storage("persistent")
             .with_enable_config_discovery(true)
             .with_skill_directories([PathBuf::from("/tmp/skills")])
             .with_disabled_skills(["broken-skill"])
@@ -4377,6 +4419,7 @@ mod tests {
             Some(&["dangerous".to_string()][..])
         );
         assert!(cfg.mcp_servers.is_some());
+        assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("persistent"));
         assert_eq!(cfg.enable_config_discovery, Some(true));
         assert_eq!(
             cfg.skill_directories.as_deref(),

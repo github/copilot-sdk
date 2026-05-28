@@ -38,6 +38,7 @@ from ._mode import (
     CopilotClientMode,
     ToolSet,
     _enable_session_telemetry_default,
+    _mcp_oauth_token_storage_default,
     _normalize_tool_filter,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
@@ -1571,6 +1572,7 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
+        mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
@@ -1645,6 +1647,10 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
+            mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
+                ``"persistent"`` uses the OS keychain (shared across sessions).
+                ``"in-memory"`` stores tokens in memory (discarded on session end).
+                Defaults to ``"in-memory"`` for safe multitenant behavior.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
@@ -1815,6 +1821,10 @@ class CopilotClient:
         # Add MCP servers configuration if provided
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
+        # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
+        mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
+        if mcp_oauth_token_storage is not None:
+            payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
@@ -2075,6 +2085,7 @@ class CopilotClient:
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
+        mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
@@ -2150,6 +2161,10 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
+            mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
+                ``"persistent"`` uses the OS keychain (shared across sessions).
+                ``"in-memory"`` stores tokens in memory (discarded on session end).
+                Defaults to ``"in-memory"`` for safe multitenant behavior.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
@@ -2311,6 +2326,10 @@ class CopilotClient:
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
+        # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
+        mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
+        if mcp_oauth_token_storage is not None:
+            payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
         payload["envValueMode"] = "direct"
 
         if custom_agents:

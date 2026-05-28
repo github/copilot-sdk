@@ -430,6 +430,102 @@ describe("CopilotClient", () => {
         spy.mockRestore();
     });
 
+    it("defaults mcpOAuthTokenStorage to 'in-memory' in session.create when mode is empty", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.mcpOAuthTokenStorage).toBe("in-memory");
+    });
+
+    it("does not send mcpOAuthTokenStorage in session.create when mode is copilot-cli", async () => {
+        const client = new CopilotClient();
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi.spyOn((client as any).connection!, "sendRequest");
+        await client.createSession({ onPermissionRequest: approveAll });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.mcpOAuthTokenStorage).toBeUndefined();
+    });
+
+    it("forwards explicit 'persistent' for mcpOAuthTokenStorage in session.create", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            mcpOAuthTokenStorage: "persistent",
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.create")![1] as any;
+        expect(payload.mcpOAuthTokenStorage).toBe("persistent");
+    });
+
+    it("defaults mcpOAuthTokenStorage to 'in-memory' in session.resume when mode is empty", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+        await client.resumeSession("s1", { onPermissionRequest: approveAll, availableTools: [] });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.mcpOAuthTokenStorage).toBe("in-memory");
+    });
+
+    it("forwards explicit 'persistent' for mcpOAuthTokenStorage in session.resume", async () => {
+        const client = new CopilotClient({ mode: "empty", baseDirectory: "/tmp/copilot-test" });
+        await client.start();
+        onTestFinished(() => client.forceStop());
+
+        const spy = vi
+            .spyOn((client as any).connection!, "sendRequest")
+            .mockImplementation(async (method: string, params: any) => {
+                if (method === "session.create") return { sessionId: params.sessionId ?? "s1" };
+                if (method === "session.resume") return { sessionId: params.sessionId };
+                if (method === "session.options.update") return {};
+                throw new Error(`Unexpected method: ${method}`);
+            });
+        await client.createSession({ onPermissionRequest: approveAll, availableTools: [] });
+        await client.resumeSession("s1", {
+            onPermissionRequest: approveAll,
+            availableTools: [],
+            mcpOAuthTokenStorage: "persistent",
+        });
+
+        const payload = spy.mock.calls.find((c) => c[0] === "session.resume")![1] as any;
+        expect(payload.mcpOAuthTokenStorage).toBe("persistent");
+    });
+
     it("forwards continuePendingWork in session.resume request", async () => {
         const client = new CopilotClient();
         await client.start();

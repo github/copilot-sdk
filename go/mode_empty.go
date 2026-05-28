@@ -126,6 +126,9 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 		f := false
 		config.EnableSessionTelemetry = &f
 	}
+	if config.MCPOAuthTokenStorage == "" {
+		config.MCPOAuthTokenStorage = "in-memory"
+	}
 }
 
 func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
@@ -135,6 +138,9 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	if config.EnableSessionTelemetry == nil {
 		f := false
 		config.EnableSessionTelemetry = &f
+	}
+	if config.MCPOAuthTokenStorage == "" {
+		config.MCPOAuthTokenStorage = "in-memory"
 	}
 }
 

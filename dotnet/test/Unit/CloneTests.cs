@@ -77,6 +77,7 @@ public class CloneTests
             EnableSessionTelemetry = false,
             IncludeSubAgentStreamingEvents = false,
             McpServers = new Dictionary<string, McpServerConfig> { ["server1"] = new McpStdioServerConfig { Command = "echo" } },
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
             CustomAgents = [new CustomAgentConfig { Name = "agent1", Model = "claude-haiku-4.5" }],
             Agent = "agent1",
             Cloud = new CloudSessionOptions
@@ -113,6 +114,7 @@ public class CloneTests
         Assert.Equal(original.EnableSessionTelemetry, clone.EnableSessionTelemetry);
         Assert.Equal(original.IncludeSubAgentStreamingEvents, clone.IncludeSubAgentStreamingEvents);
         Assert.Equal(original.McpServers.Count, clone.McpServers!.Count);
+        Assert.Equal(original.McpOAuthTokenStorage, clone.McpOAuthTokenStorage);
         Assert.Equal(original.CustomAgents.Count, clone.CustomAgents!.Count);
         Assert.Equal(original.CustomAgents[0].Model, clone.CustomAgents[0].Model);
         Assert.Equal(original.Agent, clone.Agent);
@@ -419,5 +421,31 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Null(clone.EnableSessionTelemetry);
+    }
+
+    [Fact]
+    public void SessionConfig_Clone_CopiesMcpOAuthTokenStorage()
+    {
+        var original = new SessionConfig
+        {
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesMcpOAuthTokenStorage()
+    {
+        var original = new ResumeSessionConfig
+        {
+            McpOAuthTokenStorage = McpOAuthTokenStorageMode.Persistent,
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(McpOAuthTokenStorageMode.Persistent, clone.McpOAuthTokenStorage);
     }
 }
