@@ -83,7 +83,7 @@ public final class CopilotClient implements AutoCloseable {
     private static final int FORCE_KILL_TIMEOUT_SECONDS = 10;
     private final CopilotClientOptions options;
     private final Executor executor;
-    private final ExecutorService ownedExecutor;
+    private final boolean executorCanBeShutdown;
     private final CliServerManager serverManager;
     private final LifecycleEventManager lifecycleManager = new LifecycleEventManager();
     private final Map<String, CopilotSession> sessions = new ConcurrentHashMap<>();
@@ -171,10 +171,9 @@ public final class CopilotClient implements AutoCloseable {
             this.optionsPort = null;
         }
 
-        Executor providedExecutor = this.options.getExecutor();
-        this.executor = providedExecutor != null ? providedExecutor : InternalExecutorProvider.create();
-        this.ownedExecutor = providedExecutor == null && InternalExecutorProvider.isOwned(this.executor)
-                && this.executor instanceof ExecutorService executorService ? executorService : null;
+        InternalExecutorProvider executorProvider = new InternalExecutorProvider(this.options.getExecutor());
+        this.executor = executorProvider.get();
+        this.executorCanBeShutdown = executorProvider.canBeShutdown();
 
         this.serverManager = new CliServerManager(this.options);
         this.serverManager.setConnectionToken(this.effectiveConnectionToken);
@@ -1151,19 +1150,25 @@ public final class CopilotClient implements AutoCloseable {
     }
 
     private void shutdownOwnedExecutor() {
-        if (ownedExecutor == null) {
+        if (!executorCanBeShutdown) {
             return;
         }
 
-        ownedExecutor.shutdown();
+        ExecutorService serviceToShutdown = executor instanceof ExecutorService es ? es : null;
+        if (serviceToShutdown == null) {
+            LOG.log(Level.FINE, "Executor is not an ExecutorService; skipping shutdown");
+            return;
+        }
+
+        serviceToShutdown.shutdown();
         try {
-            if (!ownedExecutor.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            if (!serviceToShutdown.awaitTermination(AUTOCLOSEABLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 LOG.log(Level.FINE, "Owned executor did not terminate within {0} seconds; forcing shutdown.",
                         AUTOCLOSEABLE_TIMEOUT_SECONDS);
-                ownedExecutor.shutdownNow();
+                serviceToShutdown.shutdownNow();
             }
         } catch (InterruptedException e) {
-            ownedExecutor.shutdownNow();
+            serviceToShutdown.shutdownNow();
             Thread.currentThread().interrupt();
             LOG.log(Level.FINE, "Interrupted while waiting for owned executor to terminate", e);
         }

@@ -36,10 +36,10 @@ class InternalExecutorProviderTest {
 
     @Test
     void baseProviderUsesCommonPoolWithoutOwnership() {
-        Executor executor = InternalExecutorProvider.create();
+        Executor executor = new InternalExecutorProvider(null).get();
 
         assertSame(ForkJoinPool.commonPool(), executor);
-        assertFalse(InternalExecutorProvider.isOwned(executor));
+        assertFalse(new InternalExecutorProvider(executor).canBeShutdown());
         assertFalse(Modifier.isPublic(InternalExecutorProvider.class.getModifiers()));
     }
 
@@ -75,14 +75,17 @@ class InternalExecutorProviderTest {
 
             try (var loader = new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)) {
                 Class<?> provider = Class.forName("com.github.copilot.InternalExecutorProvider", true, loader);
-                Method create = provider.getDeclaredMethod("create");
-                Method isOwned = provider.getDeclaredMethod("isOwned", Executor.class);
-                create.setAccessible(true);
-                isOwned.setAccessible(true);
+                var constructor = provider.getDeclaredConstructor(Executor.class);
+                Method get = provider.getDeclaredMethod("get");
+                Method canBeShutdown = provider.getDeclaredMethod("canBeShutdown");
+                constructor.setAccessible(true);
+                get.setAccessible(true);
+                canBeShutdown.setAccessible(true);
 
-                Executor executor = (Executor) create.invoke(null);
+                Object providerInstance = constructor.newInstance((Executor) null);
+                Executor executor = (Executor) get.invoke(providerInstance);
                 try {
-                    assertTrue((Boolean) isOwned.invoke(null, executor));
+                    assertTrue((Boolean) canBeShutdown.invoke(providerInstance));
                     CompletableFuture<Boolean> virtualThreadUsed = new CompletableFuture<>();
                     executor.execute(() -> virtualThreadUsed.complete(isCurrentThreadVirtual()));
 
@@ -112,11 +115,14 @@ class InternalExecutorProviderTest {
             try (var loader = new URLClassLoader(new URL[]{jar.toUri().toURL()}, null)) {
                 Class<?> clientClass = Class.forName("com.github.copilot.CopilotClient", true, loader);
                 AutoCloseable client = (AutoCloseable) clientClass.getConstructor().newInstance();
-                Field ownedExecutorField = clientClass.getDeclaredField("ownedExecutor");
-                ownedExecutorField.setAccessible(true);
-                ExecutorService ownedExecutor = (ExecutorService) ownedExecutorField.get(client);
+                Field executorField = clientClass.getDeclaredField("executor");
+                Field executorCanBeShutdownField = clientClass.getDeclaredField("executorCanBeShutdown");
+                executorField.setAccessible(true);
+                executorCanBeShutdownField.setAccessible(true);
+                ExecutorService ownedExecutor = (ExecutorService) executorField.get(client);
 
                 assertNotNull(ownedExecutor);
+                assertTrue((Boolean) executorCanBeShutdownField.get(client));
                 assertFalse(ownedExecutor.isShutdown());
 
                 client.close();
