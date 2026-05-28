@@ -894,15 +894,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ClientSessionApis.Canvas = handler is null ? null : new CanvasHandlerAdapter(handler);
     }
 
+    private static readonly JsonElement NullJsonElement = JsonDocument.Parse("null").RootElement.Clone();
+
     private static JsonElement SerializeActionResult(object? value)
     {
         var element = CopilotClient.ToJsonElementForWire(value);
-        if (element.HasValue)
-        {
-            return element.Value;
-        }
-        using var doc = JsonDocument.Parse("null");
-        return doc.RootElement.Clone();
+        return element ?? NullJsonElement;
     }
 #pragma warning restore GHCP001
 
@@ -914,7 +911,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 return await handler.OnOpenAsync(request, cancellationToken).ConfigureAwait(false);
             }
-            catch (CanvasError ce)
+            catch (CanvasException ce)
             {
                 throw CanvasErrorHelpers.ToRpcException(ce);
             }
@@ -930,7 +927,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 await handler.OnCloseAsync(request, cancellationToken).ConfigureAwait(false);
             }
-            catch (CanvasError ce)
+            catch (CanvasException ce)
             {
                 throw CanvasErrorHelpers.ToRpcException(ce);
             }
@@ -947,7 +944,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
                 var result = await handler.OnActionAsync(request, cancellationToken).ConfigureAwait(false);
                 return SerializeActionResult(result);
             }
-            catch (CanvasError ce)
+            catch (CanvasException ce)
             {
                 throw CanvasErrorHelpers.ToRpcException(ce);
             }

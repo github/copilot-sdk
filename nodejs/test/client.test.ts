@@ -38,7 +38,8 @@ describe("CopilotClient", () => {
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
             .mockImplementation(async (method: string, params: any) => {
-                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
                 throw new Error(`Unexpected method: ${method}`);
             });
 
@@ -398,7 +399,8 @@ describe("CopilotClient", () => {
         const spy = vi
             .spyOn((client as any).connection!, "sendRequest")
             .mockImplementation(async (method: string, params: any) => {
-                if (method === "session.create") return { sessionId: params.sessionId };
+                if (method === "session.create")
+                    return { sessionId: params.sessionId ?? "session-id" };
                 throw new Error(`Unexpected method: ${method}`);
             });
 
