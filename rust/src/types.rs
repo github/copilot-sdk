@@ -1187,8 +1187,9 @@ pub struct SessionConfig {
     /// - `"persistent"` — tokens are stored in the OS keychain (shared across sessions).
     /// - `"in-memory"` — tokens are stored in memory and discarded when the session ends.
     ///
-    /// Defaults to `Some("in-memory")` via [`SessionConfig::default`] for safe
-    /// multitenant behavior.
+    /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
+    /// applied automatically at session creation/resume time. `None` means no
+    /// explicit value is set and the runtime default takes effect.
     pub mcp_oauth_token_storage: Option<String>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
@@ -1843,7 +1844,8 @@ impl SessionConfig {
     /// - `"persistent"` — tokens stored in the OS keychain.
     /// - `"in-memory"` — tokens discarded when the session ends.
     ///
-    /// Defaults to `"in-memory"` via [`Self::default`].
+    /// Defaults to `"in-memory"` when the client is in [`crate::ClientMode::Empty`],
+    /// applied automatically at session creation/resume time.
     pub fn with_mcp_oauth_token_storage(mut self, mode: impl Into<String>) -> Self {
         self.mcp_oauth_token_storage = Some(mode.into());
         self
