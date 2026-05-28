@@ -3,12 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 using System;
+using System.IO;
 using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using GitHub.Copilot;
 using GitHub.Copilot.Rpc;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace GitHub.Copilot.Test.Unit;
@@ -23,6 +25,54 @@ public class CanvasTests
         var options = (JsonSerializerOptions?)prop?.GetValue(null);
         Assert.NotNull(options);
         return options!;
+    }
+
+    private static CopilotSession CreateSession()
+    {
+        var options = GetSerializerOptions();
+        var rpcType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.JsonRpc");
+        Assert.NotNull(rpcType);
+        var rpc = Activator.CreateInstance(
+            rpcType!,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: [new MemoryStream(), new MemoryStream(), options, null],
+            culture: null);
+        Assert.NotNull(rpc);
+
+        var logger = new TestLogger();
+        var ctor = typeof(CopilotSession).GetConstructor(
+            BindingFlags.Instance | BindingFlags.NonPublic,
+            binder: null,
+            types: [typeof(string), rpcType!, typeof(ILogger), typeof(CopilotClient), typeof(string)],
+            modifiers: null);
+        Assert.NotNull(ctor);
+        return (CopilotSession)ctor!.Invoke(["session-1", rpc, logger, new CopilotClient(), null]);
+    }
+
+    private sealed class TestLogger : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => false;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+        }
+    }
+
+    private static void DispatchEvent(CopilotSession session, SessionEvent evt)
+    {
+        var method = typeof(CopilotSession).GetMethod(
+            "DispatchEvent",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        method!.Invoke(session, [evt]);
     }
 
     [Fact]
@@ -65,6 +115,96 @@ public class CanvasTests
         Assert.Equal("https://example.com/c/1", parsed!.Url);
         Assert.Equal("Demo", parsed.Title);
         Assert.Equal("ready", parsed.Status);
+    }
+
+    [Fact]
+    public void SessionCanvasOpenedEvent_UpdatesOpenCanvasSnapshots()
+    {
+        var session = CreateSession();
+
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                Availability = CanvasOpenedAvailability.Ready,
+                CanvasId = "",
+                ExtensionId = "project:counter",
+                InstanceId = "missing-canvas-id",
+                Reopen = false,
+            }
+        });
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                Availability = CanvasOpenedAvailability.Ready,
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                ExtensionName = "Counter Provider",
+                InstanceId = "counter-1",
+                Title = "Counter",
+                Status = "ready",
+                Url = "https://example.test/counter",
+                Input = JsonDocument.Parse("""{"seed":1}""").RootElement.Clone(),
+                Reopen = false,
+            }
+        });
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                Availability = CanvasOpenedAvailability.Stale,
+                CanvasId = "logs",
+                ExtensionId = "project:logs",
+                InstanceId = "logs-1",
+                Title = "Logs",
+                Reopen = false,
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas => Assert.Equal("counter-1", canvas.InstanceId),
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
+
+        DispatchEvent(session, new SessionCanvasOpenedEvent
+        {
+            Id = Guid.NewGuid(),
+            Timestamp = DateTimeOffset.UtcNow,
+            Data = new SessionCanvasOpenedData
+            {
+                Availability = CanvasOpenedAvailability.Stale,
+                CanvasId = "counter",
+                ExtensionId = "project:counter",
+                ExtensionName = "Counter Provider",
+                InstanceId = "counter-1",
+                Title = "Counter Updated",
+                Status = "reconnected",
+                Url = "https://example.test/counter-updated",
+                Input = JsonDocument.Parse("""{"seed":2}""").RootElement.Clone(),
+                Reopen = true,
+            }
+        });
+
+        Assert.Collection(
+            session.OpenCanvases,
+            canvas =>
+            {
+                Assert.Equal("counter-1", canvas.InstanceId);
+                Assert.Equal("Counter Updated", canvas.Title);
+                Assert.Equal("reconnected", canvas.Status);
+                Assert.Equal("https://example.test/counter-updated", canvas.Url);
+                Assert.True(canvas.Reopen);
+                Assert.Equal(CanvasInstanceAvailability.Stale, canvas.Availability);
+                Assert.Equal(2, canvas.Input!.Value.GetProperty("seed").GetInt32());
+            },
+            canvas => Assert.Equal("logs-1", canvas.InstanceId));
     }
 
     [Fact]

@@ -64,6 +64,7 @@ from .generated.session_events import (
     ExternalToolRequestedData,
     PermissionRequest,
     PermissionRequestedData,
+    SessionCanvasOpenedData,
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
@@ -1525,6 +1526,19 @@ class CopilotSession:
                     cap["ui"] = ui_cap
                 self._capabilities = {**self._capabilities, **cap}
 
+            case SessionCanvasOpenedData() as data:
+                try:
+                    if (
+                        not data.instance_id
+                        or not data.canvas_id
+                        or not data.extension_id
+                        or data.availability is None
+                    ):
+                        raise ValueError("missing required open canvas fields")
+                    self._upsert_open_canvas(OpenCanvasInstance.from_dict(data.to_dict()))
+                except Exception as exc:
+                    logger.warning("failed to deserialize session.canvas.opened payload: %s", exc)
+
     async def _execute_tool_and_respond(
         self,
         request_id: str,
@@ -1868,12 +1882,19 @@ class CopilotSession:
         with self._open_canvases_lock:
             self._open_canvases = list(instances)
 
+    def _upsert_open_canvas(self, instance: OpenCanvasInstance) -> None:
+        with self._open_canvases_lock:
+            for index, existing in enumerate(self._open_canvases):
+                if existing.instance_id == instance.instance_id:
+                    self._open_canvases[index] = instance
+                    return
+            self._open_canvases.append(instance)
+
     @property
     def open_canvases(self) -> list[OpenCanvasInstance]:
-        """Open canvas instances reported by the most recent ``session.resume``.
+        """Open canvas instances currently known to be open for this session.
 
-        Returns an empty list for sessions created via ``session.create`` or
-        when the server did not include any open canvases on resume.
+        Populated from ``session.resume`` and live ``session.canvas.opened`` events.
         """
         with self._open_canvases_lock:
             return list(self._open_canvases)
