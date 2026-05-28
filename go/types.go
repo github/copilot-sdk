@@ -904,47 +904,37 @@ type SessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
-	// SkipEmbeddingRetrieval controls embedding-based retrieval for this session.
-	// When nil, the runtime default is used. When non-nil, the value (true or false)
-	// is passed through to the runtime. Use in multitenant deployments to prevent
-	// cross-session information leakage through the shared embedding cache.
+	// SkipEmbeddingRetrieval, when non-nil, controls embedding-based retrieval
+	// for this session. Use in multitenant deployments to prevent cross-session
+	// information leakage through the shared embedding cache.
 	SkipEmbeddingRetrieval *bool
 	// EmbeddingCacheStorage controls how the embedding cache is stored for this session.
-	// - "persistent": Embeddings are cached on disk and shared across sessions/restarts.
-	// - "in-memory": Embeddings are cached in memory only and discarded when the session ends.
-	// When nil, the runtime default ("persistent") is used. When non-nil, the value is
-	// passed through to the runtime.
+	// "persistent" caches on disk and shares across sessions/restarts.
+	// "in-memory" caches in memory only and discards when the session ends.
 	EmbeddingCacheStorage *string
 	// OrganizationCustomInstructions provides organization-level custom instructions
-	// to include in the system prompt. When nil, the runtime default is used. When
-	// non-nil, the value (including an empty string) is passed through to the runtime.
-	// Allows hosts to inject organization-specific guidance without relying on
-	// filesystem-based instruction discovery.
+	// to include in the system prompt. Allows hosts to inject organization-specific
+	// guidance without relying on filesystem-based instruction discovery.
 	OrganizationCustomInstructions *string
-	// EnableOnDemandInstructionDiscovery controls on-demand discovery of instruction
-	// files (AGENTS.md, .github/copilot-instructions.md, etc.) after successful file
-	// views. When nil, the runtime default is used. When non-nil, the value (true or
-	// false) is passed through to the runtime.
+	// EnableOnDemandInstructionDiscovery, when non-nil, controls on-demand discovery
+	// of instruction files (AGENTS.md, .github/copilot-instructions.md, etc.) after
+	// successful file views.
 	EnableOnDemandInstructionDiscovery *bool
-	// EnableFileHooks controls loading of file-based hooks from .github/hooks/.
-	// When nil, the runtime default is used. When non-nil, the value (true or false)
-	// is passed through to the runtime. This is separate from the Hooks callback
-	// parameter which gates SDK hook event registration.
+	// EnableFileHooks, when non-nil, controls loading of file-based hooks from
+	// .github/hooks/. This is separate from the Hooks callback parameter which
+	// gates SDK hook event registration.
 	EnableFileHooks *bool
-	// EnableHostGitOperations controls git operations on the host filesystem (branch
-	// detection, file status, commit history). When nil, the runtime default is used.
-	// When non-nil, the value (true or false) is passed through to the runtime. When
-	// false, no git context is surfaced in the system prompt.
+	// EnableHostGitOperations, when non-nil, controls git operations on the host
+	// filesystem (branch detection, file status, commit history). When false, no
+	// git context is surfaced in the system prompt.
 	EnableHostGitOperations *bool
-	// EnableSessionStore controls the cross-session store for search and retrieval
-	// across sessions. When nil, the runtime default is used. When non-nil, the value
-	// (true or false) is passed through to the runtime. When false, session content is
-	// not written to or read from the shared session store.
+	// EnableSessionStore, when non-nil, controls the cross-session store for search
+	// and retrieval. When false, session content is not written to or read from the
+	// shared session store.
 	EnableSessionStore *bool
-	// EnableSkills controls skill loading (including builtin skills and discovered
-	// skill directories). When nil, the runtime default is used. When non-nil, the
-	// value (true or false) is passed through to the runtime. When false, no skills
-	// are loaded regardless of SkillDirectories or EnableConfigDiscovery settings.
+	// EnableSkills, when non-nil, controls skill loading (including builtin skills
+	// and discovered skill directories). When false, no skills are loaded regardless
+	// of SkillDirectories or EnableConfigDiscovery settings.
 	EnableSkills *bool
 	// Tools exposes caller-implemented tools to the CLI. A Tool with a nil Handler
 	// is declaration-only; the consumer must resolve its calls via pending tool RPCs.
@@ -1318,40 +1308,31 @@ type ResumeSessionConfig struct {
 	// Custom instruction files (.github/copilot-instructions.md, AGENTS.md, etc.) are
 	// always loaded from the working directory regardless of this setting.
 	EnableConfigDiscovery bool
-	// SkipEmbeddingRetrieval controls embedding-based retrieval for this session.
-	// When nil, the runtime default is used. When non-nil, the value (true or false)
-	// is passed through to the runtime. Use in multitenant deployments to prevent
-	// cross-session information leakage through the shared embedding cache.
+	// SkipEmbeddingRetrieval, when non-nil, controls embedding-based retrieval
+	// for this session. Use in multitenant deployments to prevent cross-session
+	// information leakage through the shared embedding cache.
 	SkipEmbeddingRetrieval *bool
 	// EmbeddingCacheStorage controls how the embedding cache is stored for this session.
-	// - "persistent": Embeddings are cached on disk and shared across sessions/restarts.
-	// - "in-memory": Embeddings are cached in memory only and discarded when the session ends.
-	// When nil, the runtime default ("persistent") is used. When non-nil, the value is
-	// passed through to the runtime.
+	// "persistent" caches on disk and shares across sessions/restarts.
+	// "in-memory" caches in memory only and discards when the session ends.
 	EmbeddingCacheStorage *string
 	// OrganizationCustomInstructions provides organization-level custom instructions
-	// to include in the system prompt. When nil, the runtime default is used. When
-	// non-nil, the value (including an empty string) is passed through to the runtime.
+	// to include in the system prompt.
 	OrganizationCustomInstructions *string
-	// EnableOnDemandInstructionDiscovery controls on-demand discovery of instruction
-	// files after successful file views. When nil, the runtime default is used. When
-	// non-nil, the value (true or false) is passed through to the runtime.
+	// EnableOnDemandInstructionDiscovery, when non-nil, controls on-demand discovery
+	// of instruction files after successful file views.
 	EnableOnDemandInstructionDiscovery *bool
-	// EnableFileHooks controls loading of file-based hooks from .github/hooks/.
-	// When nil, the runtime default is used. When non-nil, the value (true or false)
-	// is passed through to the runtime. This is separate from the Hooks callback
-	// parameter which gates SDK hook event registration.
+	// EnableFileHooks, when non-nil, controls loading of file-based hooks from
+	// .github/hooks/. This is separate from the Hooks callback parameter which
+	// gates SDK hook event registration.
 	EnableFileHooks *bool
-	// EnableHostGitOperations controls git operations on the host filesystem. When
-	// nil, the runtime default is used. When non-nil, the value (true or false) is
-	// passed through to the runtime.
+	// EnableHostGitOperations, when non-nil, controls git operations on the host
+	// filesystem.
 	EnableHostGitOperations *bool
-	// EnableSessionStore controls the cross-session store for search and retrieval
-	// across sessions. When nil, the runtime default is used. When non-nil, the value
-	// (true or false) is passed through to the runtime.
+	// EnableSessionStore, when non-nil, controls the cross-session store for search
+	// and retrieval across sessions.
 	EnableSessionStore *bool
-	// EnableSkills controls skill loading. When nil, the runtime default is used.
-	// When non-nil, the value (true or false) is passed through to the runtime.
+	// EnableSkills, when non-nil, controls skill loading.
 	EnableSkills *bool
 	// Streaming enables streaming of assistant message and reasoning chunks.
 	// When non-nil and true, assistant.message_delta and assistant.reasoning_delta

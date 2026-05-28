@@ -999,7 +999,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to skip
      *         embedding retrieval or {@code false} to force it, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getSkipEmbeddingRetrieval() {
@@ -1056,7 +1056,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable
      *         on-demand discovery or {@code false} to disable it, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableOnDemandInstructionDiscovery() {
@@ -1092,7 +1092,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable file
      *         hooks or {@code false} to disable them, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableFileHooks() {
@@ -1126,7 +1126,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable host
      *         git operations or {@code false} to disable them, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableHostGitOperations() {
@@ -1162,7 +1162,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable the
      *         session store or {@code false} to disable it, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableSessionStore() {
@@ -1197,7 +1197,7 @@ public class SessionConfig {
      *
      * @return an {@link java.util.Optional} containing {@code true} to enable skill
      *         loading or {@code false} to disable it, or
-     *         {@link java.util.Optional#empty()} to use the runtime default
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableSkills() {
@@ -1230,7 +1230,7 @@ public class SessionConfig {
      * Gets the embedding cache storage mode.
      *
      * @return the embedding cache storage mode ({@code "persistent"} or
-     *         {@code "in-memory"}), or {@code null} to use the runtime default
+     *         {@code "in-memory"}), or {@code null} to use the default behavior
      */
     public String getEmbeddingCacheStorage() {
         return embeddingCacheStorage;

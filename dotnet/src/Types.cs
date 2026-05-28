@@ -2526,7 +2526,6 @@ public abstract class SessionConfigBase
     /// Controls how the embedding cache is stored for this session.
     /// <see cref="EmbeddingCacheStorageMode.Persistent"/>: Embeddings are cached on disk and shared across sessions/restarts.
     /// <see cref="EmbeddingCacheStorageMode.InMemory"/>: Embeddings are cached in memory only and discarded when the session ends.
-    /// When null, mode "empty" defaults to <see cref="EmbeddingCacheStorageMode.InMemory"/>; in other modes, the runtime default applies.
     /// </summary>
     public EmbeddingCacheStorageMode? EmbeddingCacheStorage { get; set; }
 
