@@ -189,8 +189,8 @@ public class MessageOptions {
     /**
      * Sets the display prompt shown in the timeline instead of the prompt.
      * <p>
-     * If provided, this text is displayed in the conversation timeline UI
-     * instead of the actual prompt text.
+     * If provided, this text is displayed in the conversation timeline UI instead
+     * of the actual prompt text.
      *
      * @param displayPrompt
      *            the display prompt text

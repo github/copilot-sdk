@@ -111,7 +111,12 @@ public final class SendMessageRequest {
         return displayPrompt;
     }
 
-    /** Sets the display prompt shown in the timeline instead of the prompt. @param displayPrompt the display prompt */
+    /**
+     * Sets the display prompt shown in the timeline instead of the prompt.
+     *
+     * @param displayPrompt
+     *            the display prompt
+     */
     public void setDisplayPrompt(String displayPrompt) {
         this.displayPrompt = displayPrompt;
     }

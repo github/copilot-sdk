@@ -2767,6 +2767,7 @@ public sealed class MessageOptions
         Mode = other.Mode;
         AgentMode = other.AgentMode;
         Prompt = other.Prompt;
+        DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
             : null;
@@ -2794,6 +2795,10 @@ public sealed class MessageOptions
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>
     public IDictionary<string, string>? RequestHeaders { get; set; }
+    /// <summary>
+    /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
+    /// </summary>
+    public string? DisplayPrompt { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
