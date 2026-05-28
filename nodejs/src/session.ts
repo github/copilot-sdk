@@ -31,6 +31,7 @@ import type {
     PermissionHandler,
     PermissionRequest,
     ReasoningEffort,
+    ReasoningSummary,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -1208,6 +1209,7 @@ export class CopilotSession {
         model: string,
         options?: {
             reasoningEffort?: ReasoningEffort;
+            reasoningSummary?: ReasoningSummary;
             modelCapabilities?: ModelCapabilitiesOverride;
         }
     ): Promise<void> {

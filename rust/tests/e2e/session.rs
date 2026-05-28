@@ -836,7 +836,7 @@ async fn should_create_session_with_custom_config_dir() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_config_dir(custom_config_dir),
+                            .with_config_directory(custom_config_dir),
                     )
                     .await
                     .expect("create session");

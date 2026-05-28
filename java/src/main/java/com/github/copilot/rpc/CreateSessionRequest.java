@@ -36,6 +36,9 @@ public final class CreateSessionRequest {
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
+    @JsonProperty("reasoningSummary")
+    private String reasoningSummary;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -99,11 +102,17 @@ public final class CreateSessionRequest {
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
+    @JsonProperty("pluginDirectories")
+    private List<String> pluginDirectories;
+
+    @JsonProperty("largeOutput")
+    private LargeToolOutputConfig largeOutput;
+
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
     @JsonProperty("configDir")
-    private String configDir;
+    private String configDirectory;
 
     @JsonProperty("enableConfigDiscovery")
     private Boolean enableConfigDiscovery;
@@ -175,6 +184,19 @@ public final class CreateSessionRequest {
      */
     public void setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+    }
+
+    /** Gets the reasoning summary mode. @return the reasoning summary mode */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode. @param reasoningSummary the reasoning
+     * summary mode
+     */
+    public void setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
     }
 
     /** Gets the tools. @return the tool definitions */
@@ -421,6 +443,26 @@ public final class CreateSessionRequest {
         this.instructionDirectories = instructionDirectories;
     }
 
+    /** Gets plugin directories. @return the plugin directories */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /** Sets plugin directories. @param pluginDirectories the directories */
+    public void setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+    }
+
+    /** Gets large output config. @return the large output config */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /** Sets large output config. @param largeOutput the large output config */
+    public void setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+    }
+
     /** Gets disabled skills. @return the disabled skill names */
     public List<String> getDisabledSkills() {
         return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
@@ -432,13 +474,13 @@ public final class CreateSessionRequest {
     }
 
     /** Gets config directory. @return the config directory path */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
-    /** Sets config directory. @param configDir the config directory path */
-    public void setConfigDir(String configDir) {
-        this.configDir = configDir;
+    /** Sets config directory. @param configDirectory the config directory path */
+    public void setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
     }
 
     /** Gets enable config discovery flag. @return the flag */

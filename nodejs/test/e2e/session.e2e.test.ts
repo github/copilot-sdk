@@ -587,7 +587,7 @@ describe("Sessions", async () => {
         });
         const session = await client.createSession({
             onPermissionRequest: approveAll,
-            configDir: customConfigDir,
+            configDirectory: customConfigDir,
         });
 
         expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);

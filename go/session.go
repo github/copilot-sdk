@@ -1492,6 +1492,9 @@ func (s *Session) Abort(ctx context.Context) error {
 type SetModelOptions struct {
 	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh").
 	ReasoningEffort *string
+	// ReasoningSummary sets the reasoning summary mode for the new model.
+	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
+	ReasoningSummary *ReasoningSummary
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1512,6 +1515,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
+		params.ReasoningSummary = opts.ReasoningSummary
 		params.ModelCapabilities = opts.ModelCapabilities
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)

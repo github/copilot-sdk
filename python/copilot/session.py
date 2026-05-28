@@ -70,6 +70,9 @@ from .generated.session_events import (
     SessionIdleData,
     session_event_from_dict,
 )
+from .generated.session_events import (
+    ReasoningSummary as _RpcReasoningSummary,
+)
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -87,6 +90,7 @@ SessionEventTypeAlias = SessionEvent
 # ============================================================================
 
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+ReasoningSummary = Literal["none", "concise", "detailed"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
@@ -956,6 +960,23 @@ class InfiniteSessionConfig(TypedDict, total=False):
     # compaction completes. This prevents context overflow when compaction hasn't
     # finished in time. Default: 0.95
     buffer_exhaustion_threshold: float
+
+
+class LargeToolOutputConfig(TypedDict, total=False):
+    """
+    Configuration for handling large tool outputs.
+
+    When a tool produces output exceeding the configured size, the output is
+    written to a temp file and a reference is returned to the model instead of
+    the full payload.
+    """
+
+    # Whether large output handling is enabled. Default True.
+    enabled: bool
+    # Maximum size in bytes before output is written to a temp file. Default 50KB.
+    max_size_bytes: int
+    # Directory to write temp files to. Defaults to the OS temp directory.
+    output_directory: str
 
 
 # ============================================================================
@@ -2371,6 +2392,7 @@ class CopilotSession:
         model: str,
         *,
         reasoning_effort: str | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
     ) -> None:
         """
@@ -2383,6 +2405,9 @@ class CopilotSession:
             model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
                 (e.g., "low", "medium", "high", "xhigh").
+            reasoning_summary: Optional reasoning summary mode for supported
+                models. Use "none" to suppress summary output regardless of
+                whether reasoning is enabled.
             model_capabilities: Override individual model capabilities resolved by the runtime.
 
         Raises:
@@ -2403,6 +2428,11 @@ class CopilotSession:
             ModelSwitchToRequest(
                 model_id=model,
                 reasoning_effort=reasoning_effort,
+                reasoning_summary=(
+                    _RpcReasoningSummary(reasoning_summary)
+                    if reasoning_summary is not None
+                    else None
+                ),
                 model_capabilities=rpc_caps,
             )
         )

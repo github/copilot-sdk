@@ -9,13 +9,17 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
-import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+import type {
+    ReasoningSummary,
+    SessionEvent as GeneratedSessionEvent,
+} from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
+export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -1506,6 +1510,32 @@ export interface InfiniteSessionConfig {
 }
 
 /**
+ * Configuration for handling large tool outputs.
+ *
+ * When a tool produces output exceeding the configured size, the output is
+ * written to a temp file and a reference is returned to the model instead of
+ * the full payload.
+ */
+export interface LargeToolOutputConfig {
+    /**
+     * Whether large output handling is enabled.
+     * @default true
+     */
+    enabled?: boolean;
+
+    /**
+     * Maximum size in bytes before output is written to a temp file.
+     * @default 51200
+     */
+    maxSizeBytes?: number;
+
+    /**
+     * Directory to write temp files to. Defaults to the OS temp directory.
+     */
+    outputDirectory?: string;
+}
+
+/**
  * Valid reasoning effort levels for models that support it.
  */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
@@ -1544,14 +1574,28 @@ export interface SessionConfigBase {
      */
     reasoningEffort?: ReasoningEffort;
 
+    /**
+     * Reasoning summary mode for models that support configurable reasoning summaries.
+     * Use "none" to suppress summary output regardless of whether reasoning is enabled.
+     */
+    reasoningSummary?: ReasoningSummary;
+
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
+
+    /**
+     * Configuration for handling large tool outputs. When a tool produces
+     * output exceeding the configured size, the output is written to a temp
+     * file and a reference is returned to the model instead of the full
+     * payload.
+     */
+    largeOutput?: LargeToolOutputConfig;
 
     /**
      * Override the default configuration directory location.
      * When specified, the session will use this directory for storing config and state.
      */
-    configDir?: string;
+    configDirectory?: string;
 
     /**
      * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
@@ -1816,6 +1860,21 @@ export interface SessionConfigBase {
      * Directories to load skills from.
      */
     skillDirectories?: string[];
+
+    /**
+     * Local filesystem paths to Open Plugins-format directories
+     * (https://open-plugins.com/) to load for this session.
+     *
+     * Relative paths resolve against `workingDirectory` (or the runtime cwd if
+     * unset); absolute paths are recommended. Invalid entries are logged and
+     * skipped.
+     *
+     * Treated as an explicit opt-in: plugin agents and rules load even when
+     * {@link SessionConfigBase.enableConfigDiscovery} is false. Loaded assets
+     * slot between project (cwd) sources and personal/home sources in the
+     * session-wide precedence order.
+     */
+    pluginDirectories?: string[];
 
     /**
      * Additional directories to search for custom instruction files.
