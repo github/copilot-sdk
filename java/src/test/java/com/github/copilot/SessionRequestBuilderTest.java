@@ -105,10 +105,10 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildCreateRequestDefaultsMcpOAuthTokenStorageToInMemory() {
+    void testBuildCreateRequestPassesThroughNullMcpOAuthTokenStorage() {
         var config = new SessionConfig();
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
-        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+        assertNull(request.getMcpOAuthTokenStorage());
     }
 
     @Test
@@ -119,9 +119,9 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildCreateRequestDefaultsMcpOAuthTokenStorageWhenConfigIsNull() {
+    void testBuildCreateRequestNullConfigHasNullMcpOAuthTokenStorage() {
         CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(null);
-        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+        assertNull(request.getMcpOAuthTokenStorage());
     }
 
     // =========================================================================
@@ -233,10 +233,10 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildResumeRequestDefaultsMcpOAuthTokenStorageToInMemory() {
+    void testBuildResumeRequestPassesThroughNullMcpOAuthTokenStorage() {
         var config = new ResumeSessionConfig();
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-11", config);
-        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+        assertNull(request.getMcpOAuthTokenStorage());
     }
 
     @Test
@@ -247,9 +247,9 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildResumeRequestDefaultsMcpOAuthTokenStorageWhenConfigIsNull() {
+    void testBuildResumeRequestNullConfigHasNullMcpOAuthTokenStorage() {
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-13", null);
-        assertEquals("in-memory", request.getMcpOAuthTokenStorage());
+        assertNull(request.getMcpOAuthTokenStorage());
     }
 
     // =========================================================================

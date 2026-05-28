@@ -1366,7 +1366,7 @@ impl Default for SessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            mcp_oauth_token_storage: Some("in-memory".into()),
+            mcp_oauth_token_storage: None,
             enable_config_discovery: None,
             skill_directories: None,
             instruction_directories: None,
@@ -2257,7 +2257,7 @@ impl ResumeSessionConfig {
             available_tools: None,
             excluded_tools: None,
             mcp_servers: None,
-            mcp_oauth_token_storage: Some("in-memory".into()),
+            mcp_oauth_token_storage: None,
             enable_config_discovery: None,
             skill_directories: None,
             instruction_directories: None,
@@ -3902,7 +3902,7 @@ mod tests {
     #[test]
     fn session_config_default_wire_flags_off_without_handlers() {
         let cfg = SessionConfig::default();
-        assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("in-memory"));
+        assert_eq!(cfg.mcp_oauth_token_storage, None);
         // Wire flags are derived from handler presence at create_session
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
@@ -3920,7 +3920,7 @@ mod tests {
     #[test]
     fn resume_session_config_new_wire_flags_off_without_handlers() {
         let cfg = ResumeSessionConfig::new(SessionId::from("resume-flags"));
-        assert_eq!(cfg.mcp_oauth_token_storage.as_deref(), Some("in-memory"));
+        assert_eq!(cfg.mcp_oauth_token_storage, None);
         let (wire, _runtime) = cfg
             .into_wire()
             .expect("default resume config has no duplicate handlers");

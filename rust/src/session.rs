@@ -839,6 +839,9 @@ impl Client {
         if mode == crate::ClientMode::Empty && config.enable_session_telemetry.is_none() {
             config.enable_session_telemetry = Some(false);
         }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
@@ -1065,6 +1068,9 @@ impl Client {
             crate::mode::system_message_for_mode(mode, config.system_message.take());
         if mode == crate::ClientMode::Empty && config.enable_session_telemetry.is_none() {
             config.enable_session_telemetry = Some(false);
+        }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
         }
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;

@@ -891,7 +891,7 @@ export class CopilotClient {
     /** Mode-specific defaults spread under the caller's config (app values win). */
     private configDefaultsForMode(): Partial<SessionConfigBase> {
         if (this.options.mode === "empty") {
-            return { enableSessionTelemetry: false };
+            return { enableSessionTelemetry: false, mcpOAuthTokenStorage: "in-memory" };
         }
         return {};
     }
@@ -1104,7 +1104,7 @@ export class CopilotClient {
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),
-                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage ?? "in-memory",
+                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
@@ -1274,7 +1274,7 @@ export class CopilotClient {
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),
-                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage ?? "in-memory",
+                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,

@@ -637,6 +637,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (_options.Mode == CopilotClientMode.Empty)
         {
             config.EnableSessionTelemetry ??= false;
+            config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
         }
     }
 
@@ -867,7 +868,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
-                config.McpOAuthTokenStorage ?? McpOAuthTokenStorageMode.InMemory,
+                config.McpOAuthTokenStorage,
                 "direct",
                 config.CustomAgents,
                 config.DefaultAgent,
@@ -1051,7 +1052,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
                 config.McpServers,
-                config.McpOAuthTokenStorage ?? McpOAuthTokenStorageMode.InMemory,
+                config.McpOAuthTokenStorage,
                 "direct",
                 config.CustomAgents,
                 config.DefaultAgent,

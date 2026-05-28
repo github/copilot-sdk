@@ -974,7 +974,35 @@ class TestSessionConfigForwarding:
 
 class TestMcpOAuthTokenStorage:
     @pytest.mark.asyncio
-    async def test_create_session_defaults_mcp_oauth_token_storage_to_in_memory(self):
+    async def test_create_session_defaults_mcp_oauth_token_storage_to_in_memory_in_empty_mode(
+        self,
+    ):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH), mode="empty"
+        )
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+            assert captured["session.create"]["mcpOAuthTokenStorage"] == "in-memory"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_does_not_send_mcp_oauth_token_storage_in_copilot_cli_mode(
+        self,
+    ):
         client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
         await client.start()
 
@@ -990,13 +1018,15 @@ class TestMcpOAuthTokenStorage:
             await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
             )
-            assert captured["session.create"]["mcpOAuthTokenStorage"] == "in-memory"
+            assert "mcpOAuthTokenStorage" not in captured["session.create"]
         finally:
             await client.force_stop()
 
     @pytest.mark.asyncio
     async def test_create_session_forwards_explicit_mcp_oauth_token_storage(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH), mode="empty"
+        )
         await client.start()
 
         try:
@@ -1010,6 +1040,7 @@ class TestMcpOAuthTokenStorage:
             client._client.request = mock_request
             await client.create_session(
                 on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
                 mcp_oauth_token_storage="persistent",
             )
             assert captured["session.create"]["mcpOAuthTokenStorage"] == "persistent"
@@ -1017,13 +1048,18 @@ class TestMcpOAuthTokenStorage:
             await client.force_stop()
 
     @pytest.mark.asyncio
-    async def test_resume_session_defaults_mcp_oauth_token_storage_to_in_memory(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+    async def test_resume_session_defaults_mcp_oauth_token_storage_to_in_memory_in_empty_mode(
+        self,
+    ):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH), mode="empty"
+        )
         await client.start()
 
         try:
             session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
             )
 
             captured = {}
@@ -1039,6 +1075,7 @@ class TestMcpOAuthTokenStorage:
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
             )
             assert captured["session.resume"]["mcpOAuthTokenStorage"] == "in-memory"
         finally:
@@ -1046,12 +1083,15 @@ class TestMcpOAuthTokenStorage:
 
     @pytest.mark.asyncio
     async def test_resume_session_forwards_explicit_mcp_oauth_token_storage(self):
-        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH), mode="empty"
+        )
         await client.start()
 
         try:
             session = await client.create_session(
-                on_permission_request=PermissionHandler.approve_all
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
             )
 
             captured = {}
@@ -1067,6 +1107,7 @@ class TestMcpOAuthTokenStorage:
             await client.resume_session(
                 session.session_id,
                 on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
                 mcp_oauth_token_storage="persistent",
             )
             assert captured["session.resume"]["mcpOAuthTokenStorage"] == "persistent"
