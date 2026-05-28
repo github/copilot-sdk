@@ -619,6 +619,70 @@ func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
+	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{MCPOAuthTokenStorage: "in-memory"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["mcpOAuthTokenStorage"] != "in-memory" {
+			t.Errorf("Expected mcpOAuthTokenStorage to be 'in-memory', got %v", m["mcpOAuthTokenStorage"])
+		}
+	})
+
+	t.Run("omits mcpOAuthTokenStorage from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["mcpOAuthTokenStorage"]; ok {
+			t.Error("Expected mcpOAuthTokenStorage to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
+	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", MCPOAuthTokenStorage: "persistent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["mcpOAuthTokenStorage"] != "persistent" {
+			t.Errorf("Expected mcpOAuthTokenStorage to be 'persistent', got %v", m["mcpOAuthTokenStorage"])
+		}
+	})
+
+	t.Run("omits mcpOAuthTokenStorage from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["mcpOAuthTokenStorage"]; ok {
+			t.Error("Expected mcpOAuthTokenStorage to be omitted when empty")
+		}
+	})
+}
+
 func TestOverridesBuiltInTool(t *testing.T) {
 	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{

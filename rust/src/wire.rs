@@ -77,6 +77,8 @@ pub(crate) struct SessionCreateWire {
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_oauth_token_storage: Option<String>,
     pub env_value_mode: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
@@ -176,6 +178,8 @@ pub(crate) struct SessionResumeWire {
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_oauth_token_storage: Option<String>,
     pub env_value_mode: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,

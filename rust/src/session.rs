@@ -859,6 +859,9 @@ impl Client {
                 config.enable_skills = Some(false);
             }
         }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
@@ -1105,6 +1108,9 @@ impl Client {
             if config.enable_skills.is_none() {
                 config.enable_skills = Some(false);
             }
+        }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
         }
         let opt_skip_custom_instructions = config.skip_custom_instructions;
         let opt_custom_agents_local_only = config.custom_agents_local_only;

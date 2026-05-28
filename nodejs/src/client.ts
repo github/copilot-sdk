@@ -910,6 +910,7 @@ export class CopilotClient {
         if (this.options.mode === "empty") {
             return {
                 enableSessionTelemetry: false,
+                mcpOAuthTokenStorage: "in-memory",
                 skipEmbeddingRetrieval: true,
                 embeddingCacheStorage: "in-memory",
                 enableOnDemandInstructionDiscovery: false,
@@ -1133,6 +1134,7 @@ export class CopilotClient {
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),
+                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
@@ -1324,6 +1326,7 @@ export class CopilotClient {
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),
+                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,

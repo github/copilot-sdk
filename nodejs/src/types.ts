@@ -1831,6 +1831,15 @@ export interface SessionConfigBase {
     includeSubAgentStreamingEvents?: boolean;
 
     /**
+     * Controls how MCP OAuth tokens are stored for this session.
+     * - `"persistent"` — tokens are stored in the OS keychain (shared across sessions)
+     * - `"in-memory"` — tokens are stored in memory and discarded when the session ends
+     *
+     * @default "in-memory"
+     */
+    mcpOAuthTokenStorage?: "persistent" | "in-memory";
+
+    /**
      * MCP server configurations for the session.
      * Keys are server names, values are server configurations.
      */

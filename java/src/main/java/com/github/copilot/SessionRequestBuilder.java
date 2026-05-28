@@ -125,6 +125,7 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
@@ -251,6 +252,7 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());

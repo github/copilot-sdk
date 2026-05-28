@@ -515,6 +515,9 @@ public final class CopilotClient implements AutoCloseable {
                 if (request.getEmbeddingCacheStorage() == null) {
                     request.setEmbeddingCacheStorage("in-memory");
                 }
+                if (request.getMcpOAuthTokenStorage() == null) {
+                    request.setMcpOAuthTokenStorage("in-memory");
+                }
             }
 
             long rpcNanos = System.nanoTime();
@@ -631,6 +634,9 @@ public final class CopilotClient implements AutoCloseable {
                 request.setToolFilterPrecedence("excluded");
                 if (request.getEmbeddingCacheStorage() == null) {
                     request.setEmbeddingCacheStorage("in-memory");
+                }
+                if (request.getMcpOAuthTokenStorage() == null) {
+                    request.setMcpOAuthTokenStorage("in-memory");
                 }
             }
 

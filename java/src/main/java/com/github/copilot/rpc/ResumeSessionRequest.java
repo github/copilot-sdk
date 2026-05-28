@@ -124,6 +124,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
+    @JsonProperty("mcpOAuthTokenStorage")
+    private String mcpOAuthTokenStorage;
+
     @JsonProperty("envValueMode")
     private String envValueMode;
 
@@ -589,6 +592,19 @@ public final class ResumeSessionRequest {
     /** Sets MCP servers. @param mcpServers the servers map */
     public void setMcpServers(Map<String, McpServerConfig> mcpServers) {
         this.mcpServers = mcpServers;
+    }
+
+    /** Gets MCP OAuth token storage mode. @return the storage mode */
+    public String getMcpOAuthTokenStorage() {
+        return mcpOAuthTokenStorage;
+    }
+
+    /**
+     * Sets MCP OAuth token storage mode. @param mcpOAuthTokenStorage the storage
+     * mode
+     */
+    public void setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
+        this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
     }
 
     /** Gets MCP environment variable value mode. @return the mode */

@@ -328,3 +328,30 @@ func TestApplyConfigDefaultsForMode_copilotCliLeavesGranularFlagsNil(t *testing.
 		t.Errorf("non-empty mode must not default EnableSkills")
 	}
 }
+
+func TestApplyConfigDefaultsForMode_emptyDefaultsMCPOAuthTokenStorage(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.MCPOAuthTokenStorage != "in-memory" {
+		t.Errorf("expected MCPOAuthTokenStorage 'in-memory' in empty mode, got %q", cfg.MCPOAuthTokenStorage)
+	}
+}
+
+func TestApplyConfigDefaultsForMode_emptyHonorsCallerMCPOAuthTokenStorage(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	cfg := &SessionConfig{MCPOAuthTokenStorage: "persistent"}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.MCPOAuthTokenStorage != "persistent" {
+		t.Errorf("caller-supplied MCPOAuthTokenStorage must win, got %q", cfg.MCPOAuthTokenStorage)
+	}
+}
+
+func TestApplyConfigDefaultsForMode_copilotCliLeavesMCPOAuthTokenStorageEmpty(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.MCPOAuthTokenStorage != "" {
+		t.Errorf("non-empty mode must not default MCPOAuthTokenStorage, got %q", cfg.MCPOAuthTokenStorage)
+	}
+}

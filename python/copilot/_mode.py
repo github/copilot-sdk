@@ -248,6 +248,16 @@ def _enable_skills_default(
     return _empty_mode_bool_default(mode, supplied, False)
 
 
+def _mcp_oauth_token_storage_default(
+    mode: CopilotClientMode | None,
+    supplied: Literal["persistent", "in-memory"] | None,
+) -> Literal["persistent", "in-memory"] | None:
+    """Empty mode defaults MCP OAuth token storage to in-memory; caller value wins."""
+    if mode == "empty" and supplied is None:
+        return "in-memory"
+    return supplied
+
+
 def _post_create_options_patch(
     mode: CopilotClientMode | None,
     skip_custom_instructions: bool | None,
