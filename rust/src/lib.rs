@@ -7,7 +7,10 @@
 pub mod canvas;
 mod canvas_dispatch;
 /// Bundled CLI binary extraction and caching.
+#[cfg(feature = "bundled-cli")]
 pub(crate) mod embeddedcli;
+mod errors;
+pub use errors::*;
 /// Event handler traits for session lifecycle.
 pub mod handler;
 /// Lifecycle hook callbacks (pre/post tool use, prompt submission, session start/end).
@@ -15,7 +18,7 @@ pub mod hooks;
 mod jsonrpc;
 /// Permission-policy helpers that produce a [`handler::PermissionHandler`].
 pub mod permission;
-/// GitHub Copilot CLI binary resolution (env var, embedded, PATH search).
+/// GitHub Copilot CLI binary resolution (env var, embedded, dev cache).
 pub(crate) mod resolve;
 mod router;
 /// Session management — create, resume, send messages, and interact with the agent.
@@ -38,6 +41,10 @@ mod wire;
 /// Auto-generated protocol types from Copilot JSON Schemas.
 pub mod generated;
 
+/// Client-level mode ([`ClientMode`]) and the [`ToolSet`] builder for
+/// source-qualified tool filter patterns.
+pub mod mode;
+
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -50,6 +57,7 @@ use async_trait::async_trait;
 pub(crate) use jsonrpc::{
     JsonRpcClient, JsonRpcError, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, error_codes,
 };
+pub use mode::{BUILTIN_TOOLS_ISOLATED, ClientMode, ToolSet};
 
 /// Re-exported JSON-RPC internals for integration tests (requires `test-support` feature).
 #[cfg(feature = "test-support")]
@@ -69,218 +77,10 @@ pub use types::*;
 
 mod sdk_protocol_version;
 pub use sdk_protocol_version::{SDK_PROTOCOL_VERSION, get_sdk_protocol_version};
-pub use subscription::{EventSubscription, Lagged, LifecycleSubscription, RecvError};
+pub use subscription::{EventSubscription, LifecycleSubscription};
 
 /// Minimum protocol version this SDK can communicate with.
 const MIN_PROTOCOL_VERSION: u32 = 3;
-
-/// Errors returned by the SDK.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum Error {
-    /// JSON-RPC transport or protocol violation.
-    #[error("protocol error: {0}")]
-    Protocol(ProtocolError),
-
-    /// The CLI returned a JSON-RPC error response.
-    #[error("RPC error {code}: {message}")]
-    Rpc {
-        /// JSON-RPC error code.
-        code: i32,
-        /// Human-readable error message.
-        message: String,
-    },
-
-    /// Session-scoped error (not found, agent error, timeout, etc.).
-    #[error("session error: {0}")]
-    Session(SessionError),
-
-    /// I/O error on the stdio transport or during process spawn.
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-
-    /// Failed to serialize or deserialize a JSON-RPC message.
-    #[error(transparent)]
-    Json(#[from] serde_json::Error),
-
-    /// A required binary was not found on the system.
-    #[error("binary not found: {name} ({hint})")]
-    BinaryNotFound {
-        /// Binary name that was searched for.
-        name: &'static str,
-        /// Guidance on how to install or configure the binary.
-        hint: &'static str,
-    },
-
-    /// Invalid combination of [`ClientOptions`] supplied to [`Client::start`].
-    /// Surfaces consumer-side configuration errors that would otherwise
-    /// produce confusing runtime failures (e.g. a connection token paired
-    /// with stdio transport).
-    #[error("invalid client configuration: {0}")]
-    InvalidConfig(String),
-}
-
-impl Error {
-    /// Returns true if this error indicates the transport is broken — the CLI
-    /// process exited, the connection was lost, or an I/O failure occurred.
-    /// Callers should discard the client and create a fresh one.
-    pub fn is_transport_failure(&self) -> bool {
-        matches!(
-            self,
-            Error::Protocol(ProtocolError::RequestCancelled) | Error::Io(_)
-        )
-    }
-}
-
-/// Aggregate of errors collected during [`Client::stop`].
-///
-/// `Client::stop` performs cooperative shutdown across every active
-/// session before killing the CLI child process. Errors from any
-/// per-session `session.destroy` RPC and from the terminal child-kill
-/// step are collected here rather than short-circuiting on the first
-/// failure, so callers see the full picture of what went wrong during
-/// teardown.
-///
-/// Implements [`std::error::Error`] and forwards to `Display` for the
-/// first error, with a count suffix when there are more.
-#[derive(Debug)]
-pub struct StopErrors(Vec<Error>);
-
-impl StopErrors {
-    /// Borrow the collected errors as a slice, in the order they
-    /// occurred (per-session destroys first, then child-kill last).
-    pub fn errors(&self) -> &[Error] {
-        &self.0
-    }
-
-    /// Consume the aggregate and return the underlying error vector.
-    pub fn into_errors(self) -> Vec<Error> {
-        self.0
-    }
-}
-
-impl std::fmt::Display for StopErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0.as_slice() {
-            [] => write!(f, "stop completed with no errors"),
-            [only] => write!(f, "stop failed: {only}"),
-            [first, rest @ ..] => write!(
-                f,
-                "stop failed with {n} errors; first: {first}",
-                n = 1 + rest.len(),
-            ),
-        }
-    }
-}
-
-impl std::error::Error for StopErrors {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.0
-            .first()
-            .map(|e| e as &(dyn std::error::Error + 'static))
-    }
-}
-
-/// Specific protocol-level errors in the JSON-RPC transport or CLI lifecycle.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum ProtocolError {
-    /// Missing `Content-Length` header in a JSON-RPC message.
-    #[error("missing Content-Length header")]
-    MissingContentLength,
-
-    /// Invalid `Content-Length` header value.
-    #[error("invalid Content-Length value: \"{0}\"")]
-    InvalidContentLength(String),
-
-    /// A pending JSON-RPC request was cancelled (e.g. the response channel was dropped).
-    #[error("request cancelled")]
-    RequestCancelled,
-
-    /// The CLI process did not report a listening port within the timeout.
-    #[error("timed out waiting for CLI to report listening port")]
-    CliStartupTimeout,
-
-    /// The CLI process exited before reporting a listening port.
-    #[error("CLI exited before reporting listening port")]
-    CliStartupFailed,
-
-    /// The CLI server's protocol version is outside the SDK's supported range.
-    #[error("version mismatch: server={server}, supported={min}–{max}")]
-    VersionMismatch {
-        /// Version reported by the server.
-        server: u32,
-        /// Minimum version supported by this SDK.
-        min: u32,
-        /// Maximum version supported by this SDK.
-        max: u32,
-    },
-
-    /// The CLI server's protocol version changed between calls.
-    #[error("version changed: was {previous}, now {current}")]
-    VersionChanged {
-        /// Previously negotiated version.
-        previous: u32,
-        /// Newly reported version.
-        current: u32,
-    },
-}
-
-/// Session-scoped errors.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum SessionError {
-    /// The CLI could not find the requested session.
-    #[error("session not found: {0}")]
-    NotFound(SessionId),
-
-    /// The CLI reported an error during agent execution (via `session.error` event).
-    #[error("{0}")]
-    AgentError(String),
-
-    /// A `send_and_wait` call exceeded its timeout.
-    #[error("timed out after {0:?}")]
-    Timeout(std::time::Duration),
-
-    /// `send` was called while a `send_and_wait` is in flight.
-    #[error("cannot send while send_and_wait is in flight")]
-    SendWhileWaiting,
-
-    /// The session event loop exited before a pending `send_and_wait` completed.
-    #[error("event loop closed before session reached idle")]
-    EventLoopClosed,
-
-    /// Elicitation is not supported by the host.
-    /// Check `session.capabilities().ui.elicitation` before calling UI methods.
-    #[error(
-        "elicitation not supported by host — check session.capabilities().ui.elicitation first"
-    )]
-    ElicitationNotSupported,
-
-    /// The client was started with [`ClientOptions::session_fs`] but this
-    /// session was created without a [`SessionFsProvider`]. Set one via
-    /// [`SessionConfig::with_session_fs_provider`] (or
-    /// [`ResumeSessionConfig::with_session_fs_provider`]).
-    #[error(
-        "session was created on a client with session_fs configured but no SessionFsProvider was supplied"
-    )]
-    SessionFsProviderRequired,
-
-    /// [`ClientOptions::session_fs`] was provided with empty or invalid
-    /// fields. All of `initial_cwd` and `session_state_path` must be
-    /// non-empty.
-    #[error("invalid SessionFsConfig: {0}")]
-    InvalidSessionFsConfig(String),
-
-    /// The CLI returned a different session ID than the one the SDK registered.
-    #[error("CLI returned session ID {returned} after SDK registered {requested}")]
-    SessionIdMismatch {
-        /// Session ID registered by the SDK before the RPC was sent.
-        requested: SessionId,
-        /// Session ID returned by the CLI.
-        returned: SessionId,
-    },
-}
 
 /// How the SDK communicates with the CLI server.
 #[derive(Debug, Default)]
@@ -313,7 +113,7 @@ pub enum Transport {
 /// How the SDK locates the GitHub Copilot CLI binary.
 #[derive(Debug, Clone, Default)]
 pub enum CliProgram {
-    /// Auto-resolve: `COPILOT_CLI_PATH` → embedded CLI → PATH + common locations.
+    /// Auto-resolve: `COPILOT_CLI_PATH` → embedded CLI → dev cache.
     /// This is the default.
     #[default]
     Resolve,
@@ -330,12 +130,12 @@ impl From<PathBuf> for CliProgram {
 /// Options for starting a [`Client`].
 ///
 /// When `program` is [`CliProgram::Resolve`] (the default), [`Client::start`]
-/// uses the bundled Copilot CLI that was embedded at build time (via the
-/// default `bundled-cli` cargo feature).
+/// uses `COPILOT_CLI_PATH` when set to a real file. Otherwise it uses the
+/// bundled Copilot CLI when the default `bundled-cli` cargo feature is enabled,
+/// or the build-time extracted dev-cache CLI when that feature is disabled.
 ///
 /// Set `program` to [`CliProgram::Path`] to use an explicit binary instead.
-/// This is the required path if you've opted out of bundling via
-/// `default-features = false`.
+/// This skips auto-resolution entirely.
 #[non_exhaustive]
 pub struct ClientOptions {
     /// How to locate the CLI binary.
@@ -416,16 +216,25 @@ pub struct ClientOptions {
     /// first use.
     ///
     /// When `None` (the default), the SDK extracts the embedded CLI to
-    /// `<platform cache dir>/github-copilot-sdk-{version}/copilot[.exe]`,
+    /// `<platform cache dir>/github-copilot-sdk/cli/<version>/copilot[.exe]`,
     /// where the cache dir is [`dirs::cache_dir()`] —
     /// `%LOCALAPPDATA%` on Windows, `~/Library/Caches/` on macOS,
     /// `$XDG_CACHE_HOME` (or `~/.cache/`) on Linux. Use this knob to
     /// redirect the extraction (e.g. to a session-scoped temp directory in
     /// CI runners) without changing the global cache layout.
     ///
-    /// Ignored when the SDK was built without a bundled CLI (i.e. with
-    /// `default-features = false` to disable the `bundled-cli` feature).
+    /// Only applies when the `bundled-cli` cargo feature is on (the
+    /// default). With `bundled-cli` disabled (`default-features = false`)
+    /// there is no archive to re-extract at runtime — the binary lives
+    /// at a build-time-known conventional path. To relocate that
+    /// extraction, set `COPILOT_CLI_EXTRACT_DIR` (honored symmetrically
+    /// at build and runtime); to point the runtime at a different
+    /// binary altogether, use [`CliProgram::Path`] or `COPILOT_CLI_PATH`.
     pub bundled_cli_extract_dir: Option<PathBuf>,
+    /// SDK-level mode controlling whether sessions get CLI-style defaults
+    /// (the default) or are stripped to a minimal/safe baseline. See
+    /// [`ClientMode`] for the contract and trade-offs.
+    pub mode: ClientMode,
 }
 
 impl std::fmt::Debug for ClientOptions {
@@ -476,7 +285,7 @@ impl std::fmt::Debug for ClientOptions {
 #[async_trait]
 pub trait ListModelsHandler: Send + Sync + 'static {
     /// Return the list of available models.
-    async fn list_models(&self) -> Result<Vec<Model>, Error>;
+    async fn list_models(&self) -> Result<Vec<Model>>;
 }
 
 /// Log verbosity for the CLI server (passed via `--log-level`).
@@ -668,6 +477,7 @@ impl Default for ClientOptions {
             base_directory: None,
             enable_remote_sessions: false,
             bundled_cli_extract_dir: None,
+            mode: ClientMode::default(),
         }
     }
 }
@@ -827,23 +637,41 @@ impl ClientOptions {
 
     /// Override the directory where the bundled CLI binary is extracted on
     /// first use. See [`Self::bundled_cli_extract_dir`].
+    ///
+    /// Only applies when the `bundled-cli` cargo feature is on. With
+    /// `bundled-cli` disabled (`default-features = false`), set
+    /// `COPILOT_CLI_EXTRACT_DIR` to relocate the build-time extraction
+    /// (honored symmetrically at build and runtime), or use
+    /// [`CliProgram::Path`] / `COPILOT_CLI_PATH` to point at a different
+    /// binary at runtime.
     pub fn with_bundled_cli_extract_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.bundled_cli_extract_dir = Some(dir.into());
+        self
+    }
+
+    /// Set the SDK [`ClientMode`]. Use [`ClientMode::Empty`] for any
+    /// scenario where CLI-like ambient behavior is unsafe (e.g. multi-user
+    /// servers). Empty mode additionally requires [`Self::base_directory`]
+    /// or [`Self::session_fs`] to be set, validated at [`Client::start`].
+    pub fn with_mode(mut self, mode: ClientMode) -> Self {
+        self.mode = mode;
         self
     }
 }
 
 /// Validate a [`SessionFsConfig`] before sending `sessionFs.setProvider`.
-fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<(), Error> {
+fn validate_session_fs_config(cfg: &SessionFsConfig) -> Result<()> {
     if cfg.initial_cwd.trim().is_empty() {
-        return Err(Error::Session(SessionError::InvalidSessionFsConfig(
-            "initial_cwd must not be empty".to_string(),
-        )));
+        return Err(Error::with_message(
+            ErrorKind::Session(SessionErrorKind::InvalidSessionFsConfig),
+            "invalid SessionFsConfig: initial_cwd must not be empty",
+        ));
     }
     if cfg.session_state_path.trim().is_empty() {
-        return Err(Error::Session(SessionError::InvalidSessionFsConfig(
-            "session_state_path must not be empty".to_string(),
-        )));
+        return Err(Error::with_message(
+            ErrorKind::Session(SessionErrorKind::InvalidSessionFsConfig),
+            "invalid SessionFsConfig: session_state_path must not be empty",
+        ));
     }
     Ok(())
 }
@@ -904,6 +732,9 @@ struct ClientInner {
     /// `None` for stdio and for external-server transport without an
     /// explicit token.
     effective_connection_token: Option<String>,
+    /// SDK [`ClientMode`] captured at start time. Drives empty-mode safe
+    /// defaults inside `create_session` / `resume_session`.
+    pub(crate) mode: ClientMode,
 }
 
 impl Client {
@@ -919,8 +750,18 @@ impl Client {
     /// When [`ClientOptions::session_fs`] is set, also calls
     /// `sessionFs.setProvider` to register the SDK as the filesystem
     /// backend.
-    pub async fn start(options: ClientOptions) -> Result<Self, Error> {
+    pub async fn start(options: ClientOptions) -> Result<Self> {
         let start_time = Instant::now();
+        if options.mode == ClientMode::Empty
+            && options.base_directory.is_none()
+            && options.session_fs.is_none()
+        {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "ClientMode::Empty requires either `base_directory` or \
+                 `session_fs` to be set (no implicit ~/.copilot fallback).",
+            ));
+        }
         if let Some(cfg) = &options.session_fs {
             validate_session_fs_config(cfg)?;
         }
@@ -928,17 +769,17 @@ impl Client {
         // external server, the server manages its own auth.
         if matches!(options.transport, Transport::External { .. }) {
             if options.github_token.is_some() {
-                return Err(Error::InvalidConfig(
-                    "github_token cannot be used with Transport::External \
-                     (external server manages its own auth)"
-                        .to_string(),
+                return Err(Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    "invalid client configuration: github_token cannot be used with \
+                     Transport::External (external server manages its own auth)",
                 ));
             }
             if options.use_logged_in_user == Some(true) {
-                return Err(Error::InvalidConfig(
-                    "use_logged_in_user cannot be used with Transport::External \
-                     (external server manages its own auth)"
-                        .to_string(),
+                return Err(Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    "invalid client configuration: use_logged_in_user cannot be used with \
+                     Transport::External (external server manages its own auth)",
                 ));
             }
         }
@@ -954,8 +795,9 @@ impl Client {
                 connection_token: Some(t),
                 ..
             } if t.is_empty() => {
-                return Err(Error::InvalidConfig(
-                    "connection_token must be a non-empty string".to_string(),
+                return Err(Error::with_message(
+                    ErrorKind::InvalidConfig,
+                    "invalid client configuration: connection_token must be a non-empty string",
                 ));
             }
             _ => {}
@@ -1036,6 +878,7 @@ impl Client {
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
+                    options.mode,
                 )?
             }
             Transport::Tcp {
@@ -1062,6 +905,7 @@ impl Client {
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
+                    options.mode,
                 )?
             }
             Transport::Stdio => {
@@ -1079,6 +923,7 @@ impl Client {
                     session_fs_sqlite_declared,
                     options.on_get_trace_context,
                     effective_connection_token.clone(),
+                    options.mode,
                 )?
             }
         };
@@ -1125,8 +970,19 @@ impl Client {
         reader: impl AsyncRead + Unpin + Send + 'static,
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
-    ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, false, None, None)
+    ) -> Result<Self> {
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            None,
+            None,
+            ClientMode::default(),
+        )
     }
 
     /// Construct a [`Client`] from raw streams with a
@@ -1142,7 +998,7 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
         provider: Arc<dyn TraceContextProvider>,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         Self::from_transport(
             reader,
             writer,
@@ -1153,6 +1009,7 @@ impl Client {
             false,
             Some(provider),
             None,
+            ClientMode::default(),
         )
     }
 
@@ -1165,8 +1022,19 @@ impl Client {
         writer: impl AsyncWrite + Unpin + Send + 'static,
         cwd: PathBuf,
         token: Option<String>,
-    ) -> Result<Self, Error> {
-        Self::from_transport(reader, writer, None, cwd, None, false, false, None, token)
+    ) -> Result<Self> {
+        Self::from_transport(
+            reader,
+            writer,
+            None,
+            cwd,
+            None,
+            false,
+            false,
+            None,
+            token,
+            ClientMode::default(),
+        )
     }
 
     /// Public test-only wrapper around the random connection-token
@@ -1190,7 +1058,8 @@ impl Client {
         session_fs_sqlite_declared: bool,
         on_get_trace_context: Option<Arc<dyn TraceContextProvider>>,
         effective_connection_token: Option<String>,
-    ) -> Result<Self, Error> {
+        mode: ClientMode,
+    ) -> Result<Self> {
         let setup_start = Instant::now();
         let (request_tx, request_rx) = mpsc::unbounded_channel::<JsonRpcRequest>();
         let (notification_broadcast_tx, _) = broadcast::channel::<JsonRpcNotification>(1024);
@@ -1221,6 +1090,7 @@ impl Client {
                 session_fs_sqlite_declared,
                 on_get_trace_context,
                 effective_connection_token,
+                mode,
             }),
         };
         client.spawn_lifecycle_dispatcher();
@@ -1308,6 +1178,11 @@ impl Client {
         if let Some(dir) = &options.base_directory {
             command.env("COPILOT_HOME", dir);
         }
+        // Empty mode disables the process-wide system keychain so the CLI
+        // falls back to file-based credentials scoped to COPILOT_HOME.
+        if options.mode == ClientMode::Empty {
+            command.env("COPILOT_DISABLE_KEYTAR", "1");
+        }
         if let Transport::Tcp {
             connection_token: Some(token),
             ..
@@ -1385,7 +1260,7 @@ impl Client {
         }
     }
 
-    fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child, Error> {
+    fn spawn_stdio(program: &Path, options: &ClientOptions) -> Result<Child> {
         info!(cwd = ?options.working_directory, program = %program.display(), "spawning copilot CLI (stdio)");
         let mut command = Self::build_command(program, options);
         command
@@ -1405,11 +1280,7 @@ impl Client {
         Ok(child)
     }
 
-    async fn spawn_tcp(
-        program: &Path,
-        options: &ClientOptions,
-        port: u16,
-    ) -> Result<(Child, u16), Error> {
+    async fn spawn_tcp(program: &Path, options: &ClientOptions, port: u16) -> Result<(Child, u16)> {
         info!(cwd = ?options.working_directory, program = %program.display(), port = %port, "spawning copilot CLI (tcp)");
         let mut command = Self::build_command(program, options);
         command
@@ -1457,8 +1328,8 @@ impl Client {
         let port_wait_start = Instant::now();
         let actual_port = tokio::time::timeout(std::time::Duration::from_secs(10), port_rx)
             .await
-            .map_err(|_| Error::Protocol(ProtocolError::CliStartupTimeout))?
-            .map_err(|_| Error::Protocol(ProtocolError::CliStartupFailed))?;
+            .map_err(|_| Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupTimeout)))?
+            .map_err(|_| Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupFailed)))?;
 
         debug!(
             elapsed_ms = port_wait_start.elapsed().as_millis(),
@@ -1489,6 +1360,11 @@ impl Client {
         &self.inner.cwd
     }
 
+    /// Returns the SDK [`ClientMode`] this client was started with.
+    pub fn mode(&self) -> ClientMode {
+        self.inner.mode
+    }
+
     /// Typed RPC namespace for server-level methods.
     ///
     /// Every protocol method lives here under its schema-aligned path —
@@ -1504,11 +1380,12 @@ impl Client {
     }
 
     /// Send a JSON-RPC request and wait for the response.
+    #[allow(dead_code, reason = "convenience for future internal use")]
     pub(crate) async fn send_request(
         &self,
         method: &str,
         params: Option<serde_json::Value>,
-    ) -> Result<JsonRpcResponse, Error> {
+    ) -> Result<JsonRpcResponse> {
         self.inner.rpc.send_request(method, params).await
     }
 
@@ -1535,29 +1412,57 @@ impl Client {
         &self,
         method: &str,
         params: Option<serde_json::Value>,
-    ) -> Result<serde_json::Value, Error> {
+    ) -> Result<serde_json::Value> {
+        self.call_with_inline_callback(method, params, None).await
+    }
+
+    /// Same as [`call`](Self::call), but installs an `inline_callback`
+    /// that runs synchronously on the JSON-RPC read task the instant the
+    /// successful response is parsed, before it is delivered to this
+    /// awaiter and before the read loop dispatches the next message.
+    ///
+    /// This is the only way to perform client-side bookkeeping (for
+    /// example, registering a server-assigned session id with the
+    /// router) that must be visible to any notification or request the
+    /// server may emit on the same connection immediately after the
+    /// response.
+    ///
+    /// If the callback returns an error, that error is propagated to
+    /// this awaiter in place of the response. The callback never causes
+    /// the read loop to crash.
+    pub(crate) async fn call_with_inline_callback(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        inline_callback: Option<crate::jsonrpc::InlineResponseCallback>,
+    ) -> Result<serde_json::Value> {
         let session_id: Option<SessionId> = params
             .as_ref()
             .and_then(|p| p.get("sessionId"))
             .and_then(|v| v.as_str())
             .map(SessionId::from);
-        let response = self.send_request(method, params).await?;
+        let response = self
+            .inner
+            .rpc
+            .send_request_with_inline_callback(method, params, inline_callback)
+            .await?;
         if let Some(err) = response.error {
             if err.message.contains("Session not found") {
-                return Err(Error::Session(SessionError::NotFound(
+                return Err(ErrorKind::Session(SessionErrorKind::NotFound(
                     session_id.unwrap_or_else(|| "unknown".into()),
-                )));
+                ))
+                .into());
             }
-            return Err(Error::Rpc {
-                code: err.code,
-                message: err.message,
-            });
+            return Err(Error::with_message(
+                ErrorKind::Rpc { code: err.code },
+                err.message,
+            ));
         }
         Ok(response.result.unwrap_or(serde_json::Value::Null))
     }
 
     /// Send a JSON-RPC response back to the CLI (e.g. for permission or tool call requests).
-    pub(crate) async fn send_response(&self, response: &JsonRpcResponse) -> Result<(), Error> {
+    pub(crate) async fn send_response(&self, response: &JsonRpcResponse) -> Result<()> {
         self.inner.rpc.write(response).await
     }
 
@@ -1624,7 +1529,7 @@ impl Client {
     /// Returns an error if the negotiated `protocolVersion` is outside
     /// `MIN_PROTOCOL_VERSION`..=[`SDK_PROTOCOL_VERSION`]. If the server
     /// doesn't report a version, logs a warning and succeeds.
-    pub async fn verify_protocol_version(&self) -> Result<(), Error> {
+    pub async fn verify_protocol_version(&self) -> Result<()> {
         let handshake_start = Instant::now();
         let mut used_fallback_ping = false;
         // Try the new `connect` handshake first (sends the connection
@@ -1632,7 +1537,7 @@ impl Client {
         // that don't expose `connect` (-32601 MethodNotFound).
         let server_version = match self.connect_handshake().await {
             Ok(v) => v,
-            Err(Error::Rpc { code, .. }) if code == error_codes::METHOD_NOT_FOUND => {
+            Err(ref e) if e.rpc_code() == Some(error_codes::METHOD_NOT_FOUND) => {
                 used_fallback_ping = true;
                 self.ping(None).await?.protocol_version
             }
@@ -1644,19 +1549,21 @@ impl Client {
                 warn!("CLI server did not report protocolVersion; skipping version check");
             }
             Some(v) if !(MIN_PROTOCOL_VERSION..=SDK_PROTOCOL_VERSION).contains(&v) => {
-                return Err(Error::Protocol(ProtocolError::VersionMismatch {
+                return Err(ErrorKind::Protocol(ProtocolErrorKind::VersionMismatch {
                     server: v,
                     min: MIN_PROTOCOL_VERSION,
                     max: SDK_PROTOCOL_VERSION,
-                }));
+                })
+                .into());
             }
             Some(v) => {
                 if let Some(&existing) = self.inner.negotiated_protocol_version.get() {
                     if existing != v {
-                        return Err(Error::Protocol(ProtocolError::VersionChanged {
+                        return Err(ErrorKind::Protocol(ProtocolErrorKind::VersionChanged {
                             previous: existing,
                             current: v,
-                        }));
+                        })
+                        .into());
                     }
                 } else {
                     let _ = self.inner.negotiated_protocol_version.set(v);
@@ -1679,7 +1586,7 @@ impl Client {
     /// auto-generated token for SDK-spawned TCP servers) as the `token`
     /// param. Server-side, the token is required when the server was
     /// started with `COPILOT_CONNECTION_TOKEN`.
-    async fn connect_handshake(&self) -> Result<Option<u32>, Error> {
+    async fn connect_handshake(&self) -> Result<Option<u32>> {
         let result = self
             .rpc()
             .connect(crate::generated::api_types::ConnectRequest {
@@ -1696,7 +1603,7 @@ impl Client {
     /// the CLI reports one.
     ///
     /// [`PingResponse`]: crate::types::PingResponse
-    pub async fn ping(&self, message: Option<&str>) -> Result<crate::types::PingResponse, Error> {
+    pub async fn ping(&self, message: Option<&str>) -> Result<crate::types::PingResponse> {
         let params = match message {
             Some(m) => serde_json::json!({ "message": m }),
             None => serde_json::json!({}),
@@ -1712,7 +1619,7 @@ impl Client {
     pub async fn list_sessions(
         &self,
         filter: Option<SessionListFilter>,
-    ) -> Result<Vec<SessionMetadata>, Error> {
+    ) -> Result<Vec<SessionMetadata>> {
         let params = match filter {
             Some(f) => serde_json::json!({ "filter": f }),
             None => serde_json::json!({}),
@@ -1742,7 +1649,7 @@ impl Client {
     pub async fn get_session_metadata(
         &self,
         session_id: &SessionId,
-    ) -> Result<Option<SessionMetadata>, Error> {
+    ) -> Result<Option<SessionMetadata>> {
         let result = self
             .call(
                 "session.getMetadata",
@@ -1754,7 +1661,7 @@ impl Client {
     }
 
     /// Delete a persisted session by ID.
-    pub async fn delete_session(&self, session_id: &SessionId) -> Result<(), Error> {
+    pub async fn delete_session(&self, session_id: &SessionId) -> Result<()> {
         self.call(
             "session.delete",
             Some(serde_json::json!({ "sessionId": session_id })),
@@ -1778,7 +1685,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn get_last_session_id(&self) -> Result<Option<SessionId>, Error> {
+    pub async fn get_last_session_id(&self) -> Result<Option<SessionId>> {
         let result = self
             .call("session.getLastId", Some(serde_json::json!({})))
             .await?;
@@ -1790,7 +1697,7 @@ impl Client {
     ///
     /// Only meaningful when connected to a server running in TUI+server mode
     /// (`--ui-server`). Returns `Ok(None)` if no foreground session is set.
-    pub async fn get_foreground_session_id(&self) -> Result<Option<SessionId>, Error> {
+    pub async fn get_foreground_session_id(&self) -> Result<Option<SessionId>> {
         let result = self
             .call("session.getForeground", Some(serde_json::json!({})))
             .await?;
@@ -1802,7 +1709,7 @@ impl Client {
     ///
     /// Only meaningful when connected to a server running in TUI+server mode
     /// (`--ui-server`).
-    pub async fn set_foreground_session_id(&self, session_id: &SessionId) -> Result<(), Error> {
+    pub async fn set_foreground_session_id(&self, session_id: &SessionId) -> Result<()> {
         self.call(
             "session.setForeground",
             Some(serde_json::json!({ "sessionId": session_id })),
@@ -1812,13 +1719,13 @@ impl Client {
     }
 
     /// Get the CLI server status.
-    pub async fn get_status(&self) -> Result<GetStatusResponse, Error> {
+    pub async fn get_status(&self) -> Result<GetStatusResponse> {
         let result = self.call("status.get", Some(serde_json::json!({}))).await?;
         Ok(serde_json::from_value(result)?)
     }
 
     /// Get authentication status.
-    pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse, Error> {
+    pub async fn get_auth_status(&self) -> Result<GetAuthStatusResponse> {
         let result = self
             .call("auth.getStatus", Some(serde_json::json!({})))
             .await?;
@@ -1829,7 +1736,7 @@ impl Client {
     ///
     /// When [`ClientOptions::on_list_models`] is set, returns the handler's
     /// result without making a `models.list` RPC. Otherwise queries the CLI.
-    pub async fn list_models(&self) -> Result<Vec<Model>, Error> {
+    pub async fn list_models(&self) -> Result<Vec<Model>> {
         let cache = self.inner.models_cache.lock().clone();
         let models = cache
             .get_or_try_init(|| async {
@@ -1883,7 +1790,7 @@ impl Client {
     /// or call `stop()` again with a fresh future. The documented
     /// `tokio::time::timeout(..., client.stop())` pattern in the example
     /// below uses `force_stop` as the fallback for exactly this case.
-    pub async fn stop(&self) -> Result<(), StopErrors> {
+    pub async fn stop(&self) -> std::result::Result<(), StopErrors> {
         let pid = self.pid();
         info!(pid = ?pid, "stopping CLI process");
         let mut errors: Vec<Error> = Vec::new();
@@ -1917,7 +1824,7 @@ impl Client {
         if let Some(mut child) = child
             && let Err(e) = child.kill().await
         {
-            errors.push(Error::Io(e));
+            errors.push(e.into());
         }
 
         info!(pid = ?pid, errors = errors.len(), "CLI process stopped");
@@ -1986,7 +1893,8 @@ impl Client {
     ///
     /// Each subscriber maintains its own queue. If a consumer cannot keep
     /// up, the oldest events are dropped and `recv` returns
-    /// [`RecvError::Lagged`] with the count of skipped events; consumers
+    /// [`RecvErrorKind::Lagged`](crate::subscription::RecvErrorKind::Lagged)
+    /// with the count of skipped events; consumers
     /// should match on it and continue. Slow consumers do not block the
     /// producer.
     ///
@@ -2030,28 +1938,25 @@ mod tests {
 
     #[test]
     fn is_transport_failure_matches_request_cancelled() {
-        let err = Error::Protocol(ProtocolError::RequestCancelled);
+        let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled));
         assert!(err.is_transport_failure());
     }
 
     #[test]
     fn is_transport_failure_matches_io_error() {
-        let err = Error::Io(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "gone"));
+        let err = Error::from(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "gone"));
         assert!(err.is_transport_failure());
     }
 
     #[test]
     fn is_transport_failure_rejects_rpc_error() {
-        let err = Error::Rpc {
-            code: -1,
-            message: "bad".into(),
-        };
+        let err = Error::with_message(ErrorKind::Rpc { code: -1 }, "bad");
         assert!(!err.is_transport_failure());
     }
 
     #[test]
     fn is_transport_failure_rejects_session_error() {
-        let err = Error::Session(SessionError::NotFound("s1".into()));
+        let err = Error::from(ErrorKind::Session(SessionErrorKind::NotFound("s1".into())));
         assert!(!err.is_transport_failure());
     }
 
@@ -2090,7 +1995,7 @@ mod tests {
 
     #[test]
     fn is_transport_failure_rejects_other_protocol_errors() {
-        let err = Error::Protocol(ProtocolError::CliStartupTimeout);
+        let err = Error::from(ErrorKind::Protocol(ProtocolErrorKind::CliStartupTimeout));
         assert!(!err.is_transport_failure());
     }
 
@@ -2326,7 +2231,10 @@ mod tests {
             })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
-        assert!(matches!(err, Error::InvalidConfig(_)), "got {err:?}");
+        assert!(
+            matches!(err.kind(), ErrorKind::InvalidConfig),
+            "got {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2339,7 +2247,10 @@ mod tests {
             })
             .with_program(CliProgram::Path(PathBuf::from("/bin/echo")));
         let err = Client::start(opts).await.unwrap_err();
-        assert!(matches!(err, Error::InvalidConfig(_)), "got {err:?}");
+        assert!(
+            matches!(err.kind(), ErrorKind::InvalidConfig),
+            "got {err:?}"
+        );
     }
 
     #[test]
@@ -2457,7 +2368,7 @@ mod tests {
         struct StubHandler;
         #[async_trait]
         impl ListModelsHandler for StubHandler {
-            async fn list_models(&self) -> Result<Vec<Model>, Error> {
+            async fn list_models(&self) -> Result<Vec<Model>> {
                 Ok(vec![])
             }
         }
@@ -2482,7 +2393,7 @@ mod tests {
         }
         #[async_trait]
         impl ListModelsHandler for CountingHandler {
-            async fn list_models(&self) -> Result<Vec<Model>, Error> {
+            async fn list_models(&self) -> Result<Vec<Model>> {
                 self.calls.fetch_add(1, Ordering::SeqCst);
                 Ok(self.models.clone())
             }
@@ -2517,7 +2428,7 @@ mod tests {
         }
         #[async_trait]
         impl ListModelsHandler for SlowCountingHandler {
-            async fn list_models(&self) -> Result<Vec<Model>, Error> {
+            async fn list_models(&self) -> Result<Vec<Model>> {
                 self.calls.fetch_add(1, Ordering::SeqCst);
                 tokio::time::sleep(std::time::Duration::from_millis(25)).await;
                 Ok(self.models.clone())
@@ -2540,24 +2451,6 @@ mod tests {
         assert_eq!(first.unwrap()[0].id, "single-flight-model");
         assert_eq!(second.unwrap()[0].id, "single-flight-model");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn cancelled_create_session_unregisters_pending_session() {
-        let (client_write, _server_read) = tokio::io::duplex(8192);
-        let (_server_write, client_read) = tokio::io::duplex(8192);
-        let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
-        let handle = tokio::spawn({
-            let client = client.clone();
-            async move { client.create_session(SessionConfig::default()).await }
-        });
-
-        wait_for_pending_session_registration(&client).await;
-        handle.abort();
-        let _ = handle.await;
-
-        assert!(client.inner.router.session_ids().is_empty());
-        client.force_stop();
     }
 
     #[tokio::test]
@@ -2607,6 +2500,7 @@ mod tests {
                 session_fs_sqlite_declared: false,
                 on_get_trace_context: None,
                 effective_connection_token: None,
+                mode: ClientMode::default(),
             }),
         }
     }

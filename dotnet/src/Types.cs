@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot;
@@ -207,6 +208,48 @@ public sealed class UriRuntimeConnection : RuntimeConnection
 }
 
 /// <summary>
+/// Selects the defaulting strategy used by <see cref="CopilotClient"/>.
+/// </summary>
+public enum CopilotClientMode
+{
+    /// <summary>
+    /// Disables optional features by default. The app must explicitly opt into
+    /// anything it needs. Required for any scenario where CLI-like ambient
+    /// behavior is unsafe (e.g., multi-user servers).
+    /// <para>
+    /// When this mode is selected:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>The client constructor requires
+    ///     <see cref="CopilotClientOptions.BaseDirectory"/> or
+    ///     <see cref="CopilotClientOptions.SessionFs"/> to be set.</item>
+    /// <item><see cref="SessionConfigBase.AvailableTools"/> must be supplied on
+    ///     every session — no tools are exposed by default.</item>
+    /// <item><c>session.create</c> always sets
+    ///     <c>toolFilterPrecedence: "excluded"</c> so the allowlist and denylist
+    ///     compose naturally.</item>
+    /// <item>The SDK injects safe defaults for ambient session features
+    ///     (telemetry, custom instructions, plugins, environment context, etc.).</item>
+    /// <item><c>COPILOT_DISABLE_KEYTAR=1</c> is set on the spawned runtime so
+    ///     credentials are persisted to <c>COPILOT_HOME</c> rather than a
+    ///     process-wide system keychain.</item>
+    /// </list>
+    /// </summary>
+    Empty,
+
+    /// <summary>
+    /// Uses defaults equivalent to GitHub Copilot CLI. The default. Useful when
+    /// building a coding agent that shares sessions with Copilot CLI.
+    /// <para>
+    /// <b>Do not use this mode for server-based multi-user applications</b> —
+    /// the default coding agent has tools and capabilities that operate across
+    /// sessions and can access the host OS environment.
+    /// </para>
+    /// </summary>
+    CopilotCli,
+}
+
+/// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
 public sealed class CopilotClientOptions
@@ -237,7 +280,22 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
+        Mode = other.Mode;
     }
+
+    /// <summary>
+    /// Selects the SDK defaulting strategy. See <see cref="CopilotClientMode"/>.
+    /// </summary>
+    /// <remarks>
+    /// When set to <see cref="CopilotClientMode.Empty"/>, the SDK validates that
+    /// the app has supplied the required configuration
+    /// (<see cref="BaseDirectory"/> or <see cref="SessionFs"/>, plus
+    /// <see cref="SessionConfigBase.AvailableTools"/> on each session) and
+    /// translates session creation requests into runtime options that flip
+    /// tool filter precedence to <c>excluded</c>-wins so exclusions are
+    /// expressible.
+    /// </remarks>
+    public CopilotClientMode Mode { get; set; } = CopilotClientMode.CopilotCli;
 
     /// <summary>
     /// How to connect to the runtime. When <c>null</c>, the default is
@@ -1072,6 +1130,16 @@ public sealed class SessionUiCapabilities
     /// Whether the host supports interactive elicitation dialogs.
     /// </summary>
     public bool? Elicitation { get; set; }
+
+    /// <summary>
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
+    /// to <c>true</c> on create/resume <b>and</b> the runtime's <c>MCP_APPS</c> feature flag
+    /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
+    /// <c>false</c>, indicating the runtime silently dropped the opt-in.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? McpApps { get; set; }
 }
 
 // ============================================================================
@@ -1712,6 +1780,29 @@ public enum SystemMessageMode
 }
 
 /// <summary>
+/// The UI mode the agent is in for a given turn.
+/// </summary>
+/// <remarks>
+/// Set on <see cref="MessageOptions.AgentMode"/> to send a message in a specific mode; defaults to the session's current mode.
+/// </remarks>
+[JsonConverter(typeof(JsonStringEnumConverter<AgentMode>))]
+public enum AgentMode
+{
+    /// <summary>The agent is responding interactively to the user.</summary>
+    [JsonStringEnumMemberName("interactive")]
+    Interactive,
+    /// <summary>The agent is preparing a plan before making changes.</summary>
+    [JsonStringEnumMemberName("plan")]
+    Plan,
+    /// <summary>The agent is working autonomously toward task completion.</summary>
+    [JsonStringEnumMemberName("autopilot")]
+    Autopilot,
+    /// <summary>The agent is in shell-focused UI mode.</summary>
+    [JsonStringEnumMemberName("shell")]
+    Shell
+}
+
+/// <summary>
 /// Specifies the operation to perform on a system message section.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SectionOverrideAction>))]
@@ -2265,6 +2356,7 @@ public abstract class SessionConfigBase
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        EnableMcpApps = other.EnableMcpApps;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
@@ -2283,6 +2375,10 @@ public abstract class SessionConfigBase
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        SkipCustomInstructions = other.SkipCustomInstructions;
+        CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
+        CoauthorEnabled = other.CoauthorEnabled;
+        ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
@@ -2368,6 +2464,42 @@ public abstract class SessionConfigBase
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
 
+    /// <summary>
+    /// When <see langword="true"/>, suppresses loading of custom instruction files
+    /// (e.g. <c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>) from the working directory.
+    /// When <see langword="null"/>, the SDK chooses based on
+    /// <see cref="CopilotClientOptions.Mode"/>: <c>true</c> under
+    /// <see cref="CopilotClientMode.Empty"/> (instructions are not loaded
+    /// unless the app explicitly opts in), <c>null</c> otherwise.
+    /// </summary>
+    public bool? SkipCustomInstructions { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, custom-agent discovery is restricted to the
+    /// session's local working directory (no organisation-level discovery).
+    /// When <see langword="null"/>, the SDK chooses based on
+    /// <see cref="CopilotClientOptions.Mode"/>: <c>true</c> under
+    /// <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
+    /// </summary>
+    public bool? CustomAgentsLocalOnly { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, allows the runtime to append a
+    /// <c>Co-authored-by</c> trailer when it commits on behalf of the user.
+    /// When <see langword="null"/>, the SDK chooses based on
+    /// <see cref="CopilotClientOptions.Mode"/>: <c>false</c> under
+    /// <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
+    /// </summary>
+    public bool? CoauthorEnabled { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables the <c>manage_schedule</c> tool
+    /// (host scheduler integration). When <see langword="null"/>, the SDK
+    /// chooses based on <see cref="CopilotClientOptions.Mode"/>: <c>false</c>
+    /// under <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
+    /// </summary>
+    public bool? ManageScheduleEnabled { get; set; }
+
     /// <summary>Handler for permission requests from the server.</summary>
     public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }
 
@@ -2385,6 +2517,31 @@ public abstract class SessionConfigBase
 
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
+
+    /// <summary>
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    /// <para>
+    /// When <c>true</c> <b>and</b> the runtime has MCP Apps enabled (via the
+    /// <c>MCP_APPS</c> feature flag or <c>COPILOT_MCP_APPS=true</c> environment override), the
+    /// runtime adds the <c>mcp-apps</c> capability to the session, which causes it to advertise
+    /// the <c>extensions.io.modelcontextprotocol/ui</c> extension to MCP servers (so they expose
+    /// <c>_meta.ui.resourceUri</c> on tools) and to expose the
+    /// <c>session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,getHostContext,diagnose}</c>
+    /// JSON-RPC methods.
+    /// </para>
+    /// <para>
+    /// If the runtime gate is off, the opt-in is silently dropped server-side (the runtime logs a
+    /// warning); the session is created normally but the MCP Apps surface is unavailable. Inspect
+    /// the runtime's <c>capabilities.ui.mcpApps</c> on the create/resume response to detect this.
+    /// </para>
+    /// <para>
+    /// SDK consumers MUST set this to <c>true</c> only when they have an iframe renderer that can
+    /// display <c>ui://</c> MCP App bundles. Setting it without a renderer will cause MCP servers
+    /// to register UI-enabled tool variants the consumer cannot display.
+    /// </para>
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool EnableMcpApps { get; set; }
 
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }
@@ -2510,7 +2667,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
+    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
     /// requests to this handler.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
@@ -2645,7 +2802,9 @@ public sealed class MessageOptions
 
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
+        AgentMode = other.AgentMode;
         Prompt = other.Prompt;
+        DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
             : null;
@@ -2660,13 +2819,23 @@ public sealed class MessageOptions
     /// </summary>
     public IList<UserMessageAttachment>? Attachments { get; set; }
     /// <summary>
-    /// Interaction mode for the message (e.g., "plan", "edit").
+    /// How to deliver the message. <c>"enqueue"</c> (default) appends to the message queue;
+    /// <c>"immediate"</c> interjects during an in-progress turn.
     /// </summary>
     public string? Mode { get; set; }
+    /// <summary>
+    /// The UI mode the agent was in when this message was sent (for example "plan", "autopilot").
+    /// Defaults to the session's current mode when unset.
+    /// </summary>
+    public AgentMode? AgentMode { get; set; }
     /// <summary>
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>
     public IDictionary<string, string>? RequestHeaders { get; set; }
+    /// <summary>
+    /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
+    /// </summary>
+    public string? DisplayPrompt { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
@@ -3154,6 +3323,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
+[JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(object))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(string[]))]

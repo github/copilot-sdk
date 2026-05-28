@@ -14,6 +14,9 @@ import (
 
 // CanvasDeclaration is the declarative metadata for a single canvas, sent over
 // the wire on `session.create` / `session.resume`.
+//
+// Experimental: CanvasDeclaration is part of an experimental wire-protocol
+// surface and may change or be removed in future SDK or CLI releases.
 type CanvasDeclaration struct {
 	// ID is the canvas identifier, unique within the declaring connection.
 	ID string `json:"id"`
@@ -29,6 +32,9 @@ type CanvasDeclaration struct {
 
 // ExtensionInfo carries stable extension identity for session participants
 // that provide canvases.
+//
+// Experimental: ExtensionInfo is part of an experimental wire-protocol
+// surface and may change or be removed in future SDK or CLI releases.
 type ExtensionInfo struct {
 	// Source is the extension namespace/source, e.g. "github-app".
 	Source string `json:"source"`
@@ -41,6 +47,9 @@ type ExtensionInfo struct {
 // Wire envelope:
 //
 //	{ "code": "<code>", "message": "<message>" }
+//
+// Experimental: CanvasError is part of an experimental wire-protocol
+// surface and may change or be removed in future SDK or CLI releases.
 type CanvasError struct {
 	// Code is the machine-readable error code.
 	Code string `json:"code"`
@@ -70,7 +79,7 @@ func CanvasErrorNoHandler() *CanvasError {
 //
 // A session installs a single CanvasHandler (via SessionConfig.CanvasHandler).
 // The handler receives every inbound `canvas.open` / `canvas.close` /
-// `canvas.invokeAction` JSON-RPC request the runtime issues for this session
+// `canvas.action.invoke` JSON-RPC request the runtime issues for this session
 // and decides — typically by inspecting CanvasProviderOpenRequest.CanvasID — which
 // application-side canvas should handle the call.
 //
@@ -79,6 +88,9 @@ func CanvasErrorNoHandler() *CanvasError {
 //
 // Embed CanvasHandlerDefaults to inherit no-op defaults for OnClose and a
 // "no handler" error for OnAction.
+//
+// Experimental: CanvasHandler is part of an experimental wire-protocol
+// surface and may change or be removed in future SDK or CLI releases.
 type CanvasHandler interface {
 	OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error)
 	OnClose(ctx context.Context, c rpc.CanvasProviderCloseRequest) error
@@ -94,6 +106,9 @@ type CanvasHandler interface {
 //	    copilot.CanvasHandlerDefaults
 //	}
 //	func (h *myHandler) OnOpen(ctx context.Context, c rpc.CanvasProviderOpenRequest) (rpc.CanvasProviderOpenResult, error) { ... }
+//
+// Experimental: CanvasHandlerDefaults is part of an experimental wire-protocol
+// surface and may change or be removed in future SDK or CLI releases.
 type CanvasHandlerDefaults struct{}
 
 // OnClose returns nil by default.

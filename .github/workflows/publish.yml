@@ -169,10 +169,10 @@ jobs:
         run: sed -i -E 's/^version = ".*"$/version = "${{ needs.version.outputs.version }}"/' Cargo.toml
       - name: Snapshot CLI version + hashes for build.rs
         run: bash scripts/snapshot-bundled-cli-version.sh
-      - name: Verify snapshot file exists
+      - name: Verify cli-version.txt exists
         run: |
-          if [[ ! -f bundled_cli_version.txt ]]; then
-            echo "::error::bundled_cli_version.txt was not generated. The Snapshot step must run before packaging."
+          if [[ ! -f cli-version.txt ]]; then
+            echo "::error::cli-version.txt was not generated. The Snapshot step must run before packaging."
             exit 1
           fi
       - name: Package (dry run)

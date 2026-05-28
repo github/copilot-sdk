@@ -10,7 +10,7 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
-import type { ClientSessionApiHandlers, CanvasInvokeActionResult } from "./generated/rpc.js";
+import type { ClientSessionApiHandlers, CanvasActionInvokeResult } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
@@ -212,8 +212,10 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            displayPrompt: options.displayPrompt,
             attachments: options.attachments,
             mode: options.mode,
+            agentMode: options.agentMode,
             requestHeaders: options.requestHeaders,
         });
 
@@ -677,7 +679,7 @@ export class CopilotSession {
                     throw toCanvasRpcError(error);
                 }
             },
-            async invokeAction(params) {
+            async invoke(params) {
                 const canvas = self.canvases.get(params.canvasId);
                 if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
                 const handler = canvas.actionHandlers.get(params.actionName);
@@ -688,7 +690,7 @@ export class CopilotSession {
                     );
                 }
                 try {
-                    return (await handler(params)) as CanvasInvokeActionResult;
+                    return (await handler(params)) as CanvasActionInvokeResult;
                 } catch (error) {
                     throw toCanvasRpcError(error);
                 }

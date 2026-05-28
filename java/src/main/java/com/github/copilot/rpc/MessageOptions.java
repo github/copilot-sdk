@@ -45,7 +45,9 @@ public class MessageOptions {
     private String prompt;
     private List<MessageAttachment> attachments;
     private String mode;
+    private AgentMode agentMode;
     private Map<String, String> requestHeaders;
+    private String displayPrompt;
 
     /**
      * Gets the message prompt.
@@ -127,6 +129,30 @@ public class MessageOptions {
     }
 
     /**
+     * Sets the per-message agent UI mode.
+     * <p>
+     * Defaults to the session's current mode when unset.
+     *
+     * @param agentMode
+     *            the agent mode (for example {@link AgentMode#PLAN} or
+     *            {@link AgentMode#AUTOPILOT})
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setAgentMode(AgentMode agentMode) {
+        this.agentMode = agentMode;
+        return this;
+    }
+
+    /**
+     * Gets the per-message agent UI mode.
+     *
+     * @return the agent mode, or {@code null} if not set
+     */
+    public AgentMode getAgentMode() {
+        return agentMode;
+    }
+
+    /**
      * Gets the custom per-turn HTTP headers for outbound model requests.
      *
      * @return the headers map, or {@code null} if not set
@@ -152,6 +178,30 @@ public class MessageOptions {
     }
 
     /**
+     * Gets the display prompt shown in the timeline instead of the prompt.
+     *
+     * @return the display prompt, or {@code null} if not set
+     */
+    public String getDisplayPrompt() {
+        return displayPrompt;
+    }
+
+    /**
+     * Sets the display prompt shown in the timeline instead of the prompt.
+     * <p>
+     * If provided, this text is displayed in the conversation timeline UI instead
+     * of the actual prompt text.
+     *
+     * @param displayPrompt
+     *            the display prompt text
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setDisplayPrompt(String displayPrompt) {
+        this.displayPrompt = displayPrompt;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code MessageOptions} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -167,7 +217,9 @@ public class MessageOptions {
         copy.prompt = this.prompt;
         copy.attachments = this.attachments != null ? new ArrayList<>(this.attachments) : null;
         copy.mode = this.mode;
+        copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
+        copy.displayPrompt = this.displayPrompt;
         return copy;
     }
 

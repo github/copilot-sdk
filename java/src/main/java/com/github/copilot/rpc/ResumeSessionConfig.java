@@ -46,6 +46,10 @@ public class ResumeSessionConfig {
     private List<String> excludedTools;
     private ProviderConfig provider;
     private Boolean enableSessionTelemetry;
+    private Boolean skipCustomInstructions;
+    private Boolean customAgentsLocalOnly;
+    private Boolean coauthorEnabled;
+    private Boolean manageScheduleEnabled;
     private String reasoningEffort;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
@@ -70,6 +74,7 @@ public class ResumeSessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
 
@@ -276,6 +281,168 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig clearEnableSessionTelemetry() {
         this.enableSessionTelemetry = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom instruction file loading is suppressed.
+     *
+     * @return {@code true} to suppress, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getSkipCustomInstructions() {
+        return Optional.ofNullable(skipCustomInstructions);
+    }
+
+    /**
+     * Sets whether to suppress loading of custom instruction files.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true}
+     * (skip); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value
+     * is forwarded only when explicitly set.
+     *
+     * @param skipCustomInstructions
+     *            whether to skip custom instructions
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setSkipCustomInstructions(boolean skipCustomInstructions) {
+        this.skipCustomInstructions = skipCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Clears the skipCustomInstructions setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearSkipCustomInstructions() {
+        this.skipCustomInstructions = null;
+        return this;
+    }
+
+    /**
+     * Gets whether custom-agent discovery is restricted to local only.
+     *
+     * @return {@code true} for local only, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCustomAgentsLocalOnly() {
+        return Optional.ofNullable(customAgentsLocalOnly);
+    }
+
+    /**
+     * Sets whether custom-agent discovery is restricted to the session's local
+     * working directory.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code true} (local
+     * only); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the value is
+     * forwarded only when explicitly set.
+     *
+     * @param customAgentsLocalOnly
+     *            whether to restrict to local agents
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setCustomAgentsLocalOnly(boolean customAgentsLocalOnly) {
+        this.customAgentsLocalOnly = customAgentsLocalOnly;
+        return this;
+    }
+
+    /**
+     * Clears the customAgentsLocalOnly setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearCustomAgentsLocalOnly() {
+        this.customAgentsLocalOnly = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the runtime may append a Co-authored-by trailer.
+     *
+     * @return the coauthor enabled flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getCoauthorEnabled() {
+        return Optional.ofNullable(coauthorEnabled);
+    }
+
+    /**
+     * Sets whether the runtime is allowed to append a {@code Co-authored-by}
+     * trailer.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
+     *
+     * @param coauthorEnabled
+     *            whether coauthor is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setCoauthorEnabled(boolean coauthorEnabled) {
+        this.coauthorEnabled = coauthorEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the coauthorEnabled setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearCoauthorEnabled() {
+        this.coauthorEnabled = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the manage_schedule tool is enabled.
+     *
+     * @return the manage schedule flag, or empty if not explicitly set
+     * @since 1.3.0
+     */
+    @JsonIgnore
+    public Optional<Boolean> getManageScheduleEnabled() {
+        return Optional.ofNullable(manageScheduleEnabled);
+    }
+
+    /**
+     * Sets whether to enable the {@code manage_schedule} tool.
+     * <p>
+     * This option is sent to the server via a {@code session.options.update}
+     * JSON-RPC call immediately after session resume. In
+     * {@link CopilotClientMode#EMPTY EMPTY} mode the default is {@code false}
+     * (disabled); in {@link CopilotClientMode#COPILOT_CLI COPILOT_CLI} mode the
+     * value is forwarded only when explicitly set.
+     *
+     * @param manageScheduleEnabled
+     *            whether manage schedule is enabled
+     * @return this config instance for method chaining
+     * @since 1.3.0
+     */
+    public ResumeSessionConfig setManageScheduleEnabled(boolean manageScheduleEnabled) {
+        this.manageScheduleEnabled = manageScheduleEnabled;
+        return this;
+    }
+
+    /**
+     * Clears the manageScheduleEnabled setting.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearManageScheduleEnabled() {
+        this.manageScheduleEnabled = null;
         return this;
     }
 
@@ -807,6 +974,31 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on resume.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on the resumed session. See
+     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics (runtime
+     * gate, capability inspection, renderer requirement).
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support on resume
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
+        return this;
+    }
+
+    /**
      * Gets the exit-plan-mode request handler.
      *
      * @return the exit-plan-mode handler, or {@code null}
@@ -963,6 +1155,7 @@ public class ResumeSessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         return copy;

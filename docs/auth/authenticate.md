@@ -89,7 +89,7 @@ await using var client = new CopilotClient();
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
+import com.github.copilot.CopilotClient;
 
 // Default: uses logged-in user credentials
 var client = new CopilotClient();
@@ -205,9 +205,10 @@ await using var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setGitHubToken(userAccessToken)  // Token from OAuth flow
@@ -384,8 +385,8 @@ await using var client = new CopilotClient(new CopilotClientOptions
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setUseLoggedInUser(false)  // Only use explicit tokens

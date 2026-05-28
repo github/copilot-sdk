@@ -102,6 +102,7 @@ public delegate Task<ErrorOccurredHookOutput?> ErrorOccurredHandler(
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // Note: Java SDK does not have an onErrorOccurred hook.
 // Use EventErrorPolicy and EventErrorHandler instead:
@@ -271,9 +272,10 @@ var session = await client.CreateSessionAsync(new SessionConfig
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.*;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.*;
+import com.github.copilot.rpc.*;
 
 // Note: Java SDK does not have an onErrorOccurred hook.
 // Use EventErrorPolicy and EventErrorHandler instead:

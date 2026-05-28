@@ -144,6 +144,9 @@ final class SessionRequestBuilder {
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
         }
+        if (config.isEnableMcpApps()) {
+            request.setRequestMcpApps(true);
+        }
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
         }
@@ -237,6 +240,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
+        }
+        if (config.isEnableMcpApps()) {
+            request.setRequestMcpApps(true);
         }
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);

@@ -36,6 +36,8 @@ public record SessionMetadataSnapshotResult(
     @JsonProperty("workspacePath") String workspacePath,
     /** User-provided name supplied at session construction (via `--name`), if any. Immutable after construction. */
     @JsonProperty("initialName") String initialName,
+    /** Runtime client name associated with the session (telemetry identifier). */
+    @JsonProperty("clientName") String clientName,
     /** Remote-session-specific metadata. Populated only when `isRemote` is true. Fields are immutable for the lifetime of the session. */
     @JsonProperty("remoteMetadata") MetadataSnapshotRemoteMetadata remoteMetadata,
     /** Short human-readable summary of the session, if known. Omitted when no summary has been generated. */

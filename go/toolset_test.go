@@ -1,0 +1,249 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+package copilot
+
+import (
+	"reflect"
+	"slices"
+	"strings"
+	"testing"
+)
+
+func TestToolSet_emitsSourceQualifiedStrings(t *testing.T) {
+	items := NewToolSet().
+		AddBuiltIn("bash").
+		AddBuiltIn("*").
+		AddCustom("my_tool").
+		AddCustom("*").
+		AddMcp("github-list_issues").
+		AddMcp("*").
+		ToSlice()
+	want := []string{
+		"builtin:bash",
+		"builtin:*",
+		"custom:my_tool",
+		"custom:*",
+		"mcp:github-list_issues",
+		"mcp:*",
+	}
+	if !reflect.DeepEqual(items, want) {
+		t.Errorf("got %v, want %v", items, want)
+	}
+}
+
+func TestToolSet_addBuiltInVariadic(t *testing.T) {
+	items := NewToolSet().AddBuiltIn("bash", "view").ToSlice()
+	want := []string{"builtin:bash", "builtin:view"}
+	if !reflect.DeepEqual(items, want) {
+		t.Errorf("got %v, want %v", items, want)
+	}
+}
+
+func TestToolSet_toSliceReturnsDefensiveCopy(t *testing.T) {
+	set := NewToolSet().AddBuiltIn("bash")
+	a := set.ToSlice()
+	a[0] = "builtin:tampered"
+	if got := set.ToSlice(); !reflect.DeepEqual(got, []string{"builtin:bash"}) {
+		t.Errorf("internal state mutated: %v", got)
+	}
+}
+
+func TestToolSet_rejectsInvalidNames(t *testing.T) {
+	cases := []struct {
+		name string
+		fn   func()
+	}{
+		{"colon in builtin", func() { NewToolSet().AddBuiltIn("has:colon") }},
+		{"space in mcp", func() { NewToolSet().AddMcp("has space") }},
+		{"empty custom", func() { NewToolSet().AddCustom("") }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatal("expected panic, got none")
+				}
+			}()
+			c.fn()
+		})
+	}
+}
+
+func TestBuiltInToolsIsolated_membership(t *testing.T) {
+	for _, banned := range []string{"bash", "edit", "grep", "web_fetch"} {
+		if slices.Contains(BuiltInToolsIsolated, banned) {
+			t.Errorf("isolated set must not contain %q", banned)
+		}
+	}
+	for _, expected := range []string{"ask_user", "task_complete"} {
+		if !slices.Contains(BuiltInToolsIsolated, expected) {
+			t.Errorf("isolated set must contain %q", expected)
+		}
+	}
+}
+
+func TestNewClient_modeEmptyRejectsWithoutStorage(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic, got none")
+		}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T", r)
+		}
+		if !strings.Contains(strings.ToLower(msg), "empty") {
+			t.Errorf("panic message should mention empty mode, got %q", msg)
+		}
+	}()
+	NewClient(&ClientOptions{Mode: ModeEmpty})
+}
+
+func TestNewClient_modeEmptyAcceptsBaseDirectory(t *testing.T) {
+	c := NewClient(&ClientOptions{
+		Mode:          ModeEmpty,
+		BaseDirectory: t.TempDir(),
+	})
+	if c.options.Mode != ModeEmpty {
+		t.Errorf("expected ModeEmpty, got %q", c.options.Mode)
+	}
+}
+
+func TestNewClient_modeEmptyAcceptsUriConnection(t *testing.T) {
+	c := NewClient(&ClientOptions{
+		Mode:       ModeEmpty,
+		Connection: UriConnection{URL: "8080"},
+	})
+	if c.options.Mode != ModeEmpty {
+		t.Errorf("expected ModeEmpty, got %q", c.options.Mode)
+	}
+}
+
+func TestNewClient_modeCopilotCliIsDefault(t *testing.T) {
+	c := NewClient(nil)
+	if c.options.Mode != "" && c.options.Mode != ModeCopilotCli {
+		t.Errorf("expected default mode to be empty/copilot-cli, got %q", c.options.Mode)
+	}
+}
+
+func TestValidateToolFilterList_rejectsBareWildcard(t *testing.T) {
+	err := validateToolFilterList("availableTools", []string{"builtin:bash", "*"})
+	if err == nil {
+		t.Fatal("expected error for bare wildcard")
+	}
+	if !strings.Contains(err.Error(), "bare wildcard") {
+		t.Errorf("expected message about bare wildcard, got %q", err.Error())
+	}
+}
+
+func TestValidateToolFilterList_allowsSourceQualifiedWildcards(t *testing.T) {
+	if err := validateToolFilterList("availableTools", []string{"builtin:*", "mcp:*", "custom:*"}); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveToolFilterOptions_emptyModeRequiresAvailableTools(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	_, _, _, err := c.resolveToolFilterOptions(nil, nil)
+	if err == nil {
+		t.Fatal("expected error in empty mode without available tools")
+	}
+}
+
+func TestResolveToolFilterOptions_setsExcludedPrecedence(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	_, _, precedence, err := c.resolveToolFilterOptions(nil, []string{"builtin:bash"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if precedence == nil || *precedence != "excluded" {
+		t.Errorf("expected precedence 'excluded', got %v", precedence)
+	}
+}
+
+func TestSystemMessageForMode_emptyModeStripsEnvContextWhenNil(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	got := c.systemMessageForMode(nil)
+	if got == nil || got.Mode != "customize" {
+		t.Fatalf("expected customize mode, got %+v", got)
+	}
+	if action, ok := got.Sections["environment_context"]; !ok || action.Action != SectionActionRemove {
+		t.Errorf("expected environment_context: remove, got %+v", got.Sections)
+	}
+}
+
+func TestSystemMessageForMode_emptyModePromotesAppendToCustomize(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	got := c.systemMessageForMode(&SystemMessageConfig{Mode: "append", Content: "extra"})
+	if got.Mode != "customize" {
+		t.Errorf("expected customize, got %q", got.Mode)
+	}
+	if got.Content != "extra" {
+		t.Errorf("expected content preserved, got %q", got.Content)
+	}
+	if action, ok := got.Sections["environment_context"]; !ok || action.Action != SectionActionRemove {
+		t.Errorf("expected environment_context removed")
+	}
+}
+
+func TestSystemMessageForMode_emptyModePreservesReplace(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	in := &SystemMessageConfig{Mode: "replace", Content: "whole prompt"}
+	got := c.systemMessageForMode(in)
+	if got != in {
+		t.Errorf("expected verbatim passthrough for replace, got %+v", got)
+	}
+}
+
+func TestSystemMessageForMode_emptyModeRespectsCallerSection(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	in := &SystemMessageConfig{
+		Mode: "customize",
+		Sections: map[string]SectionOverride{
+			"environment_context": {Action: SectionActionReplace, Content: "custom"},
+		},
+	}
+	got := c.systemMessageForMode(in)
+	if got != in {
+		t.Errorf("expected caller's section override preserved verbatim")
+	}
+}
+
+func TestSystemMessageForMode_copilotCliPassthrough(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	in := &SystemMessageConfig{Mode: "append", Content: "x"}
+	got := c.systemMessageForMode(in)
+	if got != in {
+		t.Errorf("non-empty mode must not alter system message")
+	}
+}
+
+func TestApplyConfigDefaultsForMode_emptyDefaultsTelemetryFalse(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.EnableSessionTelemetry == nil || *cfg.EnableSessionTelemetry != false {
+		t.Errorf("expected telemetry default false in empty mode, got %v", cfg.EnableSessionTelemetry)
+	}
+}
+
+func TestApplyConfigDefaultsForMode_emptyHonorsCallerTelemetry(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeEmpty, BaseDirectory: t.TempDir()})
+	trueVal := true
+	cfg := &SessionConfig{EnableSessionTelemetry: &trueVal}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.EnableSessionTelemetry == nil || *cfg.EnableSessionTelemetry != true {
+		t.Errorf("caller-supplied telemetry must win")
+	}
+}
+
+func TestApplyConfigDefaultsForMode_copilotCliLeavesNil(t *testing.T) {
+	c := NewClient(&ClientOptions{Mode: ModeCopilotCli})
+	cfg := &SessionConfig{}
+	c.applyConfigDefaultsForMode(cfg)
+	if cfg.EnableSessionTelemetry != nil {
+		t.Errorf("non-empty mode must not default telemetry")
+	}
+}

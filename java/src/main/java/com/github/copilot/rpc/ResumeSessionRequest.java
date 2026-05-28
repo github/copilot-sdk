@@ -50,6 +50,9 @@ public final class ResumeSessionRequest {
     @JsonProperty("excludedTools")
     private List<String> excludedTools;
 
+    @JsonProperty("toolFilterPrecedence")
+    private String toolFilterPrecedence;
+
     @JsonProperty("provider")
     private ProviderConfig provider;
 
@@ -115,6 +118,9 @@ public final class ResumeSessionRequest {
 
     @JsonProperty("requestElicitation")
     private Boolean requestElicitation;
+
+    @JsonProperty("requestMcpApps")
+    private Boolean requestMcpApps;
 
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
@@ -214,6 +220,19 @@ public final class ResumeSessionRequest {
     /** Sets excluded tools. @param excludedTools the excluded tool names */
     public void setExcludedTools(List<String> excludedTools) {
         this.excludedTools = excludedTools;
+    }
+
+    /** Gets the tool filter precedence. @return the precedence value */
+    public String getToolFilterPrecedence() {
+        return toolFilterPrecedence;
+    }
+
+    /**
+     * Sets the tool filter precedence. @param toolFilterPrecedence the precedence
+     * ("excluded" or null)
+     */
+    public void setToolFilterPrecedence(String toolFilterPrecedence) {
+        this.toolFilterPrecedence = toolFilterPrecedence;
     }
 
     /** Gets the provider config. @return the provider */
@@ -510,6 +529,21 @@ public final class ResumeSessionRequest {
      */
     public void clearRequestElicitation() {
         this.requestElicitation = null;
+    }
+
+    /** Gets the requestMcpApps flag. @return the flag */
+    public Boolean getRequestMcpApps() {
+        return requestMcpApps;
+    }
+
+    /** Sets the requestMcpApps flag. @param requestMcpApps the flag */
+    public void setRequestMcpApps(boolean requestMcpApps) {
+        this.requestMcpApps = requestMcpApps;
+    }
+
+    /** Clears the requestMcpApps setting, reverting to the default behavior. */
+    public void clearRequestMcpApps() {
+        this.requestMcpApps = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

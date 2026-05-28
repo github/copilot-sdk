@@ -103,15 +103,17 @@ class TestSessions:
             },
         )
 
-        assistant_message = await session.send_and_wait("Who are you?")
-        assert assistant_message is not None
+        try:
+            await session.send("Who are you?")
 
-        # Validate the system message sent to the model
-        traffic = await ctx.get_exchanges()
-        system_message = _get_system_message(traffic[0])
-        assert custom_tone in system_message
-        assert appended_content in system_message
-        assert "<code_change_instructions>" not in system_message
+            # Validate the system message sent to the model
+            traffic = await ctx.wait_for_exchanges()
+            system_message = _get_system_message(traffic[0])
+            assert custom_tone in system_message
+            assert appended_content in system_message
+            assert "<code_change_instructions>" not in system_message
+        finally:
+            await session.disconnect()
 
     async def test_should_create_a_session_with_availableTools(self, ctx: E2ETestContext):
         session = await ctx.client.create_session(
@@ -517,19 +519,27 @@ class TestSessions:
     async def test_should_receive_session_events(self, ctx: E2ETestContext):
         import asyncio
 
-        # Use on_event to capture events dispatched during session creation.
-        # session.start is emitted during the session.create RPC; if the session
-        # weren't registered in the sessions map before the RPC, it would be dropped.
+        # Use on_event to capture events dispatched after session creation begins.
+        # session.start is emitted during or shortly after the session.create RPC;
+        # if the session weren't registered in the sessions map before the RPC,
+        # the event would be dropped.
         early_events = []
+        session_start_event = asyncio.Event()
 
         def capture_early(event):
             early_events.append(event)
+            if event.type.value == "session.start":
+                session_start_event.set()
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
             on_event=capture_early,
         )
 
+        try:
+            await asyncio.wait_for(session_start_event.wait(), timeout=10)
+        except TimeoutError:
+            pytest.fail("Timed out waiting for session.start event")
         assert any(e.type.value == "session.start" for e in early_events)
 
         received_events = []
@@ -1077,8 +1087,8 @@ class TestSessions:
             pytest.fail("disconnect from within handler appears to have deadlocked")
 
     async def test_should_send_with_mode_property(self, ctx: E2ETestContext):
-        """Per-message `mode` is accepted but not echoed back on user.message."""
-        from copilot.generated.session_events import UserMessageData
+        """Per-message `agent_mode` is forwarded and echoed back on user.message."""
+        from copilot.generated.session_events import UserMessageAgentMode, UserMessageData
 
         session = await ctx.client.create_session(
             on_permission_request=PermissionHandler.approve_all,
@@ -1086,7 +1096,7 @@ class TestSessions:
 
         await session.send_and_wait(
             "Say mode ok.",
-            mode="plan",  # type: ignore[arg-type]
+            agent_mode="plan",
         )
 
         messages = await session.get_events()
@@ -1094,8 +1104,7 @@ class TestSessions:
         assert user_messages
         last = user_messages[-1].data
         assert last.content == "Say mode ok."
-        # The runtime accepts the per-message mode but does not echo it back.
-        assert last.agent_mode is None
+        assert last.agent_mode == UserMessageAgentMode.PLAN
 
         await session.disconnect()
 

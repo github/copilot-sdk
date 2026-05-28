@@ -1113,7 +1113,7 @@ pub struct SessionConfig {
     /// Canvas declarations this connection provides to the runtime.
     pub canvases: Option<Vec<CanvasDeclaration>>,
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// `canvas.open` / `canvas.close` / `canvas.invokeAction` requests to
+    /// `canvas.open` / `canvas.close` / `canvas.action.invoke` requests to
     /// this handler. Use [`with_canvas_handler`](Self::with_canvas_handler)
     /// to install one.
     pub canvas_handler: Option<Arc<dyn CanvasHandler>>,
@@ -1131,6 +1131,33 @@ pub struct SessionConfig {
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    ///
+    /// When `true` **and** the runtime has MCP Apps enabled (via the
+    /// `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+    /// override), the runtime adds the `mcp-apps` capability to the
+    /// session, which causes it to advertise the
+    /// `extensions.io.modelcontextprotocol/ui` extension to MCP servers (so
+    /// they expose `_meta.ui.resourceUri` on tools) and to expose the
+    /// `session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,
+    /// getHostContext,diagnose}` JSON-RPC methods.
+    ///
+    /// If the runtime gate is off, the opt-in is silently dropped
+    /// server-side (the runtime logs a warning); the session is created
+    /// normally but the MCP Apps surface is unavailable. Inspect the
+    /// runtime's `capabilities.ui.mcpApps` on the create/resume response to
+    /// detect this.
+    ///
+    /// SDK consumers MUST set this to `true` only when they have an iframe
+    /// renderer that can display `ui://` MCP App bundles. Setting it
+    /// without a renderer will cause MCP servers to register UI-enabled
+    /// tool variants the consumer cannot display.
+    ///
+    /// Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files.
@@ -1234,6 +1261,22 @@ pub struct SessionConfig {
     /// `systemMessage.transform` RPC callbacks to it during the session.
     /// Use [`with_system_message_transform`](Self::with_system_message_transform) to install one.
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// Whether to skip loading custom-instruction sources for this session.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `true` in [`crate::ClientMode::Empty`] when unset.
+    pub skip_custom_instructions: Option<bool>,
+    /// Whether to constrain custom agents to local-only execution. Applied
+    /// via `session.options.update` after create/resume. Defaults to `true`
+    /// in [`crate::ClientMode::Empty`] when unset.
+    pub custom_agents_local_only: Option<bool>,
+    /// Whether to include the `Co-authored-by` trailer in commit messages.
+    /// Applied via `session.options.update` after create/resume. Defaults to
+    /// `false` in [`crate::ClientMode::Empty`] when unset.
+    pub coauthor_enabled: Option<bool>,
+    /// Whether to expose the `manage_schedule` tool. Applied via
+    /// `session.options.update` after create/resume. Defaults to `false` in
+    /// [`crate::ClientMode::Empty`] when unset.
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for SessionConfig {
@@ -1258,6 +1301,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -1342,6 +1386,7 @@ impl Default for SessionConfig {
             excluded_tools: None,
             mcp_servers: None,
             enable_config_discovery: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -1369,6 +1414,10 @@ impl Default for SessionConfig {
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 }
@@ -1407,7 +1456,7 @@ impl SessionConfig {
     /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
     pub(crate) fn into_wire(
         mut self,
-        session_id: SessionId,
+        session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
@@ -1423,10 +1472,10 @@ impl SessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -1456,6 +1505,7 @@ impl SessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -1464,6 +1514,7 @@ impl SessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -1710,6 +1761,16 @@ impl SessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session. Defaults
+    /// to `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -1837,6 +1898,30 @@ impl SessionConfig {
         self.cloud = Some(cloud);
         self
     }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
+        self
+    }
 }
 
 /// Configuration for resuming an existing session via the `session.resume` RPC.
@@ -1883,6 +1968,12 @@ pub struct ResumeSessionConfig {
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
+    /// **Experimental.** This option is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. See
+    /// [`SessionConfig::enable_mcp_apps`]. Defaults to `None` (treated as `false`).
+    pub enable_mcp_apps: Option<bool>,
     /// Skill directory paths passed through to the GitHub Copilot CLI on resume.
     pub skill_directories: Option<Vec<PathBuf>>,
     /// Additional directories to search for custom instruction files on
@@ -1965,6 +2056,14 @@ pub struct ResumeSessionConfig {
     pub(crate) permission_policy: Option<crate::permission::Policy>,
     /// System-message transform. See [`SessionConfig::system_message_transform`].
     pub system_message_transform: Option<Arc<dyn SystemMessageTransform>>,
+    /// See [`SessionConfig::skip_custom_instructions`].
+    pub skip_custom_instructions: Option<bool>,
+    /// See [`SessionConfig::custom_agents_local_only`].
+    pub custom_agents_local_only: Option<bool>,
+    /// See [`SessionConfig::coauthor_enabled`].
+    pub coauthor_enabled: Option<bool>,
+    /// See [`SessionConfig::manage_schedule_enabled`].
+    pub manage_schedule_enabled: Option<bool>,
 }
 
 impl std::fmt::Debug for ResumeSessionConfig {
@@ -1989,6 +2088,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
             .field("disabled_skills", &self.disabled_skills)
@@ -2075,10 +2175,10 @@ impl ResumeSessionConfig {
                 if let Some(handler) = tool.handler.take()
                     && tool_handlers.insert(tool.name.clone(), handler).is_some()
                 {
-                    return Err(crate::Error::InvalidConfig(format!(
-                        "duplicate tool handler registered for name {:?}",
-                        tool.name
-                    )));
+                    return Err(crate::Error::with_message(
+                        crate::ErrorKind::InvalidConfig,
+                        format!("duplicate tool handler registered for name {:?}", tool.name),
+                    ));
                 }
             }
         }
@@ -2108,6 +2208,7 @@ impl ResumeSessionConfig {
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
+            tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
@@ -2116,6 +2217,7 @@ impl ResumeSessionConfig {
             request_exit_plan_mode,
             request_auto_mode_switch,
             request_elicitation,
+            request_mcp_apps: self.enable_mcp_apps.unwrap_or(false),
             hooks: hooks_flag,
             skill_directories: self.skill_directories,
             instruction_directories: self.instruction_directories,
@@ -2177,6 +2279,7 @@ impl ResumeSessionConfig {
             excluded_tools: None,
             mcp_servers: None,
             enable_config_discovery: None,
+            enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
             disabled_skills: None,
@@ -2205,6 +2308,10 @@ impl ResumeSessionConfig {
             hooks_handler: None,
             permission_policy: None,
             system_message_transform: None,
+            skip_custom_instructions: None,
+            custom_agents_local_only: None,
+            coauthor_enabled: None,
+            manage_schedule_enabled: None,
         }
     }
 
@@ -2398,6 +2505,16 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// **Experimental.** This method is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Enable MCP Apps (SEP-1865) UI passthrough on resume. Defaults to
+    /// `None` (treated as `false`). See [`SessionConfig::enable_mcp_apps`].
+    pub fn with_enable_mcp_apps(mut self, enable: bool) -> Self {
+        self.enable_mcp_apps = Some(enable);
+        self
+    }
+
     /// Set skill directory paths passed through to the CLI on resume.
     pub fn with_skill_directories<I, P>(mut self, paths: I) -> Self
     where
@@ -2529,6 +2646,30 @@ impl ResumeSessionConfig {
     /// session from one process to another without losing in-flight work.
     pub fn with_continue_pending_work(mut self, continue_pending: bool) -> Self {
         self.continue_pending_work = Some(continue_pending);
+        self
+    }
+
+    /// Set [`Self::skip_custom_instructions`].
+    pub fn with_skip_custom_instructions(mut self, value: bool) -> Self {
+        self.skip_custom_instructions = Some(value);
+        self
+    }
+
+    /// Set [`Self::custom_agents_local_only`].
+    pub fn with_custom_agents_local_only(mut self, value: bool) -> Self {
+        self.custom_agents_local_only = Some(value);
+        self
+    }
+
+    /// Set [`Self::coauthor_enabled`].
+    pub fn with_coauthor_enabled(mut self, value: bool) -> Self {
+        self.coauthor_enabled = Some(value);
+        self
+    }
+
+    /// Set [`Self::manage_schedule_enabled`].
+    pub fn with_manage_schedule_enabled(mut self, value: bool) -> Self {
+        self.manage_schedule_enabled = Some(value);
         self
     }
 }
@@ -2944,6 +3085,24 @@ pub enum DeliveryMode {
     Immediate,
 }
 
+/// The UI mode the agent is in for a given turn, used by
+/// [`MessageOptions::agent_mode`].
+///
+/// Wire values: `"interactive"`, `"plan"`, `"autopilot"`, `"shell"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum AgentMode {
+    /// The agent is responding interactively to the user.
+    Interactive,
+    /// The agent is preparing a plan before making changes.
+    Plan,
+    /// The agent is working autonomously toward task completion.
+    Autopilot,
+    /// The agent is in shell-focused UI mode.
+    Shell,
+}
+
 /// Options for sending a user message to the agent.
 ///
 /// Used by both [`Session::send`](crate::session::Session::send) and
@@ -2983,6 +3142,10 @@ pub struct MessageOptions {
     /// ([`DeliveryMode::Enqueue`], default) or interrupts the session and
     /// runs immediately ([`DeliveryMode::Immediate`]).
     pub mode: Option<DeliveryMode>,
+    /// Optional UI mode the agent was in when this message was sent
+    /// (for example [`AgentMode::Plan`] or [`AgentMode::Autopilot`]).
+    /// Defaults to the session's current mode when `None`.
+    pub agent_mode: Option<AgentMode>,
     /// Optional attachments to include with the message.
     pub attachments: Option<Vec<Attachment>>,
     /// Maximum time to wait for the session to go idle. Honored only by
@@ -3003,6 +3166,8 @@ pub struct MessageOptions {
     ///
     /// Per-turn override paired with [`traceparent`](Self::traceparent).
     pub tracestate: Option<String>,
+    /// If provided, this is shown in the timeline instead of `prompt`.
+    pub display_prompt: Option<String>,
 }
 
 impl MessageOptions {
@@ -3011,11 +3176,13 @@ impl MessageOptions {
         Self {
             prompt: prompt.into(),
             mode: None,
+            agent_mode: None,
             attachments: None,
             wait_timeout: None,
             request_headers: None,
             traceparent: None,
             tracestate: None,
+            display_prompt: None,
         }
     }
 
@@ -3026,6 +3193,14 @@ impl MessageOptions {
     /// prompt behind in-flight work.
     pub fn with_mode(mut self, mode: DeliveryMode) -> Self {
         self.mode = Some(mode);
+        self
+    }
+
+    /// Set the per-message agent UI mode for this turn.
+    ///
+    /// When `None`, the session's current mode is used.
+    pub fn with_agent_mode(mut self, agent_mode: AgentMode) -> Self {
+        self.agent_mode = Some(agent_mode);
         self
     }
 
@@ -3066,6 +3241,12 @@ impl MessageOptions {
     /// Set the W3C `tracestate` header for this turn.
     pub fn with_tracestate(mut self, tracestate: impl Into<String>) -> Self {
         self.tracestate = Some(tracestate.into());
+        self
+    }
+
+    /// Set the display prompt shown in the timeline instead of `prompt`.
+    pub fn with_display_prompt(mut self, display_prompt: impl Into<String>) -> Self {
+        self.display_prompt = Some(display_prompt.into());
         self
     }
 }
@@ -3471,6 +3652,18 @@ pub struct UiCapabilities {
     /// Whether the host supports interactive elicitation dialogs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elicitation: Option<bool>,
+    /// **Experimental.** This field is part of an experimental wire-protocol
+    /// surface (SEP-1865) and may change or be removed in a future release.
+    ///
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+    /// opt-in. `Some(true)` when the consumer set
+    /// [`SessionConfig::enable_mcp_apps`] / [`ResumeSessionConfig::enable_mcp_apps`]
+    /// to `true` on create/resume **and** the runtime's `MCP_APPS` feature
+    /// flag (or `COPILOT_MCP_APPS=true` env override) is on. Otherwise
+    /// absent or `Some(false)`, indicating the runtime silently dropped the
+    /// opt-in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_apps: Option<bool>,
     /// Host-specific canvas capabilities.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub canvases: Option<bool>,
@@ -3623,11 +3816,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Attachment, AttachmentLineRange, AttachmentSelectionPosition, AttachmentSelectionRange,
-        ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo, GitHubReferenceType,
-        InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig, SessionConfig, SessionEvent,
-        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
-        ToolResultResponse, ensure_attachment_display_names,
+        AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
+        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
+        GitHubReferenceType, InfiniteSessionConfig, ProviderConfig, ResumeSessionConfig,
+        SessionConfig, SessionEvent, SessionId, SystemMessageConfig, Tool, ToolBinaryResult,
+        ToolResult, ToolResultExpanded, ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
 
@@ -3749,7 +3942,7 @@ mod tests {
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
         let (wire, _runtime) = cfg
-            .into_wire(SessionId::from("default-flags"))
+            .into_wire(Some(SessionId::from("default-flags")))
             .expect("default config has no duplicate handlers");
         assert!(!wire.request_user_input);
         assert!(!wire.request_permission);
@@ -3757,6 +3950,7 @@ mod tests {
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
     }
 
     #[test]
@@ -3771,6 +3965,36 @@ mod tests {
         assert!(!wire.request_exit_plan_mode);
         assert!(!wire.request_auto_mode_switch);
         assert!(!wire.hooks);
+        assert!(!wire.request_mcp_apps);
+    }
+
+    #[test]
+    fn session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = SessionConfig::default().with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire(Some(SessionId::from("enable-mcp-apps")))
+            .expect("enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
+    }
+
+    #[test]
+    fn resume_session_config_enable_mcp_apps_sets_wire_flag_and_serializes() {
+        let cfg = ResumeSessionConfig::new(SessionId::from("resume-enable-mcp-apps"))
+            .with_enable_mcp_apps(true);
+        assert_eq!(cfg.enable_mcp_apps, Some(true));
+
+        let (wire, _runtime) = cfg
+            .into_wire()
+            .expect("resume enable_mcp_apps config has no duplicate handlers");
+        assert!(wire.request_mcp_apps);
+
+        let json = serde_json::to_value(&wire).unwrap();
+        assert_eq!(json["requestMcpApps"], serde_json::Value::Bool(true));
     }
 
     #[test]
@@ -3792,7 +4016,7 @@ mod tests {
         ));
 
         let (wire, _runtime) = cfg
-            .into_wire(SessionId::from("custom-id"))
+            .into_wire(Some(SessionId::from("custom-id")))
             .expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["sessionId"], "custom-id");
@@ -3808,7 +4032,7 @@ mod tests {
 
         // Unset fields are omitted on the wire.
         let (empty_wire, _) = SessionConfig::default()
-            .into_wire(SessionId::from("empty"))
+            .into_wire(Some(SessionId::from("empty")))
             .expect("default has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("gitHubToken").is_none());
@@ -4007,7 +4231,7 @@ mod tests {
         let cfg =
             SessionConfig::default().with_instruction_directories([PathBuf::from("/tmp/instr")]);
         let (wire, _) = cfg
-            .into_wire(SessionId::from("instr-on"))
+            .into_wire(Some(SessionId::from("instr-on")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
@@ -4017,7 +4241,7 @@ mod tests {
 
         // Unset case — skip_serializing_if must omit the field.
         let (wire, _) = SessionConfig::default()
-            .into_wire(SessionId::from("instr-off"))
+            .into_wire(Some(SessionId::from("instr-off")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("instructionDirectories").is_none());
@@ -4162,6 +4386,25 @@ mod tests {
         );
         let parsed: DeliveryMode = serde_json::from_str("\"immediate\"").unwrap();
         assert_eq!(parsed, DeliveryMode::Immediate);
+    }
+
+    #[test]
+    fn agent_mode_serializes_to_kebab_case_strings() {
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Interactive).unwrap(),
+            "\"interactive\""
+        );
+        assert_eq!(serde_json::to_string(&AgentMode::Plan).unwrap(), "\"plan\"");
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Autopilot).unwrap(),
+            "\"autopilot\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AgentMode::Shell).unwrap(),
+            "\"shell\""
+        );
+        let parsed: AgentMode = serde_json::from_str("\"plan\"").unwrap();
+        assert_eq!(parsed, AgentMode::Plan);
     }
 
     #[test]
