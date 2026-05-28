@@ -1427,7 +1427,7 @@ impl SessionConfig {
     /// [`SessionCreateWire`]: crate::wire::SessionCreateWire
     pub(crate) fn into_wire(
         mut self,
-        session_id: SessionId,
+        session_id: Option<SessionId>,
     ) -> Result<(crate::wire::SessionCreateWire, SessionConfigRuntime), crate::Error> {
         let permission_active =
             self.permission_handler.is_some() || self.permission_policy.is_some();
@@ -3871,7 +3871,7 @@ mod tests {
         // time, not stored on the config. With no handlers installed, every
         // request_* flag should serialize as false.
         let (wire, _runtime) = cfg
-            .into_wire(SessionId::from("default-flags"))
+            .into_wire(Some(SessionId::from("default-flags")))
             .expect("default config has no duplicate handlers");
         assert!(!wire.request_user_input);
         assert!(!wire.request_permission);
@@ -3914,7 +3914,7 @@ mod tests {
         ));
 
         let (wire, _runtime) = cfg
-            .into_wire(SessionId::from("custom-id"))
+            .into_wire(Some(SessionId::from("custom-id")))
             .expect("no duplicate handlers");
         let wire_json = serde_json::to_value(&wire).unwrap();
         assert_eq!(wire_json["sessionId"], "custom-id");
@@ -3930,7 +3930,7 @@ mod tests {
 
         // Unset fields are omitted on the wire.
         let (empty_wire, _) = SessionConfig::default()
-            .into_wire(SessionId::from("empty"))
+            .into_wire(Some(SessionId::from("empty")))
             .expect("default has no duplicate handlers");
         let empty_json = serde_json::to_value(&empty_wire).unwrap();
         assert!(empty_json.get("gitHubToken").is_none());
@@ -4129,7 +4129,7 @@ mod tests {
         let cfg =
             SessionConfig::default().with_instruction_directories([PathBuf::from("/tmp/instr")]);
         let (wire, _) = cfg
-            .into_wire(SessionId::from("instr-on"))
+            .into_wire(Some(SessionId::from("instr-on")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert_eq!(
@@ -4139,7 +4139,7 @@ mod tests {
 
         // Unset case — skip_serializing_if must omit the field.
         let (wire, _) = SessionConfig::default()
-            .into_wire(SessionId::from("instr-off"))
+            .into_wire(Some(SessionId::from("instr-off")))
             .expect("no duplicate handlers");
         let json = serde_json::to_value(&wire).unwrap();
         assert!(json.get("instructionDirectories").is_none());

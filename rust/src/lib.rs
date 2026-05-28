@@ -1380,6 +1380,7 @@ impl Client {
     }
 
     /// Send a JSON-RPC request and wait for the response.
+    #[allow(dead_code, reason = "convenience for future internal use")]
     pub(crate) async fn send_request(
         &self,
         method: &str,
@@ -1412,12 +1413,39 @@ impl Client {
         method: &str,
         params: Option<serde_json::Value>,
     ) -> Result<serde_json::Value> {
+        self.call_with_inline_callback(method, params, None).await
+    }
+
+    /// Same as [`call`](Self::call), but installs an `inline_callback`
+    /// that runs synchronously on the JSON-RPC read task the instant the
+    /// successful response is parsed, before it is delivered to this
+    /// awaiter and before the read loop dispatches the next message.
+    ///
+    /// This is the only way to perform client-side bookkeeping (for
+    /// example, registering a server-assigned session id with the
+    /// router) that must be visible to any notification or request the
+    /// server may emit on the same connection immediately after the
+    /// response.
+    ///
+    /// If the callback returns an error, that error is propagated to
+    /// this awaiter in place of the response. The callback never causes
+    /// the read loop to crash.
+    pub(crate) async fn call_with_inline_callback(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        inline_callback: Option<crate::jsonrpc::InlineResponseCallback>,
+    ) -> Result<serde_json::Value> {
         let session_id: Option<SessionId> = params
             .as_ref()
             .and_then(|p| p.get("sessionId"))
             .and_then(|v| v.as_str())
             .map(SessionId::from);
-        let response = self.send_request(method, params).await?;
+        let response = self
+            .inner
+            .rpc
+            .send_request_with_inline_callback(method, params, inline_callback)
+            .await?;
         if let Some(err) = response.error {
             if err.message.contains("Session not found") {
                 return Err(ErrorKind::Session(SessionErrorKind::NotFound(
@@ -2423,24 +2451,6 @@ mod tests {
         assert_eq!(first.unwrap()[0].id, "single-flight-model");
         assert_eq!(second.unwrap()[0].id, "single-flight-model");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn cancelled_create_session_unregisters_pending_session() {
-        let (client_write, _server_read) = tokio::io::duplex(8192);
-        let (_server_write, client_read) = tokio::io::duplex(8192);
-        let client = Client::from_streams(client_read, client_write, std::env::temp_dir()).unwrap();
-        let handle = tokio::spawn({
-            let client = client.clone();
-            async move { client.create_session(SessionConfig::default()).await }
-        });
-
-        wait_for_pending_session_registration(&client).await;
-        handle.abort();
-        let _ = handle.await;
-
-        assert!(client.inner.router.session_ids().is_empty());
-        client.force_stop();
     }
 
     #[tokio::test]

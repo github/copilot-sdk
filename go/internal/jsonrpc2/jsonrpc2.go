@@ -62,30 +62,32 @@ type RequestHandler func(params json.RawMessage) (json.RawMessage, *Error)
 
 // Client is a minimal JSON-RPC 2.0 client for stdio transport.
 type Client struct {
-	reader          *headerReader // reads frames from the remote side
-	stdout          io.ReadCloser
-	writer          chan *headerWriter // 1-buffered; holds the writer when not in use
-	mu              sync.Mutex
-	pendingRequests map[string]chan *Response
-	requestHandlers map[string]RequestHandler
-	running         atomic.Bool
-	stopChan        chan struct{}
-	wg              sync.WaitGroup
-	processDone     chan struct{} // closed when the underlying process exits
-	processErrorPtr *error        // points to the process error
-	processErrorMu  sync.RWMutex  // protects processErrorPtr
-	onClose         func()        // called when the read loop exits unexpectedly
+	reader                 *headerReader // reads frames from the remote side
+	stdout                 io.ReadCloser
+	writer                 chan *headerWriter // 1-buffered; holds the writer when not in use
+	mu                     sync.Mutex
+	pendingRequests        map[string]chan *Response
+	pendingInlineCallbacks map[string]func(json.RawMessage) error
+	requestHandlers        map[string]RequestHandler
+	running                atomic.Bool
+	stopChan               chan struct{}
+	wg                     sync.WaitGroup
+	processDone            chan struct{} // closed when the underlying process exits
+	processErrorPtr        *error        // points to the process error
+	processErrorMu         sync.RWMutex  // protects processErrorPtr
+	onClose                func()        // called when the read loop exits unexpectedly
 }
 
 // NewClient creates a new JSON-RPC client.
 func NewClient(stdin io.WriteCloser, stdout io.ReadCloser) *Client {
 	c := &Client{
-		reader:          newHeaderReader(stdout),
-		stdout:          stdout,
-		writer:          make(chan *headerWriter, 1),
-		pendingRequests: make(map[string]chan *Response),
-		requestHandlers: make(map[string]RequestHandler),
-		stopChan:        make(chan struct{}),
+		reader:                 newHeaderReader(stdout),
+		stdout:                 stdout,
+		writer:                 make(chan *headerWriter, 1),
+		pendingRequests:        make(map[string]chan *Response),
+		pendingInlineCallbacks: make(map[string]func(json.RawMessage) error),
+		requestHandlers:        make(map[string]RequestHandler),
+		stopChan:               make(chan struct{}),
 	}
 	c.writer <- newHeaderWriter(stdin)
 	return c
@@ -201,18 +203,34 @@ func (c *Client) SetRequestHandler(method string, handler RequestHandler) {
 
 // Request sends a JSON-RPC request and waits for the response
 func (c *Client) Request(method string, params any) (json.RawMessage, error) {
+	return c.RequestWithInlineResponse(method, params, nil)
+}
+
+// RequestWithInlineResponse sends a JSON-RPC request and waits for the response,
+// invoking an optional callback synchronously from the read loop the instant a
+// successful response is parsed — before the response is delivered to the
+// awaiter and before the read loop dispatches the next message. Use this when
+// client-side state must be visible (for example, a session id assigned by the
+// server in the response) before any subsequent notification on the same
+// connection is dispatched. If the callback returns an error, that error is
+// returned to the awaiter in place of the response.
+func (c *Client) RequestWithInlineResponse(method string, params any, onResponseInline func(json.RawMessage) error) (json.RawMessage, error) {
 	requestID := generateUUID()
 
 	// Create response channel
 	responseChan := make(chan *Response, 1)
 	c.mu.Lock()
 	c.pendingRequests[requestID] = responseChan
+	if onResponseInline != nil {
+		c.pendingInlineCallbacks[requestID] = onResponseInline
+	}
 	c.mu.Unlock()
 
 	// Clean up on exit
 	defer func() {
 		c.mu.Lock()
 		delete(c.pendingRequests, requestID)
+		delete(c.pendingInlineCallbacks, requestID)
 		c.mu.Unlock()
 	}()
 
@@ -347,13 +365,39 @@ func (c *Client) handleResponse(response *Response) {
 	}
 	c.mu.Lock()
 	responseChan, ok := c.pendingRequests[id]
+	inlineCb := c.pendingInlineCallbacks[id]
+	delete(c.pendingInlineCallbacks, id)
 	c.mu.Unlock()
 
-	if ok {
-		select {
-		case responseChan <- response:
-		default:
-		}
+	if !ok {
+		return
+	}
+
+	// Run the inline callback synchronously in the read loop so any state it
+	// mutates is visible before the read loop dispatches the next message.
+	// Wrap in a recover so a misbehaving callback can't take down the loop.
+	if inlineCb != nil && response.Error == nil {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					response.Error = &Error{
+						Code:    ErrInternal.Code,
+						Message: fmt.Sprintf("inline response callback panicked: %v", r),
+					}
+				}
+			}()
+			if err := inlineCb(response.Result); err != nil {
+				response.Error = &Error{
+					Code:    ErrInternal.Code,
+					Message: err.Error(),
+				}
+			}
+		}()
+	}
+
+	select {
+	case responseChan <- response:
+	default:
 	}
 }
 

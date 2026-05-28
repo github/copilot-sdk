@@ -78,6 +78,7 @@ class JsonRpcClient:
         """
         self.process = process
         self.pending_requests: dict[str, asyncio.Future] = {}
+        self._pending_inline_callbacks: dict[str, Callable[[Any], None]] = {}
         self.notification_handler: Callable[[str, dict], None] | None = None
         self.request_handlers: dict[str, RequestHandler] = {}
         self._running = False
@@ -134,7 +135,12 @@ class JsonRpcClient:
             self._stderr_thread.join(timeout=1.0)
 
     async def request(
-        self, method: str, params: dict | None = None, timeout: float | None = None
+        self,
+        method: str,
+        params: dict | None = None,
+        timeout: float | None = None,
+        *,
+        on_response_inline: Callable[[Any], None] | None = None,
     ) -> Any:
         """
         Send a JSON-RPC request and wait for the response.
@@ -144,6 +150,14 @@ class JsonRpcClient:
             params: Optional parameters
             timeout: Optional request timeout in seconds. If None (default),
                 waits indefinitely for the server to respond.
+            on_response_inline: Optional synchronous callback invoked from the
+                reader thread the instant a successful response is parsed,
+                before the awaiter's future is scheduled on the event loop.
+                Use this to perform state mutations (for example, registering
+                a server-assigned session id) that must be visible before any
+                subsequent notification on the same connection is dispatched.
+                The callback receives the parsed JSON result. If the callback
+                raises, the exception is propagated to the awaiter.
 
         Returns:
             The result from the response
@@ -162,6 +176,8 @@ class JsonRpcClient:
         future = self._loop.create_future()
         with self._pending_lock:
             self.pending_requests[request_id] = future
+            if on_response_inline is not None:
+                self._pending_inline_callbacks[request_id] = on_response_inline
 
         message = {
             "jsonrpc": "2.0",
@@ -195,6 +211,7 @@ class JsonRpcClient:
         finally:
             with self._pending_lock:
                 self.pending_requests.pop(request_id, None)
+                self._pending_inline_callbacks.pop(request_id, None)
 
     async def notify(self, method: str, params: dict | None = None):
         """
@@ -343,6 +360,7 @@ class JsonRpcClient:
         if "id" in message:
             with self._pending_lock:
                 future = self.pending_requests.get(message["id"])
+                inline_cb = self._pending_inline_callbacks.pop(message["id"], None)
 
             if future is not None:
                 loop = future.get_loop()
@@ -356,7 +374,22 @@ class JsonRpcClient:
                     )
                     loop.call_soon_threadsafe(future.set_exception, exc)
                 elif "result" in message:
-                    loop.call_soon_threadsafe(future.set_result, message["result"])
+                    result = message["result"]
+                    # Invoke the inline callback synchronously in the reader
+                    # thread so any state it mutates is visible before the next
+                    # message (e.g. a session.event notification) is dispatched.
+                    if inline_cb is not None:
+                        try:
+                            inline_cb(result)
+                        except Exception as exc:  # pylint: disable=broad-except
+                            logger.warning(
+                                "Inline response callback for request %s raised",
+                                message["id"],
+                                exc_info=True,
+                            )
+                            loop.call_soon_threadsafe(future.set_exception, exc)
+                            return
+                    loop.call_soon_threadsafe(future.set_result, result)
                 else:
                     exc = ValueError("Invalid JSON-RPC response")
                     loop.call_soon_threadsafe(future.set_exception, exc)

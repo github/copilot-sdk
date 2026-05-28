@@ -190,7 +190,8 @@ public class JsonRpcTests
                 .GetMethod("InvokeAsync")!
                 .MakeGenericMethod(typeof(T));
 
-            var task = (Task<T>)method.Invoke(_instance, [methodName, args, cancellationToken])!;
+            // Pass null for the optional onResponseInline parameter.
+            var task = (Task<T>)method.Invoke(_instance, [methodName, args, cancellationToken, null])!;
             return await task.ConfigureAwait(false);
         }
 

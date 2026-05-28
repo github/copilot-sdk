@@ -796,11 +796,24 @@ impl Client {
     /// broadcast (and silently skips dispatch if one arrives anyway).
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let session_id = config
-            .session_id
-            .clone()
-            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
-        config.session_id = Some(session_id.clone());
+        // For cloud sessions, let the CLI/server assign the session id and
+        // register the session lazily once the response arrives. For non-cloud
+        // sessions we generate the id client-side (when the caller didn't
+        // supply one) so the session can be registered BEFORE the RPC — the
+        // CLI may issue session-scoped requests (e.g. sessionFs.writeFile for
+        // workspace metadata) during session.create processing, before it has
+        // sent the response.
+        let caller_session_id = config.session_id.clone();
+        let use_server_generated_id = config.cloud.is_some() && caller_session_id.is_none();
+        let local_session_id: Option<SessionId> = if use_server_generated_id {
+            None
+        } else {
+            Some(
+                caller_session_id
+                    .clone()
+                    .unwrap_or_else(|| SessionId::new(uuid::Uuid::new_v4().to_string())),
+            )
+        };
         if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
@@ -830,7 +843,7 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let (wire, mut runtime) = config.into_wire(session_id.clone())?;
+        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -872,10 +885,94 @@ impl Client {
 
         let setup_start = Instant::now();
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
-        let channels = self.register_session(&session_id);
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
+
+        // For cloud sessions (use_server_generated_id), defer session
+        // registration to the inline callback so the read task registers
+        // the session synchronously the instant the response arrives.
+        // For non-cloud sessions, register up-front so the CLI can issue
+        // session-scoped requests during session.create processing.
+        let inline_stash: Arc<
+            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
+        > = Arc::new(ParkingLotMutex::new(None));
+
+        let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
+            local_session_id
+        {
+            let channels = self.register_session(sid);
+            *inline_stash.lock() = Some((sid.clone(), channels));
+            None
+        } else {
+            let client = self.clone();
+            let stash = inline_stash.clone();
+            let expected = caller_session_id.clone();
+            Some(Box::new(move |response| {
+                let result = response.result.as_ref().ok_or_else(|| {
+                    Error::with_message(ErrorKind::Json, "session.create response had no result")
+                })?;
+                let parsed: CreateSessionResult =
+                    serde_json::from_value(result.clone()).map_err(Error::from)?;
+                if let Some(requested) = expected.as_ref()
+                    && parsed.session_id != *requested
+                {
+                    return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                        requested: requested.clone(),
+                        returned: parsed.session_id,
+                    })
+                    .into());
+                }
+                let channels = client.register_session(&parsed.session_id);
+                *stash.lock() = Some((parsed.session_id, channels));
+                Ok(())
+            }))
+        };
+
+        let rpc_start = Instant::now();
+        let result = match self
+            .call_with_inline_callback("session.create", Some(params), inline_callback)
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some((id, _channels)) = inline_stash.lock().take() {
+                    self.unregister_session(&id);
+                }
+                return Err(error);
+            }
+        };
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            "Client::create_session session creation request completed successfully"
+        );
+        let create_result: CreateSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some((id, _channels)) = inline_stash.lock().take() {
+                    self.unregister_session(&id);
+                }
+                return Err(error.into());
+            }
+        };
+
+        if let Some(ref requested) = local_session_id
+            && create_result.session_id != *requested
+        {
+            if let Some((id, _channels)) = inline_stash.lock().take() {
+                self.unregister_session(&id);
+            }
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                requested: requested.clone(),
+                returned: create_result.session_id.clone(),
+            })
+            .into());
+        }
+
+        let (session_id, channels) = inline_stash
+            .lock()
+            .take()
+            .expect("session registration must have populated stash on success");
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -891,8 +988,6 @@ impl Client {
             event_tx.clone(),
             shutdown.clone(),
         );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -901,34 +996,6 @@ impl Client {
             has_hooks,
             "Client::create_session local setup complete"
         );
-
-        let rpc_start = Instant::now();
-        let result = match self.call("session.create", Some(params)).await {
-            Ok(result) => result,
-            Err(error) => {
-                registration.cleanup(event_loop).await;
-                return Err(error);
-            }
-        };
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            "Client::create_session session creation request completed successfully"
-        );
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                registration.cleanup(event_loop).await;
-                return Err(error.into());
-            }
-        };
-        if create_result.session_id != session_id {
-            registration.cleanup(event_loop).await;
-            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
-                requested: session_id,
-                returned: create_result.session_id,
-            })
-            .into());
-        }
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
 
         tracing::debug!(
@@ -936,7 +1003,6 @@ impl Client {
             session_id = %session_id,
             "Client::create_session complete"
         );
-        registration.disarm();
         let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),

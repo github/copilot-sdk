@@ -142,7 +142,7 @@ function handleMessage(message) {
     return;
   }
   if (message.method === "session.create") {
-    const sessionId = message.params?.session_id ?? "fake-session";
+    const sessionId = message.params?.sessionId ?? message.params?.session_id ?? "fake-session";
     writeResponse(message.id, { sessionId, workspacePath: null, capabilities: null });
     return;
   }
