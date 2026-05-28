@@ -67,6 +67,40 @@ if result.started:
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
+)
+
+func main() {
+	ctx := context.Background()
+	client := copilot.NewClient(nil)
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{})
+	if err != nil {
+		return
+	}
+
+	prompt := "Update each package independently, then report validation results."
+	result, err := session.RPC.Fleet.Start(ctx, &rpc.FleetStartRequest{
+		Prompt: &prompt,
+	})
+	if err != nil {
+		return
+	}
+	if result.Started {
+		fmt.Println("Fleet mode started")
+	}
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 prompt := "Update each package independently, then report validation results."
 result, err := session.RPC.Fleet.Start(ctx, &rpc.FleetStartRequest{
@@ -84,6 +118,23 @@ if result.Started {
 
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+await using var client = new CopilotClient();
+await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+var result = await session.Rpc.Fleet.StartAsync(
+    "Audit each project independently, then summarize the findings.");
+
+if (result.Started)
+{
+    Console.WriteLine("Fleet mode started");
+}
+```
+<!-- /docs-validate: hidden -->
 
 ```csharp
 var result = await session.Rpc.Fleet.StartAsync(
@@ -125,8 +176,12 @@ Native typed bindings for fleet mode were verified in Node.js/TypeScript, Python
 Plan-mode UIs can start fleet deployment by returning the `autopilot_fleet` exit action. The generated session event types describe it as:
 
 ```typescript
-/** Exit plan mode and continue with parallel autonomous workers. */
-| "autopilot_fleet";
+type PlanModeExitAction =
+  | "exit_only"
+  | "interactive"
+  | "autopilot"
+  /** Exit plan mode and continue with parallel autonomous workers. */
+  | "autopilot_fleet";
 ```
 
 Use this when a user approves a plan that already contains independent work items. Use `autopilot` for a single autonomous worker and `interactive` when the user should stay in the loop.

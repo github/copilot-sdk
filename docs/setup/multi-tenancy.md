@@ -84,6 +84,48 @@ session = await client.create_session(
 <details>
 <summary><strong>Go</strong></summary>
 
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+
+	copilot "github.com/github/copilot-sdk/go"
+)
+
+type appUser struct {
+	ID          string
+	GitHubToken string
+}
+
+func main() {
+	ctx := context.Background()
+	runtimeInstanceID := "instance-1"
+	runtimeURL := "http://127.0.0.1:8080"
+	requestID := "req-1"
+	user := appUser{ID: "alice", GitHubToken: "gho_xxx"}
+
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Mode:                      copilot.ModeEmpty,
+		BaseDirectory:             fmt.Sprintf("/var/lib/my-app/copilot/%s", runtimeInstanceID),
+		SessionIdleTimeoutSeconds: 900,
+		Connection:                copilot.UriConnection{URL: runtimeURL},
+	})
+
+	session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+		SessionID:      fmt.Sprintf("user-%s-%s", user.ID, requestID),
+		Model:          "gpt-4.1",
+		AvailableTools: []string{"custom:lookupOrder", "custom:createTicket"},
+		GitHubToken:    user.GitHubToken,
+	})
+	_ = session
+	_ = err
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(&copilot.ClientOptions{
     Mode:                      copilot.ModeEmpty,
@@ -104,6 +146,33 @@ session, err := client.CreateSession(ctx, &copilot.SessionConfig{
 
 <details>
 <summary><strong>.NET</strong></summary>
+
+<!-- docs-validate: hidden -->
+```csharp
+using GitHub.Copilot;
+
+var runtimeInstanceId = "instance-1";
+var runtimeUrl = "http://127.0.0.1:8080";
+var requestId = "req-1";
+var user = new { Id = "alice", GitHubToken = "gho_xxx" };
+
+var client = new CopilotClient(new CopilotClientOptions
+{
+    Mode = CopilotClientMode.Empty,
+    BaseDirectory = $"/var/lib/my-app/copilot/{runtimeInstanceId}",
+    SessionIdleTimeoutSeconds = 900,
+    Connection = RuntimeConnection.ForUri(runtimeUrl),
+});
+
+await using var session = await client.CreateSessionAsync(new SessionConfig
+{
+    SessionId = $"user-{user.Id}-{requestId}",
+    Model = "gpt-4.1",
+    AvailableTools = ["custom:lookupOrder", "custom:createTicket"],
+    GitHubToken = user.GitHubToken,
+});
+```
+<!-- /docs-validate: hidden -->
 
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions

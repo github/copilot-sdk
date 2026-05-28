@@ -19,7 +19,6 @@ Set the create-session `cloud` option to create a cloud session. You can include
 
 ### TypeScript
 
-<!-- docs-validate: skip -->
 ```typescript
 import { CopilotClient } from "@github/copilot-sdk";
 
@@ -40,10 +39,13 @@ const session = await client.createSession({
 
 ### Python
 
-<!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, CloudSessionOptions, CloudSessionRepository
-from copilot.session import PermissionHandler
+from copilot import (
+    CloudSessionOptions,
+    CloudSessionRepository,
+    CopilotClient,
+    PermissionHandler,
+)
 
 client = CopilotClient()
 await client.start()
@@ -62,7 +64,45 @@ session = await client.create_session(
 
 ### Go
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```go
+package main
+
+import (
+    "context"
+
+    copilot "github.com/github/copilot-sdk/go"
+    "github.com/github/copilot-sdk/go/rpc"
+)
+
+func main() {
+    _ = run(context.Background())
+}
+
+func run(ctx context.Context) error {
+    client := copilot.NewClient(nil)
+    if err := client.Start(ctx); err != nil {
+        return err
+    }
+
+    session, err := client.CreateSession(ctx, &copilot.SessionConfig{
+        Cloud: &copilot.CloudSessionOptions{
+            Repository: &copilot.CloudSessionRepository{
+                Owner:  "github",
+                Name:   "copilot-sdk",
+                Branch: "main",
+            },
+        },
+        OnPermissionRequest: func(_ copilot.PermissionRequest, _ copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+            return &rpc.PermissionDecisionApproveOnce{}, nil
+        },
+    })
+    _ = session
+    return err
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```go
 client := copilot.NewClient(nil)
 if err := client.Start(ctx); err != nil {
@@ -86,7 +126,6 @@ _ = session
 
 ### .NET
 
-<!-- docs-validate: skip -->
 ```csharp
 await using var client = new CopilotClient();
 
@@ -108,7 +147,6 @@ var session = await client.CreateSessionAsync(new SessionConfig
 
 ### Java
 
-<!-- docs-validate: skip -->
 ```java
 import com.github.copilot.CopilotClient;
 import com.github.copilot.rpc.*;
@@ -130,7 +168,6 @@ try (var client = new CopilotClient()) {
 
 ### Rust
 
-<!-- docs-validate: skip -->
 ```rust
 use github_copilot_sdk::{CloudSessionOptions, CloudSessionRepository, SessionConfig};
 use github_copilot_sdk::handler::PermissionResult;
@@ -166,9 +203,24 @@ Use `branch` when the work should start from a specific branch. If your app is c
 
 The `cloud` option only applies when creating a new session. To resume an existing cloud session, use the standard resume API for the SDK language:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
 ```typescript
-const session = await client.resumeSession("session-id");
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient();
+await client.start();
+
+const session = await client.resumeSession("session-id", {
+  onPermissionRequest: async () => ({ kind: "approve-once" }),
+});
+void session;
+```
+<!-- /docs-validate: hidden -->
+
+```typescript
+const session = await client.resumeSession("session-id", {
+  onPermissionRequest: async () => ({ kind: "approve-once" }),
+});
 ```
 
 Do not pass `cloud` again on resume. The saved session metadata determines that the session is cloud-backed, and resume follows the normal session resume path.
@@ -181,7 +233,35 @@ When this happens, the runtime reports a `"policy_blocked"` failure reason for c
 
 In TypeScript, check for the reason before retrying:
 
-<!-- docs-validate: skip -->
+<!-- docs-validate: hidden -->
+```typescript
+import {
+  CopilotClient,
+  type CloudSessionRepository,
+} from "@github/copilot-sdk";
+
+const client = new CopilotClient();
+await client.start();
+
+const repository: CloudSessionRepository = {
+  owner: "github",
+  name: "copilot-sdk",
+};
+
+try {
+  await client.createSession({
+    cloud: { repository },
+    onPermissionRequest: async () => ({ kind: "approve-once" }),
+  });
+} catch (error) {
+  if ((error as { reason?: string }).reason === "policy_blocked") {
+    // Show an admin-facing message or link to org policy settings.
+  }
+  throw error;
+}
+```
+<!-- /docs-validate: hidden -->
+
 ```typescript
 try {
   await client.createSession({ cloud: { repository } });
@@ -209,7 +289,6 @@ By default, the runtime derives the Mission Control base URL from the configured
 
 This may be required for GitHub Enterprise Server deployments. Confirm the correct value and support status with your GitHub representative before relying on it in production.
 
-<!-- docs-validate: skip -->
 ```shell
 COPILOT_MC_BASE_URL="https://example.com/agents"
 ```
