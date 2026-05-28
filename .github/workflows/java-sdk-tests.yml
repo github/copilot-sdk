@@ -104,7 +104,7 @@ jobs:
         run: |
           echo "Running tests against JDK 25-built classes using JDK 17 runtime..."
           java -version
-          mvn antrun:run@print-test-jdk-banner surefire:test -Denforcer.skip=true -DtestExecutionAgentArgs=
+          mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 
       - name: Upload test results for site generation
         if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
