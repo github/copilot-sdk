@@ -184,8 +184,8 @@ def _enable_session_telemetry_default(
 
 def _mcp_oauth_token_storage_default(
     mode: CopilotClientMode | None,
-    supplied: str | None,
-) -> str | None:
+    supplied: Literal["persistent", "in-memory"] | None,
+) -> Literal["persistent", "in-memory"] | None:
     """Empty mode defaults MCP OAuth token storage to in-memory; caller value wins."""
     if mode == "empty" and supplied is None:
         return "in-memory"
