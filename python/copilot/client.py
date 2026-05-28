@@ -37,12 +37,19 @@ from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
 from ._mode import (
     CopilotClientMode,
     ToolSet,
+    _embedding_cache_storage_default,
+    _enable_file_hooks_default,
+    _enable_host_git_operations_default,
+    _enable_on_demand_instruction_discovery_default,
+    _enable_session_store_default,
     _enable_session_telemetry_default,
+    _enable_skills_default,
     _mcp_oauth_token_storage_default,
     _normalize_tool_filter,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
     _require_storage_for_empty_mode,
+    _skip_embedding_retrieval_default,
     _system_message_for_mode,
     _validate_tool_filter_list,
 )
@@ -1573,11 +1580,19 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
         config_directory: str | None = None,
         enable_config_discovery: bool | None = None,
+        skip_embedding_retrieval: bool | None = None,
+        organization_custom_instructions: str | None = None,
+        enable_on_demand_instruction_discovery: bool | None = None,
+        enable_file_hooks: bool | None = None,
+        enable_host_git_operations: bool | None = None,
+        enable_session_store: bool | None = None,
+        enable_skills: bool | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -1651,6 +1666,10 @@ class CopilotClient:
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
                 Defaults to ``"in-memory"`` for safe multitenant behavior.
+            embedding_cache_storage: Controls how embedding caches are stored.
+                `"persistent"` uses disk-based storage (shared across sessions).
+                `"in-memory"` stores embeddings in memory (discarded on session end).
+                Defaults to `"in-memory"` in empty mode.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
@@ -1663,6 +1682,14 @@ class CopilotClient:
                 explicit values taking precedence on name collision. Custom instruction
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
+            skip_embedding_retrieval: When True, skips embedding-based retrieval.
+            organization_custom_instructions: Organization-level custom instructions.
+            enable_on_demand_instruction_discovery: Enables on-demand instruction file
+                discovery.
+            enable_file_hooks: Enables file-based hooks from ``.github/hooks/``.
+            enable_host_git_operations: Enables git operations on the host filesystem.
+            enable_session_store: Enables the cross-session store.
+            enable_skills: Enables skill loading.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
@@ -1729,8 +1756,19 @@ class CopilotClient:
         _validate_tool_filter_list("excluded_tools", excluded_tools)
         # Mode "empty" strips environment_context from the system message.
         system_message = _system_message_for_mode(mode, system_message)
-        # Mode "empty" defaults telemetry to off; caller wins.
+        # Mode "empty" defaults selected session config flags to restrictive values;
+        # caller-supplied values win.
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
+        skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
+            mode, enable_on_demand_instruction_discovery
+        )
+        enable_file_hooks = _enable_file_hooks_default(mode, enable_file_hooks)
+        enable_host_git_operations = _enable_host_git_operations_default(
+            mode, enable_host_git_operations
+        )
+        enable_session_store = _enable_session_store_default(mode, enable_session_store)
+        enable_skills = _enable_skills_default(mode, enable_skills)
 
         payload: dict[str, Any] = {}
         if model:
@@ -1825,6 +1863,9 @@ class CopilotClient:
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
             payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
+        if embedding_cache_storage is not None:
+            payload["embeddingCacheStorage"] = embedding_cache_storage
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
@@ -1848,6 +1889,20 @@ class CopilotClient:
         # Add config discovery flag if provided
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
+        if skip_embedding_retrieval is not None:
+            payload["skipEmbeddingRetrieval"] = skip_embedding_retrieval
+        if organization_custom_instructions is not None:
+            payload["organizationCustomInstructions"] = organization_custom_instructions
+        if enable_on_demand_instruction_discovery is not None:
+            payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
+        if enable_file_hooks is not None:
+            payload["enableFileHooks"] = enable_file_hooks
+        if enable_host_git_operations is not None:
+            payload["enableHostGitOperations"] = enable_host_git_operations
+        if enable_session_store is not None:
+            payload["enableSessionStore"] = enable_session_store
+        if enable_skills is not None:
+            payload["enableSkills"] = enable_skills
 
         # Add skill directories configuration if provided
         if skill_directories:
@@ -2086,11 +2141,19 @@ class CopilotClient:
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
         mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
         config_directory: str | None = None,
         enable_config_discovery: bool | None = None,
+        skip_embedding_retrieval: bool | None = None,
+        organization_custom_instructions: str | None = None,
+        enable_on_demand_instruction_discovery: bool | None = None,
+        enable_file_hooks: bool | None = None,
+        enable_host_git_operations: bool | None = None,
+        enable_session_store: bool | None = None,
+        enable_skills: bool | None = None,
         skill_directories: list[str] | None = None,
         plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
@@ -2165,6 +2228,10 @@ class CopilotClient:
                 ``"persistent"`` uses the OS keychain (shared across sessions).
                 ``"in-memory"`` stores tokens in memory (discarded on session end).
                 Defaults to ``"in-memory"`` for safe multitenant behavior.
+            embedding_cache_storage: Controls how embedding caches are stored.
+                `"persistent"` uses disk-based storage (shared across sessions).
+                `"in-memory"` stores embeddings in memory (discarded on session end).
+                Defaults to `"in-memory"` in empty mode.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
@@ -2177,6 +2244,14 @@ class CopilotClient:
                 explicit values taking precedence on name collision. Custom instruction
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
+            skip_embedding_retrieval: When True, skips embedding-based retrieval.
+            organization_custom_instructions: Organization-level custom instructions.
+            enable_on_demand_instruction_discovery: Enables on-demand instruction file
+                discovery.
+            enable_file_hooks: Enables file-based hooks from ``.github/hooks/``.
+            enable_host_git_operations: Enables git operations on the host filesystem.
+            enable_session_store: Enables the cross-session store.
+            enable_skills: Enables skill loading.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
@@ -2246,6 +2321,16 @@ class CopilotClient:
         _validate_tool_filter_list("excluded_tools", excluded_tools)
         system_message = _system_message_for_mode(mode, system_message)
         enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
+        skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
+            mode, enable_on_demand_instruction_discovery
+        )
+        enable_file_hooks = _enable_file_hooks_default(mode, enable_file_hooks)
+        enable_host_git_operations = _enable_host_git_operations_default(
+            mode, enable_host_git_operations
+        )
+        enable_session_store = _enable_session_store_default(mode, enable_session_store)
+        enable_skills = _enable_skills_default(mode, enable_skills)
 
         payload: dict[str, Any] = {"sessionId": session_id}
 
@@ -2319,6 +2404,20 @@ class CopilotClient:
             payload["configDir"] = config_directory
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
+        if skip_embedding_retrieval is not None:
+            payload["skipEmbeddingRetrieval"] = skip_embedding_retrieval
+        if organization_custom_instructions is not None:
+            payload["organizationCustomInstructions"] = organization_custom_instructions
+        if enable_on_demand_instruction_discovery is not None:
+            payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
+        if enable_file_hooks is not None:
+            payload["enableFileHooks"] = enable_file_hooks
+        if enable_host_git_operations is not None:
+            payload["enableHostGitOperations"] = enable_host_git_operations
+        if enable_session_store is not None:
+            payload["enableSessionStore"] = enable_session_store
+        if enable_skills is not None:
+            payload["enableSkills"] = enable_skills
 
         if continue_pending_work is not None:
             payload["continuePendingWork"] = continue_pending_work
@@ -2330,6 +2429,9 @@ class CopilotClient:
         mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
         if mcp_oauth_token_storage is not None:
             payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
+        if embedding_cache_storage is not None:
+            payload["embeddingCacheStorage"] = embedding_cache_storage
         payload["envValueMode"] = "direct"
 
         if custom_agents:

@@ -1193,6 +1193,23 @@ pub struct SessionConfig {
     pub mcp_oauth_token_storage: Option<String>,
     /// When true, the CLI runs config discovery (MCP config files, skills, plugins).
     pub enable_config_discovery: Option<bool>,
+    /// When true, skips embedding retrieval for this session.
+    pub skip_embedding_retrieval: Option<bool>,
+    /// Controls how the embedding cache is stored for this session.
+    /// `"persistent"` caches on disk; `"in-memory"` discards when session ends.
+    pub embedding_cache_storage: Option<String>,
+    /// Organization-level custom instructions to apply to this session.
+    pub organization_custom_instructions: Option<String>,
+    /// When true, enables on-demand instruction discovery for this session.
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    /// When true, enables file hooks for this session.
+    pub enable_file_hooks: Option<bool>,
+    /// When true, allows host Git operations for this session.
+    pub enable_host_git_operations: Option<bool>,
+    /// When true, enables the session store for this session.
+    pub enable_session_store: Option<bool>,
+    /// When true, enables skills for this session.
+    pub enable_skills: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
     /// surface (SEP-1865) and may change or be removed in a future release.
     ///
@@ -1368,7 +1385,27 @@ impl std::fmt::Debug for SessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
+            .field(
+                "organization_custom_instructions",
+                &self
+                    .organization_custom_instructions
+                    .as_ref()
+                    .map(|_| "<redacted>"),
+            )
+            .field(
+                "enable_on_demand_instruction_discovery",
+                &self.enable_on_demand_instruction_discovery,
+            )
+            .field("enable_file_hooks", &self.enable_file_hooks)
+            .field(
+                "enable_host_git_operations",
+                &self.enable_host_git_operations,
+            )
+            .field("enable_session_store", &self.enable_session_store)
+            .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
@@ -1458,6 +1495,14 @@ impl Default for SessionConfig {
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
+            skip_embedding_retrieval: None,
+            organization_custom_instructions: None,
+            enable_on_demand_instruction_discovery: None,
+            enable_file_hooks: None,
+            enable_host_git_operations: None,
+            enable_session_store: None,
+            enable_skills: None,
+            embedding_cache_storage: None,
             enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
@@ -1583,8 +1628,16 @@ impl SessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
+            skip_embedding_retrieval: self.skip_embedding_retrieval,
+            organization_custom_instructions: self.organization_custom_instructions,
+            enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
+            enable_file_hooks: self.enable_file_hooks,
+            enable_host_git_operations: self.enable_host_git_operations,
+            enable_session_store: self.enable_session_store,
+            enable_skills: self.enable_skills,
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
@@ -1851,9 +1904,63 @@ impl SessionConfig {
         self
     }
 
+    /// Set embedding cache storage mode.
+    pub fn with_embedding_cache_storage(
+        mut self,
+        embedding_cache_storage: impl Into<String>,
+    ) -> Self {
+        self.embedding_cache_storage = Some(embedding_cache_storage.into());
+        self
+    }
+
     /// Enable or disable CLI config discovery (MCP config files, skills, plugins).
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Set [`Self::skip_embedding_retrieval`].
+    pub fn with_skip_embedding_retrieval(mut self, value: bool) -> Self {
+        self.skip_embedding_retrieval = Some(value);
+        self
+    }
+
+    /// Set [`Self::organization_custom_instructions`].
+    pub fn with_organization_custom_instructions(
+        mut self,
+        instructions: impl Into<String>,
+    ) -> Self {
+        self.organization_custom_instructions = Some(instructions.into());
+        self
+    }
+
+    /// Set [`Self::enable_on_demand_instruction_discovery`].
+    pub fn with_enable_on_demand_instruction_discovery(mut self, value: bool) -> Self {
+        self.enable_on_demand_instruction_discovery = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_file_hooks`].
+    pub fn with_enable_file_hooks(mut self, value: bool) -> Self {
+        self.enable_file_hooks = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_host_git_operations`].
+    pub fn with_enable_host_git_operations(mut self, value: bool) -> Self {
+        self.enable_host_git_operations = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_session_store`].
+    pub fn with_enable_session_store(mut self, value: bool) -> Self {
+        self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_skills`].
+    pub fn with_enable_skills(mut self, value: bool) -> Self {
+        self.enable_skills = Some(value);
         self
     }
 
@@ -2087,6 +2194,22 @@ pub struct ResumeSessionConfig {
     pub mcp_oauth_token_storage: Option<String>,
     /// Enable config discovery on resume.
     pub enable_config_discovery: Option<bool>,
+    /// When true, skips embedding retrieval on resume.
+    pub skip_embedding_retrieval: Option<bool>,
+    /// Controls how the embedding cache is stored for this session.
+    pub embedding_cache_storage: Option<String>,
+    /// Organization-level custom instructions to apply on resume.
+    pub organization_custom_instructions: Option<String>,
+    /// When true, enables on-demand instruction discovery on resume.
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    /// When true, enables file hooks on resume.
+    pub enable_file_hooks: Option<bool>,
+    /// When true, allows host Git operations on resume.
+    pub enable_host_git_operations: Option<bool>,
+    /// When true, enables the session store on resume.
+    pub enable_session_store: Option<bool>,
+    /// When true, enables skills on resume.
+    pub enable_skills: Option<bool>,
     /// **Experimental.** This option is part of an experimental wire-protocol
     /// surface (SEP-1865) and may change or be removed in a future release.
     ///
@@ -2212,7 +2335,27 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("excluded_tools", &self.excluded_tools)
             .field("mcp_servers", &self.mcp_servers)
             .field("mcp_oauth_token_storage", &self.mcp_oauth_token_storage)
+            .field("embedding_cache_storage", &self.embedding_cache_storage)
             .field("enable_config_discovery", &self.enable_config_discovery)
+            .field("skip_embedding_retrieval", &self.skip_embedding_retrieval)
+            .field(
+                "organization_custom_instructions",
+                &self
+                    .organization_custom_instructions
+                    .as_ref()
+                    .map(|_| "<redacted>"),
+            )
+            .field(
+                "enable_on_demand_instruction_discovery",
+                &self.enable_on_demand_instruction_discovery,
+            )
+            .field("enable_file_hooks", &self.enable_file_hooks)
+            .field(
+                "enable_host_git_operations",
+                &self.enable_host_git_operations,
+            )
+            .field("enable_session_store", &self.enable_session_store)
+            .field("enable_skills", &self.enable_skills)
             .field("enable_mcp_apps", &self.enable_mcp_apps)
             .field("skill_directories", &self.skill_directories)
             .field("instruction_directories", &self.instruction_directories)
@@ -2339,8 +2482,16 @@ impl ResumeSessionConfig {
             tool_filter_precedence: "excluded",
             mcp_servers: self.mcp_servers,
             mcp_oauth_token_storage: self.mcp_oauth_token_storage,
+            embedding_cache_storage: self.embedding_cache_storage,
             env_value_mode: "direct",
             enable_config_discovery: self.enable_config_discovery,
+            skip_embedding_retrieval: self.skip_embedding_retrieval,
+            organization_custom_instructions: self.organization_custom_instructions,
+            enable_on_demand_instruction_discovery: self.enable_on_demand_instruction_discovery,
+            enable_file_hooks: self.enable_file_hooks,
+            enable_host_git_operations: self.enable_host_git_operations,
+            enable_session_store: self.enable_session_store,
+            enable_skills: self.enable_skills,
             request_user_input,
             request_permission: permission_active,
             request_exit_plan_mode,
@@ -2412,6 +2563,14 @@ impl ResumeSessionConfig {
             mcp_servers: None,
             mcp_oauth_token_storage: None,
             enable_config_discovery: None,
+            skip_embedding_retrieval: None,
+            organization_custom_instructions: None,
+            enable_on_demand_instruction_discovery: None,
+            enable_file_hooks: None,
+            enable_host_git_operations: None,
+            enable_session_store: None,
+            enable_skills: None,
+            embedding_cache_storage: None,
             enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
@@ -2647,9 +2806,63 @@ impl ResumeSessionConfig {
         self
     }
 
+    /// Set embedding cache storage mode on resume.
+    pub fn with_embedding_cache_storage(
+        mut self,
+        embedding_cache_storage: impl Into<String>,
+    ) -> Self {
+        self.embedding_cache_storage = Some(embedding_cache_storage.into());
+        self
+    }
+
     /// Enable or disable CLI config discovery on resume.
     pub fn with_enable_config_discovery(mut self, enable: bool) -> Self {
         self.enable_config_discovery = Some(enable);
+        self
+    }
+
+    /// Set [`Self::skip_embedding_retrieval`].
+    pub fn with_skip_embedding_retrieval(mut self, value: bool) -> Self {
+        self.skip_embedding_retrieval = Some(value);
+        self
+    }
+
+    /// Set [`Self::organization_custom_instructions`].
+    pub fn with_organization_custom_instructions(
+        mut self,
+        instructions: impl Into<String>,
+    ) -> Self {
+        self.organization_custom_instructions = Some(instructions.into());
+        self
+    }
+
+    /// Set [`Self::enable_on_demand_instruction_discovery`].
+    pub fn with_enable_on_demand_instruction_discovery(mut self, value: bool) -> Self {
+        self.enable_on_demand_instruction_discovery = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_file_hooks`].
+    pub fn with_enable_file_hooks(mut self, value: bool) -> Self {
+        self.enable_file_hooks = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_host_git_operations`].
+    pub fn with_enable_host_git_operations(mut self, value: bool) -> Self {
+        self.enable_host_git_operations = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_session_store`].
+    pub fn with_enable_session_store(mut self, value: bool) -> Self {
+        self.enable_session_store = Some(value);
+        self
+    }
+
+    /// Set [`Self::enable_skills`].
+    pub fn with_enable_skills(mut self, value: bool) -> Self {
+        self.enable_skills = Some(value);
         self
     }
 

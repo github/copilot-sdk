@@ -637,6 +637,13 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         if (_options.Mode == CopilotClientMode.Empty)
         {
             config.EnableSessionTelemetry ??= false;
+            config.SkipEmbeddingRetrieval ??= true;
+            config.EmbeddingCacheStorage ??= EmbeddingCacheStorageMode.InMemory;
+            config.EnableOnDemandInstructionDiscovery ??= false;
+            config.EnableFileHooks ??= false;
+            config.EnableHostGitOperations ??= false;
+            config.EnableSessionStore ??= false;
+            config.EnableSkills ??= false;
             config.McpOAuthTokenStorage ??= McpOAuthTokenStorageMode.InMemory;
         }
     }
@@ -876,6 +883,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.Agent,
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
+                config.SkipEmbeddingRetrieval,
+                config.EmbeddingCacheStorage,
+                config.OrganizationCustomInstructions,
+                config.EnableOnDemandInstructionDiscovery,
+                config.EnableFileHooks,
+                config.EnableHostGitOperations,
+                config.EnableSessionStore,
+                config.EnableSkills,
                 config.SkillDirectories,
                 config.DisabledSkills,
                 config.InfiniteSessions,
@@ -1053,6 +1068,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.WorkingDirectory,
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
+                config.SkipEmbeddingRetrieval,
+                config.EmbeddingCacheStorage,
+                config.OrganizationCustomInstructions,
+                config.EnableOnDemandInstructionDiscovery,
+                config.EnableFileHooks,
+                config.EnableHostGitOperations,
+                config.EnableSessionStore,
+                config.EnableSkills,
                 config.SuppressResumeEvent is true ? true : null,
                 config.Streaming is true ? true : null,
                 config.IncludeSubAgentStreamingEvents,
@@ -2179,6 +2202,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? Agent,
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
+        bool? SkipEmbeddingRetrieval,
+        EmbeddingCacheStorageMode? EmbeddingCacheStorage,
+        string? OrganizationCustomInstructions,
+        bool? EnableOnDemandInstructionDiscovery,
+        bool? EnableFileHooks,
+        bool? EnableHostGitOperations,
+        bool? EnableSessionStore,
+        bool? EnableSkills,
         IList<string>? SkillDirectories,
         IList<string>? DisabledSkills,
         InfiniteSessionConfig? InfiniteSessions,
@@ -2247,6 +2278,14 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         string? WorkingDirectory,
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
+        bool? SkipEmbeddingRetrieval,
+        EmbeddingCacheStorageMode? EmbeddingCacheStorage,
+        string? OrganizationCustomInstructions,
+        bool? EnableOnDemandInstructionDiscovery,
+        bool? EnableFileHooks,
+        bool? EnableHostGitOperations,
+        bool? EnableSessionStore,
+        bool? EnableSkills,
         bool? SuppressResumeEvent,
         bool? Streaming,
         bool? IncludeSubAgentStreamingEvents,
@@ -2349,6 +2388,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
     [JsonSerializable(typeof(GetSessionMetadataRequest))]
     [JsonSerializable(typeof(GetSessionMetadataResponse))]
     [JsonSerializable(typeof(McpOAuthTokenStorageMode))]
+    [JsonSerializable(typeof(EmbeddingCacheStorageMode))]
     [JsonSerializable(typeof(ModelCapabilitiesOverride))]
     [JsonSerializable(typeof(ProviderConfig))]
     [JsonSerializable(typeof(ResumeSessionRequest))]

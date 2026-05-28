@@ -2097,6 +2097,21 @@ public enum McpOAuthTokenStorageMode
 }
 
 /// <summary>
+/// Controls how the embedding cache is stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<EmbeddingCacheStorageMode>))]
+public enum EmbeddingCacheStorageMode
+{
+    /// <summary>Embeddings are cached on disk, shared across sessions and restarts.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Embeddings are cached in memory only and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
 /// Abstract base class for MCP server configurations.
 /// </summary>
 [JsonPolymorphic(
@@ -2402,6 +2417,14 @@ public abstract class SessionConfigBase
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
+        EmbeddingCacheStorage = other.EmbeddingCacheStorage;
+        OrganizationCustomInstructions = other.OrganizationCustomInstructions;
+        EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
+        EnableFileHooks = other.EnableFileHooks;
+        EnableHostGitOperations = other.EnableHostGitOperations;
+        EnableSessionStore = other.EnableSessionStore;
+        EnableSkills = other.EnableSkills;
         EnableMcpApps = other.EnableMcpApps;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
@@ -2491,6 +2514,63 @@ public abstract class SessionConfigBase
     /// </para>
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, skips embedding-based retrieval for this session.
+    /// Use in multitenant deployments to prevent cross-session information leakage
+    /// through the shared embedding cache.
+    /// </summary>
+    public bool? SkipEmbeddingRetrieval { get; set; }
+
+    /// <summary>
+    /// Controls how the embedding cache is stored for this session.
+    /// <see cref="EmbeddingCacheStorageMode.Persistent"/>: Embeddings are cached on disk and shared across sessions/restarts.
+    /// <see cref="EmbeddingCacheStorageMode.InMemory"/>: Embeddings are cached in memory only and discarded when the session ends.
+    /// </summary>
+    public EmbeddingCacheStorageMode? EmbeddingCacheStorage { get; set; }
+
+    /// <summary>
+    /// Organization-level custom instructions to include in the system prompt.
+    /// Allows hosts to inject organization-specific guidance without relying on
+    /// filesystem-based instruction discovery.
+    /// </summary>
+    public string? OrganizationCustomInstructions { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables on-demand discovery of instruction files
+    /// (for example <c>AGENTS.md</c> and <c>.github/copilot-instructions.md</c>)
+    /// after successful file views.
+    /// </summary>
+    public bool? EnableOnDemandInstructionDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables loading of file-based hooks from
+    /// <c>.github/hooks/</c>. This is separate from <see cref="Hooks"/>, which
+    /// controls SDK hook callback registration.
+    /// </summary>
+    public bool? EnableFileHooks { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables git operations on the host filesystem
+    /// such as branch detection, file status, and commit history. When
+    /// <see langword="false"/>, no git context is surfaced in the system prompt.
+    /// </summary>
+    public bool? EnableHostGitOperations { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables the cross-session store for search and
+    /// retrieval across sessions. When <see langword="false"/>, session content is
+    /// not written to or read from the shared session store.
+    /// </summary>
+    public bool? EnableSessionStore { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables skill loading, including built-in
+    /// skills and discovered skill directories. When <see langword="false"/>, no
+    /// skills are loaded regardless of <see cref="SkillDirectories"/> or
+    /// <see cref="EnableConfigDiscovery"/>.
+    /// </summary>
+    public bool? EnableSkills { get; set; }
 
     /// <summary>
     /// Custom tool declarations available to the language model during the session.

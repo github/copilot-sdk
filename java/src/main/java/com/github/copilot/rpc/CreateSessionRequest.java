@@ -120,6 +120,38 @@ public final class CreateSessionRequest {
     @JsonProperty("enableConfigDiscovery")
     private Boolean enableConfigDiscovery;
 
+    @JsonProperty("skipEmbeddingRetrieval")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean skipEmbeddingRetrieval;
+
+    @JsonProperty("organizationCustomInstructions")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String organizationCustomInstructions;
+
+    @JsonProperty("enableOnDemandInstructionDiscovery")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableOnDemandInstructionDiscovery;
+
+    @JsonProperty("enableFileHooks")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableFileHooks;
+
+    @JsonProperty("enableHostGitOperations")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableHostGitOperations;
+
+    @JsonProperty("enableSessionStore")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableSessionStore;
+
+    @JsonProperty("enableSkills")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableSkills;
+
+    @JsonProperty("embeddingCacheStorage")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String embeddingCacheStorage;
+
     @JsonProperty("commands")
     private List<CommandWireDefinition> commands;
 
@@ -514,6 +546,141 @@ public final class CreateSessionRequest {
      */
     public void clearEnableConfigDiscovery() {
         this.enableConfigDiscovery = null;
+    }
+
+    /** Gets skip embedding retrieval flag. @return the flag */
+    public Boolean getSkipEmbeddingRetrieval() {
+        return skipEmbeddingRetrieval;
+    }
+
+    /**
+     * Sets skip embedding retrieval flag. @param skipEmbeddingRetrieval the flag
+     */
+    public void setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {
+        this.skipEmbeddingRetrieval = skipEmbeddingRetrieval;
+    }
+
+    /**
+     * Clears the skipEmbeddingRetrieval setting, reverting to the default behavior.
+     */
+    public void clearSkipEmbeddingRetrieval() {
+        this.skipEmbeddingRetrieval = null;
+    }
+
+    /** Gets organization custom instructions. @return the instructions */
+    public String getOrganizationCustomInstructions() {
+        return organizationCustomInstructions;
+    }
+
+    /**
+     * Sets organization custom instructions. @param organizationCustomInstructions
+     * the instructions
+     */
+    public void setOrganizationCustomInstructions(String organizationCustomInstructions) {
+        this.organizationCustomInstructions = organizationCustomInstructions;
+    }
+
+    /** Gets enable on-demand instruction discovery flag. @return the flag */
+    public Boolean getEnableOnDemandInstructionDiscovery() {
+        return enableOnDemandInstructionDiscovery;
+    }
+
+    /**
+     * Sets enable on-demand instruction discovery flag. @param
+     * enableOnDemandInstructionDiscovery the flag
+     */
+    public void setEnableOnDemandInstructionDiscovery(boolean enableOnDemandInstructionDiscovery) {
+        this.enableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery;
+    }
+
+    /**
+     * Clears the enableOnDemandInstructionDiscovery setting, reverting to the
+     * default behavior.
+     */
+    public void clearEnableOnDemandInstructionDiscovery() {
+        this.enableOnDemandInstructionDiscovery = null;
+    }
+
+    /** Gets enable file hooks flag. @return the flag */
+    public Boolean getEnableFileHooks() {
+        return enableFileHooks;
+    }
+
+    /** Sets enable file hooks flag. @param enableFileHooks the flag */
+    public void setEnableFileHooks(boolean enableFileHooks) {
+        this.enableFileHooks = enableFileHooks;
+    }
+
+    /** Clears the enableFileHooks setting, reverting to the default behavior. */
+    public void clearEnableFileHooks() {
+        this.enableFileHooks = null;
+    }
+
+    /** Gets enable host git operations flag. @return the flag */
+    public Boolean getEnableHostGitOperations() {
+        return enableHostGitOperations;
+    }
+
+    /**
+     * Sets enable host git operations flag. @param enableHostGitOperations the flag
+     */
+    public void setEnableHostGitOperations(boolean enableHostGitOperations) {
+        this.enableHostGitOperations = enableHostGitOperations;
+    }
+
+    /**
+     * Clears the enableHostGitOperations setting, reverting to the default
+     * behavior.
+     */
+    public void clearEnableHostGitOperations() {
+        this.enableHostGitOperations = null;
+    }
+
+    /** Gets enable session store flag. @return the flag */
+    public Boolean getEnableSessionStore() {
+        return enableSessionStore;
+    }
+
+    /** Sets enable session store flag. @param enableSessionStore the flag */
+    public void setEnableSessionStore(boolean enableSessionStore) {
+        this.enableSessionStore = enableSessionStore;
+    }
+
+    /** Clears the enableSessionStore setting, reverting to the default behavior. */
+    public void clearEnableSessionStore() {
+        this.enableSessionStore = null;
+    }
+
+    /** Gets enable skills flag. @return the flag */
+    public Boolean getEnableSkills() {
+        return enableSkills;
+    }
+
+    /** Sets enable skills flag. @param enableSkills the flag */
+    public void setEnableSkills(boolean enableSkills) {
+        this.enableSkills = enableSkills;
+    }
+
+    /** Clears the enableSkills setting, reverting to the default behavior. */
+    public void clearEnableSkills() {
+        this.enableSkills = null;
+    }
+
+    /** Gets embedding cache storage mode. @return the mode */
+    public String getEmbeddingCacheStorage() {
+        return embeddingCacheStorage;
+    }
+
+    /** Sets embedding cache storage mode. @param embeddingCacheStorage the mode */
+    public void setEmbeddingCacheStorage(String embeddingCacheStorage) {
+        this.embeddingCacheStorage = embeddingCacheStorage;
+    }
+
+    /**
+     * Clears the embeddingCacheStorage setting, reverting to the default behavior.
+     */
+    public void clearEmbeddingCacheStorage() {
+        this.embeddingCacheStorage = null;
     }
 
     /** Gets include sub-agent streaming events flag. @return the flag */
