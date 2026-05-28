@@ -9,14 +9,24 @@ import java.util.concurrent.ForkJoinPool;
 
 final class InternalExecutorProvider {
 
-    private InternalExecutorProvider() {
+    private final Executor executor;
+
+    InternalExecutorProvider(Executor userProvided) {
+        if (userProvided != null) {
+            this.executor = userProvided;
+        } else {
+            this.executor = ForkJoinPool.commonPool();
+        }
     }
 
-    static Executor create() {
-        return ForkJoinPool.commonPool();
+    Executor get() {
+        return executor;
     }
 
-    static boolean isOwned(Executor executor) {
+    boolean canBeShutdown() {
+        // Since we are using ForkJoinPool.commonPool() or user provided only, 
+        // we should not attempt to shut it down
         return false;
     }
+
 }
