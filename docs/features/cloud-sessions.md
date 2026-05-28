@@ -2,13 +2,6 @@
 
 Cloud sessions run Copilot work on GitHub-hosted compute through Mission Control. Use them when your app should create a session that executes remotely instead of starting a local Copilot CLI session on the user's machine or your server.
 
-Cloud sessions are distinct from [remote sessions](./remote-sessions.md). Remote sessions are locally hosted sessions that are also surfaced through Mission Control so users can view and steer them from GitHub web and mobile. Cloud sessions are created with the `cloud` create-session option and are routed by Mission Control to GitHub-hosted compute.
-
-Cloud sessions are also distinct from the Windows sandbox. The Windows sandbox is local AppContainer tool isolation and does not create GitHub-hosted compute.
-
-> [!NOTE]
-> Don't confuse cloud sessions with the Windows sandbox. The Windows sandbox is a local AppContainer for tool isolation, enabled with `SANDBOX=true`. They are unrelated features.
-
 ## Prerequisites
 
 Before creating a cloud session, make sure:
