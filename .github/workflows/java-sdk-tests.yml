@@ -65,7 +65,7 @@ jobs:
           node-version: 22
 
       - name: Build SDK and set up test harness
-        run: mvn test-compile
+        run: mvn test-compile jar:jar
 
       - name: Verify Javadoc generation
         if: matrix.test-jdk == '25'
