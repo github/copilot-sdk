@@ -354,7 +354,7 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
-    void sessionConfig_newSessionFieldsValue() {
+    void sessionConfig_granularMultitenancyFieldsValue() {
         var cfg = new SessionConfig();
         assertTrue(cfg.getSkipEmbeddingRetrieval().isEmpty());
         assertNull(cfg.getOrganizationCustomInstructions());
@@ -415,7 +415,7 @@ class OptionalApiAndJacksonTest {
     }
 
     @Test
-    void resumeSessionConfig_newSessionFieldsValue() {
+    void resumeSessionConfig_granularMultitenancyFieldsValue() {
         var cfg = new ResumeSessionConfig();
         assertTrue(cfg.getSkipEmbeddingRetrieval().isEmpty());
         assertNull(cfg.getOrganizationCustomInstructions());

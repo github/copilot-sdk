@@ -251,7 +251,7 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildCreateRequestPropagatesNewSessionFields() {
+    void testBuildCreateRequestPropagatesGranularMultitenancyFields() {
         var config = new SessionConfig().setSkipEmbeddingRetrieval(true)
                 .setOrganizationCustomInstructions("Create org instructions")
                 .setEnableOnDemandInstructionDiscovery(false).setEnableFileHooks(true).setEnableHostGitOperations(false)
@@ -269,7 +269,7 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
-    void testBuildResumeRequestPropagatesNewSessionFields() {
+    void testBuildResumeRequestPropagatesGranularMultitenancyFields() {
         var config = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
                 .setOrganizationCustomInstructions("Resume org instructions")
                 .setEnableOnDemandInstructionDiscovery(true).setEnableFileHooks(false).setEnableHostGitOperations(true)

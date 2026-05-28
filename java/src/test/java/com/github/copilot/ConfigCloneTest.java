@@ -231,7 +231,7 @@ class ConfigCloneTest {
     }
 
     @Test
-    void sessionConfigNewSessionFieldsCopied() {
+    void sessionConfigGranularMultitenancyFieldsCopied() {
         SessionConfig original = new SessionConfig().setSkipEmbeddingRetrieval(true)
                 .setOrganizationCustomInstructions("Org instructions").setEnableOnDemandInstructionDiscovery(false)
                 .setEmbeddingCacheStorage("persistent").setEnableFileHooks(true).setEnableHostGitOperations(false)
@@ -269,7 +269,7 @@ class ConfigCloneTest {
     }
 
     @Test
-    void resumeSessionConfigNewSessionFieldsCopied() {
+    void resumeSessionConfigGranularMultitenancyFieldsCopied() {
         ResumeSessionConfig original = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
                 .setOrganizationCustomInstructions("Resume org instructions")
                 .setEnableOnDemandInstructionDiscovery(true).setEmbeddingCacheStorage("persistent")
