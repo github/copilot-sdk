@@ -6,6 +6,11 @@ that declares canvases. The SDK forwards every such request to a single
 user-supplied :class:`CanvasHandler`; multiplexing across multiple declared
 canvases is the implementor's responsibility (for example by switching on
 ``ctx.canvas_id``).
+
+.. note::
+
+    **Experimental.** Canvas types are part of an experimental wire-protocol
+    surface and may change or be removed in future SDK or CLI releases.
 """
 
 from __future__ import annotations
@@ -44,6 +49,11 @@ class ExtensionInfo:
     """Stable extension identity for session participants that provide canvases.
 
     Serializes to ``{"source": ..., "name": ...}`` on the wire.
+
+    .. note::
+
+        **Experimental.** This type is part of an experimental wire-protocol
+        surface and may change or be removed in future SDK or CLI releases.
     """
 
     source: str
@@ -58,7 +68,13 @@ class ExtensionInfo:
 
 @dataclass
 class CanvasDeclaration:
-    """Declarative metadata for a single canvas, sent on create/resume."""
+    """Declarative metadata for a single canvas, sent on create/resume.
+
+    .. note::
+
+        **Experimental.** This type is part of an experimental wire-protocol
+        surface and may change or be removed in future SDK or CLI releases.
+    """
 
     id: str
     """Canvas identifier, unique within the declaring connection."""
@@ -89,7 +105,13 @@ class CanvasDeclaration:
 
 
 class CanvasError(Exception):
-    """Structured error returned from canvas handlers."""
+    """Structured error returned from canvas handlers.
+
+    .. note::
+
+        **Experimental.** This type is part of an experimental wire-protocol
+        surface and may change or be removed in future SDK or CLI releases.
+    """
 
     def __init__(self, code: str, message: str) -> None:
         self.code = code
@@ -118,7 +140,13 @@ class CanvasError(Exception):
 
 
 class CanvasHandler(ABC):
-    """Provider-side canvas lifecycle handler."""
+    """Provider-side canvas lifecycle handler.
+
+    .. note::
+
+        **Experimental.** This type is part of an experimental wire-protocol
+        surface and may change or be removed in future SDK or CLI releases.
+    """
 
     @abstractmethod
     async def on_open(self, ctx: CanvasProviderOpenRequest) -> CanvasProviderOpenResult:

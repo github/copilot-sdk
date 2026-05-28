@@ -10,7 +10,11 @@ import type {
     CanvasProviderOpenResult,
 } from "./generated/rpc.js";
 
-export type { CanvasJsonSchema, CanvasHostContext } from "./generated/rpc.js";
+export type {
+    CanvasJsonSchema,
+    CanvasHostContext,
+    CanvasHostContextCapabilities,
+} from "./generated/rpc.js";
 
 /**
  * Extension-owned canvases declared via
@@ -21,6 +25,9 @@ export type { CanvasJsonSchema, CanvasHostContext } from "./generated/rpc.js";
  * pipeline. The SDK routes those requests by `canvasId` to the in-process
  * handlers bound by `createCanvas`. Re-opening with an existing `instanceId`
  * is how the host focuses an existing panel; reload is a renderer-only concern.
+ *
+ * @experimental Canvas types are part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
  */
 
 /**
@@ -31,6 +38,9 @@ export type { CanvasJsonSchema, CanvasHostContext } from "./generated/rpc.js";
  *
  * Names MUST NOT start with `canvas.` — that prefix is reserved for
  * lifecycle verbs.
+ *
+ * @experimental This type is part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
  */
 export interface CanvasAction {
     /** Action identifier, unique within the canvas. */
@@ -46,6 +56,9 @@ export interface CanvasAction {
 /**
  * Declarative metadata for a single canvas, serialized over the wire on
  * `session.create` / `session.resume`.
+ *
+ * @experimental This type is part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
  */
 export interface CanvasDeclaration {
     /** Canvas id, unique within the declaring connection. */
@@ -60,7 +73,12 @@ export interface CanvasDeclaration {
     actions?: Omit<CanvasAction, "handler">[];
 }
 
-/** Structured error returned from canvas handlers. */
+/**
+ * Structured error returned from canvas handlers.
+ *
+ * @experimental This class is part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
+ */
 export class CanvasError extends Error {
     constructor(
         public readonly code: string,
@@ -82,6 +100,9 @@ export class CanvasError extends Error {
 /**
  * Options accepted by {@link createCanvas}. Combines the declarative
  * {@link CanvasDeclaration} fields with the in-process handler closures.
+ *
+ * @experimental This interface is part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
  */
 export interface CanvasOptions {
     /** @see CanvasDeclaration.id */
@@ -119,6 +140,9 @@ export interface CanvasOptions {
  * ergonomics) where other SDKs (Rust, Python, Go, .NET) expose a single
  * `CanvasHandler` per session that switches on `canvasId`. Both shapes target
  * the same JSON-RPC wire protocol; the divergence is API ergonomics only.
+ *
+ * @experimental This class is part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
  */
 export class Canvas {
     readonly declaration: CanvasDeclaration;
@@ -156,6 +180,9 @@ export class Canvas {
  * `DefineTool`'s co-location ergonomics) where other SDKs (Rust, Python, Go,
  * .NET) expose a single `CanvasHandler` per session that switches on
  * `canvasId`. Both shapes target the same JSON-RPC wire protocol.
+ *
+ * @experimental This function is part of an experimental wire-protocol surface
+ * and may change or be removed in future SDK or CLI releases.
  */
 export function createCanvas(options: CanvasOptions): Canvas {
     return new Canvas(options);
