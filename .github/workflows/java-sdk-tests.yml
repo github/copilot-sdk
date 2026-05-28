@@ -147,5 +147,5 @@ jobs:
           path: |
             java/target/surefire-reports/
             java/target/surefire-reports-isolated/
-            target/failsafe-reports/
+            java/target/failsafe-reports/
           retention-days: 7
