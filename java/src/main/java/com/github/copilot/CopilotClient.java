@@ -512,8 +512,26 @@ public final class CopilotClient implements AutoCloseable {
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
                 request.setToolFilterPrecedence("excluded");
+                if (request.getSkipEmbeddingRetrieval() == null) {
+                    request.setSkipEmbeddingRetrieval(true);
+                }
                 if (request.getEmbeddingCacheStorage() == null) {
                     request.setEmbeddingCacheStorage("in-memory");
+                }
+                if (request.getEnableOnDemandInstructionDiscovery() == null) {
+                    request.setEnableOnDemandInstructionDiscovery(false);
+                }
+                if (request.getEnableFileHooks() == null) {
+                    request.setEnableFileHooks(false);
+                }
+                if (request.getEnableHostGitOperations() == null) {
+                    request.setEnableHostGitOperations(false);
+                }
+                if (request.getEnableSessionStore() == null) {
+                    request.setEnableSessionStore(false);
+                }
+                if (request.getEnableSkills() == null) {
+                    request.setEnableSkills(false);
                 }
                 if (request.getMcpOAuthTokenStorage() == null) {
                     request.setMcpOAuthTokenStorage("in-memory");
@@ -632,8 +650,26 @@ public final class CopilotClient implements AutoCloseable {
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
                 request.setToolFilterPrecedence("excluded");
+                if (request.getSkipEmbeddingRetrieval() == null) {
+                    request.setSkipEmbeddingRetrieval(true);
+                }
                 if (request.getEmbeddingCacheStorage() == null) {
                     request.setEmbeddingCacheStorage("in-memory");
+                }
+                if (request.getEnableOnDemandInstructionDiscovery() == null) {
+                    request.setEnableOnDemandInstructionDiscovery(false);
+                }
+                if (request.getEnableFileHooks() == null) {
+                    request.setEnableFileHooks(false);
+                }
+                if (request.getEnableHostGitOperations() == null) {
+                    request.setEnableHostGitOperations(false);
+                }
+                if (request.getEnableSessionStore() == null) {
+                    request.setEnableSessionStore(false);
+                }
+                if (request.getEnableSkills() == null) {
+                    request.setEnableSkills(false);
                 }
                 if (request.getMcpOAuthTokenStorage() == null) {
                     request.setMcpOAuthTokenStorage("in-memory");

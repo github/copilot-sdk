@@ -469,6 +469,7 @@ describe("Empty-mode safe defaults", () => {
         });
         const payload = createPayload(spy);
         expect(payload.skipEmbeddingRetrieval).toBe(true);
+        expect(payload.embeddingCacheStorage).toBe("in-memory");
         expect(payload.enableOnDemandInstructionDiscovery).toBe(false);
         expect(payload.enableFileHooks).toBe(false);
         expect(payload.enableHostGitOperations).toBe(false);
