@@ -34,7 +34,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -52,29 +51,6 @@ import (
 	"github.com/github/copilot-sdk/go/internal/truncbuffer"
 	"github.com/github/copilot-sdk/go/rpc"
 )
-
-// warnIfMcpAppsDropped logs a warning via the standard log package when the
-// consumer set EnableMcpApps=true on create/resume but the runtime did not
-// advertise capabilities.ui.mcpApps in the response. The runtime silently drops
-// the opt-in when its MCP_APPS feature flag (or COPILOT_MCP_APPS=true env
-// override) is unset, so without this warning a consumer trying to use MCP
-// Apps would see no error -- just tools that never expose _meta.ui.resourceUri.
-//
-// The warning is routed through log.Default(), so consumers can suppress or
-// redirect it with log.SetOutput / log.Default().SetOutput (e.g.
-// log.Default().SetOutput(io.Discard) to silence).
-func warnIfMcpAppsDropped(requested bool, capabilities *SessionCapabilities, sessionID string) {
-	if !requested {
-		return
-	}
-	if capabilities != nil && capabilities.UI != nil && capabilities.UI.McpApps {
-		return
-	}
-	log.Printf(
-		"[copilot-sdk] Session %s: EnableMcpApps was requested but the runtime did not advertise capabilities.ui.mcpApps. The runtime's MCP_APPS feature flag or COPILOT_MCP_APPS=true environment override is likely unset; the MCP Apps surface is unavailable for this session.",
-		sessionID,
-	)
-}
 
 func validateSessionFsConfig(config *SessionFsConfig) error {
 	if config == nil {
@@ -875,7 +851,6 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
-	warnIfMcpAppsDropped(config.EnableMcpApps, response.Capabilities, response.SessionID)
 
 	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
 		SkipCustomInstructions: config.SkipCustomInstructions,
@@ -1097,7 +1072,6 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	session.workspacePath = response.WorkspacePath
 	session.setCapabilities(response.Capabilities)
 	session.setOpenCanvases(response.OpenCanvases)
-	warnIfMcpAppsDropped(config.EnableMcpApps, response.Capabilities, sessionID)
 
 	if err := c.updateSessionOptionsForMode(ctx, session, optBackInFields{
 		SkipCustomInstructions: config.SkipCustomInstructions,

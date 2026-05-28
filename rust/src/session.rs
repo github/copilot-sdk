@@ -843,7 +843,6 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let enable_mcp_apps = config.enable_mcp_apps;
         let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
 
         let permission_handler = crate::permission::resolve_handler(
@@ -998,7 +997,6 @@ impl Client {
             "Client::create_session local setup complete"
         );
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
-        warn_if_mcp_apps_dropped(enable_mcp_apps, &capabilities.read(), &session_id);
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1072,7 +1070,6 @@ impl Client {
         let opt_custom_agents_local_only = config.custom_agents_local_only;
         let opt_coauthor_enabled = config.coauthor_enabled;
         let opt_manage_schedule_enabled = config.manage_schedule_enabled;
-        let enable_mcp_apps = config.enable_mcp_apps;
         let (wire, mut runtime) = config.into_wire()?;
 
         let permission_handler = crate::permission::resolve_handler(
@@ -1203,7 +1200,6 @@ impl Client {
         }
 
         *capabilities.write() = resume_result.capabilities.unwrap_or_default();
-        warn_if_mcp_apps_dropped(enable_mcp_apps, &capabilities.read(), &session_id);
         let open_canvases = Arc::new(parking_lot::RwLock::new(
             resume_result.open_canvases.unwrap_or_default(),
         ));
@@ -1241,34 +1237,6 @@ impl Client {
 }
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
-
-/// Emit a `tracing::warn!` when the consumer set `enable_mcp_apps: true`
-/// on create/resume but the runtime did not advertise `capabilities.ui.mcp_apps`
-/// in the response. The runtime silently drops the opt-in when its `MCP_APPS`
-/// feature flag (or `COPILOT_MCP_APPS=true` env override) is unset, so without
-/// this warning a consumer trying to use MCP Apps would see no error — just
-/// tools that never expose `_meta.ui.resourceUri`.
-fn warn_if_mcp_apps_dropped(
-    requested: bool,
-    capabilities: &SessionCapabilities,
-    session_id: &SessionId,
-) {
-    if !requested {
-        return;
-    }
-    let advertised = capabilities
-        .ui
-        .as_ref()
-        .and_then(|ui| ui.mcp_apps)
-        .unwrap_or(false);
-    if advertised {
-        return;
-    }
-    tracing::warn!(
-        session_id = %session_id,
-        "enable_mcp_apps was set but the runtime did not advertise capabilities.ui.mcpApps; the MCP_APPS feature flag or COPILOT_MCP_APPS=true environment override is likely unset and the MCP Apps surface is unavailable for this session"
-    );
-}
 
 async fn apply_mode_post_create_patch(
     session: &Session,

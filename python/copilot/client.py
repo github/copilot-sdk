@@ -92,32 +92,6 @@ from .tools import Tool
 logger = logging.getLogger(__name__)
 
 
-def _warn_if_mcp_apps_dropped(
-    requested: bool,
-    capabilities: dict | None,
-    session_id: str,
-) -> None:
-    """Log a warning when ``enable_mcp_apps=True`` was requested but the runtime
-    did not advertise ``capabilities.ui.mcpApps`` in the response.
-
-    The runtime silently drops the opt-in when its ``MCP_APPS`` feature flag
-    (or ``COPILOT_MCP_APPS=true`` env override) is unset, so without this
-    warning a consumer trying to use MCP Apps would see no error -- just tools
-    that never expose ``_meta.ui.resourceUri``.
-    """
-    if not requested:
-        return
-    ui = (capabilities or {}).get("ui") or {}
-    if not ui.get("mcpApps"):
-        logger.warning(
-            "Session %s: enable_mcp_apps was requested but the runtime did "
-            "not advertise capabilities.ui.mcpApps. The runtime's MCP_APPS "
-            "feature flag or COPILOT_MCP_APPS=true environment override is "
-            "likely unset; the MCP Apps surface is unavailable for this session.",
-            session_id,
-        )
-
-
 # ============================================================================
 # Connection Types
 # ============================================================================
@@ -2012,7 +1986,6 @@ class CopilotClient:
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
-            _warn_if_mcp_apps_dropped(enable_mcp_apps, capabilities, registered_session_id)
         except BaseException as exc:
             if registered_session_id is not None:
                 with self._sessions_lock:
@@ -2422,7 +2395,6 @@ class CopilotClient:
                 session._set_open_canvases(
                     [OpenCanvasInstance.from_dict(inst) for inst in open_canvases_raw]
                 )
-            _warn_if_mcp_apps_dropped(enable_mcp_apps, capabilities, session_id)
         except BaseException as exc:
             with self._sessions_lock:
                 self._sessions.pop(session_id, None)

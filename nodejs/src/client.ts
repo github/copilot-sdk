@@ -79,32 +79,6 @@ import { defaultJoinSessionPermissionHandler } from "./types.js";
 const MIN_PROTOCOL_VERSION = 3;
 
 /**
- * Emit a Node warning (`process.emitWarning`) when the consumer set
- * `enableMcpApps: true` on create/resume but the runtime did not advertise
- * `capabilities.ui.mcpApps` in the response. The runtime silently drops the
- * opt-in when its `MCP_APPS` feature flag (or `COPILOT_MCP_APPS=true` env
- * override) is unset, so without this warning a consumer trying to use MCP
- * Apps would see no error — just tools that never expose
- * `_meta.ui.resourceUri`.
- *
- * Using `process.emitWarning` (rather than `console.warn`) means consumers
- * can route the warning via `process.on("warning", …)`, suppress it with
- * `--no-warnings`, or filter by the `name` field below.
- */
-function warnIfMcpAppsDropped(
-    requested: boolean | undefined,
-    capabilities: { ui?: { mcpApps?: boolean } } | undefined,
-    sessionId: string
-): void {
-    if (requested && !capabilities?.ui?.mcpApps) {
-        process.emitWarning(
-            `enableMcpApps was requested but the runtime did not advertise capabilities.ui.mcpApps (sessionId: ${sessionId}). The runtime's MCP_APPS feature flag or COPILOT_MCP_APPS=true environment override is likely unset; the MCP Apps surface is unavailable for this session.`,
-            { type: "McpAppsCapabilityDroppedWarning", code: "MCPAPPS_CAPABILITY_DROPPED" }
-        );
-    }
-}
-
-/**
  * Check if value is a Zod schema (has toJSONSchema method)
  */
 function isZodSchema(value: unknown): value is { toJSONSchema(): Record<string, unknown> } {
@@ -1171,7 +1145,6 @@ export class CopilotClient {
             }
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
-            warnIfMcpAppsDropped(config.enableMcpApps, capabilities, returnedSessionId);
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
@@ -1326,7 +1299,6 @@ export class CopilotClient {
             session["_workspacePath"] = workspacePath;
             session.setCapabilities(capabilities);
             session.setOpenCanvases(openCanvases ?? []);
-            warnIfMcpAppsDropped(config.enableMcpApps, capabilities, sessionId);
 
             await this.updateSessionOptionsForMode(session, config);
         } catch (e) {
