@@ -38,7 +38,7 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 
 ```groovy
 implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.0'
-
+```
 
 #### Snapshot Builds
 

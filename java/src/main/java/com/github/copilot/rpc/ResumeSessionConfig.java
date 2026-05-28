@@ -258,7 +258,7 @@ public class ResumeSessionConfig {
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
-     * {@link com.github.copilot.rpc.CopilotClientOptions#getTelemetry()
+     * {@link CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
      *
@@ -1060,8 +1060,9 @@ public class ResumeSessionConfig {
      * <li>{@code "in-memory"} — tokens are stored in memory and discarded when the
      * session ends</li>
      * </ul>
-     * If not set, the SDK defaults to {@code "in-memory"} for safe multitenant
-     * behavior.
+     * If not set and the client is in {@link CopilotClientMode#EMPTY EMPTY} mode,
+     * the SDK defaults to {@code "in-memory"} for safe multitenant behavior. In
+     * other modes this field is left unset.
      *
      * @param mcpOAuthTokenStorage
      *            the storage mode
