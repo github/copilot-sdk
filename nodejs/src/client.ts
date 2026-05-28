@@ -49,6 +49,7 @@ import type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InternalRuntimeConnection,
+    LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
     ResumeSessionConfig,
@@ -131,6 +132,22 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
         const { mcpServers, ...rest } = agent;
         return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
     });
+}
+
+/**
+ * Convert a {@link LargeToolOutputConfig} from the public API shape
+ * (`outputDirectory`) to the wire shape (`outputDir`).
+ */
+function toWireLargeOutput(
+    config: LargeToolOutputConfig | undefined
+): Record<string, unknown> | undefined {
+    if (!config) return undefined;
+    const { outputDirectory, ...rest } = config;
+    const wire: Record<string, unknown> = { ...rest };
+    if (outputDirectory !== undefined) {
+        wire.outputDir = outputDirectory;
+    }
+    return wire;
 }
 
 function toolFilterListToArray(value: string[] | ToolSet | undefined): string[] | undefined {
@@ -1072,6 +1089,7 @@ export class CopilotClient {
                 sessionId: localSessionId,
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
+                reasoningSummary: config.reasoningSummary,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -1094,6 +1112,7 @@ export class CopilotClient {
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
+                largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
@@ -1109,9 +1128,10 @@ export class CopilotClient {
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
-                configDir: config.configDir,
+                configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 skillDirectories: config.skillDirectories,
+                pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
@@ -1239,6 +1259,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
+                reasoningSummary: config.reasoningSummary,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
@@ -1261,6 +1282,7 @@ export class CopilotClient {
                 })),
                 provider: config.provider,
                 modelCapabilities: config.modelCapabilities,
+                largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission:
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
@@ -1270,7 +1292,7 @@ export class CopilotClient {
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
-                configDir: config.configDir,
+                configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
@@ -1280,6 +1302,7 @@ export class CopilotClient {
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
+                pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,

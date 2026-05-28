@@ -579,7 +579,7 @@ class TestSessions:
 
         custom_config_dir = os.path.join(ctx.home_dir, "custom-config")
         session = await ctx.client.create_session(
-            on_permission_request=PermissionHandler.approve_all, config_dir=custom_config_dir
+            on_permission_request=PermissionHandler.approve_all, config_directory=custom_config_dir
         )
 
         assert session.session_id

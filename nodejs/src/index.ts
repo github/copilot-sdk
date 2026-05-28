@@ -73,6 +73,7 @@ export type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InfiniteSessionConfig,
+    LargeToolOutputConfig,
     UiInputOptions,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,

@@ -172,6 +172,77 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeReasoningSummary_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("ReasoningSummary", ReasoningSummary.Detailed));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.Equal("detailed", createDocument.RootElement.GetProperty("reasoningSummary").GetString());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("ReasoningSummary", ReasoningSummary.None));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.Equal("none", resumeDocument.RootElement.GetProperty("reasoningSummary").GetString());
+    }
+
+    [Fact]
+    public void SessionRequests_CanSerializePluginDirectoriesAndLargeOutput_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var pluginDirs = new List<string> { "/tmp/plugins/a", "/tmp/plugins/b" };
+        var largeOutput = new LargeToolOutputConfig
+        {
+            Enabled = true,
+            MaxSizeBytes = 1024,
+            OutputDirectory = "/tmp/large-output",
+        };
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("PluginDirectories", pluginDirs),
+            ("LargeOutput", largeOutput));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        var createRoot = createDocument.RootElement;
+        Assert.Equal("/tmp/plugins/a", createRoot.GetProperty("pluginDirectories")[0].GetString());
+        Assert.Equal("/tmp/plugins/b", createRoot.GetProperty("pluginDirectories")[1].GetString());
+        var createLargeOutput = createRoot.GetProperty("largeOutput");
+        Assert.True(createLargeOutput.GetProperty("enabled").GetBoolean());
+        Assert.Equal(1024, createLargeOutput.GetProperty("maxSizeBytes").GetInt64());
+        Assert.Equal("/tmp/large-output", createLargeOutput.GetProperty("outputDir").GetString());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("PluginDirectories", pluginDirs),
+            ("LargeOutput", largeOutput));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        var resumeRoot = resumeDocument.RootElement;
+        Assert.Equal("/tmp/plugins/a", resumeRoot.GetProperty("pluginDirectories")[0].GetString());
+        var resumeLargeOutput = resumeRoot.GetProperty("largeOutput");
+        Assert.True(resumeLargeOutput.GetProperty("enabled").GetBoolean());
+        Assert.Equal(1024, resumeLargeOutput.GetProperty("maxSizeBytes").GetInt64());
+        Assert.Equal("/tmp/large-output", resumeLargeOutput.GetProperty("outputDir").GetString());
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();
