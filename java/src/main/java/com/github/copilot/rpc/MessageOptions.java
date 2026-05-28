@@ -47,6 +47,7 @@ public class MessageOptions {
     private String mode;
     private AgentMode agentMode;
     private Map<String, String> requestHeaders;
+    private String displayPrompt;
 
     /**
      * Gets the message prompt.
@@ -177,6 +178,30 @@ public class MessageOptions {
     }
 
     /**
+     * Gets the display prompt shown in the timeline instead of the prompt.
+     *
+     * @return the display prompt, or {@code null} if not set
+     */
+    public String getDisplayPrompt() {
+        return displayPrompt;
+    }
+
+    /**
+     * Sets the display prompt shown in the timeline instead of the prompt.
+     * <p>
+     * If provided, this text is displayed in the conversation timeline UI
+     * instead of the actual prompt text.
+     *
+     * @param displayPrompt
+     *            the display prompt text
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setDisplayPrompt(String displayPrompt) {
+        this.displayPrompt = displayPrompt;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code MessageOptions} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -194,6 +219,7 @@ public class MessageOptions {
         copy.mode = this.mode;
         copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
+        copy.displayPrompt = this.displayPrompt;
         return copy;
     }
 

@@ -1357,6 +1357,8 @@ type MessageOptions struct {
 	AgentMode AgentMode
 	// RequestHeaders are custom per-turn HTTP headers for outbound model requests.
 	RequestHeaders map[string]string
+	// DisplayPrompt, if provided, is shown in the timeline instead of Prompt.
+	DisplayPrompt string
 }
 
 // AgentMode is the UI mode the agent is in for a given turn. See
@@ -1744,6 +1746,7 @@ type sessionAbortRequest struct {
 type sessionSendRequest struct {
 	SessionID      string            `json:"sessionId"`
 	Prompt         string            `json:"prompt"`
+	DisplayPrompt  string            `json:"displayPrompt,omitempty"`
 	Attachments    []Attachment      `json:"attachments,omitempty"`
 	Mode           string            `json:"mode,omitempty"`
 	AgentMode      AgentMode         `json:"agentMode,omitempty"`

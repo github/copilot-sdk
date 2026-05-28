@@ -212,6 +212,7 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            displayPrompt: options.displayPrompt,
             attachments: options.attachments,
             mode: options.mode,
             agentMode: options.agentMode,

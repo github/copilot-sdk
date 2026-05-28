@@ -2015,6 +2015,11 @@ export interface MessageOptions {
      * Custom HTTP headers to include in outbound model requests for this turn.
      */
     requestHeaders?: Record<string, string>;
+
+    /**
+     * If provided, this is shown in the timeline instead of `prompt`.
+     */
+    displayPrompt?: string;
 }
 
 /**
