@@ -33,7 +33,7 @@ on:
         description: "Also run tests on JDK 17 (compatibility check)"
         type: boolean
         required: false
-        default: false
+        default: true
   merge_group:
 
 permissions:
@@ -134,14 +134,14 @@ jobs:
           retention-days: 7
 
       - name: Switch to JDK 17
-        if: inputs.test-jdk17 == true
+        if: inputs.test-jdk17 == true || inputs.test-jdk17 == null
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           java-version: "17"
           distribution: "microsoft"
 
       - name: Re-run tests on JDK 17 (no recompilation)
-        if: inputs.test-jdk17 == true
+        if: inputs.test-jdk17 == true || inputs.test-jdk17 == null
         env:
           CI: "true"
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
