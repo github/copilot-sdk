@@ -788,7 +788,7 @@ public class ResumeSessionConfig {
      * session ends</li>
      * </ul>
      * If not set and the client is in
-     * {@link com.github.copilot.rpc.CopilotClientMode#EMPTY EMPTY} mode, the SDK
+     * {@link CopilotClientMode#EMPTY EMPTY} mode, the SDK
      * defaults to {@code "in-memory"} for safe multitenant behavior. In other modes
      * this field is left unset.
      *
