@@ -185,6 +185,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		e.Data = &d
+	case SessionEventTypeHookProgress:
+		var d HookProgressData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
 	case SessionEventTypeHookStart:
 		var d HookStartData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
@@ -241,6 +247,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSamplingRequested:
 		var d SamplingRequestedData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionAutopilotObjectiveChanged:
+		var d SessionAutopilotObjectiveChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}
@@ -343,6 +355,12 @@ func (e *SessionEvent) UnmarshalJSON(data []byte) error {
 		e.Data = &d
 	case SessionEventTypeSessionModelChange:
 		var d SessionModelChangeData
+		if err := json.Unmarshal(raw.Data, &d); err != nil {
+			return err
+		}
+		e.Data = &d
+	case SessionEventTypeSessionPermissionsChanged:
+		var d SessionPermissionsChangedData
 		if err := json.Unmarshal(raw.Data, &d); err != nil {
 			return err
 		}

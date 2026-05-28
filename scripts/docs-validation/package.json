@@ -9,7 +9,8 @@
     "validate:ts": "tsx validate.ts --lang typescript",
     "validate:py": "tsx validate.ts --lang python",
     "validate:go": "tsx validate.ts --lang go",
-    "validate:cs": "tsx validate.ts --lang csharp"
+    "validate:cs": "tsx validate.ts --lang csharp",
+    "validate:java": "tsx validate.ts --lang java"
   },
   "dependencies": {
     "glob": "^11.0.0",

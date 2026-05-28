@@ -25,6 +25,8 @@ pub enum SessionEventType {
     SessionScheduleCreated,
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled,
+    #[serde(rename = "session.autopilot_objective_changed")]
+    SessionAutopilotObjectiveChanged,
     #[serde(rename = "session.info")]
     SessionInfo,
     #[serde(rename = "session.warning")]
@@ -33,6 +35,8 @@ pub enum SessionEventType {
     SessionModelChange,
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged,
+    #[serde(rename = "session.permissions_changed")]
+    SessionPermissionsChanged,
     #[serde(rename = "session.plan_changed")]
     SessionPlanChanged,
     #[serde(rename = "session.workspace_file_changed")]
@@ -109,6 +113,8 @@ pub enum SessionEventType {
     HookStart,
     #[serde(rename = "hook.end")]
     HookEnd,
+    #[serde(rename = "hook.progress")]
+    HookProgress,
     #[serde(rename = "system.message")]
     SystemMessage,
     #[serde(rename = "system.notification")]
@@ -205,6 +211,8 @@ pub enum SessionEventData {
     SessionScheduleCreated(SessionScheduleCreatedData),
     #[serde(rename = "session.schedule_cancelled")]
     SessionScheduleCancelled(SessionScheduleCancelledData),
+    #[serde(rename = "session.autopilot_objective_changed")]
+    SessionAutopilotObjectiveChanged(SessionAutopilotObjectiveChangedData),
     #[serde(rename = "session.info")]
     SessionInfo(SessionInfoData),
     #[serde(rename = "session.warning")]
@@ -213,6 +221,8 @@ pub enum SessionEventData {
     SessionModelChange(SessionModelChangeData),
     #[serde(rename = "session.mode_changed")]
     SessionModeChanged(SessionModeChangedData),
+    #[serde(rename = "session.permissions_changed")]
+    SessionPermissionsChanged(SessionPermissionsChangedData),
     #[serde(rename = "session.plan_changed")]
     SessionPlanChanged(SessionPlanChangedData),
     #[serde(rename = "session.workspace_file_changed")]
@@ -289,6 +299,8 @@ pub enum SessionEventData {
     HookStart(HookStartData),
     #[serde(rename = "hook.end")]
     HookEnd(HookEndData),
+    #[serde(rename = "hook.progress")]
+    HookProgress(HookProgressData),
     #[serde(rename = "system.message")]
     SystemMessage(SystemMessageData),
     #[serde(rename = "system.notification")]
@@ -568,6 +580,20 @@ pub struct SessionScheduleCancelledData {
     pub id: i64,
 }
 
+/// Session event "session.autopilot_objective_changed". Autopilot objective state file operation details indicating what changed
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAutopilotObjectiveChangedData {
+    /// Current autopilot objective id, if one exists
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
+    /// The type of operation performed on the autopilot objective state file
+    pub operation: AutopilotObjectiveChangedOperation,
+    /// Current autopilot objective status, if one exists
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<AutopilotObjectiveChangedStatus>,
+}
+
 /// Session event "session.info". Informational message for timeline display with categorization
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -634,6 +660,16 @@ pub struct SessionModeChangedData {
     pub new_mode: SessionMode,
     /// The session mode the agent is operating in
     pub previous_mode: SessionMode,
+}
+
+/// Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionPermissionsChangedData {
+    /// Aggregate allow-all flag after the change
+    pub allow_all_permissions: bool,
+    /// Aggregate allow-all flag before the change
+    pub previous_allow_all_permissions: bool,
 }
 
 /// Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -794,8 +830,8 @@ pub struct ShutdownModelMetric {
     /// Request count and cost metrics
     pub requests: ShutdownModelMetricRequests,
     /// Token count details per type
-    #[serde(default)]
-    pub token_details: HashMap<String, ShutdownModelMetricTokenDetail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, ShutdownModelMetricTokenDetail>>,
     /// Accumulated nano-AI units cost for this model
     ///
     /// <div class="warning">
@@ -846,8 +882,8 @@ pub struct SessionShutdownData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_tokens: Option<i64>,
     /// Session-wide per-token-type accumulated token counts
-    #[serde(default)]
-    pub token_details: HashMap<String, ShutdownTokenDetail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_details: Option<HashMap<String, ShutdownTokenDetail>>,
     /// Tool definitions token count at shutdown
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_definitions_tokens: Option<i64>,
@@ -1065,8 +1101,8 @@ pub struct UserMessageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent_mode: Option<UserMessageAgentMode>,
     /// Files, selections, or GitHub references attached to the message
-    #[serde(default)]
-    pub attachments: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<serde_json::Value>>,
     /// The user's message text as displayed in the timeline
     pub content: String,
     /// CAPI interaction ID for correlating this user message with its turn
@@ -1076,8 +1112,8 @@ pub struct UserMessageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_autopilot_continuation: Option<bool>,
     /// Path-backed native document attachments that stayed on the tagged_files path flow because native upload could not read them or would exceed the request size limit
-    #[serde(default)]
-    pub native_document_path_fallback_paths: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native_document_path_fallback_paths: Option<Vec<String>>,
     /// Parent agent task ID for background telemetry correlated to this user turn
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_agent_task_id: Option<String>,
@@ -1085,8 +1121,8 @@ pub struct UserMessageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     /// Normalized document MIME types that were sent natively instead of through tagged_files XML
-    #[serde(default)]
-    pub supported_native_document_mime_types: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_native_document_mime_types: Option<Vec<String>>,
     /// Transformed version of the message sent to the model, with XML wrapping, timestamps, and other augmentations for prompt caching
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transformed_content: Option<String>,
@@ -1184,8 +1220,8 @@ pub struct AssistantMessageData {
     /// and may change or be removed in future SDK or CLI releases.
     ///
     /// </div>
-    #[serde(default)]
-    pub anthropic_advisor_blocks: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anthropic_advisor_blocks: Option<Vec<serde_json::Value>>,
     /// Anthropic advisor model ID used for this response, for timeline display on replay
     ///
     /// <div class="warning">
@@ -1233,8 +1269,8 @@ pub struct AssistantMessageData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_request_id: Option<String>,
     /// Tool invocations requested by the assistant in this message
-    #[serde(default)]
-    pub tool_requests: Vec<AssistantMessageToolRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_requests: Option<Vec<AssistantMessageToolRequest>>,
     /// Identifier for the agent loop turn that produced this message, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -1386,8 +1422,8 @@ pub struct AssistantUsageData {
     pub provider_call_id: Option<String>,
     /// Per-quota resource usage snapshots, keyed by quota identifier
     #[doc(hidden)]
-    #[serde(default)]
-    pub(crate) quota_snapshots: HashMap<String, AssistantUsageQuotaSnapshot>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) quota_snapshots: Option<HashMap<String, AssistantUsageQuotaSnapshot>>,
     /// Reasoning effort level used for model calls, if applicable (e.g. "none", "low", "medium", "high", "xhigh", "max")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
@@ -1462,6 +1498,9 @@ pub struct ToolExecutionStartData {
     /// Arguments passed to the tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub arguments: Option<serde_json::Value>,
+    /// When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_verbatim: Option<bool>,
     /// Name of the MCP server hosting this tool, when the tool is an MCP tool
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server_name: Option<String>,
@@ -1571,8 +1610,8 @@ pub struct ToolExecutionCompleteContentResourceLinkIcon {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
     /// Available icon sizes (e.g., ['16x16', '32x32'])
-    #[serde(default)]
-    pub sizes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sizes: Option<Vec<String>>,
     /// URL or path to the icon image
     pub src: String,
     /// Theme variant this icon is intended for
@@ -1588,8 +1627,8 @@ pub struct ToolExecutionCompleteContentResourceLink {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Icons associated with this resource
-    #[serde(default)]
-    pub icons: Vec<ToolExecutionCompleteContentResourceLinkIcon>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<ToolExecutionCompleteContentResourceLinkIcon>>,
     /// MIME type of the resource content
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
@@ -1647,14 +1686,14 @@ pub struct ToolExecutionCompleteContentResource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolExecutionCompleteUIResourceMetaUICsp {
-    #[serde(default)]
-    pub base_uri_domains: Vec<String>,
-    #[serde(default)]
-    pub connect_domains: Vec<String>,
-    #[serde(default)]
-    pub frame_domains: Vec<String>,
-    #[serde(default)]
-    pub resource_domains: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_uri_domains: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connect_domains: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frame_domains: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_domains: Option<Vec<String>>,
 }
 
 /// Schema for the `ToolExecutionCompleteUIResourceMetaUIPermissionsCamera` type.
@@ -1746,8 +1785,8 @@ pub struct ToolExecutionCompleteResult {
     /// Concise tool result text sent to the LLM for chat completion, potentially truncated for token efficiency
     pub content: String,
     /// Structured content blocks (text, images, audio, resources) returned by the tool in their native format
-    #[serde(default)]
-    pub contents: Vec<ToolExecutionCompleteContent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contents: Option<Vec<ToolExecutionCompleteContent>>,
     /// Full detailed tool result for UI/timeline display, preserving complete content such as diffs. Falls back to content when absent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_content: Option<String>,
@@ -1764,8 +1803,8 @@ pub struct ToolExecutionCompleteToolDescriptionMetaUI {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_uri: Option<String>,
     /// Who can access this tool
-    #[serde(default)]
-    pub visibility: Vec<ToolExecutionCompleteToolDescriptionMetaUIVisibility>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<Vec<ToolExecutionCompleteToolDescriptionMetaUIVisibility>>,
 }
 
 /// MCP Apps metadata for UI resource association
@@ -1826,8 +1865,8 @@ pub struct ToolExecutionCompleteData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_description: Option<ToolExecutionCompleteToolDescription>,
     /// Tool-specific telemetry data (e.g., CodeQL check counts, grep match counts)
-    #[serde(default)]
-    pub tool_telemetry: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_telemetry: Option<HashMap<String, serde_json::Value>>,
     /// Identifier for the agent loop turn this tool was invoked in, matching the corresponding assistant.turn_start event
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -1838,8 +1877,8 @@ pub struct ToolExecutionCompleteData {
 #[serde(rename_all = "camelCase")]
 pub struct SkillInvokedData {
     /// Tool names that should be auto-approved when this skill is active
-    #[serde(default)]
-    pub allowed_tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_tools: Option<Vec<String>>,
     /// Full content of the skill file, injected into the conversation for the model
     pub content: String,
     /// Description of the skill from its SKILL.md frontmatter
@@ -1939,7 +1978,7 @@ pub struct SubagentSelectedData {
     /// Internal name of the selected custom agent
     pub agent_name: String,
     /// List of tool names available to this agent, or null for all tools
-    pub tools: Vec<String>,
+    pub tools: Option<Vec<String>>,
 }
 
 /// Session event "subagent.deselected". Empty payload; the event signals that the custom agent was deselected, returning to the default agent
@@ -1989,6 +2028,14 @@ pub struct HookEndData {
     pub success: bool,
 }
 
+/// Session event "hook.progress". Ephemeral progress update from a running hook process
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookProgressData {
+    /// Human-readable progress message from the hook process
+    pub message: String,
+}
+
 /// Metadata about the prompt template and its construction
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1997,8 +2044,8 @@ pub struct SystemMessageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt_version: Option<String>,
     /// Template variables used when constructing the prompt
-    #[serde(default)]
-    pub variables: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Session event "system.message". System/developer instruction content with role and optional template metadata
@@ -2671,8 +2718,8 @@ pub struct UserInputRequestedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_freeform: Option<bool>,
     /// Predefined choices for the user to select from, if applicable
-    #[serde(default)]
-    pub choices: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub choices: Option<Vec<String>>,
     /// The question or prompt to present to the user
     pub question: String,
     /// Unique identifier for this input request; used to respond via session.respondToUserInput()
@@ -2703,8 +2750,8 @@ pub struct ElicitationRequestedSchema {
     /// Form field definitions, keyed by field name
     pub properties: HashMap<String, serde_json::Value>,
     /// List of required field names
-    #[serde(default)]
-    pub required: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
     /// Schema type indicator (always 'object')
     pub r#type: ElicitationRequestedSchemaType,
 }
@@ -2742,8 +2789,8 @@ pub struct ElicitationCompletedData {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub action: Option<ElicitationCompletedAction>,
     /// The submitted form data when action is 'accept'; keys match the requested schema fields
-    #[serde(default)]
-    pub content: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<HashMap<String, serde_json::Value>>,
     /// Request ID of the resolved elicitation request; clients should dismiss any UI for this request
     pub request_id: RequestId,
 }
@@ -2816,8 +2863,8 @@ pub struct SessionCustomNotificationData {
     /// Namespace for the custom notification producer
     pub source: String,
     /// Optional source-defined string identifiers describing the payload subject
-    #[serde(default)]
-    pub subject: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<HashMap<String, String>>,
     /// Optional source-defined payload schema version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<i64>,
@@ -2844,6 +2891,9 @@ pub struct ExternalToolRequestedData {
     /// W3C Trace Context tracestate header for the execute_tool span
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tracestate: Option<String>,
+    /// Active session working directory, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
 }
 
 /// Session event "external_tool.completed". External tool completion notification signaling UI dismissal
@@ -3047,7 +3097,7 @@ pub struct CustomAgentsUpdatedAgent {
     /// Source location: user, project, inherited, remote, or plugin
     pub source: String,
     /// List of tool names available to this agent, or null when all tools are available
-    pub tools: Vec<String>,
+    pub tools: Option<Vec<String>>,
     /// Whether the agent can be selected by the user
     pub user_invocable: bool,
 }
@@ -3171,8 +3221,8 @@ pub struct CanvasRegistryChangedCanvasAction {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// JSON Schema for action input
-    #[serde(default)]
-    pub input_schema: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<HashMap<String, serde_json::Value>>,
     /// Action name
     pub name: String,
 }
@@ -3182,8 +3232,8 @@ pub struct CanvasRegistryChangedCanvasAction {
 #[serde(rename_all = "camelCase")]
 pub struct CanvasRegistryChangedCanvas {
     /// Actions the agent or host may invoke
-    #[serde(default)]
-    pub actions: Vec<CanvasRegistryChangedCanvasAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actions: Option<Vec<CanvasRegistryChangedCanvasAction>>,
     /// Provider-local canvas identifier
     pub canvas_id: String,
     /// Short, single-sentence description shown to the agent in canvas catalogs.
@@ -3196,8 +3246,8 @@ pub struct CanvasRegistryChangedCanvas {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extension_name: Option<String>,
     /// JSON Schema for canvas open input
-    #[serde(default)]
-    pub input_schema: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<HashMap<String, serde_json::Value>>,
 }
 
 /// Session event "session.canvas.registry_changed".
@@ -3224,8 +3274,8 @@ pub struct McpAppToolCallCompleteToolMetaUI {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource_uri: Option<String>,
     /// Tool visibility per SEP-1865 (typically a subset of `["model","app"]`)
-    #[serde(default)]
-    pub visibility: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<Vec<String>>,
 }
 
 /// The tool's `_meta.ui` block at the time of the call, so consumers can decide whether to forward the result to the model without re-listing tools.
@@ -3242,16 +3292,16 @@ pub struct McpAppToolCallCompleteToolMeta {
 #[serde(rename_all = "camelCase")]
 pub struct McpAppToolCallCompleteData {
     /// Arguments passed to the tool by the app view, if any
-    #[serde(default)]
-    pub arguments: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<HashMap<String, serde_json::Value>>,
     /// Wall-clock duration of the underlying tools/call in milliseconds
     pub duration_ms: f64,
     /// Set when the underlying tools/call threw an error before returning a CallToolResult
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<McpAppToolCallCompleteError>,
     /// Standard MCP CallToolResult returned by the server. Present whether or not the call set isError.
-    #[serde(default)]
-    pub result: HashMap<String, serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<HashMap<String, serde_json::Value>>,
     /// Name of the MCP server hosting the tool
     pub server_name: String,
     /// True when the call completed without throwing AND the MCP CallToolResult did not set isError
@@ -3290,6 +3340,45 @@ pub enum ReasoningSummary {
     /// Request a detailed summary of the model's reasoning.
     #[serde(rename = "detailed")]
     Detailed,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// The type of operation performed on the autopilot objective state file
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutopilotObjectiveChangedOperation {
+    /// Autopilot objective state file was created for a new objective.
+    #[serde(rename = "create")]
+    Create,
+    /// Autopilot objective state file was updated for an existing objective.
+    #[serde(rename = "update")]
+    Update,
+    /// Autopilot objective state file was deleted or cleared.
+    #[serde(rename = "delete")]
+    Delete,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Current autopilot objective status, if one exists
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AutopilotObjectiveChangedStatus {
+    /// Objective is active and can drive autopilot continuations.
+    #[serde(rename = "active")]
+    Active,
+    /// Objective is paused and will not drive autopilot continuations.
+    #[serde(rename = "paused")]
+    Paused,
+    /// Legacy objective state indicating the previous continuation cap was reached.
+    #[serde(rename = "cap_reached")]
+    CapReached,
+    /// Objective was completed by the agent.
+    #[serde(rename = "completed")]
+    Completed,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

@@ -195,6 +195,7 @@ session.On<SessionEvent>(evt =>
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // All events
 session.on(event -> System.out.println(event.getType()));

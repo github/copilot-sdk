@@ -1,18 +1,38 @@
 //! Canvas declarations, provider callbacks, and host-side canvas RPC types.
+//!
+//! <div class="warning">
+//!
+//! **Experimental.** Canvas types are part of an experimental wire-protocol surface
+//! and may change or be removed in future SDK or CLI releases.
+//!
+//! </div>
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use thiserror::Error;
 
 use crate::generated::api_types::CanvasAction;
 
 /// JSON Schema object used for canvas inputs and canvas-scoped tools.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type CanvasJsonSchema = serde_json::Map<String, Value>;
 
 /// Declarative metadata for a single canvas, sent over the wire on
 /// `session.create` / `session.resume`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct CanvasDeclaration {
@@ -54,15 +74,29 @@ impl CanvasDeclaration {
 }
 
 /// Structured error returned from canvas handlers.
-#[derive(Debug, Clone, Error, Serialize, Deserialize, PartialEq, Eq)]
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-#[error("{code}: {message}")]
 pub struct CanvasError {
     /// Machine-readable error code.
     pub code: String,
     /// Human-readable message.
     pub message: String,
 }
+
+impl std::fmt::Display for CanvasError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for CanvasError {}
 
 impl CanvasError {
     /// Construct a new error envelope with the given code and message.
@@ -83,14 +117,28 @@ impl CanvasError {
 }
 
 /// Result alias for canvas handler methods.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
 pub type CanvasResult<T> = Result<T, CanvasError>;
 
 /// Provider-side canvas lifecycle handler.
 ///
+/// <div class="warning">
+///
+/// **Experimental.** This trait is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+///
 /// A session installs a single [`CanvasHandler`] (via
 /// [`SessionConfig::with_canvas_handler`](crate::types::SessionConfig::with_canvas_handler)).
 /// The handler receives every inbound `canvas.open` / `canvas.close` /
-/// `canvas.invokeAction` JSON-RPC request the runtime issues for this
+/// `canvas.action.invoke` JSON-RPC request the runtime issues for this
 /// session and decides — typically by inspecting
 /// [`CanvasProviderOpenRequest::canvas_id`](crate::generated::api_types::CanvasProviderOpenRequest::canvas_id)
 /// — which application-side canvas should handle the call.
@@ -185,6 +233,7 @@ mod tests {
                 instance_id: "echo-1".to_string(),
                 input: Some(json!({ "x": 1 })),
                 host: None,
+                session: None,
             })
             .await
             .unwrap();
@@ -206,6 +255,7 @@ mod tests {
                 action_name: "shout".to_string(),
                 input: Some(json!("hi")),
                 host: None,
+                session: None,
             })
             .await
             .unwrap();
@@ -240,6 +290,7 @@ mod tests {
                 action_name: "anything".to_string(),
                 input: Some(Value::Null),
                 host: None,
+                session: None,
             })
             .await
             .unwrap_err();

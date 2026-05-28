@@ -2,9 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -55,19 +57,19 @@ public sealed class ExtensionInfo
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>Structured error returned from canvas handlers.</summary>
+/// <summary>Structured exception returned from canvas handlers.</summary>
 /// <remarks>
 /// Throw this from <see cref="ICanvasHandler"/> implementations to surface a
 /// machine-readable error code to the runtime. Any other exception is wrapped
 /// in a generic <c>canvas_handler_error</c> envelope.
 /// </remarks>
 [Experimental(Diagnostics.Experimental)]
-public sealed class CanvasError : Exception
+public sealed class CanvasException : Exception
 {
-    /// <summary>Initializes a new <see cref="CanvasError"/>.</summary>
+    /// <summary>Initializes a new <see cref="CanvasException"/>.</summary>
     /// <param name="code">Machine-readable error code.</param>
     /// <param name="message">Human-readable message.</param>
-    public CanvasError(string code, string message) : base(message)
+    public CanvasException(string code, string message) : base(message)
     {
         Code = code;
     }
@@ -76,15 +78,15 @@ public sealed class CanvasError : Exception
     public string Code { get; }
 
     /// <summary>
-    /// Default error returned when a custom action has no handler.
+    /// Default exception returned when a custom action has no handler.
     /// </summary>
-    public static CanvasError NoHandler() => new(
+    public static CanvasException NoHandler() => new(
         "canvas_action_no_handler",
         "No handler implemented for this canvas action");
 }
 
 /// <summary>
-/// Internal helpers used by the session runtime to translate <see cref="CanvasError"/>
+/// Internal helpers used by the session runtime to translate <see cref="CanvasException"/>
 /// (and other handler-thrown exceptions) into structured JSON-RPC error responses.
 /// </summary>
 internal static class CanvasErrorHelpers
@@ -99,30 +101,16 @@ internal static class CanvasErrorHelpers
         "canvas_handler_error",
         message);
 
-    public static LocalRpcInvocationException ToRpcException(CanvasError error) => Build(error.Code, error.Message);
+    public static LocalRpcInvocationException ToRpcException(CanvasException error) => Build(error.Code, error.Message);
 
     private static LocalRpcInvocationException Build(string code, string message)
     {
-        var json = JsonSerializer.Serialize(
-            new CanvasErrorPayload { Code = code, Message = message },
-            CanvasJsonContext.Default.CanvasErrorPayload);
-        using var doc = JsonDocument.Parse(json);
-        return new LocalRpcInvocationException(InternalError, message, doc.RootElement.Clone());
-    }
-
-    internal sealed class CanvasErrorPayload
-    {
-        [JsonPropertyName("code")]
-        public string Code { get; set; } = string.Empty;
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; } = string.Empty;
+        JsonElement payload = JsonSerializer.SerializeToElement(
+            new JsonObject { ["code"] = code, ["message"] = message },
+            TypesJsonContext.Default.JsonObject);
+        return new LocalRpcInvocationException(InternalError, message, payload);
     }
 }
-
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(CanvasErrorHelpers.CanvasErrorPayload))]
-internal partial class CanvasJsonContext : JsonSerializerContext;
 
 /// <summary>
 /// Provider-side canvas lifecycle handler.
@@ -130,7 +118,7 @@ internal partial class CanvasJsonContext : JsonSerializerContext;
 /// <remarks>
 /// A session installs a single <see cref="ICanvasHandler"/> via
 /// <c>SessionConfigBase.CanvasHandler</c>. The handler receives every
-/// inbound <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
+/// inbound <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
 /// JSON-RPC request the runtime issues for this session and decides — typically
 /// by inspecting <see cref="CanvasProviderOpenRequest.CanvasId"/> — which
 /// application-side canvas should handle the call.
@@ -155,7 +143,7 @@ public interface ICanvasHandler
 
     /// <summary>
     /// Handle a non-lifecycle action declared by the canvas.
-    /// Default: throws <see cref="CanvasError.NoHandler"/>.
+    /// Default: throws <see cref="CanvasException.NoHandler"/>.
     /// </summary>
     Task<object?> OnActionAsync(CanvasProviderInvokeActionRequest context, CancellationToken cancellationToken);
 }
@@ -180,5 +168,5 @@ public abstract class CanvasHandlerBase : ICanvasHandler
 
     /// <inheritdoc />
     public virtual Task<object?> OnActionAsync(CanvasProviderInvokeActionRequest context, CancellationToken cancellationToken)
-        => Task.FromException<object?>(CanvasError.NoHandler());
+        => Task.FromException<object?>(CanvasException.NoHandler());
 }

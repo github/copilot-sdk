@@ -10,11 +10,11 @@
 -->
 <FindBugsFilter>
     <Match>
-        <Package name="com.github.copilot.sdk.generated"/>
+        <Package name="com.github.copilot.generated"/>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
     <Match>
-        <Package name="com.github.copilot.sdk.json"/>
+        <Package name="com.github.copilot.rpc"/>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
     </Match>
 </FindBugsFilter>

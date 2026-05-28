@@ -24,7 +24,7 @@ The GitHub Copilot SDK exposes the same engine behind Copilot CLI: a production-
 | **Go**                   | [`go/`](./go/)                                                          | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/go/README.md)     | `go get github.com/github/copilot-sdk/go`                                                                                                                                                                                                  |
 | **.NET**                 | [`dotnet/`](./dotnet/)                                                  | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/dotnet/README.md) | `dotnet add package GitHub.Copilot.SDK`                                                                                                                                                                                                    |
 | **Rust**                 | [`rust/`](./rust/)                                                      | —                                                                                                     | `cargo add github-copilot-sdk`                                                                                                                                                                                                             |
-| **Java**                 | [`github/copilot-sdk-java`](https://github.com/github/copilot-sdk-java) | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/java/README.md)                                                                                                   | Maven coordinates<br>`com.github:copilot-sdk-java`<br>See instructions for [Maven](https://github.com/github/copilot-sdk-java?tab=readme-ov-file#maven) and [Gradle](https://github.com/github/copilot-sdk-java?tab=readme-ov-file#gradle) |
+| **Java**                 | [`java/`](./java/) | [Cookbook](https://github.com/github/awesome-copilot/blob/main/cookbook/copilot-sdk/java/README.md)                                                                                                   | Maven coordinates<br>`com.github:copilot-sdk-java`<br>See instructions for [Maven](./java/README.md#maven) and [Gradle](./java/README.md#gradle) |
 
 See the individual SDK READMEs for installation, usage examples, and API reference.
 
@@ -37,7 +37,7 @@ Quick steps:
 1. **(Optional) Install the Copilot CLI**
 
 For Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically and no separate installation is required.
-For the Go and Rust SDKs, [install the CLI manually](https://github.com/features/copilot/cli) or ensure `copilot` is available in your PATH unless you opt into their application-level CLI bundling features.
+For the Go, Java and Rust SDKs, [install the CLI manually](https://github.com/features/copilot/cli) or ensure `copilot` is available in your PATH unless you opt into their application-level CLI bundling features.
 
 2. **Install your preferred SDK** using the commands above.
 
@@ -88,7 +88,7 @@ See the **[Authentication documentation](./docs/auth/index.md)** for details on 
 
 No — for Node.js, Python, and .NET SDKs, the Copilot CLI is bundled automatically as a dependency. You do not need to install it separately.
 
-For Go and Rust SDKs, the CLI is not bundled by default. Install the CLI manually, ensure `copilot` is available in your PATH, or opt into their application-level CLI bundling features.
+For Go, Java and Rust SDKs, the CLI is **not** bundled by default. Install the CLI manually, ensure `copilot` is available in your PATH, or opt into their application-level CLI bundling features.
 
 Advanced: You can override the CLI binary or connect to an external server. See the individual SDK README for language-specific options.
 
@@ -109,7 +109,7 @@ Yes, check out the custom instructions and SDK-specific guidance:
 - **[.NET](https://github.com/github/awesome-copilot/blob/main/instructions/copilot-sdk-csharp.instructions.md)**
 - **[Go](https://github.com/github/awesome-copilot/blob/main/instructions/copilot-sdk-go.instructions.md)**
 - **[Rust](./rust/README.md)** (SDK guidance; custom instructions not yet published)
-- **[Java](https://github.com/github/copilot-sdk-java/blob/main/instructions/copilot-sdk-java.instructions.md)**
+- **[Java](https://github.com/github/awesome-copilot/blob/main/instructions/copilot-sdk-java.instructions.md)**
 
 ### What models are supported?
 

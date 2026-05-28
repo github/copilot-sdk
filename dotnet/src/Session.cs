@@ -274,8 +274,10 @@ public sealed partial class CopilotSession : IAsyncDisposable
         {
             SessionId = SessionId,
             Prompt = options.Prompt,
+            DisplayPrompt = options.DisplayPrompt,
             Attachments = options.Attachments,
             Mode = options.Mode,
+            AgentMode = options.AgentMode,
             Traceparent = traceparent,
             Tracestate = tracestate,
             RequestHeaders = options.RequestHeaders,
@@ -892,15 +894,12 @@ public sealed partial class CopilotSession : IAsyncDisposable
         ClientSessionApis.Canvas = handler is null ? null : new CanvasHandlerAdapter(handler);
     }
 
+    private static readonly JsonElement NullJsonElement = JsonDocument.Parse("null").RootElement.Clone();
+
     private static JsonElement SerializeActionResult(object? value)
     {
         var element = CopilotClient.ToJsonElementForWire(value);
-        if (element.HasValue)
-        {
-            return element.Value;
-        }
-        using var doc = JsonDocument.Parse("null");
-        return doc.RootElement.Clone();
+        return element ?? NullJsonElement;
     }
 #pragma warning restore GHCP001
 
@@ -912,7 +911,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 return await handler.OnOpenAsync(request, cancellationToken).ConfigureAwait(false);
             }
-            catch (CanvasError ce)
+            catch (CanvasException ce)
             {
                 throw CanvasErrorHelpers.ToRpcException(ce);
             }
@@ -928,7 +927,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             {
                 await handler.OnCloseAsync(request, cancellationToken).ConfigureAwait(false);
             }
-            catch (CanvasError ce)
+            catch (CanvasException ce)
             {
                 throw CanvasErrorHelpers.ToRpcException(ce);
             }
@@ -938,14 +937,14 @@ public sealed partial class CopilotSession : IAsyncDisposable
             }
         }
 
-        public async Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
+        public async Task<object> InvokeAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default)
         {
             try
             {
                 var result = await handler.OnActionAsync(request, cancellationToken).ConfigureAwait(false);
                 return SerializeActionResult(result);
             }
-            catch (CanvasError ce)
+            catch (CanvasException ce)
             {
                 throw CanvasErrorHelpers.ToRpcException(ce);
             }
@@ -1663,8 +1662,11 @@ public sealed partial class CopilotSession : IAsyncDisposable
     {
         public string SessionId { get; init; } = string.Empty;
         public string Prompt { get; init; } = string.Empty;
+        public string? DisplayPrompt { get; init; }
         public IList<UserMessageAttachment>? Attachments { get; init; }
         public string? Mode { get; init; }
+        [JsonPropertyName("agentMode")]
+        public AgentMode? AgentMode { get; init; }
         public string? Traceparent { get; init; }
         public string? Tracestate { get; init; }
         public IDictionary<string, string>? RequestHeaders { get; init; }

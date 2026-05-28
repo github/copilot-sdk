@@ -709,9 +709,17 @@ public sealed class SessionContext
 [Experimental(Diagnostics.Experimental)]
 public sealed class SessionMetadata
 {
+    /// <summary>Runtime client name that created/last resumed this session.</summary>
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
+
     /// <summary>Schema for the `SessionContext` type.</summary>
     [JsonPropertyName("context")]
     public SessionContext? Context { get; set; }
+
+    /// <summary>True for detached maintenance sessions that should be hidden from normal resume lists.</summary>
+    [JsonPropertyName("isDetached")]
+    public bool? IsDetached { get; set; }
 
     /// <summary>True for remote (GitHub) sessions; false for local.</summary>
     [JsonPropertyName("isRemote")]
@@ -772,13 +780,17 @@ public sealed class SessionListFilter
     public string? Repository { get; set; }
 }
 
-/// <summary>Optional metadata-load limit and context filter applied to the returned sessions.</summary>
+/// <summary>Optional metadata-load limit and filters applied to the returned sessions.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionsListRequest
 {
     /// <summary>Optional filter applied to the returned sessions.</summary>
     [JsonPropertyName("filter")]
     public SessionListFilter? Filter { get; set; }
+
+    /// <summary>When true, include detached maintenance sessions. Defaults to false for user-facing session lists.</summary>
+    [JsonPropertyName("includeDetached")]
+    public bool? IncludeDetached { get; set; }
 
     /// <summary>When provided, only the first N sessions (sorted by modification time, newest first) load full metadata; remaining sessions return basic info only. Use 0 to return only basic info for every session.</summary>
     [JsonPropertyName("metadataLimit")]
@@ -1116,6 +1128,242 @@ internal sealed class SessionsSetAdditionalPluginsRequest
     /// <summary>Manager-wide additional plugins to register. Replaces any previously-configured set. Pass an empty array to clear.</summary>
     [JsonPropertyName("plugins")]
     public IList<InstalledPlugin> Plugins { get => field ??= []; set; }
+}
+
+/// <summary>Outcome of an agentRegistry.spawn call.</summary>
+/// <remarks>Polymorphic base type discriminated by <c>kind</c>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+[JsonPolymorphic(
+    TypeDiscriminatorPropertyName = "kind",
+    UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FallBackToBaseType)]
+[JsonDerivedType(typeof(AgentRegistrySpawnResultSpawned), "spawned")]
+[JsonDerivedType(typeof(AgentRegistrySpawnResultSpawnError), "spawn-error")]
+[JsonDerivedType(typeof(AgentRegistrySpawnResultRegistryTimeout), "registry-timeout")]
+[JsonDerivedType(typeof(AgentRegistrySpawnResultValidationError), "validation-error")]
+public partial class AgentRegistrySpawnResult
+{
+    /// <summary>The type discriminator.</summary>
+    [JsonPropertyName("kind")]
+    public virtual string Kind { get; set; } = string.Empty;
+}
+
+
+/// <summary>Full registry entry for the spawned child. Lets the controller call `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a TOCTOU window).</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AgentRegistryLiveTargetEntry
+{
+    /// <summary>Kind of attention required when status === "attention". Meaningful only when status === "attention".</summary>
+    [JsonPropertyName("attentionKind")]
+    public AgentRegistryLiveTargetEntryAttentionKind? AttentionKind { get; set; }
+
+    /// <summary>Git branch of the session (when known).</summary>
+    [JsonPropertyName("branch")]
+    public string? Branch { get; set; }
+
+    /// <summary>Copilot CLI version that wrote the entry.</summary>
+    [JsonPropertyName("copilotVersion")]
+    public string CopilotVersion { get; set; } = string.Empty;
+
+    /// <summary>Working directory of the session (when known).</summary>
+    [JsonPropertyName("cwd")]
+    public string? Cwd { get; set; }
+
+    /// <summary>Bind host for the entry's JSON-RPC server.</summary>
+    [JsonPropertyName("host")]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>Process kind tag for the registry entry.</summary>
+    [JsonPropertyName("kind")]
+    public AgentRegistryLiveTargetEntryKind Kind { get; set; }
+
+    /// <summary>Wall-clock milliseconds since the watcher last observed this entry (heartbeat freshness).</summary>
+    [JsonPropertyName("lastSeenMs")]
+    public long LastSeenMs { get; set; }
+
+    /// <summary>How the most recent turn ended (clean vs aborted). Lets the renderer distinguish done from done_cancelled.</summary>
+    [JsonPropertyName("lastTerminalEvent")]
+    public AgentRegistryLiveTargetEntryLastTerminalEvent? LastTerminalEvent { get; set; }
+
+    /// <summary>Model identifier currently selected for the session.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Operating-system pid of the process owning this entry.</summary>
+    [JsonPropertyName("pid")]
+    public long Pid { get; set; }
+
+    /// <summary>TCP port the entry's JSON-RPC server is listening on.</summary>
+    [JsonPropertyName("port")]
+    public long Port { get; set; }
+
+    /// <summary>Registry entry schema version (1 = ui-server, 2 = managed-server).</summary>
+    [JsonPropertyName("schemaVersion")]
+    public long SchemaVersion { get; set; }
+
+    /// <summary>Session ID of the foreground session for this entry.</summary>
+    [JsonPropertyName("sessionId")]
+    public string? SessionId { get; set; }
+
+    /// <summary>Friendly session name (when set).</summary>
+    [JsonPropertyName("sessionName")]
+    public string? SessionName { get; set; }
+
+    /// <summary>ISO 8601 timestamp captured at registration.</summary>
+    [JsonPropertyName("startedAt")]
+    public string StartedAt { get; set; } = string.Empty;
+
+    /// <summary>Coarse lifecycle status of the foreground session.</summary>
+    [JsonPropertyName("status")]
+    public AgentRegistryLiveTargetEntryStatus? Status { get; set; }
+
+    /// <summary>Monotonic per-publisher revision counter incremented on every status update. Lets watchers detect transient flips.</summary>
+    [JsonPropertyName("statusRevision")]
+    public long? StatusRevision { get; set; }
+
+    /// <summary>Connection token (null when the target is unauthenticated).</summary>
+    [JsonInclude]
+    [JsonPropertyName("token")]
+    internal string? Token { get; set; }
+}
+
+/// <summary>Per-spawn log-capture outcome; populated from spawnLiveTarget.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AgentRegistryLogCapture
+{
+    /// <summary>Whether per-spawn log capture is on (false when env-disabled or open failed).</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Human-readable open failure message (only set when enabled === false AND the env-disable opt-out was NOT used).</summary>
+    [JsonPropertyName("openError")]
+    public string? OpenError { get; set; }
+
+    /// <summary>Categorized reason for log-open failure.</summary>
+    [JsonPropertyName("openErrorReason")]
+    public AgentRegistryLogCaptureOpenErrorReason? OpenErrorReason { get; set; }
+
+    /// <summary>Absolute path to the per-spawn log file (only set when enabled).</summary>
+    [JsonPropertyName("path")]
+    public string? Path { get; set; }
+}
+
+/// <summary>Managed-server child was spawned and registered successfully.</summary>
+/// <remarks>The <c>spawned</c> variant of <see cref="AgentRegistrySpawnResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class AgentRegistrySpawnResultSpawned : AgentRegistrySpawnResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "spawned";
+
+    /// <summary>Full registry entry for the spawned child. Lets the controller call `handleLiveTargetSelected(entry)` directly without re-reading the registry (avoids a TOCTOU window).</summary>
+    [JsonPropertyName("entry")]
+    public required AgentRegistryLiveTargetEntry Entry { get; set; }
+
+    /// <summary>If the delegate attempted to send the initial prompt and failed, the categorized error message.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("initialPromptError")]
+    public string? InitialPromptError { get; set; }
+
+    /// <summary>Whether the delegate already sent the initial prompt. Always omitted in the current wiring: the controller sends the prompt post-attach via the standard LocalRpcSession.send path.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("initialPromptSent")]
+    public bool? InitialPromptSent { get; set; }
+
+    /// <summary>Per-spawn log-capture outcome; populated from spawnLiveTarget.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("logCapture")]
+    public AgentRegistryLogCapture? LogCapture { get; set; }
+}
+
+/// <summary>`child_process.spawn` itself failed before the child entered the registry.</summary>
+/// <remarks>The <c>spawn-error</c> variant of <see cref="AgentRegistrySpawnResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class AgentRegistrySpawnResultSpawnError : AgentRegistrySpawnResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "spawn-error";
+
+    /// <summary>Underlying errno code (e.g. ENOENT, EACCES) when available.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    /// <summary>Human-readable error message.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+}
+
+/// <summary>Spawn succeeded but the child did not publish a matching managed-server entry within the timeout.</summary>
+/// <remarks>The <c>registry-timeout</c> variant of <see cref="AgentRegistrySpawnResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class AgentRegistrySpawnResultRegistryTimeout : AgentRegistrySpawnResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "registry-timeout";
+
+    /// <summary>Process ID of the orphaned child (so the caller can offer 'kill the pid' guidance).</summary>
+    [JsonPropertyName("childPid")]
+    public required long ChildPid { get; set; }
+
+    /// <summary>Per-spawn log-capture outcome; populated from spawnLiveTarget.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("logCapture")]
+    public AgentRegistryLogCapture? LogCapture { get; set; }
+}
+
+/// <summary>Synchronous pre-validation rejected the spawn request.</summary>
+/// <remarks>The <c>validation-error</c> variant of <see cref="AgentRegistrySpawnResult"/>.</remarks>
+[Experimental(Diagnostics.Experimental)]
+public partial class AgentRegistrySpawnResultValidationError : AgentRegistrySpawnResult
+{
+    /// <inheritdoc />
+    [JsonIgnore]
+    public override string Kind => "validation-error";
+
+    /// <summary>Which parameter field was invalid. Omitted when the rejection is not field-specific.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("field")]
+    public AgentRegistrySpawnValidationErrorField? Field { get; set; }
+
+    /// <summary>Human-readable explanation; safe to surface in the UI banner. Never logged to unrestricted telemetry.</summary>
+    [JsonPropertyName("message")]
+    public required string Message { get; set; }
+
+    /// <summary>Categorized reason for the rejection. Low-cardinality enum so telemetry can aggregate by reason without leaking raw paths or agent/model names.</summary>
+    [JsonPropertyName("reason")]
+    public required AgentRegistrySpawnValidationErrorReason Reason { get; set; }
+}
+
+/// <summary>Inputs to spawn a managed-server child via the controller's spawn delegate.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class AgentRegistrySpawnRequest
+{
+    /// <summary>Custom or built-in agent name (e.g. 'explore'). When omitted, the child uses its own default.</summary>
+    [JsonPropertyName("agentName")]
+    public string? AgentName { get; set; }
+
+    /// <summary>Working directory for the spawned child (must be an existing directory).</summary>
+    [JsonPropertyName("cwd")]
+    public string Cwd { get; set; } = string.Empty;
+
+    /// <summary>Optional first user message. Forwarded to the caller (the CLI's spawn wrapper sends it post-attach via the standard LocalRpcSession.send path).</summary>
+    [JsonPropertyName("initialPrompt")]
+    public string? InitialPrompt { get; set; }
+
+    /// <summary>Model identifier to apply to the new session.</summary>
+    [JsonPropertyName("model")]
+    public string? Model { get; set; }
+
+    /// <summary>Friendly session name. Must satisfy validateSessionName: non-empty, no leading/trailing whitespace, &lt;=100 chars, no control chars, no double quotes.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode.</summary>
+    [JsonPropertyName("permissionMode")]
+    public AgentRegistrySpawnPermissionMode? PermissionMode { get; set; }
 }
 
 /// <summary>Identifies the target session.</summary>
@@ -2209,7 +2457,7 @@ internal sealed class CanvasCloseRequest
 
 /// <summary>Canvas action invocation result.</summary>
 [Experimental(Diagnostics.Experimental)]
-public sealed class CanvasInvokeActionResult
+public sealed class CanvasActionInvokeResult
 {
     /// <summary>Provider-supplied action result.</summary>
     [JsonPropertyName("result")]
@@ -2218,7 +2466,7 @@ public sealed class CanvasInvokeActionResult
 
 /// <summary>Canvas action invocation parameters.</summary>
 [Experimental(Diagnostics.Experimental)]
-internal sealed class CanvasInvokeActionRequest
+internal sealed class CanvasActionInvokeRequest
 {
     /// <summary>Action name to invoke.</summary>
     [JsonPropertyName("actionName")]
@@ -2515,6 +2763,10 @@ public sealed class WorkspacesGetWorkspaceResultWorkspace
     /// <summary>Gets or sets the <c>chronicle_sync_dismissed</c> value.</summary>
     [JsonPropertyName("chronicle_sync_dismissed")]
     public bool? ChronicleSyncDismissed { get; set; }
+
+    /// <summary>Gets or sets the <c>client_name</c> value.</summary>
+    [JsonPropertyName("client_name")]
+    public string? ClientName { get; set; }
 
     /// <summary>Gets or sets the <c>created_at</c> value.</summary>
     [JsonPropertyName("created_at")]
@@ -4397,6 +4649,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("skipCustomInstructions")]
     public bool? SkipCustomInstructions { get; set; }
 
+    /// <summary>Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</summary>
+    [JsonPropertyName("toolFilterPrecedence")]
+    public OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence { get; set; }
+
     /// <summary>Optional path for trajectory output.</summary>
     [JsonPropertyName("trajectoryFile")]
     public string? TrajectoryFile { get; set; }
@@ -5927,6 +6183,50 @@ internal sealed class PermissionsSetApproveAllRequest
     public PermissionsSetApproveAllSource? Source { get; set; }
 }
 
+/// <summary>Indicates whether the operation succeeded and reports the post-mutation state.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AllowAllPermissionSetResult
+{
+    /// <summary>Authoritative allow-all state after the mutation.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Whether the operation succeeded.</summary>
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+/// <summary>Whether to enable full allow-all permissions for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class PermissionsSetAllowAllRequest
+{
+    /// <summary>Whether to enable full allow-all permissions.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Current full allow-all permission state.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class AllowAllPermissionState
+{
+    /// <summary>Whether full allow-all permissions are currently active.</summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; }
+}
+
+/// <summary>No parameters.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class PermissionsGetAllowAllRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
 /// <summary>Indicates whether the operation succeeded.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class PermissionsModifyRulesResult
@@ -6522,6 +6822,10 @@ public sealed class SessionMetadataSnapshot
     /// <summary>True when the session was detected to be in use by another process at construction time. Local consumers may surface a confirmation prompt before fully attaching. Always false for new sessions.</summary>
     [JsonPropertyName("alreadyInUse")]
     public bool AlreadyInUse { get; set; }
+
+    /// <summary>Runtime client name associated with the session (telemetry identifier).</summary>
+    [JsonPropertyName("clientName")]
+    public string? ClientName { get; set; }
 
     /// <summary>The current agent mode for this session (e.g., 'interactive', 'plan', 'autopilot').</summary>
     [JsonPropertyName("currentMode")]
@@ -7804,6 +8108,15 @@ public sealed class CanvasHostContext
     public CanvasHostContextCapabilities? Capabilities { get; set; }
 }
 
+/// <summary>Session context supplied by the runtime.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasSessionContext
+{
+    /// <summary>Active session working directory, when known.</summary>
+    [JsonPropertyName("workingDirectory")]
+    public string? WorkingDirectory { get; set; }
+}
+
 /// <summary>Canvas open parameters sent to the provider.</summary>
 public sealed class CanvasProviderOpenRequest
 {
@@ -7826,6 +8139,10 @@ public sealed class CanvasProviderOpenRequest
     /// <summary>Stable caller-supplied canvas instance identifier.</summary>
     [JsonPropertyName("instanceId")]
     public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Session context supplied by the runtime.</summary>
+    [JsonPropertyName("session")]
+    public CanvasSessionContext? Session { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -7850,6 +8167,10 @@ public sealed class CanvasProviderCloseRequest
     /// <summary>Canvas instance identifier.</summary>
     [JsonPropertyName("instanceId")]
     public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Session context supplied by the runtime.</summary>
+    [JsonPropertyName("session")]
+    public CanvasSessionContext? Session { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -7882,6 +8203,10 @@ public sealed class CanvasProviderInvokeActionRequest
     /// <summary>Canvas instance identifier.</summary>
     [JsonPropertyName("instanceId")]
     public string InstanceId { get; set; } = string.Empty;
+
+    /// <summary>Session context supplied by the runtime.</summary>
+    [JsonPropertyName("session")]
+    public CanvasSessionContext? Session { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -8337,6 +8662,549 @@ public readonly struct SessionContextHostType : IEquatable<SessionContextHostTyp
         public override void Write(Utf8JsonWriter writer, SessionContextHostType value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(SessionContextHostType));
+        }
+    }
+}
+
+
+/// <summary>Kind of attention required when status === "attention". Meaningful only when status === "attention".</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistryLiveTargetEntryAttentionKind : IEquatable<AgentRegistryLiveTargetEntryAttentionKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistryLiveTargetEntryAttentionKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistryLiveTargetEntryAttentionKind"/>.</param>
+    [JsonConstructor]
+    public AgentRegistryLiveTargetEntryAttentionKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistryLiveTargetEntryAttentionKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Session is blocked on an unrecoverable error.</summary>
+    public static AgentRegistryLiveTargetEntryAttentionKind Error { get; } = new("error");
+
+    /// <summary>Session is waiting for a tool-permission decision.</summary>
+    public static AgentRegistryLiveTargetEntryAttentionKind Permission { get; } = new("permission");
+
+    /// <summary>Session is waiting for the user to approve or reject a plan.</summary>
+    public static AgentRegistryLiveTargetEntryAttentionKind ExitPlan { get; } = new("exit_plan");
+
+    /// <summary>Session is waiting on an elicitation prompt.</summary>
+    public static AgentRegistryLiveTargetEntryAttentionKind Elicitation { get; } = new("elicitation");
+
+    /// <summary>Session is waiting for free-form user input.</summary>
+    public static AgentRegistryLiveTargetEntryAttentionKind UserInput { get; } = new("user_input");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryAttentionKind"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistryLiveTargetEntryAttentionKind left, AgentRegistryLiveTargetEntryAttentionKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryAttentionKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistryLiveTargetEntryAttentionKind left, AgentRegistryLiveTargetEntryAttentionKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistryLiveTargetEntryAttentionKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistryLiveTargetEntryAttentionKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistryLiveTargetEntryAttentionKind}"/> for serializing <see cref="AgentRegistryLiveTargetEntryAttentionKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistryLiveTargetEntryAttentionKind>
+    {
+        /// <inheritdoc />
+        public override AgentRegistryLiveTargetEntryAttentionKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistryLiveTargetEntryAttentionKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistryLiveTargetEntryAttentionKind));
+        }
+    }
+}
+
+
+/// <summary>Process kind tag for the registry entry.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistryLiveTargetEntryKind : IEquatable<AgentRegistryLiveTargetEntryKind>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistryLiveTargetEntryKind"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistryLiveTargetEntryKind"/>.</param>
+    [JsonConstructor]
+    public AgentRegistryLiveTargetEntryKind(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistryLiveTargetEntryKind"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Interactive Copilot CLI exposing a UI server (legacy/normal CLI process).</summary>
+    public static AgentRegistryLiveTargetEntryKind UiServer { get; } = new("ui-server");
+
+    /// <summary>Headless `--server --managed-server` child spawned by a controller.</summary>
+    public static AgentRegistryLiveTargetEntryKind ManagedServer { get; } = new("managed-server");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryKind"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistryLiveTargetEntryKind left, AgentRegistryLiveTargetEntryKind right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryKind"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistryLiveTargetEntryKind left, AgentRegistryLiveTargetEntryKind right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistryLiveTargetEntryKind other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistryLiveTargetEntryKind other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistryLiveTargetEntryKind}"/> for serializing <see cref="AgentRegistryLiveTargetEntryKind"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistryLiveTargetEntryKind>
+    {
+        /// <inheritdoc />
+        public override AgentRegistryLiveTargetEntryKind Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistryLiveTargetEntryKind value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistryLiveTargetEntryKind));
+        }
+    }
+}
+
+
+/// <summary>How the most recent turn ended (clean vs aborted). Lets the renderer distinguish done from done_cancelled.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistryLiveTargetEntryLastTerminalEvent : IEquatable<AgentRegistryLiveTargetEntryLastTerminalEvent>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistryLiveTargetEntryLastTerminalEvent"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistryLiveTargetEntryLastTerminalEvent"/>.</param>
+    [JsonConstructor]
+    public AgentRegistryLiveTargetEntryLastTerminalEvent(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistryLiveTargetEntryLastTerminalEvent"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Last turn ended cleanly (model returned a final assistant message).</summary>
+    public static AgentRegistryLiveTargetEntryLastTerminalEvent TurnEnd { get; } = new("turn_end");
+
+    /// <summary>Last turn was aborted (e.g. user interrupted).</summary>
+    public static AgentRegistryLiveTargetEntryLastTerminalEvent Abort { get; } = new("abort");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryLastTerminalEvent"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistryLiveTargetEntryLastTerminalEvent left, AgentRegistryLiveTargetEntryLastTerminalEvent right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryLastTerminalEvent"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistryLiveTargetEntryLastTerminalEvent left, AgentRegistryLiveTargetEntryLastTerminalEvent right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistryLiveTargetEntryLastTerminalEvent other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistryLiveTargetEntryLastTerminalEvent other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistryLiveTargetEntryLastTerminalEvent}"/> for serializing <see cref="AgentRegistryLiveTargetEntryLastTerminalEvent"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistryLiveTargetEntryLastTerminalEvent>
+    {
+        /// <inheritdoc />
+        public override AgentRegistryLiveTargetEntryLastTerminalEvent Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistryLiveTargetEntryLastTerminalEvent value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistryLiveTargetEntryLastTerminalEvent));
+        }
+    }
+}
+
+
+/// <summary>Coarse lifecycle status of the foreground session.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistryLiveTargetEntryStatus : IEquatable<AgentRegistryLiveTargetEntryStatus>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistryLiveTargetEntryStatus"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistryLiveTargetEntryStatus"/>.</param>
+    [JsonConstructor]
+    public AgentRegistryLiveTargetEntryStatus(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistryLiveTargetEntryStatus"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Session is actively processing a turn.</summary>
+    public static AgentRegistryLiveTargetEntryStatus Working { get; } = new("working");
+
+    /// <summary>Session is idle, waiting for input.</summary>
+    public static AgentRegistryLiveTargetEntryStatus Waiting { get; } = new("waiting");
+
+    /// <summary>Last turn completed successfully.</summary>
+    public static AgentRegistryLiveTargetEntryStatus Done { get; } = new("done");
+
+    /// <summary>Session needs user attention (see attentionKind for the specific reason).</summary>
+    public static AgentRegistryLiveTargetEntryStatus Attention { get; } = new("attention");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryStatus"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistryLiveTargetEntryStatus left, AgentRegistryLiveTargetEntryStatus right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLiveTargetEntryStatus"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistryLiveTargetEntryStatus left, AgentRegistryLiveTargetEntryStatus right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistryLiveTargetEntryStatus other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistryLiveTargetEntryStatus other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistryLiveTargetEntryStatus}"/> for serializing <see cref="AgentRegistryLiveTargetEntryStatus"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistryLiveTargetEntryStatus>
+    {
+        /// <inheritdoc />
+        public override AgentRegistryLiveTargetEntryStatus Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistryLiveTargetEntryStatus value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistryLiveTargetEntryStatus));
+        }
+    }
+}
+
+
+/// <summary>Categorized reason for log-open failure.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistryLogCaptureOpenErrorReason : IEquatable<AgentRegistryLogCaptureOpenErrorReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistryLogCaptureOpenErrorReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistryLogCaptureOpenErrorReason"/>.</param>
+    [JsonConstructor]
+    public AgentRegistryLogCaptureOpenErrorReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistryLogCaptureOpenErrorReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Filesystem permission denied opening the log file.</summary>
+    public static AgentRegistryLogCaptureOpenErrorReason Permission { get; } = new("permission");
+
+    /// <summary>No space left on device.</summary>
+    public static AgentRegistryLogCaptureOpenErrorReason DiskFull { get; } = new("disk_full");
+
+    /// <summary>Other / uncategorized open failure.</summary>
+    public static AgentRegistryLogCaptureOpenErrorReason Other { get; } = new("other");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLogCaptureOpenErrorReason"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistryLogCaptureOpenErrorReason left, AgentRegistryLogCaptureOpenErrorReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistryLogCaptureOpenErrorReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistryLogCaptureOpenErrorReason left, AgentRegistryLogCaptureOpenErrorReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistryLogCaptureOpenErrorReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistryLogCaptureOpenErrorReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistryLogCaptureOpenErrorReason}"/> for serializing <see cref="AgentRegistryLogCaptureOpenErrorReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistryLogCaptureOpenErrorReason>
+    {
+        /// <inheritdoc />
+        public override AgentRegistryLogCaptureOpenErrorReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistryLogCaptureOpenErrorReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistryLogCaptureOpenErrorReason));
+        }
+    }
+}
+
+
+/// <summary>Which parameter field was invalid. Omitted when the rejection is not field-specific.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistrySpawnValidationErrorField : IEquatable<AgentRegistrySpawnValidationErrorField>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistrySpawnValidationErrorField"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistrySpawnValidationErrorField"/>.</param>
+    [JsonConstructor]
+    public AgentRegistrySpawnValidationErrorField(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistrySpawnValidationErrorField"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>The cwd parameter.</summary>
+    public static AgentRegistrySpawnValidationErrorField Cwd { get; } = new("cwd");
+
+    /// <summary>The session name parameter.</summary>
+    public static AgentRegistrySpawnValidationErrorField Name { get; } = new("name");
+
+    /// <summary>The agentName parameter.</summary>
+    public static AgentRegistrySpawnValidationErrorField AgentName { get; } = new("agentName");
+
+    /// <summary>The model parameter.</summary>
+    public static AgentRegistrySpawnValidationErrorField Model { get; } = new("model");
+
+    /// <summary>The permissionMode parameter.</summary>
+    public static AgentRegistrySpawnValidationErrorField PermissionMode { get; } = new("permissionMode");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistrySpawnValidationErrorField"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistrySpawnValidationErrorField left, AgentRegistrySpawnValidationErrorField right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistrySpawnValidationErrorField"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistrySpawnValidationErrorField left, AgentRegistrySpawnValidationErrorField right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistrySpawnValidationErrorField other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistrySpawnValidationErrorField other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistrySpawnValidationErrorField}"/> for serializing <see cref="AgentRegistrySpawnValidationErrorField"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistrySpawnValidationErrorField>
+    {
+        /// <inheritdoc />
+        public override AgentRegistrySpawnValidationErrorField Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistrySpawnValidationErrorField value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistrySpawnValidationErrorField));
+        }
+    }
+}
+
+
+/// <summary>Categorized reason for the rejection. Low-cardinality enum so telemetry can aggregate by reason without leaking raw paths or agent/model names.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistrySpawnValidationErrorReason : IEquatable<AgentRegistrySpawnValidationErrorReason>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistrySpawnValidationErrorReason"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistrySpawnValidationErrorReason"/>.</param>
+    [JsonConstructor]
+    public AgentRegistrySpawnValidationErrorReason(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistrySpawnValidationErrorReason"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Provided cwd does not exist on disk.</summary>
+    public static AgentRegistrySpawnValidationErrorReason CwdNotFound { get; } = new("cwd-not-found");
+
+    /// <summary>Provided cwd exists but is not a directory.</summary>
+    public static AgentRegistrySpawnValidationErrorReason CwdNotDirectory { get; } = new("cwd-not-directory");
+
+    /// <summary>Session name failed validateSessionName.</summary>
+    public static AgentRegistrySpawnValidationErrorReason InvalidName { get; } = new("invalid-name");
+
+    /// <summary>Requested agent name was not found in builtin or custom agents.</summary>
+    public static AgentRegistrySpawnValidationErrorReason UnknownAgent { get; } = new("unknown-agent");
+
+    /// <summary>Requested model is not available to this session.</summary>
+    public static AgentRegistrySpawnValidationErrorReason UnknownModel { get; } = new("unknown-model");
+
+    /// <summary>Caller asked for permissionMode='yolo' but the controller is not currently in allow-all mode.</summary>
+    public static AgentRegistrySpawnValidationErrorReason YoloNotAllowed { get; } = new("yolo-not-allowed");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistrySpawnValidationErrorReason"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistrySpawnValidationErrorReason left, AgentRegistrySpawnValidationErrorReason right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistrySpawnValidationErrorReason"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistrySpawnValidationErrorReason left, AgentRegistrySpawnValidationErrorReason right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistrySpawnValidationErrorReason other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistrySpawnValidationErrorReason other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistrySpawnValidationErrorReason}"/> for serializing <see cref="AgentRegistrySpawnValidationErrorReason"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistrySpawnValidationErrorReason>
+    {
+        /// <inheritdoc />
+        public override AgentRegistrySpawnValidationErrorReason Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistrySpawnValidationErrorReason value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistrySpawnValidationErrorReason));
+        }
+    }
+}
+
+
+/// <summary>Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct AgentRegistrySpawnPermissionMode : IEquatable<AgentRegistrySpawnPermissionMode>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="AgentRegistrySpawnPermissionMode"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="AgentRegistrySpawnPermissionMode"/>.</param>
+    [JsonConstructor]
+    public AgentRegistrySpawnPermissionMode(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="AgentRegistrySpawnPermissionMode"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Standard permission posture (prompts for each request).</summary>
+    public static AgentRegistrySpawnPermissionMode Default { get; } = new("default");
+
+    /// <summary>Full allow-all (requires the controller-local session to currently be in allow-all mode).</summary>
+    public static AgentRegistrySpawnPermissionMode Yolo { get; } = new("yolo");
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistrySpawnPermissionMode"/> instances are equivalent.</summary>
+    public static bool operator ==(AgentRegistrySpawnPermissionMode left, AgentRegistrySpawnPermissionMode right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="AgentRegistrySpawnPermissionMode"/> instances are not equivalent.</summary>
+    public static bool operator !=(AgentRegistrySpawnPermissionMode left, AgentRegistrySpawnPermissionMode right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is AgentRegistrySpawnPermissionMode other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(AgentRegistrySpawnPermissionMode other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{AgentRegistrySpawnPermissionMode}"/> for serializing <see cref="AgentRegistrySpawnPermissionMode"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<AgentRegistrySpawnPermissionMode>
+    {
+        /// <inheritdoc />
+        public override AgentRegistrySpawnPermissionMode Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, AgentRegistrySpawnPermissionMode value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(AgentRegistrySpawnPermissionMode));
         }
     }
 }
@@ -10076,6 +10944,69 @@ public readonly struct OptionsUpdateEnvValueMode : IEquatable<OptionsUpdateEnvVa
 }
 
 
+/// <summary>Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct OptionsUpdateToolFilterPrecedence : IEquatable<OptionsUpdateToolFilterPrecedence>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="OptionsUpdateToolFilterPrecedence"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="OptionsUpdateToolFilterPrecedence"/>.</param>
+    [JsonConstructor]
+    public OptionsUpdateToolFilterPrecedence(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="OptionsUpdateToolFilterPrecedence"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>If availableTools is set, it is the only constraint that applies (excludedTools is ignored). Preserves CLI / pre-existing client behavior. Default.</summary>
+    public static OptionsUpdateToolFilterPrecedence Available { get; } = new("available");
+
+    /// <summary>A tool is enabled if and only if it matches the allowlist (or the allowlist is unset) AND it does not match the denylist. Makes 'all except X' expressible by combining the two lists.</summary>
+    public static OptionsUpdateToolFilterPrecedence Excluded { get; } = new("excluded");
+
+    /// <summary>Returns a value indicating whether two <see cref="OptionsUpdateToolFilterPrecedence"/> instances are equivalent.</summary>
+    public static bool operator ==(OptionsUpdateToolFilterPrecedence left, OptionsUpdateToolFilterPrecedence right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="OptionsUpdateToolFilterPrecedence"/> instances are not equivalent.</summary>
+    public static bool operator !=(OptionsUpdateToolFilterPrecedence left, OptionsUpdateToolFilterPrecedence right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is OptionsUpdateToolFilterPrecedence other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(OptionsUpdateToolFilterPrecedence other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{OptionsUpdateToolFilterPrecedence}"/> for serializing <see cref="OptionsUpdateToolFilterPrecedence"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<OptionsUpdateToolFilterPrecedence>
+    {
+        /// <inheritdoc />
+        public override OptionsUpdateToolFilterPrecedence Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, OptionsUpdateToolFilterPrecedence value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(OptionsUpdateToolFilterPrecedence));
+        }
+    }
+}
+
+
 /// <summary>Discovery source: project (.github/extensions/) or user (~/.copilot/extensions/).</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -11638,6 +12569,12 @@ public sealed class ServerRpc
         field ??
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
+
+    /// <summary>AgentRegistry APIs.</summary>
+    public ServerAgentRegistryApi AgentRegistry =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
 }
 
 /// <summary>Provides server-scoped Models APIs.</summary>
@@ -11948,11 +12885,12 @@ public sealed class ServerSessionsApi
     /// <summary>Lists persisted sessions, optionally filtered by working-directory context.</summary>
     /// <param name="metadataLimit">When provided, only the first N sessions (sorted by modification time, newest first) load full metadata; remaining sessions return basic info only. Use 0 to return only basic info for every session.</param>
     /// <param name="filter">Optional filter applied to the returned sessions.</param>
+    /// <param name="includeDetached">When true, include detached maintenance sessions. Defaults to false for user-facing session lists.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Persisted sessions matching the filter, ordered most-recently-modified first.</returns>
-    public async Task<SessionList> ListAsync(long? metadataLimit = null, SessionListFilter? filter = null, CancellationToken cancellationToken = default)
+    public async Task<SessionList> ListAsync(long? metadataLimit = null, SessionListFilter? filter = null, bool? includeDetached = null, CancellationToken cancellationToken = default)
     {
-        var request = new SessionsListRequest { MetadataLimit = metadataLimit, Filter = filter };
+        var request = new SessionsListRequest { MetadataLimit = metadataLimit, Filter = filter, IncludeDetached = includeDetached };
         return await CopilotClient.InvokeRpcAsync<SessionList>(_rpc, "sessions.list", [request], cancellationToken);
     }
 
@@ -12142,6 +13080,35 @@ public sealed class ServerSessionsApi
 
         var request = new SessionsSetAdditionalPluginsRequest { Plugins = plugins };
         return await CopilotClient.InvokeRpcAsync<SessionsSetAdditionalPluginsResult>(_rpc, "sessions.setAdditionalPlugins", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped AgentRegistry APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ServerAgentRegistryApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerAgentRegistryApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Spawns a managed-server child with the supplied configuration and returns a discriminated-union result. The caller (typically the CLI controller) is responsible for attaching to the spawned child and sending any follow-up prompt. When the controller-local spawn gate is closed the server returns JSON-RPC MethodNotFound.</summary>
+    /// <param name="cwd">Working directory for the spawned child (must be an existing directory).</param>
+    /// <param name="agentName">Custom or built-in agent name (e.g. 'explore'). When omitted, the child uses its own default.</param>
+    /// <param name="model">Model identifier to apply to the new session.</param>
+    /// <param name="name">Friendly session name. Must satisfy validateSessionName: non-empty, no leading/trailing whitespace, &lt;=100 chars, no control chars, no double quotes.</param>
+    /// <param name="permissionMode">Permission posture for the new session. 'yolo' requires the controller-local session to currently be in allow-all mode.</param>
+    /// <param name="initialPrompt">Optional first user message. Forwarded to the caller (the CLI's spawn wrapper sends it post-attach via the standard LocalRpcSession.send path).</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Outcome of an agentRegistry.spawn call.</returns>
+    public async Task<AgentRegistrySpawnResult> SpawnAsync(string cwd, string? agentName = null, string? model = null, string? name = null, AgentRegistrySpawnPermissionMode? permissionMode = null, string? initialPrompt = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cwd);
+
+        var request = new AgentRegistrySpawnRequest { Cwd = cwd, AgentName = agentName, Model = model, Name = name, PermissionMode = permissionMode, InitialPrompt = initialPrompt };
+        return await CopilotClient.InvokeRpcAsync<AgentRegistrySpawnResult>(_rpc, "agentRegistry.spawn", [request], cancellationToken);
     }
 }
 
@@ -12517,20 +13484,38 @@ public sealed class CanvasApi
         await CopilotClient.InvokeRpcAsync(_session.Rpc, "session.canvas.close", [request], cancellationToken);
     }
 
+    /// <summary>Action APIs.</summary>
+    public CanvasActionApi Action =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_session), null) ??
+        field;
+}
+
+/// <summary>Provides session-scoped CanvasAction APIs.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CanvasActionApi
+{
+    private readonly CopilotSession _session;
+
+    internal CanvasActionApi(CopilotSession session)
+    {
+        _session = session;
+    }
+
     /// <summary>Invokes an action on an open canvas instance.</summary>
     /// <param name="instanceId">Open canvas instance identifier.</param>
     /// <param name="actionName">Action name to invoke.</param>
     /// <param name="input">Action input.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Canvas action invocation result.</returns>
-    public async Task<CanvasInvokeActionResult> InvokeActionAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
+    public async Task<CanvasActionInvokeResult> InvokeAsync(string instanceId, string actionName, object? input = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(instanceId);
         ArgumentNullException.ThrowIfNull(actionName);
         _session.ThrowIfDisposed();
 
-        var request = new CanvasInvokeActionRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
-        return await CopilotClient.InvokeRpcAsync<CanvasInvokeActionResult>(_session.Rpc, "session.canvas.invokeAction", [request], cancellationToken);
+        var request = new CanvasActionInvokeRequest { SessionId = _session.SessionId, InstanceId = instanceId, ActionName = actionName, Input = CopilotClient.ToJsonElementForWire(input) };
+        return await CopilotClient.InvokeRpcAsync<CanvasActionInvokeResult>(_session.Rpc, "session.canvas.action.invoke", [request], cancellationToken);
     }
 }
 
@@ -13464,6 +14449,7 @@ public sealed class OptionsApi
     /// <param name="workingDirectory">Absolute working-directory path for shell tools.</param>
     /// <param name="availableTools">Allowlist of tool names available to this session.</param>
     /// <param name="excludedTools">Denylist of tool names for this session.</param>
+    /// <param name="toolFilterPrecedence">Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</param>
     /// <param name="enableScriptSafety">Whether shell-script safety heuristics are enabled.</param>
     /// <param name="shellInitProfile">Shell init profile (`None` or `NonInteractive`).</param>
     /// <param name="shellProcessFlags">Per-shell process flags (e.g., `pwsh` arguments).</param>
@@ -13491,11 +14477,11 @@ public sealed class OptionsApi
     /// <param name="manageScheduleEnabled">Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -13928,6 +14914,29 @@ public sealed class PermissionsApi
 
         var request = new PermissionsSetApproveAllRequest { SessionId = _session.SessionId, Enabled = enabled, Source = source };
         return await CopilotClient.InvokeRpcAsync<PermissionsSetApproveAllResult>(_session.Rpc, "session.permissions.setApproveAll", [request], cancellationToken);
+    }
+
+    /// <summary>Enables or disables full allow-all permissions (tools, paths, and URLs) for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the unrestricted path and URL managers and emits `session.permissions_changed` on transition. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.</summary>
+    /// <param name="enabled">Whether to enable full allow-all permissions.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Indicates whether the operation succeeded and reports the post-mutation state.</returns>
+    public async Task<AllowAllPermissionSetResult> SetAllowAllAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionsSetAllowAllRequest { SessionId = _session.SessionId, Enabled = enabled };
+        return await CopilotClient.InvokeRpcAsync<AllowAllPermissionSetResult>(_session.Rpc, "session.permissions.setAllowAll", [request], cancellationToken);
+    }
+
+    /// <summary>Returns whether full allow-all permissions are currently active for the session.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current full allow-all permission state.</returns>
+    public async Task<AllowAllPermissionState> GetAllowAllAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new PermissionsGetAllowAllRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<AllowAllPermissionState>(_session.Rpc, "session.permissions.getAllowAll", [request], cancellationToken);
     }
 
     /// <summary>Adds or removes session-scoped or location-scoped permission rules.</summary>
@@ -14690,7 +15699,7 @@ public interface ICanvasHandler
     /// <param name="request">Canvas action invocation parameters sent to the provider.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Provider-supplied action result.</returns>
-    Task<object> InvokeActionAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
+    Task<object> InvokeAsync(CanvasProviderInvokeActionRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Provides all client session API handler groups for a session.</summary>
@@ -14797,11 +15806,11 @@ internal static class ClientSessionApiRegistration
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
             await handler.CloseAsync(request, cancellationToken);
         }), singleObjectParam: true);
-        rpc.SetLocalRpcMethod("canvas.invokeAction", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
+        rpc.SetLocalRpcMethod("canvas.action.invoke", (Func<CanvasProviderInvokeActionRequest, CancellationToken, ValueTask<object>>)(async (request, cancellationToken) =>
         {
             var handler = getHandlers(request.SessionId).Canvas;
             if (handler is null) throw new InvalidOperationException($"No canvas handler registered for session: {request.SessionId}");
-            return await handler.InvokeActionAsync(request, cancellationToken);
+            return await handler.InvokeAsync(request, cancellationToken);
         }), singleObjectParam: true);
     }
 }
@@ -14847,6 +15856,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedData), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedData")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchRequestedEvent), TypeInfoPropertyName = "SessionEventsAutoModeSwitchRequestedEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.AutoModeSwitchResponse), TypeInfoPropertyName = "SessionEventsAutoModeSwitchResponse")]
+[JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedOperation), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.AutopilotObjectiveChangedStatus), TypeInfoPropertyName = "SessionEventsAutopilotObjectiveChangedStatus")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasOpenedAvailability), TypeInfoPropertyName = "SessionEventsCanvasOpenedAvailability")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvas), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvas")]
 [JsonSerializable(typeof(GitHub.Copilot.CanvasRegistryChangedCanvasAction), TypeInfoPropertyName = "SessionEventsCanvasRegistryChangedCanvasAction")]
@@ -14891,6 +15902,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.HookEndData), TypeInfoPropertyName = "SessionEventsHookEndData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndError), TypeInfoPropertyName = "SessionEventsHookEndError")]
 [JsonSerializable(typeof(GitHub.Copilot.HookEndEvent), TypeInfoPropertyName = "SessionEventsHookEndEvent")]
+[JsonSerializable(typeof(GitHub.Copilot.HookProgressData), TypeInfoPropertyName = "SessionEventsHookProgressData")]
+[JsonSerializable(typeof(GitHub.Copilot.HookProgressEvent), TypeInfoPropertyName = "SessionEventsHookProgressEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartData), TypeInfoPropertyName = "SessionEventsHookStartData")]
 [JsonSerializable(typeof(GitHub.Copilot.HookStartEvent), TypeInfoPropertyName = "SessionEventsHookStartEvent")]
 [JsonSerializable(typeof(GitHub.Copilot.McpAppToolCallCompleteData), TypeInfoPropertyName = "SessionEventsMcpAppToolCallCompleteData")]
@@ -15062,16 +16075,22 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(AgentGetCurrentResult))]
 [JsonSerializable(typeof(AgentInfo))]
 [JsonSerializable(typeof(AgentList))]
+[JsonSerializable(typeof(AgentRegistryLiveTargetEntry))]
+[JsonSerializable(typeof(AgentRegistryLogCapture))]
+[JsonSerializable(typeof(AgentRegistrySpawnRequest))]
+[JsonSerializable(typeof(AgentRegistrySpawnResult))]
 [JsonSerializable(typeof(AgentReloadResult))]
 [JsonSerializable(typeof(AgentSelectRequest))]
 [JsonSerializable(typeof(AgentSelectResult))]
+[JsonSerializable(typeof(AllowAllPermissionSetResult))]
+[JsonSerializable(typeof(AllowAllPermissionState))]
 [JsonSerializable(typeof(AuthInfo))]
 [JsonSerializable(typeof(CanvasAction))]
+[JsonSerializable(typeof(CanvasActionInvokeRequest))]
+[JsonSerializable(typeof(CanvasActionInvokeResult))]
 [JsonSerializable(typeof(CanvasCloseRequest))]
 [JsonSerializable(typeof(CanvasHostContext))]
 [JsonSerializable(typeof(CanvasHostContextCapabilities))]
-[JsonSerializable(typeof(CanvasInvokeActionRequest))]
-[JsonSerializable(typeof(CanvasInvokeActionResult))]
 [JsonSerializable(typeof(CanvasList))]
 [JsonSerializable(typeof(CanvasListOpenResult))]
 [JsonSerializable(typeof(CanvasOpenRequest))]
@@ -15079,6 +16098,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(CanvasProviderInvokeActionRequest))]
 [JsonSerializable(typeof(CanvasProviderOpenRequest))]
 [JsonSerializable(typeof(CanvasProviderOpenResult))]
+[JsonSerializable(typeof(CanvasSessionContext))]
 [JsonSerializable(typeof(CommandList))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandRequest))]
 [JsonSerializable(typeof(CommandsHandlePendingCommandResult))]
@@ -15240,6 +16260,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionsConfigureParams))]
 [JsonSerializable(typeof(PermissionsConfigureResult))]
 [JsonSerializable(typeof(PermissionsFolderTrustAddTrustedResult))]
+[JsonSerializable(typeof(PermissionsGetAllowAllRequest))]
 [JsonSerializable(typeof(PermissionsLocationsAddToolApprovalDetails))]
 [JsonSerializable(typeof(PermissionsLocationsAddToolApprovalResult))]
 [JsonSerializable(typeof(PermissionsModifyRulesParams))]
@@ -15251,6 +16272,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(PermissionsPendingRequestsRequest))]
 [JsonSerializable(typeof(PermissionsResetSessionApprovalsRequest))]
 [JsonSerializable(typeof(PermissionsResetSessionApprovalsResult))]
+[JsonSerializable(typeof(PermissionsSetAllowAllRequest))]
 [JsonSerializable(typeof(PermissionsSetApproveAllRequest))]
 [JsonSerializable(typeof(PermissionsSetApproveAllResult))]
 [JsonSerializable(typeof(PermissionsSetRequiredRequest))]

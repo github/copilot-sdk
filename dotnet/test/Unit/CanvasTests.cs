@@ -86,18 +86,18 @@ public class CanvasTests
     }
 
     [Fact]
-    public async Task CanvasHandlerBase_DefaultOnAction_ThrowsNoHandlerCanvasError()
+    public async Task CanvasHandlerBase_DefaultOnAction_ThrowsNoHandlerCanvasException()
     {
         var handler = new TestHandler();
-        var ex = await Assert.ThrowsAsync<CanvasError>(
+        var ex = await Assert.ThrowsAsync<CanvasException>(
             () => handler.OnActionAsync(new CanvasProviderInvokeActionRequest(), CancellationToken.None));
         Assert.Equal("canvas_action_no_handler", ex.Code);
     }
 
     [Fact]
-    public void CanvasError_NoHandler_HasExpectedCode()
+    public void CanvasException_NoHandler_HasExpectedCode()
     {
-        var err = CanvasError.NoHandler();
+        var err = CanvasException.NoHandler();
         Assert.Equal("canvas_action_no_handler", err.Code);
         Assert.False(string.IsNullOrEmpty(err.Message));
     }
