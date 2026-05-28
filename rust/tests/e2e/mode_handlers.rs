@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use github_copilot_sdk::generated::SessionMode;
+use github_copilot_sdk::generated::api_types::ModeSetRequest;
 use github_copilot_sdk::generated::session_events::{
     AutoModeSwitchCompletedData, AutoModeSwitchRequestedData,
     AutoModeSwitchResponse as EventAutoModeSwitchResponse, ExitPlanModeAction,
@@ -11,7 +13,6 @@ use github_copilot_sdk::handler::{
     ExitPlanModeHandler, ExitPlanModeResult,
 };
 use github_copilot_sdk::{ExitPlanModeData, SessionConfig, SessionId};
-use serde_json::json;
 use tokio::sync::mpsc;
 
 use super::support::{
@@ -113,22 +114,19 @@ async fn should_invoke_exit_plan_mode_handler_when_model_uses_tool() {
                     |event| event.parsed_type() == SessionEventType::SessionIdle,
                 ));
 
-                let send_result = session
-                    .client()
-                    .call(
-                        "session.send",
-                        Some(json!({
-                            "sessionId": session.id().as_str(),
-                            "prompt": PLAN_PROMPT,
-                            "mode": "plan",
-                        })),
-                    )
+                session
+                    .rpc()
+                    .mode()
+                    .set(ModeSetRequest {
+                        mode: SessionMode::Plan,
+                    })
+                    .await
+                    .expect("set plan mode");
+                let message_id = session
+                    .send(PLAN_PROMPT)
                     .await
                     .expect("send plan-mode prompt");
-                assert!(
-                    send_result.get("messageId").is_some(),
-                    "expected messageId in send result"
-                );
+                assert!(!message_id.is_empty(), "expected messageId in send result");
 
                 let (session_id, request) =
                     recv_with_timeout(&mut request_rx, "exit-plan-mode request").await;
