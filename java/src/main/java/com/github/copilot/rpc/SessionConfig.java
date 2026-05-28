@@ -78,6 +78,7 @@ public class SessionConfig {
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
     private Boolean enableSkills;
+    private String embeddingCacheStorage;
     private ModelCapabilitiesOverride modelCapabilities;
     private Consumer<SessionEvent> onEvent;
     private List<CommandDefinition> commands;
@@ -1194,6 +1195,39 @@ public class SessionConfig {
     }
 
     /**
+     * Gets the embedding cache storage mode.
+     *
+     * @return the embedding cache storage mode ({@code "persistent"} or
+     *         {@code "in-memory"}), or {@code null} to use the runtime default
+     */
+    public String getEmbeddingCacheStorage() {
+        return embeddingCacheStorage;
+    }
+
+    /**
+     * Sets the embedding cache storage mode.
+     *
+     * @param embeddingCacheStorage
+     *            {@code "persistent"} to persist embeddings across sessions, or
+     *            {@code "in-memory"} for session-scoped storage
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setEmbeddingCacheStorage(String embeddingCacheStorage) {
+        this.embeddingCacheStorage = embeddingCacheStorage;
+        return this;
+    }
+
+    /**
+     * Clears the embeddingCacheStorage setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionConfig clearEmbeddingCacheStorage() {
+        this.embeddingCacheStorage = null;
+        return this;
+    }
+
+    /**
      * Gets whether sub-agent streaming events are included.
      *
      * @return an {@link java.util.Optional} containing {@code true} to include
@@ -1589,6 +1623,7 @@ public class SessionConfig {
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
         copy.enableSkills = this.enableSkills;
+        copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onEvent = this.onEvent;
         copy.commands = this.commands != null ? new ArrayList<>(this.commands) : null;

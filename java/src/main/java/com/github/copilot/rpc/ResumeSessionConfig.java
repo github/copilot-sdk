@@ -66,6 +66,7 @@ public class ResumeSessionConfig {
     private Boolean enableHostGitOperations;
     private Boolean enableSessionStore;
     private Boolean enableSkills;
+    private String embeddingCacheStorage;
     private boolean disableResume;
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
@@ -884,6 +885,39 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the embedding cache storage mode.
+     *
+     * @return the embedding cache storage mode ({@code "persistent"} or
+     *         {@code "in-memory"}), or {@code null} to use the runtime default
+     */
+    public String getEmbeddingCacheStorage() {
+        return embeddingCacheStorage;
+    }
+
+    /**
+     * Sets the embedding cache storage mode.
+     *
+     * @param embeddingCacheStorage
+     *            {@code "persistent"} to persist embeddings across sessions, or
+     *            {@code "in-memory"} for session-scoped storage
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEmbeddingCacheStorage(String embeddingCacheStorage) {
+        this.embeddingCacheStorage = embeddingCacheStorage;
+        return this;
+    }
+
+    /**
+     * Clears the embeddingCacheStorage setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEmbeddingCacheStorage() {
+        this.embeddingCacheStorage = null;
+        return this;
+    }
+
+    /**
      * Gets whether sub-agent streaming events are included.
      *
      * @return {@code true} to include sub-agent streaming events, {@code false} to
@@ -1452,6 +1486,7 @@ public class ResumeSessionConfig {
         copy.enableHostGitOperations = this.enableHostGitOperations;
         copy.enableSessionStore = this.enableSessionStore;
         copy.enableSkills = this.enableSkills;
+        copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.disableResume = this.disableResume;
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;

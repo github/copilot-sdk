@@ -909,6 +909,12 @@ type SessionConfig struct {
 	// is passed through to the runtime. Use in multitenant deployments to prevent
 	// cross-session information leakage through the shared embedding cache.
 	SkipEmbeddingRetrieval *bool
+	// EmbeddingCacheStorage controls how the embedding cache is stored for this session.
+	// - "persistent": Embeddings are cached on disk and shared across sessions/restarts.
+	// - "in-memory": Embeddings are cached in memory only and discarded when the session ends.
+	// When nil, the runtime default ("persistent") is used. When non-nil, the value is
+	// passed through to the runtime.
+	EmbeddingCacheStorage *string
 	// OrganizationCustomInstructions provides organization-level custom instructions
 	// to include in the system prompt. When nil, the runtime default is used. When
 	// non-nil, the value (including an empty string) is passed through to the runtime.
@@ -1314,6 +1320,12 @@ type ResumeSessionConfig struct {
 	// is passed through to the runtime. Use in multitenant deployments to prevent
 	// cross-session information leakage through the shared embedding cache.
 	SkipEmbeddingRetrieval *bool
+	// EmbeddingCacheStorage controls how the embedding cache is stored for this session.
+	// - "persistent": Embeddings are cached on disk and shared across sessions/restarts.
+	// - "in-memory": Embeddings are cached in memory only and discarded when the session ends.
+	// When nil, the runtime default ("persistent") is used. When non-nil, the value is
+	// passed through to the runtime.
+	EmbeddingCacheStorage *string
 	// OrganizationCustomInstructions provides organization-level custom instructions
 	// to include in the system prompt. When nil, the runtime default is used. When
 	// non-nil, the value (including an empty string) is passed through to the runtime.
@@ -1322,7 +1334,6 @@ type ResumeSessionConfig struct {
 	// files after successful file views. When nil, the runtime default is used. When
 	// non-nil, the value (true or false) is passed through to the runtime.
 	EnableOnDemandInstructionDiscovery *bool
-	// EnableFileHooks controls loading of file-based hooks from .github/hooks/.
 	// When nil, the runtime default is used. When non-nil, the value (true or false)
 	// is passed through to the runtime.
 	EnableFileHooks *bool
@@ -1673,6 +1684,7 @@ type createSessionRequest struct {
 	ConfigDir                          string                                 `json:"configDir,omitempty"`
 	EnableConfigDiscovery              *bool                                  `json:"enableConfigDiscovery,omitempty"`
 	SkipEmbeddingRetrieval             *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
+	EmbeddingCacheStorage              *string                                `json:"embeddingCacheStorage,omitempty"`
 	OrganizationCustomInstructions     *string                                `json:"organizationCustomInstructions,omitempty"`
 	EnableOnDemandInstructionDiscovery *bool                                  `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	EnableFileHooks                    *bool                                  `json:"enableFileHooks,omitempty"`
@@ -1740,6 +1752,7 @@ type resumeSessionRequest struct {
 	ConfigDir                          string                                 `json:"configDir,omitempty"`
 	EnableConfigDiscovery              *bool                                  `json:"enableConfigDiscovery,omitempty"`
 	SkipEmbeddingRetrieval             *bool                                  `json:"skipEmbeddingRetrieval,omitempty"`
+	EmbeddingCacheStorage              *string                                `json:"embeddingCacheStorage,omitempty"`
 	OrganizationCustomInstructions     *string                                `json:"organizationCustomInstructions,omitempty"`
 	EnableOnDemandInstructionDiscovery *bool                                  `json:"enableOnDemandInstructionDiscovery,omitempty"`
 	EnableFileHooks                    *bool                                  `json:"enableFileHooks,omitempty"`

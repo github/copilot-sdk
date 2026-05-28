@@ -198,6 +198,16 @@ def _skip_embedding_retrieval_default(
     return _empty_mode_bool_default(mode, supplied, True)
 
 
+def _embedding_cache_storage_default(
+    mode: CopilotClientMode | None,
+    supplied: str | None,
+) -> str | None:
+    """Empty mode defaults embedding cache storage to in-memory; caller value wins."""
+    if mode == "empty" and supplied is None:
+        return "in-memory"
+    return supplied
+
+
 def _enable_on_demand_instruction_discovery_default(
     mode: CopilotClientMode | None,
     supplied: bool | None,

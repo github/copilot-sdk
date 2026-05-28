@@ -130,6 +130,10 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 		t := true
 		config.SkipEmbeddingRetrieval = &t
 	}
+	if config.EmbeddingCacheStorage == nil {
+		inMemory := "in-memory"
+		config.EmbeddingCacheStorage = &inMemory
+	}
 	if config.EnableOnDemandInstructionDiscovery == nil {
 		f := false
 		config.EnableOnDemandInstructionDiscovery = &f
@@ -163,6 +167,10 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	if config.SkipEmbeddingRetrieval == nil {
 		t := true
 		config.SkipEmbeddingRetrieval = &t
+	}
+	if config.EmbeddingCacheStorage == nil {
+		inMemory := "in-memory"
+		config.EmbeddingCacheStorage = &inMemory
 	}
 	if config.EnableOnDemandInstructionDiscovery == nil {
 		f := false

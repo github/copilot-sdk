@@ -145,6 +145,9 @@ final class SessionRequestBuilder {
         config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
         config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
         config.getEnableSkills().ifPresent(request::setEnableSkills);
+        if (config.getEmbeddingCacheStorage() != null) {
+            request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
+        }
         request.setModelCapabilities(config.getModelCapabilities());
 
         if (config.getCommands() != null && !config.getCommands().isEmpty()) {
@@ -237,6 +240,9 @@ final class SessionRequestBuilder {
         config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
         config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
         config.getEnableSkills().ifPresent(request::setEnableSkills);
+        if (config.getEmbeddingCacheStorage() != null) {
+            request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
+        }
         if (config.isDisableResume()) {
             request.setDisableResume(true);
         }

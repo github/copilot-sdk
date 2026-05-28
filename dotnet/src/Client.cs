@@ -638,6 +638,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         {
             config.EnableSessionTelemetry ??= false;
             config.SkipEmbeddingRetrieval ??= true;
+            config.EmbeddingCacheStorage ??= "in-memory";
             config.EnableOnDemandInstructionDiscovery ??= false;
             config.EnableFileHooks ??= false;
             config.EnableHostGitOperations ??= false;
@@ -881,6 +882,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
                 config.SkipEmbeddingRetrieval,
+                config.EmbeddingCacheStorage,
                 config.OrganizationCustomInstructions,
                 config.EnableOnDemandInstructionDiscovery,
                 config.EnableFileHooks,
@@ -1065,6 +1067,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 config.ConfigDirectory,
                 config.EnableConfigDiscovery,
                 config.SkipEmbeddingRetrieval,
+                config.EmbeddingCacheStorage,
                 config.OrganizationCustomInstructions,
                 config.EnableOnDemandInstructionDiscovery,
                 config.EnableFileHooks,
@@ -2196,6 +2199,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
         bool? SkipEmbeddingRetrieval,
+        string? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
         bool? EnableOnDemandInstructionDiscovery,
         bool? EnableFileHooks,
@@ -2271,6 +2275,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         [property: JsonPropertyName("configDir")] string? ConfigDirectory,
         bool? EnableConfigDiscovery,
         bool? SkipEmbeddingRetrieval,
+        string? EmbeddingCacheStorage,
         string? OrganizationCustomInstructions,
         bool? EnableOnDemandInstructionDiscovery,
         bool? EnableFileHooks,

@@ -1914,6 +1914,16 @@ export interface SessionConfigBase {
     skipEmbeddingRetrieval?: boolean;
 
     /**
+     * Controls how the embedding cache is stored for this session.
+     * - `"persistent"`: Embeddings are cached on disk and shared across sessions/restarts.
+     * - `"in-memory"`: Embeddings are cached in memory only and discarded when the session ends.
+     *   Use this for multitenant/SDK deployments where sessions must not share cached embeddings.
+     * When omitted, `mode: "empty"` defaults this to `"in-memory"`; in other modes,
+     * the runtime default (`"persistent"`) applies.
+     */
+    embeddingCacheStorage?: "persistent" | "in-memory";
+
+    /**
      * Organization-level custom instructions to include in the system prompt.
      * Allows hosts to inject organization-specific guidance without relying on
      * filesystem-based instruction discovery. When omitted, no organization-level

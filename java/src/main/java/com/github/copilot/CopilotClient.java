@@ -512,6 +512,9 @@ public final class CopilotClient implements AutoCloseable {
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
                 request.setToolFilterPrecedence("excluded");
+                if (request.getEmbeddingCacheStorage() == null) {
+                    request.setEmbeddingCacheStorage("in-memory");
+                }
             }
 
             long rpcNanos = System.nanoTime();
@@ -626,6 +629,9 @@ public final class CopilotClient implements AutoCloseable {
                                     + "the tools it wants — e.g. setAvailableTools(new ToolSet().addBuiltIn(BuiltInTools.ISOLATED)).");
                 }
                 request.setToolFilterPrecedence("excluded");
+                if (request.getEmbeddingCacheStorage() == null) {
+                    request.setEmbeddingCacheStorage("in-memory");
+                }
             }
 
             long rpcNanos = System.nanoTime();

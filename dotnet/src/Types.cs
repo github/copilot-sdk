@@ -2388,6 +2388,7 @@ public abstract class SessionConfigBase
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
         SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
+        EmbeddingCacheStorage = other.EmbeddingCacheStorage;
         OrganizationCustomInstructions = other.OrganizationCustomInstructions;
         EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
         EnableFileHooks = other.EnableFileHooks;
@@ -2489,6 +2490,14 @@ public abstract class SessionConfigBase
     /// through the shared embedding cache.
     /// </summary>
     public bool? SkipEmbeddingRetrieval { get; set; }
+
+    /// <summary>
+    /// Controls how the embedding cache is stored for this session.
+    /// "persistent": Embeddings are cached on disk and shared across sessions/restarts.
+    /// "in-memory": Embeddings are cached in memory only and discarded when the session ends.
+    /// When null, mode "empty" defaults to "in-memory"; in other modes, the runtime default applies.
+    /// </summary>
+    public string? EmbeddingCacheStorage { get; set; }
 
     /// <summary>
     /// Organization-level custom instructions to include in the system prompt.

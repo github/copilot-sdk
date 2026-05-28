@@ -108,6 +108,10 @@ public final class ResumeSessionRequest {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean enableSkills;
 
+    @JsonProperty("embeddingCacheStorage")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String embeddingCacheStorage;
+
     @JsonProperty("disableResume")
     private Boolean disableResume;
 
@@ -505,6 +509,21 @@ public final class ResumeSessionRequest {
     /** Clears the enableSkills setting, reverting to the default behavior. */
     public void clearEnableSkills() {
         this.enableSkills = null;
+    }
+
+    /** Gets embedding cache storage mode. @return the mode */
+    public String getEmbeddingCacheStorage() {
+        return embeddingCacheStorage;
+    }
+
+    /** Sets embedding cache storage mode. @param embeddingCacheStorage the mode */
+    public void setEmbeddingCacheStorage(String embeddingCacheStorage) {
+        this.embeddingCacheStorage = embeddingCacheStorage;
+    }
+
+    /** Clears the embeddingCacheStorage setting, reverting to the default behavior. */
+    public void clearEmbeddingCacheStorage() {
+        this.embeddingCacheStorage = null;
     }
 
     /** Gets disable resume flag. @return the flag */

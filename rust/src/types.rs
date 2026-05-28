@@ -1186,6 +1186,9 @@ pub struct SessionConfig {
     pub enable_config_discovery: Option<bool>,
     /// When true, skips embedding retrieval for this session.
     pub skip_embedding_retrieval: Option<bool>,
+    /// Controls how the embedding cache is stored for this session.
+    /// `"persistent"` caches on disk; `"in-memory"` discards when session ends.
+    pub embedding_cache_storage: Option<String>,
     /// Organization-level custom instructions to apply to this session.
     pub organization_custom_instructions: Option<String>,
     /// When true, enables on-demand instruction discovery for this session.
@@ -1486,6 +1489,7 @@ impl Default for SessionConfig {
             enable_host_git_operations: None,
             enable_session_store: None,
             enable_skills: None,
+            embedding_cache_storage: None,
             enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,
@@ -2153,6 +2157,8 @@ pub struct ResumeSessionConfig {
     pub enable_config_discovery: Option<bool>,
     /// When true, skips embedding retrieval on resume.
     pub skip_embedding_retrieval: Option<bool>,
+    /// Controls how the embedding cache is stored for this session.
+    pub embedding_cache_storage: Option<String>,
     /// Organization-level custom instructions to apply on resume.
     pub organization_custom_instructions: Option<String>,
     /// When true, enables on-demand instruction discovery on resume.
@@ -2519,6 +2525,7 @@ impl ResumeSessionConfig {
             enable_host_git_operations: None,
             enable_session_store: None,
             enable_skills: None,
+            embedding_cache_storage: None,
             enable_mcp_apps: None,
             skill_directories: None,
             instruction_directories: None,

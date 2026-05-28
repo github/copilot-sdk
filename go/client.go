@@ -610,6 +610,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 		req.EnableConfigDiscovery = Bool(true)
 	}
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
+	req.EmbeddingCacheStorage = config.EmbeddingCacheStorage
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
 	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
 	req.EnableFileHooks = config.EnableFileHooks
@@ -959,6 +960,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 		req.EnableConfigDiscovery = Bool(true)
 	}
 	req.SkipEmbeddingRetrieval = config.SkipEmbeddingRetrieval
+	req.EmbeddingCacheStorage = config.EmbeddingCacheStorage
 	req.OrganizationCustomInstructions = config.OrganizationCustomInstructions
 	req.EnableOnDemandInstructionDiscovery = config.EnableOnDemandInstructionDiscovery
 	req.EnableFileHooks = config.EnableFileHooks
