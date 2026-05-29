@@ -66,10 +66,10 @@ runs:
           for file in ${{ inputs.report-path }}; do
             if [ -f "$file" ]; then
               CLASS=$(basename "$file" .xml | sed 's/TEST-//')
-              T=$(grep -o 'tests="[0-9]*"' "$file" | head -1 | sed 's/[^0-9]//g')
-              F=$(grep -o 'failures="[0-9]*"' "$file" | head -1 | sed 's/[^0-9]//g')
-              E=$(grep -o 'errors="[0-9]*"' "$file" | head -1 | sed 's/[^0-9]//g')
-              TIME=$(grep -o 'time="[0-9.]*"' "$file" | head -1 | sed 's/[^0-9.]//g')
+              T=$(grep -m 1 -o 'tests="[0-9]*"' "$file" | sed 's/[^0-9]//g')
+              F=$(grep -m 1 -o 'failures="[0-9]*"' "$file" | sed 's/[^0-9]//g')
+              E=$(grep -m 1 -o 'errors="[0-9]*"' "$file" | sed 's/[^0-9]//g')
+              TIME=$(grep -m 1 -o 'time="[0-9.]*"' "$file" | sed 's/[^0-9.]//g')
               P=$((T - F - E))
 
               STATUS="✅"
