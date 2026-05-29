@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Target version of @github/copilot (e.g. 0.0.420)'
+        description: "Target version of @github/copilot (e.g. 0.0.420)"
         required: true
         type: string
 
@@ -34,7 +34,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -86,6 +86,34 @@ jobs:
           cd ../dotnet && dotnet format src/GitHub.Copilot.SDK.csproj
           cd ../rust && cargo +nightly-2026-04-14 fmt --all -- --config-path .rustfmt.nightly.toml
 
+      - uses: actions/setup-java@v5
+        with:
+          java-version: "25"
+          distribution: "microsoft"
+
+      - name: Update @github/copilot in Java codegen
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./java/scripts/codegen
+        run: npm install "@github/copilot@$VERSION"
+
+      - name: Update Java POM CLI version property
+        env:
+          VERSION: ${{ inputs.version }}
+        working-directory: ./java
+        run: |
+          PROP="readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync"
+          sed -i -E "s|(<${PROP}>)[^<]*(</${PROP}>)|\1^${VERSION}\2|" pom.xml
+          grep -q "<${PROP}>^${VERSION}</${PROP}>" pom.xml
+
+      - name: Run Java codegen
+        working-directory: ./java
+        run: mvn generate-sources -Pcodegen
+
+      - name: Compile Java SDK (validate generated code)
+        working-directory: ./java
+        run: mvn compile -Pskip-test-harness
+
       - name: Create pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,20 +123,33 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Fetch the PR branch if it exists remotely (shallow clones may not have it)
+          git fetch origin "$BRANCH" 2>/dev/null || true
+
           if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
-            git fetch origin "$BRANCH"
+            # Stash uncommitted changes from earlier steps before switching branches
+            git stash --include-untracked
             git checkout "$BRANCH"
             git reset --hard "origin/$BRANCH"
+            # Re-apply the dependency/codegen changes on top of the PR branch
+            git stash pop || git checkout stash -- .
           else
             git checkout -b "$BRANCH"
           fi
 
-          git add -A
+          # Stage everything except java/.lastmerge so it doesn't create a
+          # spurious diff in the no-changes check below. The ':!...' pathspec
+          # (exclude magic) tells git to skip that one file.
+          git add -A -- ':!java/.lastmerge'
 
           if git diff --cached --quiet; then
             echo "No changes detected; skipping commit and PR creation."
             exit 0
           fi
+
+          # Record the sync point only when real changes exist
+          git rev-parse HEAD > java/.lastmerge
+          git add java/.lastmerge
 
           git commit -m "Update @github/copilot to $VERSION
 
@@ -116,6 +157,46 @@ jobs:
           - Re-ran code generators
           - Formatted generated code"
           git push origin "$BRANCH" --force-with-lease
+
+          PR_BODY=$(cat <<'BODY_EOF'
+          Automated update of `@github/copilot` to version `PLACEHOLDER_VERSION`.
+
+          ### Changes
+          - Updated `@github/copilot` in `nodejs/package.json` and `test/harness/package.json`
+          - Re-ran all code generators (`scripts/codegen`)
+          - Formatted generated output
+          - Updated Java codegen dependency, `.lastmerge`, POM property, and regenerated Java types
+
+          ### Java Handwritten Code Adaptation Plan
+
+          If `java-sdk-tests` CI fails on this PR, follow these steps:
+
+          1. **Identify failures**: Run `mvn clean`, `mvn verify` from `java/` locally or check the `java-sdk-tests` workflow run logs.
+          2. **Categorize errors**:
+             - Constructor signature changes (new fields added to generated records)
+             - Enum value additions/renames in generated types
+             - New event types requiring handler registration
+             - Removed or renamed generated types
+          3. **Fix handwritten source** (`java/src/main/java/com/github/copilot/sdk/`):
+             - Update call sites passing positional constructor args to include new fields (typically `null` for optional new fields).
+             - Update switch/if-else over enum values to handle new cases.
+             - Register handlers for new event types in `CopilotSession.java` if applicable.
+          4. **Fix handwritten tests** (`java/src/test/java/com/github/copilot/sdk/`):
+             - Same constructor/enum fixes as above.
+             - Add new test methods for new functionality if the change adds user-facing API surface.
+          5. **Validate**: `cd java && mvn clean test-compile jar:jar && mvn verify -Dskip.test.harness=true`
+          6. **Format**: `cd java && mvn spotless:apply`
+          7. Push fixes to this PR branch.
+
+          > To automate this, trigger the `java-adapt-handwritten-code-to-accept-upgrade-changes` agentic workflow instead.
+
+          ### Next steps
+          When ready, click **Ready for review** to trigger CI checks.
+
+          > Created by the **Update @github/copilot Dependency** workflow.
+          BODY_EOF
+          )
+          PR_BODY="${PR_BODY//PLACEHOLDER_VERSION/$VERSION}"
 
           PR_STATE="$(gh pr view "$BRANCH" --json state --jq '.state' 2>/dev/null || echo "")"
           if [ "$PR_STATE" = "OPEN" ]; then
@@ -129,17 +210,7 @@ jobs:
             gh pr create \
               --draft \
               --title "Update @github/copilot to $VERSION" \
-              --body "Automated update of \`@github/copilot\` to version \`$VERSION\`.
-
-          ### Changes
-          - Updated \`@github/copilot\` in \`nodejs/package.json\` and \`test/harness/package.json\`
-          - Re-ran all code generators (\`scripts/codegen\`)
-          - Formatted generated output
-
-          ### Next steps
-          When ready, click **Ready for review** to trigger CI checks.
-
-          > Created by the **Update @github/copilot Dependency** workflow." \
+              --body "$PR_BODY" \
               --base main \
               --head "$BRANCH"
           fi
