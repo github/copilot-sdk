@@ -69,7 +69,7 @@ public class CloneTests
             Model = "gpt-4",
             ReasoningEffort = "high",
             ReasoningSummary = ReasoningSummary.Detailed,
-            ContextTier = "long_context",
+            ContextTier = ContextTier.LongContext,
             ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
@@ -386,7 +386,7 @@ public class CloneTests
     {
         var original = new ResumeSessionConfig
         {
-            ContextTier = "long_context",
+            ContextTier = ContextTier.LongContext,
         };
 
         var clone = original.Clone();

@@ -859,6 +859,16 @@ type LargeToolOutputConfig struct {
 	OutputDirectory string `json:"outputDir,omitempty"`
 }
 
+// ContextTier identifies a context window tier for models that support tiered context windows.
+type ContextTier string
+
+const (
+	// ContextTierDefault is the default context tier with standard context window size.
+	ContextTierDefault ContextTier = "default"
+	// ContextTierLongContext is the extended context tier with a larger context window.
+	ContextTierLongContext ContextTier = "long_context"
+)
+
 // SessionFsCapabilities declares optional provider capabilities.
 type SessionFsCapabilities struct {
 	// Sqlite indicates whether the provider supports SQLite query/exists operations.
@@ -895,8 +905,8 @@ type SessionConfig struct {
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
 	ReasoningSummary ReasoningSummary
 	// ContextTier pins the session to a context window tier for models that support it.
-	// Valid values: "default", "long_context".
-	ContextTier string
+	// Use ContextTierDefault or ContextTierLongContext for the currently known tiers.
+	ContextTier ContextTier
 	// ConfigDirectory overrides the default configuration directory location.
 	// When specified, the session will use this directory for storing config and state.
 	ConfigDirectory string
@@ -1298,8 +1308,8 @@ type ResumeSessionConfig struct {
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
 	ReasoningSummary ReasoningSummary
 	// ContextTier pins the session to a context window tier for models that support it.
-	// Valid values: "default", "long_context".
-	ContextTier string
+	// Use ContextTierDefault or ContextTierLongContext for the currently known tiers.
+	ContextTier ContextTier
 	// OnPermissionRequest is an optional handler for permission requests from the server.
 	// When nil, permission requests are surfaced as events and left pending for the
 	// consumer to resolve via pending permission RPCs.
@@ -1660,7 +1670,7 @@ type createSessionRequest struct {
 	ClientName                         string                                 `json:"clientName,omitempty"`
 	ReasoningEffort                    string                                 `json:"reasoningEffort,omitempty"`
 	ReasoningSummary                   ReasoningSummary                       `json:"reasoningSummary,omitempty"`
-	ContextTier                        string                                 `json:"contextTier,omitempty"`
+	ContextTier                        ContextTier                            `json:"contextTier,omitempty"`
 	Tools                              []Tool                                 `json:"tools,omitempty"`
 	SystemMessage                      *SystemMessageConfig                   `json:"systemMessage,omitempty"`
 	AvailableTools                     []string                               `json:"availableTools"`
@@ -1738,7 +1748,7 @@ type resumeSessionRequest struct {
 	Model                              string                                 `json:"model,omitempty"`
 	ReasoningEffort                    string                                 `json:"reasoningEffort,omitempty"`
 	ReasoningSummary                   ReasoningSummary                       `json:"reasoningSummary,omitempty"`
-	ContextTier                        string                                 `json:"contextTier,omitempty"`
+	ContextTier                        ContextTier                            `json:"contextTier,omitempty"`
 	Tools                              []Tool                                 `json:"tools,omitempty"`
 	SystemMessage                      *SystemMessageConfig                   `json:"systemMessage,omitempty"`
 	AvailableTools                     []string                               `json:"availableTools"`
