@@ -8,7 +8,7 @@ set -euo pipefail
 
 CSV="${1:-target/site/jacoco-coverage/jacoco.csv}"
 BADGES_DIR="${2:-.github/badges}"
-GENERATED_PREFIX="com.github.copilot.sdk.generated"
+GENERATED_PREFIX="com.github.copilot.generated"
 
 if [ ! -f "$CSV" ]; then
   echo "⚠️ No JaCoCo CSV report found at $CSV"
@@ -89,19 +89,15 @@ EOF
 
 mkdir -p "$BADGES_DIR"
 
-read -r overall_missed overall_covered <<< "$(calc_totals overall)"
 read -r handwritten_missed handwritten_covered <<< "$(calc_totals handwritten)"
 read -r generated_missed generated_covered <<< "$(calc_totals generated)"
 
-overall_pct=$(format_pct "$overall_missed" "$overall_covered")
 handwritten_pct=$(format_pct "$handwritten_missed" "$handwritten_covered")
 generated_pct=$(format_pct "$generated_missed" "$generated_covered")
 
-echo "Overall coverage: ${overall_pct}%"
 echo "Handwritten coverage: ${handwritten_pct}%"
 echo "Generated coverage: ${generated_pct}%"
 
-generate_badge "coverage" "${overall_pct}%" "${BADGES_DIR}/jacoco.svg"
 generate_badge "coverage handwritten" "${handwritten_pct}%" "${BADGES_DIR}/jacoco-handwritten.svg"
 generate_badge "coverage generated" "${generated_pct}%" "${BADGES_DIR}/jacoco-generated.svg"
 
