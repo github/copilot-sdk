@@ -5496,6 +5496,9 @@ pub struct PermissionsResetSessionApprovalsResult {
 pub struct PermissionsSetAllowAllRequest {
     /// Whether to enable full allow-all permissions
     pub enabled: bool,
+    /// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<PermissionsSetAllowAllSource>,
 }
 
 /// Allow-all toggle for tool permission requests, with an optional telemetry source.
@@ -14448,6 +14451,34 @@ pub enum PermissionsModifyRulesScope {
     /// Persist the rule change for this project location.
     #[serde(rename = "location")]
     Location,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
+}
+
+/// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PermissionsSetAllowAllSource {
+    /// Allow-all was enabled from a CLI command-line flag.
+    #[serde(rename = "cli_flag")]
+    CliFlag,
+    /// Allow-all was enabled by a slash command.
+    #[serde(rename = "slash_command")]
+    SlashCommand,
+    /// Allow-all was enabled by confirming autopilot behavior.
+    #[serde(rename = "autopilot_confirmation")]
+    AutopilotConfirmation,
+    /// Allow-all was enabled through an RPC caller.
+    #[serde(rename = "rpc")]
+    Rpc,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]
