@@ -319,7 +319,7 @@ export interface CopilotClientOptions {
      *
      * In an Electron main process, `process.execPath` resolves to the Electron
      * binary, not Node, which breaks the spawn. Set this to a real `node`
-     * binary path (e.g. from `process.env.ELECTRON_APP_BUNDLED_NODE_PATH` or a
+     * binary path (e.g. from `process.env.MY_APP_NODE_PATH` or a
      * fixed path shipped with the app) to bypass the issue entirely.
      *
      * When omitted and the SDK detects an Electron host
