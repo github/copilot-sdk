@@ -1783,7 +1783,7 @@ pub struct CopilotApiTokenAuthInfo {
     pub r#type: CopilotApiTokenAuthInfoType,
 }
 
-/// The currently selected model and reasoning effort for the session.
+/// The currently selected model, reasoning effort, and context tier for the session.
 ///
 /// <div class="warning">
 ///
@@ -1794,6 +1794,9 @@ pub struct CopilotApiTokenAuthInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentModel {
+    /// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ModelCurrentContextTier>,
     /// Currently active model identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -10101,7 +10104,7 @@ pub struct SessionModelGetCurrentParams {
     pub session_id: SessionId,
 }
 
-/// The currently selected model and reasoning effort for the session.
+/// The currently selected model, reasoning effort, and context tier for the session.
 ///
 /// <div class="warning">
 ///
@@ -10112,6 +10115,9 @@ pub struct SessionModelGetCurrentParams {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionModelGetCurrentResult {
+    /// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<ModelCurrentContextTier>,
     /// Currently active model identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -13147,6 +13153,28 @@ pub enum CopilotApiTokenAuthInfoType {
     #[serde(rename = "copilot-api-token")]
     #[default]
     CopilotApiToken,
+}
+
+/// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModelCurrentContextTier {
+    /// Use the model's default context window.
+    #[serde(rename = "default")]
+    Default,
+    /// Pin the session to the long-context tier when supported.
+    #[serde(rename = "long_context")]
+    LongContext,
+    /// Unknown variant for forward compatibility.
+    #[default]
+    #[serde(other)]
+    Unknown,
 }
 
 /// Server transport type: stdio, http, sse (deprecated), or memory

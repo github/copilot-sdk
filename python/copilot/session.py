@@ -91,6 +91,7 @@ SessionEventTypeAlias = SessionEvent
 
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
 ReasoningSummary = Literal["none", "concise", "detailed"]
+ContextTier = Literal["default", "long_context"]
 SessionFsConventions = Literal["posix", "windows"]
 
 

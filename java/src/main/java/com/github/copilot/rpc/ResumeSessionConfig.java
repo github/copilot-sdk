@@ -52,6 +52,7 @@ public class ResumeSessionConfig {
     private Boolean manageScheduleEnabled;
     private String reasoningEffort;
     private String reasoningSummary;
+    private String contextTier;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
@@ -501,6 +502,29 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
+        return this;
+    }
+
+    /**
+     * Gets the context window tier.
+     *
+     * @return the context window tier ("default" or "long_context")
+     */
+    public String getContextTier() {
+        return contextTier;
+    }
+
+    /**
+     * Sets the context window tier to apply on resume for models that support it.
+     * Use {@code "long_context"} to pin the session to the long-context tier; omit
+     * or use {@code "default"} otherwise.
+     *
+     * @param contextTier
+     *            the context window tier
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setContextTier(String contextTier) {
+        this.contextTier = contextTier;
         return this;
     }
 
@@ -1505,6 +1529,7 @@ public class ResumeSessionConfig {
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
+        copy.contextTier = this.contextTier;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;

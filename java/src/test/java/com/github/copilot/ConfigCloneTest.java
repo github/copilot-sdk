@@ -116,6 +116,7 @@ class ConfigCloneTest {
         original.setClientName("my-app");
         original.setModel("gpt-4o");
         original.setReasoningSummary("detailed");
+        original.setContextTier("long_context");
         original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
@@ -127,6 +128,7 @@ class ConfigCloneTest {
         assertEquals(original.getClientName(), cloned.getClientName());
         assertEquals(original.getModel(), cloned.getModel());
         assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
+        assertEquals(original.getContextTier(), cloned.getContextTier());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.isStreaming(), cloned.isStreaming());
@@ -171,6 +173,7 @@ class ConfigCloneTest {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setModel("o1");
         original.setReasoningSummary("none");
+        original.setContextTier("long_context");
         original.setPluginDirectories(List.of("/plugins/r"));
         original.setLargeOutput(
                 new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L).setOutputDirectory("/tmp/resume"));
@@ -180,6 +183,7 @@ class ConfigCloneTest {
 
         assertEquals(original.getModel(), cloned.getModel());
         assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
+        assertEquals(original.getContextTier(), cloned.getContextTier());
         assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
         assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.isStreaming(), cloned.isStreaming());

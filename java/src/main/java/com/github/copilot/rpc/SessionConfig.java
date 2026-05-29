@@ -43,6 +43,7 @@ public class SessionConfig {
     private String model;
     private String reasoningEffort;
     private String reasoningSummary;
+    private String contextTier;
     private List<ToolDefinition> tools;
     private SystemMessageConfig systemMessage;
     private List<String> availableTools;
@@ -204,6 +205,29 @@ public class SessionConfig {
      */
     public SessionConfig setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
+        return this;
+    }
+
+    /**
+     * Gets the context window tier.
+     *
+     * @return the context window tier ("default" or "long_context")
+     */
+    public String getContextTier() {
+        return contextTier;
+    }
+
+    /**
+     * Sets the context window tier for models that support it. Use
+     * {@code "long_context"} to pin the session to the long-context tier; omit or
+     * use {@code "default"} otherwise.
+     *
+     * @param contextTier
+     *            the context window tier
+     * @return this config instance for method chaining
+     */
+    public SessionConfig setContextTier(String contextTier) {
+        this.contextTier = contextTier;
         return this;
     }
 
@@ -1619,6 +1643,7 @@ public class SessionConfig {
         copy.model = this.model;
         copy.reasoningEffort = this.reasoningEffort;
         copy.reasoningSummary = this.reasoningSummary;
+        copy.contextTier = this.contextTier;
         copy.tools = this.tools != null ? new ArrayList<>(this.tools) : null;
         copy.systemMessage = this.systemMessage;
         copy.availableTools = this.availableTools != null ? new ArrayList<>(this.availableTools) : null;

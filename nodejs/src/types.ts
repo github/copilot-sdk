@@ -1541,6 +1541,12 @@ export interface LargeToolOutputConfig {
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 /**
+ * Context window tier for the session. "long_context" pins the session to the
+ * long-context tier when the selected model supports it.
+ */
+export type ContextTier = "default" | "long_context";
+
+/**
  * Stable extension identity for session participants that provide canvases.
  */
 export interface ExtensionInfo {
@@ -1579,6 +1585,12 @@ export interface SessionConfigBase {
      * Use "none" to suppress summary output regardless of whether reasoning is enabled.
      */
     reasoningSummary?: ReasoningSummary;
+
+    /**
+     * Context window tier for models that support it. Use "long_context" to pin
+     * the session to the long-context tier; omit or use "default" otherwise.
+     */
+    contextTier?: ContextTier;
 
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;

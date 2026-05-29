@@ -2485,10 +2485,14 @@ internal sealed class CanvasActionInvokeRequest
     public string SessionId { get; set; } = string.Empty;
 }
 
-/// <summary>The currently selected model and reasoning effort for the session.</summary>
+/// <summary>The currently selected model, reasoning effort, and context tier for the session.</summary>
 [Experimental(Diagnostics.Experimental)]
 public sealed class CurrentModel
 {
+    /// <summary>Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
+    [JsonPropertyName("contextTier")]
+    public ModelCurrentContextTier? ContextTier { get; set; }
+
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
     public string? ModelId { get; set; }
@@ -9737,6 +9741,69 @@ public readonly struct CanvasInstanceAvailability : IEquatable<CanvasInstanceAva
 }
 
 
+/// <summary>Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelCurrentContextTier : IEquatable<ModelCurrentContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelCurrentContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelCurrentContextTier"/>.</param>
+    [JsonConstructor]
+    public ModelCurrentContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelCurrentContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Use the model's default context window.</summary>
+    public static ModelCurrentContextTier Default { get; } = new("default");
+
+    /// <summary>Pin the session to the long-context tier when supported.</summary>
+    public static ModelCurrentContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCurrentContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelCurrentContextTier left, ModelCurrentContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelCurrentContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelCurrentContextTier left, ModelCurrentContextTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelCurrentContextTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelCurrentContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelCurrentContextTier}"/> for serializing <see cref="ModelCurrentContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelCurrentContextTier>
+    {
+        /// <inheritdoc />
+        public override ModelCurrentContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelCurrentContextTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCurrentContextTier));
+        }
+    }
+}
+
+
 /// <summary>Defines the allowed values.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
@@ -13833,7 +13900,7 @@ public sealed class ModelApi
 
     /// <summary>Gets the currently selected model for the session.</summary>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
-    /// <returns>The currently selected model and reasoning effort for the session.</returns>
+    /// <returns>The currently selected model, reasoning effort, and context tier for the session.</returns>
     public async Task<CurrentModel> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();

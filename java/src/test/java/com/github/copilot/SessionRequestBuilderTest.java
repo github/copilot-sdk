@@ -99,6 +99,13 @@ public class SessionRequestBuilderTest {
     }
 
     @Test
+    void testBuildCreateRequestSetsContextTier() {
+        var config = new SessionConfig().setContextTier("long_context");
+        CreateSessionRequest request = SessionRequestBuilder.buildCreateRequest(config);
+        assertEquals("long_context", request.getContextTier());
+    }
+
+    @Test
     void testBuildCreateRequestSetsPluginDirectoriesAndLargeOutput() {
         var largeOutput = new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L)
                 .setOutputDirectory("/tmp/out");
@@ -311,6 +318,13 @@ public class SessionRequestBuilderTest {
         var config = new ResumeSessionConfig().setReasoningSummary("none");
         ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
         assertEquals("none", request.getReasoningSummary());
+    }
+
+    @Test
+    void testBuildResumeRequestSetsContextTier() {
+        var config = new ResumeSessionConfig().setContextTier("default");
+        ResumeSessionRequest request = SessionRequestBuilder.buildResumeRequest("sid-15", config);
+        assertEquals("default", request.getContextTier());
     }
 
     @Test
