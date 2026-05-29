@@ -197,6 +197,31 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeContextTier_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("ContextTier", ContextTier.LongContext));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.Equal("long_context", createDocument.RootElement.GetProperty("contextTier").GetString());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("ContextTier", ContextTier.Default));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.Equal("default", resumeDocument.RootElement.GetProperty("contextTier").GetString());
+    }
+
+    [Fact]
     public void SessionRequests_CanSerializePluginDirectoriesAndLargeOutput_WithSdkOptions()
     {
         var options = GetSerializerOptions();

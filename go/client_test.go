@@ -436,7 +436,7 @@ func TestSessionRequests_ReasoningSummary(t *testing.T) {
 
 func TestSessionRequests_ContextTier(t *testing.T) {
 	t.Run("create includes contextTier in JSON when set", func(t *testing.T) {
-		req := createSessionRequest{ContextTier: "long_context"}
+		req := createSessionRequest{ContextTier: ContextTierLongContext}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)
@@ -451,7 +451,7 @@ func TestSessionRequests_ContextTier(t *testing.T) {
 	})
 
 	t.Run("resume includes contextTier in JSON when set", func(t *testing.T) {
-		req := resumeSessionRequest{SessionID: "s1", ContextTier: "default"}
+		req := resumeSessionRequest{SessionID: "s1", ContextTier: ContextTierDefault}
 		data, err := json.Marshal(req)
 		if err != nil {
 			t.Fatalf("Failed to marshal: %v", err)

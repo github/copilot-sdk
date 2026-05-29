@@ -2391,6 +2391,65 @@ public sealed class CloudSessionOptions
 }
 
 /// <summary>
+/// Context window tier for models that support tiered context windows.
+/// </summary>
+[JsonConverter(typeof(ContextTier.Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ContextTier : IEquatable<ContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ContextTier"/>.</param>
+    [JsonConstructor]
+    public ContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Default context tier with standard context window size.</summary>
+    public static ContextTier Default { get; } = new("default");
+
+    /// <summary>Extended context tier with a larger context window.</summary>
+    public static ContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="ContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(ContextTier left, ContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(ContextTier left, ContextTier right) => !left.Equals(right);
+
+    /// <inheritdoc/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is ContextTier other && Equals(other);
+
+    /// <inheritdoc/>
+    public bool Equals(ContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ContextTier}"/> for serializing <see cref="ContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ContextTier>
+    {
+        /// <inheritdoc/>
+        public override ContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, ContextTier value, JsonSerializerOptions options) =>
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ContextTier));
+    }
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -2497,9 +2556,10 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Context window tier for models that support it.
-    /// Valid values: "default", "long_context".
+    /// Use <see cref="ContextTier.Default"/> or <see cref="ContextTier.LongContext"/>
+    /// for the currently known tiers.
     /// </summary>
-    public string? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
