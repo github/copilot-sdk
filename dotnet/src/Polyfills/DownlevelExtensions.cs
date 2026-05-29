@@ -614,4 +614,35 @@ namespace System.Threading.Tasks
             public static ValueTask<T> FromResult<T>(T result) => new(result);
         }
     }
+
+    internal static class DownlevelTaskExtensions
+    {
+        extension(Task task)
+        {
+            public async Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using var delayCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var completed = await Task.WhenAny(task, Task.Delay(timeout, delayCts.Token)).ConfigureAwait(false);
+                if (!ReferenceEquals(completed, task))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    throw new TimeoutException();
+                }
+
+                delayCts.Cancel();
+                await task.ConfigureAwait(false);
+            }
+        }
+
+        extension<T>(Task<T> task)
+        {
+            public async Task<T> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+            {
+                await ((Task)task).WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+                return await task.ConfigureAwait(false);
+            }
+        }
+    }
 }

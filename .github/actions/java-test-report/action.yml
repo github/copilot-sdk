@@ -4,7 +4,7 @@ inputs:
   report-path:
     description: "Path to the test report XML files (glob pattern)"
     required: false
-    default: "java/target/surefire-reports*/TEST-*.xml"
+    default: "java/target/{surefire-reports*,failsafe-reports}/TEST-*.xml"
   jacoco-path:
     description: "Path to the JaCoCo XML report"
     required: false
@@ -17,13 +17,17 @@ inputs:
     description: "Name for the check run"
     required: false
     default: "Java SDK Test Results"
+  title:
+    description: "Title for the test report summary"
+    required: false
+    default: "Copilot Java SDK :: Test Results"
 runs:
   using: "composite"
   steps:
     - name: Generate Test Summary
       shell: bash
       run: |
-        echo "## 🧪 Copilot Java SDK :: Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "## 🧪 ${{ inputs.title }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if ls ${{ inputs.report-path }} 1>/dev/null 2>&1; then
@@ -148,7 +152,7 @@ runs:
           if [ -f "$JACOCO_CSV" ]; then
             extract_instruction_scope() {
               local scope=$1
-              awk -F',' -v scope="$scope" -v generated_prefix="com.github.copilot.sdk.generated" '
+              awk -F',' -v scope="$scope" -v generated_prefix="com.github.copilot.generated" '
                 NR > 1 {
                   is_generated = index($2, generated_prefix) == 1
                   if ((scope == "generated" && is_generated) ||

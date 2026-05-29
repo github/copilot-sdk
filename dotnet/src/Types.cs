@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace GitHub.Copilot;
@@ -207,6 +208,48 @@ public sealed class UriRuntimeConnection : RuntimeConnection
 }
 
 /// <summary>
+/// Selects the defaulting strategy used by <see cref="CopilotClient"/>.
+/// </summary>
+public enum CopilotClientMode
+{
+    /// <summary>
+    /// Disables optional features by default. The app must explicitly opt into
+    /// anything it needs. Required for any scenario where CLI-like ambient
+    /// behavior is unsafe (e.g., multi-user servers).
+    /// <para>
+    /// When this mode is selected:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>The client constructor requires
+    ///     <see cref="CopilotClientOptions.BaseDirectory"/> or
+    ///     <see cref="CopilotClientOptions.SessionFs"/> to be set.</item>
+    /// <item><see cref="SessionConfigBase.AvailableTools"/> must be supplied on
+    ///     every session — no tools are exposed by default.</item>
+    /// <item><c>session.create</c> always sets
+    ///     <c>toolFilterPrecedence: "excluded"</c> so the allowlist and denylist
+    ///     compose naturally.</item>
+    /// <item>The SDK injects safe defaults for ambient session features
+    ///     (telemetry, custom instructions, plugins, environment context, etc.).</item>
+    /// <item><c>COPILOT_DISABLE_KEYTAR=1</c> is set on the spawned runtime so
+    ///     credentials are persisted to <c>COPILOT_HOME</c> rather than a
+    ///     process-wide system keychain.</item>
+    /// </list>
+    /// </summary>
+    Empty,
+
+    /// <summary>
+    /// Uses defaults equivalent to GitHub Copilot CLI. The default. Useful when
+    /// building a coding agent that shares sessions with Copilot CLI.
+    /// <para>
+    /// <b>Do not use this mode for server-based multi-user applications</b> —
+    /// the default coding agent has tools and capabilities that operate across
+    /// sessions and can access the host OS environment.
+    /// </para>
+    /// </summary>
+    CopilotCli,
+}
+
+/// <summary>
 /// Configuration options for creating a <see cref="CopilotClient"/> instance.
 /// </summary>
 public sealed class CopilotClientOptions
@@ -237,7 +280,22 @@ public sealed class CopilotClientOptions
         SessionFs = other.SessionFs;
         SessionIdleTimeoutSeconds = other.SessionIdleTimeoutSeconds;
         EnableRemoteSessions = other.EnableRemoteSessions;
+        Mode = other.Mode;
     }
+
+    /// <summary>
+    /// Selects the SDK defaulting strategy. See <see cref="CopilotClientMode"/>.
+    /// </summary>
+    /// <remarks>
+    /// When set to <see cref="CopilotClientMode.Empty"/>, the SDK validates that
+    /// the app has supplied the required configuration
+    /// (<see cref="BaseDirectory"/> or <see cref="SessionFs"/>, plus
+    /// <see cref="SessionConfigBase.AvailableTools"/> on each session) and
+    /// translates session creation requests into runtime options that flip
+    /// tool filter precedence to <c>excluded</c>-wins so exclusions are
+    /// expressible.
+    /// </remarks>
+    public CopilotClientMode Mode { get; set; } = CopilotClientMode.CopilotCli;
 
     /// <summary>
     /// How to connect to the runtime. When <c>null</c>, the default is
@@ -1072,6 +1130,16 @@ public sealed class SessionUiCapabilities
     /// Whether the host supports interactive elicitation dialogs.
     /// </summary>
     public bool? Elicitation { get; set; }
+
+    /// <summary>
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
+    /// to <c>true</c> on create/resume <b>and</b> the runtime's <c>MCP_APPS</c> feature flag
+    /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
+    /// <c>false</c>, indicating the runtime silently dropped the opt-in.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? McpApps { get; set; }
 }
 
 // ============================================================================
@@ -1712,6 +1780,29 @@ public enum SystemMessageMode
 }
 
 /// <summary>
+/// The UI mode the agent is in for a given turn.
+/// </summary>
+/// <remarks>
+/// Set on <see cref="MessageOptions.AgentMode"/> to send a message in a specific mode; defaults to the session's current mode.
+/// </remarks>
+[JsonConverter(typeof(JsonStringEnumConverter<AgentMode>))]
+public enum AgentMode
+{
+    /// <summary>The agent is responding interactively to the user.</summary>
+    [JsonStringEnumMemberName("interactive")]
+    Interactive,
+    /// <summary>The agent is preparing a plan before making changes.</summary>
+    [JsonStringEnumMemberName("plan")]
+    Plan,
+    /// <summary>The agent is working autonomously toward task completion.</summary>
+    [JsonStringEnumMemberName("autopilot")]
+    Autopilot,
+    /// <summary>The agent is in shell-focused UI mode.</summary>
+    [JsonStringEnumMemberName("shell")]
+    Shell
+}
+
+/// <summary>
 /// Specifies the operation to perform on a system message section.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SectionOverrideAction>))]
@@ -1991,6 +2082,36 @@ public enum McpHttpServerConfigOauthGrantType
 }
 
 /// <summary>
+/// Controls how MCP OAuth tokens are stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpOAuthTokenStorageMode>))]
+public enum McpOAuthTokenStorageMode
+{
+    /// <summary>Tokens are stored in the OS keychain, shared across sessions.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Tokens are stored in memory and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
+/// Controls how the embedding cache is stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<EmbeddingCacheStorageMode>))]
+public enum EmbeddingCacheStorageMode
+{
+    /// <summary>Embeddings are cached on disk, shared across sessions and restarts.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Embeddings are cached in memory only and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
 /// Abstract base class for MCP server configurations.
 /// </summary>
 [JsonPolymorphic(
@@ -2213,6 +2334,37 @@ public sealed class InfiniteSessionConfig
 }
 
 /// <summary>
+/// Configuration for handling large tool outputs.
+/// </summary>
+/// <remarks>
+/// When a tool produces output exceeding the configured size, the output is
+/// written to a temp file and a reference is returned to the model instead of
+/// returning to it the full payload.
+/// </remarks>
+public sealed class LargeToolOutputConfig
+{
+    /// <summary>
+    /// Whether large output handling is enabled.
+    /// </summary>
+    /// <remarks>The default value is <see langword="true"/>.</remarks>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// Maximum size in bytes before output is written to a temp file.
+    /// </summary>
+    [JsonPropertyName("maxSizeBytes")]
+    public long? MaxSizeBytes { get; set; }
+
+    /// <summary>
+    /// Directory to write temp files to.
+    /// </summary>
+    /// <remarks>The default value is the OS temp directory.</remarks>
+    [JsonPropertyName("outputDir")]
+    public string? OutputDirectory { get; set; }
+}
+
+/// <summary>
 /// GitHub repository metadata to associate with a cloud session.
 /// </summary>
 public sealed class CloudSessionRepository
@@ -2239,6 +2391,65 @@ public sealed class CloudSessionOptions
 }
 
 /// <summary>
+/// Context window tier for models that support tiered context windows.
+/// </summary>
+[JsonConverter(typeof(ContextTier.Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ContextTier : IEquatable<ContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ContextTier"/>.</param>
+    [JsonConstructor]
+    public ContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Default context tier with standard context window size.</summary>
+    public static ContextTier Default { get; } = new("default");
+
+    /// <summary>Extended context tier with a larger context window.</summary>
+    public static ContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="ContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(ContextTier left, ContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(ContextTier left, ContextTier right) => !left.Equals(right);
+
+    /// <inheritdoc/>
+    public override bool Equals([NotNullWhen(true)] object? obj) => obj is ContextTier other && Equals(other);
+
+    /// <inheritdoc/>
+    public bool Equals(ContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc/>
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ContextTier}"/> for serializing <see cref="ContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ContextTier>
+    {
+        /// <inheritdoc/>
+        public override ContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+
+        /// <inheritdoc/>
+        public override void Write(Utf8JsonWriter writer, ContextTier value, JsonSerializerOptions options) =>
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ContextTier));
+    }
+}
+
+/// <summary>
 /// Shared configuration properties for creating or resuming a Copilot session.
 /// Use <see cref="SessionConfig"/> when creating a new session, or
 /// <see cref="ResumeSessionConfig"/> when resuming an existing one.
@@ -2259,20 +2470,31 @@ public abstract class SessionConfigBase
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
         ClientName = other.ClientName;
         Commands = other.Commands is not null ? [.. other.Commands] : null;
-        ConfigDir = other.ConfigDir;
+        ConfigDirectory = other.ConfigDirectory;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
+        EmbeddingCacheStorage = other.EmbeddingCacheStorage;
+        OrganizationCustomInstructions = other.OrganizationCustomInstructions;
+        EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
+        EnableFileHooks = other.EnableFileHooks;
+        EnableHostGitOperations = other.EnableHostGitOperations;
+        EnableSessionStore = other.EnableSessionStore;
+        EnableSkills = other.EnableSkills;
+        EnableMcpApps = other.EnableMcpApps;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
+        LargeOutput = other.LargeOutput;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
+        McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
@@ -2283,7 +2505,13 @@ public abstract class SessionConfigBase
         OnUserInputRequest = other.OnUserInputRequest;
         Provider = other.Provider;
         EnableSessionTelemetry = other.EnableSessionTelemetry;
+        SkipCustomInstructions = other.SkipCustomInstructions;
+        CustomAgentsLocalOnly = other.CustomAgentsLocalOnly;
+        CoauthorEnabled = other.CoauthorEnabled;
+        ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
+        ReasoningSummary = other.ReasoningSummary;
+        ContextTier = other.ContextTier;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
@@ -2291,10 +2519,12 @@ public abstract class SessionConfigBase
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
         RequestExtensions = other.RequestExtensions;
+        ExtensionSdkPath = other.ExtensionSdkPath;
         ExtensionInfo = other.ExtensionInfo;
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
@@ -2316,6 +2546,21 @@ public abstract class SessionConfigBase
     /// </summary>
     public string? ReasoningEffort { get; set; }
 
+    /// <summary>
+    /// Reasoning summary mode for models that support configurable reasoning summaries.
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="ReasoningSummary.None"/> to suppress summary output regardless of whether reasoning is enabled.
+    /// </remarks>
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>
+    /// Context window tier for models that support it.
+    /// Use <see cref="ContextTier.Default"/> or <see cref="ContextTier.LongContext"/>
+    /// for the currently known tiers.
+    /// </summary>
+    public ContextTier? ContextTier { get; set; }
+
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
@@ -2323,7 +2568,7 @@ public abstract class SessionConfigBase
     /// Override the default configuration directory location.
     /// When specified, the session will use this directory for storing config and state.
     /// </summary>
-    public string? ConfigDir { get; set; }
+    public string? ConfigDirectory { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, automatically discovers MCP server configurations
@@ -2337,6 +2582,63 @@ public abstract class SessionConfigBase
     /// </para>
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, skips embedding-based retrieval for this session.
+    /// Use in multitenant deployments to prevent cross-session information leakage
+    /// through the shared embedding cache.
+    /// </summary>
+    public bool? SkipEmbeddingRetrieval { get; set; }
+
+    /// <summary>
+    /// Controls how the embedding cache is stored for this session.
+    /// <see cref="EmbeddingCacheStorageMode.Persistent"/>: Embeddings are cached on disk and shared across sessions/restarts.
+    /// <see cref="EmbeddingCacheStorageMode.InMemory"/>: Embeddings are cached in memory only and discarded when the session ends.
+    /// </summary>
+    public EmbeddingCacheStorageMode? EmbeddingCacheStorage { get; set; }
+
+    /// <summary>
+    /// Organization-level custom instructions to include in the system prompt.
+    /// Allows hosts to inject organization-specific guidance without relying on
+    /// filesystem-based instruction discovery.
+    /// </summary>
+    public string? OrganizationCustomInstructions { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables on-demand discovery of instruction files
+    /// (for example <c>AGENTS.md</c> and <c>.github/copilot-instructions.md</c>)
+    /// after successful file views.
+    /// </summary>
+    public bool? EnableOnDemandInstructionDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables loading of file-based hooks from
+    /// <c>.github/hooks/</c>. This is separate from <see cref="Hooks"/>, which
+    /// controls SDK hook callback registration.
+    /// </summary>
+    public bool? EnableFileHooks { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables git operations on the host filesystem
+    /// such as branch detection, file status, and commit history. When
+    /// <see langword="false"/>, no git context is surfaced in the system prompt.
+    /// </summary>
+    public bool? EnableHostGitOperations { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables the cross-session store for search and
+    /// retrieval across sessions. When <see langword="false"/>, session content is
+    /// not written to or read from the shared session store.
+    /// </summary>
+    public bool? EnableSessionStore { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables skill loading, including built-in
+    /// skills and discovered skill directories. When <see langword="false"/>, no
+    /// skills are loaded regardless of <see cref="SkillDirectories"/> or
+    /// <see cref="EnableConfigDiscovery"/>.
+    /// </summary>
+    public bool? EnableSkills { get; set; }
 
     /// <summary>
     /// Custom tool declarations available to the language model during the session.
@@ -2368,6 +2670,42 @@ public abstract class SessionConfigBase
     /// </summary>
     public bool? EnableSessionTelemetry { get; set; }
 
+    /// <summary>
+    /// When <see langword="true"/>, suppresses loading of custom instruction files
+    /// (e.g. <c>.github/copilot-instructions.md</c>, <c>AGENTS.md</c>) from the working directory.
+    /// When <see langword="null"/>, the SDK chooses based on
+    /// <see cref="CopilotClientOptions.Mode"/>: <c>true</c> under
+    /// <see cref="CopilotClientMode.Empty"/> (instructions are not loaded
+    /// unless the app explicitly opts in), <c>null</c> otherwise.
+    /// </summary>
+    public bool? SkipCustomInstructions { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, custom-agent discovery is restricted to the
+    /// session's local working directory (no organisation-level discovery).
+    /// When <see langword="null"/>, the SDK chooses based on
+    /// <see cref="CopilotClientOptions.Mode"/>: <c>true</c> under
+    /// <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
+    /// </summary>
+    public bool? CustomAgentsLocalOnly { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, allows the runtime to append a
+    /// <c>Co-authored-by</c> trailer when it commits on behalf of the user.
+    /// When <see langword="null"/>, the SDK chooses based on
+    /// <see cref="CopilotClientOptions.Mode"/>: <c>false</c> under
+    /// <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
+    /// </summary>
+    public bool? CoauthorEnabled { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables the <c>manage_schedule</c> tool
+    /// (host scheduler integration). When <see langword="null"/>, the SDK
+    /// chooses based on <see cref="CopilotClientOptions.Mode"/>: <c>false</c>
+    /// under <see cref="CopilotClientMode.Empty"/>, <c>null</c> otherwise.
+    /// </summary>
+    public bool? ManageScheduleEnabled { get; set; }
+
     /// <summary>Handler for permission requests from the server.</summary>
     public Func<PermissionRequest, PermissionInvocation, Task<PermissionDecision>>? OnPermissionRequest { get; set; }
 
@@ -2385,6 +2723,31 @@ public abstract class SessionConfigBase
 
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
+
+    /// <summary>
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    /// <para>
+    /// When <c>true</c> <b>and</b> the runtime has MCP Apps enabled (via the
+    /// <c>MCP_APPS</c> feature flag or <c>COPILOT_MCP_APPS=true</c> environment override), the
+    /// runtime adds the <c>mcp-apps</c> capability to the session, which causes it to advertise
+    /// the <c>extensions.io.modelcontextprotocol/ui</c> extension to MCP servers (so they expose
+    /// <c>_meta.ui.resourceUri</c> on tools) and to expose the
+    /// <c>session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,getHostContext,diagnose}</c>
+    /// JSON-RPC methods.
+    /// </para>
+    /// <para>
+    /// If the runtime gate is off, the opt-in is silently dropped server-side (the runtime logs a
+    /// warning); the session is created normally but the MCP Apps surface is unavailable. Inspect
+    /// the runtime's <c>capabilities.ui.mcpApps</c> on the create/resume response to detect this.
+    /// </para>
+    /// <para>
+    /// SDK consumers MUST set this to <c>true</c> only when they have an iframe renderer that can
+    /// display <c>ui://</c> MCP App bundles. Setting it without a renderer will cause MCP servers
+    /// to register UI-enabled tool variants the consumer cannot display.
+    /// </para>
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool EnableMcpApps { get; set; }
 
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }
@@ -2417,6 +2780,12 @@ public abstract class SessionConfigBase
     /// </summary>
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
+    /// <summary>
+    /// Controls how MCP OAuth tokens are stored for this session.
+    /// Default: <see cref="McpOAuthTokenStorageMode.InMemory"/> for safe multitenant behavior.
+    /// </summary>
+    public McpOAuthTokenStorageMode? McpOAuthTokenStorage { get; set; }
+
     /// <summary>Custom agent configurations for the session.</summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
@@ -2436,6 +2805,17 @@ public abstract class SessionConfigBase
     /// <summary>Directories to load skills from.</summary>
     public IList<string>? SkillDirectories { get; set; }
 
+    /// <summary>
+    /// Local filesystem paths to Open Plugins-format directories
+    /// (https://open-plugins.com/) to load for this session.
+    /// </summary>
+    /// <remarks>
+    /// Relative paths resolve against <see cref="WorkingDirectory"/> (or the
+    /// runtime cwd if unset). Treated as an explicit opt-in: plugin agents
+    /// and rules load even when <see cref="EnableConfigDiscovery"/> is false.
+    /// </remarks>
+    public IList<string>? PluginDirectories { get; set; }
+
     /// <summary>Additional directories to search for custom instruction files.</summary>
     public IList<string>? InstructionDirectories { get; set; }
 
@@ -2447,6 +2827,14 @@ public abstract class SessionConfigBase
     /// When enabled (default), sessions automatically manage context limits and persist state.
     /// </summary>
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Configuration for handling large tool outputs. When a tool produces
+    /// output exceeding the configured size, the output is written to a temp
+    /// file and a reference is returned to the model instead of the full
+    /// payload.
+    /// </summary>
+    public LargeToolOutputConfig? LargeOutput { get; set; }
 
     /// <summary>
     /// Optional event handler registered on the session before the session.create / session.resume
@@ -2501,6 +2889,16 @@ public abstract class SessionConfigBase
     public bool? RequestExtensions { get; set; }
 
     /// <summary>
+    /// Optional override path to a <c>copilot-sdk/</c> folder to inject into
+    /// extension subprocesses for this session in place of the bundled SDK.
+    /// When unset or invalid (missing folder, or missing <c>index.js</c> /
+    /// <c>extension.js</c>), the runtime falls back to the bundled SDK
+    /// without throwing. Takes precedence over any server-level default.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public string? ExtensionSdkPath { get; set; }
+
+    /// <summary>
     /// Stable extension identity for canvas/tool providers on this connection.
     /// Required when <see cref="Canvases"/> is set so the runtime can attribute
     /// declared canvases back to this provider.
@@ -2510,7 +2908,7 @@ public abstract class SessionConfigBase
 
     /// <summary>
     /// Provider-side canvas lifecycle handler. The SDK routes inbound
-    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.invokeAction</c>
+    /// <c>canvas.open</c> / <c>canvas.close</c> / <c>canvas.action.invoke</c>
     /// requests to this handler.
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
@@ -2645,7 +3043,9 @@ public sealed class MessageOptions
 
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
+        AgentMode = other.AgentMode;
         Prompt = other.Prompt;
+        DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
             ? new Dictionary<string, string>(other.RequestHeaders)
             : null;
@@ -2660,13 +3060,23 @@ public sealed class MessageOptions
     /// </summary>
     public IList<UserMessageAttachment>? Attachments { get; set; }
     /// <summary>
-    /// Interaction mode for the message (e.g., "plan", "edit").
+    /// How to deliver the message. <c>"enqueue"</c> (default) appends to the message queue;
+    /// <c>"immediate"</c> interjects during an in-progress turn.
     /// </summary>
     public string? Mode { get; set; }
+    /// <summary>
+    /// The UI mode the agent was in when this message was sent (for example "plan", "autopilot").
+    /// Defaults to the session's current mode when unset.
+    /// </summary>
+    public AgentMode? AgentMode { get; set; }
     /// <summary>
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>
     public IDictionary<string, string>? RequestHeaders { get; set; }
+    /// <summary>
+    /// If provided, this is shown in the timeline instead of <see cref="Prompt"/>.
+    /// </summary>
+    public string? DisplayPrompt { get; set; }
 
     /// <summary>
     /// Creates a shallow clone of this <see cref="MessageOptions"/> instance.
@@ -3154,6 +3564,7 @@ public sealed class SystemMessageTransformRpcResponse
 [JsonSerializable(typeof(ToolResultObject))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(JsonElement?))]
+[JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(object))]
 [JsonSerializable(typeof(Dictionary<string, object>))]
 [JsonSerializable(typeof(string[]))]

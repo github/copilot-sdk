@@ -209,20 +209,15 @@ func TestSessionE2E(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
 		}
+		t.Cleanup(func() { _ = session.Disconnect() })
 
-		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "Who are you?"})
+		_, err = session.Send(t.Context(), copilot.MessageOptions{Prompt: "Who are you?"})
 		if err != nil {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
 		// Validate the system message sent to the model
-		traffic, err := ctx.GetExchanges()
-		if err != nil {
-			t.Fatalf("Failed to get exchanges: %v", err)
-		}
-		if len(traffic) == 0 {
-			t.Fatal("Expected at least one exchange")
-		}
+		traffic := ctx.WaitForExchanges(t, 1)
 		systemMessage := getSystemMessage(traffic[0])
 		if !strings.Contains(systemMessage, customTone) {
 			t.Errorf("Expected system message to contain custom tone, got %q", systemMessage)
@@ -765,7 +760,7 @@ func TestSessionE2E(t *testing.T) {
 		customConfigDir := ctx.HomeDir + "/custom-config"
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
-			ConfigDir:           customConfigDir,
+			ConfigDirectory:     customConfigDir,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session with custom config dir: %v", err)
@@ -1510,8 +1505,8 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		}
 
 		_, err = session.SendAndWait(t.Context(), copilot.MessageOptions{
-			Prompt: "Say mode ok.",
-			Mode:   "plan",
+			Prompt:    "Say mode ok.",
+			AgentMode: copilot.AgentModePlan,
 		})
 		if err != nil {
 			t.Fatalf("SendAndWait failed: %v", err)
@@ -1535,10 +1530,8 @@ func TestSessionMessageOptionsE2E(t *testing.T) {
 		if userMsg.Content != "Say mode ok." {
 			t.Errorf("Expected Content 'Say mode ok.', got %q", userMsg.Content)
 		}
-		// The current runtime accepts the per-message mode option but does not
-		// echo it back on the user.message event.
-		if userMsg.AgentMode != nil {
-			t.Errorf("Expected AgentMode=nil, got %v", *userMsg.AgentMode)
+		if userMsg.AgentMode == nil || *userMsg.AgentMode != copilot.UserMessageAgentModePlan {
+			t.Errorf("Expected AgentMode=plan, got %v", userMsg.AgentMode)
 		}
 	})
 

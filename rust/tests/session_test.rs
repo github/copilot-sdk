@@ -11,6 +11,7 @@ use github_copilot_sdk::generated::api_types::{
     CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
     CanvasProviderOpenResult, OpenCanvasInstance,
 };
+use github_copilot_sdk::generated::session_events::ReasoningSummary;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
@@ -18,7 +19,7 @@ use github_copilot_sdk::handler::{
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
-    SessionId, Tool, ToolInvocation, ToolResult,
+    SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
@@ -383,7 +384,7 @@ async fn provider_canvas_dispatch_routes_direct_canvas_action_requests() {
     server
         .send_request(
             42,
-            "canvas.invokeAction",
+            "canvas.action.invoke",
             serde_json::json!({
                 "sessionId": session.id(),
                 "extensionId": "project:counter",
@@ -490,6 +491,48 @@ async fn send_omits_request_headers_when_unset_or_empty() {
     assert!(
         request["params"].get("requestHeaders").is_none(),
         "requestHeaders should be omitted for empty map, got: {}",
+        request["params"]
+    );
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_serializes_display_prompt() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move {
+            session
+                .send(MessageOptions::new("hi").with_display_prompt("Show this to user"))
+                .await
+        }
+    });
+
+    let request = server.read_request().await;
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(request["params"]["prompt"], "hi");
+    assert_eq!(request["params"]["displayPrompt"], "Show this to user");
+
+    server.respond(&request, serde_json::json!({})).await;
+    timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn send_omits_display_prompt_when_unset() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    let handle = tokio::spawn({
+        let session = session.clone();
+        async move { session.send(MessageOptions::new("plain")).await }
+    });
+    let request = server.read_request().await;
+    assert!(
+        request["params"].get("displayPrompt").is_none(),
+        "displayPrompt should be omitted when unset, got: {}",
         request["params"]
     );
     server.respond(&request, serde_json::json!({})).await;
@@ -1241,12 +1284,24 @@ async fn set_model_sends_switch_to_request() {
 
     let handle = tokio::spawn({
         let session = session.clone();
-        async move { session.set_model("claude-sonnet-4", None).await.unwrap() }
+        async move {
+            session
+                .set_model(
+                    "claude-sonnet-4",
+                    Some(
+                        SetModelOptions::default()
+                            .with_reasoning_summary(ReasoningSummary::Detailed),
+                    ),
+                )
+                .await
+                .unwrap()
+        }
     });
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "session.model.switchTo");
     assert_eq!(request["params"]["modelId"], "claude-sonnet-4");
+    assert_eq!(request["params"]["reasoningSummary"], "detailed");
     server
         .respond(
             &request,
@@ -1720,7 +1775,12 @@ async fn send_and_wait_returns_error_on_session_error() {
         .unwrap()
         .unwrap_err();
     assert!(
-        matches!(err, github_copilot_sdk::Error::Session(github_copilot_sdk::SessionError::AgentError(ref msg)) if msg.contains("something went wrong"))
+        matches!(
+            err.kind(),
+            github_copilot_sdk::ErrorKind::Session(
+                github_copilot_sdk::SessionErrorKind::AgentError
+            )
+        ) && err.to_string().contains("something went wrong")
     );
 }
 
@@ -1749,8 +1809,8 @@ async fn send_and_wait_times_out() {
         .unwrap()
         .unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Session(github_copilot_sdk::SessionError::Timeout(_))
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Session(github_copilot_sdk::SessionErrorKind::Timeout(_))
     ));
 }
 
@@ -2584,6 +2644,103 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
 }
 
 #[tokio::test]
+async fn session_canvas_opened_updates_open_canvas_snapshots() {
+    let (session, mut server) = create_session_pair().await;
+    assert!(session.open_canvases().is_empty());
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "instanceId": "missing-required-fields",
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "extensionName": "Counter Provider",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter",
+                "status": "ready",
+                "url": "https://example.test/counter",
+                "input": { "seed": 1 },
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": "logs-1",
+                "title": "Logs",
+                "reopen": false,
+                "availability": "stale"
+            }),
+        )
+        .await;
+
+    let mut open = Vec::new();
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].title.as_deref(), Some("Counter"));
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
+    assert_eq!(open[1].instance_id, "logs-1");
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "extensionName": "Counter Provider",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter Updated",
+                "status": "reconnected",
+                "url": "https://example.test/counter-updated",
+                "input": { "seed": 2 },
+                "reopen": true,
+                "availability": "stale"
+            }),
+        )
+        .await;
+
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 && open[0].title.as_deref() == Some("Counter Updated") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].title.as_deref(), Some("Counter Updated"));
+    assert_eq!(open[0].status.as_deref(), Some("reconnected"));
+    assert_eq!(
+        open[0].url.as_deref(),
+        Some("https://example.test/counter-updated")
+    );
+    assert_eq!(open[0].input, Some(serde_json::json!({ "seed": 2 })));
+    assert!(open[0].reopen);
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Stale);
+    assert_eq!(open[1].instance_id, "logs-1");
+}
+
+#[tokio::test]
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair().await;
 
@@ -2594,17 +2751,17 @@ async fn elicitation_methods_fail_without_capability() {
         .await
         .unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Session(
-            github_copilot_sdk::SessionError::ElicitationNotSupported
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Session(
+            github_copilot_sdk::SessionErrorKind::ElicitationNotSupported
         )
     ));
 
     let err = session.ui().confirm("ok?").await.unwrap_err();
     assert!(matches!(
-        err,
-        github_copilot_sdk::Error::Session(
-            github_copilot_sdk::SessionError::ElicitationNotSupported
+        err.kind(),
+        github_copilot_sdk::ErrorKind::Session(
+            github_copilot_sdk::SessionErrorKind::ElicitationNotSupported
         )
     ));
 }
@@ -3028,7 +3185,7 @@ fn session_config_serializes_bucket_b_fields() {
 
     let mut cfg = SessionConfig::default();
     cfg.session_id = Some(SessionId::from("custom-id"));
-    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(false);
@@ -3055,7 +3212,7 @@ fn resume_session_config_serializes_bucket_b_fields() {
 
     let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
-    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);
@@ -3066,6 +3223,11 @@ fn resume_session_config_serializes_bucket_b_fields() {
     // Wire-format coverage lives in the in-crate unit tests; see
     // `ResumeSessionConfig::into_wire`.
 }
+
+// Wire-format coverage for `enable_on_demand_instruction_discovery` lives in
+// the in-crate unit tests alongside `SessionConfig::into_wire` /
+// `ResumeSessionConfig::into_wire` (the wire conversion is crate-private and
+// the public config types are intentionally not `Serialize`).
 
 // =====================================================================
 // Slash commands (§ 4.1)
@@ -3081,8 +3243,11 @@ impl CommandHandler for CountingCommandHandler {
     async fn on_command(&self, ctx: CommandContext) -> Result<(), github_copilot_sdk::Error> {
         *self.last_ctx.lock() = Some(ctx);
         if let Some(message) = &self.error_to_return {
-            Err(github_copilot_sdk::Error::Session(
-                github_copilot_sdk::SessionError::AgentError(message.clone()),
+            Err(github_copilot_sdk::Error::with_message(
+                github_copilot_sdk::ErrorKind::Session(
+                    github_copilot_sdk::SessionErrorKind::AgentError,
+                ),
+                message.clone(),
             ))
         } else {
             Ok(())
@@ -3303,8 +3468,9 @@ async fn command_execute_handler_error_propagates_to_ack() {
 // SessionFsProvider tests --------------------------------------------------
 
 use github_copilot_sdk::session_fs::{
-    DirEntry, DirEntryKind, FileInfo, FsError, SessionFsConventions, SessionFsProvider,
-    SessionFsSqliteProvider, SessionFsSqliteQueryResult, SessionFsSqliteQueryType,
+    DirEntry, DirEntryKind, FileInfo, FsError, FsErrorKind, SessionFsConventions,
+    SessionFsProvider, SessionFsSqliteProvider, SessionFsSqliteQueryResult,
+    SessionFsSqliteQueryType,
 };
 
 struct RecordingFsProvider {
@@ -3333,7 +3499,7 @@ impl SessionFsProvider for RecordingFsProvider {
             .lock()
             .get(path)
             .cloned()
-            .ok_or_else(|| FsError::NotFound(path.to_string()))
+            .ok_or_else(|| FsError::from(FsErrorKind::NotFound(path.to_string())))
     }
 
     async fn write_file(
@@ -3352,7 +3518,7 @@ impl SessionFsProvider for RecordingFsProvider {
         let files = self.files.lock();
         let content = files
             .get(path)
-            .ok_or_else(|| FsError::NotFound(path.to_string()))?;
+            .ok_or_else(|| FsError::from(FsErrorKind::NotFound(path.to_string())))?;
         Ok(FileInfo::new(
             true,
             false,
@@ -3372,7 +3538,7 @@ impl SessionFsProvider for RecordingFsProvider {
     async fn rm(&self, path: &str, _recursive: bool, force: bool) -> Result<(), FsError> {
         let mut files = self.files.lock();
         if files.remove(path).is_none() && !force {
-            return Err(FsError::NotFound(path.to_string()));
+            return Err(FsError::from(FsErrorKind::NotFound(path.to_string())));
         }
         Ok(())
     }
@@ -3514,7 +3680,10 @@ async fn session_fs_maps_other_to_unknown() {
     #[async_trait]
     impl SessionFsProvider for AlwaysFails {
         async fn stat(&self, _path: &str) -> Result<FileInfo, FsError> {
-            Err(FsError::Other("backing store unavailable".to_string()))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "backing store unavailable",
+            ))
         }
     }
 
@@ -3605,11 +3774,17 @@ async fn session_fs_maps_sqlite_errors_to_results() {
             _query: &str,
             _params: Option<&std::collections::HashMap<String, serde_json::Value>>,
         ) -> Result<Option<SessionFsSqliteQueryResult>, FsError> {
-            Err(FsError::Other("sqlite unavailable".to_string()))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "sqlite unavailable",
+            ))
         }
 
         async fn sqlite_exists(&self) -> Result<bool, FsError> {
-            Err(FsError::Other("sqlite unavailable".to_string()))
+            Err(FsError::with_message(
+                FsErrorKind::Other,
+                "sqlite unavailable",
+            ))
         }
     }
 
@@ -3737,7 +3912,7 @@ async fn create_session_errors_when_provider_required_but_missing() {
     // through Client::start; the unit-level behavior is covered by the
     // SessionError::SessionFsProviderRequired variant being constructible.
     // This test asserts the error type's display formatting is stable.
-    let err = github_copilot_sdk::SessionError::SessionFsProviderRequired;
+    let err = github_copilot_sdk::SessionErrorKind::SessionFsProviderRequired;
     assert!(format!("{err}").contains("session_fs"));
 }
 

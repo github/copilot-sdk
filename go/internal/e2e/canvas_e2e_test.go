@@ -78,7 +78,7 @@ func TestCanvasE2E(t *testing.T) {
 		t.Fatalf("unexpected open calls: %+v", calls)
 	}
 
-	actionResult, err := session.RPC.Canvas.InvokeAction(t.Context(), &rpc.CanvasInvokeActionRequest{
+	actionResult, err := session.RPC.Canvas.Action().Invoke(t.Context(), &rpc.CanvasActionInvokeRequest{
 		InstanceID: "counter-1",
 		ActionName: "increment",
 		Input: map[string]any{
@@ -86,7 +86,7 @@ func TestCanvasE2E(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("Canvas.InvokeAction failed: %v", err)
+		t.Fatalf("Canvas.Action.Invoke failed: %v", err)
 	}
 	actionPayload, ok := actionResult.Result.(map[string]any)
 	if !ok || actionPayload["count"] != float64(5) {

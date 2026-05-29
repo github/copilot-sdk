@@ -129,10 +129,12 @@ class SessionEventType(Enum):
     SESSION_TITLE_CHANGED = "session.title_changed"
     SESSION_SCHEDULE_CREATED = "session.schedule_created"
     SESSION_SCHEDULE_CANCELLED = "session.schedule_cancelled"
+    SESSION_AUTOPILOT_OBJECTIVE_CHANGED = "session.autopilot_objective_changed"
     SESSION_INFO = "session.info"
     SESSION_WARNING = "session.warning"
     SESSION_MODEL_CHANGE = "session.model_change"
     SESSION_MODE_CHANGED = "session.mode_changed"
+    SESSION_PERMISSIONS_CHANGED = "session.permissions_changed"
     SESSION_PLAN_CHANGED = "session.plan_changed"
     SESSION_WORKSPACE_FILE_CHANGED = "session.workspace_file_changed"
     SESSION_HANDOFF = "session.handoff"
@@ -171,6 +173,7 @@ class SessionEventType(Enum):
     SUBAGENT_DESELECTED = "subagent.deselected"
     HOOK_START = "hook.start"
     HOOK_END = "hook.end"
+    HOOK_PROGRESS = "hook.progress"
     SYSTEM_MESSAGE = "system.message"
     SYSTEM_NOTIFICATION = "system.notification"
     PERMISSION_REQUESTED = "permission.requested"
@@ -1592,6 +1595,7 @@ class ExternalToolRequestedData:
     arguments: Any = None
     traceparent: str | None = None
     tracestate: str | None = None
+    working_directory: str | None = None
 
     @staticmethod
     def from_dict(obj: Any) -> "ExternalToolRequestedData":
@@ -1603,6 +1607,7 @@ class ExternalToolRequestedData:
         arguments = obj.get("arguments")
         traceparent = from_union([from_none, from_str], obj.get("traceparent"))
         tracestate = from_union([from_none, from_str], obj.get("tracestate"))
+        working_directory = from_union([from_none, from_str], obj.get("workingDirectory"))
         return ExternalToolRequestedData(
             request_id=request_id,
             session_id=session_id,
@@ -1611,6 +1616,7 @@ class ExternalToolRequestedData:
             arguments=arguments,
             traceparent=traceparent,
             tracestate=tracestate,
+            working_directory=working_directory,
         )
 
     def to_dict(self) -> dict:
@@ -1625,6 +1631,8 @@ class ExternalToolRequestedData:
             result["traceparent"] = from_union([from_none, from_str], self.traceparent)
         if self.tracestate is not None:
             result["tracestate"] = from_union([from_none, from_str], self.tracestate)
+        if self.working_directory is not None:
+            result["workingDirectory"] = from_union([from_none, from_str], self.working_directory)
         return result
 
 
@@ -1714,6 +1722,25 @@ class HookEndError:
         result["message"] = from_str(self.message)
         if self.stack is not None:
             result["stack"] = from_union([from_none, from_str], self.stack)
+        return result
+
+
+@dataclass
+class HookProgressData:
+    "Ephemeral progress update from a running hook process"
+    message: str
+
+    @staticmethod
+    def from_dict(obj: Any) -> "HookProgressData":
+        assert isinstance(obj, dict)
+        message = from_str(obj.get("message"))
+        return HookProgressData(
+            message=message,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["message"] = from_str(self.message)
         return result
 
 
@@ -3216,6 +3243,35 @@ class SamplingRequestedData:
 
 
 @dataclass
+class SessionAutopilotObjectiveChangedData:
+    "Autopilot objective state file operation details indicating what changed"
+    operation: AutopilotObjectiveChangedOperation
+    id: int | None = None
+    status: AutopilotObjectiveChangedStatus | None = None
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionAutopilotObjectiveChangedData":
+        assert isinstance(obj, dict)
+        operation = parse_enum(AutopilotObjectiveChangedOperation, obj.get("operation"))
+        id = from_union([from_none, from_int], obj.get("id"))
+        status = from_union([from_none, lambda x: parse_enum(AutopilotObjectiveChangedStatus, x)], obj.get("status"))
+        return SessionAutopilotObjectiveChangedData(
+            operation=operation,
+            id=id,
+            status=status,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["operation"] = to_enum(AutopilotObjectiveChangedOperation, self.operation)
+        if self.id is not None:
+            result["id"] = from_union([from_none, to_int], self.id)
+        if self.status is not None:
+            result["status"] = from_union([from_none, lambda x: to_enum(AutopilotObjectiveChangedStatus, x)], self.status)
+        return result
+
+
+@dataclass
 class SessionBackgroundTasksChangedData:
     "Schema for the `BackgroundTasksChangedData` type."
     @staticmethod
@@ -3856,6 +3912,29 @@ class SessionModelChangeData:
 
 
 @dataclass
+class SessionPermissionsChangedData:
+    "Permissions change details carrying the aggregate allow-all boolean transition."
+    allow_all_permissions: bool
+    previous_allow_all_permissions: bool
+
+    @staticmethod
+    def from_dict(obj: Any) -> "SessionPermissionsChangedData":
+        assert isinstance(obj, dict)
+        allow_all_permissions = from_bool(obj.get("allowAllPermissions"))
+        previous_allow_all_permissions = from_bool(obj.get("previousAllowAllPermissions"))
+        return SessionPermissionsChangedData(
+            allow_all_permissions=allow_all_permissions,
+            previous_allow_all_permissions=previous_allow_all_permissions,
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {}
+        result["allowAllPermissions"] = from_bool(self.allow_all_permissions)
+        result["previousAllowAllPermissions"] = from_bool(self.previous_allow_all_permissions)
+        return result
+
+
+@dataclass
 class SessionPlanChangedData:
     "Plan file operation details indicating what changed"
     operation: PlanChangedOperation
@@ -3900,6 +3979,7 @@ class SessionResumeData:
     resume_time: datetime
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
+    context_tier: SessionResumeDataContextTier | None = None
     continue_pending_work: bool | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
@@ -3914,6 +3994,7 @@ class SessionResumeData:
         resume_time = from_datetime(obj.get("resumeTime"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        context_tier = from_union([from_none, lambda x: parse_enum(SessionResumeDataContextTier, x)], obj.get("contextTier"))
         continue_pending_work = from_union([from_none, from_bool], obj.get("continuePendingWork"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
@@ -3925,6 +4006,7 @@ class SessionResumeData:
             resume_time=resume_time,
             already_in_use=already_in_use,
             context=context,
+            context_tier=context_tier,
             continue_pending_work=continue_pending_work,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
@@ -3941,6 +4023,8 @@ class SessionResumeData:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
+        if self.context_tier is not None:
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionResumeDataContextTier, x)], self.context_tier)
         if self.continue_pending_work is not None:
             result["continuePendingWork"] = from_union([from_none, from_bool], self.continue_pending_work)
         if self.reasoning_effort is not None:
@@ -4146,6 +4230,7 @@ class SessionStartData:
     version: int
     already_in_use: bool | None = None
     context: WorkingDirectoryContext | None = None
+    context_tier: SessionStartDataContextTier | None = None
     detached_from_spawning_parent_session_id: str | None = None
     reasoning_effort: str | None = None
     reasoning_summary: ReasoningSummary | None = None
@@ -4162,6 +4247,7 @@ class SessionStartData:
         version = from_int(obj.get("version"))
         already_in_use = from_union([from_none, from_bool], obj.get("alreadyInUse"))
         context = from_union([from_none, WorkingDirectoryContext.from_dict], obj.get("context"))
+        context_tier = from_union([from_none, lambda x: parse_enum(SessionStartDataContextTier, x)], obj.get("contextTier"))
         detached_from_spawning_parent_session_id = from_union([from_none, from_str], obj.get("detachedFromSpawningParentSessionId"))
         reasoning_effort = from_union([from_none, from_str], obj.get("reasoningEffort"))
         reasoning_summary = from_union([from_none, lambda x: parse_enum(ReasoningSummary, x)], obj.get("reasoningSummary"))
@@ -4175,6 +4261,7 @@ class SessionStartData:
             version=version,
             already_in_use=already_in_use,
             context=context,
+            context_tier=context_tier,
             detached_from_spawning_parent_session_id=detached_from_spawning_parent_session_id,
             reasoning_effort=reasoning_effort,
             reasoning_summary=reasoning_summary,
@@ -4193,6 +4280,8 @@ class SessionStartData:
             result["alreadyInUse"] = from_union([from_none, from_bool], self.already_in_use)
         if self.context is not None:
             result["context"] = from_union([from_none, lambda x: to_class(WorkingDirectoryContext, x)], self.context)
+        if self.context_tier is not None:
+            result["contextTier"] = from_union([from_none, lambda x: to_enum(SessionStartDataContextTier, x)], self.context_tier)
         if self.detached_from_spawning_parent_session_id is not None:
             result["detachedFromSpawningParentSessionId"] = from_union([from_none, from_str], self.detached_from_spawning_parent_session_id)
         if self.reasoning_effort is not None:
@@ -5796,6 +5885,7 @@ class ToolExecutionStartData:
     tool_call_id: str
     tool_name: str
     arguments: Any = None
+    display_verbatim: bool | None = None
     mcp_server_name: str | None = None
     mcp_tool_name: str | None = None
     # Deprecated: this field is deprecated.
@@ -5808,6 +5898,7 @@ class ToolExecutionStartData:
         tool_call_id = from_str(obj.get("toolCallId"))
         tool_name = from_str(obj.get("toolName"))
         arguments = obj.get("arguments")
+        display_verbatim = from_union([from_none, from_bool], obj.get("displayVerbatim"))
         mcp_server_name = from_union([from_none, from_str], obj.get("mcpServerName"))
         mcp_tool_name = from_union([from_none, from_str], obj.get("mcpToolName"))
         parent_tool_call_id = from_union([from_none, from_str], obj.get("parentToolCallId"))
@@ -5816,6 +5907,7 @@ class ToolExecutionStartData:
             tool_call_id=tool_call_id,
             tool_name=tool_name,
             arguments=arguments,
+            display_verbatim=display_verbatim,
             mcp_server_name=mcp_server_name,
             mcp_tool_name=mcp_tool_name,
             parent_tool_call_id=parent_tool_call_id,
@@ -5828,6 +5920,8 @@ class ToolExecutionStartData:
         result["toolName"] = from_str(self.tool_name)
         if self.arguments is not None:
             result["arguments"] = self.arguments
+        if self.display_verbatim is not None:
+            result["displayVerbatim"] = from_union([from_none, from_bool], self.display_verbatim)
         if self.mcp_server_name is not None:
             result["mcpServerName"] = from_union([from_none, from_str], self.mcp_server_name)
         if self.mcp_tool_name is not None:
@@ -6636,6 +6730,28 @@ class AutoModeSwitchResponse(Enum):
     NO = "no"
 
 
+class AutopilotObjectiveChangedOperation(Enum):
+    "The type of operation performed on the autopilot objective state file"
+    # Autopilot objective state file was created for a new objective.
+    CREATE = "create"
+    # Autopilot objective state file was updated for an existing objective.
+    UPDATE = "update"
+    # Autopilot objective state file was deleted or cleared.
+    DELETE = "delete"
+
+
+class AutopilotObjectiveChangedStatus(Enum):
+    "Current autopilot objective status, if one exists"
+    # Objective is active and can drive autopilot continuations.
+    ACTIVE = "active"
+    # Objective is paused and will not drive autopilot continuations.
+    PAUSED = "paused"
+    # Legacy objective state indicating the previous continuation cap was reached.
+    CAP_REACHED = "cap_reached"
+    # Objective was completed by the agent.
+    COMPLETED = "completed"
+
+
 class CanvasOpenedAvailability(Enum):
     "Runtime-controlled routing state for the instance. \"ready\" when the provider connection is live; \"stale\" when the provider has gone away and the instance is awaiting rebinding."
     # Provider connection is live; actions can be invoked.
@@ -6815,6 +6931,20 @@ class SessionModelChangeDataContextTier(Enum):
     LONG_CONTEXT = "long_context"
 
 
+class SessionResumeDataContextTier(Enum):
+    # Default context tier with standard context window size.
+    DEFAULT = "default"
+    # Extended context tier with a larger context window.
+    LONG_CONTEXT = "long_context"
+
+
+class SessionStartDataContextTier(Enum):
+    # Default context tier with standard context window size.
+    DEFAULT = "default"
+    # Extended context tier with a larger context window.
+    LONG_CONTEXT = "long_context"
+
+
 class ShutdownType(Enum):
     "Whether the session ended normally (\"routine\") or due to a crash/fatal error (\"error\")"
     # The session ended normally.
@@ -6921,7 +7051,7 @@ class WorkspaceFileChangedOperation(Enum):
     UPDATE = "update"
 
 
-SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | McpAppToolCallCompleteData | RawSessionEventData | Data
+SessionEventData = SessionStartData | SessionResumeData | SessionRemoteSteerableChangedData | SessionErrorData | SessionIdleData | SessionTitleChangedData | SessionScheduleCreatedData | SessionScheduleCancelledData | SessionAutopilotObjectiveChangedData | SessionInfoData | SessionWarningData | SessionModelChangeData | SessionModeChangedData | SessionPermissionsChangedData | SessionPlanChangedData | SessionWorkspaceFileChangedData | SessionHandoffData | SessionTruncationData | SessionSnapshotRewindData | SessionShutdownData | SessionContextChangedData | SessionUsageInfoData | SessionCompactionStartData | SessionCompactionCompleteData | SessionTaskCompleteData | UserMessageData | PendingMessagesModifiedData | AssistantTurnStartData | AssistantIntentData | AssistantReasoningData | AssistantReasoningDeltaData | AssistantStreamingDeltaData | AssistantMessageData | AssistantMessageStartData | AssistantMessageDeltaData | AssistantTurnEndData | AssistantUsageData | ModelCallFailureData | AbortData | ToolUserRequestedData | ToolExecutionStartData | ToolExecutionPartialResultData | ToolExecutionProgressData | ToolExecutionCompleteData | SkillInvokedData | SubagentStartedData | SubagentCompletedData | SubagentFailedData | SubagentSelectedData | SubagentDeselectedData | HookStartData | HookEndData | HookProgressData | SystemMessageData | SystemNotificationData | PermissionRequestedData | PermissionCompletedData | UserInputRequestedData | UserInputCompletedData | ElicitationRequestedData | ElicitationCompletedData | SamplingRequestedData | SamplingCompletedData | McpOauthRequiredData | McpOauthCompletedData | SessionCustomNotificationData | ExternalToolRequestedData | ExternalToolCompletedData | CommandQueuedData | CommandExecuteData | CommandCompletedData | AutoModeSwitchRequestedData | AutoModeSwitchCompletedData | CommandsChangedData | CapabilitiesChangedData | ExitPlanModeRequestedData | ExitPlanModeCompletedData | SessionToolsUpdatedData | SessionBackgroundTasksChangedData | SessionSkillsLoadedData | SessionCustomAgentsUpdatedData | SessionMcpServersLoadedData | SessionMcpServerStatusChangedData | SessionExtensionsLoadedData | SessionCanvasOpenedData | SessionCanvasRegistryChangedData | McpAppToolCallCompleteData | RawSessionEventData | Data
 
 
 @dataclass
@@ -6955,10 +7085,12 @@ class SessionEvent:
             case SessionEventType.SESSION_TITLE_CHANGED: data = SessionTitleChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_SCHEDULE_CREATED: data = SessionScheduleCreatedData.from_dict(data_obj)
             case SessionEventType.SESSION_SCHEDULE_CANCELLED: data = SessionScheduleCancelledData.from_dict(data_obj)
+            case SessionEventType.SESSION_AUTOPILOT_OBJECTIVE_CHANGED: data = SessionAutopilotObjectiveChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_INFO: data = SessionInfoData.from_dict(data_obj)
             case SessionEventType.SESSION_WARNING: data = SessionWarningData.from_dict(data_obj)
             case SessionEventType.SESSION_MODEL_CHANGE: data = SessionModelChangeData.from_dict(data_obj)
             case SessionEventType.SESSION_MODE_CHANGED: data = SessionModeChangedData.from_dict(data_obj)
+            case SessionEventType.SESSION_PERMISSIONS_CHANGED: data = SessionPermissionsChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_PLAN_CHANGED: data = SessionPlanChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_WORKSPACE_FILE_CHANGED: data = SessionWorkspaceFileChangedData.from_dict(data_obj)
             case SessionEventType.SESSION_HANDOFF: data = SessionHandoffData.from_dict(data_obj)
@@ -6997,6 +7129,7 @@ class SessionEvent:
             case SessionEventType.SUBAGENT_DESELECTED: data = SubagentDeselectedData.from_dict(data_obj)
             case SessionEventType.HOOK_START: data = HookStartData.from_dict(data_obj)
             case SessionEventType.HOOK_END: data = HookEndData.from_dict(data_obj)
+            case SessionEventType.HOOK_PROGRESS: data = HookProgressData.from_dict(data_obj)
             case SessionEventType.SYSTEM_MESSAGE: data = SystemMessageData.from_dict(data_obj)
             case SessionEventType.SYSTEM_NOTIFICATION: data = SystemNotificationData.from_dict(data_obj)
             case SessionEventType.PERMISSION_REQUESTED: data = PermissionRequestedData.from_dict(data_obj)

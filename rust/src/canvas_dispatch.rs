@@ -174,7 +174,7 @@ pub(crate) async fn dispatch(
     match method {
         rpc_methods::CANVAS_OPEN => open(client, &handler, request).await,
         rpc_methods::CANVAS_CLOSE => close(client, &handler, request).await,
-        rpc_methods::CANVAS_INVOKEACTION => invoke_action(client, &handler, request).await,
+        rpc_methods::CANVAS_ACTION_INVOKE => invoke_action(client, &handler, request).await,
         _ => {
             warn!(method = %method, "unknown canvas.* method");
             send_error(

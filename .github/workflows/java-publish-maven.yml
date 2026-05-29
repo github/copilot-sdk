@@ -54,10 +54,10 @@ jobs:
 
       - uses: ./.github/actions/setup-copilot
 
-      - name: Set up JDK 17
+      - name: Set up JDK 25
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
-          java-version: "17"
+          java-version: "25"
           distribution: "microsoft"
           cache: "maven"
           server-id: central
@@ -205,9 +205,11 @@ jobs:
           RELEASE_NOTES=$(envsubst < $GITHUB_WORKSPACE/.github/workflows/java.notes.template)
 
           # Get the previous tag for generating notes
+          # grep returns exit 1 when no lines match (first release), so
+          # append "|| true" to prevent pipefail from aborting the script.
           PREV_TAG=$(git tag --list 'java/v*' --sort=-version:refname \
             | grep -Fxv "${CURRENT_TAG}" \
-            | head -n 1)
+            | head -n 1 || true)
 
           echo "Current tag: ${CURRENT_TAG}"
           echo "Previous tag: ${PREV_TAG}"
@@ -230,4 +232,4 @@ jobs:
       - name: Trigger changelog generation
         run: gh workflow run release-changelog.lock.yml -f tag="java/v${{ needs.publish-maven.outputs.version }}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.JAVA_RELEASE_GITHUB_TOKEN }}

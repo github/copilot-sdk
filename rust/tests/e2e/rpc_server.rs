@@ -166,8 +166,10 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .skills()
                     .discover(SkillsDiscoverRequest {
-                        project_paths: Vec::new(),
-                        skill_directories: vec![skill_directory.to_string_lossy().to_string()],
+                        project_paths: None,
+                        skill_directories: Some(vec![
+                            skill_directory.to_string_lossy().to_string(),
+                        ]),
                     })
                     .await
                     .expect("skills discover");
@@ -190,8 +192,10 @@ async fn should_discover_server_mcp_and_skills() {
                     .rpc()
                     .skills()
                     .discover(SkillsDiscoverRequest {
-                        project_paths: Vec::new(),
-                        skill_directories: vec![skill_directory.to_string_lossy().to_string()],
+                        project_paths: None,
+                        skill_directories: Some(vec![
+                            skill_directory.to_string_lossy().to_string(),
+                        ]),
                     })
                     .await
                     .expect("skills discover disabled");
@@ -326,6 +330,7 @@ async fn should_list_find_and_inspect_persisted_session_state() {
                             git_root: None,
                             repository: None,
                         }),
+                        include_detached: None,
                         metadata_limit: Some(10),
                     })
                     .await
@@ -423,6 +428,7 @@ async fn should_enrich_basic_session_metadata() {
                     .expect("create session");
                 let session_id = session.id().clone();
                 let metadata = SessionMetadata {
+                    client_name: None,
                     context: Some(SessionContext {
                         branch: None,
                         cwd: ctx.work_dir().display().to_string(),
@@ -430,6 +436,7 @@ async fn should_enrich_basic_session_metadata() {
                         host_type: None,
                         repository: None,
                     }),
+                    is_detached: None,
                     is_remote: false,
                     mc_task_id: None,
                     modified_time: "2026-01-01T00:00:00.000Z".to_string(),
@@ -534,7 +541,7 @@ async fn should_prune_dryrun_and_bulkdelete_persisted_session() {
                         older_than_days: 0,
                         dry_run: Some(true),
                         include_named: Some(true),
-                        exclude_session_ids: vec![session_id.to_string()],
+                        exclude_session_ids: Some(vec![session_id.to_string()]),
                     })
                     .await
                     .expect("dry-run prune");

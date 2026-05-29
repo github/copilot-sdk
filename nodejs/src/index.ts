@@ -10,6 +10,7 @@
 
 export { CopilotClient } from "./client.js";
 export { RuntimeConnection } from "./types.js";
+export { BuiltInTools, ToolSet } from "./toolSet.js";
 export { CopilotSession, type AssistantMessageEvent } from "./session.js";
 export {
     Canvas,
@@ -18,6 +19,7 @@ export {
     type CanvasAction,
     type CanvasDeclaration,
     type CanvasHostContext,
+    type CanvasHostContextCapabilities,
     type CanvasJsonSchema,
     type CanvasOptions,
 } from "./canvas.js";
@@ -50,6 +52,7 @@ export type {
     AutoModeSwitchHandler,
     AutoModeSwitchRequest,
     AutoModeSwitchResponse,
+    CopilotClientMode,
     CopilotClientOptions,
     StdioRuntimeConnection,
     TcpRuntimeConnection,
@@ -70,6 +73,7 @@ export type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InfiniteSessionConfig,
+    LargeToolOutputConfig,
     UiInputOptions,
     MCPStdioServerConfig,
     MCPHTTPServerConfig,

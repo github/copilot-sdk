@@ -9,12 +9,17 @@
 // Import and re-export generated session event types
 import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
-import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+import type {
+    ReasoningSummary,
+    SessionEvent as GeneratedSessionEvent,
+} from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
+export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
@@ -167,12 +172,40 @@ export interface ParentProcessRuntimeConnection {
 /** @internal */
 export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntimeConnection;
 
+/**
+ * Controls SDK defaults for ambient features.
+ *
+ * - `"copilot-cli"` (default): Defaults equivalent to Copilot CLI. Useful when
+ *   building a coding agent that shares sessions with Copilot CLI. Do not use
+ *   this mode for server-based multi-user applications — the default coding
+ *   agent has tools and capabilities that operate across sessions and can
+ *   access the host OS environment.
+ * - `"empty"`: Disables optional features by default. The app must explicitly
+ *   opt into anything it needs. Required for any scenario where CLI-like
+ *   ambient behavior is unsafe (e.g. multi-user servers).
+ */
+export type CopilotClientMode = "empty" | "copilot-cli";
+
 export interface CopilotClientOptions {
     /**
      * How to connect to the Copilot runtime. When omitted, defaults to
      * {@link RuntimeConnection.forStdio} with the bundled runtime.
      */
     connection?: RuntimeConnection;
+
+    /**
+     * Selects the SDK defaulting strategy. See {@link CopilotClientMode}.
+     *
+     * When set to `"empty"`, the SDK validates that the app has supplied the
+     * required configuration ({@link CopilotClientOptions.baseDirectory} or
+     * {@link CopilotClientOptions.sessionFs}, plus
+     * {@link SessionConfigBase.availableTools} on each session) and translates
+     * session creation requests into runtime options that flip tool filter
+     * precedence to deny-wins so exclusions are expressible.
+     *
+     * @default "copilot-cli"
+     */
+    mode?: CopilotClientMode;
 
     /**
      * Working directory for the runtime process.
@@ -545,6 +578,17 @@ export interface SessionCapabilities {
     ui?: {
         /** Whether the host supports interactive elicitation dialogs. */
         elicitation?: boolean;
+        /**
+         * Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+         * opt-in. `true` when the consumer set `enableMcpApps: true` on
+         * create/resume **and** the runtime's `MCP_APPS` feature flag (or
+         * `COPILOT_MCP_APPS=true` env override) is on. Otherwise absent or
+         * `false`, indicating the runtime silently dropped the opt-in.
+         *
+         * @experimental This property is part of an experimental wire-protocol surface
+         * (SEP-1865) and may change or be removed in a future release.
+         */
+        mcpApps?: boolean;
         /** Whether the host supports canvas rendering. */
         canvases?: boolean;
     };
@@ -1466,9 +1510,41 @@ export interface InfiniteSessionConfig {
 }
 
 /**
+ * Configuration for handling large tool outputs.
+ *
+ * When a tool produces output exceeding the configured size, the output is
+ * written to a temp file and a reference is returned to the model instead of
+ * the full payload.
+ */
+export interface LargeToolOutputConfig {
+    /**
+     * Whether large output handling is enabled.
+     * @default true
+     */
+    enabled?: boolean;
+
+    /**
+     * Maximum size in bytes before output is written to a temp file.
+     * @default 51200
+     */
+    maxSizeBytes?: number;
+
+    /**
+     * Directory to write temp files to. Defaults to the OS temp directory.
+     */
+    outputDirectory?: string;
+}
+
+/**
  * Valid reasoning effort levels for models that support it.
  */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+
+/**
+ * Context window tier for the session. "long_context" pins the session to the
+ * long-context tier when the selected model supports it.
+ */
+export type ContextTier = "default" | "long_context";
 
 /**
  * Stable extension identity for session participants that provide canvases.
@@ -1504,14 +1580,34 @@ export interface SessionConfigBase {
      */
     reasoningEffort?: ReasoningEffort;
 
+    /**
+     * Reasoning summary mode for models that support configurable reasoning summaries.
+     * Use "none" to suppress summary output regardless of whether reasoning is enabled.
+     */
+    reasoningSummary?: ReasoningSummary;
+
+    /**
+     * Context window tier for models that support it. Use "long_context" to pin
+     * the session to the long-context tier; omit or use "default" otherwise.
+     */
+    contextTier?: ContextTier;
+
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
+
+    /**
+     * Configuration for handling large tool outputs. When a tool produces
+     * output exceeding the configured size, the output is written to a temp
+     * file and a reference is returned to the model instead of the full
+     * payload.
+     */
+    largeOutput?: LargeToolOutputConfig;
 
     /**
      * Override the default configuration directory location.
      * When specified, the session will use this directory for storing config and state.
      */
-    configDir?: string;
+    configDirectory?: string;
 
     /**
      * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
@@ -1559,6 +1655,20 @@ export interface SessionConfigBase {
     requestExtensions?: boolean;
 
     /**
+     * Optional override path to a `copilot-sdk/` folder to inject into
+     * extension subprocesses for this session in place of the bundled SDK.
+     * When unset or invalid (missing folder or missing `index.js` /
+     * `extension.js`), the runtime falls back to the bundled SDK without
+     * throwing. Takes precedence over any server-level default.
+     *
+     * Only honored on session create and resume — extensions joining via
+     * `joinSession` cannot override the SDK path, because the extension
+     * subprocess has already been forked by the host with the SDK the host
+     * chose. `JoinSessionConfig` omits this field for that reason.
+     */
+    extensionSdkPath?: string;
+
+    /**
      * Stable extension identity for canvas providers on this connection. When
      * set, the runtime uses `${source}:${name}` as the agent-facing extension
      * id instead of a reconnect-specific connection id.
@@ -1580,15 +1690,26 @@ export interface SessionConfigBase {
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.
-     * Takes precedence over excludedTools.
+     *
+     * Supports source-qualified filter patterns (`builtin:*`, `builtin:<name>`,
+     * `mcp:*`, `mcp:<name>`, `custom:*`, `custom:<name>`) as well as the bare
+     * name form (exact match across any source). Build this list with
+     * {@link ToolSet} for type safety and readable intent.
+     *
+     * Composes with {@link excludedTools}: a tool is enabled when it matches
+     * `availableTools` (or `availableTools` is unset) AND it does not match
+     * `excludedTools`. This lets you express "everything matching X except Y".
      */
-    availableTools?: string[];
+    availableTools?: string[] | ToolSet;
 
     /**
-     * List of tool names to disable. All other tools remain available.
-     * Ignored if availableTools is specified.
+     * List of tool names to disable. Supports the same pattern syntax as
+     * {@link availableTools}.
+     *
+     * Always takes precedence over {@link availableTools}: a tool listed here
+     * is disabled even if it also matches `availableTools`.
      */
-    excludedTools?: string[];
+    excludedTools?: string[] | ToolSet;
 
     /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
@@ -1605,6 +1726,43 @@ export interface SessionConfigBase {
      * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
      */
     enableSessionTelemetry?: boolean;
+
+    /**
+     * When true, the runtime skips loading custom-instruction sources
+     * (e.g. `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`).
+     *
+     * Defaults to `false` (custom instructions are loaded). Under
+     * {@link CopilotClientOptions.mode} = `"empty"`, defaults to `true`; apps
+     * can pass `false` here to opt back in.
+     */
+    skipCustomInstructions?: boolean;
+
+    /**
+     * When true, custom agents default to local-only execution and are not
+     * dispatched to remote workers.
+     *
+     * Defaults to `false`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `true`; apps can pass `false` here to opt back in.
+     */
+    customAgentsLocalOnly?: boolean;
+
+    /**
+     * When true, the runtime instructs the agent to include a `Co-authored-by`
+     * trailer in commit messages it composes.
+     *
+     * Defaults to `true`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `false`; apps can pass `true` here to opt back in.
+     */
+    coauthorEnabled?: boolean;
+
+    /**
+     * When true, the `manage_schedule` tool is exposed to the agent.
+     *
+     * Defaults to whatever the runtime exposes (typically gated to staff
+     * users). Under {@link CopilotClientOptions.mode} = `"empty"`, defaults to
+     * `false`; apps can pass `true` here to opt back in.
+     */
+    manageScheduleEnabled?: boolean;
 
     /**
      * Optional handler for permission requests from the server.
@@ -1625,6 +1783,34 @@ export interface SessionConfigBase {
      * Also enables the `elicitation` capability on the session.
      */
     onElicitationRequest?: ElicitationHandler;
+
+    /**
+     * Enable MCP Apps (SEP-1865) UI passthrough on this session.
+     *
+     * When `true` **and** the runtime has MCP Apps enabled (via the
+     * `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+     * override), the runtime adds the `mcp-apps` capability to the session,
+     * which causes it to advertise the `extensions.io.modelcontextprotocol/ui`
+     * extension to MCP servers (so they expose `_meta.ui.resourceUri` on
+     * tools) and to expose the `session.rpc.mcp.apps.{listTools,callTool,
+     * readResource,setHostContext,getHostContext,diagnose}` JSON-RPC methods.
+     *
+     * If the runtime gate is off, the opt-in is silently dropped server-side
+     * (the runtime logs a warning); the session is created normally but the
+     * MCP Apps surface is unavailable. Inspect the runtime's
+     * `capabilities.ui.mcpApps` on the create/resume response to detect this.
+     *
+     * SDK consumers MUST set this to `true` only when they have an iframe
+     * renderer that can display `ui://` MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants
+     * the consumer cannot display.
+     *
+     * @experimental This option is part of an experimental wire-protocol surface
+     * (SEP-1865) and may change or be removed in a future release.
+     *
+     * @default false
+     */
+    enableMcpApps?: boolean;
 
     /**
      * Handler for exit-plan-mode requests from the agent.
@@ -1671,6 +1857,15 @@ export interface SessionConfigBase {
     includeSubAgentStreamingEvents?: boolean;
 
     /**
+     * Controls how MCP OAuth tokens are stored for this session.
+     * - `"persistent"` — tokens are stored in the OS keychain (shared across sessions)
+     * - `"in-memory"` — tokens are stored in memory and discarded when the session ends
+     *
+     * @default "in-memory"
+     */
+    mcpOAuthTokenStorage?: "persistent" | "in-memory";
+
+    /**
      * MCP server configurations for the session.
      * Keys are server names, values are server configurations.
      */
@@ -1702,6 +1897,21 @@ export interface SessionConfigBase {
     skillDirectories?: string[];
 
     /**
+     * Local filesystem paths to Open Plugins-format directories
+     * (https://open-plugins.com/) to load for this session.
+     *
+     * Relative paths resolve against `workingDirectory` (or the runtime cwd if
+     * unset); absolute paths are recommended. Invalid entries are logged and
+     * skipped.
+     *
+     * Treated as an explicit opt-in: plugin agents and rules load even when
+     * {@link SessionConfigBase.enableConfigDiscovery} is false. Loaded assets
+     * slot between project (cwd) sources and personal/home sources in the
+     * session-wide precedence order.
+     */
+    pluginDirectories?: string[];
+
+    /**
      * Additional directories to search for custom instruction files.
      */
     instructionDirectories?: string[];
@@ -1729,6 +1939,61 @@ export interface SessionConfigBase {
      * the identity used for content exclusion, model routing, and quota checks.
      */
     gitHubToken?: string;
+
+    /**
+     * When true, skips embedding-based retrieval for this session.
+     * Use in multitenant deployments to prevent cross-session information leakage
+     * through the shared embedding cache.
+     */
+    skipEmbeddingRetrieval?: boolean;
+
+    /**
+     * Controls how the embedding cache is stored for this session.
+     * - `"persistent"`: Embeddings are cached on disk and shared across sessions/restarts.
+     * - `"in-memory"`: Embeddings are cached in memory only and discarded when the session ends.
+     */
+    embeddingCacheStorage?: "persistent" | "in-memory";
+
+    /**
+     * Organization-level custom instructions to include in the system prompt.
+     * Allows hosts to inject organization-specific guidance without relying on
+     * filesystem-based instruction discovery.
+     */
+    organizationCustomInstructions?: string;
+
+    /**
+     * When true, enables on-demand discovery of instruction files (AGENTS.md,
+     * .github/copilot-instructions.md, etc.) after successful file views.
+     */
+    enableOnDemandInstructionDiscovery?: boolean;
+
+    /**
+     * When true, enables loading of file-based hooks from `.github/hooks/`.
+     * This is separate from the `hooks` callback parameter which gates SDK
+     * hook event registration.
+     */
+    enableFileHooks?: boolean;
+
+    /**
+     * When true, enables git operations on the host filesystem (branch detection,
+     * file status, commit history). When false, no git context is surfaced in
+     * the system prompt.
+     */
+    enableHostGitOperations?: boolean;
+
+    /**
+     * When true, enables the cross-session store for search and retrieval
+     * across sessions. When false, session content is not written to or
+     * read from the shared session store.
+     */
+    enableSessionStore?: boolean;
+
+    /**
+     * When true, enables skill loading (including builtin skills and discovered
+     * skill directories). When false, no skills are loaded regardless of
+     * `skillDirectories` or `enableConfigDiscovery` settings.
+     */
+    enableSkills?: boolean;
 
     /**
      * Per-session remote behavior control:
@@ -1929,9 +2194,20 @@ export interface MessageOptions {
     mode?: "enqueue" | "immediate";
 
     /**
+     * The UI mode the agent was in when this message was sent (for example "plan" or "autopilot").
+     * Defaults to the session's current mode when unset.
+     */
+    agentMode?: "interactive" | "plan" | "autopilot" | "shell";
+
+    /**
      * Custom HTTP headers to include in outbound model requests for this turn.
      */
     requestHeaders?: Record<string, string>;
+
+    /**
+     * If provided, this is shown in the timeline instead of `prompt`.
+     */
+    displayPrompt?: string;
 }
 
 /**

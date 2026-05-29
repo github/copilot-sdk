@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,6 +34,25 @@ from typing import Any, ClassVar, Literal, TypedDict, cast, overload
 
 from ._diagnostics import log_timing
 from ._jsonrpc import JsonRpcClient, JsonRpcError, ProcessExitedError
+from ._mode import (
+    CopilotClientMode,
+    ToolSet,
+    _embedding_cache_storage_default,
+    _enable_file_hooks_default,
+    _enable_host_git_operations_default,
+    _enable_on_demand_instruction_discovery_default,
+    _enable_session_store_default,
+    _enable_session_telemetry_default,
+    _enable_skills_default,
+    _mcp_oauth_token_storage_default,
+    _normalize_tool_filter,
+    _post_create_options_patch,
+    _require_available_tools_for_empty_mode,
+    _require_storage_for_empty_mode,
+    _skip_embedding_retrieval_default,
+    _system_message_for_mode,
+    _validate_tool_filter_list,
+)
 from ._sdk_protocol_version import get_sdk_protocol_version
 from ._telemetry import get_trace_context
 from .canvas import (
@@ -58,6 +77,7 @@ from .generated.session_events import (
 from .session import (
     AutoModeSwitchHandler,
     CommandDefinition,
+    ContextTier,
     CopilotSession,
     CreateSessionFsHandler,
     CustomAgentConfig,
@@ -65,9 +85,11 @@ from .session import (
     ElicitationHandler,
     ExitPlanModeHandler,
     InfiniteSessionConfig,
+    LargeToolOutputConfig,
     MCPServerConfig,
     ProviderConfig,
     ReasoningEffort,
+    ReasoningSummary,
     SectionTransformFn,
     SessionFsConfig,
     SessionHooks,
@@ -140,6 +162,18 @@ def _mcp_servers_to_wire(
             config = {**config, "cwd": config["working_directory"]}
             del config["working_directory"]
         wire[name] = config
+    return wire
+
+
+def _large_output_to_wire(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Convert a ``LargeToolOutputConfig`` mapping to wire format."""
+    wire: dict[str, Any] = {}
+    if "enabled" in config:
+        wire["enabled"] = config["enabled"]
+    if "max_size_bytes" in config:
+        wire["maxSizeBytes"] = config["max_size_bytes"]
+    if "output_directory" in config:
+        wire["outputDir"] = config["output_directory"]
     return wire
 
 
@@ -303,6 +337,7 @@ class _CopilotClientOptions:
     session_idle_timeout_seconds: int | None = None
     enable_remote_sessions: bool = False
     on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None
+    mode: CopilotClientMode = "copilot-cli"
 
 
 # ============================================================================
@@ -1051,6 +1086,7 @@ class CopilotClient:
         session_idle_timeout_seconds: int | None = None,
         enable_remote_sessions: bool = False,
         on_list_models: Callable[[], list[ModelInfo] | Awaitable[list[ModelInfo]]] | None = None,
+        mode: CopilotClientMode = "copilot-cli",
     ):
         """
         Initialize a new CopilotClient.
@@ -1120,9 +1156,16 @@ class CopilotClient:
             session_idle_timeout_seconds=session_idle_timeout_seconds,
             enable_remote_sessions=enable_remote_sessions,
             on_list_models=on_list_models,
+            mode=mode,
         )
         connection = (
             options.connection if options.connection is not None else RuntimeConnection.for_stdio()
+        )
+        _require_storage_for_empty_mode(
+            mode=options.mode,
+            base_directory=options.base_directory,
+            session_fs_set=options.session_fs is not None,
+            is_uri_connection=isinstance(connection, UriRuntimeConnection),
         )
 
         self._options: _CopilotClientOptions = options
@@ -1519,31 +1562,49 @@ class CopilotClient:
         session_id: str | None = None,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
+        context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
-        available_tools: list[str] | None = None,
-        excluded_tools: list[str] | None = None,
+        available_tools: list[str] | ToolSet | None = None,
+        excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
         enable_session_telemetry: bool | None = None,
+        skip_custom_instructions: bool | None = None,
+        custom_agents_local_only: bool | None = None,
+        coauthor_enabled: bool | None = None,
+        manage_schedule_enabled: bool | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
+        mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
-        config_dir: str | None = None,
+        config_directory: str | None = None,
         enable_config_discovery: bool | None = None,
+        skip_embedding_retrieval: bool | None = None,
+        organization_custom_instructions: str | None = None,
+        enable_on_demand_instruction_discovery: bool | None = None,
+        enable_file_hooks: bool | None = None,
+        enable_host_git_operations: bool | None = None,
+        enable_session_store: bool | None = None,
+        enable_skills: bool | None = None,
         skill_directories: list[str] | None = None,
+        plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
+        large_output: LargeToolOutputConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -1553,6 +1614,7 @@ class CopilotClient:
         canvases: list[CanvasDeclaration] | None = None,
         request_canvas_renderer: bool | None = None,
         request_extensions: bool | None = None,
+        extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
     ) -> CopilotSession:
@@ -1571,6 +1633,11 @@ class CopilotClient:
             session_id: Optional session ID. If not provided, a UUID is generated.
             client_name: Optional client name for identification.
             reasoning_effort: Reasoning effort level for the model.
+            reasoning_summary: Reasoning summary mode for supported models.
+                Use ``"none"`` to suppress summary output regardless of whether
+                reasoning is enabled.
+            context_tier: Context window tier for models that support it. Use
+                ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
@@ -1600,11 +1667,19 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
+            mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
+                ``"persistent"`` uses the OS keychain (shared across sessions).
+                ``"in-memory"`` stores tokens in memory (discarded on session end).
+                Defaults to ``"in-memory"`` for safe multitenant behavior.
+            embedding_cache_storage: Controls how embedding caches are stored.
+                `"persistent"` uses disk-based storage (shared across sessions).
+                `"in-memory"` stores embeddings in memory (discarded on session end).
+                Defaults to `"in-memory"` in empty mode.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
             agent: Agent to use for the session.
-            config_dir: Override for the configuration directory.
+            config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
                 configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
                 directories from the working directory and merges them with any
@@ -1612,6 +1687,14 @@ class CopilotClient:
                 explicit values taking precedence on name collision. Custom instruction
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
+            skip_embedding_retrieval: When True, skips embedding-based retrieval.
+            organization_custom_instructions: Organization-level custom instructions.
+            enable_on_demand_instruction_discovery: Enables on-demand instruction file
+                discovery.
+            enable_file_hooks: Enables file-based hooks from ``.github/hooks/``.
+            enable_host_git_operations: Enables git operations on the host filesystem.
+            enable_session_store: Enables the cross-session store.
+            enable_skills: Enables skill loading.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
@@ -1621,6 +1704,15 @@ class CopilotClient:
                 session. Optionally associates repository metadata with the
                 cloud session.
             on_event: Callback for session events.
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
+                ``session.create``. The runtime only honors the opt-in when its
+                ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+                override) is on; otherwise the request is silently dropped.
+                Inspect ``capabilities.ui.mcpApps`` on the create response to
+                detect the drop.
 
         Returns:
             A :class:`CopilotSession` instance for the new session.
@@ -1660,6 +1752,29 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 tool_defs.append(definition)
 
+        # Empty-mode validation and normalization
+        mode = self._options.mode
+        _require_available_tools_for_empty_mode(mode, _normalize_tool_filter(available_tools))
+        available_tools = _normalize_tool_filter(available_tools)
+        excluded_tools = _normalize_tool_filter(excluded_tools)
+        _validate_tool_filter_list("available_tools", available_tools)
+        _validate_tool_filter_list("excluded_tools", excluded_tools)
+        # Mode "empty" strips environment_context from the system message.
+        system_message = _system_message_for_mode(mode, system_message)
+        # Mode "empty" defaults selected session config flags to restrictive values;
+        # caller-supplied values win.
+        enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
+        skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
+            mode, enable_on_demand_instruction_discovery
+        )
+        enable_file_hooks = _enable_file_hooks_default(mode, enable_file_hooks)
+        enable_host_git_operations = _enable_host_git_operations_default(
+            mode, enable_host_git_operations
+        )
+        enable_session_store = _enable_session_store_default(mode, enable_session_store)
+        enable_skills = _enable_skills_default(mode, enable_skills)
+
         payload: dict[str, Any] = {}
         if model:
             payload["model"] = model
@@ -1667,6 +1782,10 @@ class CopilotClient:
             payload["clientName"] = client_name
         if reasoning_effort:
             payload["reasoningEffort"] = reasoning_effort
+        if reasoning_summary:
+            payload["reasoningSummary"] = reasoning_summary
+        if context_tier:
+            payload["contextTier"] = context_tier
         if tool_defs:
             payload["tools"] = tool_defs
 
@@ -1678,6 +1797,9 @@ class CopilotClient:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
+        # Always emit "excluded" precedence so caller-supplied excludedTools win
+        # over any built-in availableTools defaults the runtime applies.
+        payload["toolFilterPrecedence"] = "excluded"
 
         # Enable permission request callback if handler provided
         payload["requestPermission"] = bool(on_permission_request)
@@ -1688,6 +1810,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        if enable_mcp_apps:
+            payload["requestMcpApps"] = True
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -1742,6 +1866,13 @@ class CopilotClient:
         # Add MCP servers configuration if provided
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
+        # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
+        mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
+        if mcp_oauth_token_storage is not None:
+            payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
+        if embedding_cache_storage is not None:
+            payload["embeddingCacheStorage"] = embedding_cache_storage
         payload["envValueMode"] = "direct"
 
         # Add custom agents configuration if provided
@@ -1759,16 +1890,34 @@ class CopilotClient:
             payload["agent"] = agent
 
         # Add config directory override if provided
-        if config_dir:
-            payload["configDir"] = config_dir
+        if config_directory:
+            payload["configDir"] = config_directory
 
         # Add config discovery flag if provided
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
+        if skip_embedding_retrieval is not None:
+            payload["skipEmbeddingRetrieval"] = skip_embedding_retrieval
+        if organization_custom_instructions is not None:
+            payload["organizationCustomInstructions"] = organization_custom_instructions
+        if enable_on_demand_instruction_discovery is not None:
+            payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
+        if enable_file_hooks is not None:
+            payload["enableFileHooks"] = enable_file_hooks
+        if enable_host_git_operations is not None:
+            payload["enableHostGitOperations"] = enable_host_git_operations
+        if enable_session_store is not None:
+            payload["enableSessionStore"] = enable_session_store
+        if enable_skills is not None:
+            payload["enableSkills"] = enable_skills
 
         # Add skill directories configuration if provided
         if skill_directories:
             payload["skillDirectories"] = skill_directories
+
+        # Add plugin directories configuration if provided
+        if plugin_directories:
+            payload["pluginDirectories"] = plugin_directories
 
         # Add instruction directories configuration if provided
         if instruction_directories is not None:
@@ -1793,12 +1942,17 @@ class CopilotClient:
                 ]
             payload["infiniteSessions"] = wire_config
 
+        if large_output is not None:
+            payload["largeOutput"] = _large_output_to_wire(large_output)
+
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
         if request_canvas_renderer is not None:
             payload["requestCanvasRenderer"] = request_canvas_renderer
         if request_extensions is not None:
             payload["requestExtensions"] = request_extensions
+        if extension_sdk_path is not None:
+            payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
 
@@ -1806,82 +1960,140 @@ class CopilotClient:
             raise RuntimeError("Client not connected")
 
         total_start = time.perf_counter()
-        actual_session_id = session_id or str(uuid.uuid4())
-        payload["sessionId"] = actual_session_id
+        # For cloud sessions, let the CLI/server assign the session id and
+        # register the session lazily once the response arrives. For non-cloud
+        # sessions we generate the id client-side (when the caller didn't
+        # supply one) so the session can be registered BEFORE the RPC — the
+        # CLI may issue session-scoped requests (e.g. ``sessionFs.writeFile``
+        # for workspace metadata) during ``session.create`` processing, before
+        # it has sent the response.
+        use_server_generated_id = cloud is not None and session_id is None
+        local_session_id: str | None = (
+            None if use_server_generated_id else (session_id or str(uuid.uuid4()))
+        )
+        if local_session_id is not None:
+            payload["sessionId"] = local_session_id
 
         # Propagate W3C Trace Context to CLI if OpenTelemetry is active
         trace_ctx = get_trace_context()
         payload.update(trace_ctx)
 
-        # Create and register the session before issuing the RPC so that
-        # events emitted by the CLI (e.g. session.start) are not dropped.
-        setup_start = time.perf_counter()
-        session = CopilotSession(actual_session_id, self._client, workspace_path=None)
-        if self._session_fs_config:
-            if create_session_fs_handler is None:
-                raise ValueError(
-                    "create_session_fs_handler is required in session config when "
-                    "session_fs is enabled in client options."
-                )
-            fs_provider: SessionFsProvider = create_session_fs_handler(session)
-            caps = self._session_fs_config.get("capabilities")
-            if caps and caps.get("sqlite"):
-                from .session_fs_provider import SessionFsSqliteProvider
+        def _initialize_session(sid: str) -> CopilotSession:
+            """Create the session, wire up handlers, and register it.
 
-                if not isinstance(fs_provider, SessionFsSqliteProvider):
+            Invoked from the reader thread the instant the session.create
+            response arrives (synchronously, before the next message is
+            dispatched) so notifications for the new session id are routed
+            to a registered session.
+            """
+            setup_start = time.perf_counter()
+            s = CopilotSession(sid, self._client, workspace_path=None)
+            if self._session_fs_config:
+                if create_session_fs_handler is None:
                     raise ValueError(
-                        "SessionFs capabilities declare SQLite support but the provider "
-                        "does not implement SessionFsSqliteProvider"
+                        "create_session_fs_handler is required in session config when "
+                        "session_fs is enabled in client options."
                     )
-            session._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
-        session._register_tools(tools)
-        session._register_commands(commands)
-        session._register_permission_handler(on_permission_request)
-        if on_user_input_request:
-            session._register_user_input_handler(on_user_input_request)
-        if on_elicitation_request:
-            session._register_elicitation_handler(on_elicitation_request)
-        if on_exit_plan_mode_request:
-            session._register_exit_plan_mode_handler(on_exit_plan_mode_request)
-        if on_auto_mode_switch_request:
-            session._register_auto_mode_switch_handler(on_auto_mode_switch_request)
-        if canvas_handler is not None:
-            session._register_canvas_handler(canvas_handler)
-        if hooks:
-            session._register_hooks(hooks)
-        if transform_callbacks:
-            session._register_transform_callbacks(transform_callbacks)
-        if on_event:
-            session.on(on_event)
-        with self._sessions_lock:
-            self._sessions[actual_session_id] = session
-        log_timing(
-            logger,
-            logging.DEBUG,
-            "CopilotClient.create_session local setup complete",
-            setup_start,
-            session_id=actual_session_id,
-            tools_count=len(tools or []),
-            commands_count=len(commands or []),
-            has_hooks=hooks is not None,
-        )
+                fs_provider: SessionFsProvider = create_session_fs_handler(s)
+                caps = self._session_fs_config.get("capabilities")
+                if caps and caps.get("sqlite"):
+                    from .session_fs_provider import SessionFsSqliteProvider
+
+                    if not isinstance(fs_provider, SessionFsSqliteProvider):
+                        raise ValueError(
+                            "SessionFs capabilities declare SQLite support but the provider "
+                            "does not implement SessionFsSqliteProvider"
+                        )
+                s._client_session_apis.session_fs = create_session_fs_adapter(fs_provider)
+            s._register_tools(tools)
+            s._register_commands(commands)
+            s._register_permission_handler(on_permission_request)
+            if on_user_input_request:
+                s._register_user_input_handler(on_user_input_request)
+            if on_elicitation_request:
+                s._register_elicitation_handler(on_elicitation_request)
+            if on_exit_plan_mode_request:
+                s._register_exit_plan_mode_handler(on_exit_plan_mode_request)
+            if on_auto_mode_switch_request:
+                s._register_auto_mode_switch_handler(on_auto_mode_switch_request)
+            if canvas_handler is not None:
+                s._register_canvas_handler(canvas_handler)
+            if hooks:
+                s._register_hooks(hooks)
+            if transform_callbacks:
+                s._register_transform_callbacks(transform_callbacks)
+            if on_event:
+                s.on(on_event)
+            with self._sessions_lock:
+                self._sessions[sid] = s
+            log_timing(
+                logger,
+                logging.DEBUG,
+                "CopilotClient.create_session local setup complete",
+                setup_start,
+                session_id=sid,
+                tools_count=len(tools or []),
+                commands_count=len(commands or []),
+                has_hooks=hooks is not None,
+            )
+            return s
+
+        session: CopilotSession | None = None
+        registered_session_id: str | None = None
+
+        # Pre-register non-cloud sessions BEFORE issuing the RPC so any
+        # session-scoped requests the CLI emits during session.create
+        # processing (e.g. sessionFs.writeFile for workspace metadata) can be
+        # routed to the correct handlers.
+        if local_session_id is not None:
+            session = _initialize_session(local_session_id)
+            registered_session_id = local_session_id
 
         try:
             rpc_start = time.perf_counter()
-            response = await self._client.request("session.create", payload)
+
+            # For the server-assigned (cloud) path, register the session
+            # synchronously from the reader thread the instant the response
+            # arrives, before the next message can be dispatched. The
+            # awaiter's continuation otherwise runs after the event loop has
+            # already processed the first session.event notification, which
+            # would silently drop because the session id isn't yet
+            # registered. Non-cloud sessions are already registered above.
+            def _register_inline(raw_response: Any) -> None:
+                nonlocal session, registered_session_id
+                if session is not None:
+                    return
+                if not isinstance(raw_response, dict):
+                    return
+                sid = raw_response.get("sessionId")
+                if isinstance(sid, str) and sid:
+                    session = _initialize_session(sid)
+                    registered_session_id = sid
+
+            response = await self._client.request(
+                "session.create", payload, on_response_inline=_register_inline
+            )
             log_timing(
                 logger,
                 logging.DEBUG,
                 "CopilotClient.create_session session creation request completed successfully",
                 rpc_start,
-                session_id=actual_session_id,
+                session_id=registered_session_id,
             )
+            if session is None:
+                raise RuntimeError("session.create response did not include a sessionId")
+            if local_session_id is not None and response.get("sessionId") != local_session_id:
+                raise RuntimeError(
+                    f"session.create returned sessionId {response.get('sessionId')} "
+                    f"but the caller requested {local_session_id}"
+                )
             session._workspace_path = response.get("workspacePath")
             capabilities = response.get("capabilities")
             session._set_capabilities(capabilities)
         except BaseException as exc:
-            with self._sessions_lock:
-                self._sessions.pop(actual_session_id, None)
+            if registered_session_id is not None:
+                with self._sessions_lock:
+                    self._sessions.pop(registered_session_id, None)
             if not isinstance(exc, asyncio.CancelledError):
                 log_timing(
                     logger,
@@ -1889,16 +2101,25 @@ class CopilotClient:
                     "CopilotClient.create_session failed",
                     total_start,
                     exc_info=True,
-                    session_id=actual_session_id,
+                    session_id=registered_session_id,
                 )
             raise
+
+        await self._apply_post_create_options_patch(
+            session,
+            mode,
+            skip_custom_instructions,
+            custom_agents_local_only,
+            coauthor_enabled,
+            manage_schedule_enabled,
+        )
 
         log_timing(
             logger,
             logging.DEBUG,
             "CopilotClient.create_session complete",
             total_start,
-            session_id=actual_session_id,
+            session_id=registered_session_id,
         )
         return session
 
@@ -1910,31 +2131,49 @@ class CopilotClient:
         model: str | None = None,
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
+        context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
-        available_tools: list[str] | None = None,
-        excluded_tools: list[str] | None = None,
+        available_tools: list[str] | ToolSet | None = None,
+        excluded_tools: list[str] | ToolSet | None = None,
         on_user_input_request: UserInputHandler | None = None,
         hooks: SessionHooks | None = None,
         working_directory: str | None = None,
         provider: ProviderConfig | None = None,
         enable_session_telemetry: bool | None = None,
+        skip_custom_instructions: bool | None = None,
+        custom_agents_local_only: bool | None = None,
+        coauthor_enabled: bool | None = None,
+        manage_schedule_enabled: bool | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
         streaming: bool | None = None,
         include_sub_agent_streaming_events: bool | None = None,
         mcp_servers: dict[str, MCPServerConfig] | None = None,
+        mcp_oauth_token_storage: Literal["persistent", "in-memory"] | None = None,
+        embedding_cache_storage: Literal["persistent", "in-memory"] | None = None,
         custom_agents: list[CustomAgentConfig] | None = None,
         default_agent: DefaultAgentConfig | dict[str, Any] | None = None,
         agent: str | None = None,
-        config_dir: str | None = None,
+        config_directory: str | None = None,
         enable_config_discovery: bool | None = None,
+        skip_embedding_retrieval: bool | None = None,
+        organization_custom_instructions: str | None = None,
+        enable_on_demand_instruction_discovery: bool | None = None,
+        enable_file_hooks: bool | None = None,
+        enable_host_git_operations: bool | None = None,
+        enable_session_store: bool | None = None,
+        enable_skills: bool | None = None,
         skill_directories: list[str] | None = None,
+        plugin_directories: list[str] | None = None,
         instruction_directories: list[str] | None = None,
         disabled_skills: list[str] | None = None,
         infinite_sessions: InfiniteSessionConfig | None = None,
+        large_output: LargeToolOutputConfig | None = None,
         on_event: Callable[[SessionEvent], None] | None = None,
         commands: list[CommandDefinition] | None = None,
         on_elicitation_request: ElicitationHandler | None = None,
+        enable_mcp_apps: bool = False,
         on_exit_plan_mode_request: ExitPlanModeHandler | None = None,
         on_auto_mode_switch_request: AutoModeSwitchHandler | None = None,
         create_session_fs_handler: CreateSessionFsHandler | None = None,
@@ -1944,6 +2183,7 @@ class CopilotClient:
         canvases: list[CanvasDeclaration] | None = None,
         request_canvas_renderer: bool | None = None,
         request_extensions: bool | None = None,
+        extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
@@ -1963,6 +2203,11 @@ class CopilotClient:
             model: The model to use for the resumed session.
             client_name: Optional client name for identification.
             reasoning_effort: Reasoning effort level for the model.
+            reasoning_summary: Reasoning summary mode for supported models.
+                Use ``"none"`` to suppress summary output regardless of whether
+                reasoning is enabled.
+            context_tier: Context window tier for models that support it. Use
+                ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
@@ -1992,11 +2237,19 @@ class CopilotClient:
                 ``agentId`` set). When False, only non-streaming sub-agent events and
                 ``subagent.*`` lifecycle events are forwarded. Defaults to True.
             mcp_servers: MCP server configurations.
+            mcp_oauth_token_storage: Controls how MCP OAuth tokens are stored.
+                ``"persistent"`` uses the OS keychain (shared across sessions).
+                ``"in-memory"`` stores tokens in memory (discarded on session end).
+                Defaults to ``"in-memory"`` for safe multitenant behavior.
+            embedding_cache_storage: Controls how embedding caches are stored.
+                `"persistent"` uses disk-based storage (shared across sessions).
+                `"in-memory"` stores embeddings in memory (discarded on session end).
+                Defaults to `"in-memory"` in empty mode.
             custom_agents: Custom agent configurations.
             default_agent: Configuration for the default agent,
                 including tool visibility controls.
             agent: Agent to use for the session.
-            config_dir: Override for the configuration directory.
+            config_directory: Override for the configuration directory.
             enable_config_discovery: When True, automatically discovers MCP server
                 configurations (e.g. ``.mcp.json``, ``.vscode/mcp.json``) and skill
                 directories from the working directory and merges them with any
@@ -2004,12 +2257,29 @@ class CopilotClient:
                 explicit values taking precedence on name collision. Custom instruction
                 files (``.github/copilot-instructions.md``, ``AGENTS.md``, etc.) are
                 always loaded regardless of this setting.
+            skip_embedding_retrieval: When True, skips embedding-based retrieval.
+            organization_custom_instructions: Organization-level custom instructions.
+            enable_on_demand_instruction_discovery: Enables on-demand instruction file
+                discovery.
+            enable_file_hooks: Enables file-based hooks from ``.github/hooks/``.
+            enable_host_git_operations: Enables git operations on the host filesystem.
+            enable_session_store: Enables the cross-session store.
+            enable_skills: Enables skill loading.
             skill_directories: Directories to search for skills.
             instruction_directories: Additional directories to search for custom
                 instruction files.
             disabled_skills: Skills to disable.
             infinite_sessions: Infinite session configuration.
             on_event: Callback for session events.
+            enable_mcp_apps: **Experimental.** Opt into MCP Apps (SEP-1865) UI
+                passthrough on resume. This parameter is part of an experimental
+                wire-protocol surface and may change or be removed in a future
+                release. When True, the SDK sends ``requestMcpApps: True`` on
+                ``session.resume``. The runtime only honors the opt-in when its
+                ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+                override) is on; otherwise the request is silently dropped.
+                Inspect ``capabilities.ui.mcpApps`` on the resume response to
+                detect the drop.
             continue_pending_work: When True, instructs the runtime to continue any
                 tool calls or permission prompts that were still pending when the
                 session was last suspended. When False (the default), the runtime
@@ -2055,6 +2325,26 @@ class CopilotClient:
                     definition["skipPermission"] = True
                 tool_defs.append(definition)
 
+        # Empty-mode validation and normalization
+        mode = self._options.mode
+        _require_available_tools_for_empty_mode(mode, _normalize_tool_filter(available_tools))
+        available_tools = _normalize_tool_filter(available_tools)
+        excluded_tools = _normalize_tool_filter(excluded_tools)
+        _validate_tool_filter_list("available_tools", available_tools)
+        _validate_tool_filter_list("excluded_tools", excluded_tools)
+        system_message = _system_message_for_mode(mode, system_message)
+        enable_session_telemetry = _enable_session_telemetry_default(mode, enable_session_telemetry)
+        skip_embedding_retrieval = _skip_embedding_retrieval_default(mode, skip_embedding_retrieval)
+        enable_on_demand_instruction_discovery = _enable_on_demand_instruction_discovery_default(
+            mode, enable_on_demand_instruction_discovery
+        )
+        enable_file_hooks = _enable_file_hooks_default(mode, enable_file_hooks)
+        enable_host_git_operations = _enable_host_git_operations_default(
+            mode, enable_host_git_operations
+        )
+        enable_session_store = _enable_session_store_default(mode, enable_session_store)
+        enable_skills = _enable_skills_default(mode, enable_skills)
+
         payload: dict[str, Any] = {"sessionId": session_id}
 
         if client_name:
@@ -2063,6 +2353,10 @@ class CopilotClient:
             payload["model"] = model
         if reasoning_effort:
             payload["reasoningEffort"] = reasoning_effort
+        if reasoning_summary:
+            payload["reasoningSummary"] = reasoning_summary
+        if context_tier:
+            payload["contextTier"] = context_tier
         if tool_defs:
             payload["tools"] = tool_defs
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
@@ -2072,6 +2366,7 @@ class CopilotClient:
             payload["availableTools"] = available_tools
         if excluded_tools is not None:
             payload["excludedTools"] = excluded_tools
+        payload["toolFilterPrecedence"] = "excluded"
         if provider:
             payload["provider"] = self._convert_provider_to_wire_format(provider)
         if enable_session_telemetry is not None:
@@ -2096,6 +2391,8 @@ class CopilotClient:
 
         # Enable elicitation request callback if handler provided
         payload["requestElicitation"] = bool(on_elicitation_request)
+        if enable_mcp_apps:
+            payload["requestMcpApps"] = True
         payload["requestExitPlanMode"] = bool(on_exit_plan_mode_request)
         payload["requestAutoModeSwitch"] = bool(on_auto_mode_switch_request)
 
@@ -2118,10 +2415,24 @@ class CopilotClient:
 
         if working_directory:
             payload["workingDirectory"] = working_directory
-        if config_dir:
-            payload["configDir"] = config_dir
+        if config_directory:
+            payload["configDir"] = config_directory
         if enable_config_discovery is not None:
             payload["enableConfigDiscovery"] = enable_config_discovery
+        if skip_embedding_retrieval is not None:
+            payload["skipEmbeddingRetrieval"] = skip_embedding_retrieval
+        if organization_custom_instructions is not None:
+            payload["organizationCustomInstructions"] = organization_custom_instructions
+        if enable_on_demand_instruction_discovery is not None:
+            payload["enableOnDemandInstructionDiscovery"] = enable_on_demand_instruction_discovery
+        if enable_file_hooks is not None:
+            payload["enableFileHooks"] = enable_file_hooks
+        if enable_host_git_operations is not None:
+            payload["enableHostGitOperations"] = enable_host_git_operations
+        if enable_session_store is not None:
+            payload["enableSessionStore"] = enable_session_store
+        if enable_skills is not None:
+            payload["enableSkills"] = enable_skills
 
         if continue_pending_work is not None:
             payload["continuePendingWork"] = continue_pending_work
@@ -2129,6 +2440,13 @@ class CopilotClient:
         # TODO: disable_resume is not a keyword arg yet; keeping for future use
         if mcp_servers:
             payload["mcpServers"] = _mcp_servers_to_wire(mcp_servers)
+        # Mode "empty" defaults MCP OAuth token storage to in-memory; caller wins.
+        mcp_oauth_token_storage = _mcp_oauth_token_storage_default(mode, mcp_oauth_token_storage)
+        if mcp_oauth_token_storage is not None:
+            payload["mcpOAuthTokenStorage"] = mcp_oauth_token_storage
+        embedding_cache_storage = _embedding_cache_storage_default(mode, embedding_cache_storage)
+        if embedding_cache_storage is not None:
+            payload["embeddingCacheStorage"] = embedding_cache_storage
         payload["envValueMode"] = "direct"
 
         if custom_agents:
@@ -2144,6 +2462,8 @@ class CopilotClient:
             payload["agent"] = agent
         if skill_directories:
             payload["skillDirectories"] = skill_directories
+        if plugin_directories:
+            payload["pluginDirectories"] = plugin_directories
         if instruction_directories is not None:
             payload["instructionDirectories"] = instruction_directories
         if disabled_skills:
@@ -2163,6 +2483,9 @@ class CopilotClient:
                 ]
             payload["infiniteSessions"] = wire_config
 
+        if large_output is not None:
+            payload["largeOutput"] = _large_output_to_wire(large_output)
+
         if canvases:
             payload["canvases"] = [c.to_dict() for c in canvases]
         if open_canvases:
@@ -2171,6 +2494,8 @@ class CopilotClient:
             payload["requestCanvasRenderer"] = request_canvas_renderer
         if request_extensions is not None:
             payload["requestExtensions"] = request_extensions
+        if extension_sdk_path is not None:
+            payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
 
@@ -2266,6 +2591,15 @@ class CopilotClient:
                     session_id=session_id,
                 )
             raise
+
+        await self._apply_post_create_options_patch(
+            session,
+            mode,
+            skip_custom_instructions,
+            custom_agents_local_only,
+            coauthor_enabled,
+            manage_schedule_enabled,
+        )
 
         log_timing(
             logger,
@@ -2871,6 +3205,11 @@ class CopilotClient:
         if opts.github_token:
             env["COPILOT_SDK_AUTH_TOKEN"] = opts.github_token
 
+        # Mode "empty": disable the runtime's system keychain probe so per-tenant
+        # credentials don't leak through a shared keytar store.
+        if opts.mode == "empty":
+            env["COPILOT_DISABLE_KEYTAR"] = "1"
+
         if self._effective_connection_token:
             env["COPILOT_CONNECTION_TOKEN"] = self._effective_connection_token
         if opts.base_directory:
@@ -3158,6 +3497,59 @@ class CopilotClient:
         # Start listening for messages
         loop = asyncio.get_running_loop()
         self._client.start(loop)
+
+    async def _apply_post_create_options_patch(
+        self,
+        session: CopilotSession,
+        mode: CopilotClientMode,
+        skip_custom_instructions: bool | None,
+        custom_agents_local_only: bool | None,
+        coauthor_enabled: bool | None,
+        manage_schedule_enabled: bool | None,
+    ) -> None:
+        """Apply empty-mode safe defaults (or caller-supplied overrides in
+        copilot-cli mode) via ``session.options.update`` after create/resume.
+
+        If the patch is rejected, tear the session down so empty-mode callers
+        never end up with a permissive session.
+        """
+        from .generated.rpc import SessionInstalledPlugin, SessionUpdateOptionsParams
+
+        patch = _post_create_options_patch(
+            mode,
+            skip_custom_instructions,
+            custom_agents_local_only,
+            coauthor_enabled,
+            manage_schedule_enabled,
+        )
+        if patch is None:
+            return
+
+        params = SessionUpdateOptionsParams()
+        if "skipCustomInstructions" in patch:
+            params.skip_custom_instructions = patch["skipCustomInstructions"]
+        if "customAgentsLocalOnly" in patch:
+            params.custom_agents_local_only = patch["customAgentsLocalOnly"]
+        if "coauthorEnabled" in patch:
+            params.coauthor_enabled = patch["coauthorEnabled"]
+        if "manageScheduleEnabled" in patch:
+            params.manage_schedule_enabled = patch["manageScheduleEnabled"]
+        if "installedPlugins" in patch:
+            params.installed_plugins = [
+                SessionInstalledPlugin.from_dict(p) if isinstance(p, dict) else p
+                for p in patch["installedPlugins"]
+            ]
+
+        try:
+            await session.rpc.options.update(params)
+        except BaseException:
+            with self._sessions_lock:
+                self._sessions.pop(session.session_id, None)
+            try:
+                await session.disconnect()
+            except BaseException:
+                pass
+            raise
 
     async def _set_session_fs_provider(self) -> None:
         if not self._session_fs_config or not self._client:

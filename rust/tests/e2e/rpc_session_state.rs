@@ -75,6 +75,7 @@ async fn should_call_session_rpc_model_switchto() {
                         reasoning_effort: Some("none".to_string()),
                         model_capabilities: None,
                         reasoning_summary: None,
+                        ..Default::default()
                     })
                     .await
                     .expect("switch model");
@@ -731,7 +732,7 @@ async fn should_update_options_and_initialize_session_services() {
                     .options()
                     .update(SessionUpdateOptionsParams {
                         ask_user_disabled: Some(true),
-                        available_tools: vec!["view".to_string()],
+                        available_tools: Some(vec!["view".to_string()]),
                         client_name: Some("rust-rpc-e2e".to_string()),
                         enable_streaming: Some(true),
                         model: Some(MODEL_ID.to_string()),

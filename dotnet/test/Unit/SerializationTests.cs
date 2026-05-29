@@ -57,7 +57,7 @@ public class SerializationTests
         var original = new MessageOptions
         {
             Prompt = "real prompt",
-            Mode = "plan",
+            Mode = "enqueue",
             RequestHeaders = new Dictionary<string, string> { ["X-Trace"] = "trace-value" }
         };
 
@@ -65,13 +65,13 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         Assert.Equal("real prompt", root.GetProperty("prompt").GetString());
-        Assert.Equal("plan", root.GetProperty("mode").GetString());
+        Assert.Equal("enqueue", root.GetProperty("mode").GetString());
         Assert.Equal("trace-value", root.GetProperty("requestHeaders").GetProperty("X-Trace").GetString());
 
         var deserialized = JsonSerializer.Deserialize<MessageOptions>(json, options);
         Assert.NotNull(deserialized);
         Assert.Equal("real prompt", deserialized.Prompt);
-        Assert.Equal("plan", deserialized.Mode);
+        Assert.Equal("enqueue", deserialized.Mode);
         Assert.Equal("trace-value", deserialized.RequestHeaders!["X-Trace"]);
     }
 
@@ -84,7 +84,7 @@ public class SerializationTests
             requestType,
             ("SessionId", "session-id"),
             ("Prompt", "real prompt"),
-            ("Mode", "plan"),
+            ("Mode", "enqueue"),
             ("RequestHeaders", new Dictionary<string, string> { ["X-Trace"] = "trace-value" }));
 
         var json = JsonSerializer.Serialize(request, requestType, options);
@@ -92,7 +92,7 @@ public class SerializationTests
         var root = document.RootElement;
         Assert.Equal("session-id", root.GetProperty("sessionId").GetString());
         Assert.Equal("real prompt", root.GetProperty("prompt").GetString());
-        Assert.Equal("plan", root.GetProperty("mode").GetString());
+        Assert.Equal("enqueue", root.GetProperty("mode").GetString());
         Assert.Equal("trace-value", root.GetProperty("requestHeaders").GetProperty("X-Trace").GetString());
     }
 
@@ -172,6 +172,102 @@ public class SerializationTests
     }
 
     [Fact]
+    public void SessionRequests_CanSerializeReasoningSummary_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("ReasoningSummary", ReasoningSummary.Detailed));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.Equal("detailed", createDocument.RootElement.GetProperty("reasoningSummary").GetString());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("ReasoningSummary", ReasoningSummary.None));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.Equal("none", resumeDocument.RootElement.GetProperty("reasoningSummary").GetString());
+    }
+
+    [Fact]
+    public void SessionRequests_CanSerializeContextTier_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("ContextTier", ContextTier.LongContext));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        Assert.Equal("long_context", createDocument.RootElement.GetProperty("contextTier").GetString());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("ContextTier", ContextTier.Default));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        Assert.Equal("default", resumeDocument.RootElement.GetProperty("contextTier").GetString());
+    }
+
+    [Fact]
+    public void SessionRequests_CanSerializePluginDirectoriesAndLargeOutput_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var pluginDirs = new List<string> { "/tmp/plugins/a", "/tmp/plugins/b" };
+        var largeOutput = new LargeToolOutputConfig
+        {
+            Enabled = true,
+            MaxSizeBytes = 1024,
+            OutputDirectory = "/tmp/large-output",
+        };
+
+        var createRequestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+        var createRequest = CreateInternalRequest(
+            createRequestType,
+            ("SessionId", "session-id"),
+            ("PluginDirectories", pluginDirs),
+            ("LargeOutput", largeOutput));
+
+        var createJson = JsonSerializer.Serialize(createRequest, createRequestType, options);
+        using var createDocument = JsonDocument.Parse(createJson);
+        var createRoot = createDocument.RootElement;
+        Assert.Equal("/tmp/plugins/a", createRoot.GetProperty("pluginDirectories")[0].GetString());
+        Assert.Equal("/tmp/plugins/b", createRoot.GetProperty("pluginDirectories")[1].GetString());
+        var createLargeOutput = createRoot.GetProperty("largeOutput");
+        Assert.True(createLargeOutput.GetProperty("enabled").GetBoolean());
+        Assert.Equal(1024, createLargeOutput.GetProperty("maxSizeBytes").GetInt64());
+        Assert.Equal("/tmp/large-output", createLargeOutput.GetProperty("outputDir").GetString());
+
+        var resumeRequestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+        var resumeRequest = CreateInternalRequest(
+            resumeRequestType,
+            ("SessionId", "session-id"),
+            ("PluginDirectories", pluginDirs),
+            ("LargeOutput", largeOutput));
+
+        var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
+        using var resumeDocument = JsonDocument.Parse(resumeJson);
+        var resumeRoot = resumeDocument.RootElement;
+        Assert.Equal("/tmp/plugins/a", resumeRoot.GetProperty("pluginDirectories")[0].GetString());
+        var resumeLargeOutput = resumeRoot.GetProperty("largeOutput");
+        Assert.True(resumeLargeOutput.GetProperty("enabled").GetBoolean());
+        Assert.Equal(1024, resumeLargeOutput.GetProperty("maxSizeBytes").GetInt64());
+        Assert.Equal("/tmp/large-output", resumeLargeOutput.GetProperty("outputDir").GetString());
+    }
+
+    [Fact]
     public void CreateSessionRequest_CanSerializeEnableSessionTelemetry_WithSdkOptions()
     {
         var options = GetSerializerOptions();
@@ -201,6 +297,60 @@ public class SerializationTests
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         Assert.False(root.GetProperty("enableSessionTelemetry").GetBoolean());
+    }
+
+    [Fact]
+    public void CreateSessionRequest_CanSerializeEnableOnDemandInstructionDiscovery_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "CreateSessionRequest");
+
+        var requestTrue = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", true));
+        var rootTrue = JsonDocument.Parse(JsonSerializer.Serialize(requestTrue, requestType, options)).RootElement;
+        Assert.True(rootTrue.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestFalse = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", false));
+        var rootFalse = JsonDocument.Parse(JsonSerializer.Serialize(requestFalse, requestType, options)).RootElement;
+        Assert.False(rootFalse.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestOmitted = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"));
+        var rootOmitted = JsonDocument.Parse(JsonSerializer.Serialize(requestOmitted, requestType, options)).RootElement;
+        Assert.False(rootOmitted.TryGetProperty("enableOnDemandInstructionDiscovery", out _));
+    }
+
+    [Fact]
+    public void ResumeSessionRequest_CanSerializeEnableOnDemandInstructionDiscovery_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = GetNestedType(typeof(CopilotClient), "ResumeSessionRequest");
+
+        var requestTrue = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", true));
+        var rootTrue = JsonDocument.Parse(JsonSerializer.Serialize(requestTrue, requestType, options)).RootElement;
+        Assert.True(rootTrue.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestFalse = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"),
+            ("EnableOnDemandInstructionDiscovery", false));
+        var rootFalse = JsonDocument.Parse(JsonSerializer.Serialize(requestFalse, requestType, options)).RootElement;
+        Assert.False(rootFalse.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+
+        var requestOmitted = CreateInternalRequest(
+            requestType,
+            ("SessionId", "session-id"));
+        var rootOmitted = JsonDocument.Parse(JsonSerializer.Serialize(requestOmitted, requestType, options)).RootElement;
+        Assert.False(rootOmitted.TryGetProperty("enableOnDemandInstructionDiscovery", out _));
     }
 
     [Fact]

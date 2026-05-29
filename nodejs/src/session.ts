@@ -10,7 +10,7 @@
 import type { MessageConnection } from "vscode-jsonrpc/node.js";
 import { ConnectionError, ErrorCodes, ResponseError } from "vscode-jsonrpc/node.js";
 import { createSessionRpc } from "./generated/rpc.js";
-import type { ClientSessionApiHandlers, CanvasInvokeActionResult } from "./generated/rpc.js";
+import type { ClientSessionApiHandlers, CanvasActionInvokeResult } from "./generated/rpc.js";
 import { type Canvas, CanvasError } from "./canvas.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import { getTraceContext } from "./telemetry.js";
@@ -31,6 +31,7 @@ import type {
     PermissionHandler,
     PermissionRequest,
     ReasoningEffort,
+    ReasoningSummary,
     ModelCapabilitiesOverride,
     SectionTransformFn,
     SessionCapabilities,
@@ -67,6 +68,23 @@ function deserializeHookInput(raw: unknown): unknown {
     const obj = raw as Record<string, unknown> & { timestamp: number; cwd?: string };
     const { cwd, ...rest } = obj;
     return { ...rest, timestamp: new Date(obj.timestamp), workingDirectory: cwd };
+}
+
+function isOpenCanvasInstance(value: unknown): value is OpenCanvasInstance {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+    const instance = value as Partial<OpenCanvasInstance>;
+    return (
+        typeof instance.instanceId === "string" &&
+        instance.instanceId.length > 0 &&
+        typeof instance.extensionId === "string" &&
+        instance.extensionId.length > 0 &&
+        typeof instance.canvasId === "string" &&
+        instance.canvasId.length > 0 &&
+        typeof instance.reopen === "boolean" &&
+        (instance.availability === "ready" || instance.availability === "stale")
+    );
 }
 
 /** Assistant message event - the final response from the assistant. */
@@ -212,8 +230,10 @@ export class CopilotSession {
             ...(await getTraceContext(this.traceContextProvider)),
             sessionId: this.sessionId,
             prompt: options.prompt,
+            displayPrompt: options.displayPrompt,
             attachments: options.attachments,
             mode: options.mode,
+            agentMode: options.agentMode,
             requestHeaders: options.requestHeaders,
         });
 
@@ -484,6 +504,27 @@ export class CopilotSession {
             }
         } else if (event.type === "capabilities.changed") {
             this._capabilities = { ...this._capabilities, ...event.data };
+        } else if (event.type === "session.canvas.opened") {
+            this.upsertOpenCanvasFromEvent(event.data);
+        }
+    }
+
+    private upsertOpenCanvasFromEvent(data: unknown): void {
+        if (!isOpenCanvasInstance(data)) {
+            console.warn("failed to deserialize session.canvas.opened payload");
+            return;
+        }
+        this.upsertOpenCanvas(data);
+    }
+
+    private upsertOpenCanvas(instance: OpenCanvasInstance): void {
+        const index = this.openCanvasInstances.findIndex(
+            (open) => open.instanceId === instance.instanceId
+        );
+        if (index >= 0) {
+            this.openCanvasInstances[index] = instance;
+        } else {
+            this.openCanvasInstances.push(instance);
         }
     }
 
@@ -677,7 +718,7 @@ export class CopilotSession {
                     throw toCanvasRpcError(error);
                 }
             },
-            async invokeAction(params) {
+            async invoke(params) {
                 const canvas = self.canvases.get(params.canvasId);
                 if (!canvas) throw new Error(`No canvas registered with id "${params.canvasId}"`);
                 const handler = canvas.actionHandlers.get(params.actionName);
@@ -688,7 +729,7 @@ export class CopilotSession {
                     );
                 }
                 try {
-                    return (await handler(params)) as CanvasInvokeActionResult;
+                    return (await handler(params)) as CanvasActionInvokeResult;
                 } catch (error) {
                     throw toCanvasRpcError(error);
                 }
@@ -807,10 +848,10 @@ export class CopilotSession {
     }
 
     /**
-     * Snapshot of canvas instances that were already open when the session was
-     * resumed. Populated from the `session.resume` response; empty for freshly
-     * created sessions. Returns a defensive copy — mutating the returned array
-     * has no effect on the session.
+     * Snapshot of canvas instances currently known to be open for this session.
+     * Populated from the `session.resume` response and live `session.canvas.opened`
+     * events. Returns a defensive copy — mutating the returned array has no effect
+     * on the session.
      */
     get openCanvases(): OpenCanvasInstance[] {
         return [...this.openCanvasInstances];
@@ -1168,6 +1209,7 @@ export class CopilotSession {
         model: string,
         options?: {
             reasoningEffort?: ReasoningEffort;
+            reasoningSummary?: ReasoningSummary;
             modelCapabilities?: ModelCapabilitiesOverride;
         }
     ): Promise<void> {

@@ -15,10 +15,12 @@ export type SessionEvent =
   | TitleChangedEvent
   | ScheduleCreatedEvent
   | ScheduleCancelledEvent
+  | AutopilotObjectiveChangedEvent
   | InfoEvent
   | WarningEvent
   | ModelChangeEvent
   | ModeChangedEvent
+  | PermissionsChangedEvent
   | PlanChangedEvent
   | WorkspaceFileChangedEvent
   | HandoffEvent
@@ -57,6 +59,7 @@ export type SessionEvent =
   | SubagentDeselectedEvent
   | HookStartEvent
   | HookEndEvent
+  | HookProgressEvent
   | SystemMessageEvent
   | SystemNotificationEvent
   | PermissionRequestedEvent
@@ -109,6 +112,28 @@ export type ReasoningSummary =
   | "concise"
   /** Request a detailed summary of the model's reasoning. */
   | "detailed";
+/**
+ * The type of operation performed on the autopilot objective state file
+ */
+export type AutopilotObjectiveChangedOperation =
+  /** Autopilot objective state file was created for a new objective. */
+  | "create"
+  /** Autopilot objective state file was updated for an existing objective. */
+  | "update"
+  /** Autopilot objective state file was deleted or cleared. */
+  | "delete";
+/**
+ * Current autopilot objective status, if one exists
+ */
+export type AutopilotObjectiveChangedStatus =
+  /** Objective is active and can drive autopilot continuations. */
+  | "active"
+  /** Objective is paused and will not drive autopilot continuations. */
+  | "paused"
+  /** Legacy objective state indicating the previous continuation cap was reached. */
+  | "cap_reached"
+  /** Objective was completed by the agent. */
+  | "completed";
 /**
  * The session mode the agent is operating in
  */
@@ -553,6 +578,14 @@ export interface StartData {
   alreadyInUse?: boolean;
   context?: WorkingDirectoryContext;
   /**
+   * Context tier selected at session creation time for models with tiered context pricing; null when no tier is selected (e.g., non-tiered model)
+   */
+  contextTier?: /** Default context tier with standard context window size. */
+    | "default"
+    /** Extended context tier with a larger context window. */
+    | "long_context"
+    | null;
+  /**
    * Version string of the Copilot application
    */
   copilotVersion: string;
@@ -663,6 +696,14 @@ export interface ResumeData {
    */
   alreadyInUse?: boolean;
   context?: WorkingDirectoryContext;
+  /**
+   * Context tier currently selected at resume time; null when no tier is active
+   */
+  contextTier?: /** Default context tier with standard context window size. */
+    | "default"
+    /** Extended context tier with a larger context window. */
+    | "long_context"
+    | null;
   /**
    * When true, tool calls and permission requests left in flight by the previous session lifetime remain pending after resume and the agentic loop awaits their results. User sends are queued behind the pending work until all such requests reach a terminal state. When false (the default), any such tool calls and permission requests are immediately marked as interrupted on resume.
    */
@@ -976,6 +1017,47 @@ export interface ScheduleCancelledData {
   id: number;
 }
 /**
+ * Session event "session.autopilot_objective_changed". Autopilot objective state file operation details indicating what changed
+ */
+export interface AutopilotObjectiveChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: AutopilotObjectiveChangedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.autopilot_objective_changed".
+   */
+  type: "session.autopilot_objective_changed";
+}
+/**
+ * Autopilot objective state file operation details indicating what changed
+ */
+export interface AutopilotObjectiveChangedData {
+  /**
+   * Current autopilot objective id, if one exists
+   */
+  id?: number;
+  operation: AutopilotObjectiveChangedOperation;
+  status?: AutopilotObjectiveChangedStatus;
+}
+/**
  * Session event "session.info". Informational message for timeline display with categorization
  */
 export interface InfoEvent {
@@ -1174,6 +1256,49 @@ export interface ModeChangedEvent {
 export interface ModeChangedData {
   newMode: SessionMode;
   previousMode: SessionMode;
+}
+/**
+ * Session event "session.permissions_changed". Permissions change details carrying the aggregate allow-all boolean transition.
+ */
+export interface PermissionsChangedEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: PermissionsChangedData;
+  /**
+   * When true, the event is transient and not persisted to the session event log on disk
+   */
+  ephemeral?: boolean;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "session.permissions_changed".
+   */
+  type: "session.permissions_changed";
+}
+/**
+ * Permissions change details carrying the aggregate allow-all boolean transition.
+ */
+export interface PermissionsChangedData {
+  /**
+   * Aggregate allow-all flag after the change
+   */
+  allowAllPermissions: boolean;
+  /**
+   * Aggregate allow-all flag before the change
+   */
+  previousAllowAllPermissions: boolean;
 }
 /**
  * Session event "session.plan_changed". Plan file operation details indicating what changed
@@ -3110,6 +3235,10 @@ export interface ToolExecutionStartData {
     [k: string]: unknown | undefined;
   };
   /**
+   * When true, the tool output should be displayed expanded (verbatim) in the CLI timeline
+   */
+  displayVerbatim?: boolean;
+  /**
    * Name of the MCP server hosting this tool, when the tool is an MCP tool
    */
   mcpServerName?: string;
@@ -4057,6 +4186,45 @@ export interface HookEndError {
    * Error stack trace, when available
    */
   stack?: string;
+}
+/**
+ * Session event "hook.progress". Ephemeral progress update from a running hook process
+ */
+export interface HookProgressEvent {
+  /**
+   * Sub-agent instance identifier. Absent for events from the root/main agent and session-level events.
+   */
+  agentId?: string;
+  data: HookProgressData;
+  /**
+   * Always true for events that are transient and not persisted to the session event log on disk.
+   */
+  ephemeral: true;
+  /**
+   * Unique event identifier (UUID v4), generated when the event is emitted
+   */
+  id: string;
+  /**
+   * ID of the chronologically preceding event in the session, forming a linked chain. Null for the first event.
+   */
+  parentId: string | null;
+  /**
+   * ISO 8601 timestamp when the event was created
+   */
+  timestamp: string;
+  /**
+   * Type discriminator. Always "hook.progress".
+   */
+  type: "hook.progress";
+}
+/**
+ * Ephemeral progress update from a running hook process
+ */
+export interface HookProgressData {
+  /**
+   * Human-readable progress message from the hook process
+   */
+  message: string;
 }
 /**
  * Session event "system.message". System/developer instruction content with role and optional template metadata
@@ -5728,6 +5896,10 @@ export interface ExternalToolRequestedData {
    * W3C Trace Context tracestate header for the execute_tool span
    */
   tracestate?: string;
+  /**
+   * Active session working directory, when known.
+   */
+  workingDirectory?: string;
 }
 /**
  * Session event "external_tool.completed". External tool completion notification signaling UI dismissal

@@ -402,6 +402,142 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_ReasoningSummary(t *testing.T) {
+	t.Run("create includes reasoningSummary in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ReasoningSummary: ReasoningSummaryConcise}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["reasoningSummary"] != "concise" {
+			t.Errorf("Expected reasoningSummary to be 'concise', got %v", m["reasoningSummary"])
+		}
+	})
+
+	t.Run("resume includes reasoningSummary in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ReasoningSummary: ReasoningSummaryNone}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["reasoningSummary"] != "none" {
+			t.Errorf("Expected reasoningSummary to be 'none', got %v", m["reasoningSummary"])
+		}
+	})
+}
+
+func TestSessionRequests_ContextTier(t *testing.T) {
+	t.Run("create includes contextTier in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ContextTier: ContextTierLongContext}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["contextTier"] != "long_context" {
+			t.Errorf("Expected contextTier to be 'long_context', got %v", m["contextTier"])
+		}
+	})
+
+	t.Run("resume includes contextTier in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ContextTier: ContextTierDefault}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["contextTier"] != "default" {
+			t.Errorf("Expected contextTier to be 'default', got %v", m["contextTier"])
+		}
+	})
+}
+
+func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
+	pluginDirs := []string{"/tmp/plugins/a", "/tmp/plugins/b"}
+	enabled := true
+	maxBytes := int64(1024)
+	largeOutput := &LargeToolOutputConfig{
+		Enabled:         &enabled,
+		MaxSizeBytes:    &maxBytes,
+		OutputDirectory: "/tmp/large-output",
+	}
+
+	expectedLargeOutput := map[string]any{
+		"enabled":      true,
+		"maxSizeBytes": float64(1024),
+		"outputDir":    "/tmp/large-output",
+	}
+	expectedPluginDirs := []any{"/tmp/plugins/a", "/tmp/plugins/b"}
+
+	t.Run("create includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
+			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
+			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("resume includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
+			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
+			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("create omits pluginDirectories and largeOutput when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["pluginDirectories"]; ok {
+			t.Errorf("Expected pluginDirectories to be omitted")
+		}
+		if _, ok := m["largeOutput"]; ok {
+			t.Errorf("Expected largeOutput to be omitted")
+		}
+	})
+}
+
 func TestCreateSessionRequest_Agent(t *testing.T) {
 	t.Run("includes agent in JSON when set", func(t *testing.T) {
 		req := createSessionRequest{Agent: "test-agent"}
@@ -511,6 +647,70 @@ func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["instructionDirectories"]; ok {
 			t.Error("Expected instructionDirectories to be omitted when empty")
+		}
+	})
+}
+
+func TestCreateSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
+	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{MCPOAuthTokenStorage: "in-memory"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["mcpOAuthTokenStorage"] != "in-memory" {
+			t.Errorf("Expected mcpOAuthTokenStorage to be 'in-memory', got %v", m["mcpOAuthTokenStorage"])
+		}
+	})
+
+	t.Run("omits mcpOAuthTokenStorage from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["mcpOAuthTokenStorage"]; ok {
+			t.Error("Expected mcpOAuthTokenStorage to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
+	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", MCPOAuthTokenStorage: "persistent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["mcpOAuthTokenStorage"] != "persistent" {
+			t.Errorf("Expected mcpOAuthTokenStorage to be 'persistent', got %v", m["mcpOAuthTokenStorage"])
+		}
+	})
+
+	t.Run("omits mcpOAuthTokenStorage from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["mcpOAuthTokenStorage"]; ok {
+			t.Error("Expected mcpOAuthTokenStorage to be omitted when empty")
 		}
 	})
 }
@@ -946,6 +1146,65 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:      "s1",
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
 func TestResumeSessionRequest_ModeCallbackFlags(t *testing.T) {
 	req := resumeSessionRequest{
 		SessionID:             "s1",
@@ -1214,6 +1473,100 @@ func TestResumeSessionRequest_IncludeSubAgentStreamingEvents(t *testing.T) {
 		}
 		if m["includeSubAgentStreamingEvents"] != false {
 			t.Errorf("Expected includeSubAgentStreamingEvents to be false, got %v", m["includeSubAgentStreamingEvents"])
+		}
+	})
+}
+
+func TestCreateSessionRequest_EnableOnDemandInstructionDiscovery(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableOnDemandInstructionDiscovery: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != true {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be true, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		req := createSessionRequest{
+			EnableOnDemandInstructionDiscovery: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != false {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be false, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("omits enableOnDemandInstructionDiscovery when not set", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableOnDemandInstructionDiscovery"]; ok {
+			t.Error("Expected enableOnDemandInstructionDiscovery to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_EnableOnDemandInstructionDiscovery(t *testing.T) {
+	t.Run("forwards explicit true", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                          "s1",
+			EnableOnDemandInstructionDiscovery: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != true {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be true, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("preserves explicit false", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:                          "s1",
+			EnableOnDemandInstructionDiscovery: Bool(false),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["enableOnDemandInstructionDiscovery"] != false {
+			t.Errorf("Expected enableOnDemandInstructionDiscovery to be false, got %v", m["enableOnDemandInstructionDiscovery"])
+		}
+	})
+
+	t.Run("omits enableOnDemandInstructionDiscovery when not set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["enableOnDemandInstructionDiscovery"]; ok {
+			t.Error("Expected enableOnDemandInstructionDiscovery to be omitted when not set")
 		}
 	})
 }

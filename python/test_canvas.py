@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any, cast
+from uuid import uuid4
 
 import pytest
 
@@ -21,6 +23,12 @@ from copilot.generated.rpc import (
     CanvasProviderInvokeActionRequest,
     CanvasProviderOpenRequest,
     CanvasProviderOpenResult,
+)
+from copilot.generated.session_events import (
+    CanvasOpenedAvailability,
+    SessionCanvasOpenedData,
+    SessionEvent,
+    SessionEventType,
 )
 from copilot.session import CopilotSession
 
@@ -160,7 +168,7 @@ async def test_register_canvas_handler_wires_generated_canvas_adapter():
         session_id="sess-1",
         input={"value": 1},
     )
-    action_result = await adapter.invoke_action(action_request)
+    action_result = await adapter.invoke(action_request)
     assert action_result == {"echo": {"value": 1}}
     assert handler.action_calls == [action_request]
 
@@ -205,3 +213,93 @@ def test_set_open_canvases_round_trip():
     session = CopilotSession("sess-1", client=None)
     session._set_open_canvases([inst])
     assert session.open_canvases == [inst]
+
+
+def test_session_canvas_opened_updates_open_canvases(caplog: pytest.LogCaptureFixture):
+    session = CopilotSession("sess-1", client=None)
+
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasOpenedData(
+                availability=CanvasOpenedAvailability.READY,
+                canvas_id="",
+                extension_id="project:counter",
+                instance_id="missing-canvas-id",
+                reopen=False,
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_OPENED,
+        )
+    )
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasOpenedData(
+                availability=CanvasOpenedAvailability.READY,
+                canvas_id="counter",
+                extension_id="project:counter",
+                extension_name="Counter Provider",
+                instance_id="counter-1",
+                reopen=False,
+                input={"seed": 1},
+                status="ready",
+                title="Counter",
+                url="https://example.test/counter",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_OPENED,
+        )
+    )
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasOpenedData(
+                availability=CanvasOpenedAvailability.STALE,
+                canvas_id="logs",
+                extension_id="project:logs",
+                instance_id="logs-1",
+                reopen=False,
+                title="Logs",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_OPENED,
+        )
+    )
+
+    assert "failed to deserialize session.canvas.opened payload" in caplog.text
+    assert [canvas.instance_id for canvas in session.open_canvases] == [
+        "counter-1",
+        "logs-1",
+    ]
+
+    session._dispatch_event(
+        SessionEvent(
+            data=SessionCanvasOpenedData(
+                availability=CanvasOpenedAvailability.STALE,
+                canvas_id="counter",
+                extension_id="project:counter",
+                extension_name="Counter Provider",
+                instance_id="counter-1",
+                reopen=True,
+                input={"seed": 2},
+                status="reconnected",
+                title="Counter Updated",
+                url="https://example.test/counter-updated",
+            ),
+            id=uuid4(),
+            timestamp=datetime.now(UTC),
+            type=SessionEventType.SESSION_CANVAS_OPENED,
+        )
+    )
+
+    open_canvases = session.open_canvases
+    assert len(open_canvases) == 2
+    assert open_canvases[0].instance_id == "counter-1"
+    assert open_canvases[0].title == "Counter Updated"
+    assert open_canvases[0].status == "reconnected"
+    assert open_canvases[0].url == "https://example.test/counter-updated"
+    assert open_canvases[0].input == {"seed": 2}
+    assert open_canvases[0].reopen is True
+    assert open_canvases[0].availability == CanvasInstanceAvailability.STALE
+    assert open_canvases[1].instance_id == "logs-1"

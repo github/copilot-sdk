@@ -73,8 +73,8 @@ var client = new CopilotClient(new CopilotClientOptions
 
 <!-- docs-validate: skip -->
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setTelemetry(new TelemetryConfig()

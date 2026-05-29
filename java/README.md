@@ -1,17 +1,14 @@
 # GitHub Copilot SDK for Java
 
-[![Build](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml/badge.svg)](https://github.com/github/copilot-sdk-java/actions/workflows/build-test.yml)
-[![Site](https://github.com/github/copilot-sdk-java/actions/workflows/deploy-site.yml/badge.svg)](https://github.com/github/copilot-sdk-java/actions/workflows/deploy-site.yml)
-[![Coverage](.github/badges/jacoco.svg)](https://github.github.io/copilot-sdk-java/snapshot/jacoco/index.html)
-[![Documentation](https://img.shields.io/badge/docs-online-brightgreen)](https://github.github.io/copilot-sdk-java/)
+[![Build](https://github.com/github/copilot-sdk/actions/workflows/java-sdk-tests.yml/badge.svg)](https://github.com/github/copilot-sdk/actions/workflows/java-sdk-tests.yml)
 [![Java 17+](https://img.shields.io/badge/Java-17%2B-blue?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 #### Latest release
-[![GitHub Release Date](https://img.shields.io/github/release-date/github/copilot-sdk-java)](https://github.com/github/copilot-sdk-java/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/github/copilot-sdk-java)](https://github.com/github/copilot-sdk-java/releases)
+
+[![GitHub Release Date](https://img.shields.io/github/release-date/github/copilot-sdk)](https://github.com/github/copilot-sdk/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/github/copilot-sdk)](https://github.com/github/copilot-sdk/releases)
 [![Maven Central](https://img.shields.io/maven-central/v/com.github/copilot-sdk-java)](https://central.sonatype.com/artifact/com.github/copilot-sdk-java)
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen)](https://github.github.io/copilot-sdk-java/latest/)
 [![Javadoc](https://javadoc.io/badge2/com.github/copilot-sdk-java/javadoc.svg?q=1)](https://javadoc.io/doc/com.github/copilot-sdk-java/latest/index.html)
 
 ## Background
@@ -22,10 +19,10 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 
 ## Installation
 
-### Requirements
+### Runtime requirements
 
-- Java 17 or later. **JDK 25 recommended**. Selecting JDK 25 enables the use of virtual threads, as shown in the [Quick Start](#quick-start).
-- GitHub Copilot CLI 1.0.17 or later installed and in `PATH` (or provide custom `cliPath`)
+- Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
+- GitHub Copilot CLI 1.0.55-5. or later installed and in `PATH` (or provide custom `cliPath`)
 
 ### Maven
 
@@ -33,8 +30,14 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.4</version>
+    <version>1.0.0-beta-10-java.4</version>
 </dependency>
+```
+
+### Gradle
+
+```groovy
+implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.4'
 ```
 
 #### Snapshot Builds
@@ -53,39 +56,32 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.5-SNAPSHOT</version>
+    <version>1.0.0-beta-10-java.5-SNAPSHOT</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:1.0.0-beta-java.4'
+implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.4-SNAPSHOT'
 ```
 
 ## Quick Start
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.generated.AssistantMessageEvent;
-import com.github.copilot.sdk.generated.SessionUsageInfoEvent;
-import com.github.copilot.sdk.json.CopilotClientOptions;
-import com.github.copilot.sdk.json.MessageOptions;
-import com.github.copilot.sdk.json.PermissionHandler;
-import com.github.copilot.sdk.json.SessionConfig;
-
-import java.util.concurrent.Executors;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.generated.AssistantMessageEvent;
+import com.github.copilot.generated.SessionUsageInfoEvent;
+import com.github.copilot.rpc.MessageOptions;
+import com.github.copilot.rpc.PermissionHandler;
+import com.github.copilot.rpc.SessionConfig;
 
 public class CopilotSDK {
     public static void main(String[] args) throws Exception {
         var lastMessage = new String[]{null};
 
         // Create and start client
-        try (var client = new CopilotClient()) {  // JDK 25+: comment out this line
-        // JDK 25+: uncomment the following 3 lines for virtual thread support
-        // var options = new CopilotClientOptions()
-        //     .setExecutor(Executors.newVirtualThreadPerTaskExecutor());
-        // try (var client = new CopilotClient(options)) {
+        try (var client = new CopilotClient()) {
             client.start().get();
 
             // Create a session
@@ -129,31 +125,20 @@ See the full source of [`jbang-example.java`](jbang-example.java) for a complete
 Or run it directly from the repository:
 
 ```bash
-jbang https://github.com/github/copilot-sdk-java/blob/latest/jbang-example.java
+jbang https://github.com/github/copilot-sdk/blob/main/java/jbang-example.java
 ```
-
-## Documentation
-
-📚 **[Full Documentation](https://github.github.io/copilot-sdk-java/)** — Complete API reference, advanced usage examples, and guides.
-
-### Quick Links
-
-- [Getting Started](https://github.github.io/copilot-sdk-java/latest/documentation.html)
-- [Javadoc API Reference](https://github.github.io/copilot-sdk-java/latest/apidocs/)
-- [MCP Servers Integration](https://github.github.io/copilot-sdk-java/latest/mcp.html)
-
 
 ## Projects Using This SDK
 
-| Project | Description |
-|---------|-------------|
+| Project                                                                       | Description                                |
+| ----------------------------------------------------------------------------- | ------------------------------------------ |
 | [JMeter Copilot Plugin](https://github.com/brunoborges/jmeter-copilot-plugin) | JMeter plugin for AI-assisted load testing |
 
 > Want to add your project? Open a PR!
 
 ## CI/CD Workflows
 
-This project uses several GitHub Actions workflows for building, testing, releasing, and syncing with the reference implementation SDK. 
+This project uses several GitHub Actions workflows for building, testing, releasing, and syncing with the reference implementation SDK.
 
 See [WORKFLOWS.md](docs/WORKFLOWS.md) for a full overview and details on each workflow.
 
@@ -168,21 +153,28 @@ This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk
 **Automated sync** — A [scheduled GitHub Actions workflow](.github/workflows/reference-impl-sync.yml) runs on the schedule specified in that file. It checks for new reference implementation commits since the last merge (tracked in [`.lastmerge`](.lastmerge)), and if changes are found, creates an issue labeled `reference-impl-sync` and assigns it to the GitHub Copilot coding agent. Any previously open `reference-impl-sync` issues are automatically closed. The sync also updates the `@github/copilot` version in both `pom.xml` and `scripts/codegen/package.json` to keep schemas and test CLI in lockstep.
 
 **Reusable prompt** — The merge workflow is defined in [`agentic-merge-reference-impl.prompt.md`](.github/prompts/agentic-merge-reference-impl.prompt.md). It can be triggered manually from:
+
 - **VS Code Copilot Chat** — type `/agentic-merge-reference-impl`
 - **GitHub Copilot CLI** — use `copilot` CLI with the same skill reference
 
 ### Development Setup
 
+Requires JDK 25 or later for development.
+
 ```bash
 # Clone the repository
-git clone https://github.com/github/copilot-sdk-java.git
-cd copilot-sdk-java
+git clone https://github.com/github/copilot-sdk.git
+cd copilot-sdk/java
 
 # Enable git hooks for code formatting
 git config core.hooksPath .githooks
 
-# Build and test
+# Build and test with JDK 25
 mvn clean verify
+
+# Set your paths for JDK 17
+# Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
+mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
 
 The tests require the official [copilot-sdk](https://github.com/github/copilot-sdk) test harness, which is automatically cloned during build.
@@ -202,14 +194,4 @@ See [SECURITY.md](SECURITY.md) for reporting security vulnerabilities.
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
-
-## Acknowledgement
-
-- Initially developed with Copilot and [Bruno Borges](https://www.linkedin.com/in/brunocborges/).
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=github/copilot-sdk-java&type=Date)](https://www.star-history.com/#github/copilot-sdk-java&Date)
-
-⭐ Drop a star if you find this useful!
 

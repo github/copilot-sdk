@@ -836,7 +836,7 @@ async fn should_create_session_with_custom_config_dir() {
                 let session = client
                     .create_session(
                         ctx.approve_all_session_config()
-                            .with_config_dir(custom_config_dir),
+                            .with_config_directory(custom_config_dir),
                     )
                     .await
                     .expect("create session");
@@ -1104,7 +1104,8 @@ async fn should_send_with_file_attachment() {
             let attachments = user
                 .typed_data::<UserMessageData>()
                 .expect("user message data")
-                .attachments;
+                .attachments
+                .expect("attachments");
             assert_eq!(attachments.len(), 1);
             assert_eq!(
                 attachments[0]
@@ -1167,7 +1168,8 @@ async fn should_send_with_directory_attachment() {
             let attachments = user
                 .typed_data::<UserMessageData>()
                 .expect("user message data")
-                .attachments;
+                .attachments
+                .expect("attachments");
             assert_eq!(attachments.len(), 1);
             assert_eq!(
                 attachments[0]
@@ -1235,6 +1237,7 @@ async fn should_send_with_selection_attachment() {
                 .typed_data::<UserMessageData>()
                 .expect("user message data")
                 .attachments
+                .expect("attachments")
                 .into_iter()
                 .next()
                 .expect("attachment");
@@ -1294,6 +1297,7 @@ async fn should_send_with_github_reference_attachment() {
                     .typed_data::<UserMessageData>()
                     .expect("user message data")
                     .attachments
+                    .expect("attachments")
                     .into_iter()
                     .next()
                     .expect("attachment");

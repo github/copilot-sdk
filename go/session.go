@@ -98,9 +98,9 @@ func (s *Session) WorkspacePath() string {
 	return s.workspacePath
 }
 
-// OpenCanvases returns the open-canvas snapshot last reported by the runtime
-// (currently populated from the session.resume response). The returned slice
-// is a copy and is safe to mutate by the caller.
+// OpenCanvases returns the open-canvas snapshot last reported by the runtime.
+// The snapshot is populated from session.resume and live session.canvas.opened
+// events. The returned slice is a copy and is safe to mutate by the caller.
 func (s *Session) OpenCanvases() []rpc.OpenCanvasInstance {
 	s.openCanvasesMu.RLock()
 	defer s.openCanvasesMu.RUnlock()
@@ -116,6 +116,41 @@ func (s *Session) setOpenCanvases(canvases []rpc.OpenCanvasInstance) {
 	s.openCanvasesMu.Lock()
 	defer s.openCanvasesMu.Unlock()
 	s.openCanvases = canvases
+}
+
+func (s *Session) upsertOpenCanvas(canvas rpc.OpenCanvasInstance) {
+	s.openCanvasesMu.Lock()
+	defer s.openCanvasesMu.Unlock()
+	for i := range s.openCanvases {
+		if s.openCanvases[i].InstanceID == canvas.InstanceID {
+			s.openCanvases[i] = canvas
+			return
+		}
+	}
+	s.openCanvases = append(s.openCanvases, canvas)
+}
+
+func (s *Session) updateOpenCanvasesFromEvent(event SessionEvent) {
+	data, ok := event.Data.(*SessionCanvasOpenedData)
+	if !ok {
+		return
+	}
+	if data.InstanceID == "" || data.CanvasID == "" || data.ExtensionID == "" || data.Availability == "" {
+		fmt.Printf("failed to deserialize session.canvas.opened payload\n")
+		return
+	}
+	s.upsertOpenCanvas(rpc.OpenCanvasInstance{
+		Availability:  rpc.CanvasInstanceAvailability(data.Availability),
+		CanvasID:      data.CanvasID,
+		ExtensionID:   data.ExtensionID,
+		ExtensionName: data.ExtensionName,
+		Input:         data.Input,
+		InstanceID:    data.InstanceID,
+		Reopen:        data.Reopen,
+		Status:        data.Status,
+		Title:         data.Title,
+		URL:           data.URL,
+	})
 }
 
 func (s *Session) registerCanvasHandler(handler CanvasHandler) {
@@ -152,7 +187,7 @@ func (a *canvasClientSessionAdapter) Close(request *rpc.CanvasProviderCloseReque
 	return nil, nil
 }
 
-func (a *canvasClientSessionAdapter) InvokeAction(request *rpc.CanvasProviderInvokeActionRequest) (any, error) {
+func (a *canvasClientSessionAdapter) Invoke(request *rpc.CanvasProviderInvokeActionRequest) (any, error) {
 	if request == nil {
 		return nil, canvasJSONRPCError(NewCanvasError("canvas_handler_unset", "missing canvas action request"))
 	}
@@ -287,8 +322,10 @@ func (s *Session) Send(ctx context.Context, options MessageOptions) (string, err
 	req := sessionSendRequest{
 		SessionID:      s.SessionID,
 		Prompt:         options.Prompt,
+		DisplayPrompt:  options.DisplayPrompt,
 		Attachments:    options.Attachments,
 		Mode:           options.Mode,
+		AgentMode:      options.AgentMode,
 		Traceparent:    traceparent,
 		Tracestate:     tracestate,
 		RequestHeaders: options.RequestHeaders,
@@ -1108,6 +1145,7 @@ func fromRPCContent(value rpc.UIElicitationFieldValue) any {
 // are delivered by a single consumer goroutine (processEvents), guaranteeing
 // serial, FIFO dispatch without blocking the read loop.
 func (s *Session) dispatchEvent(event SessionEvent) {
+	s.updateOpenCanvasesFromEvent(event)
 	go s.handleBroadcastEvent(event)
 
 	// Send to the event channel in a closure with a recover guard.
@@ -1454,6 +1492,9 @@ func (s *Session) Abort(ctx context.Context) error {
 type SetModelOptions struct {
 	// ReasoningEffort sets the reasoning effort level for the new model (e.g., "low", "medium", "high", "xhigh").
 	ReasoningEffort *string
+	// ReasoningSummary sets the reasoning summary mode for the new model.
+	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
+	ReasoningSummary *ReasoningSummary
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1474,6 +1515,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	params := &rpc.ModelSwitchToRequest{ModelID: model}
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
+		params.ReasoningSummary = opts.ReasoningSummary
 		params.ModelCapabilities = opts.ModelCapabilities
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)

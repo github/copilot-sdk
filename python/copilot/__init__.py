@@ -4,6 +4,11 @@ Copilot SDK - Python Client for GitHub Copilot CLI
 JSON-RPC based SDK for programmatic control of GitHub Copilot CLI
 """
 
+from ._mode import (
+    BUILTIN_TOOLS_ISOLATED,
+    CopilotClientMode,
+    ToolSet,
+)
 from .canvas import (
     CanvasAction,
     CanvasDeclaration,
@@ -81,6 +86,7 @@ from .session import (
     ExitPlanModeResult,
     InfiniteSessionConfig,
     InputOptions,
+    LargeToolOutputConfig,
     MCPHTTPServerConfig,
     MCPServerConfig,
     MCPStdioServerConfig,
@@ -100,6 +106,7 @@ from .session import (
     PreToolUseHookInput,
     PreToolUseHookOutput,
     ProviderConfig,
+    ReasoningSummary,
     SessionCapabilities,
     SessionEndHandler,
     SessionEndHookInput,
@@ -144,6 +151,7 @@ __all__ = [
     "AutoModeSwitchHandler",
     "AutoModeSwitchRequest",
     "AutoModeSwitchResponse",
+    "BUILTIN_TOOLS_ISOLATED",
     "CanvasAction",
     "CanvasDeclaration",
     "CanvasError",
@@ -157,6 +165,7 @@ __all__ = [
     "CommandContext",
     "CommandDefinition",
     "CopilotClient",
+    "CopilotClientMode",
     "CopilotSession",
     "CreateSessionFsHandler",
     "ElicitationContext",
@@ -174,6 +183,7 @@ __all__ = [
     "GetStatusResponse",
     "InfiniteSessionConfig",
     "InputOptions",
+    "LargeToolOutputConfig",
     "LogLevel",
     "MCPHTTPServerConfig",
     "MCPServerConfig",
@@ -208,6 +218,7 @@ __all__ = [
     "PreToolUseHookInput",
     "PreToolUseHookOutput",
     "ProviderConfig",
+    "ReasoningSummary",
     "RemoteSessionMode",
     "RuntimeConnection",
     "SessionBackgroundEvent",
@@ -252,6 +263,7 @@ __all__ = [
     "ToolInvocation",
     "ToolResult",
     "ToolResultType",
+    "ToolSet",
     "UriRuntimeConnection",
     "UserInputHandler",
     "UserInputRequest",

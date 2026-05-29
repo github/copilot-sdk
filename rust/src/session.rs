@@ -32,7 +32,10 @@ use crate::types::{
     SystemMessageConfig, ToolInvocation, ToolResult, ToolResultExpanded, TraceContext,
     UiInputOptions, ensure_attachment_display_names,
 };
-use crate::{Client, Error, JsonRpcResponse, SessionError, SessionEventNotification, error_codes};
+use crate::{
+    Client, Error, ErrorKind, JsonRpcResponse, SessionErrorKind, SessionEventNotification,
+    error_codes,
+};
 
 /// Bundle of the per-session callbacks the SDK dispatches to. Built from a
 /// [`SessionConfig`] / [`ResumeSessionConfig`] at
@@ -68,7 +71,7 @@ struct IdleWaiter {
 /// Without this, an outer cancellation between "install waiter" and
 /// "drain channel" would leave the slot occupied, causing all subsequent
 /// `send` and `send_and_wait` calls on the session to return
-/// [`SendWhileWaiting`](SessionError::SendWhileWaiting). Closes RFD-400
+/// [`SendWhileWaiting`](SessionErrorKind::SendWhileWaiting). Closes RFD-400
 /// review finding #2.
 struct WaiterGuard {
     slot: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
@@ -257,7 +260,7 @@ impl Session {
     ///
     /// Each subscriber maintains its own queue. If a consumer cannot keep
     /// up, the oldest events are dropped and `recv` returns
-    /// [`RecvError::Lagged`](crate::subscription::RecvError::Lagged)
+    /// [`RecvErrorKind::Lagged`](crate::subscription::RecvErrorKind::Lagged)
     /// reporting the count of skipped events. Slow consumers do not block
     /// the session's event loop.
     ///
@@ -311,9 +314,9 @@ impl Session {
         }
         // Fail any pending send_and_wait so it returns immediately.
         if let Some(waiter) = self.idle_waiter.lock().take() {
-            let _ = waiter
-                .tx
-                .send(Err(Error::Session(SessionError::EventLoopClosed)));
+            let _ = waiter.tx.send(Err(
+                ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()
+            ));
         }
     }
 
@@ -343,7 +346,7 @@ impl Session {
     /// message ID.
     pub async fn send(&self, opts: impl Into<MessageOptions>) -> Result<String, Error> {
         if self.idle_waiter.lock().is_some() {
-            return Err(Error::Session(SessionError::SendWhileWaiting));
+            return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
         }
         self.send_inner(opts.into()).await
     }
@@ -356,6 +359,9 @@ impl Session {
         if let Some(m) = opts.mode {
             params["mode"] = serde_json::to_value(m)?;
         }
+        if let Some(am) = opts.agent_mode {
+            params["agentMode"] = serde_json::to_value(am)?;
+        }
         if let Some(mut a) = opts.attachments {
             ensure_attachment_display_names(&mut a);
             params["attachments"] = serde_json::to_value(a)?;
@@ -364,6 +370,9 @@ impl Session {
             && !headers.is_empty()
         {
             params["requestHeaders"] = serde_json::to_value(headers)?;
+        }
+        if let Some(display_prompt) = opts.display_prompt {
+            params["displayPrompt"] = serde_json::to_value(display_prompt)?;
         }
         let trace_ctx = if opts.traceparent.is_some() || opts.tracestate.is_some() {
             TraceContext {
@@ -421,7 +430,7 @@ impl Session {
         {
             let mut guard = self.idle_waiter.lock();
             if guard.is_some() {
-                return Err(Error::Session(SessionError::SendWhileWaiting));
+                return Err(ErrorKind::Session(SessionErrorKind::SendWhileWaiting).into());
             }
             *guard = Some(IdleWaiter {
                 tx,
@@ -443,7 +452,7 @@ impl Session {
             self.send_inner(opts).await?;
             match rx.await {
                 Ok(result) => result,
-                Err(_) => Err(Error::Session(SessionError::EventLoopClosed)),
+                Err(_) => Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()),
             }
         })
         .await;
@@ -465,7 +474,7 @@ impl Session {
                     completed_by = "timeout",
                     "Session::send_and_wait failed"
                 );
-                Err(Error::Session(SessionError::Timeout(timeout_duration)))
+                Err(ErrorKind::Session(SessionErrorKind::Timeout(timeout_duration)).into())
             }
         }
     }
@@ -514,8 +523,9 @@ impl Session {
         let request = ModelSwitchToRequest {
             model_id: model.to_string(),
             reasoning_effort: opts.reasoning_effort,
-            reasoning_summary: None,
+            reasoning_summary: opts.reasoning_summary,
             model_capabilities: opts.model_capabilities,
+            ..ModelSwitchToRequest::default()
         };
         self.rpc().model().switch_to(request).await?;
         Ok(())
@@ -602,7 +612,7 @@ impl Session {
             .and_then(|u| u.elicitation)
             != Some(true)
         {
-            return Err(Error::Session(SessionError::ElicitationNotSupported));
+            return Err(ErrorKind::Session(SessionErrorKind::ElicitationNotSupported).into());
         }
         Ok(())
     }
@@ -787,18 +797,80 @@ impl Client {
     /// broadcast (and silently skips dispatch if one arrives anyway).
     pub async fn create_session(&self, mut config: SessionConfig) -> Result<Session, Error> {
         let total_start = Instant::now();
-        let session_id = config
-            .session_id
-            .clone()
-            .unwrap_or_else(|| SessionId::from(uuid::Uuid::new_v4().to_string()));
-        config.session_id = Some(session_id.clone());
+        // For cloud sessions, let the CLI/server assign the session id and
+        // register the session lazily once the response arrives. For non-cloud
+        // sessions we generate the id client-side (when the caller didn't
+        // supply one) so the session can be registered BEFORE the RPC — the
+        // CLI may issue session-scoped requests (e.g. sessionFs.writeFile for
+        // workspace metadata) during session.create processing, before it has
+        // sent the response.
+        let caller_session_id = config.session_id.clone();
+        let use_server_generated_id = config.cloud.is_some() && caller_session_id.is_none();
+        let local_session_id: Option<SessionId> = if use_server_generated_id {
+            None
+        } else {
+            Some(
+                caller_session_id
+                    .clone()
+                    .unwrap_or_else(|| SessionId::new(uuid::Uuid::new_v4().to_string())),
+            )
+        };
         if config.hooks_handler.is_some() && config.hooks.is_none() {
             config.hooks = Some(true);
         }
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections(&mut config, transforms.as_ref());
         }
-        let (wire, mut runtime) = config.into_wire(session_id.clone())?;
+        let mode = self.inner.mode;
+        if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "ClientMode::Empty requires available_tools to be set on the session config. \
+                 Use ToolSet to specify which tools the session may use (e.g. \
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
+            ));
+        }
+        crate::mode::validate_tool_filter_list(
+            "available_tools",
+            config.available_tools.as_deref(),
+        )?;
+        crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
+        config.system_message =
+            crate::mode::system_message_for_mode(mode, config.system_message.take());
+        if mode == crate::ClientMode::Empty {
+            if config.enable_session_telemetry.is_none() {
+                config.enable_session_telemetry = Some(false);
+            }
+            if config.skip_embedding_retrieval.is_none() {
+                config.skip_embedding_retrieval = Some(true);
+            }
+            if config.enable_on_demand_instruction_discovery.is_none() {
+                config.enable_on_demand_instruction_discovery = Some(false);
+            }
+            if config.enable_file_hooks.is_none() {
+                config.enable_file_hooks = Some(false);
+            }
+            if config.enable_host_git_operations.is_none() {
+                config.enable_host_git_operations = Some(false);
+            }
+            if config.enable_session_store.is_none() {
+                config.enable_session_store = Some(false);
+            }
+            if config.enable_skills.is_none() {
+                config.enable_skills = Some(false);
+            }
+        }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
+        if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
+            config.embedding_cache_storage = Some("in-memory".into());
+        }
+        let opt_skip_custom_instructions = config.skip_custom_instructions;
+        let opt_custom_agents_local_only = config.custom_agents_local_only;
+        let opt_coauthor_enabled = config.coauthor_enabled;
+        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
+        let (wire, mut runtime) = config.into_wire(local_session_id.clone())?;
 
         let permission_handler = crate::permission::resolve_handler(
             runtime.permission_handler.take(),
@@ -821,16 +893,16 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
-            return Err(Error::Session(SessionError::SessionFsProviderRequired));
+            return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
         if self.inner.session_fs_sqlite_declared
             && let Some(ref provider) = session_fs_provider
             && provider.sqlite().is_none()
         {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare SQLite support but the provider \
-                 does not implement SessionFsSqliteProvider"
-                    .to_string(),
+                 does not implement SessionFsSqliteProvider",
             ));
         }
 
@@ -840,10 +912,95 @@ impl Client {
 
         let setup_start = Instant::now();
         let capabilities = Arc::new(parking_lot::RwLock::new(SessionCapabilities::default()));
-        let channels = self.register_session(&session_id);
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
+
+        // For cloud sessions (use_server_generated_id), defer session
+        // registration to the inline callback so the read task registers
+        // the session synchronously the instant the response arrives.
+        // For non-cloud sessions, register up-front so the CLI can issue
+        // session-scoped requests during session.create processing.
+        let inline_stash: Arc<
+            ParkingLotMutex<Option<(SessionId, crate::router::SessionChannels)>>,
+        > = Arc::new(ParkingLotMutex::new(None));
+
+        let inline_callback: Option<crate::jsonrpc::InlineResponseCallback> = if let Some(ref sid) =
+            local_session_id
+        {
+            let channels = self.register_session(sid);
+            *inline_stash.lock() = Some((sid.clone(), channels));
+            None
+        } else {
+            let client = self.clone();
+            let stash = inline_stash.clone();
+            let expected = caller_session_id.clone();
+            Some(Box::new(move |response| {
+                let result = response.result.as_ref().ok_or_else(|| {
+                    Error::with_message(ErrorKind::Json, "session.create response had no result")
+                })?;
+                let parsed: CreateSessionResult =
+                    serde_json::from_value(result.clone()).map_err(Error::from)?;
+                if let Some(requested) = expected.as_ref()
+                    && parsed.session_id != *requested
+                {
+                    return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                        requested: requested.clone(),
+                        returned: parsed.session_id,
+                    })
+                    .into());
+                }
+                let channels = client.register_session(&parsed.session_id);
+                *stash.lock() = Some((parsed.session_id, channels));
+                Ok(())
+            }))
+        };
+
+        let rpc_start = Instant::now();
+        let result = match self
+            .call_with_inline_callback("session.create", Some(params), inline_callback)
+            .await
+        {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some((id, _channels)) = inline_stash.lock().take() {
+                    self.unregister_session(&id);
+                }
+                return Err(error);
+            }
+        };
+        tracing::debug!(
+            elapsed_ms = rpc_start.elapsed().as_millis(),
+            "Client::create_session session creation request completed successfully"
+        );
+        let create_result: CreateSessionResult = match serde_json::from_value(result) {
+            Ok(result) => result,
+            Err(error) => {
+                if let Some((id, _channels)) = inline_stash.lock().take() {
+                    self.unregister_session(&id);
+                }
+                return Err(error.into());
+            }
+        };
+
+        if let Some(ref requested) = local_session_id
+            && create_result.session_id != *requested
+        {
+            if let Some((id, _channels)) = inline_stash.lock().take() {
+                self.unregister_session(&id);
+            }
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
+                requested: requested.clone(),
+                returned: create_result.session_id.clone(),
+            })
+            .into());
+        }
+
+        let (session_id, channels) = inline_stash
+            .lock()
+            .take()
+            .expect("session registration must have populated stash on success");
         let event_loop = spawn_event_loop(
             session_id.clone(),
             self.clone(),
@@ -856,11 +1013,10 @@ impl Client {
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
+            open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
         );
-        let mut registration =
-            PendingSessionRegistration::new(self.clone(), session_id.clone(), shutdown.clone());
         tracing::debug!(
             elapsed_ms = setup_start.elapsed().as_millis(),
             session_id = %session_id,
@@ -869,33 +1025,6 @@ impl Client {
             has_hooks,
             "Client::create_session local setup complete"
         );
-
-        let rpc_start = Instant::now();
-        let result = match self.call("session.create", Some(params)).await {
-            Ok(result) => result,
-            Err(error) => {
-                registration.cleanup(event_loop).await;
-                return Err(error);
-            }
-        };
-        tracing::debug!(
-            elapsed_ms = rpc_start.elapsed().as_millis(),
-            "Client::create_session session creation request completed successfully"
-        );
-        let create_result: CreateSessionResult = match serde_json::from_value(result) {
-            Ok(result) => result,
-            Err(error) => {
-                registration.cleanup(event_loop).await;
-                return Err(error.into());
-            }
-        };
-        if create_result.session_id != session_id {
-            registration.cleanup(event_loop).await;
-            return Err(Error::Session(SessionError::SessionIdMismatch {
-                requested: session_id,
-                returned: create_result.session_id,
-            }));
-        }
         *capabilities.write() = create_result.capabilities.unwrap_or_default();
 
         tracing::debug!(
@@ -903,8 +1032,7 @@ impl Client {
             session_id = %session_id,
             "Client::create_session complete"
         );
-        registration.disarm();
-        Ok(Session {
+        let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
             workspace_path: create_result.workspace_path,
@@ -914,9 +1042,19 @@ impl Client {
             shutdown,
             idle_waiter,
             capabilities,
-            open_canvases: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            open_canvases,
             event_tx,
-        })
+        };
+        apply_mode_post_create_patch(
+            &session,
+            mode,
+            opt_skip_custom_instructions,
+            opt_custom_agents_local_only,
+            opt_coauthor_enabled,
+            opt_manage_schedule_enabled,
+        )
+        .await?;
+        Ok(session)
     }
 
     /// Resume an existing session on the CLI.
@@ -938,6 +1076,55 @@ impl Client {
         if let Some(transforms) = config.system_message_transform.clone() {
             inject_transform_sections_resume(&mut config, transforms.as_ref());
         }
+        let mode = self.inner.mode;
+        if mode == crate::ClientMode::Empty && config.available_tools.is_none() {
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
+                "ClientMode::Empty requires available_tools to be set on the session config. \
+                 Use ToolSet to specify which tools the session may use (e.g. \
+                 ToolSet::new().add_builtin_many(BUILTIN_TOOLS_ISOLATED)).",
+            ));
+        }
+        crate::mode::validate_tool_filter_list(
+            "available_tools",
+            config.available_tools.as_deref(),
+        )?;
+        crate::mode::validate_tool_filter_list("excluded_tools", config.excluded_tools.as_deref())?;
+        config.system_message =
+            crate::mode::system_message_for_mode(mode, config.system_message.take());
+        if mode == crate::ClientMode::Empty {
+            if config.enable_session_telemetry.is_none() {
+                config.enable_session_telemetry = Some(false);
+            }
+            if config.skip_embedding_retrieval.is_none() {
+                config.skip_embedding_retrieval = Some(true);
+            }
+            if config.enable_on_demand_instruction_discovery.is_none() {
+                config.enable_on_demand_instruction_discovery = Some(false);
+            }
+            if config.enable_file_hooks.is_none() {
+                config.enable_file_hooks = Some(false);
+            }
+            if config.enable_host_git_operations.is_none() {
+                config.enable_host_git_operations = Some(false);
+            }
+            if config.enable_session_store.is_none() {
+                config.enable_session_store = Some(false);
+            }
+            if config.enable_skills.is_none() {
+                config.enable_skills = Some(false);
+            }
+        }
+        if mode == crate::ClientMode::Empty && config.mcp_oauth_token_storage.is_none() {
+            config.mcp_oauth_token_storage = Some("in-memory".into());
+        }
+        if mode == crate::ClientMode::Empty && config.embedding_cache_storage.is_none() {
+            config.embedding_cache_storage = Some("in-memory".into());
+        }
+        let opt_skip_custom_instructions = config.skip_custom_instructions;
+        let opt_custom_agents_local_only = config.custom_agents_local_only;
+        let opt_coauthor_enabled = config.coauthor_enabled;
+        let opt_manage_schedule_enabled = config.manage_schedule_enabled;
         let (wire, mut runtime) = config.into_wire()?;
 
         let permission_handler = crate::permission::resolve_handler(
@@ -961,16 +1148,16 @@ impl Client {
         let canvas_handler = runtime.canvas_handler.take();
         let session_fs_provider = runtime.session_fs_provider.take();
         if self.inner.session_fs_configured && session_fs_provider.is_none() {
-            return Err(Error::Session(SessionError::SessionFsProviderRequired));
+            return Err(ErrorKind::Session(SessionErrorKind::SessionFsProviderRequired).into());
         }
         if self.inner.session_fs_sqlite_declared
             && let Some(ref provider) = session_fs_provider
             && provider.sqlite().is_none()
         {
-            return Err(Error::InvalidConfig(
+            return Err(Error::with_message(
+                ErrorKind::InvalidConfig,
                 "SessionFs capabilities declare SQLite support but the provider \
-                 does not implement SessionFsSqliteProvider"
-                    .to_string(),
+                 does not implement SessionFsSqliteProvider",
             ));
         }
 
@@ -982,6 +1169,7 @@ impl Client {
         let setup_start = Instant::now();
         let channels = self.register_session(&session_id);
         let idle_waiter = Arc::new(ParkingLotMutex::new(None));
+        let open_canvases = Arc::new(parking_lot::RwLock::new(Vec::new()));
         let shutdown = CancellationToken::new();
         let (event_tx, _) = tokio::sync::broadcast::channel(512);
         let event_loop = spawn_event_loop(
@@ -996,6 +1184,7 @@ impl Client {
             channels,
             idle_waiter.clone(),
             capabilities.clone(),
+            open_canvases.clone(),
             event_tx.clone(),
             shutdown.clone(),
         );
@@ -1037,10 +1226,11 @@ impl Client {
             .unwrap_or_else(|| session_id.clone());
         if cli_session_id != session_id {
             registration.cleanup(event_loop).await;
-            return Err(Error::Session(SessionError::SessionIdMismatch {
+            return Err(ErrorKind::Session(SessionErrorKind::SessionIdMismatch {
                 requested: session_id,
                 returned: cli_session_id,
-            }));
+            })
+            .into());
         }
 
         // Reload skills after resume (best-effort).
@@ -1067,9 +1257,16 @@ impl Client {
         }
 
         *capabilities.write() = resume_result.capabilities.unwrap_or_default();
-        let open_canvases = Arc::new(parking_lot::RwLock::new(
-            resume_result.open_canvases.unwrap_or_default(),
-        ));
+        // Upsert resume snapshots rather than replacing wholesale. Live
+        // `session.canvas.opened` notifications can arrive on the event loop
+        // while `session.resume` is in flight; a wholesale replace would
+        // discard those updates.
+        {
+            let mut snapshots = open_canvases.write();
+            for snapshot in resume_result.open_canvases.unwrap_or_default() {
+                upsert_open_canvas_snapshot(&mut snapshots, snapshot);
+            }
+        }
 
         tracing::debug!(
             elapsed_ms = total_start.elapsed().as_millis(),
@@ -1077,7 +1274,7 @@ impl Client {
             "Client::resume_session complete"
         );
         registration.disarm();
-        Ok(Session {
+        let session = Session {
             id: session_id,
             cwd: self.cwd().clone(),
             workspace_path: resume_result.workspace_path,
@@ -1089,11 +1286,68 @@ impl Client {
             capabilities,
             open_canvases,
             event_tx,
-        })
+        };
+        apply_mode_post_create_patch(
+            &session,
+            mode,
+            opt_skip_custom_instructions,
+            opt_custom_agents_local_only,
+            opt_coauthor_enabled,
+            opt_manage_schedule_enabled,
+        )
+        .await?;
+        Ok(session)
     }
 }
 
 type CommandHandlerMap = HashMap<String, Arc<dyn CommandHandler>>;
+
+async fn apply_mode_post_create_patch(
+    session: &Session,
+    mode: crate::ClientMode,
+    opt_skip_custom_instructions: Option<bool>,
+    opt_custom_agents_local_only: Option<bool>,
+    opt_coauthor_enabled: Option<bool>,
+    opt_manage_schedule_enabled: Option<bool>,
+) -> Result<(), Error> {
+    use crate::generated::api_types::SessionUpdateOptionsParams;
+    let mut patch = SessionUpdateOptionsParams::default();
+    let should_send = if mode == crate::ClientMode::Empty {
+        patch.skip_custom_instructions = Some(opt_skip_custom_instructions.unwrap_or(true));
+        patch.custom_agents_local_only = Some(opt_custom_agents_local_only.unwrap_or(true));
+        patch.coauthor_enabled = Some(opt_coauthor_enabled.unwrap_or(false));
+        patch.manage_schedule_enabled = Some(opt_manage_schedule_enabled.unwrap_or(false));
+        patch.installed_plugins = Some(Vec::new());
+        true
+    } else {
+        let mut any = false;
+        if let Some(v) = opt_skip_custom_instructions {
+            patch.skip_custom_instructions = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_custom_agents_local_only {
+            patch.custom_agents_local_only = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_coauthor_enabled {
+            patch.coauthor_enabled = Some(v);
+            any = true;
+        }
+        if let Some(v) = opt_manage_schedule_enabled {
+            patch.manage_schedule_enabled = Some(v);
+            any = true;
+        }
+        any
+    };
+    if !should_send {
+        return Ok(());
+    }
+    if let Err(error) = session.rpc().options().update(patch).await {
+        let _ = session.disconnect().await;
+        return Err(error);
+    }
+    Ok(())
+}
 
 fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<CommandHandlerMap> {
     let map = match commands {
@@ -1105,6 +1359,20 @@ fn build_command_handler_map(commands: Option<&[CommandDefinition]>) -> Arc<Comm
         None => HashMap::new(),
     };
     Arc::new(map)
+}
+
+fn upsert_open_canvas_snapshot(
+    snapshots: &mut Vec<OpenCanvasInstance>,
+    snapshot: OpenCanvasInstance,
+) {
+    if let Some(existing) = snapshots
+        .iter_mut()
+        .find(|open| open.instance_id == snapshot.instance_id)
+    {
+        *existing = snapshot;
+    } else {
+        snapshots.push(snapshot);
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1120,6 +1388,7 @@ fn spawn_event_loop(
     channels: crate::router::SessionChannels,
     idle_waiter: Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: Arc<parking_lot::RwLock<SessionCapabilities>>,
+    open_canvases: Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: tokio::sync::broadcast::Sender<SessionEvent>,
     shutdown: CancellationToken,
 ) -> JoinHandle<()> {
@@ -1146,7 +1415,7 @@ fn spawn_event_loop(
                     _ = shutdown.cancelled() => break,
                     Some(notification) = notifications.recv() => {
                         handle_notification(
-                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &event_tx,
+                            &session_id, &client, &handlers, &command_handlers, notification, &idle_waiter, &capabilities, &open_canvases, &event_tx,
                         ).await;
                     }
                     Some(request) = requests.recv() => {
@@ -1168,7 +1437,7 @@ fn spawn_event_loop(
             if let Some(waiter) = idle_waiter.lock().take() {
                 let _ = waiter
                     .tx
-                    .send(Err(Error::Session(SessionError::EventLoopClosed)));
+                    .send(Err(ErrorKind::Session(SessionErrorKind::EventLoopClosed).into()));
             }
         }
         .instrument(span),
@@ -1217,6 +1486,7 @@ async fn handle_notification(
     notification: SessionEventNotification,
     idle_waiter: &Arc<ParkingLotMutex<Option<IdleWaiter>>>,
     capabilities: &Arc<parking_lot::RwLock<SessionCapabilities>>,
+    open_canvases: &Arc<parking_lot::RwLock<Vec<OpenCanvasInstance>>>,
     event_tx: &tokio::sync::broadcast::Sender<SessionEvent>,
 ) {
     let dispatch_start = Instant::now();
@@ -1271,9 +1541,10 @@ async fn handle_notification(
                                             .map(|s| s.to_string())
                                     })
                                     .unwrap_or_else(|| "session error".to_string());
-                                let _ = waiter
-                                    .tx
-                                    .send(Err(Error::Session(SessionError::AgentError(error_msg))));
+                                let _ = waiter.tx.send(Err(Error::with_message(
+                                    ErrorKind::Session(SessionErrorKind::AgentError),
+                                    error_msg,
+                                )));
                             }
                         }
                     }
@@ -1284,20 +1555,28 @@ async fn handle_notification(
         _ => {}
     }
 
-    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
-    // only errors when there are no receivers, which is the normal case
-    // before any consumer subscribes.
-    let _ = event_tx.send(event.clone());
-
-    // Update capabilities when the CLI reports changes. The CLI sends
-    // the full updated capabilities object — replace wholesale so removals
-    // and new subfields are handled correctly.
+    // Update the snapshot caches BEFORE broadcasting so subscribers that
+    // call `Session::capabilities()` / `Session::open_canvases()` in
+    // response to the event observe the new state.
     if event_type == SessionEventType::CapabilitiesChanged {
         match serde_json::from_value::<SessionCapabilities>(notification.event.data.clone()) {
             Ok(changed) => *capabilities.write() = changed,
             Err(e) => warn!(error = %e, "failed to deserialize capabilities.changed payload"),
         }
     }
+    if event_type == SessionEventType::SessionCanvasOpened {
+        match serde_json::from_value::<OpenCanvasInstance>(notification.event.data.clone()) {
+            Ok(open_canvas) => {
+                upsert_open_canvas_snapshot(&mut open_canvases.write(), open_canvas);
+            }
+            Err(e) => warn!(error = %e, "failed to deserialize session.canvas.opened payload"),
+        }
+    }
+
+    // Fan out the event to runtime subscribers (`Session::subscribe`). `send`
+    // only errors when there are no receivers, which is the normal case
+    // before any consumer subscribes.
+    let _ = event_tx.send(event.clone());
 
     tracing::debug!(
         elapsed_ms = dispatch_start.elapsed().as_millis(),
