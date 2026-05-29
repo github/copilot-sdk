@@ -844,6 +844,31 @@ Set `COPILOT_SKIP_CLI_DOWNLOAD=1` at build time to disable the entire download /
 
 There is no PATH scanning. If none of the above resolves, `Client::start` returns `Error::BinaryNotFound`.
 
+### Reaching the bundled binary without a `Client`
+
+Health checks, diagnostics, and version probes often need the bundled
+CLI's path *before* any session starts — and for callers that always
+override `program` with `CliProgram::Path(...)`, `Client::start`'s
+resolver may never run. Use [`install_bundled_cli`] for those cases:
+
+```rust,no_run
+use github_copilot_sdk::{HAS_BUNDLED_CLI, install_bundled_cli};
+
+if HAS_BUNDLED_CLI {
+    if let Some(path) = install_bundled_cli() {
+        // lazily extracts on first call; idempotent thereafter
+        println!("bundled CLI at {}", path.display());
+    }
+}
+```
+
+This returns the same path `Client::start` would resolve to for
+`CliProgram::Resolve` with no `COPILOT_CLI_PATH` override and no
+`ClientOptions::bundled_cli_extract_dir` configured. It returns `None`
+when `bundled-cli` is off or the target is unsupported, and (unlike the
+full resolver) does not fall back to the build-time-extracted dev-cache
+path.
+
 ### Download cache (build-time, embed mode)
 
 In embed mode `build.rs` re-downloads on every clean build by default. Set `BUNDLED_CLI_CACHE_DIR=<path>` to cache the verified archive between builds (CI keys this on `<os>-<version>` for ~zero-cost rebuilds on cache hits). With `bundled-cli` disabled there is no separate archive cache — the extracted binary itself is the cache.

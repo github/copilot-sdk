@@ -8,7 +8,9 @@
 
 use std::path::PathBuf;
 
-use github_copilot_sdk::{CliProgram, Client, ClientOptions, ErrorKind};
+use github_copilot_sdk::{
+    CliProgram, Client, ClientOptions, ErrorKind, HAS_BUNDLED_CLI, install_bundled_cli,
+};
 use serial_test::serial;
 
 fn unset_env(key: &str) {
@@ -223,4 +225,62 @@ fn pin_file_when_present_is_well_formed() {
         }
     }
     assert!(saw_version, "cli-version.txt missing `version=` line");
+}
+
+/// With `bundled-cli` on AND a supported target, `install_bundled_cli`
+/// returns a real on-disk path and is idempotent across calls.
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[test]
+fn install_bundled_cli_returns_extracted_path() {
+    const { assert!(HAS_BUNDLED_CLI) };
+
+    let first = install_bundled_cli().expect("bundled CLI should install");
+    assert!(
+        first.is_file(),
+        "install_bundled_cli returned a path that is not a file: {}",
+        first.display()
+    );
+
+    let second = install_bundled_cli().expect("second call should also succeed");
+    assert_eq!(
+        first, second,
+        "install_bundled_cli must be idempotent across calls"
+    );
+}
+
+/// `install_bundled_cli` returns the same path the runtime resolver
+/// hands to `Client::start` for `CliProgram::Resolve` with no
+/// `COPILOT_CLI_PATH` override. Observed indirectly: the binary the
+/// public API points at must exist, and `Client::start` must not
+/// report `BinaryNotFound` under the same env conditions.
+#[cfg(all(feature = "bundled-cli", has_bundled_cli))]
+#[tokio::test(flavor = "current_thread")]
+#[serial(copilot_cli_path)]
+async fn install_bundled_cli_matches_resolver() {
+    unset_env("COPILOT_CLI_PATH");
+    unset_env("COPILOT_CLI_EXTRACT_DIR");
+
+    let direct = install_bundled_cli().expect("bundled CLI should install");
+    assert!(direct.is_file());
+
+    let opts = ClientOptions::default().with_program(CliProgram::Resolve);
+    if let Err(e) = Client::start(opts).await {
+        assert!(
+            !matches!(e.kind(), ErrorKind::BinaryNotFound { .. }),
+            "resolver returned BinaryNotFound while install_bundled_cli succeeded: {e}"
+        );
+    }
+}
+
+/// With `bundled-cli` off (or the target unsupported), the public API
+/// reports no bundled CLI and does not fall back to the
+/// build-time-extracted dev-cache path that `CliProgram::Resolve` uses.
+#[cfg(not(all(feature = "bundled-cli", has_bundled_cli)))]
+#[test]
+fn install_bundled_cli_is_none_without_embed() {
+    const { assert!(!HAS_BUNDLED_CLI) };
+    assert!(
+        install_bundled_cli().is_none(),
+        "install_bundled_cli must not fall back to the dev-cache path"
+    );
 }
