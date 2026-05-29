@@ -39,6 +39,7 @@ from .generated.rpc import (
     ExternalToolTextResultForLlm,
     HandlePendingToolCallRequest,
     LogRequest,
+    ContextTier as _RpcContextTier,
     ModelSwitchToRequest,
     PermissionDecision,
     PermissionDecisionApproveOnce,
@@ -2394,6 +2395,7 @@ class CopilotSession:
         *,
         reasoning_effort: str | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        context_tier: ContextTier | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
     ) -> None:
         """
@@ -2409,6 +2411,7 @@ class CopilotSession:
             reasoning_summary: Optional reasoning summary mode for supported
                 models. Use "none" to suppress summary output regardless of
                 whether reasoning is enabled.
+            context_tier: Optional context window tier for supported models.
             model_capabilities: Override individual model capabilities resolved by the runtime.
 
         Raises:
@@ -2434,6 +2437,7 @@ class CopilotSession:
                     if reasoning_summary is not None
                     else None
                 ),
+                context_tier=_RpcContextTier(context_tier) if context_tier is not None else None,
                 model_capabilities=rpc_caps,
             )
         )

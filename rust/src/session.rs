@@ -522,6 +522,7 @@ impl Session {
         let opts = opts.unwrap_or_default();
         let request = ModelSwitchToRequest {
             model_id: model.to_string(),
+            context_tier: opts.context_tier,
             reasoning_effort: opts.reasoning_effort,
             reasoning_summary: opts.reasoning_summary,
             model_capabilities: opts.model_capabilities,

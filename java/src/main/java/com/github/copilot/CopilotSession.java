@@ -31,6 +31,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.rpc.SessionCommandsHandlePendingCommandParams;
+import com.github.copilot.generated.rpc.ContextTier;
 import com.github.copilot.generated.rpc.SessionLogParams;
 import com.github.copilot.generated.rpc.SessionLogLevel;
 import com.github.copilot.generated.rpc.ModelCapabilitiesOverride;
@@ -1696,9 +1697,7 @@ public final class CopilotSession implements AutoCloseable {
      * @since 1.2.0
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort) {
-        ensureNotTerminated();
-        return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort, null, null))
-                .thenApply(r -> null);
+        return setModel(model, reasoningEffort, null, null, null);
     }
 
     /**
@@ -1729,7 +1728,7 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort,
             com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
-        return setModel(model, reasoningEffort, null, modelCapabilities);
+        return setModel(model, reasoningEffort, null, modelCapabilities, null);
     }
 
     /**
@@ -1758,6 +1757,38 @@ public final class CopilotSession implements AutoCloseable {
      */
     public CompletableFuture<Void> setModel(String model, String reasoningEffort, String reasoningSummary,
             com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities) {
+        return setModel(model, reasoningEffort, reasoningSummary, modelCapabilities, null);
+    }
+
+    /**
+     * Changes the model for this session with optional reasoning effort, reasoning
+     * summary mode, capability overrides, and context tier.
+     * <p>
+     * The new model takes effect for the next message. Conversation history is
+     * preserved.
+     *
+     * @param model
+     *            the model ID to switch to (e.g., {@code "gpt-4.1"})
+     * @param reasoningEffort
+     *            reasoning effort level; {@code null} to use default
+     * @param reasoningSummary
+     *            reasoning summary mode ({@code "none"}, {@code "concise"}, or
+     *            {@code "detailed"}); {@code null} to use default. Use
+     *            {@code "none"} to suppress summary output regardless of whether
+     *            reasoning is enabled.
+     * @param modelCapabilities
+     *            per-property overrides for model capabilities; {@code null} to use
+     *            runtime defaults
+     * @param contextTier
+     *            context window tier ({@code "default"} or
+     *            {@code "long_context"}); {@code null} to use default
+     * @return a future that completes when the model switch is acknowledged
+     * @throws IllegalStateException
+     *             if this session has been terminated
+     * @since 1.3.0
+     */
+    public CompletableFuture<Void> setModel(String model, String reasoningEffort, String reasoningSummary,
+            com.github.copilot.rpc.ModelCapabilitiesOverride modelCapabilities, String contextTier) {
         ensureNotTerminated();
         ModelCapabilitiesOverride generatedCapabilities = null;
         if (modelCapabilities != null) {
@@ -1777,8 +1808,9 @@ public final class CopilotSession implements AutoCloseable {
         var generatedReasoningSummary = reasoningSummary == null
                 ? null
                 : com.github.copilot.generated.rpc.ReasoningSummary.fromValue(reasoningSummary);
+        var generatedContextTier = contextTier == null ? null : ContextTier.fromValue(contextTier);
         return getRpc().model.switchTo(new SessionModelSwitchToParams(sessionId, model, reasoningEffort,
-                generatedReasoningSummary, generatedCapabilities)).thenApply(r -> null);
+                generatedReasoningSummary, generatedCapabilities, generatedContextTier)).thenApply(r -> null);
     }
 
     /**

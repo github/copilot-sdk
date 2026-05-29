@@ -2491,7 +2491,7 @@ public sealed class CurrentModel
 {
     /// <summary>Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
     [JsonPropertyName("contextTier")]
-    public ModelCurrentContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Currently active model identifier.</summary>
     [JsonPropertyName("modelId")]
@@ -2590,7 +2590,7 @@ internal sealed class ModelSwitchToRequest
 {
     /// <summary>Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</summary>
     [JsonPropertyName("contextTier")]
-    public ModelSwitchToRequestContextTier? ContextTier { get; set; }
+    public ContextTier? ContextTier { get; set; }
 
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
     [JsonPropertyName("modelCapabilities")]
@@ -9741,131 +9741,6 @@ public readonly struct CanvasInstanceAvailability : IEquatable<CanvasInstanceAva
 }
 
 
-/// <summary>Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.</summary>
-[Experimental(Diagnostics.Experimental)]
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ModelCurrentContextTier : IEquatable<ModelCurrentContextTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ModelCurrentContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ModelCurrentContextTier"/>.</param>
-    [JsonConstructor]
-    public ModelCurrentContextTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ModelCurrentContextTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Use the model's default context window.</summary>
-    public static ModelCurrentContextTier Default { get; } = new("default");
-
-    /// <summary>Pin the session to the long-context tier when supported.</summary>
-    public static ModelCurrentContextTier LongContext { get; } = new("long_context");
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelCurrentContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(ModelCurrentContextTier left, ModelCurrentContextTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelCurrentContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(ModelCurrentContextTier left, ModelCurrentContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ModelCurrentContextTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ModelCurrentContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ModelCurrentContextTier}"/> for serializing <see cref="ModelCurrentContextTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ModelCurrentContextTier>
-    {
-        /// <inheritdoc />
-        public override ModelCurrentContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ModelCurrentContextTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelCurrentContextTier));
-        }
-    }
-}
-
-
-/// <summary>Defines the allowed values.</summary>
-[JsonConverter(typeof(Converter))]
-[DebuggerDisplay("{Value,nq}")]
-public readonly struct ModelSwitchToRequestContextTier : IEquatable<ModelSwitchToRequestContextTier>
-{
-    private readonly string? _value;
-
-    /// <summary>Initializes a new instance of the <see cref="ModelSwitchToRequestContextTier"/> struct.</summary>
-    /// <param name="value">The value to associate with this <see cref="ModelSwitchToRequestContextTier"/>.</param>
-    [JsonConstructor]
-    public ModelSwitchToRequestContextTier(string value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
-    }
-
-    /// <summary>Gets the value associated with this <see cref="ModelSwitchToRequestContextTier"/>.</summary>
-    public string Value => _value ?? string.Empty;
-
-    /// <summary>Use the model's default context window.</summary>
-    public static ModelSwitchToRequestContextTier Default { get; } = new("default");
-
-    /// <summary>Pin the session to the long-context tier when supported.</summary>
-    public static ModelSwitchToRequestContextTier LongContext { get; } = new("long_context");
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchToRequestContextTier"/> instances are equivalent.</summary>
-    public static bool operator ==(ModelSwitchToRequestContextTier left, ModelSwitchToRequestContextTier right) => left.Equals(right);
-
-    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchToRequestContextTier"/> instances are not equivalent.</summary>
-    public static bool operator !=(ModelSwitchToRequestContextTier left, ModelSwitchToRequestContextTier right) => !(left == right);
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is ModelSwitchToRequestContextTier other && Equals(other);
-
-    /// <inheritdoc />
-    public bool Equals(ModelSwitchToRequestContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
-
-    /// <inheritdoc />
-    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
-
-    /// <inheritdoc />
-    public override string ToString() => Value;
-
-    /// <summary>Provides a <see cref="JsonConverter{ModelSwitchToRequestContextTier}"/> for serializing <see cref="ModelSwitchToRequestContextTier"/> instances.</summary>
-    [EditorBrowsable(EditorBrowsableState.Never)]
-    public sealed class Converter : JsonConverter<ModelSwitchToRequestContextTier>
-    {
-        /// <inheritdoc />
-        public override ModelSwitchToRequestContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
-        }
-
-        /// <inheritdoc />
-        public override void Write(Utf8JsonWriter writer, ModelSwitchToRequestContextTier value, JsonSerializerOptions options)
-        {
-            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelSwitchToRequestContextTier));
-        }
-    }
-}
-
-
 /// <summary>Allowed values for the `WorkspacesWorkspaceDetailsHostType` enumeration.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -13917,7 +13792,7 @@ public sealed class ModelApi
     /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ModelSwitchToRequestContextTier? contextTier = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ContextTier? contextTier = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
@@ -16359,6 +16234,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(GitHub.Copilot.PermissionResult), TypeInfoPropertyName = "SessionEventsPermissionResult")]
 [JsonSerializable(typeof(GitHub.Copilot.PermissionRule), TypeInfoPropertyName = "SessionEventsPermissionRule")]
 [JsonSerializable(typeof(GitHub.Copilot.PlanChangedOperation), TypeInfoPropertyName = "SessionEventsPlanChangedOperation")]
+[JsonSerializable(typeof(GitHub.Copilot.ContextTier), TypeInfoPropertyName = "SessionEventsContextTier")]
 [JsonSerializable(typeof(GitHub.Copilot.ReasoningSummary), TypeInfoPropertyName = "SessionEventsReasoningSummary")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedData), TypeInfoPropertyName = "SessionEventsSamplingCompletedData")]
 [JsonSerializable(typeof(GitHub.Copilot.SamplingCompletedEvent), TypeInfoPropertyName = "SessionEventsSamplingCompletedEvent")]

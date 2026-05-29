@@ -14,10 +14,10 @@ import type {
     SessionEvent as GeneratedSessionEvent,
 } from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
-import type { RemoteSessionMode } from "./generated/rpc.js";
+import type { ContextTier, RemoteSessionMode } from "./generated/rpc.js";
 import type { OpenCanvasInstance } from "./generated/rpc.js";
 import type { ToolSet } from "./toolSet.js";
-export type { RemoteSessionMode } from "./generated/rpc.js";
+export type { ContextTier, RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
 export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
@@ -1539,12 +1539,6 @@ export interface LargeToolOutputConfig {
  * Valid reasoning effort levels for models that support it.
  */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
-
-/**
- * Context window tier for the session. "long_context" pins the session to the
- * long-context tier when the selected model supports it.
- */
-export type ContextTier = "default" | "long_context";
 
 /**
  * Stable extension identity for session participants that provide canvases.

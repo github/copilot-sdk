@@ -1051,12 +1051,14 @@ class CopilotUserResponseQuotaSnapshotsPremiumInteractions:
         return result
 
 # Experimental: this type is part of an experimental API and may change or be removed.
-class ModelCurrentContextTier(Enum):
+class ContextTier(Enum):
     """Context tier currently pinned for the session, when one is set. Reflects
     `Session.getContextTier()`, restored from the session journal on resume.
     """
     DEFAULT = "default"
     LONG_CONTEXT = "long_context"
+
+ModelCurrentContextTier = ContextTier
 
 class DiscoveredMCPServerType(Enum):
     """Server transport type: stdio, http, sse (deprecated), or memory"""
@@ -7467,7 +7469,7 @@ class CopilotUserResponseQuotaSnapshots:
 class CurrentModel:
     """The currently selected model, reasoning effort, and context tier for the session."""
 
-    context_tier: ModelCurrentContextTier | None = None
+    context_tier: ContextTier | None = None
     """Context tier currently pinned for the session, when one is set. Reflects
     `Session.getContextTier()`, restored from the session journal on resume.
     """
@@ -7483,7 +7485,7 @@ class CurrentModel:
     @staticmethod
     def from_dict(obj: Any) -> 'CurrentModel':
         assert isinstance(obj, dict)
-        context_tier = from_union([ModelCurrentContextTier, from_none], obj.get("contextTier"))
+        context_tier = from_union([ContextTier, from_none], obj.get("contextTier"))
         model_id = from_union([from_str, from_none], obj.get("modelId"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         return CurrentModel(context_tier, model_id, reasoning_effort)
@@ -7491,7 +7493,7 @@ class CurrentModel:
     def to_dict(self) -> dict:
         result: dict = {}
         if self.context_tier is not None:
-            result["contextTier"] = from_union([lambda x: to_enum(ModelCurrentContextTier, x), from_none], self.context_tier)
+            result["contextTier"] = from_union([lambda x: to_enum(ContextTier, x), from_none], self.context_tier)
         if self.model_id is not None:
             result["modelId"] = from_union([from_str, from_none], self.model_id)
         if self.reasoning_effort is not None:
@@ -15402,7 +15404,7 @@ class ModelSwitchToRequest:
     model_id: str
     """Model identifier to switch to"""
 
-    context_tier: ModelCurrentContextTier | None = None
+    context_tier: ContextTier | None = None
     """Explicit context tier for the selected model. `"default"` / `"long_context"` pin the
     tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier
     untouched.
@@ -15420,7 +15422,7 @@ class ModelSwitchToRequest:
     def from_dict(obj: Any) -> 'ModelSwitchToRequest':
         assert isinstance(obj, dict)
         model_id = from_str(obj.get("modelId"))
-        context_tier = from_union([ModelCurrentContextTier, from_none], obj.get("contextTier"))
+        context_tier = from_union([ContextTier, from_none], obj.get("contextTier"))
         model_capabilities = from_union([ModelCapabilitiesOverride.from_dict, from_none], obj.get("modelCapabilities"))
         reasoning_effort = from_union([from_str, from_none], obj.get("reasoningEffort"))
         reasoning_summary = from_union([ReasoningSummary, from_none], obj.get("reasoningSummary"))
@@ -15430,7 +15432,7 @@ class ModelSwitchToRequest:
         result: dict = {}
         result["modelId"] = from_str(self.model_id)
         if self.context_tier is not None:
-            result["contextTier"] = from_union([lambda x: to_enum(ModelCurrentContextTier, x), from_none], self.context_tier)
+            result["contextTier"] = from_union([lambda x: to_enum(ContextTier, x), from_none], self.context_tier)
         if self.model_capabilities is not None:
             result["modelCapabilities"] = from_union([lambda x: to_class(ModelCapabilitiesOverride, x), from_none], self.model_capabilities)
         if self.reasoning_effort is not None:
@@ -15850,7 +15852,7 @@ class RPC:
     model_capabilities_override_limits_vision: ModelCapabilitiesOverrideLimitsVision
     model_capabilities_override_supports: ModelCapabilitiesOverrideSupports
     model_capabilities_supports: ModelCapabilitiesSupports
-    model_current_context_tier: ModelCurrentContextTier
+    model_current_context_tier: ContextTier
     model_list: ModelList
     model_list_request: ModelListRequest
     model_picker_category: ModelPickerCategory
@@ -16436,7 +16438,7 @@ class RPC:
         model_capabilities_override_limits_vision = ModelCapabilitiesOverrideLimitsVision.from_dict(obj.get("ModelCapabilitiesOverrideLimitsVision"))
         model_capabilities_override_supports = ModelCapabilitiesOverrideSupports.from_dict(obj.get("ModelCapabilitiesOverrideSupports"))
         model_capabilities_supports = ModelCapabilitiesSupports.from_dict(obj.get("ModelCapabilitiesSupports"))
-        model_current_context_tier = ModelCurrentContextTier(obj.get("ModelCurrentContextTier"))
+        model_current_context_tier = ContextTier(obj.get("ModelCurrentContextTier"))
         model_list = ModelList.from_dict(obj.get("ModelList"))
         model_list_request = ModelListRequest.from_dict(obj.get("ModelListRequest"))
         model_picker_category = ModelPickerCategory(obj.get("ModelPickerCategory"))
@@ -17022,7 +17024,7 @@ class RPC:
         result["ModelCapabilitiesOverrideLimitsVision"] = to_class(ModelCapabilitiesOverrideLimitsVision, self.model_capabilities_override_limits_vision)
         result["ModelCapabilitiesOverrideSupports"] = to_class(ModelCapabilitiesOverrideSupports, self.model_capabilities_override_supports)
         result["ModelCapabilitiesSupports"] = to_class(ModelCapabilitiesSupports, self.model_capabilities_supports)
-        result["ModelCurrentContextTier"] = to_enum(ModelCurrentContextTier, self.model_current_context_tier)
+        result["ModelCurrentContextTier"] = to_enum(ContextTier, self.model_current_context_tier)
         result["ModelList"] = to_class(ModelList, self.model_list)
         result["ModelListRequest"] = to_class(ModelListRequest, self.model_list_request)
         result["ModelPickerCategory"] = to_enum(ModelPickerCategory, self.model_picker_category)

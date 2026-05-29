@@ -1796,7 +1796,7 @@ pub struct CopilotApiTokenAuthInfo {
 pub struct CurrentModel {
     /// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<ModelCurrentContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Currently active model identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -4051,7 +4051,7 @@ pub struct ModelsListRequest {
 pub struct ModelSwitchToRequest {
     /// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<ModelSwitchToRequestContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Override individual model capabilities resolved by the runtime
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_capabilities: Option<ModelCapabilitiesOverride>,
@@ -10117,7 +10117,7 @@ pub struct SessionModelGetCurrentParams {
 pub struct SessionModelGetCurrentResult {
     /// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<ModelCurrentContextTier>,
+    pub context_tier: Option<ContextTier>,
     /// Currently active model identifier
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
@@ -13155,16 +13155,9 @@ pub enum CopilotApiTokenAuthInfoType {
     CopilotApiToken,
 }
 
-/// Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
-///
-/// <div class="warning">
-///
-/// **Experimental.** This type is part of an experimental wire-protocol surface
-/// and may change or be removed in future SDK or CLI releases.
-///
-/// </div>
+/// Context window tier for models that support tiered context windows.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelCurrentContextTier {
+pub enum ContextTier {
     /// Use the model's default context window.
     #[serde(rename = "default")]
     Default,
@@ -13921,20 +13914,6 @@ pub enum ModelPolicyState {
     /// No explicit policy is configured for the model.
     #[serde(rename = "unconfigured")]
     Unconfigured,
-    /// Unknown variant for forward compatibility.
-    #[default]
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ModelSwitchToRequestContextTier {
-    /// Use the model's default context window.
-    #[serde(rename = "default")]
-    Default,
-    /// Pin the session to the long-context tier when supported.
-    #[serde(rename = "long_context")]
-    LongContext,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

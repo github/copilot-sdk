@@ -183,7 +183,8 @@ class RpcWrappersTest {
         var session = new SessionRpc(stub, "sess-xyz");
 
         // switchTo takes extra params beyond sessionId
-        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null);
+        var switchParams = new SessionModelSwitchToParams(null, "gpt-5", null, null, null,
+                ContextTier.LONG_CONTEXT);
         session.model.switchTo(switchParams);
 
         assertEquals(1, stub.calls.size());
@@ -195,6 +196,7 @@ class RpcWrappersTest {
         var node = (com.fasterxml.jackson.databind.node.ObjectNode) params;
         assertEquals("sess-xyz", node.get("sessionId").asText());
         assertEquals("gpt-5", node.get("modelId").asText());
+        assertEquals("long_context", node.get("contextTier").asText());
     }
 
     @Test

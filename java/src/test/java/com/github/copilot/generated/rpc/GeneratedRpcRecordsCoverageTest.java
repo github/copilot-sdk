@@ -321,12 +321,14 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelSwitchToParams_record() {
-        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null);
+        var params = new SessionModelSwitchToParams("sess-32", "claude-sonnet-4.5", "high", null, null,
+                ContextTier.LONG_CONTEXT);
         assertEquals("sess-32", params.sessionId());
         assertEquals("claude-sonnet-4.5", params.modelId());
         assertEquals("high", params.reasoningEffort());
         assertNull(params.reasoningSummary());
         assertNull(params.modelCapabilities());
+        assertEquals(ContextTier.LONG_CONTEXT, params.contextTier());
     }
 
     @Test
@@ -720,8 +722,9 @@ class GeneratedRpcRecordsCoverageTest {
 
     @Test
     void sessionModelGetCurrentResult_record() {
-        var result = new SessionModelGetCurrentResult("claude-sonnet-4.5", null);
+        var result = new SessionModelGetCurrentResult("claude-sonnet-4.5", null, ContextTier.LONG_CONTEXT);
         assertEquals("claude-sonnet-4.5", result.modelId());
+        assertEquals(ContextTier.LONG_CONTEXT, result.contextTier());
     }
 
     @Test
@@ -957,9 +960,11 @@ class GeneratedRpcRecordsCoverageTest {
         var limits = new ModelCapabilitiesOverrideLimits(100000L, 8192L, 128000L, limitsVision);
         var supports = new ModelCapabilitiesOverrideSupports(true, true);
         var capabilities = new ModelCapabilitiesOverride(supports, limits);
-        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, capabilities);
+        var params = new SessionModelSwitchToParams("sess-m", "gpt-5", null, null, capabilities,
+                ContextTier.DEFAULT);
 
         assertEquals("gpt-5", params.modelId());
+        assertEquals(ContextTier.DEFAULT, params.contextTier());
         assertNotNull(params.modelCapabilities());
         assertTrue(params.modelCapabilities().supports().vision());
         assertTrue(params.modelCapabilities().supports().reasoningEffort());

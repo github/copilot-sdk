@@ -1495,6 +1495,9 @@ type SetModelOptions struct {
 	// ReasoningSummary sets the reasoning summary mode for the new model.
 	// Use ReasoningSummaryNone to suppress summary output regardless of whether reasoning is enabled.
 	ReasoningSummary *ReasoningSummary
+	// ContextTier pins the session to a context window tier for models that support it.
+	// Use ContextTierDefault or ContextTierLongContext for the currently known tiers.
+	ContextTier *ContextTier
 	// ModelCapabilities overrides individual model capabilities resolved by the runtime.
 	// Only non-nil fields are applied over the runtime-resolved capabilities.
 	ModelCapabilities *rpc.ModelCapabilitiesOverride
@@ -1516,6 +1519,7 @@ func (s *Session) SetModel(ctx context.Context, model string, opts *SetModelOpti
 	if opts != nil {
 		params.ReasoningEffort = opts.ReasoningEffort
 		params.ReasoningSummary = opts.ReasoningSummary
+		params.ContextTier = opts.ContextTier
 		params.ModelCapabilities = opts.ModelCapabilities
 	}
 	_, err := s.RPC.Model.SwitchTo(ctx, params)

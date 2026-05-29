@@ -909,7 +909,7 @@ type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 type CurrentModel struct {
 	// Context tier currently pinned for the session, when one is set. Reflects
 	// `Session.getContextTier()`, restored from the session journal on resume.
-	ContextTier *ModelCurrentContextTier `json:"contextTier,omitempty"`
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
 	// Reasoning effort level currently applied to the active model, when one is set. Reads
@@ -2468,7 +2468,7 @@ type ModelSwitchToRequest struct {
 	// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the
 	// tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier
 	// untouched.
-	ContextTier *ModelSwitchToRequestContextTier `json:"contextTier,omitempty"`
+	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Model identifier to switch to
@@ -7315,17 +7315,14 @@ const (
 	MetadataSnapshotRemoteMetadataTaskTypeCli MetadataSnapshotRemoteMetadataTaskType = "cli"
 )
 
-// Context tier currently pinned for the session, when one is set. Reflects
-// `Session.getContextTier()`, restored from the session journal on resume.
-// Experimental: ModelCurrentContextTier is part of an experimental API and may change or be
-// removed.
-type ModelCurrentContextTier string
+// ContextTier identifies a context window tier for models that support tiered context windows.
+type ContextTier string
 
 const (
 	// Use the model's default context window.
-	ModelCurrentContextTierDefault ModelCurrentContextTier = "default"
+	ContextTierDefault ContextTier = "default"
 	// Pin the session to the long-context tier when supported.
-	ModelCurrentContextTierLongContext ModelCurrentContextTier = "long_context"
+	ContextTierLongContext ContextTier = "long_context"
 )
 
 // Model capability category for grouping in the model picker
@@ -7364,15 +7361,6 @@ const (
 	ModelPolicyStateEnabled ModelPolicyState = "enabled"
 	// No explicit policy is configured for the model.
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
-)
-
-type ModelSwitchToRequestContextTier string
-
-const (
-	// Use the model's default context window.
-	ModelSwitchToRequestContextTierDefault ModelSwitchToRequestContextTier = "default"
-	// Pin the session to the long-context tier when supported.
-	ModelSwitchToRequestContextTierLongContext ModelSwitchToRequestContextTier = "long_context"
 )
 
 // How env values are passed to MCP servers (`direct` inlines literal values; `indirect`

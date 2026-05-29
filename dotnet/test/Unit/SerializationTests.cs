@@ -87,7 +87,7 @@ public class SerializationTests
             ("Mode", "enqueue"),
             ("RequestHeaders", new Dictionary<string, string> { ["X-Trace"] = "trace-value" }));
 
-        var json = JsonSerializer.Serialize(request, requestType, options);
+        var json = JsonSerializer.Serialize(request, requestType!, options);
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
         Assert.Equal("session-id", root.GetProperty("sessionId").GetString());
@@ -219,6 +219,25 @@ public class SerializationTests
         var resumeJson = JsonSerializer.Serialize(resumeRequest, resumeRequestType, options);
         using var resumeDocument = JsonDocument.Parse(resumeJson);
         Assert.Equal("default", resumeDocument.RootElement.GetProperty("contextTier").GetString());
+    }
+
+    [Fact]
+    public void ModelSwitchToRequest_CanSerializeContextTier_WithSdkOptions()
+    {
+        var options = GetSerializerOptions();
+        var requestType = typeof(CopilotClient).Assembly.GetType("GitHub.Copilot.Rpc.ModelSwitchToRequest");
+        Assert.NotNull(requestType);
+        var request = CreateInternalRequest(
+            requestType!,
+            ("ModelId", "gpt-4.1"),
+            ("ReasoningSummary", ReasoningSummary.Detailed),
+            ("ContextTier", ContextTier.LongContext));
+
+        var json = JsonSerializer.Serialize(request, requestType, options);
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal("gpt-4.1", document.RootElement.GetProperty("modelId").GetString());
+        Assert.Equal("detailed", document.RootElement.GetProperty("reasoningSummary").GetString());
+        Assert.Equal("long_context", document.RootElement.GetProperty("contextTier").GetString());
     }
 
     [Fact]

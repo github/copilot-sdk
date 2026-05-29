@@ -24,7 +24,7 @@ use crate::generated::api_types::{
 };
 use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
-    CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
+    CloudSessionOptions, ContextTier, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
     InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, ProviderConfig, SessionId,
     SystemMessageConfig, Tool,
 };
@@ -55,7 +55,7 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<String>,
+    pub context_tier: Option<ContextTier>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,7 +161,7 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub context_tier: Option<String>,
+    pub context_tier: Option<ContextTier>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -266,13 +266,9 @@ export type ContentFilterMode =
   /** Remove characters that can hide directives. */
   | "hidden_characters";
 /**
- * Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
- *
- * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
- * via the `definition` "ModelCurrentContextTier".
+ * Context window tier for models that support tiered context windows.
  */
-/** @experimental */
-export type ModelCurrentContextTier =
+export type ContextTier =
   /** Use the model's default context window. */
   | "default"
   /** Pin the session to the long-context tier when supported. */
@@ -2841,7 +2837,7 @@ export interface CurrentModel {
    * Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
    */
   reasoningEffort?: string;
-  contextTier?: ModelCurrentContextTier;
+  contextTier?: ContextTier;
 }
 /**
  * Lightweight metadata for a currently initialized session tool
@@ -4952,11 +4948,7 @@ export interface ModelSwitchToRequest {
   /**
    * Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.
    */
-  contextTier?: /** Use the model's default context window. */
-    | "default"
-    /** Pin the session to the long-context tier when supported. */
-    | "long_context"
-    | null;
+  contextTier?: ContextTier | null;
 }
 /**
  * The model identifier active on the session after the switch.

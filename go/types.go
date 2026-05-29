@@ -860,13 +860,13 @@ type LargeToolOutputConfig struct {
 }
 
 // ContextTier identifies a context window tier for models that support tiered context windows.
-type ContextTier string
+type ContextTier = rpc.ContextTier
 
 const (
 	// ContextTierDefault is the default context tier with standard context window size.
-	ContextTierDefault ContextTier = "default"
+	ContextTierDefault ContextTier = rpc.ContextTierDefault
 	// ContextTierLongContext is the extended context tier with a larger context window.
-	ContextTierLongContext ContextTier = "long_context"
+	ContextTierLongContext ContextTier = rpc.ContextTierLongContext
 )
 
 // SessionFsCapabilities declares optional provider capabilities.

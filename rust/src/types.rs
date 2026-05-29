@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canvas::{CanvasDeclaration, CanvasHandler};
+/// Context window tier for models that support tiered context windows.
+pub use crate::generated::api_types::ContextTier;
 use crate::generated::api_types::OpenCanvasInstance;
 use crate::generated::session_events::ReasoningSummary;
 use crate::handler::{
@@ -1157,9 +1159,8 @@ pub struct SessionConfig {
     /// reasoning summaries. Use [`ReasoningSummary::None`] to suppress
     /// summary output regardless of whether reasoning is enabled.
     pub reasoning_summary: Option<ReasoningSummary>,
-    /// Context window tier for models that support it. Use `"long_context"`
-    /// to pin the session to the long-context tier.
-    pub context_tier: Option<String>,
+    /// Context window tier for models that support it.
+    pub context_tier: Option<ContextTier>,
     /// Enable streaming token deltas via `assistant.message_delta` events.
     pub streaming: Option<bool>,
     /// Custom system message configuration.
@@ -1828,9 +1829,9 @@ impl SessionConfig {
         self
     }
 
-    /// Set the context window tier (e.g. `"default"`, `"long_context"`).
-    pub fn with_context_tier(mut self, tier: impl Into<String>) -> Self {
-        self.context_tier = Some(tier.into());
+    /// Set [`context_tier`](Self::context_tier).
+    pub fn with_context_tier(mut self, tier: ContextTier) -> Self {
+        self.context_tier = Some(tier);
         self
     }
 
@@ -2190,9 +2191,8 @@ pub struct ResumeSessionConfig {
     /// [`ReasoningSummary::None`] to suppress summary output regardless of
     /// whether reasoning is enabled.
     pub reasoning_summary: Option<ReasoningSummary>,
-    /// Context window tier to apply after resuming the session. Use
-    /// `"long_context"` to pin the session to the long-context tier.
-    pub context_tier: Option<String>,
+    /// Context window tier to apply after resuming the session.
+    pub context_tier: Option<ContextTier>,
     /// Enable streaming token deltas.
     pub streaming: Option<bool>,
     /// Re-supply the system message so the agent retains workspace context
@@ -2755,10 +2755,9 @@ impl ResumeSessionConfig {
         self
     }
 
-    /// Set the context window tier to apply on resume (e.g. `"default"`,
-    /// `"long_context"`).
-    pub fn with_context_tier(mut self, tier: impl Into<String>) -> Self {
-        self.context_tier = Some(tier.into());
+    /// Set [`context_tier`](Self::context_tier).
+    pub fn with_context_tier(mut self, tier: ContextTier) -> Self {
+        self.context_tier = Some(tier);
         self
     }
 
@@ -3267,6 +3266,8 @@ pub struct SetModelOptions {
     /// [`ReasoningSummary::None`] to suppress summary output regardless of
     /// whether reasoning is enabled.
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Context window tier for the new model.
+    pub context_tier: Option<ContextTier>,
     /// Override individual model capabilities resolved by the runtime. Only
     /// fields set on the override are applied; the rest fall back to the
     /// runtime-resolved values for the model.
@@ -3283,6 +3284,12 @@ impl SetModelOptions {
     /// Set [`reasoning_summary`](Self::reasoning_summary).
     pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
         self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set [`context_tier`](Self::context_tier).
+    pub fn with_context_tier(mut self, tier: ContextTier) -> Self {
+        self.context_tier = Some(tier);
         self
     }
 
@@ -4259,10 +4266,10 @@ mod tests {
 
     use super::{
         AgentMode, Attachment, AttachmentLineRange, AttachmentSelectionPosition,
-        AttachmentSelectionRange, ConnectionState, CustomAgentConfig, DeliveryMode, ExtensionInfo,
-        GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig, ProviderConfig,
-        ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent, SessionId,
-        SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
+        AttachmentSelectionRange, ConnectionState, ContextTier, CustomAgentConfig, DeliveryMode,
+        ExtensionInfo, GitHubReferenceType, InfiniteSessionConfig, LargeToolOutputConfig,
+        ProviderConfig, ReasoningSummary, ResumeSessionConfig, SessionConfig, SessionEvent,
+        SessionId, SystemMessageConfig, Tool, ToolBinaryResult, ToolResult, ToolResultExpanded,
         ToolResultResponse, ensure_attachment_display_names,
     };
     use crate::generated::session_events::TypedSessionEvent;
@@ -4606,7 +4613,7 @@ mod tests {
             .with_client_name("test-app")
             .with_reasoning_effort("medium")
             .with_reasoning_summary(ReasoningSummary::Concise)
-            .with_context_tier("long_context")
+            .with_context_tier(ContextTier::LongContext)
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
@@ -4630,7 +4637,7 @@ mod tests {
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
         assert_eq!(cfg.reasoning_effort.as_deref(), Some("medium"));
         assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::Concise));
-        assert_eq!(cfg.context_tier.as_deref(), Some("long_context"));
+        assert_eq!(cfg.context_tier, Some(ContextTier::LongContext));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
@@ -4672,7 +4679,7 @@ mod tests {
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
             .with_client_name("test-app")
             .with_reasoning_summary(ReasoningSummary::None)
-            .with_context_tier("default")
+            .with_context_tier(ContextTier::Default)
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
@@ -4696,7 +4703,7 @@ mod tests {
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
         assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::None));
-        assert_eq!(cfg.context_tier.as_deref(), Some("default"));
+        assert_eq!(cfg.context_tier, Some(ContextTier::Default));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(

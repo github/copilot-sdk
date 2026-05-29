@@ -40,7 +40,7 @@ public final class SessionModelApi {
     }
 
     /**
-     * Target model identifier and optional reasoning effort, summary, and capability overrides.
+     * Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
      * <p>
      * Note: the {@code sessionId} field in the params record is overridden
      * by the session-scoped wrapper; any value provided is ignored.

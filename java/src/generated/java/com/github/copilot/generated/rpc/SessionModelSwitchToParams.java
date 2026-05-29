@@ -13,7 +13,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.processing.Generated;
 
 /**
- * Target model identifier and optional reasoning effort, summary, and capability overrides.
+ * Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.
  *
  * @since 1.0.0
  */
@@ -30,6 +30,8 @@ public record SessionModelSwitchToParams(
     /** Reasoning summary mode to request for supported model clients */
     @JsonProperty("reasoningSummary") ReasoningSummary reasoningSummary,
     /** Override individual model capabilities resolved by the runtime */
-    @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities
+    @JsonProperty("modelCapabilities") ModelCapabilitiesOverride modelCapabilities,
+    /** Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched. */
+    @JsonProperty("contextTier") ContextTier contextTier
 ) {
 }
