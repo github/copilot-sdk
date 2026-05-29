@@ -24,6 +24,7 @@ jobs:
       js: ${{ steps.filter.outputs.js }}
       python: ${{ steps.filter.outputs.python }}
       go: ${{ steps.filter.outputs.go }}
+      rust: ${{ steps.filter.outputs.rust }}
       csharp: ${{ steps.filter.outputs.csharp }}
       actions: ${{ steps.filter.outputs.actions }}
     steps:
