@@ -163,7 +163,7 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
 7. ⌛ Add Java to `docs/` getting-started and feature pages. See https://github.com/github/copilot-sdk-partners/issues/94
 8. ✅ Update `sdk-protocol-version.json` if Java needs it.
 
-### ⌛Phase 06: Cutover and Cleanup
+### ✅ Phase 06: Cutover and Cleanup
 
 1. ⌛ **Disable CI** in `copilot-sdk-java` (remove or disable workflows).
 2. ⌛ **Archive** `copilot-sdk-java` repo (make read-only).
@@ -173,7 +173,23 @@ The software that currently resides in https://github.com/github/copilot-sdk-jav
    - ✅ Javadoc.io configuration
    - Any links in copilot documentation
 4. **Remove duplicate resources** that were merged rather than moved.
-5. ⌛ **Run full CI** in monorepo to validate everything.
+5. ✅ **Run full CI** in monorepo to validate everything.
+
+### ⌛ Phase 06-01: Cutover and Cleanup: part 2
+
+1. Re-activate JaCoCo after Steve's https://github.com/github/copilot-sdk/pull/1492
+
+2. Bring changelog concept to parity compared between standalone and monorepo See https://github.com/github/copilot-sdk-partners/issues/122
+
+3. Deep review of release process
+
+   1. Ensure all the "text updating" aspects from the standalone repo are brought forward. For example
+   
+      - updating the version numbers in the README.
+      
+      - updating the jbang DEPS thing.
+      
+
 
 ### Phase 07: Preserve authorship of commits for `pom.xml` and `.java` files
 
