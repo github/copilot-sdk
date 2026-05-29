@@ -1643,6 +1643,20 @@ export interface SessionConfigBase {
     requestExtensions?: boolean;
 
     /**
+     * Optional override path to a `copilot-sdk/` folder to inject into
+     * extension subprocesses for this session in place of the bundled SDK.
+     * When unset or invalid (missing folder or missing `index.js` /
+     * `extension.js`), the runtime falls back to the bundled SDK without
+     * throwing. Takes precedence over any server-level default.
+     *
+     * Only honored on session create and resume — extensions joining via
+     * `joinSession` cannot override the SDK path, because the extension
+     * subprocess has already been forked by the host with the SDK the host
+     * chose. `JoinSessionConfig` omits this field for that reason.
+     */
+    extensionSdkPath?: string;
+
+    /**
      * Stable extension identity for canvas providers on this connection. When
      * set, the runtime uses `${source}:${name}` as the agent-facing extension
      * id instead of a reconnect-specific connection id.

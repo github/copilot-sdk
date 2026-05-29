@@ -1174,6 +1174,10 @@ pub struct SessionConfig {
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
     pub request_extensions: Option<bool>,
+    /// Optional override path to a `copilot-sdk/` folder to inject into
+    /// extension subprocesses for this session. Invalid paths fall back
+    /// to the bundled SDK; takes precedence over the host's default.
+    pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of built-in tool names the agent may use.
@@ -1380,6 +1384,7 @@ impl std::fmt::Debug for SessionConfig {
             )
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
+            .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
@@ -1489,6 +1494,7 @@ impl Default for SessionConfig {
             canvas_handler: None,
             request_canvas_renderer: None,
             request_extensions: None,
+            extension_sdk_path: None,
             extension_info: None,
             available_tools: None,
             excluded_tools: None,
@@ -1622,6 +1628,7 @@ impl SessionConfig {
             canvases: wire_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
+            extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
@@ -1857,6 +1864,14 @@ impl SessionConfig {
     /// Request extension tools and dispatch for this connection.
     pub fn with_request_extensions(mut self, request: bool) -> Self {
         self.request_extensions = Some(request);
+        self
+    }
+
+    /// Override the bundled `@github/copilot-sdk` drop injected into extension
+    /// subprocesses for this session. Invalid paths fall back to the bundled
+    /// SDK silently.
+    pub fn with_extension_sdk_path(mut self, path: impl Into<String>) -> Self {
+        self.extension_sdk_path = Some(path.into());
         self
     }
 
@@ -2181,6 +2196,10 @@ pub struct ResumeSessionConfig {
     pub request_canvas_renderer: Option<bool>,
     /// Request extension tools and dispatch for this connection.
     pub request_extensions: Option<bool>,
+    /// Optional override path to a `copilot-sdk/` folder to inject into
+    /// extension subprocesses for this session on resume. See
+    /// `SessionConfig::extension_sdk_path`.
+    pub extension_sdk_path: Option<String>,
     /// Stable extension identity for canvas/tool providers on this connection.
     pub extension_info: Option<ExtensionInfo>,
     /// Allowlist of tool names the agent may use.
@@ -2330,6 +2349,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("open_canvases", &self.open_canvases)
             .field("request_canvas_renderer", &self.request_canvas_renderer)
             .field("request_extensions", &self.request_extensions)
+            .field("extension_sdk_path", &self.extension_sdk_path)
             .field("extension_info", &self.extension_info)
             .field("available_tools", &self.available_tools)
             .field("excluded_tools", &self.excluded_tools)
@@ -2476,6 +2496,7 @@ impl ResumeSessionConfig {
             open_canvases: self.open_canvases,
             request_canvas_renderer: self.request_canvas_renderer,
             request_extensions: self.request_extensions,
+            extension_sdk_path: self.extension_sdk_path,
             extension_info: self.extension_info,
             available_tools: self.available_tools,
             excluded_tools: self.excluded_tools,
@@ -2557,6 +2578,7 @@ impl ResumeSessionConfig {
             open_canvases: None,
             request_canvas_renderer: None,
             request_extensions: None,
+            extension_sdk_path: None,
             extension_info: None,
             available_tools: None,
             excluded_tools: None,
@@ -2764,6 +2786,14 @@ impl ResumeSessionConfig {
     /// Request extension tools and dispatch for this connection on resume.
     pub fn with_request_extensions(mut self, request: bool) -> Self {
         self.request_extensions = Some(request);
+        self
+    }
+
+    /// Override the bundled `@github/copilot-sdk` drop injected into extension
+    /// subprocesses for this resumed session. Invalid paths fall back to the
+    /// bundled SDK silently.
+    pub fn with_extension_sdk_path(mut self, path: impl Into<String>) -> Self {
+        self.extension_sdk_path = Some(path.into());
         self
     }
 

@@ -937,6 +937,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
+                ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
 
@@ -1131,6 +1132,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
                 Canvases: config.Canvases,
                 RequestCanvasRenderer: config.RequestCanvasRenderer,
                 RequestExtensions: config.RequestExtensions,
+                ExtensionSdkPath: config.ExtensionSdkPath,
                 ExtensionInfo: config.ExtensionInfo,
                 OpenCanvases: config.OpenCanvases,
                 ToolFilterPrecedence: toolFilter.ToolFilterPrecedence);
@@ -2321,6 +2323,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,
         bool? RequestExtensions = null,
+        string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
 #pragma warning restore GHCP001
@@ -2406,6 +2409,7 @@ public sealed partial class CopilotClient : IDisposable, IAsyncDisposable
         IList<CanvasDeclaration>? Canvases = null,
         bool? RequestCanvasRenderer = null,
         bool? RequestExtensions = null,
+        string? ExtensionSdkPath = null,
         ExtensionInfo? ExtensionInfo = null,
         IList<OpenCanvasInstance>? OpenCanvases = null,
         OptionsUpdateToolFilterPrecedence? ToolFilterPrecedence = null);
