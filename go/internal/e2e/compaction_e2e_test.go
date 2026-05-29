@@ -192,4 +192,63 @@ func TestCompactionE2E(t *testing.T) {
 			t.Errorf("Expected 0 compaction events when disabled, got %d", len(compactionEvents))
 		}
 	})
+
+	t.Run("should return empty handoff summary for fresh session", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		result, err := session.RPC.History.SummarizeForHandoff(t.Context())
+		if err != nil {
+			t.Fatalf("History.SummarizeForHandoff failed: %v", err)
+		}
+		if result.Summary != "" {
+			t.Fatalf("Expected empty handoff summary for fresh session, got %+v", result)
+		}
+	})
+
+	t.Run("should summarize for handoff after non ephemeral log event", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+		if err := session.Log(t.Context(), "handoff summary log coverage", nil); err != nil {
+			t.Fatalf("Session.Log failed: %v", err)
+		}
+
+		result, err := session.RPC.History.SummarizeForHandoff(t.Context())
+		if err != nil {
+			t.Fatalf("History.SummarizeForHandoff failed: %v", err)
+		}
+		_ = result.Summary
+	})
+
+	t.Run("should report no op when cancelling compaction without in flight work", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		background, err := session.RPC.History.CancelBackgroundCompaction(t.Context())
+		if err != nil {
+			t.Fatalf("History.CancelBackgroundCompaction failed: %v", err)
+		}
+		if background.Cancelled {
+			t.Fatalf("Expected CancelBackgroundCompaction Cancelled=false, got %+v", background)
+		}
+		manual, err := session.RPC.History.AbortManualCompaction(t.Context())
+		if err != nil {
+			t.Fatalf("History.AbortManualCompaction failed: %v", err)
+		}
+		if manual.Aborted {
+			t.Fatalf("Expected AbortManualCompaction Aborted=false, got %+v", manual)
+		}
+	})
 }

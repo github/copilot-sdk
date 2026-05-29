@@ -25,7 +25,7 @@ func TestPermissionsE2E(t *testing.T) {
 		var permissionRequests []copilot.PermissionRequest
 		var mu sync.Mutex
 
-		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			mu.Lock()
 			permissionRequests = append(permissionRequests, request)
 			mu.Unlock()
@@ -34,7 +34,7 @@ func TestPermissionsE2E(t *testing.T) {
 				t.Error("Expected non-empty session ID in invocation")
 			}
 
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -80,12 +80,12 @@ func TestPermissionsE2E(t *testing.T) {
 		var permissionRequests []copilot.PermissionRequest
 		var mu sync.Mutex
 
-		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 			mu.Lock()
 			permissionRequests = append(permissionRequests, request)
 			mu.Unlock()
 
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+			return &rpc.PermissionDecisionApproveOnce{}, nil
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -119,8 +119,8 @@ func TestPermissionsE2E(t *testing.T) {
 	t.Run("deny permission", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-			return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindRejected}, nil
+		onPermissionRequest := func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+			return &rpc.PermissionDecisionReject{}, nil
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
@@ -190,8 +190,8 @@ func TestPermissionsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindUserNotAvailable}, nil
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionUserNotAvailable{}, nil
 			},
 		})
 		if err != nil {
@@ -240,8 +240,8 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindUserNotAvailable}, nil
+			OnPermissionRequest: func(request copilot.PermissionRequest, invocation copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return &rpc.PermissionDecisionUserNotAvailable{}, nil
 			},
 		})
 		if err != nil {
@@ -309,9 +309,9 @@ func TestPermissionsE2E(t *testing.T) {
 
 		var permissionRequestReceived atomicBool
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				permissionRequestReceived.Set(true)
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -348,9 +348,9 @@ func TestPermissionsE2E(t *testing.T) {
 
 		var permissionRequestReceived atomicBool
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				permissionRequestReceived.Set(true)
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -372,8 +372,8 @@ func TestPermissionsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-				return copilot.PermissionRequestResult{}, fmt.Errorf("handler error")
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+				return nil, fmt.Errorf("handler error")
 			},
 		})
 		if err != nil {
@@ -409,11 +409,11 @@ func TestPermissionsE2E(t *testing.T) {
 
 		var receivedToolCallID atomicBool
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				if shellReq, ok := req.(*copilot.PermissionRequestShell); ok && shellReq.ToolCallID != nil && *shellReq.ToolCallID != "" {
 					receivedToolCallID.Set(true)
 				}
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -450,10 +450,10 @@ func TestPermissionsE2E(t *testing.T) {
 		}
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				shellReq, ok := req.(*copilot.PermissionRequestShell)
 				if !ok {
-					return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+					return &rpc.PermissionDecisionApproveOnce{}, nil
 				}
 				toolCallID := ""
 				if shellReq.ToolCallID != nil {
@@ -470,7 +470,7 @@ func TestPermissionsE2E(t *testing.T) {
 				}
 				<-releaseHandler
 				addLifecycle("permission-complete", toolCallID)
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -607,7 +607,7 @@ func TestPermissionsE2E(t *testing.T) {
 					}),
 			},
 			AvailableTools: []string{"first_permission_tool", "second_permission_tool"},
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				permissionRequestsMu.Lock()
 				permissionRequestCount++
 				permissionRequests = append(permissionRequests, req)
@@ -620,7 +620,7 @@ func TestPermissionsE2E(t *testing.T) {
 				case <-bothStarted:
 				case <-time.After(30 * time.Second):
 				}
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -725,12 +725,12 @@ func TestPermissionsE2E(t *testing.T) {
 		permissionCalled := make(chan struct{}, 1)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				select {
 				case permissionCalled <- struct{}{}:
 				default:
 				}
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindNoResult}, nil
+				return &rpc.PermissionDecisionNoResult{}, nil
 			},
 		})
 		if err != nil {
@@ -761,11 +761,11 @@ func TestPermissionsE2E(t *testing.T) {
 		var handlerCallCountMu sync.Mutex
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
+			OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
 				handlerCallCountMu.Lock()
 				handlerCallCount++
 				handlerCallCountMu.Unlock()
-				return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+				return &rpc.PermissionDecisionApproveOnce{}, nil
 			},
 		})
 		if err != nil {
@@ -814,6 +814,254 @@ func TestPermissionsE2E(t *testing.T) {
 		handlerCallCountMu.Unlock()
 		if count != 0 {
 			t.Errorf("Expected permission handler to NOT be called when SetApproveAll is enabled, got %d calls", count)
+		}
+	})
+
+	t.Run("should configure and update permission paths", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+
+		configuredAllowed := createUniqueRPCWorkDirectory(t, ctx, "configured-allowed")
+		addedAllowed := createUniqueRPCWorkDirectory(t, ctx, "added-allowed")
+		newPrimary := createUniqueRPCWorkDirectory(t, ctx, "new-primary")
+		includeTemp := false
+		unrestricted := false
+		configure, err := session.RPC.Permissions.Configure(t.Context(), &rpc.PermissionsConfigureParams{
+			ApproveAllToolPermissionRequests: rpcPtr(false),
+			ApproveAllReadPermissionRequests: rpcPtr(true),
+			Rules: &rpc.PermissionRulesSet{
+				Approved: []rpc.PermissionRule{{Kind: "read", Argument: nil}},
+				Denied:   []rpc.PermissionRule{{Kind: "write", Argument: nil}},
+			},
+			Paths: &rpc.PermissionPathsConfig{
+				WorkspacePath:         &ctx.WorkDir,
+				AdditionalDirectories: []string{configuredAllowed},
+				IncludeTempDirectory:  &includeTemp,
+				Unrestricted:          &unrestricted,
+			},
+			Urls: &rpc.PermissionUrlsConfig{
+				InitialAllowed: []string{"https://example.invalid/permissions-configure"},
+				Unrestricted:   &unrestricted,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Permissions.Configure failed: %v", err)
+		}
+		if !configure.Success {
+			t.Fatalf("Expected Configure Success=true, got %+v", configure)
+		}
+
+		configuredList, err := session.RPC.Permissions.Paths().List(t.Context())
+		if err != nil {
+			t.Fatalf("Permissions.Paths.List failed: %v", err)
+		}
+		assertRPCPathEqual(t, ctx.WorkDir, configuredList.Primary)
+		assertRPCContainsPath(t, configuredList.Directories, ctx.WorkDir)
+		assertRPCContainsPath(t, configuredList.Directories, configuredAllowed)
+
+		add, err := session.RPC.Permissions.Paths().Add(t.Context(), &rpc.PermissionPathsAddParams{Path: addedAllowed})
+		if err != nil {
+			t.Fatalf("Permissions.Paths.Add failed: %v", err)
+		}
+		if !add.Success {
+			t.Fatalf("Expected Paths.Add Success=true, got %+v", add)
+		}
+
+		allowed, err := session.RPC.Permissions.Paths().IsPathWithinAllowedDirectories(t.Context(), &rpc.PermissionPathsAllowedCheckParams{
+			Path: filepath.Join(addedAllowed, "child.txt"),
+		})
+		if err != nil {
+			t.Fatalf("Permissions.Paths.IsPathWithinAllowedDirectories failed: %v", err)
+		}
+		if !allowed.Allowed {
+			t.Fatalf("Expected path within added allowed directory to be allowed")
+		}
+
+		updatePrimary, err := session.RPC.Permissions.Paths().UpdatePrimary(t.Context(), &rpc.PermissionPathsUpdatePrimaryParams{Path: newPrimary})
+		if err != nil {
+			t.Fatalf("Permissions.Paths.UpdatePrimary failed: %v", err)
+		}
+		if !updatePrimary.Success {
+			t.Fatalf("Expected UpdatePrimary Success=true, got %+v", updatePrimary)
+		}
+
+		updatedList, err := session.RPC.Permissions.Paths().List(t.Context())
+		if err != nil {
+			t.Fatalf("Permissions.Paths.List after update failed: %v", err)
+		}
+		assertRPCPathEqual(t, newPrimary, updatedList.Primary)
+		assertRPCContainsPath(t, updatedList.Directories, newPrimary)
+
+		workspaceCheck, err := session.RPC.Permissions.Paths().IsPathWithinWorkspace(t.Context(), &rpc.PermissionPathsWorkspaceCheckParams{
+			Path: filepath.Join(newPrimary, "child.txt"),
+		})
+		if err != nil {
+			t.Fatalf("Permissions.Paths.IsPathWithinWorkspace failed: %v", err)
+		}
+		if !workspaceCheck.Allowed {
+			t.Fatalf("Expected path within new primary workspace to be allowed")
+		}
+	})
+
+	t.Run("should invoke permission state rpc apis", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+
+		pending, err := session.RPC.Permissions.PendingRequests(t.Context())
+		if err != nil {
+			t.Fatalf("Permissions.PendingRequests failed: %v", err)
+		}
+		if len(pending.Items) != 0 {
+			t.Fatalf("Expected no pending permission requests, got %+v", pending.Items)
+		}
+
+		setRequired, err := session.RPC.Permissions.SetRequired(t.Context(), &rpc.PermissionsSetRequiredRequest{Required: true})
+		if err != nil {
+			t.Fatalf("Permissions.SetRequired(true) failed: %v", err)
+		}
+		if !setRequired.Success {
+			t.Fatalf("Expected SetRequired(true) Success=true")
+		}
+		clearRequired, err := session.RPC.Permissions.SetRequired(t.Context(), &rpc.PermissionsSetRequiredRequest{Required: false})
+		if err != nil {
+			t.Fatalf("Permissions.SetRequired(false) failed: %v", err)
+		}
+		if !clearRequired.Success {
+			t.Fatalf("Expected SetRequired(false) Success=true")
+		}
+
+		promptShown, err := session.RPC.Permissions.NotifyPromptShown(t.Context(), &rpc.PermissionPromptShownNotification{
+			Message: "Permission prompt shown from Go SDK E2E",
+		})
+		if err != nil {
+			t.Fatalf("Permissions.NotifyPromptShown failed: %v", err)
+		}
+		if !promptShown.Success {
+			t.Fatalf("Expected NotifyPromptShown Success=true")
+		}
+
+		ruleArg := "go-permission-e2e-" + randomHex(t)
+		rule := rpc.PermissionRule{Kind: "commands", Argument: &ruleArg}
+		addRule, err := session.RPC.Permissions.ModifyRules(t.Context(), &rpc.PermissionsModifyRulesParams{
+			Scope: rpc.PermissionsModifyRulesScopeSession,
+			Add:   []rpc.PermissionRule{rule},
+		})
+		if err != nil {
+			t.Fatalf("Permissions.ModifyRules(add) failed: %v", err)
+		}
+		if !addRule.Success {
+			t.Fatalf("Expected ModifyRules(add) Success=true")
+		}
+		removeRule, err := session.RPC.Permissions.ModifyRules(t.Context(), &rpc.PermissionsModifyRulesParams{
+			Scope:  rpc.PermissionsModifyRulesScopeSession,
+			Remove: []rpc.PermissionRule{rule},
+		})
+		if err != nil {
+			t.Fatalf("Permissions.ModifyRules(remove) failed: %v", err)
+		}
+		if !removeRule.Success {
+			t.Fatalf("Expected ModifyRules(remove) Success=true")
+		}
+
+		enableUrls, err := session.RPC.Permissions.Urls().SetUnrestrictedMode(t.Context(), &rpc.PermissionUrlsSetUnrestrictedModeParams{Enabled: true})
+		if err != nil {
+			t.Fatalf("Permissions.Urls.SetUnrestrictedMode(true) failed: %v", err)
+		}
+		if !enableUrls.Success {
+			t.Fatalf("Expected SetUnrestrictedMode(true) Success=true")
+		}
+		disableUrls, err := session.RPC.Permissions.Urls().SetUnrestrictedMode(t.Context(), &rpc.PermissionUrlsSetUnrestrictedModeParams{Enabled: false})
+		if err != nil {
+			t.Fatalf("Permissions.Urls.SetUnrestrictedMode(false) failed: %v", err)
+		}
+		if !disableUrls.Success {
+			t.Fatalf("Expected SetUnrestrictedMode(false) Success=true")
+		}
+	})
+
+	t.Run("should invoke permission location and folder trust rpc apis", func(t *testing.T) {
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+		})
+		if err != nil {
+			t.Fatalf("CreateSession failed: %v", err)
+		}
+
+		locationDirectory := createUniqueRPCWorkDirectory(t, ctx, "permission-location")
+		trustedDirectory := createUniqueRPCWorkDirectory(t, ctx, "folder-trust")
+		commandIdentifier := "go-permission-location-" + randomHex(t)
+
+		resolved, err := session.RPC.Permissions.Locations().Resolve(t.Context(), &rpc.PermissionLocationResolveParams{WorkingDirectory: locationDirectory})
+		if err != nil {
+			t.Fatalf("Permissions.Locations.Resolve failed: %v", err)
+		}
+		if resolved.LocationType != rpc.PermissionLocationTypeDir {
+			t.Fatalf("Expected dir location type, got %+v", resolved)
+		}
+		assertRPCPathEqual(t, locationDirectory, resolved.LocationKey)
+
+		addToolApproval, err := session.RPC.Permissions.Locations().AddToolApproval(t.Context(), &rpc.PermissionLocationAddToolApprovalParams{
+			LocationKey: resolved.LocationKey,
+			Approval:    &rpc.PermissionsLocationsAddToolApprovalDetailsCommands{CommandIdentifiers: []string{commandIdentifier}},
+		})
+		if err != nil {
+			t.Fatalf("Permissions.Locations.AddToolApproval failed: %v", err)
+		}
+		if !addToolApproval.Success {
+			t.Fatalf("Expected AddToolApproval Success=true")
+		}
+
+		applied, err := session.RPC.Permissions.Locations().Apply(t.Context(), &rpc.PermissionLocationApplyParams{WorkingDirectory: locationDirectory})
+		if err != nil {
+			t.Fatalf("Permissions.Locations.Apply failed: %v", err)
+		}
+		if applied.LocationType != resolved.LocationType {
+			t.Fatalf("Expected applied location type %q, got %+v", resolved.LocationType, applied)
+		}
+		assertRPCPathEqual(t, resolved.LocationKey, applied.LocationKey)
+		if applied.AppliedRuleCount < 1 {
+			t.Fatalf("Expected at least one applied rule, got %+v", applied)
+		}
+		var foundRule bool
+		for _, rule := range applied.AppliedRules {
+			if rule.Kind == "shell" && rule.Argument != nil && *rule.Argument == commandIdentifier {
+				foundRule = true
+				break
+			}
+		}
+		if !foundRule {
+			t.Fatalf("Expected applied shell rule for %q, got %+v", commandIdentifier, applied.AppliedRules)
+		}
+
+		initialTrust, err := session.RPC.Permissions.FolderTrust().IsTrusted(t.Context(), &rpc.FolderTrustCheckParams{Path: trustedDirectory})
+		if err != nil {
+			t.Fatalf("Permissions.FolderTrust.IsTrusted(initial) failed: %v", err)
+		}
+		if initialTrust.Trusted {
+			t.Fatalf("Expected new trusted directory to start untrusted")
+		}
+
+		addTrusted, err := session.RPC.Permissions.FolderTrust().AddTrusted(t.Context(), &rpc.FolderTrustAddParams{Path: trustedDirectory})
+		if err != nil {
+			t.Fatalf("Permissions.FolderTrust.AddTrusted failed: %v", err)
+		}
+		if !addTrusted.Success {
+			t.Fatalf("Expected AddTrusted Success=true")
+		}
+		updatedTrust, err := session.RPC.Permissions.FolderTrust().IsTrusted(t.Context(), &rpc.FolderTrustCheckParams{Path: trustedDirectory})
+		if err != nil {
+			t.Fatalf("Permissions.FolderTrust.IsTrusted(updated) failed: %v", err)
+		}
+		if !updatedTrust.Trusted {
+			t.Fatalf("Expected trusted directory to be trusted after AddTrusted")
 		}
 	})
 }

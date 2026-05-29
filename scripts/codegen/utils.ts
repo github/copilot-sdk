@@ -29,6 +29,8 @@ export interface DefinitionCollections {
     $defs?: Record<string, JSONSchema7Definition>;
 }
 
+export type EnumValueDescriptions = Record<string, string>;
+
 export interface SessionEventEnvelopeProperty {
     name: string;
     schema: JSONSchema7;
@@ -326,6 +328,25 @@ export function cloneSchemaForCodegen<T>(value: T): T {
     return value;
 }
 
+export function getEnumValueDescriptions(schema: JSONSchema7 | null | undefined): EnumValueDescriptions | undefined {
+    if (!schema || typeof schema !== "object") return undefined;
+
+    const rawDescriptions = (schema as Record<string, unknown>)["x-enumDescriptions"];
+    if (!rawDescriptions || typeof rawDescriptions !== "object" || Array.isArray(rawDescriptions)) return undefined;
+
+    const descriptions: EnumValueDescriptions = {};
+    for (const [value, description] of Object.entries(rawDescriptions)) {
+        if (typeof description !== "string") continue;
+
+        const trimmedDescription = description.trim();
+        if (trimmedDescription.length > 0) {
+            descriptions[value] = trimmedDescription;
+        }
+    }
+
+    return Object.keys(descriptions).length > 0 ? descriptions : undefined;
+}
+
 const INT32_MIN = -(2 ** 31);
 const INT32_MAX = 2 ** 31 - 1;
 
@@ -478,6 +499,346 @@ export function isSchemaDeprecated(schema: JSONSchema7 | null | undefined): bool
 /** Returns true when a JSON Schema node is marked as experimental. */
 export function isSchemaExperimental(schema: JSONSchema7 | null | undefined): boolean {
     return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).stability === "experimental";
+}
+
+/** Returns true when a JSON Schema node is marked as visibility:"internal" (set via `.asInternal()` on the Zod source). */
+export function isSchemaInternal(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>).visibility === "internal";
+}
+
+/**
+ * Collects the set of definition names marked `visibility: "internal"` and a
+ * per-definition set of internal property names. Used by code generators that
+ * need to apply `_`-prefix or similar renames consistently across both type
+ * declarations and references.
+ *
+ * Call after `propagateInternalVisibility` so transitively-internal fields are
+ * also picked up.
+ */
+export function collectInternalSymbols(schema: JSONSchema7): {
+    typeNames: Set<string>;
+    fieldsByType: Map<string, Set<string>>;
+} {
+    const typeNames = new Set<string>();
+    const fieldsByType = new Map<string, Set<string>>();
+    const { definitions, $defs } = collectDefinitionCollections(schema as Record<string, unknown>);
+    const allDefs: Record<string, JSONSchema7Definition> = { ...definitions, ...$defs };
+    for (const [name, def] of Object.entries(allDefs)) {
+        if (!def || typeof def !== "object") continue;
+        const d = def as Record<string, unknown>;
+        if (d.visibility === "internal") typeNames.add(name);
+        const props = d.properties;
+        if (props && typeof props === "object" && !Array.isArray(props)) {
+            for (const [propName, propSchema] of Object.entries(props as Record<string, unknown>)) {
+                if (propSchema && typeof propSchema === "object" && (propSchema as Record<string, unknown>).visibility === "internal") {
+                    if (!fieldsByType.has(name)) fieldsByType.set(name, new Set());
+                    fieldsByType.get(name)!.add(propName);
+                }
+            }
+        }
+    }
+    return { typeNames, fieldsByType };
+}
+
+/**
+ * Post-process a Python module so that types marked `visibility: "internal"`
+ * carry an underscore prefix on their class identifier.
+ *
+ * Why: Python has no compiler-enforced visibility, but the leading-underscore
+ * convention is universally recognized as "no stability guarantee". Combined
+ * with `__all__` exclusion at the module level (handled separately), this is
+ * the strongest "internal" signal Python idioms provide and matches the
+ * cross-language bar of "we can do breaking changes on these without
+ * having to apologize".
+ *
+ * Field-level visibility is expected to be handled at emission time by each
+ * Python emitter (because field names depend on the emitter's PEP 8 normalization
+ * and the emitter's class-name conventions may diverge from the schema's
+ * definition names, breaking any single-class regex). Type-level renaming is
+ * safe to do globally because schema definition names match the emitted class
+ * identifiers for the types that carry `visibility: "internal"`.
+ */
+export function renameInternalPythonSymbols(
+    code: string,
+    typeNames: Iterable<string>
+): string {
+    const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    let result = code;
+    const sortedTypes = [...typeNames].sort((a, b) => b.length - a.length);
+    // Phase 1: rename each identifier globally at word boundaries.
+    for (const t of sortedTypes) {
+        result = result.replace(
+            new RegExp(`(?<![A-Za-z0-9_])${escapeRegex(t)}(?![A-Za-z0-9_])`, "g"),
+            `_${t}`
+        );
+    }
+    // Phase 2: restore JSON-key strings that match the rename target. Those
+    // strings carry the wire-protocol definition name and must remain untouched
+    // regardless of the Python-side rename. Patterns: `obj.get("Foo")` and
+    // `result["Foo"] = ...` in quicktype's serialization helpers.
+    for (const t of sortedTypes) {
+        const escaped = escapeRegex(t);
+        result = result.replace(
+            new RegExp(`(obj\\.get\\(")_${escaped}("\\))`, "g"),
+            `$1${t}$2`
+        );
+        result = result.replace(
+            new RegExp(`(result\\[")_${escaped}("\\])`, "g"),
+            `$1${t}$2`
+        );
+    }
+    return result;
+}
+
+/**
+ * Collects the set of (publicTypeName, internalFieldName[]) pairs from a
+ * processed schema. Used by code generators that need to annotate or rename
+ * properties whose type carries `visibility: "internal"` but whose containing
+ * definition is itself public — e.g. so IDEs/code completion can hint that a
+ * field is internal even when the type isn't renamed.
+ *
+ * Only definitions that are NOT themselves `visibility: "internal"` are included
+ * (those are already covered by type-level rename/visibility). The returned map
+ * is keyed by JSON Schema definition name; field names are the JSON property
+ * names (un-cased).
+ */
+export function collectInternalFieldsOnPublicTypes(
+    schema: JSONSchema7
+): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    const { definitions, $defs } = collectDefinitionCollections(schema as Record<string, unknown>);
+    const allDefs: Record<string, JSONSchema7Definition> = { ...definitions, ...$defs };
+    for (const [name, def] of Object.entries(allDefs)) {
+        if (!def || typeof def !== "object") continue;
+        const d = def as Record<string, unknown>;
+        if (d.visibility === "internal") continue;
+        const props = d.properties;
+        if (!props || typeof props !== "object" || Array.isArray(props)) continue;
+        for (const [propName, propSchema] of Object.entries(props as Record<string, unknown>)) {
+            if (propSchema && typeof propSchema === "object" && (propSchema as Record<string, unknown>).visibility === "internal") {
+                if (!out.has(name)) out.set(name, new Set());
+                out.get(name)!.add(propName);
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * Annotate quicktype-generated Python field declarations whose schema is marked
+ * `visibility: "internal"` with a `# Internal:` comment immediately above the
+ * declaration. The comment is visible in IDE hovers/code completion, so
+ * consumers see the marker even though the identifier itself is unchanged.
+ *
+ * This is the field-level fallback for code paths that can't rename the field
+ * identifier (quicktype's generated `from_dict`/`to_dict` reference field names
+ * in patterns brittle to regex rewriting). For session-events and other
+ * hand-rolled emitters, prefer renaming.
+ *
+ * The `toFieldName` callback maps a JSON property name to its Python attribute
+ * name (typically snake_case).
+ */
+export function annotateInternalPythonFields(
+    code: string,
+    fieldsByType: Map<string, Set<string>>,
+    toFieldName: (jsonName: string) => string
+): string {
+    const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    let result = code;
+    for (const [typeName, fields] of fieldsByType) {
+        // Match the class body up to the next top-level statement. quicktype's
+        // generated classes are separated by blank-line boundaries.
+        const classRe = new RegExp(
+            `(@dataclass\\nclass ${escapeRegex(typeName)}[:(][^]*?)(?=\\n(?:@dataclass\\n)?class \\w|\\n\\nclass |\\n[A-Za-z_]\\w* =|$)`,
+            "g"
+        );
+        result = result.replace(classRe, (block) => {
+            for (const jsonField of fields) {
+                const pyField = toFieldName(jsonField);
+                const escaped = escapeRegex(pyField);
+                // Match `    fieldName: type` style declarations (PEP 526). Avoid
+                // double-annotating if the comment is already present immediately above.
+                block = block.replace(
+                    new RegExp(`(^(?!    # Internal:.*$)(?:.*\\n)?)(    )${escaped}(?=\\s*:)`, "gm"),
+                    (_match, prefix, indent) => {
+                        // Avoid duplicate annotation if the previous line is already an Internal: marker.
+                        if (/    # Internal:/.test(prefix)) return `${prefix}${indent}${pyField}`;
+                        return `${prefix}${indent}# Internal: this field is an internal SDK API and is not part of the public surface.\n${indent}${pyField}`;
+                    }
+                );
+            }
+            return block;
+        });
+    }
+    return result;
+}
+
+/**
+ * Walks a top-level JSON Schema and marks any property whose referenced type
+ * resolves to an internal definition as `visibility: "internal"` itself.
+ *
+ * Schemas can be authored with an internal-typed reference on a property that
+ * isn't itself explicitly marked internal (e.g. `copilotUsage` referencing
+ * `AssistantUsageCopilotUsage`). Code generators that map `visibility:
+ * "internal"` to hard language-level visibility (C# `internal`, Rust
+ * `pub(crate)`) would otherwise produce inconsistent-accessibility errors
+ * (CS0053 in C#, E0446 in Rust). This pass closes that gap by promoting
+ * referencing properties to internal — matching the language compilers'
+ * own transitivity rule.
+ *
+ * Only references that resolve directly, through arrays, or through dictionary
+ * `additionalProperties` are considered. References that flow only through a
+ * `oneOf`/`anyOf` of public+internal variants are left alone (the union itself
+ * is the carrier of visibility there).
+ *
+ * Mutates `schema` in place and returns it. Idempotent.
+ */
+export function propagateInternalVisibility(schema: JSONSchema7): JSONSchema7 {
+    if (typeof schema !== "object" || schema === null) return schema;
+
+    const { definitions, $defs } = collectDefinitionCollections(schema as Record<string, unknown>);
+    const allDefs: Record<string, JSONSchema7Definition> = { ...definitions, ...$defs };
+    const internalTypeNames = new Set<string>();
+    for (const [name, def] of Object.entries(allDefs)) {
+        if (def && typeof def === "object" && isSchemaInternal(def as JSONSchema7)) {
+            internalTypeNames.add(name);
+        }
+    }
+    if (internalTypeNames.size === 0) return schema;
+
+    const refToName = (ref: unknown): string | undefined => {
+        if (typeof ref !== "string") return undefined;
+        const m = ref.match(/^#\/(?:definitions|\$defs)\/([^/]+)$/);
+        return m ? m[1] : undefined;
+    };
+
+    /** Returns true when a property's *direct* type carrier is an internal definition. */
+    const propertyReferencesInternal = (propSchema: JSONSchema7): boolean => {
+        const direct = refToName((propSchema as Record<string, unknown>).$ref);
+        if (direct && internalTypeNames.has(direct)) return true;
+        const items = (propSchema as Record<string, unknown>).items;
+        if (items && typeof items === "object" && !Array.isArray(items)) {
+            const itemsRef = refToName((items as Record<string, unknown>).$ref);
+            if (itemsRef && internalTypeNames.has(itemsRef)) return true;
+        }
+        const addl = (propSchema as Record<string, unknown>).additionalProperties;
+        if (addl && typeof addl === "object") {
+            const addlRef = refToName((addl as Record<string, unknown>).$ref);
+            if (addlRef && internalTypeNames.has(addlRef)) return true;
+        }
+        return false;
+    };
+
+    const visit = (node: unknown): void => {
+        if (!node || typeof node !== "object") return;
+        if (Array.isArray(node)) {
+            for (const item of node) visit(item);
+            return;
+        }
+        const record = node as Record<string, unknown>;
+        const props = record.properties;
+        if (props && typeof props === "object" && !Array.isArray(props)) {
+            for (const propSchema of Object.values(props as Record<string, unknown>)) {
+                if (!propSchema || typeof propSchema !== "object") continue;
+                if (!isSchemaInternal(propSchema as JSONSchema7) && propertyReferencesInternal(propSchema as JSONSchema7)) {
+                    (propSchema as Record<string, unknown>).visibility = "internal";
+                }
+                visit(propSchema);
+            }
+        }
+        for (const key of ["items", "additionalProperties", "anyOf", "allOf", "oneOf"]) {
+            if (record[key]) visit(record[key]);
+        }
+        for (const collectionKey of ["definitions", "$defs"]) {
+            const collection = record[collectionKey];
+            if (collection && typeof collection === "object" && !Array.isArray(collection)) {
+                for (const def of Object.values(collection as Record<string, unknown>)) {
+                    if (def && typeof def === "object") visit(def);
+                }
+            }
+        }
+    };
+
+    visit(schema);
+    return schema;
+}
+
+/**
+ * Returns true when a JSON Schema node is marked `x-opaque-json: true` (set via
+ * `.asOpaqueJson()` on the Zod source). These are the only shapes that legitimately
+ * surface as opaque JSON in the SDK; everything else with an underspecified type
+ * is rejected by the runtime's schema lint pass.
+ */
+export function isOpaqueJson(schema: JSONSchema7 | null | undefined): boolean {
+    return typeof schema === "object" && schema !== null && (schema as Record<string, unknown>)["x-opaque-json"] === true;
+}
+
+/**
+ * Removes the `x-opaque-json` marker from a schema node in place. Useful for
+ * codegens (e.g. TypeScript) that don't distinguish opaque JSON from any other
+ * unconstrained value and would otherwise have the marker confuse downstream
+ * tooling. Codegens that *do* care (e.g. C#, which maps opaque JSON to
+ * `JsonElement`) should call `isOpaqueJson` *before* this point.
+ */
+export function stripOpaqueJsonMarker(schema: Record<string, unknown>): void {
+    delete schema["x-opaque-json"];
+}
+
+/**
+ * Append `@internal` and/or `@experimental` JSDoc-style tags to the `description`
+ * of every property that carries `visibility: "internal"` or `stability: "experimental"`
+ * inline. Used by codegens whose output mechanism (e.g. `json-schema-to-typescript`)
+ * renders `description` verbatim as JSDoc; downstream tooling then picks the tags
+ * up automatically.
+ *
+ * Mutates `schema` in place and returns it. Callers that don't want their input
+ * mutated should clone first.
+ */
+export function appendPropertyMarkerTagsToDescriptions(schema: JSONSchema7): JSONSchema7 {
+    const seen = new WeakSet<object>();
+    const visit = (node: unknown): void => {
+        if (!node || typeof node !== "object") return;
+        if (seen.has(node)) return;
+        seen.add(node);
+
+        if (Array.isArray(node)) {
+            for (const item of node) visit(item);
+            return;
+        }
+
+        const record = node as Record<string, unknown>;
+        const props = record.properties;
+        if (props && typeof props === "object" && !Array.isArray(props)) {
+            for (const propSchema of Object.values(props as Record<string, unknown>)) {
+                if (!propSchema || typeof propSchema !== "object") continue;
+                const tags: string[] = [];
+                if (isSchemaInternal(propSchema as JSONSchema7)) tags.push("@internal");
+                if (isSchemaExperimental(propSchema as JSONSchema7)) tags.push("@experimental");
+                if (tags.length === 0) continue;
+                const propRecord = propSchema as Record<string, unknown>;
+                const existing = typeof propRecord.description === "string" ? propRecord.description : "";
+                const suffix = tags.join("\n");
+                propRecord.description = existing.length > 0 ? `${existing}\n\n${suffix}` : suffix;
+
+                // json-schema-to-typescript drops the description on properties whose
+                // schema is a bare `$ref`. Rewriting to `allOf: [{$ref}]` keeps the
+                // referenced type while preserving the description (and our appended
+                // JSDoc tags) on the property declaration. Other generators don't see
+                // this wrapper because they consume the schema before this pass.
+                if (typeof propRecord.$ref === "string" && !propRecord.allOf) {
+                    const refValue = propRecord.$ref;
+                    delete propRecord.$ref;
+                    propRecord.allOf = [{ $ref: refValue } as JSONSchema7Definition];
+                }
+            }
+        }
+
+        for (const value of Object.values(record)) {
+            if (value && typeof value === "object") visit(value);
+        }
+    };
+    visit(schema);
+    return schema;
 }
 
 // ── $ref resolution ─────────────────────────────────────────────────────────
@@ -1091,7 +1452,7 @@ function normalizeDefinitionForComparison(definition: JSONSchema7Definition): un
 
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(definition as Record<string, unknown>)) {
-        if (key === "description" || key === "markdownDescription") {
+        if (key === "description" || key === "markdownDescription" || key === "x-enumDescriptions") {
             continue;
         } else if (key === "$ref" && typeof value === "string") {
             const localRef = parseLocalDefinitionRef(value);

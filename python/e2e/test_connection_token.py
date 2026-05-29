@@ -11,8 +11,7 @@ import tempfile
 import pytest
 import pytest_asyncio
 
-from copilot import CopilotClient
-from copilot.client import ExternalServerConfig, SubprocessConfig
+from copilot import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
 from .testharness.proxy import CapiProxy
@@ -47,14 +46,10 @@ class ConnectionTokenContext:
         )
 
         self._client = CopilotClient(
-            SubprocessConfig(
-                cli_path=self.cli_path,
-                cwd=self.work_dir,
-                env=self.get_env(),
-                use_stdio=False,
-                tcp_connection_token=self.token,
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_tcp(path=self.cli_path, connection_token=self.token),
+            working_directory=self.work_dir,
+            env=self.get_env(),
+            github_token=github_token,
         )
 
         # Trigger the spawn + connect handshake so the server is listening.
@@ -133,11 +128,11 @@ class TestConnectionToken:
 
     async def test_wrong_token_is_rejected(self, explicit_token_ctx: ConnectionTokenContext):
         """A sibling client connecting with the wrong token is rejected."""
-        port = explicit_token_ctx.client.actual_port
+        port = explicit_token_ctx.client.runtime_port
         assert port is not None
 
         wrong = CopilotClient(
-            ExternalServerConfig(url=f"localhost:{port}", tcp_connection_token="wrong")
+            connection=RuntimeConnection.for_uri(f"localhost:{port}", connection_token="wrong")
         )
         try:
             with pytest.raises(Exception, match="AUTHENTICATION_FAILED"):
@@ -152,10 +147,10 @@ class TestConnectionToken:
 
     async def test_missing_token_is_rejected(self, explicit_token_ctx: ConnectionTokenContext):
         """A sibling client with no token is rejected when the server requires one."""
-        port = explicit_token_ctx.client.actual_port
+        port = explicit_token_ctx.client.runtime_port
         assert port is not None
 
-        no_token = CopilotClient(ExternalServerConfig(url=f"localhost:{port}"))
+        no_token = CopilotClient(connection=RuntimeConnection.for_uri(f"localhost:{port}"))
         try:
             with pytest.raises(Exception, match="AUTHENTICATION_FAILED"):
                 await no_token.start()

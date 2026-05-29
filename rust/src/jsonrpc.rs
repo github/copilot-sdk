@@ -11,7 +11,26 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tracing::{Instrument, debug, error, warn};
 
-use crate::{Error, ProtocolError};
+use crate::{Error, ErrorKind, ProtocolErrorKind};
+
+/// Callback invoked synchronously by the JSON-RPC read loop the instant a
+/// successful response is parsed, before the response is delivered to the
+/// awaiter and before the read loop dispatches the next message. Use this
+/// when client-side state (for example, registering a server-assigned
+/// session id with the router) must be visible to any subsequent
+/// notification on the same connection.
+///
+/// If the callback returns an error, that error is delivered to the
+/// awaiter in place of the response.
+pub(crate) type InlineResponseCallback =
+    Box<dyn FnOnce(&JsonRpcResponse) -> Result<(), Error> + Send + Sync>;
+
+/// Internal pairing of the response delivery channel with an optional
+/// inline callback that the read loop runs synchronously before delivery.
+struct PendingRequest {
+    sender: oneshot::Sender<JsonRpcResponse>,
+    inline_callback: Option<InlineResponseCallback>,
+}
 
 /// A JSON-RPC 2.0 request message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,7 +201,7 @@ pub struct JsonRpcClient {
     /// for cancel-safety, and JSON-RPC frames are small relative to the
     /// natural request/response back-pressure of the wire.
     write_tx: mpsc::UnboundedSender<WriteCommand>,
-    pending_requests: Arc<RwLock<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
+    pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
     notification_tx: broadcast::Sender<JsonRpcNotification>,
     request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     read_task: Mutex<Option<JoinHandle<()>>>,
@@ -282,7 +301,7 @@ impl JsonRpcClient {
 
     async fn read_loop(
         reader: impl AsyncRead + Unpin + Send,
-        pending_requests: Arc<RwLock<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>>,
+        pending_requests: Arc<RwLock<HashMap<u64, PendingRequest>>>,
         notification_tx: broadcast::Sender<JsonRpcNotification>,
         request_tx: mpsc::UnboundedSender<JsonRpcRequest>,
     ) {
@@ -291,11 +310,54 @@ impl JsonRpcClient {
         loop {
             match Self::read_message(&mut reader).await {
                 Ok(Some(message)) => match message {
-                    JsonRpcMessage::Response(response) => {
+                    JsonRpcMessage::Response(mut response) => {
                         let id = response.id;
-                        let tx = pending_requests.write().remove(&id);
-                        if let Some(tx) = tx {
-                            if tx.send(response).is_err() {
+                        let pending = pending_requests.write().remove(&id);
+                        if let Some(PendingRequest {
+                            sender,
+                            inline_callback,
+                        }) = pending
+                        {
+                            // Run the inline callback synchronously on the
+                            // read loop so any state it mutates (e.g.
+                            // registering a server-assigned session id with
+                            // the router) is visible before the loop reads
+                            // and dispatches the next message.
+                            if let Some(cb) = inline_callback
+                                && response.error.is_none()
+                            {
+                                let cb_outcome =
+                                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        cb(&response)
+                                    }));
+                                match cb_outcome {
+                                    Ok(Ok(())) => {}
+                                    Ok(Err(error)) => {
+                                        response.result = None;
+                                        response.error = Some(JsonRpcError {
+                                            code: -32603,
+                                            message: error.to_string(),
+                                            data: None,
+                                        });
+                                    }
+                                    Err(panic) => {
+                                        let message = panic
+                                            .downcast_ref::<&'static str>()
+                                            .map(|s| (*s).to_string())
+                                            .or_else(|| panic.downcast_ref::<String>().cloned())
+                                            .unwrap_or_else(|| {
+                                                "inline response callback panicked".to_string()
+                                            });
+                                        response.result = None;
+                                        response.error = Some(JsonRpcError {
+                                            code: -32603,
+                                            message,
+                                            data: None,
+                                        });
+                                    }
+                                }
+                            }
+                            if sender.send(response).is_err() {
                                 warn!(request_id = %id, "failed to send response for request");
                             }
                         } else {
@@ -352,15 +414,15 @@ impl JsonRpcClient {
 
             if let Some(value) = trimmed.strip_prefix(CONTENT_LENGTH_HEADER) {
                 content_length = Some(value.trim().parse::<usize>().map_err(|_| {
-                    Error::Protocol(ProtocolError::InvalidContentLength(
-                        value.trim().to_string(),
+                    Error::from(ErrorKind::Protocol(
+                        ProtocolErrorKind::InvalidContentLength(value.trim().to_string()),
                     ))
                 })?);
             }
         }
 
         let Some(length) = content_length else {
-            return Err(Error::Protocol(ProtocolError::MissingContentLength));
+            return Err(ErrorKind::Protocol(ProtocolErrorKind::MissingContentLength).into());
         };
 
         let mut body = vec![0u8; length];
@@ -380,17 +442,50 @@ impl JsonRpcClient {
     /// requests map is cleaned up automatically (the `PendingGuard` drop
     /// removes the entry, and the read loop's response handling tolerates
     /// a missing entry).
+    #[allow(dead_code, reason = "public API exported via crate::JsonRpcClient")]
     pub async fn send_request(
         &self,
         method: &str,
         params: Option<serde_json::Value>,
+    ) -> Result<JsonRpcResponse, Error> {
+        self.send_request_with_inline_callback(method, params, None)
+            .await
+    }
+
+    /// Send a JSON-RPC request whose response is observed synchronously
+    /// by the read loop *before* it is delivered to the awaiter.
+    ///
+    /// The optional `inline_callback` runs on the JSON-RPC read task the
+    /// instant a successful response is parsed, and before the read loop
+    /// dispatches the next message. This is the only way to perform
+    /// client-side bookkeeping (for example, registering a server-
+    /// assigned session id with the router) that must be visible to any
+    /// notification or request that the server may emit on the same
+    /// connection immediately after the response.
+    ///
+    /// If the callback returns an error or panics, that error is
+    /// surfaced to the awaiter in place of the original response (the
+    /// response payload is discarded and an internal-error JSON-RPC
+    /// error is delivered instead). The error is never propagated back
+    /// to the server and does not crash the read loop.
+    pub(crate) async fn send_request_with_inline_callback(
+        &self,
+        method: &str,
+        params: Option<serde_json::Value>,
+        inline_callback: Option<InlineResponseCallback>,
     ) -> Result<JsonRpcResponse, Error> {
         let request_start = Instant::now();
         let id = self.request_id.fetch_add(1, Ordering::SeqCst);
         let request = JsonRpcRequest::new(id, method, params);
 
         let (tx, rx) = oneshot::channel();
-        self.pending_requests.write().insert(id, tx);
+        self.pending_requests.write().insert(
+            id,
+            PendingRequest {
+                sender: tx,
+                inline_callback,
+            },
+        );
 
         // RAII guard that removes the pending entry if this future is
         // dropped before the response arrives. Disarmed below before the
@@ -420,7 +515,7 @@ impl JsonRpcClient {
         let response = match rx.await {
             Ok(response) => response,
             Err(_) => {
-                let error = Error::Protocol(ProtocolError::RequestCancelled);
+                let error = ErrorKind::Protocol(ProtocolErrorKind::RequestCancelled).into();
                 warn!(
                     elapsed_ms = request_start.elapsed().as_millis(),
                     method = %method,
@@ -475,7 +570,7 @@ impl JsonRpcClient {
         self.write_tx
             .send(WriteCommand { frame, ack: ack_tx })
             .map_err(|_| {
-                Error::Io(std::io::Error::new(
+                Error::from(std::io::Error::new(
                     std::io::ErrorKind::BrokenPipe,
                     "writer actor has shut down",
                 ))
@@ -483,8 +578,8 @@ impl JsonRpcClient {
 
         match ack_rx.await {
             Ok(Ok(())) => Ok(()),
-            Ok(Err(e)) => Err(Error::Io(e)),
-            Err(_) => Err(Error::Io(std::io::Error::new(
+            Ok(Err(e)) => Err(Error::from(e)),
+            Err(_) => Err(Error::from(std::io::Error::new(
                 std::io::ErrorKind::BrokenPipe,
                 "writer actor dropped ack without responding",
             ))),
@@ -496,7 +591,7 @@ impl JsonRpcClient {
 /// owning future is dropped before the response arrives. Disarmed on the
 /// happy path so the read loop's response handling owns the cleanup.
 struct PendingGuard<'a> {
-    map: &'a RwLock<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>,
+    map: &'a RwLock<HashMap<u64, PendingRequest>>,
     id: u64,
     armed: bool,
 }

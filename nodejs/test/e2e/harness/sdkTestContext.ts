@@ -9,9 +9,9 @@ import { basename, dirname, join, resolve } from "path";
 import { rimraf } from "rimraf";
 import { fileURLToPath } from "url";
 import { afterAll, afterEach, beforeEach, onTestFailed, TestContext } from "vitest";
-import { CopilotClient, CopilotClientOptions } from "../../../src";
+import { CopilotClient, CopilotClientOptions, RuntimeConnection } from "../../../src";
 import { CapiProxy } from "./CapiProxy";
-import { retry, formatError } from "./sdkTestHelper";
+import { formatError, retry } from "./sdkTestHelper";
 
 export const isCI = process.env.GITHUB_ACTIONS === "true";
 export const DEFAULT_GITHUB_TOKEN = "fake-token-for-e2e-tests";
@@ -45,15 +45,19 @@ export async function createSdkTestContext({
         },
         analytics_tracking_id: "e2e-test-tracking-id",
     });
+    const authTokenToUse = isCI
+        ? DEFAULT_GITHUB_TOKEN
+        : (process.env.GITHUB_TOKEN ?? DEFAULT_GITHUB_TOKEN);
+
     const env = {
         ...process.env,
         ...openAiEndpoint.getProxyEnv(),
         COPILOT_API_URL: proxyUrl,
         COPILOT_HOME: copilotHomeDir,
-        COPILOT_SDK_AUTH_TOKEN: DEFAULT_GITHUB_TOKEN,
+        COPILOT_SDK_AUTH_TOKEN: "",
         GH_CONFIG_DIR: homeDir,
-        GH_TOKEN: DEFAULT_GITHUB_TOKEN,
-        GITHUB_TOKEN: DEFAULT_GITHUB_TOKEN,
+        GH_TOKEN: "",
+        GITHUB_TOKEN: "",
 
         // TODO: I'm not convinced the SDK should default to using whatever config you happen to have in your homedir.
         // The SDK config should be independent of the regular CLI app. Likewise it shouldn't mix sessions from the
@@ -62,14 +66,44 @@ export async function createSdkTestContext({
         XDG_STATE_HOME: homeDir,
     };
 
+    const userConn = copilotClientOptions?.connection;
+    let connection: RuntimeConnection;
+    if (userConn) {
+        // Caller supplied a RuntimeConnection — merge in the harness-managed
+        // CLI path (and stay on the same transport variant). Strip `kind`
+        // before forwarding to the factory opts since the factories don't
+        // accept it in their argument shape.
+        if (userConn.kind === "tcp") {
+            const { kind: _k, ...tcp } = userConn;
+            connection = RuntimeConnection.forTcp({
+                ...tcp,
+                path: tcp.path ?? process.env.COPILOT_CLI_PATH,
+            });
+        } else if (userConn.kind === "stdio") {
+            const { kind: _k, ...stdio } = userConn;
+            connection = RuntimeConnection.forStdio({
+                ...stdio,
+                path: stdio.path ?? process.env.COPILOT_CLI_PATH,
+            });
+        } else {
+            connection = userConn;
+        }
+    } else {
+        connection =
+            useStdio === false
+                ? RuntimeConnection.forTcp({ path: process.env.COPILOT_CLI_PATH })
+                : RuntimeConnection.forStdio({ path: process.env.COPILOT_CLI_PATH });
+    }
+
+    const { connection: _ignoredConnection, ...remainingClientOptions } =
+        copilotClientOptions ?? {};
     const copilotClient = new CopilotClient({
-        cwd: workDir,
+        workingDirectory: workDir,
         env,
         logLevel: logLevel || "error",
-        cliPath: process.env.COPILOT_CLI_PATH,
-        gitHubToken: DEFAULT_GITHUB_TOKEN,
-        useStdio: useStdio,
-        ...copilotClientOptions,
+        connection,
+        gitHubToken: authTokenToUse,
+        ...remainingClientOptions,
     });
 
     const harness = { homeDir, workDir, openAiEndpoint, copilotClient, env };

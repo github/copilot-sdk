@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Text.Json;
 using Xunit;
 
-namespace GitHub.Copilot.SDK.Test.Unit;
+namespace GitHub.Copilot.Test.Unit;
 
 /// <summary>
 /// Reflection-based safety net that exercises the get/set surface of every public DTO in
@@ -29,7 +29,7 @@ public class PublicDtoTests
             .GetTypes()
             .Where(type =>
                 type is { IsClass: true, IsAbstract: false, IsPublic: true } &&
-                type.Namespace?.StartsWith("GitHub.Copilot.SDK", StringComparison.Ordinal) == true &&
+                type.Namespace?.StartsWith("GitHub.Copilot", StringComparison.Ordinal) == true &&
                 type.GetConstructor(Type.EmptyTypes) is not null)
             .OrderBy(type => type.FullName, StringComparer.Ordinal);
 
@@ -174,15 +174,17 @@ public class PublicDtoTests
             .FirstOrDefault(candidate =>
                 candidate.IsGenericType &&
                 (candidate.GetGenericTypeDefinition() == typeof(IDictionary<,>) ||
-                 candidate.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)) &&
-                candidate.GetGenericArguments()[0] == typeof(string));
+                 candidate.GetGenericTypeDefinition() == typeof(IReadOnlyDictionary<,>)));
 
         if (dictionaryInterface is not null)
         {
+            var keyType = dictionaryInterface.GetGenericArguments()[0];
             var valueType = dictionaryInterface.GetGenericArguments()[1];
+            TryCreateSampleValue(keyType, visited, out var sampleKey);
             TryCreateSampleValue(valueType, visited, out var sampleValue);
-            var dictionary = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(typeof(string), valueType))!;
-            dictionary["key"] = sampleValue;
+            var dictionaryType = typeof(Dictionary<,>).MakeGenericType(keyType, valueType);
+            var dictionary = (IDictionary)Activator.CreateInstance(dictionaryType)!;
+            dictionary[sampleKey!] = sampleValue;
             value = dictionary;
             return true;
         }

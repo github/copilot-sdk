@@ -5,7 +5,7 @@
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Verifies that information produced in one turn (e.g., the contents of a file
@@ -23,7 +23,7 @@ public class MultiTurnE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
         var eventsLock = new object();
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             lock (eventsLock)
             {
@@ -52,7 +52,7 @@ public class MultiTurnE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var session = await CreateSessionAsync();
         var events = new List<SessionEvent>();
         var eventsLock = new object();
-        using var subscription = session.On(evt =>
+        using var subscription = session.On<SessionEvent>(evt =>
         {
             lock (eventsLock)
             {

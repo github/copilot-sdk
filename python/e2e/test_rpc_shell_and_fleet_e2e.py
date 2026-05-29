@@ -128,7 +128,7 @@ class TestRpcShellAndFleet:
         async def _wait_for_messages(timeout: float = 120.0):
             deadline = asyncio.get_event_loop().time() + timeout
             while asyncio.get_event_loop().time() < deadline:
-                messages = await session.get_messages()
+                messages = await session.get_events()
                 if any(
                     isinstance(m.data, AssistantMessageData)
                     and "fleet task" in (m.data.content or "").lower()

@@ -14,20 +14,20 @@ function onTestFinishedForceStop(client: CopilotClient) {
 
 describe("RPC", () => {
     it("should call rpc.ping with typed params and result", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
 
         const result = await client.rpc.ping({ message: "typed rpc test" });
         expect(result.message).toBe("pong: typed rpc test");
-        expect(typeof result.timestamp).toBe("number");
+        expect(Date.parse(result.timestamp)).not.toBeNaN();
 
         await client.stop();
     });
 
     it("should call rpc.models.list with typed result", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -47,7 +47,7 @@ describe("RPC", () => {
 
     // account.getQuota is defined in schema but not yet implemented in CLI
     it.skip("should call rpc.account.getQuota when authenticated", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();

@@ -9,8 +9,9 @@ use github_copilot_sdk::generated::api_types::{
 use github_copilot_sdk::generated::session_events::{
     AssistantMessageData, ExternalToolRequestedData, PermissionRequestedData, SessionEventType,
 };
+use github_copilot_sdk::subscription::RecvError;
 use github_copilot_sdk::{
-    Client, ClientOptions, EventSubscription, RecvError, ResumeSessionConfig, SessionConfig,
+    Client, ClientOptions, EventSubscription, ResumeSessionConfig, SessionConfig,
 };
 use serde_json::json;
 

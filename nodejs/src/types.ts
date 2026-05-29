@@ -7,15 +7,25 @@
  */
 
 // Import and re-export generated session event types
+import type { Canvas } from "./canvas.js";
 import type { SessionFsProvider } from "./sessionFsProvider.js";
-import type { SessionEvent as GeneratedSessionEvent } from "./generated/session-events.js";
+import type {
+    ReasoningSummary,
+    SessionEvent as GeneratedSessionEvent,
+} from "./generated/session-events.js";
 import type { CopilotSession } from "./session.js";
 import type { RemoteSessionMode } from "./generated/rpc.js";
+import type { OpenCanvasInstance } from "./generated/rpc.js";
+import type { ToolSet } from "./toolSet.js";
 export type { RemoteSessionMode } from "./generated/rpc.js";
 export type SessionEvent = GeneratedSessionEvent;
+export type { ReasoningSummary } from "./generated/session-events.js";
 export type { SessionFsProvider } from "./sessionFsProvider.js";
 export { createSessionFsAdapter } from "./sessionFsProvider.js";
 export type { SessionFsFileInfo } from "./sessionFsProvider.js";
+export type { SessionFsSqliteQueryResult } from "./sessionFsProvider.js";
+export type { SessionFsSqliteQueryType } from "./sessionFsProvider.js";
+export type { SessionFsSqliteProvider } from "./sessionFsProvider.js";
 
 /**
  * Options for creating a CopilotClient
@@ -55,93 +65,183 @@ export interface TelemetryConfig {
     captureContent?: boolean;
 }
 
+/**
+ * Configures how a {@link CopilotClient} connects to the Copilot runtime.
+ * Construct via the factory functions on {@link RuntimeConnection}.
+ */
+export type RuntimeConnection =
+    | StdioRuntimeConnection
+    | TcpRuntimeConnection
+    | UriRuntimeConnection;
+
+/**
+ * Spawns a runtime child process and communicates over its stdin/stdout.
+ * This is the default if no {@link CopilotClientOptions.connection} is set.
+ */
+export interface StdioRuntimeConnection {
+    readonly kind: "stdio";
+    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
+    readonly path?: string;
+    /** Extra command-line arguments to pass to the runtime process. */
+    readonly args?: readonly string[];
+}
+
+/**
+ * Spawns a runtime child process that listens on a TCP socket and connects to it.
+ */
+export interface TcpRuntimeConnection {
+    readonly kind: "tcp";
+    /**
+     * TCP port to listen on. `0` (the default) auto-allocates a free port.
+     * If the chosen port is already in use, startup fails.
+     */
+    readonly port?: number;
+    /**
+     * Optional shared secret the SDK sends to the spawned runtime to authenticate
+     * the TCP connection. When omitted, a UUID is generated automatically so the
+     * loopback listener is safe by default.
+     */
+    readonly connectionToken?: string;
+    /** Path to the runtime executable. When omitted, the bundled runtime is used. */
+    readonly path?: string;
+    /** Extra command-line arguments to pass to the runtime process. */
+    readonly args?: readonly string[];
+}
+
+/**
+ * Connects to an already-running runtime at the specified URL. The SDK does not
+ * spawn a process in this mode.
+ */
+export interface UriRuntimeConnection {
+    readonly kind: "uri";
+    /**
+     * URL of the runtime to connect to. Accepts `"port"`, `"host:port"`, or a
+     * full URL (`"http://host:port"`).
+     */
+    readonly url: string;
+    /** Optional shared secret to authenticate the connection. */
+    readonly connectionToken?: string;
+}
+
+/** Factory functions for constructing {@link RuntimeConnection} instances. */
+export const RuntimeConnection = {
+    /**
+     * Spawn a runtime child process and communicate over its stdin/stdout.
+     * This is the default if no {@link CopilotClientOptions.connection} is set.
+     */
+    forStdio(opts: { path?: string; args?: readonly string[] } = {}): StdioRuntimeConnection {
+        return { kind: "stdio", path: opts.path, args: opts.args };
+    },
+    /**
+     * Spawn a runtime child process that listens on a TCP socket and connect to it.
+     */
+    forTcp(
+        opts: {
+            port?: number;
+            connectionToken?: string;
+            path?: string;
+            args?: readonly string[];
+        } = {}
+    ): TcpRuntimeConnection {
+        return {
+            kind: "tcp",
+            port: opts.port,
+            connectionToken: opts.connectionToken,
+            path: opts.path,
+            args: opts.args,
+        };
+    },
+    /**
+     * Connect to an already-running runtime at the given URL. The SDK does not
+     * spawn a process in this mode.
+     */
+    forUri(url: string, opts: { connectionToken?: string } = {}): UriRuntimeConnection {
+        return { kind: "uri", url, connectionToken: opts.connectionToken };
+    },
+} as const;
+
+/**
+ * @internal Marker used by `joinSession()` to signal that the SDK is running
+ * as a child process of the Copilot runtime and should use its own stdio to
+ * talk back to the parent. Not part of the public API.
+ */
+export interface ParentProcessRuntimeConnection {
+    readonly kind: "parent-process";
+}
+
+/** @internal */
+export type InternalRuntimeConnection = RuntimeConnection | ParentProcessRuntimeConnection;
+
+/**
+ * Controls SDK defaults for ambient features.
+ *
+ * - `"copilot-cli"` (default): Defaults equivalent to Copilot CLI. Useful when
+ *   building a coding agent that shares sessions with Copilot CLI. Do not use
+ *   this mode for server-based multi-user applications — the default coding
+ *   agent has tools and capabilities that operate across sessions and can
+ *   access the host OS environment.
+ * - `"empty"`: Disables optional features by default. The app must explicitly
+ *   opt into anything it needs. Required for any scenario where CLI-like
+ *   ambient behavior is unsafe (e.g. multi-user servers).
+ */
+export type CopilotClientMode = "empty" | "copilot-cli";
+
 export interface CopilotClientOptions {
     /**
-     * Path to the CLI executable or JavaScript entry point.
-     * If not specified, uses the bundled CLI from the @github/copilot package.
+     * How to connect to the Copilot runtime. When omitted, defaults to
+     * {@link RuntimeConnection.forStdio} with the bundled runtime.
      */
-    cliPath?: string;
+    connection?: RuntimeConnection;
 
     /**
-     * Extra arguments to pass to the CLI executable (inserted before SDK-managed args)
+     * Selects the SDK defaulting strategy. See {@link CopilotClientMode}.
+     *
+     * When set to `"empty"`, the SDK validates that the app has supplied the
+     * required configuration ({@link CopilotClientOptions.baseDirectory} or
+     * {@link CopilotClientOptions.sessionFs}, plus
+     * {@link SessionConfigBase.availableTools} on each session) and translates
+     * session creation requests into runtime options that flip tool filter
+     * precedence to deny-wins so exclusions are expressible.
+     *
+     * @default "copilot-cli"
      */
-    cliArgs?: string[];
+    mode?: CopilotClientMode;
 
     /**
-     * Working directory for the CLI process
-     * If not set, inherits the current process's working directory
+     * Working directory for the runtime process.
+     * If not set, inherits the current process's working directory.
      */
-    cwd?: string;
+    workingDirectory?: string;
 
     /**
      * Base directory for Copilot data (session state, config, etc.).
-     * Sets the COPILOT_HOME environment variable on the spawned CLI process.
-     * When not set, the CLI defaults to ~/.copilot.
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link cliUrl}.
+     * Sets the COPILOT_HOME environment variable on the spawned runtime.
+     * When not set, the runtime defaults to ~/.copilot.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      */
-    copilotHome?: string;
+    baseDirectory?: string;
 
     /**
-     * Port for the CLI server (TCP mode only)
-     * @default 0 (random available port)
-     */
-    port?: number;
-
-    /**
-     * Use stdio transport instead of TCP
-     * When true, communicates with CLI via stdin/stdout pipes
-     * @default true
-     */
-    useStdio?: boolean;
-
-    /**
-     * When true, indicates the SDK is running as a child process of the Copilot CLI server, and should
-     * use its own stdio for communicating with the existing parent process. Can only be used in combination
-     * with useStdio: true.
-     */
-    isChildProcess?: boolean;
-
-    /**
-     * URL of an existing Copilot CLI server to connect to over TCP
-     * When provided, the client will not spawn a CLI process
-     * Format: "host:port" or "http://host:port" or just "port" (defaults to localhost)
-     * Examples: "localhost:8080", "http://127.0.0.1:9000", "8080"
-     * Mutually exclusive with cliPath, useStdio
-     */
-    cliUrl?: string;
-
-    /**
-     * Log level for the CLI server
+     * Log level for the Copilot runtime. When omitted, the runtime uses its
+     * own default (currently `"info"`).
      */
     logLevel?: "none" | "error" | "warning" | "info" | "debug" | "all";
 
     /**
-     * Auto-start the CLI server on first use
-     * @default true
-     */
-    autoStart?: boolean;
-
-    /**
-     * @deprecated This option has no effect and will be removed in a future release.
-     */
-    autoRestart?: boolean;
-
-    /**
-     * Environment variables to pass to the CLI process. If not set, inherits process.env.
+     * Environment variables to pass to the runtime process. If not set, inherits process.env.
      */
     env?: Record<string, string | undefined>;
 
     /**
      * GitHub token to use for authentication.
-     * When provided, the token is passed to the CLI server via environment variable.
+     * When provided, the token is passed to the runtime via environment variable.
      * This takes priority over other authentication methods.
      */
     gitHubToken?: string;
 
     /**
      * Whether to use the logged-in user for authentication.
-     * When true, the CLI server will attempt to use stored OAuth tokens or gh CLI auth.
+     * When true, the runtime will attempt to use stored OAuth tokens or gh CLI auth.
      * When false, only explicit tokens (gitHubToken or environment variables) are used.
      * @default true (but defaults to false when gitHubToken is provided)
      */
@@ -150,15 +250,15 @@ export interface CopilotClientOptions {
     /**
      * Custom handler for listing available models.
      * When provided, client.listModels() calls this handler instead of
-     * querying the CLI server. Useful in BYOK mode to return models
+     * querying the runtime. Useful in BYOK mode to return models
      * available from your custom provider.
      */
     onListModels?: () => Promise<ModelInfo[]> | ModelInfo[];
 
     /**
-     * OpenTelemetry configuration for the CLI process.
+     * OpenTelemetry configuration for the runtime process.
      * When provided, the corresponding OTel environment variables are set
-     * on the spawned CLI server.
+     * on the spawned runtime.
      */
     telemetry?: TelemetryConfig;
 
@@ -200,29 +300,25 @@ export interface CopilotClientOptions {
      * Server-wide idle timeout for sessions in seconds.
      * Sessions without activity for this duration are automatically cleaned up.
      * Set to 0 or omit to disable (sessions live indefinitely).
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link cliUrl}.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      * @default undefined (disabled)
      */
     sessionIdleTimeoutSeconds?: number;
 
     /**
-     * Connection token for the headless CLI server (TCP only). When the SDK
-     * spawns its own CLI in TCP mode and this is omitted, a UUID is generated
-     * automatically so the loopback listener is safe by default. Rejected with
-     * `useStdio: true` (stdio is pre-authenticated by transport).
-     */
-    tcpConnectionToken?: string;
-
-    /**
      * Enable remote session support (Mission Control integration).
      * When true, sessions in a GitHub repository working directory are
      * accessible from GitHub web and mobile.
-     * This option is only used when the SDK spawns the CLI process; it is ignored
-     * when connecting to an external server via {@link cliUrl}.
+     * Ignored when connecting to an existing runtime via {@link RuntimeConnection.forUri}.
      * @default false
      */
-    remote?: boolean;
+    enableRemoteSessions?: boolean;
+
+    /**
+     * @internal Hook used by `joinSession()` to construct a client that talks
+     * to its parent process over stdio. Not part of the public API.
+     */
+    _internalConnection?: InternalRuntimeConnection;
 }
 
 /**
@@ -237,13 +333,15 @@ export type ToolBinaryResult = {
     description?: string;
 };
 
+export type ToolTelemetry = Record<string, Record<string, unknown> | undefined>;
+
 export type ToolResultObject = {
     textResultForLlm: string;
     binaryResultsForLlm?: ToolBinaryResult[];
     resultType: ToolResultType;
     error?: string;
     sessionLog?: string;
-    toolTelemetry?: Record<string, unknown>;
+    toolTelemetry?: ToolTelemetry;
 };
 
 export type ToolResult = string | ToolResultObject;
@@ -480,6 +578,19 @@ export interface SessionCapabilities {
     ui?: {
         /** Whether the host supports interactive elicitation dialogs. */
         elicitation?: boolean;
+        /**
+         * Whether the runtime has accepted the session's MCP Apps (SEP-1865)
+         * opt-in. `true` when the consumer set `enableMcpApps: true` on
+         * create/resume **and** the runtime's `MCP_APPS` feature flag (or
+         * `COPILOT_MCP_APPS=true` env override) is on. Otherwise absent or
+         * `false`, indicating the runtime silently dropped the opt-in.
+         *
+         * @experimental This property is part of an experimental wire-protocol surface
+         * (SEP-1865) and may change or be removed in a future release.
+         */
+        mcpApps?: boolean;
+        /** Whether the host supports canvas rendering. */
+        canvases?: boolean;
     };
 }
 
@@ -610,7 +721,7 @@ export type ElicitationHandler = (
 /**
  * Options for the `input()` convenience method.
  */
-export interface InputOptions {
+export interface UiInputOptions {
     /** Title label for the input field. */
     title?: string;
     /** Descriptive text shown below the field. */
@@ -655,7 +766,7 @@ export interface SessionUiApi {
      * Returns the entered text, or `null` if the user declines/cancels.
      * @throws Error if the host does not support elicitation.
      */
-    input(message: string, options?: InputOptions): Promise<string | null>;
+    input(message: string, options?: UiInputOptions): Promise<string | null>;
 }
 
 export interface ToolCallRequestPayload {
@@ -670,10 +781,10 @@ export interface ToolCallResponsePayload {
 }
 
 /**
- * Known system prompt section identifiers for the "customize" mode.
+ * Known system message section identifiers for the "customize" mode.
  * Each section corresponds to a distinct part of the system prompt.
  */
-export type SystemPromptSection =
+export type SystemMessageSection =
     | "identity"
     | "tone"
     | "tool_efficiency"
@@ -683,10 +794,11 @@ export type SystemPromptSection =
     | "safety"
     | "tool_instructions"
     | "custom_instructions"
+    | "runtime_instructions"
     | "last_instructions";
 
 /** Section metadata for documentation and tooling. */
-export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: string }> = {
+export const SYSTEM_MESSAGE_SECTIONS: Record<SystemMessageSection, { description: string }> = {
     identity: { description: "Agent identity preamble and mode statement" },
     tone: { description: "Response style, conciseness rules, output formatting preferences" },
     tool_efficiency: { description: "Tool usage patterns, parallel calling, batching guidelines" },
@@ -696,6 +808,10 @@ export const SYSTEM_PROMPT_SECTIONS: Record<SystemPromptSection, { description: 
     safety: { description: "Environment limitations, prohibited actions, security policies" },
     tool_instructions: { description: "Per-tool usage instructions" },
     custom_instructions: { description: "Repository and organization custom instructions" },
+    runtime_instructions: {
+        description:
+            "Runtime-provided context and instructions (e.g. system notifications, memories, workspace context, mode-specific instructions, content-exclusion policy)",
+    },
     last_instructions: {
         description:
             "End-of-prompt instructions: parallel tool calling, persistence, task completion",
@@ -724,7 +840,7 @@ export type SectionOverrideAction =
     | SectionTransformFn;
 
 /**
- * Override operation for a single system prompt section.
+ * Override operation for a single system message section.
  */
 export interface SectionOverride {
     /**
@@ -780,7 +896,7 @@ export interface SystemMessageCustomizeConfig {
      * Unknown section IDs gracefully fall back: content-bearing overrides are appended
      * to additional instructions, and "remove" on unknown sections is a silent no-op.
      */
-    sections?: Partial<Record<SystemPromptSection, SectionOverride>>;
+    sections?: Partial<Record<SystemMessageSection, SectionOverride>>;
 
     /**
      * Additional content appended after all sections.
@@ -801,15 +917,22 @@ export type SystemMessageConfig =
     | SystemMessageCustomizeConfig;
 
 /**
- * Permission request types from the server
+ * Permission request types from the server. This is the generated
+ * discriminated union from the runtime schema — switch on `kind` to
+ * access the variant-specific fields (e.g. shell `commands`, write
+ * `fileName`/`diff`, mcp `toolName`/`args`).
  */
-export interface PermissionRequest {
-    kind: "shell" | "write" | "mcp" | "read" | "url" | "custom-tool" | "memory" | "hook";
-    toolCallId?: string;
-}
+export type { PermissionRequest } from "./generated/session-events.js";
+import type { PermissionRequest } from "./generated/session-events.js";
 
 import type { PermissionDecisionRequest } from "./generated/rpc.js";
 
+/**
+ * Permission decision result returned from a {@link PermissionHandler}.
+ * The discriminated `kind` field selects the decision. Variant-specific
+ * fields (e.g. `feedback` on `{ kind: "reject" }`) come from the generated
+ * `PermissionDecisionRequest["result"]` union.
+ */
 export type PermissionRequestResult = PermissionDecisionRequest["result"] | { kind: "no-result" };
 
 export type PermissionHandler = (
@@ -940,8 +1063,9 @@ export interface BaseHookInput {
     /** The runtime session ID of the session that triggered the hook.
      * For sub-agent hooks this differs from `invocation.sessionId`. */
     sessionId: string;
-    timestamp: number;
-    cwd: string;
+    /** Time at which the hook event was emitted by the runtime. */
+    timestamp: Date;
+    workingDirectory: string;
 }
 
 /**
@@ -972,6 +1096,38 @@ export type PreToolUseHandler = (
 ) => Promise<PreToolUseHookOutput | void> | PreToolUseHookOutput | void;
 
 /**
+ * Input for pre-MCP-tool-call hook
+ */
+export interface PreMcpToolCallHookInput extends BaseHookInput {
+    toolCallId?: string;
+    serverName: string;
+    toolName: string;
+    arguments: unknown;
+    _meta?: Record<string, unknown>;
+}
+
+/**
+ * Output for pre-MCP-tool-call hook
+ */
+export interface PreMcpToolCallHookOutput {
+    /**
+     * Hook-controlled metadata to use for the outgoing MCP request.
+     * - undefined/absent: preserve the current request `_meta`
+     * - object: use this object as request `_meta`
+     * - null: omit `_meta`
+     */
+    metaToUse?: Record<string, unknown> | null;
+}
+
+/**
+ * Handler for pre-MCP-tool-call hook
+ */
+export type PreMcpToolCallHandler = (
+    input: PreMcpToolCallHookInput,
+    invocation: { sessionId: string }
+) => Promise<PreMcpToolCallHookOutput | void> | PreMcpToolCallHookOutput | void;
+
+/**
  * Input for post-tool-use hook
  */
 export interface PostToolUseHookInput extends BaseHookInput {
@@ -996,6 +1152,51 @@ export type PostToolUseHandler = (
     input: PostToolUseHookInput,
     invocation: { sessionId: string }
 ) => Promise<PostToolUseHookOutput | void> | PostToolUseHookOutput | void;
+
+/**
+ * Input for post-tool-use-failure hook.
+ *
+ * Dispatched after a tool execution whose `resultType` is `"failure"`.
+ * The input differs from {@link PostToolUseHookInput}: the host CLI does not
+ * forward the full `ToolResultObject` to failure hooks — only `error`, the
+ * stringified failure message extracted from the tool's result, is provided.
+ */
+export interface PostToolUseFailureHookInput extends BaseHookInput {
+    toolName: string;
+    toolArgs: unknown;
+    /**
+     * Failure message from the tool's result (the `error` field of the
+     * underlying `ToolResultObject`, falling back to its text/log fields).
+     */
+    error: string;
+}
+
+/**
+ * Output for post-tool-use-failure hook.
+ *
+ * Only `additionalContext` is consumed by the host CLI — it is appended as
+ * hidden guidance to the model alongside the failed tool result. Other fields
+ * such as `modifiedResult` or `suppressOutput` are not honored for failure
+ * hooks (see {@link PostToolUseHookOutput} for the success-only hook).
+ */
+export interface PostToolUseFailureHookOutput {
+    additionalContext?: string;
+}
+
+/**
+ * Handler for post-tool-use-failure hook.
+ *
+ * Fires after a tool execution whose result was `"failure"`. `onPostToolUse`
+ * only fires for successful results, so register this handler to observe or
+ * react to failed tool outcomes.
+ *
+ * Note: `"rejected"`, `"denied"`, and `"timeout"` results do not currently
+ * trigger this hook either — only `"failure"` does.
+ */
+export type PostToolUseFailureHandler = (
+    input: PostToolUseFailureHookInput,
+    invocation: { sessionId: string }
+) => Promise<PostToolUseFailureHookOutput | void> | PostToolUseFailureHookOutput | void;
 
 /**
  * Input for user-prompt-submitted hook
@@ -1108,9 +1309,26 @@ export interface SessionHooks {
     onPreToolUse?: PreToolUseHandler;
 
     /**
-     * Called after a tool is executed
+     * Called before an MCP tool is called
+     */
+    onPreMcpToolCall?: PreMcpToolCallHandler;
+
+    /**
+     * Called after a tool is executed with a successful result.
+     *
+     * For failed tool executions, register {@link onPostToolUseFailure} instead;
+     * this handler does not fire for non-success results.
      */
     onPostToolUse?: PostToolUseHandler;
+
+    /**
+     * Called after a tool execution whose result was `"failure"`.
+     *
+     * Register this handler alongside {@link onPostToolUse} to observe failed
+     * tool calls — `onPostToolUse` only fires for successful results, so
+     * without this hook failed tool calls are invisible to extensions.
+     */
+    onPostToolUseFailure?: PostToolUseFailureHandler;
 
     /**
      * Called when the user submits a prompt
@@ -1142,9 +1360,11 @@ export interface SessionHooks {
  */
 interface MCPServerConfigBase {
     /**
-     * List of tools to include from this server. [] means none. "*" means all.
+     * List of tools to include from this server.
+     * `undefined` (the default) or `["*"]` means include all tools.
+     * `[]` means include none.
      */
-    tools: string[];
+    tools?: string[];
     /**
      * Indicates the server type: "stdio" for local/subprocess servers, "http"/"sse" for remote servers.
      * If not specified, defaults to "stdio".
@@ -1162,12 +1382,15 @@ interface MCPServerConfigBase {
 export interface MCPStdioServerConfig extends MCPServerConfigBase {
     type?: "local" | "stdio";
     command: string;
-    args: string[];
+    args?: string[];
     /**
      * Environment variables to pass to the server.
      */
     env?: Record<string, string>;
-    cwd?: string;
+    /**
+     * Working directory for the server process.
+     */
+    workingDirectory?: string;
 }
 
 /**
@@ -1287,17 +1510,52 @@ export interface InfiniteSessionConfig {
 }
 
 /**
+ * Configuration for handling large tool outputs.
+ *
+ * When a tool produces output exceeding the configured size, the output is
+ * written to a temp file and a reference is returned to the model instead of
+ * the full payload.
+ */
+export interface LargeToolOutputConfig {
+    /**
+     * Whether large output handling is enabled.
+     * @default true
+     */
+    enabled?: boolean;
+
+    /**
+     * Maximum size in bytes before output is written to a temp file.
+     * @default 51200
+     */
+    maxSizeBytes?: number;
+
+    /**
+     * Directory to write temp files to. Defaults to the OS temp directory.
+     */
+    outputDirectory?: string;
+}
+
+/**
  * Valid reasoning effort levels for models that support it.
  */
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
-export interface SessionConfig {
-    /**
-     * Optional custom session ID
-     * If not provided, server will generate one
-     */
-    sessionId?: string;
+/**
+ * Stable extension identity for session participants that provide canvases.
+ */
+export interface ExtensionInfo {
+    /** Extension namespace/source, e.g. "github-app". */
+    source: string;
+    /** Stable provider name within the source namespace. */
+    name: string;
+}
 
+/**
+ * Shared configuration fields used by both {@link SessionConfig} (for
+ * creating a new session) and {@link ResumeSessionConfig} (for resuming
+ * an existing one).
+ */
+export interface SessionConfigBase {
     /**
      * Client name to identify the application using the SDK.
      * Included in the User-Agent header for API requests.
@@ -1316,14 +1574,28 @@ export interface SessionConfig {
      */
     reasoningEffort?: ReasoningEffort;
 
+    /**
+     * Reasoning summary mode for models that support configurable reasoning summaries.
+     * Use "none" to suppress summary output regardless of whether reasoning is enabled.
+     */
+    reasoningSummary?: ReasoningSummary;
+
     /** Per-property overrides for model capabilities, deep-merged over runtime defaults. */
     modelCapabilities?: ModelCapabilitiesOverride;
+
+    /**
+     * Configuration for handling large tool outputs. When a tool produces
+     * output exceeding the configured size, the output is written to a temp
+     * file and a reference is returned to the model instead of the full
+     * payload.
+     */
+    largeOutput?: LargeToolOutputConfig;
 
     /**
      * Override the default configuration directory location.
      * When specified, the session will use this directory for storing config and state.
      */
-    configDir?: string;
+    configDirectory?: string;
 
     /**
      * When true, automatically discovers MCP server configurations (e.g. `.mcp.json`,
@@ -1339,43 +1611,43 @@ export interface SessionConfig {
     enableConfigDiscovery?: boolean;
 
     /**
-     * When true, requests the runtime to discover custom instruction files on
-     * demand as the agent works. After the agent successfully reads or views a
-     * file inside the repository, the runtime scans any not-yet-scanned
-     * directories from the directory containing that file up to the repository
-     * root for recognized instruction files (such as `AGENTS.md`, `CLAUDE.md`,
-     * and `.github/copilot-instructions.md`). A discovered file is applied only
-     * if it has no `applyTo` glob, or its `applyTo` glob matches the accessed
-     * file's repository-relative path or name; each file is delivered at most
-     * once. This is in addition to the instruction files loaded
-     * up front at session start. Discovered files are delivered to the model as
-     * additional instruction context (hidden follow-up messages) and do not
-     * modify the system prompt.
-     *
-     * Runtime-gated: only takes effect when custom instructions are enabled
-     * and the connected runtime supports and enables on-demand instruction
-     * discovery. Otherwise the runtime accepts the option but performs no
-     * on-demand instruction discovery.
-     *
-     * Security: enable only for trusted repositories or workspaces. Discovered
-     * instruction files influence agent behavior and may be stored or replayed
-     * with session history. Do not enable for untrusted content, CI jobs
-     * processing untrusted forks, or directories writable by untrusted users or
-     * processes.
-     *
-     * For resumed sessions, omitting this option leaves the existing session
-     * setting unchanged; pass `false` to disable future on-demand discovery.
-     *
-     * @default false
-     */
-    enableOnDemandInstructionDiscovery?: boolean;
-
-    /**
      * Tools exposed to the CLI server. Tools without a handler are declaration-only
      * and must be resolved by the consumer via pending external tool request RPCs.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools?: Tool<any>[];
+
+    /**
+     * Canvases contributed by this session participant. The declaring
+     * connection becomes the live provider for `canvas.open|focus|close|reload`
+     * and `canvas.action.invoke` dispatches targeting each canvas's `id` for
+     * the lifetime of the connection. Re-declaring the same id on resume
+     * replaces the prior declaration.
+     */
+    canvases?: Canvas[];
+
+    /**
+     * Renderer-side opt-in: when true, the runtime surfaces canvas agent tools
+     * (`list_canvas_capabilities`, `open_canvas`, `invoke_canvas_action`) to
+     * the model for this connection. Default off so SDK callers that cannot
+     * display canvases stay clean.
+     */
+    requestCanvasRenderer?: boolean;
+
+    /**
+     * Extension surface opt-in: when true, the runtime wires extension
+     * management tools and per-extension tool dispatch onto the session for
+     * this connection. Default off so callers that do not expose extensions
+     * stay clean.
+     */
+    requestExtensions?: boolean;
+
+    /**
+     * Stable extension identity for canvas providers on this connection. When
+     * set, the runtime uses `${source}:${name}` as the agent-facing extension
+     * id instead of a reconnect-specific connection id.
+     */
+    extensionInfo?: ExtensionInfo;
 
     /**
      * Slash commands registered for this session.
@@ -1392,15 +1664,26 @@ export interface SessionConfig {
 
     /**
      * List of tool names to allow. When specified, only these tools will be available.
-     * Takes precedence over excludedTools.
+     *
+     * Supports source-qualified filter patterns (`builtin:*`, `builtin:<name>`,
+     * `mcp:*`, `mcp:<name>`, `custom:*`, `custom:<name>`) as well as the bare
+     * name form (exact match across any source). Build this list with
+     * {@link ToolSet} for type safety and readable intent.
+     *
+     * Composes with {@link excludedTools}: a tool is enabled when it matches
+     * `availableTools` (or `availableTools` is unset) AND it does not match
+     * `excludedTools`. This lets you express "everything matching X except Y".
      */
-    availableTools?: string[];
+    availableTools?: string[] | ToolSet;
 
     /**
-     * List of tool names to disable. All other tools remain available.
-     * Ignored if availableTools is specified.
+     * List of tool names to disable. Supports the same pattern syntax as
+     * {@link availableTools}.
+     *
+     * Always takes precedence over {@link availableTools}: a tool listed here
+     * is disabled even if it also matches `availableTools`.
      */
-    excludedTools?: string[];
+    excludedTools?: string[] | ToolSet;
 
     /**
      * Custom provider configuration (BYOK - Bring Your Own Key).
@@ -1417,6 +1700,43 @@ export interface SessionConfig {
      * This is independent of the OpenTelemetry configuration in {@link CopilotClientOptions.telemetry}.
      */
     enableSessionTelemetry?: boolean;
+
+    /**
+     * When true, the runtime skips loading custom-instruction sources
+     * (e.g. `.github/copilot-instructions.md`, `AGENTS.md`, `CLAUDE.md`).
+     *
+     * Defaults to `false` (custom instructions are loaded). Under
+     * {@link CopilotClientOptions.mode} = `"empty"`, defaults to `true`; apps
+     * can pass `false` here to opt back in.
+     */
+    skipCustomInstructions?: boolean;
+
+    /**
+     * When true, custom agents default to local-only execution and are not
+     * dispatched to remote workers.
+     *
+     * Defaults to `false`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `true`; apps can pass `false` here to opt back in.
+     */
+    customAgentsLocalOnly?: boolean;
+
+    /**
+     * When true, the runtime instructs the agent to include a `Co-authored-by`
+     * trailer in commit messages it composes.
+     *
+     * Defaults to `true`. Under {@link CopilotClientOptions.mode} = `"empty"`,
+     * defaults to `false`; apps can pass `true` here to opt back in.
+     */
+    coauthorEnabled?: boolean;
+
+    /**
+     * When true, the `manage_schedule` tool is exposed to the agent.
+     *
+     * Defaults to whatever the runtime exposes (typically gated to staff
+     * users). Under {@link CopilotClientOptions.mode} = `"empty"`, defaults to
+     * `false`; apps can pass `true` here to opt back in.
+     */
+    manageScheduleEnabled?: boolean;
 
     /**
      * Optional handler for permission requests from the server.
@@ -1439,16 +1759,44 @@ export interface SessionConfig {
     onElicitationRequest?: ElicitationHandler;
 
     /**
+     * Enable MCP Apps (SEP-1865) UI passthrough on this session.
+     *
+     * When `true` **and** the runtime has MCP Apps enabled (via the
+     * `MCP_APPS` feature flag or `COPILOT_MCP_APPS=true` environment
+     * override), the runtime adds the `mcp-apps` capability to the session,
+     * which causes it to advertise the `extensions.io.modelcontextprotocol/ui`
+     * extension to MCP servers (so they expose `_meta.ui.resourceUri` on
+     * tools) and to expose the `session.rpc.mcp.apps.{listTools,callTool,
+     * readResource,setHostContext,getHostContext,diagnose}` JSON-RPC methods.
+     *
+     * If the runtime gate is off, the opt-in is silently dropped server-side
+     * (the runtime logs a warning); the session is created normally but the
+     * MCP Apps surface is unavailable. Inspect the runtime's
+     * `capabilities.ui.mcpApps` on the create/resume response to detect this.
+     *
+     * SDK consumers MUST set this to `true` only when they have an iframe
+     * renderer that can display `ui://` MCP App bundles. Setting it without a
+     * renderer will cause MCP servers to register UI-enabled tool variants
+     * the consumer cannot display.
+     *
+     * @experimental This option is part of an experimental wire-protocol surface
+     * (SEP-1865) and may change or be removed in a future release.
+     *
+     * @default false
+     */
+    enableMcpApps?: boolean;
+
+    /**
      * Handler for exit-plan-mode requests from the agent.
      * When provided, enables `exitPlanMode.request` callbacks.
      */
-    onExitPlanMode?: ExitPlanModeHandler;
+    onExitPlanModeRequest?: ExitPlanModeHandler;
 
     /**
      * Handler for auto-mode-switch requests from the agent.
      * When provided, enables `autoModeSwitch.request` callbacks.
      */
-    onAutoModeSwitch?: AutoModeSwitchHandler;
+    onAutoModeSwitchRequest?: AutoModeSwitchHandler;
 
     /**
      * Hook handlers for intercepting session lifecycle events.
@@ -1462,7 +1810,7 @@ export interface SessionConfig {
      */
     workingDirectory?: string;
 
-    /*
+    /**
      * Enable streaming of assistant message and reasoning chunks.
      * When true, ephemeral assistant.message_delta and assistant.reasoning_delta
      * events are sent as the response is generated. Clients should accumulate
@@ -1481,6 +1829,15 @@ export interface SessionConfig {
      * @default true
      */
     includeSubAgentStreamingEvents?: boolean;
+
+    /**
+     * Controls how MCP OAuth tokens are stored for this session.
+     * - `"persistent"` — tokens are stored in the OS keychain (shared across sessions)
+     * - `"in-memory"` — tokens are stored in memory and discarded when the session ends
+     *
+     * @default "in-memory"
+     */
+    mcpOAuthTokenStorage?: "persistent" | "in-memory";
 
     /**
      * MCP server configurations for the session.
@@ -1514,6 +1871,21 @@ export interface SessionConfig {
     skillDirectories?: string[];
 
     /**
+     * Local filesystem paths to Open Plugins-format directories
+     * (https://open-plugins.com/) to load for this session.
+     *
+     * Relative paths resolve against `workingDirectory` (or the runtime cwd if
+     * unset); absolute paths are recommended. Invalid entries are logged and
+     * skipped.
+     *
+     * Treated as an explicit opt-in: plugin agents and rules load even when
+     * {@link SessionConfigBase.enableConfigDiscovery} is false. Loaded assets
+     * slot between project (cwd) sources and personal/home sources in the
+     * session-wide precedence order.
+     */
+    pluginDirectories?: string[];
+
+    /**
      * Additional directories to search for custom instruction files.
      */
     instructionDirectories?: string[];
@@ -1543,18 +1915,67 @@ export interface SessionConfig {
     gitHubToken?: string;
 
     /**
+     * When true, skips embedding-based retrieval for this session.
+     * Use in multitenant deployments to prevent cross-session information leakage
+     * through the shared embedding cache.
+     */
+    skipEmbeddingRetrieval?: boolean;
+
+    /**
+     * Controls how the embedding cache is stored for this session.
+     * - `"persistent"`: Embeddings are cached on disk and shared across sessions/restarts.
+     * - `"in-memory"`: Embeddings are cached in memory only and discarded when the session ends.
+     */
+    embeddingCacheStorage?: "persistent" | "in-memory";
+
+    /**
+     * Organization-level custom instructions to include in the system prompt.
+     * Allows hosts to inject organization-specific guidance without relying on
+     * filesystem-based instruction discovery.
+     */
+    organizationCustomInstructions?: string;
+
+    /**
+     * When true, enables on-demand discovery of instruction files (AGENTS.md,
+     * .github/copilot-instructions.md, etc.) after successful file views.
+     */
+    enableOnDemandInstructionDiscovery?: boolean;
+
+    /**
+     * When true, enables loading of file-based hooks from `.github/hooks/`.
+     * This is separate from the `hooks` callback parameter which gates SDK
+     * hook event registration.
+     */
+    enableFileHooks?: boolean;
+
+    /**
+     * When true, enables git operations on the host filesystem (branch detection,
+     * file status, commit history). When false, no git context is surfaced in
+     * the system prompt.
+     */
+    enableHostGitOperations?: boolean;
+
+    /**
+     * When true, enables the cross-session store for search and retrieval
+     * across sessions. When false, session content is not written to or
+     * read from the shared session store.
+     */
+    enableSessionStore?: boolean;
+
+    /**
+     * When true, enables skill loading (including builtin skills and discovered
+     * skill directories). When false, no skills are loaded regardless of
+     * `skillDirectories` or `enableConfigDiscovery` settings.
+     */
+    enableSkills?: boolean;
+
+    /**
      * Per-session remote behavior control:
      * - `"off"` — local only, no remote export (default)
      * - `"export"` — export session events to GitHub without enabling remote steering
      * - `"on"` — export to GitHub AND enable remote steering
      */
     remoteSession?: RemoteSessionMode;
-
-    /**
-     * Creates a remote session in the cloud instead of a local session.
-     * The optional repository is associated with the cloud session.
-     */
-    cloud?: CloudSessionOptions;
 
     /**
      * Optional event handler that is registered on the session before the
@@ -1571,56 +1992,36 @@ export interface SessionConfig {
      * Supplies a handler for session filesystem operations. This takes effect
      * only if {@link CopilotClientOptions.sessionFs} is configured.
      */
-    createSessionFsHandler?: (session: CopilotSession) => SessionFsProvider;
+    createSessionFsProvider?: (session: CopilotSession) => SessionFsProvider;
 }
 
 /**
- * Configuration for resuming a session
+ * Configuration for creating a new session via {@link CopilotClient.createSession}.
  */
-export type ResumeSessionConfig = Pick<
-    SessionConfig,
-    | "clientName"
-    | "model"
-    | "tools"
-    | "commands"
-    | "systemMessage"
-    | "availableTools"
-    | "excludedTools"
-    | "provider"
-    | "enableSessionTelemetry"
-    | "modelCapabilities"
-    | "streaming"
-    | "includeSubAgentStreamingEvents"
-    | "reasoningEffort"
-    | "onPermissionRequest"
-    | "onUserInputRequest"
-    | "onElicitationRequest"
-    | "onExitPlanMode"
-    | "onAutoModeSwitch"
-    | "hooks"
-    | "workingDirectory"
-    | "configDir"
-    | "enableConfigDiscovery"
-    | "enableOnDemandInstructionDiscovery"
-    | "mcpServers"
-    | "customAgents"
-    | "defaultAgent"
-    | "agent"
-    | "skillDirectories"
-    | "instructionDirectories"
-    | "disabledSkills"
-    | "infiniteSessions"
-    | "gitHubToken"
-    | "remoteSession"
-    | "onEvent"
-    | "createSessionFsHandler"
-> & {
+export interface SessionConfig extends SessionConfigBase {
+    /**
+     * Optional custom session ID. If not provided, the server generates one.
+     */
+    sessionId?: string;
+
+    /**
+     * Creates a remote session in the cloud instead of a local session.
+     * The optional repository is associated with the cloud session.
+     */
+    cloud?: CloudSessionOptions;
+}
+
+/**
+ * Configuration for resuming an existing session via
+ * {@link CopilotClient.resumeSession}.
+ */
+export interface ResumeSessionConfig extends SessionConfigBase {
     /**
      * When true, skips emitting the session.resume event.
      * Useful for reconnecting to a session without triggering resume-related side effects.
      * @default false
      */
-    disableResume?: boolean;
+    suppressResumeEvent?: boolean;
     /**
      * When true, the runtime continues any tool calls or permission prompts that were
      * still pending when the session was last suspended. When false (the default), the
@@ -1633,7 +2034,13 @@ export type ResumeSessionConfig = Pick<
      * @default false
      */
     continuePendingWork?: boolean;
-};
+    /**
+     * Snapshot of canvases that were already open when the session was suspended.
+     * When provided on resume, the runtime can rehydrate canvas state so consumers
+     * do not need to re-open canvases that were active before the previous shutdown.
+     */
+    openCanvases?: OpenCanvasInstance[];
+}
 
 /**
  * Configuration for a custom API provider.
@@ -1703,7 +2110,7 @@ export interface ProviderConfig {
      * prompt (system message, history, tool definitions, user message) would
      * exceed this limit.
      */
-    maxInputTokens?: number;
+    maxPromptTokens?: number;
 
     /**
      * Overrides the resolved model's default max output tokens. When hit, the
@@ -1761,9 +2168,20 @@ export interface MessageOptions {
     mode?: "enqueue" | "immediate";
 
     /**
+     * The UI mode the agent was in when this message was sent (for example "plan" or "autopilot").
+     * Defaults to the session's current mode when unset.
+     */
+    agentMode?: "interactive" | "plan" | "autopilot" | "shell";
+
+    /**
      * Custom HTTP headers to include in outbound model requests for this turn.
      */
     requestHeaders?: Record<string, string>;
+
+    /**
+     * If provided, this is shown in the timeline instead of `prompt`.
+     */
+    displayPrompt?: string;
 }
 
 /**
@@ -1789,16 +2207,11 @@ export type TypedSessionEventHandler<T extends SessionEventType> = (
 export type SessionEventHandler = (event: SessionEvent) => void;
 
 /**
- * Connection state
- */
-export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
-
-/**
  * Working directory context for a session
  */
 export interface SessionContext {
     /** Working directory where the session was created */
-    cwd: string;
+    workingDirectory: string;
     /** Git repository root (if in a git repo) */
     gitRoot?: string;
     /** GitHub repository in "owner/repo" format */
@@ -1826,14 +2239,28 @@ export interface SessionFsConfig {
      * Path conventions used by this filesystem provider.
      */
     conventions: "windows" | "posix";
+
+    /**
+     * Optional capabilities declared by this provider.
+     * The runtime uses these to determine which features are available.
+     */
+    capabilities?: {
+        /**
+         * Whether this provider supports SQLite query/exists operations.
+         * When false or omitted, the runtime will not offer SQL tools or
+         * todo tracking for sessions using this provider.
+         * @default false
+         */
+        sqlite?: boolean;
+    };
 }
 
 /**
  * Filter options for listing sessions
  */
 export interface SessionListFilter {
-    /** Filter by exact cwd match */
-    cwd?: string;
+    /** Filter by exact working directory match */
+    workingDirectory?: string;
     /** Filter by git root */
     gitRoot?: string;
     /** Filter by repository (owner/repo format) */
@@ -1851,7 +2278,7 @@ export interface SessionMetadata {
     modifiedTime: Date;
     summary?: string;
     isRemote: boolean;
-    /** Working directory context (cwd, git info) from session creation */
+    /** Working directory context (working directory, git info) from session creation */
     context?: SessionContext;
 }
 
@@ -1951,7 +2378,7 @@ export interface ModelInfo {
 // ============================================================================
 
 /**
- * Types of session lifecycle events
+ * Types of session lifecycle events.
  */
 export type SessionLifecycleEventType =
     | "session.created"
@@ -1961,32 +2388,77 @@ export type SessionLifecycleEventType =
     | "session.background";
 
 /**
- * Session lifecycle event notification
- * Sent when sessions are created, deleted, updated, or change foreground/background state
+ * Metadata payload for session lifecycle events. Not present on
+ * `session.deleted` events.
  */
-export interface SessionLifecycleEvent {
-    /** Type of lifecycle event */
-    type: SessionLifecycleEventType;
-    /** ID of the session this event relates to */
+export interface SessionLifecycleEventMetadata {
+    /** Time the session was created. */
+    startTime: Date;
+    /** Time the session was last modified. */
+    modifiedTime: Date;
+    /** Human-readable summary of the session, if available. */
+    summary?: string;
+}
+
+/** Base shape shared by every lifecycle event variant. */
+interface SessionLifecycleEventBase {
+    /** ID of the session this event relates to. */
     sessionId: string;
-    /** Session metadata (not included for deleted sessions) */
-    metadata?: {
-        startTime: string;
-        modifiedTime: string;
-        summary?: string;
-    };
+    /** Session metadata (not included for `session.deleted`). */
+    metadata?: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a new session is created. */
+export interface SessionCreatedEvent extends SessionLifecycleEventBase {
+    type: "session.created";
+    metadata: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a session is deleted. The metadata field is omitted. */
+export interface SessionDeletedEvent extends SessionLifecycleEventBase {
+    type: "session.deleted";
+    metadata?: undefined;
+}
+
+/** Emitted when a session's metadata is updated. */
+export interface SessionUpdatedEvent extends SessionLifecycleEventBase {
+    type: "session.updated";
+    metadata: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a session is brought to the foreground (TUI+server mode). */
+export interface SessionForegroundEvent extends SessionLifecycleEventBase {
+    type: "session.foreground";
+    metadata: SessionLifecycleEventMetadata;
+}
+
+/** Emitted when a session is moved to the background (TUI+server mode). */
+export interface SessionBackgroundEvent extends SessionLifecycleEventBase {
+    type: "session.background";
+    metadata: SessionLifecycleEventMetadata;
 }
 
 /**
- * Handler for session lifecycle events
+ * Discriminated union of all session lifecycle events emitted in TUI+server mode.
+ * Switch on `type` to access the variant-specific metadata.
+ */
+export type SessionLifecycleEvent =
+    | SessionCreatedEvent
+    | SessionDeletedEvent
+    | SessionUpdatedEvent
+    | SessionForegroundEvent
+    | SessionBackgroundEvent;
+
+/**
+ * Handler for session lifecycle events.
  */
 export type SessionLifecycleHandler = (event: SessionLifecycleEvent) => void;
 
 /**
- * Typed handler for specific session lifecycle event types
+ * Typed handler for specific session lifecycle event types.
  */
 export type TypedSessionLifecycleHandler<K extends SessionLifecycleEventType> = (
-    event: SessionLifecycleEvent & { type: K }
+    event: Extract<SessionLifecycleEvent, { type: K }>
 ) => void;
 
 /**

@@ -1,6 +1,6 @@
 import { ChildProcess } from "child_process";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { CopilotClient, approveAll } from "../../src/index.js";
+import { CopilotClient, approveAll, RuntimeConnection } from "../../src/index.js";
 
 function onTestFinishedForceStop(client: CopilotClient) {
     onTestFinished(async () => {
@@ -13,34 +13,68 @@ function onTestFinishedForceStop(client: CopilotClient) {
 }
 
 describe("Client", () => {
+    it.each([
+        { transport: "stdio", connection: () => undefined },
+        { transport: "tcp", connection: () => RuntimeConnection.forTcp() },
+    ])("allows createSession without onPermissionRequest ($transport)", async ({ connection }) => {
+        const client = new CopilotClient({ connection: connection() });
+        onTestFinishedForceStop(client);
+
+        await using session = await client.createSession({});
+        expect(session.sessionId).toMatch(/^[a-f0-9-]+$/);
+    });
+
+    it("allows resumeSession without onPermissionRequest", async () => {
+        const connectionToken = "client-e2e-resume-token";
+
+        const client = new CopilotClient({
+            connection: RuntimeConnection.forTcp({ connectionToken }),
+        });
+        onTestFinishedForceStop(client);
+
+        await using originalSession = await client.createSession({});
+
+        const port = (client as unknown as { runtimePort: number | null }).runtimePort;
+        if (port == null) {
+            throw new Error("Client must be using TCP transport to support multi-client resume.");
+        }
+
+        const resumeClient = new CopilotClient({
+            connection: RuntimeConnection.forUri(`localhost:${port}`, { connectionToken }),
+        });
+        onTestFinishedForceStop(resumeClient);
+
+        await using resumedSession = await resumeClient.resumeSession(
+            originalSession.sessionId,
+            {}
+        );
+        expect(resumedSession.sessionId).toBe(originalSession.sessionId);
+    });
+
     it("should start and connect to server using stdio", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
-        expect(client.getState()).toBe("connected");
 
         const pong = await client.ping("test message");
         expect(pong.message).toBe("pong: test message");
-        expect(pong.timestamp).toBeGreaterThanOrEqual(0);
+        expect(Date.parse(pong.timestamp)).not.toBeNaN();
 
         expect(await client.stop()).toHaveLength(0); // No errors on stop
-        expect(client.getState()).toBe("disconnected");
     });
 
     it("should start and connect to server using tcp", async () => {
-        const client = new CopilotClient({ useStdio: false });
+        const client = new CopilotClient({ connection: RuntimeConnection.forTcp() });
         onTestFinishedForceStop(client);
 
         await client.start();
-        expect(client.getState()).toBe("connected");
 
         const pong = await client.ping("test message");
         expect(pong.message).toBe("pong: test message");
-        expect(pong.timestamp).toBeGreaterThanOrEqual(0);
+        expect(Date.parse(pong.timestamp)).not.toBeNaN();
 
         expect(await client.stop()).toHaveLength(0); // No errors on stop
-        expect(client.getState()).toBe("disconnected");
     });
 
     it.skipIf(process.platform === "darwin")(
@@ -51,7 +85,7 @@ describe("Client", () => {
             // saying "Cannot call write after a stream was destroyed"
             // because the JSON-RPC logic is still trying to write to stdin after
             // the process has exited.
-            const client = new CopilotClient({ useStdio: false });
+            const client = new CopilotClient({ connection: RuntimeConnection.forTcp() });
 
             await client.createSession({ onPermissionRequest: approveAll });
 
@@ -63,7 +97,6 @@ describe("Client", () => {
             await new Promise((resolve) => setTimeout(resolve, 100));
 
             const errors = await client.stop();
-            expect(client.getState()).toBe("disconnected");
             if (errors.length > 0) {
                 expect(errors[0].message).toContain("Failed to disconnect session");
             }
@@ -79,11 +112,10 @@ describe("Client", () => {
 
         await client.createSession({ onPermissionRequest: approveAll });
         await client.forceStop();
-        expect(client.getState()).toBe("disconnected");
     });
 
     it("should get status with version and protocol info", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -99,7 +131,7 @@ describe("Client", () => {
     });
 
     it("should get auth status", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -115,7 +147,7 @@ describe("Client", () => {
     });
 
     it("should list models when authenticated", async () => {
-        const client = new CopilotClient({ useStdio: true });
+        const client = new CopilotClient();
         onTestFinishedForceStop(client);
 
         await client.start();
@@ -143,8 +175,7 @@ describe("Client", () => {
 
     it("should report error with stderr when CLI fails to start", async () => {
         const client = new CopilotClient({
-            cliArgs: ["--nonexistent-flag-for-testing"],
-            useStdio: true,
+            connection: RuntimeConnection.forStdio({ args: ["--nonexistent-flag-for-testing"] }),
         });
         onTestFinishedForceStop(client);
 

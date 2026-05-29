@@ -34,7 +34,7 @@ const client = new CopilotClient({
 ```python
 from copilot import CopilotClient
 
-client = CopilotClient({"log_level": "debug"})
+client = CopilotClient(log_level="debug")
 ```
 
 </details>
@@ -73,7 +73,7 @@ client := copilot.NewClient(&copilot.ClientOptions{
 <!-- docs-validate: skip -->
 
 ```csharp
-using GitHub.Copilot.SDK;
+using GitHub.Copilot;
 using Microsoft.Extensions.Logging;
 
 // Using ILogger
@@ -96,8 +96,8 @@ var client = new CopilotClient(new CopilotClientOptions
 <summary><strong>Java</strong></summary>
 
 ```java
-import com.github.copilot.sdk.CopilotClient;
-import com.github.copilot.sdk.json.*;
+import com.github.copilot.CopilotClient;
+import com.github.copilot.rpc.*;
 
 var client = new CopilotClient(new CopilotClientOptions()
     .setLogLevel("debug")
@@ -131,7 +131,7 @@ const client = new CopilotClient({
 ```
 
 > [!NOTE]
-> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `cli_url`.
+> Python SDK logging configuration is limited. For advanced logging, run the CLI manually with `--log-dir` and connect via `RuntimeConnection.for_uri(...)`.
 
 </details>
 
@@ -142,18 +142,25 @@ const client = new CopilotClient({
 ```go
 package main
 
+import copilot "github.com/github/copilot-sdk/go"
+
 func main() {
-	// The Go SDK does not currently support passing extra CLI arguments.
-	// For custom log directories, run the CLI manually with --log-dir
-	// and connect via CLIUrl option.
+	client := copilot.NewClient(&copilot.ClientOptions{
+		Connection: copilot.StdioConnection{
+			Args: []string{"--log-dir", "/path/to/logs"},
+		},
+	})
+	_ = client
 }
 ```
 <!-- /docs-validate: hidden -->
 
 ```go
-// The Go SDK does not currently support passing extra CLI arguments.
-// For custom log directories, run the CLI manually with --log-dir
-// and connect via CLIUrl option.
+client := copilot.NewClient(&copilot.ClientOptions{
+    Connection: copilot.StdioConnection{
+        Args: []string{"--log-dir", "/path/to/logs"},
+    },
+})
 ```
 
 </details>
@@ -164,7 +171,7 @@ func main() {
 ```csharp
 var client = new CopilotClient(new CopilotClientOptions
 {
-    CliArgs = new[] { "--log-dir", "/path/to/logs" }
+    Connection = RuntimeConnection.ForStdio(args: new[] { "--log-dir", "/path/to/logs" })
 });
 ```
 
@@ -173,6 +180,7 @@ var client = new CopilotClient(new CopilotClientOptions
 <details>
 <summary><strong>Java</strong></summary>
 
+<!-- docs-validate: skip -->
 ```java
 // The Java SDK does not currently support passing extra CLI arguments.
 // For custom log directories, run the CLI manually with --log-dir
@@ -221,7 +229,7 @@ var client = new CopilotClient(new CopilotClientOptions
 
    ```go
    client := copilot.NewClient(&copilot.ClientOptions{
-       CLIPath: "/usr/local/bin/copilot",
+       Connection: copilot.StdioConnection{Path: "/usr/local/bin/copilot"},
    })
    ```
    </details>

@@ -2,14 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using Microsoft.Extensions.AI;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Custom fixture for multi-client tests that uses TCP mode so a second client can connect.
@@ -24,9 +25,9 @@ public class MultiClientTestFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         Ctx = await E2ETestContext.CreateAsync();
-        Client1 = Ctx.CreateClient(useStdio: false, options: new CopilotClientOptions
+        Client1 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            TcpConnectionToken = SharedToken,
+            Connection = RuntimeConnection.ForTcp(connectionToken: SharedToken),
         }, persistent: true);
     }
 
@@ -63,13 +64,12 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         });
         await initSession.DisposeAsync();
 
-        var port = Client1.ActualPort
-            ?? throw new InvalidOperationException("Client1 is not using TCP mode; ActualPort is null");
+        var port = Client1.RuntimePort
+            ?? throw new InvalidOperationException("Client1 is not using TCP mode; RuntimePort is null");
 
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientTestFixture.SharedToken,
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
         });
     }
 
@@ -113,12 +113,12 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var client1Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var client2Completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        using var sub1 = session1.On(evt =>
+        using var sub1 = session1.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent) client1Requested.TrySetResult(true);
             if (evt is ExternalToolCompletedEvent) client1Completed.TrySetResult(true);
         });
-        using var sub2 = session2.On(evt =>
+        using var sub2 = session2.On<SessionEvent>(evt =>
         {
             if (evt is ExternalToolRequestedEvent) client2Requested.TrySetResult(true);
             if (evt is ExternalToolCompletedEvent) client2Completed.TrySetResult(true);
@@ -153,17 +153,14 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
             OnPermissionRequest = (request, _) =>
             {
                 client1PermissionRequests.Add(request);
-                return Task.FromResult(new PermissionRequestResult
-                {
-                    Kind = PermissionRequestResultKind.Approved,
-                });
+                return Task.FromResult<PermissionDecision>(PermissionDecision.ApproveOnce());
             },
         });
 
         // Client 2 resumes — its handler never completes, so only client 1's approval takes effect
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
-            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionRequestResult>().Task,
+            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionDecision>().Task,
         });
 
         var client1Events = new ConcurrentBag<SessionEvent>();
@@ -173,8 +170,8 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         var client1PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session1);
         var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
 
-        using var sub1 = session1.On(evt => client1Events.Add(evt));
-        using var sub2 = session2.On(evt => client2Events.Add(evt));
+        using var sub1 = session1.On<SessionEvent>(evt => client1Events.Add(evt));
+        using var sub2 = session2.On<SessionEvent>(evt => client2Events.Add(evt));
 
         await session1.SendAsync(new MessageOptions
         {
@@ -205,16 +202,13 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
     {
         var session1 = await Client1.CreateSessionAsync(new SessionConfig
         {
-            OnPermissionRequest = (_, _) => Task.FromResult(new PermissionRequestResult
-            {
-                Kind = PermissionRequestResultKind.Rejected,
-            }),
+            OnPermissionRequest = (_, _) => Task.FromResult<PermissionDecision>(PermissionDecision.Reject()),
         });
 
         // Client 2 resumes — its handler never completes
         var session2 = await Client2.ResumeSessionAsync(session1.SessionId, new ResumeSessionConfig
         {
-            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionRequestResult>().Task,
+            OnPermissionRequest = (_, _) => new TaskCompletionSource<PermissionDecision>().Task,
         });
 
         var client1Events = new ConcurrentBag<SessionEvent>();
@@ -223,8 +217,8 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         // Wait for PermissionCompletedEvent on client2 which may arrive slightly after session1 goes idle
         var client2PermissionCompleted = TestHelper.GetNextEventOfTypeAsync<PermissionCompletedEvent>(session2);
 
-        using var sub1 = session1.On(evt => client1Events.Add(evt));
-        using var sub2 = session2.On(evt => client2Events.Add(evt));
+        using var sub1 = session1.On<SessionEvent>(evt => client1Events.Add(evt));
+        using var sub2 = session2.On<SessionEvent>(evt => client2Events.Add(evt));
 
         // Write a file so the agent has something to edit
         await File.WriteAllTextAsync(Path.Combine(Ctx.WorkDir, "protected.txt"), "protected content");
@@ -331,11 +325,10 @@ public class MultiClientE2ETests : IClassFixture<MultiClientTestFixture>, IAsync
         await Client2.ForceStopAsync();
 
         // Recreate client2 for cleanup
-        var port = Client1.ActualPort!.Value;
+        var port = Client1.RuntimePort!.Value;
         _client2 = Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliUrl = $"localhost:{port}",
-            TcpConnectionToken = MultiClientTestFixture.SharedToken,
+            Connection = RuntimeConnection.ForUri($"localhost:{port}", connectionToken: MultiClientTestFixture.SharedToken),
         });
 
         // Now only stable_tool should be available

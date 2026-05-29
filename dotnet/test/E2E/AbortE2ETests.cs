@@ -7,7 +7,7 @@ using System.ComponentModel;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// Verifies that <see cref="CopilotSession.AbortAsync"/> cleanly interrupts an active
@@ -25,7 +25,7 @@ public class AbortE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         var firstDeltaReceived = new TaskCompletionSource<AssistantMessageDeltaEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
         var allEvents = new List<SessionEvent>();
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             lock (allEvents) { allEvents.Add(evt); }
             if (evt is AssistantMessageDeltaEvent delta)
@@ -60,7 +60,7 @@ public class AbortE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
         // recovery message rather than racing against a late idle from the
         // aborted streaming turn.
         var recoveryReceived = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is AssistantMessageEvent msg && (msg.Data.Content?.Contains("abort_recovery_ok") == true))
             {
@@ -109,7 +109,7 @@ public class AbortE2ETests(E2ETestFixture fixture, ITestOutputHelper output)
 
         // Session should be usable after abort — verify by listening for the right event
         var recoveryReceived = new TaskCompletionSource<AssistantMessageEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is AssistantMessageEvent msg && (msg.Data.Content?.Contains("tool_abort_recovery_ok") == true))
             {

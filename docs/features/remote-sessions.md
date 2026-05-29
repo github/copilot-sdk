@@ -38,9 +38,9 @@ session.on("session.info", (event) => {
 
 <!-- docs-validate: skip -->
 ```python
-from copilot import CopilotClient, SubprocessConfig
+from copilot import CopilotClient
 
-client = CopilotClient(SubprocessConfig(remote=True))
+client = CopilotClient(enable_remote_sessions=True)
 session = await client.create_session(
     working_directory="/path/to/github-repo",
     on_permission_request=lambda req: {"allowed": True},
@@ -60,8 +60,8 @@ session.on(on_event)
 client, _ := copilot.NewClient(&copilot.ClientOptions{Remote: true})
 session, _ := client.CreateSession(ctx, &copilot.SessionConfig{
     WorkingDirectory: "/path/to/github-repo",
-    OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (copilot.PermissionRequestResult, error) {
-        return copilot.PermissionRequestResult{Kind: copilot.PermissionRequestResultKindApproved}, nil
+    OnPermissionRequest: func(req copilot.PermissionRequest, inv copilot.PermissionInvocation) (rpc.PermissionDecision, error) {
+        return &rpc.PermissionDecisionApproveOnce{}, nil
     },
 })
 
@@ -81,7 +81,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
 {
     WorkingDirectory = "/path/to/github-repo",
     OnPermissionRequest = (req, inv) =>
-        Task.FromResult(new PermissionRequestResult { Kind = PermissionRequestResultKind.Approved }),
+        Task.FromResult(PermissionDecision.ApproveOnce()),
 });
 
 session.On((SessionEvent e) =>
@@ -97,15 +97,16 @@ session.On((SessionEvent e) =>
 
 <!-- docs-validate: skip -->
 ```rust
-use github_copilot_sdk::{Client, ClientOptions, PermissionRequestResult, SessionConfig};
+use github_copilot_sdk::{Client, ClientOptions, SessionConfig};
+use github_copilot_sdk::handler::PermissionResult;
 
 let client = Client::start(
-    ClientOptions::new().with_remote(true)
+    ClientOptions::new().with_enable_remote_sessions(true)
 ).await?;
 let session = client.create_session(
     SessionConfig::new("/path/to/github-repo")
         .with_permission_handler(|_req, _inv| async {
-            Ok(PermissionRequestResult::approved())
+            Ok(PermissionResult::approve_once())
         }),
 ).await?;
 

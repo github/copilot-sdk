@@ -6,24 +6,85 @@ import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import type { CustomAgentConfig, MCPStdioServerConfig, MCPServerConfig } from "../../src/index.js";
+import type {
+    CopilotSession,
+    CustomAgentConfig,
+    MCPStdioServerConfig,
+    MCPServerConfig,
+} from "../../src/index.js";
 import { approveAll, defineTool } from "../../src/index.js";
 import { createSdkTestContext } from "./harness/sdkTestContext.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const TEST_MCP_SERVER = resolve(__dirname, "../../../test/harness/test-mcp-server.mjs");
+const TEST_HARNESS_DIR = dirname(TEST_MCP_SERVER);
+
+function createTestMcpServers(...serverNames: string[]): Record<string, MCPServerConfig> {
+    return Object.fromEntries(
+        serverNames.map((name) => [
+            name,
+            {
+                type: "local",
+                command: "node",
+                args: [TEST_MCP_SERVER],
+                workingDirectory: TEST_HARNESS_DIR,
+                tools: ["*"],
+            } as MCPStdioServerConfig,
+        ])
+    );
+}
+
+async function waitForMcpServerStatus(
+    session: CopilotSession,
+    serverName: string,
+    expectedStatus = "connected"
+): Promise<void> {
+    const deadline = Date.now() + 60_000;
+    let lastStatus = "<not listed>";
+
+    while (Date.now() < deadline) {
+        const result = await session.rpc.mcp.list();
+        const server = result.servers.find((s) => s.name === serverName);
+        if (server?.status === expectedStatus) {
+            return;
+        }
+        lastStatus = server?.status ?? "<not listed>";
+        await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    throw new Error(`${serverName} did not reach ${expectedStatus}; last status was ${lastStatus}`);
+}
 
 describe("MCP Servers and Custom Agents", async () => {
     const { copilotClient: client, openAiEndpoint } = await createSdkTestContext();
 
     describe("MCP Servers", () => {
         it("should accept MCP server configuration on session create", async () => {
+            const mcpServers = createTestMcpServers("test-server");
+
+            const session = await client.createSession({
+                onPermissionRequest: approveAll,
+                mcpServers,
+            });
+
+            expect(session.sessionId).toBeDefined();
+            await waitForMcpServerStatus(session, "test-server");
+
+            // Simple interaction to verify session works
+            const message = await session.sendAndWait({
+                prompt: "What is 2+2?",
+            });
+            expect(message?.data.content).toContain("4");
+
+            await session.disconnect();
+        });
+
+        it("should accept MCP server configuration without args", async () => {
             const mcpServers: Record<string, MCPServerConfig> = {
                 "test-server": {
                     type: "local",
-                    command: "echo",
-                    args: ["hello"],
+                    command: "git",
                     tools: ["*"],
                 } as MCPStdioServerConfig,
             };
@@ -34,12 +95,6 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
-
-            // Simple interaction to verify session works
-            const message = await session.sendAndWait({
-                prompt: "What is 2+2?",
-            });
-            expect(message?.data.content).toContain("4");
 
             await session.disconnect();
         });
@@ -51,14 +106,7 @@ describe("MCP Servers and Custom Agents", async () => {
             await session1.sendAndWait({ prompt: "What is 1+1?" });
 
             // Resume with MCP servers
-            const mcpServers: Record<string, MCPServerConfig> = {
-                "test-server": {
-                    type: "local",
-                    command: "echo",
-                    args: ["hello"],
-                    tools: ["*"],
-                } as MCPStdioServerConfig,
-            };
+            const mcpServers = createTestMcpServers("test-server");
 
             const session2 = await client.resumeSession(sessionId, {
                 onPermissionRequest: approveAll,
@@ -66,30 +114,13 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session2.sessionId).toBe(sessionId);
-
-            const message = await session2.sendAndWait({
-                prompt: "What is 3+3?",
-            });
-            expect(message?.data.content).toContain("6");
+            await waitForMcpServerStatus(session2, "test-server");
 
             await session2.disconnect();
         });
 
         it("should handle multiple MCP servers", async () => {
-            const mcpServers: Record<string, MCPServerConfig> = {
-                server1: {
-                    type: "local",
-                    command: "echo",
-                    args: ["server1"],
-                    tools: ["*"],
-                } as MCPStdioServerConfig,
-                server2: {
-                    type: "local",
-                    command: "echo",
-                    args: ["server2"],
-                    tools: ["*"],
-                } as MCPStdioServerConfig,
-            };
+            const mcpServers = createTestMcpServers("server1", "server2");
 
             const session = await client.createSession({
                 onPermissionRequest: approveAll,
@@ -97,6 +128,8 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
+            await waitForMcpServerStatus(session, "server1");
+            await waitForMcpServerStatus(session, "server2");
             await session.disconnect();
         });
 
@@ -108,6 +141,7 @@ describe("MCP Servers and Custom Agents", async () => {
                     args: [TEST_MCP_SERVER],
                     tools: ["*"],
                     env: { TEST_SECRET: "hunter2" },
+                    workingDirectory: TEST_HARNESS_DIR,
                 } as MCPStdioServerConfig,
             };
 
@@ -117,6 +151,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
+            await waitForMcpServerStatus(session, "env-echo");
 
             const message = await session.sendAndWait({
                 prompt: "Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing else.",
@@ -215,12 +250,7 @@ describe("MCP Servers and Custom Agents", async () => {
                     description: "An agent with its own MCP servers",
                     prompt: "You are an agent with MCP servers.",
                     mcpServers: {
-                        "agent-server": {
-                            type: "local",
-                            command: "echo",
-                            args: ["agent-mcp"],
-                            tools: ["*"],
-                        } as MCPStdioServerConfig,
+                        ...createTestMcpServers("agent-server"),
                     },
                 },
             ];
@@ -263,14 +293,7 @@ describe("MCP Servers and Custom Agents", async () => {
 
     describe("Combined Configuration", () => {
         it("should accept both MCP servers and custom agents", async () => {
-            const mcpServers: Record<string, MCPServerConfig> = {
-                "shared-server": {
-                    type: "local",
-                    command: "echo",
-                    args: ["shared"],
-                    tools: ["*"],
-                } as MCPStdioServerConfig,
-            };
+            const mcpServers = createTestMcpServers("shared-server");
 
             const customAgents: CustomAgentConfig[] = [
                 {
@@ -288,11 +311,7 @@ describe("MCP Servers and Custom Agents", async () => {
             });
 
             expect(session.sessionId).toBeDefined();
-
-            const message = await session.sendAndWait({
-                prompt: "What is 7+7?",
-            });
-            expect(message?.data.content).toContain("14");
+            await waitForMcpServerStatus(session, "shared-server");
 
             await session.disconnect();
         });

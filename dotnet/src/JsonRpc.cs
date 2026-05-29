@@ -14,7 +14,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using System.Text.Unicode;
 
-namespace GitHub.Copilot.SDK;
+namespace GitHub.Copilot;
 
 /// <summary>
 /// A lightweight JSON-RPC 2.0 implementation covering only the features used
@@ -73,11 +73,22 @@ internal sealed partial class JsonRpc : IDisposable
     /// <summary>
     /// Sends a JSON-RPC request and waits for the response.
     /// </summary>
-    public async Task<T> InvokeAsync<T>(string method, object?[]? args, CancellationToken cancellationToken)
+    /// <param name="method">The JSON-RPC method name.</param>
+    /// <param name="args">Positional arguments for the call.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="onResponseInline">
+    /// Optional callback invoked synchronously from the read loop after the
+    /// response is parsed but before the awaiter resumes. Use this when you
+    /// need to mutate client-side state (for example, register a server-assigned
+    /// session id) before any subsequent notification on the same connection is
+    /// dispatched. The callback receives the raw JSON-RPC <c>result</c> element.
+    /// If the callback throws, the exception is propagated to the awaiter.
+    /// </param>
+    public async Task<T> InvokeAsync<T>(string method, object?[]? args, CancellationToken cancellationToken, Action<JsonElement>? onResponseInline = null)
     {
         var timingTimestamp = Stopwatch.GetTimestamp();
         var id = Interlocked.Increment(ref _nextId);
-        var pending = new PendingRequest();
+        var pending = new PendingRequest(onResponseInline);
         _pendingRequests[id] = pending;
 
         CancellationTokenRegistration cancelRegistration = default;
@@ -166,7 +177,7 @@ internal sealed partial class JsonRpc : IDisposable
     /// </summary>
     public void SetLocalRpcMethod(string methodName, Delegate handler, bool singleObjectParam = false)
     {
-        _methods[methodName] = new MethodRegistration(handler, singleObjectParam);
+        _methods[methodName] = new(handler, singleObjectParam);
     }
 
     /// <inheritdoc />
@@ -440,11 +451,31 @@ internal sealed partial class JsonRpc : IDisposable
             var errorCode = errorProp.TryGetProperty("code", out var codeProp) && codeProp.ValueKind == JsonValueKind.Number
                 ? codeProp.GetInt32()
                 : 0;
-            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode));
+            var errorData = errorProp.TryGetProperty("data", out var dataProp)
+                ? dataProp
+                : (JsonElement?)null;
+            pending.TrySetException(new RemoteRpcException(errorMessage, errorCode, errorData));
         }
         else if (message.TryGetProperty("result", out var resultProp))
         {
-            pending.TrySetResult(resultProp.Clone());
+            var cloned = resultProp.Clone();
+            if (pending.OnResultInline is { } inline)
+            {
+                // Run the inline callback synchronously in the read loop so any
+                // state it mutates (e.g. session registration) is visible before
+                // the read loop dispatches the next message.
+                try
+                {
+                    inline(cloned);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Inline response callback for request {RequestId} threw", id);
+                    pending.TrySetException(ex);
+                    return;
+                }
+            }
+            pending.TrySetResult(cloned);
         }
         else
         {
@@ -486,13 +517,28 @@ internal sealed partial class JsonRpc : IDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // `InvokeHandlerAsync` dispatches handlers via reflection
+                // (`Delegate.DynamicInvoke` / `MethodInfo.Invoke`), which wraps
+                // any exception thrown inside the user-supplied handler in a
+                // `TargetInvocationException`. Unwrap so we surface the original
+                // failure (e.g. `LocalRpcInvocationException`, `CanvasException`)
+                // to the JSON-RPC error response instead of the reflection
+                // wrapper.
+                var actual = ex is TargetInvocationException tie && tie.InnerException != null ? tie.InnerException : ex;
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
-                    _logger.LogDebug("Error handling JSON-RPC method {Method}: {Error}", methodName, ex.Message);
+                    _logger.LogDebug("Error handling JSON-RPC method {Method}: {Error}", methodName, actual.Message);
                 }
                 if (requestId.HasValue)
                 {
-                    await SendErrorResponseAsync(requestId.Value, ErrorCodeInternalError, ex.Message, cancellationToken).ConfigureAwait(false);
+                    if (actual is LocalRpcInvocationException lre)
+                    {
+                        await SendErrorResponseAsync(requestId.Value, lre.Code, lre.Message, lre.Data, cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await SendErrorResponseAsync(requestId.Value, ErrorCodeInternalError, actual.Message, cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -718,13 +764,16 @@ internal sealed partial class JsonRpc : IDisposable
     }
 
     private async Task SendErrorResponseAsync(JsonElement id, int code, string message, CancellationToken cancellationToken)
+        => await SendErrorResponseAsync(id, code, message, data: null, cancellationToken).ConfigureAwait(false);
+
+    private async Task SendErrorResponseAsync(JsonElement id, int code, string message, JsonElement? data, CancellationToken cancellationToken)
     {
         try
         {
             await SendMessageAsync(new JsonRpcErrorResponse
             {
                 Id = id,
-                Error = new JsonRpcError { Code = code, Message = message },
+                Error = new JsonRpcError { Code = code, Message = message, Data = data },
             }, JsonRpcWireContext.Default.JsonRpcErrorResponse, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
@@ -751,7 +800,17 @@ internal sealed partial class JsonRpc : IDisposable
         }
     }
 
-    private sealed class PendingRequest() : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
+    private sealed class PendingRequest(Action<JsonElement>? onResultInline = null) : TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously)
+    {
+        /// <summary>
+        /// Optional callback invoked synchronously from the read loop after the
+        /// response is parsed but before the awaiter resumes. Used to perform
+        /// state changes that must happen before any subsequent notification on
+        /// the same connection is dispatched (e.g. registering a session whose
+        /// id was assigned by the server in the response).
+        /// </summary>
+        public Action<JsonElement>? OnResultInline { get; } = onResultInline;
+    }
 
     private static readonly MethodInfo s_taskGetResult = typeof(Task<>).GetProperty(nameof(Task<int>.Result), BindingFlags.Instance | BindingFlags.Public)!.GetMethod!;
     private static readonly MethodInfo s_valueTaskAsTask = typeof(ValueTask<>).GetMethod(nameof(ValueTask<int>.AsTask), BindingFlags.Instance | BindingFlags.Public)!;
@@ -852,6 +911,10 @@ internal sealed partial class JsonRpc : IDisposable
 
         [JsonPropertyName("message")]
         public string Message { get; set; } = string.Empty;
+
+        [JsonPropertyName("data")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public JsonElement? Data { get; set; }
     }
 
     private sealed class JsonRpcNotification
@@ -884,10 +947,29 @@ internal sealed class ConnectionLostException() : IOException("The JSON-RPC conn
 /// <summary>
 /// Thrown when the remote side returns a JSON-RPC error response.
 /// </summary>
-internal sealed class RemoteRpcException(string message, int errorCode, Exception? innerException = null) : Exception(message, innerException)
+internal sealed class RemoteRpcException(string message, int errorCode, JsonElement? errorData = null, Exception? innerException = null) : Exception(message, innerException)
 {
     /// <summary>JSON-RPC 2.0 reserved error code: requested method does not exist.</summary>
     public const int MethodNotFoundErrorCode = -32601;
 
     public int ErrorCode { get; } = errorCode;
+
+    public JsonElement? ErrorData { get; } = errorData.HasValue ? errorData.Value.Clone() : null;
+}
+
+/// <summary>
+/// Allows handler methods registered via <c>JsonRpcConnection.SetLocalRpcMethod</c>
+/// to surface a structured JSON-RPC error response (code, message, and optional
+/// <c>data</c> payload) instead of the default <c>ErrorCodeInternalError</c> envelope.
+/// </summary>
+internal sealed class LocalRpcInvocationException : Exception
+{
+    public LocalRpcInvocationException(int code, string message, JsonElement? data = null) : base(message)
+    {
+        Code = code;
+        Data = data;
+    }
+
+    public int Code { get; }
+    public new JsonElement? Data { get; }
 }

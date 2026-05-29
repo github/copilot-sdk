@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Rpc;
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Rpc;
+using GitHub.Copilot.Test.Harness;
 using System.Diagnostics;
 using Xunit;
 using Xunit.Abstractions;
-using RpcExtension = GitHub.Copilot.SDK.Rpc.Extension;
+using RpcExtension = GitHub.Copilot.Rpc.Extension;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 /// <summary>
 /// E2E coverage for the loaded-extensions code path in the runtime: when the
@@ -57,7 +57,7 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
     {
         return Ctx.CreateClient(options: new CopilotClientOptions
         {
-            CliArgs = ["--yolo"],
+            Connection = RuntimeConnection.ForStdio(args: ["--yolo"]),
             Environment = ExtensionsEnabledEnvironment(),
         });
     }
@@ -115,12 +115,12 @@ public class RpcExtensionsLoadedE2ETests(E2ETestFixture fixture, ITestOutputHelp
             StartInfo = new ProcessStartInfo("git")
             {
                 WorkingDirectory = projectDir,
+                Arguments = "init -q",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                UseShellExecute = false,
             }
         };
-        process.StartInfo.ArgumentList.Add("init");
-        process.StartInfo.ArgumentList.Add("-q");
 
         if (!process.Start())
         {

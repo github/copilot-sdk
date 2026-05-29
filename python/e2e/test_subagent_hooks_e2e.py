@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-from copilot.client import CopilotClient, SubprocessConfig
+from copilot.client import CopilotClient, RuntimeConnection
 from copilot.session import PermissionHandler
 
 from .testharness import E2ETestContext
@@ -50,12 +50,10 @@ class TestSubagentHooks:
             "fake-token-for-e2e-tests" if os.environ.get("GITHUB_ACTIONS") == "true" else None
         )
         client = CopilotClient(
-            SubprocessConfig(
-                cli_path=ctx.cli_path,
-                cwd=ctx.work_dir,
-                env=env,
-                github_token=github_token,
-            )
+            connection=RuntimeConnection.for_stdio(path=ctx.cli_path),
+            working_directory=ctx.work_dir,
+            env=env,
+            github_token=github_token,
         )
 
         session = await client.create_session(
@@ -85,7 +83,7 @@ class TestSubagentHooks:
         assert len(view_pre) > 0, "preToolUse should fire for the sub-agent's 'view' tool call"
         assert len(view_post) > 0, "postToolUse should fire for the sub-agent's 'view' tool call"
 
-        # input.sessionId distinguishes parent from sub-agent
+        # input.session_id distinguishes parent from sub-agent
         assert view_pre[0]["sessionId"] != task_pre[0]["sessionId"], (
             "Sub-agent tool hooks should have a different sessionId than parent tool hooks"
         )

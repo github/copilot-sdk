@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-using GitHub.Copilot.SDK.Test.Harness;
+using GitHub.Copilot.Test.Harness;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace GitHub.Copilot.SDK.Test.E2E;
+namespace GitHub.Copilot.Test.E2E;
 
 public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output) : E2ETestBase(fixture, "compaction", output)
 {
@@ -85,7 +85,7 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
 
         var compactionEvents = new List<SessionEvent>();
 
-        session.On(evt =>
+        session.On<SessionEvent>(evt =>
         {
             if (evt is SessionCompactionStartEvent or SessionCompactionCompleteEvent)
             {
@@ -97,5 +97,44 @@ public class CompactionE2ETests(E2ETestFixture fixture, ITestOutputHelper output
 
         // Should not have any compaction events when disabled
         Assert.Empty(compactionEvents);
+    }
+
+    [Fact]
+    public async Task Should_Return_Empty_Handoff_Summary_For_Fresh_Session()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var result = await session.Rpc.History.SummarizeForHandoffAsync();
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Summary);
+        Assert.Equal(string.Empty, result.Summary);
+    }
+
+    [Fact]
+    public async Task Should_Summarize_For_Handoff_After_NonEphemeral_Log_Event()
+    {
+        await using var session = await CreateSessionAsync();
+
+        await session.LogAsync("handoff summary log coverage");
+
+        var result = await session.Rpc.History.SummarizeForHandoffAsync();
+
+        Assert.NotNull(result);
+        Assert.NotNull(result.Summary);
+    }
+
+    [Fact]
+    public async Task Should_Report_No_Op_When_Cancelling_Compaction_Without_In_Flight_Work()
+    {
+        await using var session = await CreateSessionAsync();
+
+        var backgroundResult = await session.Rpc.History.CancelBackgroundCompactionAsync();
+        var manualResult = await session.Rpc.History.AbortManualCompactionAsync();
+
+        Assert.NotNull(backgroundResult);
+        Assert.False(backgroundResult.Cancelled);
+        Assert.NotNull(manualResult);
+        Assert.False(manualResult.Aborted);
     }
 }

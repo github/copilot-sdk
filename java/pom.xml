@@ -1,0 +1,874 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) Microsoft Corporation. All rights reserved.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.github</groupId>
+    <artifactId>copilot-sdk-java</artifactId>
+    <version>1.0.0-beta-10-java.5-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>GitHub Copilot SDK :: Java</name>
+    <description>SDK for programmatic control of GitHub Copilot CLI</description>
+    <url>https://github.com/github/copilot-sdk</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>GitHub Copilot SDK</name>
+            <organization>GitHub Copilot SDK</organization>
+            <organizationUrl>https://github.com/github</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/github/copilot-sdk.git</connection>
+        <developerConnection>scm:git:https://github.com/github/copilot-sdk.git</developerConnection>
+        <url>https://github.com/github/copilot-sdk</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Directory where the copilot-sdk repo will be cloned for tests -->
+        <copilot.sdk.clone.dir>${project.build.directory}/copilot-sdk</copilot.sdk.clone.dir>
+        <copilot.tests.dir>${copilot.sdk.clone.dir}/test</copilot.tests.dir>
+        <!--
+            Path to the Copilot CLI entry point used by the SDK tests. Defaults
+            to the CLI installed under target/copilot-sdk/nodejs by the
+            install-nodejs-cli-dependencies execution. Surefire injects this
+            into the test JVM as the COPILOT_CLI_PATH environment variable, so
+            `mvn verify` is self-contained and the developer never has to set
+            it manually. Override on the command line to point at a different
+            CLI build, e.g.:
+              mvn verify -Dcopilot.cli.path=/some/other/copilot/index.js
+        -->
+        <copilot.cli.path>${copilot.sdk.clone.dir}/nodejs/node_modules/@github/copilot/index.js</copilot.cli.path>
+        <!-- Set to true (via -Pskip-test-harness) to skip git-clone + npm install of test harness -->
+        <skip.test.harness>false</skip.test.harness>
+        <!--
+            Whether to skip the install-nodejs-cli-dependencies execution
+            (npm ci of the @github/copilot CLI). Defaults to ${skip.test.harness}
+            so it tracks the rest of the test-harness setup, but is also
+            forced to true when Maven tests are skipped (-DskipTests or
+            -Dmaven.test.skip) via the skip-cli-install-when-tests-skipped
+            and skip-cli-install-when-maven-test-skip profiles below, so that
+            non-test builds (e.g. package/deploy with tests skipped) do not
+            require npm or network access.
+        -->
+        <skip.cli.install>${skip.test.harness}</skip.cli.install>
+        <!-- Extra JVM args for Surefire; overridden by the jdk21+ profile -->
+        <surefire.jvm.args />
+        <!--
+            The version of the @github/copilot npm package that the reference implementation
+            commit pinned in .lastmerge depends on. Mirrors the value of dependencies."@github/copilot"
+            in target/copilot-sdk/nodejs/package.json after the reference impl is cloned/reset to the
+            commit in .lastmerge.
+
+            The previously mentioned package.json contains the SINGLE
+            SOURCE OF TRUTH for the Copilot CLI version that all paths
+            (build-test.yml, run-smoke-test.yml,
+            update-copilot-dependency.yml, setup-copilot action) must
+            pin to. It is updated automatically by
+            .github/scripts/reference-impl-sync/sync-cli-version-from-reference-impl.sh,
+            which is called from merge-reference-impl-finish.sh
+            whenever .lastmerge is updated.
+
+            DO NOT EDIT MANUALLY. To update, run the
+            reference-impl-sync workflow and deal with the subsequent
+            PR.
+        -->
+        <readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>^1.0.55-5</readonly-copilot-sdk-ref-impl-version-from-lastmerge-file-updated-by-reference-impl-sync>
+
+    </properties>
+
+    <dependencies>
+        <!-- JSON-RPC -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.21.3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>2.21</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>2.21.3</version>
+        </dependency>
+
+        <!-- SpotBugs annotations for suppressing warnings -->
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <version>4.9.8</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.14.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.23.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.12.0</version>
+                    <configuration>
+                        <show>public</show>
+                        <nohelp>true</nohelp>
+                        <doclint>none</doclint>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>com.github.spotbugs</groupId>
+                    <artifactId>spotbugs-maven-plugin</artifactId>
+                    <version>4.9.8.3</version>
+                    <configuration>
+                        <excludeFilterFile>config/spotbugs/spotbugs-exclude.xml</excludeFilterFile>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.0</version>
+            </plugin>
+            <!-- Clone or update the official copilot-sdk repository for test resources, and copy image to site -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>clone-or-update-copilot-sdk</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.test.harness}</skip>
+                            <target xmlns:if="ant:if" xmlns:unless="ant:unless">
+                                <!-- Load the target commit from .lastmerge file -->
+                                <loadfile property="copilot.sdk.commit" srcFile="${project.basedir}/.lastmerge">
+                                    <filterchain>
+                                        <striplinebreaks />
+                                        <trim />
+                                    </filterchain>
+                                </loadfile>
+
+                                <!-- Check if .git directory exists -->
+                                <condition property="repo.exists">
+                                    <available file="${copilot.sdk.clone.dir}/.git" type="dir" />
+                                </condition>
+
+                                <!-- If repo exists, fetch and reset to the target commit -->
+                                <sequential if:set="repo.exists">
+                                    <echo message="Updating existing copilot-sdk repository to commit ${copilot.sdk.commit}..." />
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="fetch" />
+                                        <arg value="--depth" />
+                                        <arg value="1" />
+                                        <arg value="origin" />
+                                        <arg value="${copilot.sdk.commit}" />
+                                    </exec>
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="reset" />
+                                        <arg value="--hard" />
+                                        <arg value="FETCH_HEAD" />
+                                    </exec>
+                                </sequential>
+
+                                <!-- If repo doesn't exist, clone it at the specific commit -->
+                                <sequential unless:set="repo.exists">
+                                    <echo message="Cloning copilot-sdk repository at commit ${copilot.sdk.commit}..." />
+                                    <delete dir="${copilot.sdk.clone.dir}" quiet="true" />
+                                    <exec executable="git" failonerror="true">
+                                        <arg value="clone" />
+                                        <arg value="--depth" />
+                                        <arg value="1" />
+                                        <arg value="https://github.com/github/copilot-sdk.git" />
+                                        <arg value="${copilot.sdk.clone.dir}" />
+                                    </exec>
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="fetch" />
+                                        <arg value="--depth" />
+                                        <arg value="1" />
+                                        <arg value="origin" />
+                                        <arg value="${copilot.sdk.commit}" />
+                                    </exec>
+                                    <exec executable="git" dir="${copilot.sdk.clone.dir}" failonerror="true">
+                                        <arg value="reset" />
+                                        <arg value="--hard" />
+                                        <arg value="FETCH_HEAD" />
+                                    </exec>
+                                </sequential>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>print-test-jdk-banner</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo level="warning" message="⚠⚠⚠ Using Java ${java.version} (${java.vendor}) to run tests." />
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <!-- Required for if:set and unless:set -->
+                    <dependency>
+                        <groupId>org.apache.ant</groupId>
+                        <artifactId>ant</artifactId>
+                        <version>1.10.17</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <!-- Install harness dependencies -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>install-harness-dependencies</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.test.harness}</skip>
+                            <executable>npm</executable>
+                            <workingDirectory>${copilot.sdk.clone.dir}/test/harness</workingDirectory>
+                            <arguments>
+                                <argument>install</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!--
+                        Install the @github/copilot CLI declared by
+                        target/copilot-sdk/nodejs/package.json. This is the CLI
+                        version the SDK tests must run against (independent of
+                        the older pin in test/harness/package.json which is
+                        incidental to harness internals). Mirrors what
+                        .github/workflows/build-test.yml does manually so that
+                        `mvn clean verify` is self-contained: the prior
+                        target/copilot-sdk/nodejs/node_modules is wiped by
+                        clean, but this re-creates it before tests run.
+                        Uses npm ci with the ignore-scripts flag, matching
+                        build-test.yml.
+                    -->
+                    <execution>
+                        <id>install-nodejs-cli-dependencies</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.cli.install}</skip>
+                            <executable>npm</executable>
+                            <workingDirectory>${copilot.sdk.clone.dir}/nodejs</workingDirectory>
+                            <arguments>
+                                <argument>ci</argument>
+                                <argument>--ignore-scripts</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
+                Failsafe runs integration tests against the actually packaged
+                JAR (after the package phase). Used to validate multi-release
+                JAR behaviour end-to-end without reflecting on private fields
+                or hand-rolling a synthetic JAR. See
+                src/test/java/com/github/copilot/InternalExecutorProviderIT.java.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <project.build.directory>${project.build.directory}</project.build.directory>
+                        <project.build.finalName>${project.build.finalName}</project.build.finalName>
+                        <project.build.testOutputDirectory>${project.build.testOutputDirectory}</project.build.testOutputDirectory>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.5</version>
+                <configuration>
+                    <runOrder>alphabetical</runOrder>
+                    <!-- Inject JaCoCo agent + any JDK-version-specific flags -->
+                    <argLine>${testExecutionAgentArgs} ${surefire.jvm.args}</argLine>
+                    <!--
+                        Automatically retry tests that fail on the first attempt.
+                        This handles intermittent failures in E2E tests (e.g.,
+                        CompactionTest) where snapshot matching can be sensitive
+                        to non-deterministic compaction behaviour.
+                        Revisit this once this issue is successfully resolved.
+                        https://github.com/github/copilot-sdk/issues/1227
+                    -->
+                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
+                    <systemPropertyVariables>
+                        <copilot.tests.dir>${copilot.tests.dir}</copilot.tests.dir>
+                        <copilot.sdk.dir>${copilot.sdk.clone.dir}</copilot.sdk.dir>
+                    </systemPropertyVariables>
+                    <!--
+                        Set COPILOT_CLI_PATH for the forked test JVM so the SDK
+                        tests transparently use the pinned CLI under
+                        target/copilot-sdk/nodejs/. See the copilot.cli.path
+                        property above for the override mechanism.
+                    -->
+                    <environmentVariables>
+                        <COPILOT_CLI_PATH>${copilot.cli.path}</COPILOT_CLI_PATH>
+                    </environmentVariables>
+                </configuration>
+                <executions>
+                    <!--
+                        Run multi-client session resume tests in isolation BEFORE the
+                        main suite. These tests pass reliably alone but can time out
+                        when run after other E2E tests due to harness state leakage.
+                    -->
+                    <execution>
+                        <id>isolated-resume-tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <groups>isolated-resume</groups>
+                            <!-- Use a separate report directory so these results
+                                 don't overwrite the default-test XML reports for
+                                 the same test classes (CopilotSessionTest,
+                                 StreamingFidelityTest). -->
+                            <reportsDirectory>${project.build.directory}/surefire-reports-isolated</reportsDirectory>
+                        </configuration>
+                    </execution>
+                    <!-- Exclude the isolated resume tests from the main run -->
+                    <execution>
+                        <id>default-test</id>
+                        <configuration>
+                            <excludedGroups>isolated-resume</excludedGroups>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Add src/generated/java as an additional source root -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>add-generated-source</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.basedir}/src/generated/java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.46.1</version>
+                <configuration>
+                    <java>
+                        <excludes>
+                            <exclude>src/generated/java/**/*.java</exclude>
+                        </excludes>
+                        <eclipse>
+                            <version>4.33</version>
+                        </eclipse>
+                        <removeUnusedImports />
+                        <trimTrailingWhitespace />
+                        <endWithNewline />
+                        <indent>
+                            <spaces>true</spaces>
+                            <spacesPerTab>4</spacesPerTab>
+                        </indent>
+                    </java>
+                </configuration>
+            </plugin>
+            <!-- Coverage tracking for CopilotClient/CopilotSession interactions with CLI -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.14</version>
+                <executions>
+                    <!-- Instrument bytecode before E2ETestContext runs tests with CapiProxy -->
+                    <execution>
+                        <id>wire-up-coverage-instrumentation</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Store exec file alongside other build artifacts -->
+                            <destFile>${project.build.directory}/jacoco-test-results/sdk-tests.exec</destFile>
+                            <!-- Pass agent args via this property to surefire -->
+                            <propertyName>testExecutionAgentArgs</propertyName>
+                            <!-- Focus on SDK package, exclude test harness utilities -->
+                            <includes>
+                                <include>com/github/copilot/**</include>
+                            </includes>
+                            <excludes>
+                                <exclude>com/github/copilot/E2ETestContext*</exclude>
+                                <exclude>com/github/copilot/CapiProxy*</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                    <!-- Generate HTML/XML reports after tests complete -->
+                    <execution>
+                        <id>build-coverage-report-from-tests</id>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                        <phase>verify</phase>
+                        <configuration>
+                            <dataFile>${project.build.directory}/jacoco-test-results/sdk-tests.exec</dataFile>
+                            <outputDirectory>${project.reporting.outputDirectory}/jacoco-coverage</outputDirectory>
+                            <excludes>
+                                <!-- Exclude multi-release classes to avoid duplicate class analysis. -->
+                                <exclude>META-INF/versions/**/*.class</exclude>
+                            </excludes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <configLocation>config/checkstyle/checkstyle.xml</configLocation>
+                    <consoleOutput>true</consoleOutput>
+                    <failsOnError>true</failsOnError>
+                    <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>10.26.1</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.10.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-jdk25</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[25,)</version>
+                                    <message>JDK 25+ is required to build the Multi-Release JAR with the virtual-thread overlay.</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>verify-multi-release-overlay</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireFilesExist>
+                                    <files>
+                                        <file>${project.build.outputDirectory}/META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class</file>
+                                    </files>
+                                    <message>Multi-Release JAR overlay missing: META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class was not compiled. Ensure the build runs on JDK 25+.</message>
+                                </requireFilesExist>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+
+
+    <profiles>
+        <!-- Enable dynamic agent loading on JDK 21+ so Mockito/ByteBuddy
+             can attach at runtime (JEP 451). The flag does not exist on
+             earlier JDKs, so it must be conditional. -->
+        <profile>
+            <id>jdk21+</id>
+            <activation>
+                <jdk>[21,)</jdk>
+            </activation>
+            <properties>
+                <surefire.jvm.args>-XX:+EnableDynamicAgentLoading</surefire.jvm.args>
+            </properties>
+        </profile>
+        <profile>
+            <id>java25-multi-release</id>
+            <activation>
+                <jdk>[25,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>compile-java25</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <release>25</release>
+                                    <useIncrementalCompilation>false</useIncrementalCompilation>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/main/java25</compileSourceRoot>
+                                    </compileSourceRoots>
+                                    <multiReleaseOutput>true</multiReleaseOutput>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                    <!--
+                        Structural guard: when this profile is active (JDK 25+
+                        builds), assert that the packaged JAR contains the
+                        JDK 25 multi-release overlay class. Catches accidental
+                        profile-disable / classifier / shading regressions
+                        before the failsafe IT runs.
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-java25-overlay</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <condition property="java25.overlay.present">
+                                            <resourceexists>
+                                                <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar" name="META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class" />
+                                            </resourceexists>
+                                        </condition>
+                                        <fail unless="java25.overlay.present">
+JDK 25 multi-release overlay class is missing from the packaged JAR.
+Expected entry: META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class
+JAR: ${project.build.directory}/${project.build.finalName}.jar
+
+This usually means the 'java25-multi-release' Maven profile did not activate
+(e.g. the build is running on a JDK older than 25) or maven-compiler-plugin
+did not produce the multi-release output. Re-build on JDK 25+ and verify the
+'compile-java25' execution ran during the 'compile' phase.
+                                        </fail>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Skip git-clone + npm install of the copilot-sdk test harness -->
+        <profile>
+            <id>skip-test-harness</id>
+            <properties>
+                <skip.test.harness>true</skip.test.harness>
+            </properties>
+        </profile>
+        <!--
+            Skip the install-nodejs-cli-dependencies (npm ci) execution when
+            tests are skipped via -DskipTests, so non-test builds do not
+            require npm or network access. Activates automatically; no manual
+            -P needed.
+        -->
+        <profile>
+            <id>skip-cli-install-when-tests-skipped</id>
+            <activation>
+                <property>
+                    <name>skipTests</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <skip.cli.install>true</skip.cli.install>
+            </properties>
+        </profile>
+        <!--
+            Same as above, but for -Dmaven.test.skip=true.
+        -->
+        <profile>
+            <id>skip-cli-install-when-maven-test-skip</id>
+            <activation>
+                <property>
+                    <name>maven.test.skip</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <skip.cli.install>true</skip.cli.install>
+            </properties>
+        </profile>
+        <!-- Debug profile for FINE logging during tests -->
+        <profile>
+            <id>debug</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <java.util.logging.config.file>${project.basedir}/src/test/resources/logging-debug.properties</java.util.logging.config.file>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.8</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Update the @github/copilot npm schema package to a new version.
+             Usage: mvn generate-sources -Pupdate-schemas-from-npm-artifact -Dcopilot.schema.version=1.0.25 -->
+        <profile>
+            <id>update-schemas-from-npm-artifact</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <executions>
+                            <execution>
+                                <id>update-copilot-schema-version</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>npm</executable>
+                                    <workingDirectory>${project.basedir}/scripts/codegen</workingDirectory>
+                                    <arguments>
+                                        <argument>install</argument>
+                                        <argument>@github/copilot@${copilot.schema.version}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <executions>
+                            <execution>
+                                <id>require-schema-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireProperty>
+                                            <property>copilot.schema.version</property>
+                                            <message>You must specify -Dcopilot.schema.version=VERSION (e.g. 1.0.25)</message>
+                                        </requireProperty>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- Run the TypeScript code generator to regenerate Java sources from the current schema.
+             Usage: mvn generate-sources -Pcodegen -->
+        <profile>
+            <id>codegen</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <executions>
+                            <execution>
+                                <id>codegen-npm-install</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>npm</executable>
+                                    <workingDirectory>${project.basedir}/scripts/codegen</workingDirectory>
+                                    <arguments>
+                                        <argument>ci</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>codegen-generate</id>
+                                <phase>generate-sources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>npm</executable>
+                                    <workingDirectory>${project.basedir}/scripts/codegen</workingDirectory>
+                                    <arguments>
+                                        <argument>run</argument>
+                                        <argument>generate</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

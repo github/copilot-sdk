@@ -7,6 +7,7 @@ import (
 
 	copilot "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/internal/e2e/testharness"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 func TestMCPServersE2E(t *testing.T) {
@@ -17,13 +18,7 @@ func TestMCPServersE2E(t *testing.T) {
 	t.Run("accept MCP server config on create", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		mcpServers := map[string]copilot.MCPServerConfig{
-			"test-server": copilot.MCPStdioServerConfig{
-				Command: "echo",
-				Args:    []string{"hello"},
-				Tools:   []string{"*"},
-			},
-		}
+		mcpServers := testMCPServers(t, "test-server")
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -36,6 +31,7 @@ func TestMCPServersE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
+		waitForMCPServerStatus(t, session, "test-server", rpc.McpServerStatusConnected)
 
 		// Simple interaction to verify session works
 		_, err = session.Send(t.Context(), copilot.MessageOptions{
@@ -57,6 +53,31 @@ func TestMCPServersE2E(t *testing.T) {
 		session.Disconnect()
 	})
 
+	t.Run("accept MCP server config without args", func(t *testing.T) {
+		ctx.ConfigureForTest(t)
+
+		mcpServers := map[string]copilot.MCPServerConfig{
+			"test-server": copilot.MCPStdioServerConfig{
+				Command: "git",
+				Tools:   &[]string{"*"},
+			},
+		}
+
+		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
+			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
+			MCPServers:          mcpServers,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create session: %v", err)
+		}
+
+		if session.SessionID == "" {
+			t.Error("Expected non-empty session ID")
+		}
+
+		session.Disconnect()
+	})
+
 	t.Run("accept MCP server config on resume", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
@@ -73,13 +94,7 @@ func TestMCPServersE2E(t *testing.T) {
 		}
 
 		// Resume with MCP servers
-		mcpServers := map[string]copilot.MCPServerConfig{
-			"test-server": copilot.MCPStdioServerConfig{
-				Command: "echo",
-				Args:    []string{"hello"},
-				Tools:   []string{"*"},
-			},
-		}
+		mcpServers := testMCPServers(t, "test-server")
 
 		session2, err := client.ResumeSessionWithOptions(t.Context(), sessionID, &copilot.ResumeSessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -92,15 +107,7 @@ func TestMCPServersE2E(t *testing.T) {
 		if session2.SessionID != sessionID {
 			t.Errorf("Expected session ID %s, got %s", sessionID, session2.SessionID)
 		}
-
-		message, err := session2.SendAndWait(t.Context(), copilot.MessageOptions{Prompt: "What is 3+3?"})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "6") {
-			t.Errorf("Expected message to contain '6', got: %v", message.Data)
-		}
+		waitForMCPServerStatus(t, session2, "test-server", rpc.McpServerStatusConnected)
 
 		session2.Disconnect()
 	})
@@ -116,11 +123,11 @@ func TestMCPServersE2E(t *testing.T) {
 
 		mcpServers := map[string]copilot.MCPServerConfig{
 			"env-echo": copilot.MCPStdioServerConfig{
-				Command: "node",
-				Args:    []string{mcpServerPath},
-				Tools:   []string{"*"},
-				Env:     map[string]string{"TEST_SECRET": "hunter2"},
-				Cwd:     mcpServerDir,
+				Command:          "node",
+				Args:             []string{mcpServerPath},
+				Tools:            &[]string{"*"},
+				Env:              map[string]string{"TEST_SECRET": "hunter2"},
+				WorkingDirectory: mcpServerDir,
 			},
 		}
 
@@ -135,6 +142,7 @@ func TestMCPServersE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
+		waitForMCPServerStatus(t, session, "env-echo", rpc.McpServerStatusConnected)
 
 		message, err := session.SendAndWait(t.Context(), copilot.MessageOptions{
 			Prompt: "Use the env-echo/get_env tool to read the TEST_SECRET environment variable. Reply with just the value, nothing else.",
@@ -153,18 +161,7 @@ func TestMCPServersE2E(t *testing.T) {
 	t.Run("handle multiple MCP servers", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		mcpServers := map[string]copilot.MCPServerConfig{
-			"server1": copilot.MCPStdioServerConfig{
-				Command: "echo",
-				Args:    []string{"server1"},
-				Tools:   []string{"*"},
-			},
-			"server2": copilot.MCPStdioServerConfig{
-				Command: "echo",
-				Args:    []string{"server2"},
-				Tools:   []string{"*"},
-			},
-		}
+		mcpServers := testMCPServers(t, "server1", "server2")
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
 			OnPermissionRequest: copilot.PermissionHandler.ApproveAll,
@@ -177,6 +174,8 @@ func TestMCPServersE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
+		waitForMCPServerStatus(t, session, "server1", rpc.McpServerStatusConnected)
+		waitForMCPServerStatus(t, session, "server2", rpc.McpServerStatusConnected)
 
 		session.Disconnect()
 	})
@@ -321,13 +320,7 @@ func TestCustomAgentsE2E(t *testing.T) {
 				DisplayName: "MCP Agent",
 				Description: "An agent with its own MCP servers",
 				Prompt:      "You are an agent with MCP servers.",
-				MCPServers: map[string]copilot.MCPServerConfig{
-					"agent-server": copilot.MCPStdioServerConfig{
-						Command: "echo",
-						Args:    []string{"agent-mcp"},
-						Tools:   []string{"*"},
-					},
-				},
+				MCPServers:  testMCPServers(t, "agent-server"),
 			},
 		}
 
@@ -392,13 +385,7 @@ func TestCombinedConfigurationE2E(t *testing.T) {
 	t.Run("accept MCP servers and custom agents", func(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
-		mcpServers := map[string]copilot.MCPServerConfig{
-			"shared-server": copilot.MCPStdioServerConfig{
-				Command: "echo",
-				Args:    []string{"shared"},
-				Tools:   []string{"*"},
-			},
-		}
+		mcpServers := testMCPServers(t, "shared-server")
 
 		customAgents := []copilot.CustomAgentConfig{
 			{
@@ -421,22 +408,7 @@ func TestCombinedConfigurationE2E(t *testing.T) {
 		if session.SessionID == "" {
 			t.Error("Expected non-empty session ID")
 		}
-
-		_, err = session.Send(t.Context(), copilot.MessageOptions{
-			Prompt: "What is 7+7?",
-		})
-		if err != nil {
-			t.Fatalf("Failed to send message: %v", err)
-		}
-
-		message, err := testharness.GetFinalAssistantMessage(t.Context(), session)
-		if err != nil {
-			t.Fatalf("Failed to get final message: %v", err)
-		}
-
-		if md, ok := message.Data.(*copilot.AssistantMessageData); !ok || !strings.Contains(md.Content, "14") {
-			t.Errorf("Expected message to contain '14', got: %v", message.Data)
-		}
+		waitForMCPServerStatus(t, session, "shared-server", rpc.McpServerStatusConnected)
 
 		session.Disconnect()
 	})

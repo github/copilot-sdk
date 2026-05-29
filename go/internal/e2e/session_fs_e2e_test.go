@@ -20,9 +20,9 @@ func TestSessionFsE2E(t *testing.T) {
 	providerRoot := t.TempDir()
 	sessionStatePath := createSessionStatePath(t)
 	sessionFsConfig := &copilot.SessionFsConfig{
-		InitialCwd:       "/",
-		SessionStatePath: sessionStatePath,
-		Conventions:      rpc.SessionFsSetProviderConventionsPosix,
+		InitialWorkingDirectory: "/",
+		SessionStatePath:        sessionStatePath,
+		Conventions:             rpc.SessionFsSetProviderConventionsPosix,
 	}
 	createSessionFsHandler := func(session *copilot.Session) copilot.SessionFsProvider {
 		return &testSessionFsHandler{
@@ -43,8 +43,8 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -80,8 +80,8 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session1, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -110,8 +110,8 @@ func TestSessionFsE2E(t *testing.T) {
 		}
 
 		session2, err := client.ResumeSession(t.Context(), sessionID, &copilot.ResumeSessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to resume session: %v", err)
@@ -139,7 +139,7 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		client1 := ctx.NewClient(func(opts *copilot.ClientOptions) {
-			opts.UseStdio = copilot.Bool(false)
+			opts.Connection = copilot.TcpConnection{Path: ctx.CLIPath}
 		})
 		t.Cleanup(func() { client1.ForceStop() })
 
@@ -149,16 +149,16 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Failed to create initial session: %v", err)
 		}
 
-		actualPort := client1.ActualPort()
-		if actualPort == 0 {
+		runtimePort := client1.RuntimePort()
+		if runtimePort == 0 {
 			t.Fatalf("Expected non-zero port from TCP mode client")
 		}
 
 		client2 := copilot.NewClient(&copilot.ClientOptions{
-			CLIUrl:    fmt.Sprintf("localhost:%d", actualPort),
-			LogLevel:  "error",
-			Env:       ctx.Env(),
-			SessionFs: sessionFsConfig,
+			Connection: copilot.UriConnection{URL: fmt.Sprintf("localhost:%d", runtimePort)},
+			LogLevel:   "error",
+			Env:        ctx.Env(),
+			SessionFs:  sessionFsConfig,
 		})
 		t.Cleanup(func() { client2.ForceStop() })
 
@@ -172,8 +172,8 @@ func TestSessionFsE2E(t *testing.T) {
 
 		suppliedFileContent := strings.Repeat("x", 100_000)
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 			Tools: []copilot.Tool{
 				copilot.DefineTool("get_big_string", "Returns a large string",
 					func(_ struct{}, inv copilot.ToolInvocation) (string, error) {
@@ -191,7 +191,7 @@ func TestSessionFsE2E(t *testing.T) {
 			t.Fatalf("Failed to send message: %v", err)
 		}
 
-		messages, err := session.GetMessages(t.Context())
+		messages, err := session.GetEvents(t.Context())
 		if err != nil {
 			t.Fatalf("Failed to get messages: %v", err)
 		}
@@ -217,8 +217,8 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -256,8 +256,8 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -298,8 +298,8 @@ func TestSessionFsE2E(t *testing.T) {
 		ctx.ConfigureForTest(t)
 
 		session, err := client.CreateSession(t.Context(), &copilot.SessionConfig{
-			OnPermissionRequest:    copilot.PermissionHandler.ApproveAll,
-			CreateSessionFsHandler: createSessionFsHandler,
+			OnPermissionRequest:     copilot.PermissionHandler.ApproveAll,
+			CreateSessionFsProvider: createSessionFsHandler,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create session: %v", err)
@@ -408,7 +408,7 @@ func (h *testSessionFsHandler) Stat(path string) (*copilot.SessionFsFileInfo, er
 	}, nil
 }
 
-func (h *testSessionFsHandler) Mkdir(path string, recursive bool, mode *int) error {
+func (h *testSessionFsHandler) MakeDirectory(path string, recursive bool, mode *int) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	perm := os.FileMode(0o777)
 	if mode != nil {
@@ -420,7 +420,7 @@ func (h *testSessionFsHandler) Mkdir(path string, recursive bool, mode *int) err
 	return os.Mkdir(fullPath, perm)
 }
 
-func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {
+func (h *testSessionFsHandler) ReadDirectory(path string) ([]string, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
@@ -432,7 +432,7 @@ func (h *testSessionFsHandler) Readdir(path string) ([]string, error) {
 	return names, nil
 }
 
-func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
+func (h *testSessionFsHandler) ReadDirectoryWithTypes(path string) ([]rpc.SessionFsReaddirWithTypesEntry, error) {
 	entries, err := os.ReadDir(providerPath(h.root, h.sessionID, path))
 	if err != nil {
 		return nil, err
@@ -451,7 +451,7 @@ func (h *testSessionFsHandler) ReaddirWithTypes(path string) ([]rpc.SessionFsRea
 	return result, nil
 }
 
-func (h *testSessionFsHandler) Rm(path string, recursive bool, force bool) error {
+func (h *testSessionFsHandler) Remove(path string, recursive bool, force bool) error {
 	fullPath := providerPath(h.root, h.sessionID, path)
 	var err error
 	if recursive {
@@ -471,23 +471,6 @@ func (h *testSessionFsHandler) Rename(src string, dest string) error {
 		return err
 	}
 	return os.Rename(providerPath(h.root, h.sessionID, src), destPath)
-}
-
-func (h *testSessionFsHandler) SqliteQuery(sessionID string, query string, queryType rpc.SessionFsSqliteQueryType, params map[string]any) (*rpc.SessionFsSqliteQueryResult, error) {
-	return &rpc.SessionFsSqliteQueryResult{
-		Columns: []string{"sessionId", "query", "queryType", "answer"},
-		Rows: []map[string]any{{
-			"sessionId": sessionID,
-			"query":     query,
-			"queryType": string(queryType),
-			"answer":    params["answer"],
-		}},
-		RowsAffected: 0,
-	}, nil
-}
-
-func (h *testSessionFsHandler) SqliteExists(sessionID string) (bool, error) {
-	return sessionID == h.sessionID, nil
 }
 
 func providerPath(root string, sessionID string, path string) string {
@@ -550,7 +533,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	sessionID := "handler-session"
 	handler := &testSessionFsHandler{root: providerRoot, sessionID: sessionID}
 
-	if err := handler.Mkdir("/workspace/nested", true, nil); err != nil {
+	if err := handler.MakeDirectory("/workspace/nested", true, nil); err != nil {
 		t.Fatalf("Mkdir failed: %v", err)
 	}
 
@@ -592,7 +575,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 		t.Errorf("Expected content 'hello world', got %q", content)
 	}
 
-	entries, err := handler.Readdir("/workspace/nested")
+	entries, err := handler.ReadDirectory("/workspace/nested")
 	if err != nil {
 		t.Fatalf("Readdir failed: %v", err)
 	}
@@ -600,7 +583,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 		t.Errorf("Expected entries to contain 'file.txt', got %v", entries)
 	}
 
-	typedEntries, err := handler.ReaddirWithTypes("/workspace/nested")
+	typedEntries, err := handler.ReadDirectoryWithTypes("/workspace/nested")
 	if err != nil {
 		t.Fatalf("ReaddirWithTypes failed: %v", err)
 	}
@@ -633,7 +616,7 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 		t.Errorf("Expected renamed content 'hello world', got %q", renamedContent)
 	}
 
-	if err := handler.Rm("/workspace/nested/renamed.txt", false, false); err != nil {
+	if err := handler.Remove("/workspace/nested/renamed.txt", false, false); err != nil {
 		t.Fatalf("Rm failed: %v", err)
 	}
 	removed, err := handler.Exists("/workspace/nested/renamed.txt")
@@ -645,35 +628,13 @@ func TestSessionFsHandlerOperationsE2E(t *testing.T) {
 	}
 
 	// Force removing a missing path should succeed.
-	if err := handler.Rm("/workspace/nested/missing.txt", false, true); err != nil {
+	if err := handler.Remove("/workspace/nested/missing.txt", false, true); err != nil {
 		t.Errorf("Rm with force on missing path should not error, got %v", err)
 	}
 
 	// Stat on a missing file should return os.ErrNotExist.
 	if _, err := handler.Stat("/workspace/nested/missing.txt"); err == nil || !os.IsNotExist(err) {
 		t.Errorf("Expected os.ErrNotExist from Stat on missing file, got %v", err)
-	}
-
-	sqliteResult, err := handler.SqliteQuery(sessionID, "select :answer as answer", rpc.SessionFsSqliteQueryTypeQuery, map[string]any{"answer": 42})
-	if err != nil {
-		t.Fatalf("SqliteQuery failed: %v", err)
-	}
-	if len(sqliteResult.Columns) != 4 || sqliteResult.Columns[3] != "answer" {
-		t.Errorf("Expected SQLite result columns to include answer, got %v", sqliteResult.Columns)
-	}
-	if len(sqliteResult.Rows) != 1 || sqliteResult.Rows[0]["answer"] != 42 {
-		t.Errorf("Expected SQLite result row to include answer=42, got %+v", sqliteResult.Rows)
-	}
-	if sqliteResult.RowsAffected != 0 {
-		t.Errorf("Expected RowsAffected=0, got %d", sqliteResult.RowsAffected)
-	}
-
-	sqliteExists, err := handler.SqliteExists(sessionID)
-	if err != nil {
-		t.Fatalf("SqliteExists failed: %v", err)
-	}
-	if !sqliteExists {
-		t.Error("Expected SQLite database to exist for the handler session")
 	}
 }
 

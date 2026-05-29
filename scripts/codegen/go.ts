@@ -9,6 +9,8 @@
 import { execFile } from "child_process";
 import fs from "fs/promises";
 import type { JSONSchema7 } from "json-schema";
+import path from "path";
+import { fileURLToPath } from "url";
 import { promisify } from "util";
 import wordwrap from "wordwrap";
 import {
@@ -23,6 +25,7 @@ import {
     findSharedSchemaDefinitions,
     getApiSchemaPath,
     getNullableInner,
+    getEnumValueDescriptions,
     getRpcSchemaTypeName,
     getSessionEventsSchemaPath,
     getSessionEventVariantSchemas,
@@ -31,12 +34,15 @@ import {
     isIntegerSchemaBoundedToInt32,
     isNodeFullyDeprecated,
     isNodeFullyExperimental,
+    isOpaqueJson,
     isRpcMethod,
     isSchemaDeprecated,
     isSchemaExperimental,
+    isSchemaInternal,
     isVoidSchema,
     parseExternalSchemaRef,
     postProcessSchema,
+    propagateInternalVisibility,
     refTypeName,
     resolveObjectSchema,
     resolveRef,
@@ -45,6 +51,7 @@ import {
     writeGeneratedFile,
     type ApiSchema,
     type DefinitionCollections,
+    type EnumValueDescriptions,
     type RpcMethod,
     type SessionEventEnvelopeProperty,
 } from "./utils.js";
@@ -154,6 +161,33 @@ function pushGoExperimentalTypeComment(lines: string[], typeName: string, ctx: G
     pushGoCommentForContext(lines, goExperimentalTypeComment(typeName), ctx);
 }
 
+function hasGoCommentLinesInLeadingDocBlock(source: string, typeDeclOffset: number, commentLines: string[]): boolean {
+    const precedingLines = source.slice(0, typeDeclOffset).split(/\r?\n/);
+    if (precedingLines[precedingLines.length - 1] === "") {
+        precedingLines.pop();
+    }
+
+    const docBlockLines: string[] = [];
+    for (let i = precedingLines.length - 1; i >= 0; i--) {
+        const line = precedingLines[i];
+        if (line.trim() === "") {
+            break;
+        }
+        if (!line.startsWith("//")) {
+            break;
+        }
+        docBlockLines.unshift(line);
+    }
+
+    for (let i = 0; i <= docBlockLines.length - commentLines.length; i++) {
+        if (commentLines.every((commentLine, offset) => docBlockLines[i + offset] === commentLine)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function pushGoExperimentalEventComment(lines: string[], constName: string, indent = ""): void {
     pushGoComment(lines, `Experimental: ${constName} identifies an experimental event that may change or be removed.`, indent);
 }
@@ -168,6 +202,31 @@ function pushGoExperimentalSubApiComment(lines: string[], name: string, indent =
 
 function pushGoExperimentalMethodComment(lines: string[], methodName: string, indent = ""): void {
     pushGoComment(lines, `Experimental: ${methodName} is an experimental API and may change or be removed in future versions.`, indent);
+}
+
+function pushGoInternalPropertyComment(lines: string[], goName: string, ctx: GoCodegenCtx, indent = "\t"): void {
+    pushGoCommentForContext(lines, `Internal: ${goName} is part of the SDK's internal API surface and is not intended for external use.`, ctx, indent);
+}
+
+function pushGoExperimentalPropertyComment(lines: string[], goName: string, ctx: GoCodegenCtx, indent = "\t"): void {
+    pushGoCommentForContext(lines, `Experimental: ${goName} is part of an experimental API and may change or be removed.`, ctx, indent);
+}
+
+/**
+ * Emit `Deprecated:` / `Experimental:` / `Internal:` doc comments above a Go
+ * struct field. Centralises the per-field marker logic shared between the
+ * regular struct emitter and the discriminated-union variant emitters.
+ */
+function pushGoFieldMarkers(lines: string[], prop: JSONSchema7, goName: string, ctx: GoCodegenCtx, indent = "\t"): void {
+    if (isSchemaDeprecated(prop)) {
+        pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, indent);
+    }
+    if (isSchemaExperimental(prop)) {
+        pushGoExperimentalPropertyComment(lines, goName, ctx, indent);
+    }
+    if (isSchemaInternal(prop)) {
+        pushGoInternalPropertyComment(lines, goName, ctx, indent);
+    }
 }
 
 function lowerFirst(value: string): string {
@@ -630,6 +689,7 @@ function getOrCreateGoEnum(
     values: string[],
     ctx: GoCodegenCtx,
     description?: string,
+    enumValueDescriptions?: EnumValueDescriptions,
     deprecated?: boolean,
     experimental?: boolean
 ): string {
@@ -662,6 +722,10 @@ function getOrCreateGoEnum(
             );
         }
         usedConstNames.set(constName, value);
+        const valueDescription = enumValueDescriptions?.[value];
+        if (valueDescription) {
+            pushGoCommentForContext(lines, valueDescription, ctx, "\t");
+        }
         lines.push(`\t${constName} ${enumName} = "${value}"`);
     }
     lines.push(`)`);
@@ -754,7 +818,7 @@ function resolveGoPropertyType(
         if (resolved) {
             if (resolved.enum) {
                 if ((resolved.enum as unknown[]).every((value) => typeof value === "string")) {
-                    const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
+                    const enumType = getOrCreateGoEnum(typeName, resolved.enum as string[], ctx, resolved.description, getEnumValueDescriptions(resolved), isSchemaDeprecated(resolved), isSchemaExperimental(resolved));
                     return isRequired ? enumType : `*${enumType}`;
                 }
                 if (resolved.enum.length === 1) {
@@ -814,7 +878,7 @@ function resolveGoPropertyType(
     // Handle enum
     if (propSchema.enum && Array.isArray(propSchema.enum)) {
         if ((propSchema.enum as unknown[]).every((value) => typeof value === "string")) {
-            const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
+            const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, propSchema.enum as string[], ctx, propSchema.description, getEnumValueDescriptions(propSchema), isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
             return isRequired ? enumType : `*${enumType}`;
         }
         if (propSchema.enum.length === 1) {
@@ -829,7 +893,7 @@ function resolveGoPropertyType(
         if (typeof propSchema.const !== "string") {
             return resolveGoPropertyType(schemaForConstValue(propSchema.const), parentTypeName, jsonPropName, isRequired, ctx);
         }
-        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, [propSchema.const], ctx, propSchema.description, isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
+        const enumType = getOrCreateGoEnum((propSchema.title as string) || nestedName, [propSchema.const], ctx, propSchema.description, getEnumValueDescriptions(propSchema), isSchemaDeprecated(propSchema), isSchemaExperimental(propSchema));
         return isRequired ? enumType : `*${enumType}`;
     }
 
@@ -1075,9 +1139,7 @@ function emitGoStruct(
         if (prop.description) {
             pushGoCommentForContext(lines, prop.description, ctx, "\t");
         }
-        if (isSchemaDeprecated(prop)) {
-            pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-        }
+        pushGoFieldMarkers(lines, prop, goName, ctx);
         const jsonTag = `json:"${propName}${omit}"`;
         lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
         fields.push({ propName, goName, goType, jsonTag });
@@ -1612,6 +1674,7 @@ function emitGoFlatDiscriminatedUnion(
             discValues,
             ctx,
             `${discGoName} discriminator for ${typeName}.`,
+            undefined,
             false,
             experimental
         );
@@ -1765,9 +1828,7 @@ function emitGoFlatDiscriminatedUnion(
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
-                if (isSchemaDeprecated(prop)) {
-                    pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-                }
+                pushGoFieldMarkers(lines, prop, goName, ctx);
                 const jsonTag = `json:"${propName}${omit}"`;
                 lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
                 fields.push({ propName, goName, goType, jsonTag });
@@ -1894,9 +1955,7 @@ function emitGoRequiredFieldDiscriminatedUnion(
                 if (prop.description) {
                     pushGoCommentForContext(lines, prop.description, ctx, "\t");
                 }
-                if (isSchemaDeprecated(prop)) {
-                    pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-                }
+                pushGoFieldMarkers(lines, prop, goName, ctx);
                 const jsonTag = `json:"${propName}${omit}"`;
                 lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
                 fields.push({ propName, goName, goType, jsonTag });
@@ -2479,7 +2538,7 @@ function goUntaggedUnionVariant(typeName: string, member: JSONSchema7, ctx: GoCo
     }
 
     if (resolved.enum && Array.isArray(resolved.enum)) {
-        const enumType = getOrCreateGoEnum((resolved.title as string) || `${typeName}Enum`, resolved.enum as string[], ctx, resolved.description, isSchemaDeprecated(resolved));
+        const enumType = getOrCreateGoEnum((resolved.title as string) || `${typeName}Enum`, resolved.enum as string[], ctx, resolved.description, getEnumValueDescriptions(resolved), isSchemaDeprecated(resolved));
         return { typeName: enumType, goType: enumType, jsonKind, returnExpr: "value" };
     }
 
@@ -2737,19 +2796,33 @@ function emitGoUnionWrapperStruct(typeName: string, schema: JSONSchema7, ctx: Go
     encodingLines.push(`\t}`);
     for (const field of fields) {
         const matchFunction = matchFunctionsByField.get(field.name);
+        const unmarshalType = goUnionFieldUnmarshalType(field.type);
+        const unionInfo = goDiscriminatedUnionInfoForType(unmarshalType, ctx);
         if (matchFunction) {
             encodingLines.push(`\tif ${matchFunction}(data) {`);
-            encodingLines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
-            encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err != nil {`);
-            encodingLines.push(`\t\t\treturn err`);
-            encodingLines.push(`\t\t}`);
+            if (unionInfo) {
+                encodingLines.push(`\t\tvalue, err := ${unionInfo.unmarshalFuncName}(data)`);
+                encodingLines.push(`\t\tif err != nil {`);
+                encodingLines.push(`\t\t\treturn err`);
+                encodingLines.push(`\t\t}`);
+            } else {
+                encodingLines.push(`\t\tvar value ${unmarshalType}`);
+                encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err != nil {`);
+                encodingLines.push(`\t\t\treturn err`);
+                encodingLines.push(`\t\t}`);
+            }
             encodingLines.push(`\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
             encodingLines.push(`\t\treturn nil`);
             encodingLines.push(`\t}`);
         } else {
             encodingLines.push(`\t{`);
-            encodingLines.push(`\t\tvar value ${goUnionFieldUnmarshalType(field.type)}`);
-            encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+            if (unionInfo) {
+                encodingLines.push(`\t\tvalue, err := ${unionInfo.unmarshalFuncName}(data)`);
+                encodingLines.push(`\t\tif err == nil {`);
+            } else {
+                encodingLines.push(`\t\tvar value ${unmarshalType}`);
+                encodingLines.push(`\t\tif err := json.Unmarshal(data, &value); err == nil {`);
+            }
             encodingLines.push(`\t\t\t${goUnionFieldUnmarshalAssignment(typeName, field.name, field.type)}`);
             encodingLines.push(`\t\t\treturn nil`);
             encodingLines.push(`\t\t}`);
@@ -2785,7 +2858,7 @@ function emitGoRpcDefinition(definitionName: string, schema: JSONSchema7, ctx: G
     const effectiveSchema = resolveObjectSchema(schema, ctx.definitions) ?? resolveSchema(schema, ctx.definitions) ?? schema;
 
     if (isStringEnumDefinition(effectiveSchema)) {
-        getOrCreateGoEnum(typeName, effectiveSchema.enum, ctx, effectiveSchema.description, isSchemaDeprecated(effectiveSchema), isSchemaExperimental(effectiveSchema));
+        getOrCreateGoEnum(typeName, effectiveSchema.enum, ctx, effectiveSchema.description, getEnumValueDescriptions(effectiveSchema), isSchemaDeprecated(effectiveSchema), isSchemaExperimental(effectiveSchema));
         return typeName;
     }
 
@@ -2918,7 +2991,7 @@ function goDeclaredTypeName(code: string): string {
 /**
  * Generate the complete Go session-events file content.
  */
-function generateGoSessionEventsCode(schema: JSONSchema7, packageName: string): GoGeneratedTypeCode {
+export function generateGoSessionEventsCode(schema: JSONSchema7, packageName: string): GoGeneratedTypeCode {
     const variants = extractGoEventVariants(schema);
     const ctx: GoCodegenCtx = {
         structs: [],
@@ -2992,9 +3065,7 @@ function generateGoSessionEventsCode(schema: JSONSchema7, packageName: string): 
             if (prop.description) {
                 pushGoCommentForContext(lines, prop.description, ctx, "\t");
             }
-            if (isSchemaDeprecated(prop)) {
-                pushGoCommentForContext(lines, `Deprecated: ${goName} is deprecated.`, ctx, "\t");
-            }
+            pushGoFieldMarkers(lines, prop, goName, ctx);
             const jsonTag = `json:"${propName}${omit}"`;
             lines.push(`\t${goName} ${goType} \`${jsonTag}\``);
             fields.push({ propName, goName, goType, jsonTag });
@@ -3286,11 +3357,15 @@ function collectGoTopLevelNames(code: string, keyword: "type" | "const"): string
 function generateGoSessionEventAliasFile(
     generatedSessionTypeCode: string,
     additionalTypeNames: Iterable<string> = [],
-    additionalConstNames: Iterable<string> = []
+    additionalConstNames: Iterable<string> = [],
+    excludeTypeNames: Iterable<string> = []
 ): string {
+    const excluded = new Set(excludeTypeNames);
     const typeNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "type"), ...additionalTypeNames])]
+        .filter((name) => !excluded.has(name))
         .sort(compareGoTypeNames);
     const constNames = [...new Set([...collectGoTopLevelNames(generatedSessionTypeCode, "const"), ...additionalConstNames])]
+        .filter((name) => !excluded.has(name))
         .sort(compareGoTypeNames);
     const lines: string[] = [];
 
@@ -3377,7 +3452,7 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
 
     const resolvedPath = schemaPath ?? (await getSessionEventsSchemaPath());
     const schema = cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as JSONSchema7);
-    const processed = postProcessSchema(schema);
+    const processed = propagateInternalVisibility(postProcessSchema(schema));
     const sharedDefinitions = apiSchema
         ? findSharedSchemaDefinitions(
             processed as unknown as Record<string, unknown>,
@@ -3389,7 +3464,26 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     const sessionSchema = rewriteSharedDefinitionReferences(processed, sharedDefinitions, "api.schema.json", true);
 
     const generatedSessionCode = generateGoSessionEventsCode(sessionSchema, "rpc");
-    const generatedTypeCode = stripTrailingGoWhitespace(generatedSessionCode.typeCode);
+    let generatedTypeCode = stripTrailingGoWhitespace(generatedSessionCode.typeCode);
+    // Annotate internal session-event types (driven by the JSON Schema definition's
+    // `visibility: "internal"` flag). Matches what the RPC generator does below;
+    // the session-events emit path doesn't pass through that code so we apply it here.
+    {
+        const sessionDefs = collectDefinitionCollections(sessionSchema as Record<string, unknown>);
+        const allSessionDefs = { ...sessionDefs.$defs, ...sessionDefs.definitions };
+        const internalSessionTypeNames = new Set<string>();
+        for (const [name, def] of Object.entries(allSessionDefs)) {
+            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+                internalSessionTypeNames.add(name);
+            }
+        }
+        for (const typeName of internalSessionTypeNames) {
+            generatedTypeCode = generatedTypeCode.replace(
+                new RegExp(`^(type ${typeName} struct)`, "m"),
+                `// Internal: ${typeName} is an internal SDK API and is not part of the public surface.\n$1`
+            );
+        }
+    }
     const generatedEncodingCode = stripTrailingGoWhitespace(generatedSessionCode.encodingCode);
     rpcSessionEventTopLevelNames = {
         types: new Set(collectGoTopLevelNames(generatedTypeCode, "type")),
@@ -3409,9 +3503,24 @@ async function generateSessionEvents(schemaPath?: string, apiSchema?: ApiSchema)
     const sharedAliasNames = apiSchema
         ? collectGoSharedSessionEventAliasNames(sharedSessionEventDefinitions, apiSchema)
         : { typeNames: [], constNames: [] };
+    // Exclude internal types from the public `copilot` package re-exports. They
+    // remain accessible in the lower-level `rpc` package (where they're tagged
+    // with `// Internal:` doc comments), but consumers using only the canonical
+    // `copilot.*` namespace never see them. This is the strongest practical
+    // signal Go offers without requiring runtime refactoring to enable full
+    // lowercase/unexported types.
+    const internalTypesInSession = new Set<string>();
+    {
+        const { definitions, $defs } = collectDefinitionCollections(sessionSchema as Record<string, unknown>);
+        for (const [name, def] of Object.entries({ ...definitions, ...$defs })) {
+            if (def && typeof def === "object" && (def as Record<string, unknown>).visibility === "internal") {
+                internalTypesInSession.add(name);
+            }
+        }
+    }
     const aliasOutPath = await writeGeneratedFile(
         "go/zsession_events.go",
-        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames)
+        generateGoSessionEventAliasFile(generatedTypeCode, sharedAliasNames.typeNames, sharedAliasNames.constNames, internalTypesInSession)
     );
     console.log(`  ✓ ${aliasOutPath}`);
 
@@ -3425,7 +3534,7 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     console.log("Go: generating RPC types...");
 
     const resolvedPath = schemaPath ?? (await getApiSchemaPath());
-    const schema = fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema));
+    const schema = propagateInternalVisibility(fixNullableRequiredRefsInApiSchema(cloneSchemaForCodegen(JSON.parse(await fs.readFile(resolvedPath, "utf-8")) as ApiSchema)) as JSONSchema7) as unknown as ApiSchema;
 
     const allMethods = [
         ...collectRpcMethods(schema.server || {}),
@@ -3451,6 +3560,8 @@ async function generateRpc(schemaPath?: string): Promise<void> {
         if (nullableInner) {
             // Nullable results (e.g., *SessionFSError) don't need a wrapper type;
             // the inner type is already in definitions via shared hoisting.
+        } else if (isOpaqueJson(resultSchema)) {
+            // Opaque JSON results map to `any` — no named struct needed.
         } else if (isVoidSchema(resultSchema)) {
             // Emit an empty struct for void results (forward-compatible with adding fields later)
             allDefinitions[goResultTypeName(method)] = {
@@ -3535,9 +3646,16 @@ async function generateRpc(schemaPath?: string): Promise<void> {
     }
     for (const typeName of experimentalTypeNames) {
         const emittedTypeName = resolveType(typeName);
+        const experimentalCommentLines = goCommentLines(goExperimentalTypeComment(emittedTypeName));
+        const experimentalComment = experimentalCommentLines.join("\n");
         generatedTypeCode = generatedTypeCode.replace(
-            new RegExp(`^(type ${escapeRegExp(emittedTypeName)}\\b)`, "m"),
-            `// ${goExperimentalTypeComment(emittedTypeName)}\n$1`
+            new RegExp(`^type ${escapeRegExp(emittedTypeName)}\\b`, "m"),
+            (typeDeclaration: string, offset: number, source: string) => {
+                if (hasGoCommentLinesInLeadingDocBlock(source, offset, experimentalCommentLines)) {
+                    return typeDeclaration;
+                }
+                return `${experimentalComment}\n${typeDeclaration}`;
+            }
         );
     }
 
@@ -3920,10 +4038,15 @@ function emitClientSessionApiRegistration(lines: string[], clientSchema: Record<
             }
             const paramsType = resolveType(goParamsTypeName(method));
             const nullableInner = resultSchema ? getNullableInner(resultSchema) : undefined;
-            const resultType = nullableInner
-                ? resolveType(goNullableResultTypeName(method, nullableInner))
-                : resolveType(goResultTypeName(method));
-            const returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            let returnType: string;
+            if (isOpaqueJson(resultSchema)) {
+                returnType = "any";
+            } else {
+                const resultType = nullableInner
+                    ? resolveType(goNullableResultTypeName(method, nullableInner))
+                    : resolveType(goResultTypeName(method));
+                returnType = unionInfos.has(resultType) ? resultType : `*${resultType}`;
+            }
             lines.push(`\t${clientHandlerMethodName(method.rpcMethod)}(request *${paramsType}) (${returnType}, error)`);
         }
         lines.push(`}`);
@@ -4006,9 +4129,13 @@ async function generate(sessionSchemaPath?: string, apiSchemaPath?: string): Pro
     }
 }
 
-const sessionArg = process.argv[2] || undefined;
-const apiArg = process.argv[3] || undefined;
-generate(sessionArg, apiArg).catch((err) => {
-    console.error("Go generation failed:", err);
-    process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    const sessionArg = process.argv[2] || undefined;
+    const apiArg = process.argv[3] || undefined;
+    generate(sessionArg, apiArg).catch((err) => {
+        console.error("Go generation failed:", err);
+        process.exit(1);
+    });
+}

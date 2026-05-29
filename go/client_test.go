@@ -22,9 +22,8 @@ import (
 func TestClient_URLParsing(t *testing.T) {
 	t.Run("should parse port-only URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			CLIUrl: "8080",
+			Connection: UriConnection{URL: "8080"},
 		})
-
 		if client.actualPort != 8080 {
 			t.Errorf("Expected port 8080, got %d", client.actualPort)
 		}
@@ -38,206 +37,112 @@ func TestClient_URLParsing(t *testing.T) {
 
 	t.Run("should parse host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			CLIUrl: "127.0.0.1:9000",
+			Connection: UriConnection{URL: "127.0.0.1:9000"},
 		})
-
-		if client.actualPort != 9000 {
-			t.Errorf("Expected port 9000, got %d", client.actualPort)
-		}
-		if client.actualHost != "127.0.0.1" {
-			t.Errorf("Expected host 127.0.0.1, got %s", client.actualHost)
-		}
-		if !client.isExternalServer {
-			t.Error("Expected isExternalServer to be true")
+		if client.actualPort != 9000 || client.actualHost != "127.0.0.1" {
+			t.Errorf("Expected 127.0.0.1:9000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
 	t.Run("should parse http://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			CLIUrl: "http://localhost:7000",
+			Connection: UriConnection{URL: "http://localhost:7000"},
 		})
-
-		if client.actualPort != 7000 {
-			t.Errorf("Expected port 7000, got %d", client.actualPort)
-		}
-		if client.actualHost != "localhost" {
-			t.Errorf("Expected host localhost, got %s", client.actualHost)
-		}
-		if !client.isExternalServer {
-			t.Error("Expected isExternalServer to be true")
+		if client.actualPort != 7000 || client.actualHost != "localhost" {
+			t.Errorf("Expected localhost:7000, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
 	t.Run("should parse https://host:port URL format", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			CLIUrl: "https://example.com:443",
+			Connection: UriConnection{URL: "https://example.com:443"},
 		})
-
-		if client.actualPort != 443 {
-			t.Errorf("Expected port 443, got %d", client.actualPort)
-		}
-		if client.actualHost != "example.com" {
-			t.Errorf("Expected host example.com, got %s", client.actualHost)
-		}
-		if !client.isExternalServer {
-			t.Error("Expected isExternalServer to be true")
+		if client.actualPort != 443 || client.actualHost != "example.com" {
+			t.Errorf("Expected example.com:443, got %s:%d", client.actualHost, client.actualPort)
 		}
 	})
 
-	t.Run("should throw error for invalid URL format", func(t *testing.T) {
+	t.Run("should panic for invalid URL format", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
 				t.Error("Expected panic for invalid URL format")
-			} else {
-				matched, _ := regexp.MatchString("Invalid port in CLIUrl", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message to contain 'Invalid port in CLIUrl', got: %v", r)
-				}
 			}
 		}()
-
-		NewClient(&ClientOptions{
-			CLIUrl: "invalid-url",
-		})
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "invalid-url"}})
 	})
 
-	t.Run("should throw error for invalid port - too high", func(t *testing.T) {
+	t.Run("should panic for invalid port - too high", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for invalid port")
-			} else {
-				matched, _ := regexp.MatchString("Invalid port in CLIUrl", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message to contain 'Invalid port in CLIUrl', got: %v", r)
-				}
+				t.Error("Expected panic")
 			}
 		}()
-
-		NewClient(&ClientOptions{
-			CLIUrl: "localhost:99999",
-		})
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:99999"}})
 	})
 
-	t.Run("should throw error for invalid port - zero", func(t *testing.T) {
+	t.Run("should panic for invalid port - zero", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for invalid port")
-			} else {
-				matched, _ := regexp.MatchString("Invalid port in CLIUrl", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message to contain 'Invalid port in CLIUrl', got: %v", r)
-				}
+				t.Error("Expected panic")
 			}
 		}()
-
-		NewClient(&ClientOptions{
-			CLIUrl: "localhost:0",
-		})
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:0"}})
 	})
 
-	t.Run("should throw error for invalid port - negative", func(t *testing.T) {
+	t.Run("should panic for invalid port - negative", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for invalid port")
-			} else {
-				matched, _ := regexp.MatchString("Invalid port in CLIUrl", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message to contain 'Invalid port in CLIUrl', got: %v", r)
-				}
+				t.Error("Expected panic")
 			}
 		}()
-
-		NewClient(&ClientOptions{
-			CLIUrl: "localhost:-1",
-		})
+		NewClient(&ClientOptions{Connection: UriConnection{URL: "localhost:-1"}})
 	})
 
-	t.Run("should throw error when CLIUrl is used with UseStdio", func(t *testing.T) {
+	t.Run("should panic when UriConnection has empty URL", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for mutually exclusive options")
-			} else {
-				matched, _ := regexp.MatchString("CLIUrl is mutually exclusive", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message to contain 'CLIUrl is mutually exclusive', got: %v", r)
-				}
+				t.Error("Expected panic for empty URL")
 			}
 		}()
-
-		NewClient(&ClientOptions{
-			CLIUrl:   "localhost:8080",
-			UseStdio: Bool(true),
-		})
+		NewClient(&ClientOptions{Connection: UriConnection{}})
 	})
 
-	t.Run("should throw error when CLIUrl is used with CLIPath", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Error("Expected panic for mutually exclusive options")
-			} else {
-				matched, _ := regexp.MatchString("CLIUrl is mutually exclusive", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message to contain 'CLIUrl is mutually exclusive', got: %v", r)
-				}
-			}
-		}()
-
-		NewClient(&ClientOptions{
-			CLIUrl:  "localhost:8080",
-			CLIPath: "/path/to/cli",
-		})
-	})
-
-	t.Run("should set UseStdio to false when CLIUrl is provided", func(t *testing.T) {
-		client := NewClient(&ClientOptions{
-			CLIUrl: "8080",
-		})
-
-		if client.useStdio {
-			t.Error("Expected UseStdio to be false when CLIUrl is provided")
-		}
-	})
-
-	t.Run("should set UseStdio to true when UseStdio is set to true", func(t *testing.T) {
-		client := NewClient(&ClientOptions{
-			UseStdio: Bool(true),
-		})
-
+	t.Run("stdio connection uses stdio transport", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: StdioConnection{}})
 		if !client.useStdio {
-			t.Error("Expected UseStdio to be true when UseStdio is set to true")
+			t.Error("Expected useStdio=true for StdioConnection")
 		}
 	})
 
-	t.Run("should set UseStdio to false when UseStdio is set to false", func(t *testing.T) {
-		client := NewClient(&ClientOptions{
-			UseStdio: Bool(false),
-		})
-
+	t.Run("tcp connection uses tcp transport", func(t *testing.T) {
+		client := NewClient(&ClientOptions{Connection: TcpConnection{Port: 8080}})
 		if client.useStdio {
-			t.Error("Expected UseStdio to be false when UseStdio is set to false")
+			t.Error("Expected useStdio=false for TcpConnection")
+		}
+		if client.port != 8080 {
+			t.Errorf("Expected port=8080, got %d", client.port)
 		}
 	})
 
-	t.Run("should mark client as using external server", func(t *testing.T) {
+	t.Run("uri connection is treated as external server", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			CLIUrl: "localhost:8080",
+			Connection: UriConnection{URL: "localhost:8080"},
 		})
-
 		if !client.isExternalServer {
-			t.Error("Expected isExternalServer to be true when CLIUrl is provided")
+			t.Error("Expected isExternalServer=true for UriConnection")
 		}
 	})
 }
 
 func TestClient_SessionFsConfig(t *testing.T) {
-	t.Run("should throw error when InitialCwd is missing", func(t *testing.T) {
+	t.Run("should throw error when InitialWorkingDirectory is missing", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for missing SessionFs.InitialCwd")
+				t.Error("Expected panic for missing SessionFs.InitialWorkingDirectory")
 			} else {
-				matched, _ := regexp.MatchString("SessionFs.InitialCwd is required", r.(string))
+				matched, _ := regexp.MatchString("SessionFs.InitialWorkingDirectory is required", r.(string))
 				if !matched {
-					t.Errorf("Expected panic message to contain 'SessionFs.InitialCwd is required', got: %v", r)
+					t.Errorf("Expected panic message to contain 'SessionFs.InitialWorkingDirectory is required', got: %v", r)
 				}
 			}
 		}()
@@ -264,8 +169,8 @@ func TestClient_SessionFsConfig(t *testing.T) {
 
 		NewClient(&ClientOptions{
 			SessionFs: &SessionFsConfig{
-				InitialCwd:  "/",
-				Conventions: rpc.SessionFsSetProviderConventionsPosix,
+				InitialWorkingDirectory: "/",
+				Conventions:             rpc.SessionFsSetProviderConventionsPosix,
 			},
 		})
 	})
@@ -311,12 +216,12 @@ func TestClient_AuthOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("should throw error when GitHubToken is used with CLIUrl", func(t *testing.T) {
+	t.Run("should panic when GitHubToken is used with UriConnection", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for auth options with CLIUrl")
+				t.Error("Expected panic for auth options with UriConnection")
 			} else {
-				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
+				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with UriConnection", r.(string))
 				if !matched {
 					t.Errorf("Expected panic message about auth options, got: %v", r)
 				}
@@ -324,46 +229,41 @@ func TestClient_AuthOptions(t *testing.T) {
 		}()
 
 		NewClient(&ClientOptions{
-			CLIUrl:      "localhost:8080",
+			Connection:  UriConnection{URL: "localhost:8080"},
 			GitHubToken: "gho_test_token",
 		})
 	})
 
-	t.Run("should throw error when UseLoggedInUser is used with CLIUrl", func(t *testing.T) {
+	t.Run("should panic when UseLoggedInUser is used with UriConnection", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
-				t.Error("Expected panic for auth options with CLIUrl")
-			} else {
-				matched, _ := regexp.MatchString("GitHubToken and UseLoggedInUser cannot be used with CLIUrl", r.(string))
-				if !matched {
-					t.Errorf("Expected panic message about auth options, got: %v", r)
-				}
+				t.Error("Expected panic for auth options with UriConnection")
 			}
 		}()
 
 		NewClient(&ClientOptions{
-			CLIUrl:          "localhost:8080",
+			Connection:      UriConnection{URL: "localhost:8080"},
 			UseLoggedInUser: Bool(false),
 		})
 	})
 }
 
-func TestClient_CopilotHome(t *testing.T) {
-	t.Run("should accept CopilotHome option", func(t *testing.T) {
+func TestClient_BaseDirectory(t *testing.T) {
+	t.Run("should accept BaseDirectory option", func(t *testing.T) {
 		client := NewClient(&ClientOptions{
-			CopilotHome: "/custom/copilot/home",
+			BaseDirectory: "/custom/copilot/home",
 		})
 
-		if client.options.CopilotHome != "/custom/copilot/home" {
-			t.Errorf("Expected CopilotHome to be '/custom/copilot/home', got %q", client.options.CopilotHome)
+		if client.options.BaseDirectory != "/custom/copilot/home" {
+			t.Errorf("Expected BaseDirectory to be '/custom/copilot/home', got %q", client.options.BaseDirectory)
 		}
 	})
 
-	t.Run("should default CopilotHome to empty string", func(t *testing.T) {
+	t.Run("should default BaseDirectory to empty string", func(t *testing.T) {
 		client := NewClient(&ClientOptions{})
 
-		if client.options.CopilotHome != "" {
-			t.Errorf("Expected CopilotHome to be empty, got %q", client.options.CopilotHome)
+		if client.options.BaseDirectory != "" {
+			t.Errorf("Expected BaseDirectory to be empty, got %q", client.options.BaseDirectory)
 		}
 	})
 }
@@ -502,6 +402,110 @@ func TestResumeSessionRequest_ClientName(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_ReasoningSummary(t *testing.T) {
+	t.Run("create includes reasoningSummary in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ReasoningSummary: ReasoningSummaryConcise}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["reasoningSummary"] != "concise" {
+			t.Errorf("Expected reasoningSummary to be 'concise', got %v", m["reasoningSummary"])
+		}
+	})
+
+	t.Run("resume includes reasoningSummary in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ReasoningSummary: ReasoningSummaryNone}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["reasoningSummary"] != "none" {
+			t.Errorf("Expected reasoningSummary to be 'none', got %v", m["reasoningSummary"])
+		}
+	})
+}
+
+func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
+	pluginDirs := []string{"/tmp/plugins/a", "/tmp/plugins/b"}
+	enabled := true
+	maxBytes := int64(1024)
+	largeOutput := &LargeToolOutputConfig{
+		Enabled:         &enabled,
+		MaxSizeBytes:    &maxBytes,
+		OutputDirectory: "/tmp/large-output",
+	}
+
+	expectedLargeOutput := map[string]any{
+		"enabled":      true,
+		"maxSizeBytes": float64(1024),
+		"outputDir":    "/tmp/large-output",
+	}
+	expectedPluginDirs := []any{"/tmp/plugins/a", "/tmp/plugins/b"}
+
+	t.Run("create includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
+			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
+			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("resume includes pluginDirectories and largeOutput in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", PluginDirectories: pluginDirs, LargeOutput: largeOutput}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if !reflect.DeepEqual(m["pluginDirectories"], expectedPluginDirs) {
+			t.Errorf("Expected pluginDirectories %v, got %v", expectedPluginDirs, m["pluginDirectories"])
+		}
+		if !reflect.DeepEqual(m["largeOutput"], expectedLargeOutput) {
+			t.Errorf("Expected largeOutput %v, got %v", expectedLargeOutput, m["largeOutput"])
+		}
+	})
+
+	t.Run("create omits pluginDirectories and largeOutput when nil", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["pluginDirectories"]; ok {
+			t.Errorf("Expected pluginDirectories to be omitted")
+		}
+		if _, ok := m["largeOutput"]; ok {
+			t.Errorf("Expected largeOutput to be omitted")
+		}
+	})
+}
+
 func TestCreateSessionRequest_Agent(t *testing.T) {
 	t.Run("includes agent in JSON when set", func(t *testing.T) {
 		req := createSessionRequest{Agent: "test-agent"}
@@ -615,6 +619,70 @@ func TestResumeSessionRequest_InstructionDirectories(t *testing.T) {
 	})
 }
 
+func TestCreateSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
+	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{MCPOAuthTokenStorage: "in-memory"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["mcpOAuthTokenStorage"] != "in-memory" {
+			t.Errorf("Expected mcpOAuthTokenStorage to be 'in-memory', got %v", m["mcpOAuthTokenStorage"])
+		}
+	})
+
+	t.Run("omits mcpOAuthTokenStorage from JSON when empty", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["mcpOAuthTokenStorage"]; ok {
+			t.Error("Expected mcpOAuthTokenStorage to be omitted when empty")
+		}
+	})
+}
+
+func TestResumeSessionRequest_MCPOAuthTokenStorage(t *testing.T) {
+	t.Run("includes mcpOAuthTokenStorage in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", MCPOAuthTokenStorage: "persistent"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["mcpOAuthTokenStorage"] != "persistent" {
+			t.Errorf("Expected mcpOAuthTokenStorage to be 'persistent', got %v", m["mcpOAuthTokenStorage"])
+		}
+	})
+
+	t.Run("omits mcpOAuthTokenStorage from JSON when empty", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if _, ok := m["mcpOAuthTokenStorage"]; ok {
+			t.Error("Expected mcpOAuthTokenStorage to be omitted when empty")
+		}
+	})
+}
+
 func TestOverridesBuiltInTool(t *testing.T) {
 	t.Run("OverridesBuiltInTool is serialized in tool definition", func(t *testing.T) {
 		tool := Tool{
@@ -658,7 +726,7 @@ func TestOverridesBuiltInTool(t *testing.T) {
 
 func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
 	t.Run("accepts nil config before connection validation", func(t *testing.T) {
-		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
+		client := NewClient(&ClientOptions{Connection: StdioConnection{Path: "/__nonexistent_copilot_binary__"}})
 		_, err := client.CreateSession(t.Context(), nil)
 		if err == nil {
 			t.Fatal("Expected error when client is not connected")
@@ -669,7 +737,7 @@ func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
 	})
 
 	t.Run("accepts missing OnPermissionRequest before connection validation", func(t *testing.T) {
-		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
+		client := NewClient(&ClientOptions{Connection: StdioConnection{Path: "/__nonexistent_copilot_binary__"}})
 		_, err := client.CreateSession(t.Context(), &SessionConfig{})
 		if err == nil {
 			t.Fatal("Expected error when client is not connected")
@@ -682,7 +750,7 @@ func TestClient_CreateSession_AllowsMissingPermissionHandler(t *testing.T) {
 
 func TestClient_ResumeSession_AllowsMissingPermissionHandler(t *testing.T) {
 	t.Run("accepts nil config before connection validation", func(t *testing.T) {
-		client := NewClient(&ClientOptions{AutoStart: Bool(false)})
+		client := NewClient(&ClientOptions{Connection: StdioConnection{Path: "/__nonexistent_copilot_binary__"}})
 		_, err := client.ResumeSessionWithOptions(t.Context(), "some-id", nil)
 		if err == nil {
 			t.Fatal("Expected error when client is not connected")
@@ -758,7 +826,7 @@ func TestClient_StartContextCancellationDoesNotKillProcess(t *testing.T) {
 		t.Skip("CLI not found")
 	}
 
-	client := NewClient(&ClientOptions{CLIPath: cliPath})
+	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	t.Cleanup(func() { client.ForceStop() })
 
 	// Start with a context, then cancel it after the client is connected.
@@ -783,7 +851,7 @@ func TestClient_StartStopRace(t *testing.T) {
 	if cliPath == "" {
 		t.Skip("CLI not found")
 	}
-	client := NewClient(&ClientOptions{CLIPath: cliPath})
+	client := NewClient(&ClientOptions{Connection: StdioConnection{Path: cliPath}})
 	defer client.ForceStop()
 	errChan := make(chan error)
 	wg := sync.WaitGroup{}
@@ -1042,6 +1110,65 @@ func TestResumeSessionRequest_RequestElicitation(t *testing.T) {
 		json.Unmarshal(data, &m)
 		if _, ok := m["requestElicitation"]; ok {
 			t.Error("Expected requestElicitation to be omitted when not set")
+		}
+	})
+}
+
+func TestCreateSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := createSessionRequest{
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := createSessionRequest{}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
+		}
+	})
+}
+
+func TestResumeSessionRequest_RequestMcpApps(t *testing.T) {
+	t.Run("sends requestMcpApps flag when EnableMcpApps is set", func(t *testing.T) {
+		req := resumeSessionRequest{
+			SessionID:      "s1",
+			RequestMcpApps: Bool(true),
+		}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["requestMcpApps"] != true {
+			t.Errorf("Expected requestMcpApps to be true, got %v", m["requestMcpApps"])
+		}
+	})
+
+	t.Run("does not send requestMcpApps when EnableMcpApps is unset", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1"}
+		data, _ := json.Marshal(req)
+		var m map[string]any
+		json.Unmarshal(data, &m)
+		if _, ok := m["requestMcpApps"]; ok {
+			t.Error("Expected requestMcpApps to be omitted when not set")
 		}
 	})
 }
