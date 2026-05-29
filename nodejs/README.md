@@ -1029,6 +1029,50 @@ try {
 }
 ```
 
+## Electron Usage
+
+When the SDK is loaded inside an **Electron main process**, `process.execPath`
+resolves to the Electron binary rather than a Node executable.  Naively
+spawning the bundled `.js` CLI with the Electron binary fails in two ways:
+
+1. **Bare spawn** — Electron treats it as a second app launch.  Hosts that
+   call `app.requestSingleInstanceLock()` (the common pattern) cause the
+   second instance to exit immediately with code 0.  The SDK's startup
+   handshake then throws `CLI server exited unexpectedly with code 0`, which
+   looks like an authentication problem but is actually a process-launch issue.
+
+2. **`ELECTRON_RUN_AS_NODE=1` alone** — Electron behaves as Node, but
+   `process.versions.electron` is still set inside the child process.
+   Commander auto-detects this and uses Electron argv parsing, misclassifying
+   `--headless` as a positional argument and aborting with
+   `error: too many arguments`.
+
+### Automatic fix (no configuration needed)
+
+The SDK detects `process.versions.electron !== undefined` at spawn time and
+automatically injects `ELECTRON_RUN_AS_NODE=1` and `COPILOT_CLI_RUN_AS_NODE=1`
+into the child process environment.  You do **not** need to set these manually.
+
+Existing values in `options.env` are never overwritten, so you can always
+override the injected defaults explicitly if needed.
+
+### `nodeExecPath` escape hatch
+
+If your Electron app bundles or locates a real Node binary, you can point the
+SDK at it with the `nodeExecPath` option.  The SDK will use that binary
+directly instead of the Electron executable, bypassing the need for the
+injected env-vars entirely:
+
+```typescript
+import { CopilotClient } from "@github/copilot-sdk";
+
+const client = new CopilotClient({
+    // Path to a bundled / system Node binary, not the Electron executable.
+    nodeExecPath: process.env.MY_APP_NODE_PATH ?? "node",
+});
+await client.start();
+```
+
 ## Requirements
 
 - Node.js >= 18.0.0

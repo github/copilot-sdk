@@ -315,6 +315,24 @@ export interface CopilotClientOptions {
     enableRemoteSessions?: boolean;
 
     /**
+     * Path to a Node.js executable used when spawning the bundled `.js` CLI.
+     *
+     * In an Electron main process, `process.execPath` resolves to the Electron
+     * binary, not Node, which breaks the spawn. Set this to a real `node`
+     * binary path (e.g. from `process.env.ELECTRON_APP_BUNDLED_NODE_PATH` or a
+     * fixed path shipped with the app) to bypass the issue entirely.
+     *
+     * When omitted and the SDK detects an Electron host
+     * (`process.versions.electron` is defined), it automatically injects
+     * `ELECTRON_RUN_AS_NODE=1` and `COPILOT_CLI_RUN_AS_NODE=1` into the spawn
+     * environment so the CLI starts correctly without a separate Node binary.
+     *
+     * Has no effect when connecting to an existing runtime via
+     * {@link RuntimeConnection.forUri}.
+     */
+    nodeExecPath?: string;
+
+    /**
      * @internal Hook used by `joinSession()` to construct a client that talks
      * to its parent process over stdio. Not part of the public API.
      */

@@ -221,11 +221,43 @@ function extractTransformCallbacks(systemMessage: SessionConfig["systemMessage"]
     return { wirePayload, transformCallbacks };
 }
 
-function getNodeExecPath(): string {
+/**
+ * Gets the path to the Node executable for spawning the CLI.
+ * Prefers `override` when provided, then the Electron-aware default, then
+ * `process.execPath`.
+ *
+ * @internal Exported for unit testing only.
+ */
+export function getNodeExecPath(override?: string): string {
+    if (override !== undefined) {
+        return override;
+    }
     if (process.versions.bun) {
         return "node";
     }
     return process.execPath;
+}
+
+/**
+ * Mutates `env` to add the env-vars needed to spawn a `.js` CLI from an
+ * Electron main process.  No-ops when the host is not Electron or when the
+ * CLI is not a `.js` file.  Does not overwrite values the caller already set.
+ *
+ * - `ELECTRON_RUN_AS_NODE=1` — makes the Electron binary behave as Node.
+ * - `COPILOT_CLI_RUN_AS_NODE=1` — tells the CLI to use `{ from: "node" }`
+ *   argv parsing so Commander does not misclassify `--headless` as a
+ *   positional argument.
+ *
+ * @internal Exported for unit testing only.
+ */
+export function applyElectronSpawnEnv(
+    env: Record<string, string | undefined>,
+    isJsFile: boolean,
+): void {
+    if (isJsFile && process.versions.electron !== undefined) {
+        env.ELECTRON_RUN_AS_NODE ??= "1";
+        env.COPILOT_CLI_RUN_AS_NODE ??= "1";
+    }
 }
 
 /**
@@ -321,6 +353,7 @@ export class CopilotClient {
         sessionIdleTimeoutSeconds: number;
         enableRemoteSessions: boolean;
         mode: CopilotClientMode;
+        nodeExecPath?: string;
     };
     private isExternalServer: boolean = false;
     private forceStopping: boolean = false;
@@ -469,6 +502,7 @@ export class CopilotClient {
             sessionIdleTimeoutSeconds: options.sessionIdleTimeoutSeconds ?? 0,
             enableRemoteSessions: options.enableRemoteSessions ?? false,
             mode: options.mode ?? "copilot-cli",
+            nodeExecPath: options.nodeExecPath,
         };
 
         // Empty mode: validate at construction time that the app supplied a
@@ -1953,13 +1987,20 @@ export class CopilotClient {
 
             // For .js files, spawn node explicitly; for executables, spawn directly
             const isJsFile = this.resolvedCliPath.endsWith(".js");
+            // When running inside an Electron host, inject the env-vars needed to
+            // make spawn behave correctly (see applyElectronSpawnEnv for details).
+            applyElectronSpawnEnv(envWithoutNodeDebug, isJsFile);
             if (isJsFile) {
-                this.cliProcess = spawn(getNodeExecPath(), [this.resolvedCliPath, ...args], {
-                    stdio: stdioConfig,
-                    cwd: this.options.workingDirectory,
-                    env: envWithoutNodeDebug,
-                    windowsHide: true,
-                });
+                this.cliProcess = spawn(
+                    getNodeExecPath(this.options.nodeExecPath),
+                    [this.resolvedCliPath, ...args],
+                    {
+                        stdio: stdioConfig,
+                        cwd: this.options.workingDirectory,
+                        env: envWithoutNodeDebug,
+                        windowsHide: true,
+                    },
+                );
             } else {
                 this.cliProcess = spawn(this.resolvedCliPath, args, {
                     stdio: stdioConfig,
