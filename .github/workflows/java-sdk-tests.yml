@@ -118,12 +118,12 @@ jobs:
           retention-days: 1
 
       - name: Generate JaCoCo badge
-        if: false # Disabled because it always fails on main
+        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
         working-directory: .
-        run: .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
+        run: bash .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
 
       - name: Create PR for JaCoCo badge update
-        if: false # Disabled because it always fails on main
+        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
         with:
           commit-message: "Update Java JaCoCo coverage badge"
