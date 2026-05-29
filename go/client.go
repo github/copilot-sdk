@@ -605,6 +605,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.ClientName = config.ClientName
 	req.ReasoningEffort = config.ReasoningEffort
 	req.ReasoningSummary = config.ReasoningSummary
+	req.ContextTier = config.ContextTier
 	req.ConfigDir = config.ConfigDirectory
 	if config.EnableConfigDiscovery {
 		req.EnableConfigDiscovery = Bool(true)
@@ -916,6 +917,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.Model = config.Model
 	req.ReasoningEffort = config.ReasoningEffort
 	req.ReasoningSummary = config.ReasoningSummary
+	req.ContextTier = config.ContextTier
 	systemMessage := c.systemMessageForMode(config.SystemMessage)
 	wireSystemMessage, transformCallbacks := extractTransformCallbacks(systemMessage)
 	req.SystemMessage = wireSystemMessage

@@ -1100,6 +1100,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
+                contextTier: config.contextTier,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -1279,6 +1280,7 @@ export class CopilotClient {
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
                 reasoningSummary: config.reasoningSummary,
+                contextTier: config.contextTier,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,

@@ -55,6 +55,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
@@ -156,6 +158,8 @@ pub(crate) struct SessionResumeWire {
     pub reasoning_effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_summary: Option<ReasoningSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_tier: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

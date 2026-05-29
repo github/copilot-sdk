@@ -2452,6 +2452,7 @@ public abstract class SessionConfigBase
         ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
         ReasoningSummary = other.ReasoningSummary;
+        ContextTier = other.ContextTier;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
@@ -2492,6 +2493,12 @@ public abstract class SessionConfigBase
     /// Use <see cref="ReasoningSummary.None"/> to suppress summary output regardless of whether reasoning is enabled.
     /// </remarks>
     public ReasoningSummary? ReasoningSummary { get; set; }
+
+    /// <summary>
+    /// Context window tier for models that support it.
+    /// Valid values: "default", "long_context".
+    /// </summary>
+    public string? ContextTier { get; set; }
 
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }

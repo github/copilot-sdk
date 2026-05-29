@@ -1157,6 +1157,9 @@ pub struct SessionConfig {
     /// reasoning summaries. Use [`ReasoningSummary::None`] to suppress
     /// summary output regardless of whether reasoning is enabled.
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Context window tier for models that support it. Use `"long_context"`
+    /// to pin the session to the long-context tier.
+    pub context_tier: Option<String>,
     /// Enable streaming token deltas via `assistant.message_delta` events.
     pub streaming: Option<bool>,
     /// Custom system message configuration.
@@ -1370,6 +1373,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
+            .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
@@ -1482,6 +1486,7 @@ impl Default for SessionConfig {
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
+            context_tier: None,
             streaming: None,
             system_message: None,
             tools: None,
@@ -1616,6 +1621,7 @@ impl SessionConfig {
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
+            context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
@@ -1812,6 +1818,12 @@ impl SessionConfig {
     /// Set [`reasoning_summary`](Self::reasoning_summary).
     pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
         self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set the context window tier (e.g. `"default"`, `"long_context"`).
+    pub fn with_context_tier(mut self, tier: impl Into<String>) -> Self {
+        self.context_tier = Some(tier.into());
         self
     }
 
@@ -2163,6 +2175,9 @@ pub struct ResumeSessionConfig {
     /// [`ReasoningSummary::None`] to suppress summary output regardless of
     /// whether reasoning is enabled.
     pub reasoning_summary: Option<ReasoningSummary>,
+    /// Context window tier to apply after resuming the session. Use
+    /// `"long_context"` to pin the session to the long-context tier.
+    pub context_tier: Option<String>,
     /// Enable streaming token deltas.
     pub streaming: Option<bool>,
     /// Re-supply the system message so the agent retains workspace context
@@ -2319,6 +2334,7 @@ impl std::fmt::Debug for ResumeSessionConfig {
             .field("client_name", &self.client_name)
             .field("reasoning_effort", &self.reasoning_effort)
             .field("reasoning_summary", &self.reasoning_summary)
+            .field("context_tier", &self.context_tier)
             .field("streaming", &self.streaming)
             .field("system_message", &self.system_message)
             .field("tools", &self.tools)
@@ -2469,6 +2485,7 @@ impl ResumeSessionConfig {
             client_name: self.client_name,
             reasoning_effort: self.reasoning_effort,
             reasoning_summary: self.reasoning_summary,
+            context_tier: self.context_tier,
             streaming: self.streaming,
             system_message: self.system_message,
             tools: self.tools,
@@ -2549,6 +2566,7 @@ impl ResumeSessionConfig {
             client_name: None,
             reasoning_effort: None,
             reasoning_summary: None,
+            context_tier: None,
             streaming: None,
             system_message: None,
             tools: None,
@@ -2712,6 +2730,13 @@ impl ResumeSessionConfig {
     /// Set [`reasoning_summary`](Self::reasoning_summary).
     pub fn with_reasoning_summary(mut self, summary: ReasoningSummary) -> Self {
         self.reasoning_summary = Some(summary);
+        self
+    }
+
+    /// Set the context window tier to apply on resume (e.g. `"default"`,
+    /// `"long_context"`).
+    pub fn with_context_tier(mut self, tier: impl Into<String>) -> Self {
+        self.context_tier = Some(tier.into());
         self
     }
 

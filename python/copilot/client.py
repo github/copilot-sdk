@@ -77,6 +77,7 @@ from .generated.session_events import (
 from .session import (
     AutoModeSwitchHandler,
     CommandDefinition,
+    ContextTier,
     CopilotSession,
     CreateSessionFsHandler,
     CustomAgentConfig,
@@ -1562,6 +1563,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
@@ -1633,6 +1635,8 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            context_tier: Context window tier for models that support it. Use
+                ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
@@ -1779,6 +1783,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if context_tier:
+            payload["contextTier"] = context_tier
         if tool_defs:
             payload["tools"] = tool_defs
 
@@ -2123,6 +2129,7 @@ class CopilotClient:
         client_name: str | None = None,
         reasoning_effort: ReasoningEffort | None = None,
         reasoning_summary: ReasoningSummary | None = None,
+        context_tier: ContextTier | None = None,
         tools: list[Tool] | None = None,
         system_message: SystemMessageConfig | None = None,
         available_tools: list[str] | ToolSet | None = None,
@@ -2195,6 +2202,8 @@ class CopilotClient:
             reasoning_summary: Reasoning summary mode for supported models.
                 Use ``"none"`` to suppress summary output regardless of whether
                 reasoning is enabled.
+            context_tier: Context window tier for models that support it. Use
+                ``"long_context"`` to pin the session to the long-context tier.
             tools: Custom tools to register with the session.
             system_message: System message configuration.
             available_tools: Allowlist of tools to enable. When specified, only
@@ -2342,6 +2351,8 @@ class CopilotClient:
             payload["reasoningEffort"] = reasoning_effort
         if reasoning_summary:
             payload["reasoningSummary"] = reasoning_summary
+        if context_tier:
+            payload["contextTier"] = context_tier
         if tool_defs:
             payload["tools"] = tool_defs
         wire_system_message, transform_callbacks = _extract_transform_callbacks(system_message)
