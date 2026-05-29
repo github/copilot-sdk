@@ -53,8 +53,18 @@ export async function joinSession(config: JoinSessionConfig = {}): Promise<Copil
     }
 
     const client = new CopilotClient({ _internalConnection: { kind: "parent-process" } });
+
+    // Strip `extensionSdkPath` at runtime even though `JoinSessionConfig` omits it
+    // at the type level — untyped (JS) callers can still slip it through, and
+    // honoring it here would be misleading since the extension subprocess has
+    // already been forked by the host with the SDK the host chose.
+    const { extensionSdkPath: _stripped, ...rest } = config as JoinSessionConfig & {
+        extensionSdkPath?: string;
+    };
+    void _stripped;
+
     return client.resumeSession(sessionId, {
-        ...config,
+        ...rest,
         onPermissionRequest: config.onPermissionRequest ?? defaultJoinSessionPermissionHandler,
         suppressResumeEvent: config.suppressResumeEvent ?? true,
     });
