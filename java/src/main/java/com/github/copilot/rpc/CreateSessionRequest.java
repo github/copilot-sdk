@@ -39,6 +39,9 @@ public final class CreateSessionRequest {
     @JsonProperty("reasoningSummary")
     private String reasoningSummary;
 
+    @JsonProperty("contextTier")
+    private String contextTier;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -232,6 +235,16 @@ public final class CreateSessionRequest {
      */
     public void setReasoningSummary(String reasoningSummary) {
         this.reasoningSummary = reasoningSummary;
+    }
+
+    /** Gets the context window tier. @return the context window tier */
+    public String getContextTier() {
+        return contextTier;
+    }
+
+    /** Sets the context window tier. @param contextTier the context window tier */
+    public void setContextTier(String contextTier) {
+        this.contextTier = contextTier;
     }
 
     /** Gets the tools. @return the tool definitions */
