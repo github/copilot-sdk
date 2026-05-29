@@ -3468,7 +3468,7 @@ impl<'a> SessionRpcModel<'a> {
     ///
     /// # Returns
     ///
-    /// The currently selected model and reasoning effort for the session.
+    /// The currently selected model, reasoning effort, and context tier for the session.
     ///
     /// <div class="warning">
     ///

@@ -266,6 +266,18 @@ export type ContentFilterMode =
   /** Remove characters that can hide directives. */
   | "hidden_characters";
 /**
+ * Context tier currently pinned for the session, when one is set. Reflects `Session.getContextTier()`, restored from the session journal on resume.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "ModelCurrentContextTier".
+ */
+/** @experimental */
+export type ModelCurrentContextTier =
+  /** Use the model's default context window. */
+  | "default"
+  /** Pin the session to the long-context tier when supported. */
+  | "long_context";
+/**
  * Server transport type: stdio, http, sse (deprecated), or memory
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -2814,7 +2826,7 @@ export interface ConnectResult {
   version: string;
 }
 /**
- * The currently selected model and reasoning effort for the session.
+ * The currently selected model, reasoning effort, and context tier for the session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "CurrentModel".
@@ -2829,6 +2841,7 @@ export interface CurrentModel {
    * Reasoning effort level currently applied to the active model, when one is set. Reads `Session.getReasoningEffort()` synchronously after `getSelectedModel()` resolves so the two values are reported as a snapshot.
    */
   reasoningEffort?: string;
+  contextTier?: ModelCurrentContextTier;
 }
 /**
  * Lightweight metadata for a currently initialized session tool
@@ -10693,7 +10706,7 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
             /**
              * Gets the currently selected model for the session.
              *
-             * @returns The currently selected model and reasoning effort for the session.
+             * @returns The currently selected model, reasoning effort, and context tier for the session.
              */
             getCurrent: async (): Promise<CurrentModel> =>
                 connection.sendRequest("session.model.getCurrent", { sessionId }),

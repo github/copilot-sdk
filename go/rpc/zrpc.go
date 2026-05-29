@@ -904,9 +904,12 @@ type CopilotUserResponseQuotaSnapshotsPremiumInteractions struct {
 	Unlimited         *bool    `json:"unlimited,omitempty"`
 }
 
-// The currently selected model and reasoning effort for the session.
+// The currently selected model, reasoning effort, and context tier for the session.
 // Experimental: CurrentModel is part of an experimental API and may change or be removed.
 type CurrentModel struct {
+	// Context tier currently pinned for the session, when one is set. Reflects
+	// `Session.getContextTier()`, restored from the session journal on resume.
+	ContextTier *ModelCurrentContextTier `json:"contextTier,omitempty"`
 	// Currently active model identifier
 	ModelID *string `json:"modelId,omitempty"`
 	// Reasoning effort level currently applied to the active model, when one is set. Reads
@@ -7312,6 +7315,19 @@ const (
 	MetadataSnapshotRemoteMetadataTaskTypeCli MetadataSnapshotRemoteMetadataTaskType = "cli"
 )
 
+// Context tier currently pinned for the session, when one is set. Reflects
+// `Session.getContextTier()`, restored from the session journal on resume.
+// Experimental: ModelCurrentContextTier is part of an experimental API and may change or be
+// removed.
+type ModelCurrentContextTier string
+
+const (
+	// Use the model's default context window.
+	ModelCurrentContextTierDefault ModelCurrentContextTier = "default"
+	// Pin the session to the long-context tier when supported.
+	ModelCurrentContextTierLongContext ModelCurrentContextTier = "long_context"
+)
+
 // Model capability category for grouping in the model picker
 type ModelPickerCategory string
 
@@ -10271,7 +10287,7 @@ type ModelApi sessionApi
 //
 // RPC method: session.model.getCurrent.
 //
-// Returns: The currently selected model and reasoning effort for the session.
+// Returns: The currently selected model, reasoning effort, and context tier for the session.
 func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	raw, err := a.client.Request("session.model.getCurrent", req)
