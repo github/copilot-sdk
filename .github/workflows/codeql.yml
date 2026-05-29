@@ -15,23 +15,18 @@ permissions:
 jobs:
   changes:
     name: Detect changed paths
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      java: ${{ steps.filter.outputs.java }}
-      js: ${{ steps.filter.outputs.js }}
-      python: ${{ steps.filter.outputs.python }}
-      go: ${{ steps.filter.outputs.go }}
-      rust: ${{ steps.filter.outputs.rust }}
-      csharp: ${{ steps.filter.outputs.csharp }}
-      actions: ${{ steps.filter.outputs.actions }}
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: dorny/paths-filter@v3
         id: filter
+        if: github.event_name == 'pull_request'
         with:
           filters: |
             java:
@@ -52,51 +47,56 @@ jobs:
               - '.github/workflows/**'
               - '.github/actions/**'
 
+      - name: Build language matrix
+        id: build-matrix
+        run: |
+          # On push/schedule, analyse ALL languages.
+          # On pull_request, only those whose paths changed.
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            matrix='{"include":[{"language":"java-kotlin"},{"language":"javascript-typescript"},{"language":"python"},{"language":"go"},{"language":"rust"},{"language":"csharp"},{"language":"actions"}]}'
+          else
+            entries=()
+            [[ "${{ steps.filter.outputs.java }}" == "true" ]]    && entries+=('{"language":"java-kotlin"}')
+            [[ "${{ steps.filter.outputs.js }}" == "true" ]]      && entries+=('{"language":"javascript-typescript"}')
+            [[ "${{ steps.filter.outputs.python }}" == "true" ]]  && entries+=('{"language":"python"}')
+            [[ "${{ steps.filter.outputs.go }}" == "true" ]]      && entries+=('{"language":"go"}')
+            [[ "${{ steps.filter.outputs.rust }}" == "true" ]]    && entries+=('{"language":"rust"}')
+            [[ "${{ steps.filter.outputs.csharp }}" == "true" ]]  && entries+=('{"language":"csharp"}')
+            [[ "${{ steps.filter.outputs.actions }}" == "true" ]] && entries+=('{"language":"actions"}')
+
+            if [[ ${#entries[@]} -eq 0 ]]; then
+              matrix='{"include":[]}'
+            else
+              joined=$(IFS=,; echo "${entries[*]}")
+              matrix="{\"include\":[${joined}]}"
+            fi
+          fi
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
   analyze:
     name: Analyze (${{ matrix.language }})
     needs: changes
-    # Run even if 'changes' is skipped (e.g. on push/schedule where paths-filter
-    # may not flag changes). Each step has its own gate condition.
-    if: always()
+    if: ${{ fromJson(needs.changes.outputs.matrix).include[0] != null }}
     runs-on: ubuntu-latest
     permissions:
       security-events: write
       contents: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - language: java-kotlin
-            gate: java
-          - language: javascript-typescript
-            gate: js
-          - language: python
-            gate: python
-          - language: go
-            gate: go
-          - language: rust
-            gate: rust
-          - language: csharp
-            gate: csharp
-          - language: actions
-            gate: actions
+      matrix: ${{ fromJson(needs.changes.outputs.matrix) }}
     steps:
       - name: Checkout repository
-        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
         uses: actions/checkout@v4
 
       - name: Initialize CodeQL
-        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
 
       - name: Autobuild
-        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
         uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
-        if: ${{ needs.changes.outputs[matrix.gate] == 'true' || github.event_name == 'schedule' || github.event_name == 'push' }}
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{ matrix.language }}"
