@@ -2392,9 +2392,6 @@ public sealed class CloudSessionOptions
 
 /// <summary>
 /// Context window tier for models that support tiered context windows.
-/// Use the well-known values exposed as static members (<see cref="Default"/>,
-/// <see cref="LongContext"/>), or construct your own with
-/// <see cref="ContextTier(string)"/> if the runtime accepts additional values.
 /// </summary>
 [JsonConverter(typeof(ContextTier.Converter))]
 [DebuggerDisplay("{Value,nq}")]
