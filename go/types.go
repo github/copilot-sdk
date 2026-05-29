@@ -1094,6 +1094,12 @@ type SessionConfig struct {
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
 	RequestExtensions *bool
+	// ExtensionSdkPath optionally overrides the bundled `@github/copilot-sdk` drop
+	// injected into extension subprocesses. When set to an absolute path containing
+	// a valid `copilot-sdk/` folder (with `index.js` and `extension.js` at the
+	// root), the host injects the override into every forked extension; invalid or
+	// missing paths fall back to the bundled SDK silently.
+	ExtensionSdkPath *string
 	// CanvasHandler receives inbound canvas.open / canvas.close / canvas.action.invoke
 	// requests for this session. The SDK does not maintain a per-canvas registry;
 	// the handler must dispatch on CanvasProviderOpenRequest.CanvasID itself.
@@ -1429,6 +1435,9 @@ type ResumeSessionConfig struct {
 	RequestCanvasRenderer *bool
 	// RequestExtensions asks the host to surface declared canvases as agent-visible extensions.
 	RequestExtensions *bool
+	// ExtensionSdkPath optionally overrides the bundled `@github/copilot-sdk` drop
+	// injected into extension subprocesses. See SessionConfig.ExtensionSdkPath.
+	ExtensionSdkPath *string
 	// CanvasHandler receives inbound canvas.* requests for this session. See SessionConfig.CanvasHandler.
 	CanvasHandler CanvasHandler `json:"-"`
 	// ExtensionInfo identifies the stable extension providing this session's canvases.
@@ -1696,6 +1705,7 @@ type createSessionRequest struct {
 	Canvases                           []CanvasDeclaration                    `json:"canvases,omitempty"`
 	RequestCanvasRenderer              *bool                                  `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
+	ExtensionSdkPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`
@@ -1774,6 +1784,7 @@ type resumeSessionRequest struct {
 	OpenCanvases                       []rpc.OpenCanvasInstance               `json:"openCanvases,omitempty"`
 	RequestCanvasRenderer              *bool                                  `json:"requestCanvasRenderer,omitempty"`
 	RequestExtensions                  *bool                                  `json:"requestExtensions,omitempty"`
+	ExtensionSdkPath                   *string                                `json:"extensionSdkPath,omitempty"`
 	ExtensionInfo                      *ExtensionInfo                         `json:"extensionInfo,omitempty"`
 	Traceparent                        string                                 `json:"traceparent,omitempty"`
 	Tracestate                         string                                 `json:"tracestate,omitempty"`

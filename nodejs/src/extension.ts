@@ -22,7 +22,7 @@ export {
     type CanvasOptions,
 } from "./canvas.js";
 
-export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest"> & {
+export type JoinSessionConfig = Omit<ResumeSessionConfig, "onPermissionRequest" | "extensionSdkPath"> & {
     onPermissionRequest?: PermissionHandler;
 };
 

@@ -654,6 +654,7 @@ func (c *Client) CreateSession(ctx context.Context, config *SessionConfig) (*Ses
 	req.Canvases = config.Canvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
+	req.ExtensionSdkPath = config.ExtensionSdkPath
 
 	if len(config.Commands) > 0 {
 		cmds := make([]wireCommand, 0, len(config.Commands))
@@ -992,6 +993,7 @@ func (c *Client) ResumeSessionWithOptions(ctx context.Context, sessionID string,
 	req.OpenCanvases = config.OpenCanvases
 	req.RequestCanvasRenderer = config.RequestCanvasRenderer
 	req.RequestExtensions = config.RequestExtensions
+	req.ExtensionSdkPath = config.ExtensionSdkPath
 	if config.OnPermissionRequest != nil {
 		req.RequestPermission = Bool(true)
 	}

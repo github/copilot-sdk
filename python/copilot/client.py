@@ -1612,6 +1612,7 @@ class CopilotClient:
         canvases: list[CanvasDeclaration] | None = None,
         request_canvas_renderer: bool | None = None,
         request_extensions: bool | None = None,
+        extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
     ) -> CopilotSession:
@@ -2173,6 +2174,7 @@ class CopilotClient:
         canvases: list[CanvasDeclaration] | None = None,
         request_canvas_renderer: bool | None = None,
         request_extensions: bool | None = None,
+        extension_sdk_path: str | None = None,
         extension_info: ExtensionInfo | None = None,
         canvas_handler: CanvasHandler | None = None,
         open_canvases: list[OpenCanvasInstance] | None = None,
@@ -2479,6 +2481,8 @@ class CopilotClient:
             payload["requestCanvasRenderer"] = request_canvas_renderer
         if request_extensions is not None:
             payload["requestExtensions"] = request_extensions
+        if extension_sdk_path is not None:
+            payload["extensionSdkPath"] = extension_sdk_path
         if extension_info is not None:
             payload["extensionInfo"] = extension_info.to_dict()
 
