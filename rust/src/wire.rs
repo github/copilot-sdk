@@ -22,9 +22,11 @@ use crate::canvas::CanvasDeclaration;
 use crate::generated::api_types::{
     ModelCapabilitiesOverride, OpenCanvasInstance, RemoteSessionMode,
 };
+use crate::generated::session_events::ReasoningSummary;
 use crate::types::{
     CloudSessionOptions, CustomAgentConfig, DefaultAgentConfig, ExtensionInfo,
-    InfiniteSessionConfig, McpServerConfig, ProviderConfig, SessionId, SystemMessageConfig, Tool,
+    InfiniteSessionConfig, LargeToolOutputConfig, McpServerConfig, ProviderConfig, SessionId,
+    SystemMessageConfig, Tool,
 };
 
 /// Wire representation of a slash command (name + description only). The
@@ -51,6 +53,8 @@ pub(crate) struct SessionCreateWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
@@ -73,19 +77,42 @@ pub(crate) struct SessionCreateWire {
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_oauth_token_storage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_cache_storage: Option<String>,
     pub env_value_mode: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_embedding_retrieval: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_custom_instructions: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_hooks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_host_git_operations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_skills: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
+    pub request_mcp_apps: bool,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub large_output: Option<LargeToolOutputConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -128,6 +155,8 @@ pub(crate) struct SessionResumeWire {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_summary: Option<ReasoningSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub streaming: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_message: Option<SystemMessageConfig>,
@@ -151,19 +180,42 @@ pub(crate) struct SessionResumeWire {
     pub tool_filter_precedence: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_servers: Option<HashMap<String, McpServerConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_oauth_token_storage: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding_cache_storage: Option<String>,
     pub env_value_mode: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_config_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skip_embedding_retrieval: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_custom_instructions: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_on_demand_instruction_discovery: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_file_hooks: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_host_git_operations: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_session_store: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_skills: Option<bool>,
     pub request_user_input: bool,
     pub request_permission: bool,
     pub request_exit_plan_mode: bool,
     pub request_auto_mode_switch: bool,
     pub request_elicitation: bool,
+    pub request_mcp_apps: bool,
     pub hooks: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub skill_directories: Option<Vec<PathBuf>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin_directories: Option<Vec<PathBuf>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub large_output: Option<LargeToolOutputConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disabled_skills: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

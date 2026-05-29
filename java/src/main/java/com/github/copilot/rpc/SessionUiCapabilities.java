@@ -21,6 +21,9 @@ public class SessionUiCapabilities {
     @JsonProperty("elicitation")
     private Boolean elicitation;
 
+    @JsonProperty("mcpApps")
+    private Boolean mcpApps;
+
     /**
      * Returns whether the host supports interactive elicitation dialogs.
      *
@@ -50,6 +53,43 @@ public class SessionUiCapabilities {
      */
     public SessionUiCapabilities clearElicitation() {
         this.elicitation = null;
+        return this;
+    }
+
+    /**
+     * Returns whether the runtime has accepted the session's MCP Apps (SEP-1865)
+     * opt-in. Present and {@code true} when the consumer set
+     * {@code enableMcpApps=true} on create/resume <b>and</b> the runtime's
+     * {@code MCP_APPS} feature flag (or {@code COPILOT_MCP_APPS=true} env override)
+     * is on. Otherwise empty or {@code false}, indicating the runtime silently
+     * dropped the opt-in.
+     *
+     * @return an {@link Optional} containing the boolean value, or empty if not set
+     */
+    @JsonIgnore
+    public Optional<Boolean> getMcpApps() {
+        return Optional.ofNullable(mcpApps);
+    }
+
+    /**
+     * Sets whether the runtime has accepted the MCP Apps opt-in.
+     *
+     * @param mcpApps
+     *            {@code true} if MCP Apps is enabled for this session
+     * @return this instance for method chaining
+     */
+    public SessionUiCapabilities setMcpApps(boolean mcpApps) {
+        this.mcpApps = mcpApps;
+        return this;
+    }
+
+    /**
+     * Clears the mcpApps setting.
+     *
+     * @return this instance for method chaining
+     */
+    public SessionUiCapabilities clearMcpApps() {
+        this.mcpApps = null;
         return this;
     }
 

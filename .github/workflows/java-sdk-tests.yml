@@ -37,10 +37,14 @@ permissions:
 
 jobs:
   java-sdk:
-    name: "Java SDK Tests"
+    name: "Java SDK Tests (JDK ${{ matrix.test-jdk }})"
     if: github.event.repository.fork == false
 
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test-jdk: ["25", "17"]
     defaults:
       run:
         shell: bash
@@ -52,7 +56,7 @@ jobs:
 
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
-          java-version: "17"
+          java-version: "25"
           distribution: "microsoft"
           cache: "maven"
 
@@ -60,14 +64,18 @@ jobs:
         with:
           node-version: 22
 
-      - uses: ./.github/actions/setup-copilot
-        id: setup-copilot
+      - name: Build SDK and set up test harness
+        run: mvn test-compile jar:jar
 
-      - name: Install test harness dependencies
-        working-directory: ./test/harness
-        run: npm ci --ignore-scripts
+      - name: Verify Javadoc generation
+        if: matrix.test-jdk == '25'
+        run: mvn javadoc:javadoc -q
+
+      - name: Verify CLI works
+        run: node target/copilot-sdk/nodejs/node_modules/@github/copilot/index.js --version
 
       - name: Run spotless check
+        if: matrix.test-jdk == '25'
         run: |
           mvn spotless:check
           if [ $? -ne 0 ]; then
@@ -76,18 +84,30 @@ jobs:
           fi
           echo "✅ spotless:check passed"
 
-      - name: Verify Javadoc generation
-        run: mvn compile javadoc:javadoc -q
-
-      - name: Run Java SDK tests
+      - name: Run Java SDK tests (JDK 25)
+        if: matrix.test-jdk == '25'
         env:
           CI: "true"
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          COPILOT_CLI_PATH: ${{ steps.setup-copilot.outputs.cli-path }}
-        run: mvn verify
+        run: mvn verify -Dskip.test.harness=true
+
+      - name: Switch to JDK 17
+        if: matrix.test-jdk == '17'
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
+        with:
+          java-version: "17"
+          distribution: "microsoft"
+
+      - name: Run Java SDK tests (JDK 17, no recompilation)
+        if: matrix.test-jdk == '17'
+        env:
+          CI: "true"
+        run: |
+          echo "Running tests against JDK 25-built classes using JDK 17 runtime..."
+          java -version
+          mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 
       - name: Upload test results for site generation
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: test-results-for-site
@@ -98,12 +118,12 @@ jobs:
           retention-days: 1
 
       - name: Generate JaCoCo badge
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
         working-directory: .
         run: .github/scripts/generate-java-coverage-badge.sh java/target/site/jacoco-coverage/jacoco.csv .github/badges
 
       - name: Create PR for JaCoCo badge update
-        if: success() && github.ref == 'refs/heads/main'
+        if: success() && github.ref == 'refs/heads/main' && matrix.test-jdk == '25'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v7
         with:
           commit-message: "Update Java JaCoCo coverage badge"
@@ -116,13 +136,16 @@ jobs:
       - name: Generate Test Report Summary
         if: always()
         uses: ./.github/actions/java-test-report
+        with:
+          title: "Copilot Java SDK :: Test Results JDK ${{ matrix.test-jdk }}"
 
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: java-test-results
+          name: java-test-results-jdk-${{ matrix.test-jdk }}
           path: |
             java/target/surefire-reports/
             java/target/surefire-reports-isolated/
+            java/target/failsafe-reports/
           retention-days: 7

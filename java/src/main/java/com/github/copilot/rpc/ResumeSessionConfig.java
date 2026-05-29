@@ -51,22 +51,34 @@ public class ResumeSessionConfig {
     private Boolean coauthorEnabled;
     private Boolean manageScheduleEnabled;
     private String reasoningEffort;
+    private String reasoningSummary;
     private ModelCapabilitiesOverride modelCapabilities;
     private PermissionHandler onPermissionRequest;
     private UserInputHandler onUserInputRequest;
     private SessionHooks hooks;
     private String workingDirectory;
-    private String configDir;
+    private String configDirectory;
     private Boolean enableConfigDiscovery;
+    private Boolean skipEmbeddingRetrieval;
+    private String organizationCustomInstructions;
+    private Boolean enableOnDemandInstructionDiscovery;
+    private Boolean enableFileHooks;
+    private Boolean enableHostGitOperations;
+    private Boolean enableSessionStore;
+    private Boolean enableSkills;
+    private String embeddingCacheStorage;
     private boolean disableResume;
     private boolean streaming;
     private Boolean includeSubAgentStreamingEvents;
     private Map<String, McpServerConfig> mcpServers;
+    private String mcpOAuthTokenStorage;
     private List<CustomAgentConfig> customAgents;
     private DefaultAgentConfig defaultAgent;
     private String agent;
     private List<String> skillDirectories;
     private List<String> instructionDirectories;
+    private List<String> pluginDirectories;
+    private LargeToolOutputConfig largeOutput;
     private List<String> disabledSkills;
     private InfiniteSessionConfig infiniteSessions;
     private Consumer<SessionEvent> onEvent;
@@ -74,6 +86,7 @@ public class ResumeSessionConfig {
     private ElicitationHandler onElicitationRequest;
     private ExitPlanModeHandler onExitPlanMode;
     private AutoModeSwitchHandler onAutoModeSwitch;
+    private boolean enableMcpApps;
     private String gitHubToken;
     private String remoteSession;
 
@@ -245,7 +258,7 @@ public class ResumeSessionConfig {
      * {@code true}, telemetry is enabled for GitHub-authenticated sessions. When a
      * custom {@link ProviderConfig} (BYOK) is configured, session telemetry is
      * always disabled regardless of this setting. This is independent of
-     * {@link com.github.copilot.rpc.CopilotClientOptions#getTelemetry()
+     * {@link CopilotClientOptions#getTelemetry()
      * CopilotClientOptions.TelemetryConfig}, which configures OpenTelemetry export
      * for observability.
      *
@@ -469,6 +482,29 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the reasoning summary mode.
+     *
+     * @return the reasoning summary mode ("none", "concise", or "detailed")
+     */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode for models that support configurable
+     * reasoning summaries. Use {@code "none"} to suppress summary output regardless
+     * of whether reasoning is enabled.
+     *
+     * @param reasoningSummary
+     *            the reasoning summary mode
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
+        return this;
+    }
+
+    /**
      * Gets the permission request handler.
      *
      * @return the permission handler
@@ -560,8 +596,8 @@ public class ResumeSessionConfig {
      *
      * @return the configuration directory path
      */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
     /**
@@ -569,20 +605,21 @@ public class ResumeSessionConfig {
      * <p>
      * Override the default configuration directory location.
      *
-     * @param configDir
+     * @param configDirectory
      *            the configuration directory path
      * @return this config for method chaining
      */
-    public ResumeSessionConfig setConfigDir(String configDir) {
-        this.configDir = configDir;
+    public ResumeSessionConfig setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
         return this;
     }
 
     /**
      * Gets whether automatic configuration discovery is enabled.
      *
-     * @return {@code true} to enable discovery, {@code false} to disable, or
-     *         {@code null} to use the runtime default
+     * @return an {@link java.util.Optional} containing {@code true} to enable
+     *         discovery or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getEnableConfigDiscovery() {
@@ -598,8 +635,7 @@ public class ResumeSessionConfig {
      * explicitly provided configurations.
      *
      * @param enableConfigDiscovery
-     *            {@code true} to enable discovery, {@code false} to disable, or
-     *            {@code null} to use the runtime default
+     *            {@code true} to enable discovery, {@code false} to disable
      * @return this config for method chaining
      */
     public ResumeSessionConfig setEnableConfigDiscovery(boolean enableConfigDiscovery) {
@@ -618,10 +654,275 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets whether embedding-based retrieval is skipped.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to skip
+     *         embedding retrieval or {@code false} to force it, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getSkipEmbeddingRetrieval() {
+        return Optional.ofNullable(skipEmbeddingRetrieval);
+    }
+
+    /**
+     * Sets whether to skip embedding-based retrieval.
+     *
+     * @param skipEmbeddingRetrieval
+     *            {@code true} to skip embedding retrieval, {@code false} to keep it
+     *            enabled
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {
+        this.skipEmbeddingRetrieval = skipEmbeddingRetrieval;
+        return this;
+    }
+
+    /**
+     * Clears the skipEmbeddingRetrieval setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearSkipEmbeddingRetrieval() {
+        this.skipEmbeddingRetrieval = null;
+        return this;
+    }
+
+    /**
+     * Gets the organization-level custom instructions.
+     *
+     * @return the organization-level custom instructions, or {@code null} if not
+     *         set
+     */
+    public String getOrganizationCustomInstructions() {
+        return organizationCustomInstructions;
+    }
+
+    /**
+     * Sets organization-level custom instructions.
+     *
+     * @param organizationCustomInstructions
+     *            the organization-level custom instructions
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setOrganizationCustomInstructions(String organizationCustomInstructions) {
+        this.organizationCustomInstructions = organizationCustomInstructions;
+        return this;
+    }
+
+    /**
+     * Gets whether on-demand instruction file discovery is enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable
+     *         on-demand discovery or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableOnDemandInstructionDiscovery() {
+        return Optional.ofNullable(enableOnDemandInstructionDiscovery);
+    }
+
+    /**
+     * Sets whether instruction files are discovered on demand.
+     *
+     * @param enableOnDemandInstructionDiscovery
+     *            {@code true} to enable on-demand instruction discovery,
+     *            {@code false} to disable it
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableOnDemandInstructionDiscovery(boolean enableOnDemandInstructionDiscovery) {
+        this.enableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery;
+        return this;
+    }
+
+    /**
+     * Clears the enableOnDemandInstructionDiscovery setting, reverting to the
+     * default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableOnDemandInstructionDiscovery() {
+        this.enableOnDemandInstructionDiscovery = null;
+        return this;
+    }
+
+    /**
+     * Gets whether file-based hooks are enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable file
+     *         hooks or {@code false} to disable them, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableFileHooks() {
+        return Optional.ofNullable(enableFileHooks);
+    }
+
+    /**
+     * Sets whether file-based hooks from {@code .github/hooks/} are enabled.
+     *
+     * @param enableFileHooks
+     *            {@code true} to enable file hooks, {@code false} to disable them
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableFileHooks(boolean enableFileHooks) {
+        this.enableFileHooks = enableFileHooks;
+        return this;
+    }
+
+    /**
+     * Clears the enableFileHooks setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableFileHooks() {
+        this.enableFileHooks = null;
+        return this;
+    }
+
+    /**
+     * Gets whether host git operations are enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable host
+     *         git operations or {@code false} to disable them, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableHostGitOperations() {
+        return Optional.ofNullable(enableHostGitOperations);
+    }
+
+    /**
+     * Sets whether git operations on the host filesystem are enabled.
+     *
+     * @param enableHostGitOperations
+     *            {@code true} to enable host git operations, {@code false} to
+     *            disable them
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableHostGitOperations(boolean enableHostGitOperations) {
+        this.enableHostGitOperations = enableHostGitOperations;
+        return this;
+    }
+
+    /**
+     * Clears the enableHostGitOperations setting, reverting to the default
+     * behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableHostGitOperations() {
+        this.enableHostGitOperations = null;
+        return this;
+    }
+
+    /**
+     * Gets whether the cross-session store is enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable the
+     *         session store or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableSessionStore() {
+        return Optional.ofNullable(enableSessionStore);
+    }
+
+    /**
+     * Sets whether the cross-session store is enabled.
+     *
+     * @param enableSessionStore
+     *            {@code true} to enable the session store, {@code false} to disable
+     *            it
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableSessionStore(boolean enableSessionStore) {
+        this.enableSessionStore = enableSessionStore;
+        return this;
+    }
+
+    /**
+     * Clears the enableSessionStore setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableSessionStore() {
+        this.enableSessionStore = null;
+        return this;
+    }
+
+    /**
+     * Gets whether skill loading is enabled.
+     *
+     * @return an {@link java.util.Optional} containing {@code true} to enable skill
+     *         loading or {@code false} to disable it, or
+     *         {@link java.util.Optional#empty()} to use the default behavior
+     */
+    @JsonIgnore
+    public Optional<Boolean> getEnableSkills() {
+        return Optional.ofNullable(enableSkills);
+    }
+
+    /**
+     * Sets whether skill loading is enabled.
+     *
+     * @param enableSkills
+     *            {@code true} to enable skill loading, {@code false} to disable it
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableSkills(boolean enableSkills) {
+        this.enableSkills = enableSkills;
+        return this;
+    }
+
+    /**
+     * Clears the enableSkills setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEnableSkills() {
+        this.enableSkills = null;
+        return this;
+    }
+
+    /**
+     * Gets the embedding cache storage mode.
+     *
+     * @return the embedding cache storage mode ({@code "persistent"} or
+     *         {@code "in-memory"}), or {@code null} to use the default behavior
+     */
+    public String getEmbeddingCacheStorage() {
+        return embeddingCacheStorage;
+    }
+
+    /**
+     * Sets the embedding cache storage mode.
+     *
+     * @param embeddingCacheStorage
+     *            {@code "persistent"} to persist embeddings across sessions, or
+     *            {@code "in-memory"} for session-scoped storage
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEmbeddingCacheStorage(String embeddingCacheStorage) {
+        this.embeddingCacheStorage = embeddingCacheStorage;
+        return this;
+    }
+
+    /**
+     * Clears the embeddingCacheStorage setting, reverting to the default behavior.
+     *
+     * @return this instance for method chaining
+     */
+    public ResumeSessionConfig clearEmbeddingCacheStorage() {
+        this.embeddingCacheStorage = null;
+        return this;
+    }
+
+    /**
      * Gets whether sub-agent streaming events are included.
      *
      * @return {@code true} to include sub-agent streaming events, {@code false} to
-     *         suppress them, or {@code null} to use the runtime default
+     *         suppress them, or {@code null} to use the default behavior
      */
     @JsonIgnore
     public Optional<Boolean> getIncludeSubAgentStreamingEvents() {
@@ -741,6 +1042,38 @@ public class ResumeSessionConfig {
     }
 
     /**
+     * Gets the MCP OAuth token storage mode.
+     *
+     * @return the storage mode, or {@code null} if not set
+     */
+    public String getMcpOAuthTokenStorage() {
+        return mcpOAuthTokenStorage;
+    }
+
+    /**
+     * Sets the MCP OAuth token storage mode.
+     * <p>
+     * Controls how MCP OAuth tokens are stored for this session:
+     * <ul>
+     * <li>{@code "persistent"} — tokens are stored in the OS keychain (shared
+     * across sessions)</li>
+     * <li>{@code "in-memory"} — tokens are stored in memory and discarded when the
+     * session ends</li>
+     * </ul>
+     * If not set and the client is in {@link CopilotClientMode#EMPTY EMPTY} mode,
+     * the SDK defaults to {@code "in-memory"} for safe multitenant behavior. In
+     * other modes this field is left unset.
+     *
+     * @param mcpOAuthTokenStorage
+     *            the storage mode
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
+        this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+        return this;
+    }
+
+    /**
      * Gets the custom agent configurations.
      *
      * @return the list of custom agent configurations
@@ -849,6 +1182,48 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setInstructionDirectories(List<String> instructionDirectories) {
         this.instructionDirectories = instructionDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the plugin directories to load Open Plugin definitions from.
+     *
+     * @return the list of plugin directory paths
+     */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /**
+     * Sets the plugin directories to load Open Plugin definitions from.
+     *
+     * @param pluginDirectories
+     *            the list of plugin directory paths
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+        return this;
+    }
+
+    /**
+     * Gets the configuration for large tool output handling.
+     *
+     * @return the large output config, or {@code null} for default
+     */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /**
+     * Sets the configuration for large tool output handling.
+     *
+     * @param largeOutput
+     *            the large output config
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
         return this;
     }
 
@@ -969,6 +1344,31 @@ public class ResumeSessionConfig {
      */
     public ResumeSessionConfig setOnElicitationRequest(ElicitationHandler onElicitationRequest) {
         this.onElicitationRequest = onElicitationRequest;
+        return this;
+    }
+
+    /**
+     * Returns whether MCP Apps (SEP-1865) UI passthrough is enabled on resume.
+     *
+     * @return {@code true} if the consumer has opted into MCP Apps, otherwise
+     *         {@code false}
+     * @see #setEnableMcpApps(boolean)
+     */
+    public boolean isEnableMcpApps() {
+        return enableMcpApps;
+    }
+
+    /**
+     * Enables MCP Apps (SEP-1865) UI passthrough on the resumed session. See
+     * {@link SessionConfig#setEnableMcpApps(boolean)} for full semantics (runtime
+     * gate, capability inspection, renderer requirement).
+     *
+     * @param enableMcpApps
+     *            {@code true} to opt into MCP Apps support on resume
+     * @return this config for method chaining
+     */
+    public ResumeSessionConfig setEnableMcpApps(boolean enableMcpApps) {
+        this.enableMcpApps = enableMcpApps;
         return this;
     }
 
@@ -1104,13 +1504,22 @@ public class ResumeSessionConfig {
         copy.provider = this.provider;
         copy.enableSessionTelemetry = this.enableSessionTelemetry;
         copy.reasoningEffort = this.reasoningEffort;
+        copy.reasoningSummary = this.reasoningSummary;
         copy.modelCapabilities = this.modelCapabilities;
         copy.onPermissionRequest = this.onPermissionRequest;
         copy.onUserInputRequest = this.onUserInputRequest;
         copy.hooks = this.hooks;
         copy.workingDirectory = this.workingDirectory;
-        copy.configDir = this.configDir;
+        copy.configDirectory = this.configDirectory;
         copy.enableConfigDiscovery = this.enableConfigDiscovery;
+        copy.skipEmbeddingRetrieval = this.skipEmbeddingRetrieval;
+        copy.organizationCustomInstructions = this.organizationCustomInstructions;
+        copy.enableOnDemandInstructionDiscovery = this.enableOnDemandInstructionDiscovery;
+        copy.enableFileHooks = this.enableFileHooks;
+        copy.enableHostGitOperations = this.enableHostGitOperations;
+        copy.enableSessionStore = this.enableSessionStore;
+        copy.enableSkills = this.enableSkills;
+        copy.embeddingCacheStorage = this.embeddingCacheStorage;
         copy.disableResume = this.disableResume;
         copy.streaming = this.streaming;
         copy.includeSubAgentStreamingEvents = this.includeSubAgentStreamingEvents;
@@ -1122,6 +1531,8 @@ public class ResumeSessionConfig {
         copy.instructionDirectories = this.instructionDirectories != null
                 ? new ArrayList<>(this.instructionDirectories)
                 : null;
+        copy.pluginDirectories = this.pluginDirectories != null ? new ArrayList<>(this.pluginDirectories) : null;
+        copy.largeOutput = this.largeOutput;
         copy.disabledSkills = this.disabledSkills != null ? new ArrayList<>(this.disabledSkills) : null;
         copy.infiniteSessions = this.infiniteSessions;
         copy.onEvent = this.onEvent;
@@ -1129,6 +1540,7 @@ public class ResumeSessionConfig {
         copy.onElicitationRequest = this.onElicitationRequest;
         copy.onExitPlanMode = this.onExitPlanMode;
         copy.onAutoModeSwitch = this.onAutoModeSwitch;
+        copy.enableMcpApps = this.enableMcpApps;
         copy.gitHubToken = this.gitHubToken;
         copy.remoteSession = this.remoteSession;
         return copy;

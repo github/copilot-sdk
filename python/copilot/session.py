@@ -64,10 +64,14 @@ from .generated.session_events import (
     ExternalToolRequestedData,
     PermissionRequest,
     PermissionRequestedData,
+    SessionCanvasOpenedData,
     SessionErrorData,
     SessionEvent,
     SessionIdleData,
     session_event_from_dict,
+)
+from .generated.session_events import (
+    ReasoningSummary as _RpcReasoningSummary,
 )
 from .tools import Tool, ToolHandler, ToolInvocation, ToolResult
 
@@ -86,6 +90,7 @@ SessionEventTypeAlias = SessionEvent
 # ============================================================================
 
 ReasoningEffort = Literal["low", "medium", "high", "xhigh"]
+ReasoningSummary = Literal["none", "concise", "detailed"]
 SessionFsConventions = Literal["posix", "windows"]
 
 
@@ -397,6 +402,15 @@ class SessionUiCapabilities(TypedDict, total=False):
 
     elicitation: bool
     """Whether the host supports interactive elicitation dialogs."""
+    mcpApps: bool
+    """**Experimental.** This capability is part of an experimental wire-protocol
+    surface (SEP-1865) and may change or be removed in a future release.
+
+    Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    ``True`` when the consumer set ``enable_mcp_apps=True`` on create/resume and
+    the runtime's ``MCP_APPS`` feature flag (or ``COPILOT_MCP_APPS=true`` env
+    override) is on. Otherwise absent or ``False``, indicating the runtime
+    silently dropped the opt-in."""
 
 
 class SessionCapabilities(TypedDict, total=False):
@@ -946,6 +960,23 @@ class InfiniteSessionConfig(TypedDict, total=False):
     # compaction completes. This prevents context overflow when compaction hasn't
     # finished in time. Default: 0.95
     buffer_exhaustion_threshold: float
+
+
+class LargeToolOutputConfig(TypedDict, total=False):
+    """
+    Configuration for handling large tool outputs.
+
+    When a tool produces output exceeding the configured size, the output is
+    written to a temp file and a reference is returned to the model instead of
+    the full payload.
+    """
+
+    # Whether large output handling is enabled. Default True.
+    enabled: bool
+    # Maximum size in bytes before output is written to a temp file. Default 50KB.
+    max_size_bytes: int
+    # Directory to write temp files to. Defaults to the OS temp directory.
+    output_directory: str
 
 
 # ============================================================================
@@ -1516,6 +1547,19 @@ class CopilotSession:
                     cap["ui"] = ui_cap
                 self._capabilities = {**self._capabilities, **cap}
 
+            case SessionCanvasOpenedData() as data:
+                try:
+                    if (
+                        not data.instance_id
+                        or not data.canvas_id
+                        or not data.extension_id
+                        or data.availability is None
+                    ):
+                        raise ValueError("missing required open canvas fields")
+                    self._upsert_open_canvas(OpenCanvasInstance.from_dict(data.to_dict()))
+                except Exception as exc:
+                    logger.warning("failed to deserialize session.canvas.opened payload: %s", exc)
+
     async def _execute_tool_and_respond(
         self,
         request_id: str,
@@ -1859,12 +1903,19 @@ class CopilotSession:
         with self._open_canvases_lock:
             self._open_canvases = list(instances)
 
+    def _upsert_open_canvas(self, instance: OpenCanvasInstance) -> None:
+        with self._open_canvases_lock:
+            for index, existing in enumerate(self._open_canvases):
+                if existing.instance_id == instance.instance_id:
+                    self._open_canvases[index] = instance
+                    return
+            self._open_canvases.append(instance)
+
     @property
     def open_canvases(self) -> list[OpenCanvasInstance]:
-        """Open canvas instances reported by the most recent ``session.resume``.
+        """Open canvas instances currently known to be open for this session.
 
-        Returns an empty list for sessions created via ``session.create`` or
-        when the server did not include any open canvases on resume.
+        Populated from ``session.resume`` and live ``session.canvas.opened`` events.
         """
         with self._open_canvases_lock:
             return list(self._open_canvases)
@@ -2341,6 +2392,7 @@ class CopilotSession:
         model: str,
         *,
         reasoning_effort: str | None = None,
+        reasoning_summary: ReasoningSummary | None = None,
         model_capabilities: ModelCapabilitiesOverride | None = None,
     ) -> None:
         """
@@ -2353,6 +2405,9 @@ class CopilotSession:
             model: Model ID to switch to (e.g., "gpt-4.1", "claude-sonnet-4").
             reasoning_effort: Optional reasoning effort level for the new model
                 (e.g., "low", "medium", "high", "xhigh").
+            reasoning_summary: Optional reasoning summary mode for supported
+                models. Use "none" to suppress summary output regardless of
+                whether reasoning is enabled.
             model_capabilities: Override individual model capabilities resolved by the runtime.
 
         Raises:
@@ -2373,6 +2428,11 @@ class CopilotSession:
             ModelSwitchToRequest(
                 model_id=model,
                 reasoning_effort=reasoning_effort,
+                reasoning_summary=(
+                    _RpcReasoningSummary(reasoning_summary)
+                    if reasoning_summary is not None
+                    else None
+                ),
                 model_capabilities=rpc_caps,
             )
         )

@@ -2580,10 +2580,14 @@ public sealed class ModelCapabilitiesOverride
     public ModelCapabilitiesOverrideSupports? Supports { get; set; }
 }
 
-/// <summary>Target model identifier and optional reasoning effort, summary, and capability overrides.</summary>
+/// <summary>Target model identifier and optional reasoning effort, summary, capability overrides, and context tier.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class ModelSwitchToRequest
 {
+    /// <summary>Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</summary>
+    [JsonPropertyName("contextTier")]
+    public ModelSwitchToRequestContextTier? ContextTier { get; set; }
+
     /// <summary>Override individual model capabilities resolved by the runtime.</summary>
     [JsonPropertyName("modelCapabilities")]
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
@@ -2625,6 +2629,41 @@ internal sealed class ModelSetReasoningEffortRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>The list of models available to this session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class SessionModelList
+{
+    /// <summary>Available models, ordered with the most preferred default first.</summary>
+    [JsonPropertyName("list")]
+    public IList<JsonElement> List { get => field ??= []; set; }
+
+    /// <summary>Per-quota snapshots returned alongside the model list, keyed by quota type.</summary>
+    [JsonPropertyName("quotaSnapshots")]
+    public IDictionary<string, JsonElement>? QuotaSnapshots { get; set; }
+}
+
+/// <summary>Optional listing options.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ModelListRequest
+{
+    /// <summary>If true, bypasses the per-session model list cache and re-fetches from CAPI.</summary>
+    [JsonPropertyName("skipCache")]
+    public bool? SkipCache { get; set; }
+}
+
+/// <summary>Optional listing options.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class ModelListRequestWithSession
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>If true, bypasses the per-session model list cache and re-fetches from CAPI.</summary>
+    [JsonPropertyName("skipCache")]
+    public bool? SkipCache { get; set; }
 }
 
 /// <summary>Identifies the target session.</summary>
@@ -4551,6 +4590,14 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("disabledSkills")]
     public IList<string>? DisabledSkills { get; set; }
 
+    /// <summary>Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.</summary>
+    [JsonPropertyName("enableFileHooks")]
+    public bool? EnableFileHooks { get; set; }
+
+    /// <summary>Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).</summary>
+    [JsonPropertyName("enableHostGitOperations")]
+    public bool? EnableHostGitOperations { get; set; }
+
     /// <summary>Whether to discover custom instructions on demand after successful file views (AGENTS.md / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.</summary>
     [JsonPropertyName("enableOnDemandInstructionDiscovery")]
     public bool? EnableOnDemandInstructionDiscovery { get; set; }
@@ -4562,6 +4609,14 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Whether shell-script safety heuristics are enabled.</summary>
     [JsonPropertyName("enableScriptSafety")]
     public bool? EnableScriptSafety { get; set; }
+
+    /// <summary>Whether to enable cross-session store writes and reads.</summary>
+    [JsonPropertyName("enableSessionStore")]
+    public bool? EnableSessionStore { get; set; }
+
+    /// <summary>Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</summary>
+    [JsonPropertyName("enableSkills")]
+    public bool? EnableSkills { get; set; }
 
     /// <summary>Whether to stream model responses.</summary>
     [JsonPropertyName("enableStreaming")]
@@ -4611,6 +4666,10 @@ internal sealed class SessionUpdateOptionsParams
     [JsonPropertyName("model")]
     public string? Model { get; set; }
 
+    /// <summary>Organization-level custom instructions to inject into the system prompt.</summary>
+    [JsonPropertyName("organizationCustomInstructions")]
+    public string? OrganizationCustomInstructions { get; set; }
+
     /// <summary>Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.</summary>
     [Experimental(Diagnostics.Experimental)]
     [JsonPropertyName("provider")]
@@ -4648,6 +4707,10 @@ internal sealed class SessionUpdateOptionsParams
     /// <summary>Whether to skip loading custom instruction sources.</summary>
     [JsonPropertyName("skipCustomInstructions")]
     public bool? SkipCustomInstructions { get; set; }
+
+    /// <summary>Whether to skip embedding retrieval pipeline initialization and execution.</summary>
+    [JsonPropertyName("skipEmbeddingRetrieval")]
+    public bool? SkipEmbeddingRetrieval { get; set; }
 
     /// <summary>Controls how availableTools (allowlist) and excludedTools (denylist) combine when both are set.</summary>
     [JsonPropertyName("toolFilterPrecedence")]
@@ -4800,6 +4863,57 @@ public sealed class ToolsInitializeAndValidateResult
 /// <summary>Identifies the target session.</summary>
 [Experimental(Diagnostics.Experimental)]
 internal sealed class SessionToolsInitializeAndValidateRequest
+{
+    /// <summary>Target session identifier.</summary>
+    [JsonPropertyName("sessionId")]
+    public string SessionId { get; set; } = string.Empty;
+}
+
+/// <summary>Lightweight metadata for a currently initialized session tool.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class CurrentToolMetadata
+{
+    /// <summary>Whether the tool is loaded on demand via tool search.</summary>
+    [JsonPropertyName("deferLoading")]
+    public bool? DeferLoading { get; set; }
+
+    /// <summary>Tool description.</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>JSON Schema for tool input.</summary>
+    [JsonPropertyName("input_schema")]
+    public IDictionary<string, JsonElement>? InputSchema { get; set; }
+
+    /// <summary>MCP server name for MCP-backed tools.</summary>
+    [JsonPropertyName("mcpServerName")]
+    public string? McpServerName { get; set; }
+
+    /// <summary>Raw MCP tool name for MCP-backed tools.</summary>
+    [JsonPropertyName("mcpToolName")]
+    public string? McpToolName { get; set; }
+
+    /// <summary>Model-facing tool name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Optional MCP/config namespaced tool name.</summary>
+    [JsonPropertyName("namespacedName")]
+    public string? NamespacedName { get; set; }
+}
+
+/// <summary>Current lightweight tool metadata snapshot for the session.</summary>
+[Experimental(Diagnostics.Experimental)]
+public sealed class ToolsGetCurrentMetadataResult
+{
+    /// <summary>Current tool metadata, or null when tools have not been initialized yet.</summary>
+    [JsonPropertyName("tools")]
+    public IList<CurrentToolMetadata>? Tools { get; set; }
+}
+
+/// <summary>Identifies the target session.</summary>
+[Experimental(Diagnostics.Experimental)]
+internal sealed class SessionToolsGetCurrentMetadataRequest
 {
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -6921,6 +7035,10 @@ public sealed class MetadataContextInfoResultContextInfo
     /// <summary>Total context limit for /context display. promptTokenLimit + min(32k or 64k, outputTokenLimit) depending on model.</summary>
     [JsonPropertyName("limit")]
     public long Limit { get; set; }
+
+    /// <summary>Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes deferred tools).</summary>
+    [JsonPropertyName("mcpToolsTokens")]
+    public long McpToolsTokens { get; set; }
 
     /// <summary>The model used for token counting.</summary>
     [JsonPropertyName("modelName")]
@@ -9610,6 +9728,68 @@ public readonly struct CanvasInstanceAvailability : IEquatable<CanvasInstanceAva
         public override void Write(Utf8JsonWriter writer, CanvasInstanceAvailability value, JsonSerializerOptions options)
         {
             GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(CanvasInstanceAvailability));
+        }
+    }
+}
+
+
+/// <summary>Defines the allowed values.</summary>
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct ModelSwitchToRequestContextTier : IEquatable<ModelSwitchToRequestContextTier>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="ModelSwitchToRequestContextTier"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="ModelSwitchToRequestContextTier"/>.</param>
+    [JsonConstructor]
+    public ModelSwitchToRequestContextTier(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="ModelSwitchToRequestContextTier"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Use the model's default context window.</summary>
+    public static ModelSwitchToRequestContextTier Default { get; } = new("default");
+
+    /// <summary>Pin the session to the long-context tier when supported.</summary>
+    public static ModelSwitchToRequestContextTier LongContext { get; } = new("long_context");
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchToRequestContextTier"/> instances are equivalent.</summary>
+    public static bool operator ==(ModelSwitchToRequestContextTier left, ModelSwitchToRequestContextTier right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="ModelSwitchToRequestContextTier"/> instances are not equivalent.</summary>
+    public static bool operator !=(ModelSwitchToRequestContextTier left, ModelSwitchToRequestContextTier right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is ModelSwitchToRequestContextTier other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(ModelSwitchToRequestContextTier other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{ModelSwitchToRequestContextTier}"/> for serializing <see cref="ModelSwitchToRequestContextTier"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<ModelSwitchToRequestContextTier>
+    {
+        /// <inheritdoc />
+        public override ModelSwitchToRequestContextTier Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, ModelSwitchToRequestContextTier value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(ModelSwitchToRequestContextTier));
         }
     }
 }
@@ -12558,6 +12738,12 @@ public sealed class ServerRpc
         Interlocked.CompareExchange(ref field, new(_rpc), null) ??
         field;
 
+    /// <summary>User APIs.</summary>
+    public ServerUserApi User =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+
     /// <summary>SessionFs APIs.</summary>
     public ServerSessionFsApi SessionFs =>
         field ??
@@ -12766,6 +12952,13 @@ public sealed class ServerMcpConfigApi
         var request = new McpConfigDisableRequest { Names = names };
         await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.disable", [request], cancellationToken);
     }
+
+    /// <summary>Drops this runtime process's in-memory MCP server-definition cache so the next MCP config read observes disk.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "mcp.config.reload", [], cancellationToken);
+    }
 }
 
 /// <summary>Provides server-scoped Skills APIs.</summary>
@@ -12815,6 +13008,41 @@ public sealed class ServerSkillsConfigApi
 
         var request = new SkillsConfigSetDisabledSkillsRequest { DisabledSkills = disabledSkills };
         await CopilotClient.InvokeRpcAsync(_rpc, "skills.config.setDisabledSkills", [request], cancellationToken);
+    }
+}
+
+/// <summary>Provides server-scoped User APIs.</summary>
+public sealed class ServerUserApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerUserApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Settings APIs.</summary>
+    public ServerUserSettingsApi Settings =>
+        field ??
+        Interlocked.CompareExchange(ref field, new(_rpc), null) ??
+        field;
+}
+
+/// <summary>Provides server-scoped UserSettings APIs.</summary>
+public sealed class ServerUserSettingsApi
+{
+    private readonly JsonRpc _rpc;
+
+    internal ServerUserSettingsApi(JsonRpc rpc)
+    {
+        _rpc = rpc;
+    }
+
+    /// <summary>Drops this runtime process's in-memory user settings cache so the next settings read observes disk.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
+    {
+        await CopilotClient.InvokeRpcAsync(_rpc, "user.settings.reload", [], cancellationToken);
     }
 }
 
@@ -13546,14 +13774,15 @@ public sealed class ModelApi
     /// <param name="reasoningEffort">Reasoning effort level to use for the model. "none" disables reasoning.</param>
     /// <param name="reasoningSummary">Reasoning summary mode to request for supported model clients.</param>
     /// <param name="modelCapabilities">Override individual model capabilities resolved by the runtime.</param>
+    /// <param name="contextTier">Explicit context tier for the selected model. `"default"` / `"long_context"` pin the tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier untouched.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>The model identifier active on the session after the switch.</returns>
-    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, CancellationToken cancellationToken = default)
+    public async Task<ModelSwitchToResult> SwitchToAsync(string modelId, string? reasoningEffort = null, ReasoningSummary? reasoningSummary = null, ModelCapabilitiesOverride? modelCapabilities = null, ModelSwitchToRequestContextTier? contextTier = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modelId);
         _session.ThrowIfDisposed();
 
-        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ModelCapabilities = modelCapabilities };
+        var request = new ModelSwitchToRequest { SessionId = _session.SessionId, ModelId = modelId, ReasoningEffort = reasoningEffort, ReasoningSummary = reasoningSummary, ModelCapabilities = modelCapabilities, ContextTier = contextTier };
         return await CopilotClient.InvokeRpcAsync<ModelSwitchToResult>(_session.Rpc, "session.model.switchTo", [request], cancellationToken);
     }
 
@@ -13568,6 +13797,18 @@ public sealed class ModelApi
 
         var request = new ModelSetReasoningEffortRequest { SessionId = _session.SessionId, ReasoningEffort = reasoningEffort };
         return await CopilotClient.InvokeRpcAsync<ModelSetReasoningEffortResult>(_session.Rpc, "session.model.setReasoningEffort", [request], cancellationToken);
+    }
+
+    /// <summary>Lists models available to this session using its own auth and integration context. Connected hosts (CLI TUI, GitHub App) should call this through the session client so remote sessions return the remote CLI's available models rather than the caller's.</summary>
+    /// <param name="request">Optional listing options.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>The list of models available to this session.</returns>
+    public async Task<SessionModelList> ListAsync(ModelListRequest? request = null, CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var rpcRequest = new ModelListRequestWithSession { SessionId = _session.SessionId, SkipCache = request?.SkipCache };
+        return await CopilotClient.InvokeRpcAsync<SessionModelList>(_session.Rpc, "session.model.list", [rpcRequest], cancellationToken);
     }
 }
 
@@ -14475,13 +14716,19 @@ public sealed class OptionsApi
     /// <param name="eventsLogDirectory">Override directory for the session-events log. When unset, the runtime's default events log directory is used.</param>
     /// <param name="additionalContentExclusionPolicies">Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.</param>
     /// <param name="manageScheduleEnabled">Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).</param>
+    /// <param name="skipEmbeddingRetrieval">Whether to skip embedding retrieval pipeline initialization and execution.</param>
+    /// <param name="organizationCustomInstructions">Organization-level custom instructions to inject into the system prompt.</param>
+    /// <param name="enableFileHooks">Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK callback hook mechanism.</param>
+    /// <param name="enableHostGitOperations">Whether to enable host git operations (context resolution, child repo scanning, git info in system prompt).</param>
+    /// <param name="enableSessionStore">Whether to enable cross-session store writes and reads.</param>
+    /// <param name="enableSkills">Whether to enable skill directory scanning and loading. Falls back to enableConfigDiscovery when unset.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, OptionsUpdateToolFilterPrecedence? toolFilterPrecedence = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object?>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, bool? skipEmbeddingRetrieval = null, string? organizationCustomInstructions = null, bool? enableFileHooks = null, bool? enableHostGitOperations = null, bool? enableSessionStore = null, bool? enableSkills = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled };
+        var request = new SessionUpdateOptionsParams { SessionId = _session.SessionId, Model = model, ReasoningEffort = reasoningEffort, ClientName = clientName, LspClientName = lspClientName, IntegrationId = integrationId, FeatureFlags = featureFlags, IsExperimentalMode = isExperimentalMode, Provider = CopilotClient.ToJsonElementForWire(provider), WorkingDirectory = workingDirectory, AvailableTools = availableTools, ExcludedTools = excludedTools, ToolFilterPrecedence = toolFilterPrecedence, EnableScriptSafety = enableScriptSafety, ShellInitProfile = shellInitProfile, ShellProcessFlags = shellProcessFlags, SandboxConfig = CopilotClient.ToJsonElementForWire(sandboxConfig), LogInteractiveShells = logInteractiveShells, EnvValueMode = envValueMode, SkillDirectories = skillDirectories, DisabledSkills = disabledSkills, EnableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery, InstalledPlugins = installedPlugins, CustomAgentsLocalOnly = customAgentsLocalOnly, SkipCustomInstructions = skipCustomInstructions, DisabledInstructionSources = disabledInstructionSources, CoauthorEnabled = coauthorEnabled, TrajectoryFile = trajectoryFile, EnableStreaming = enableStreaming, CopilotUrl = copilotUrl, AskUserDisabled = askUserDisabled, ContinueOnAutoMode = continueOnAutoMode, RunningInInteractiveMode = runningInInteractiveMode, EnableReasoningSummaries = enableReasoningSummaries, AgentContext = agentContext, EventsLogDirectory = eventsLogDirectory, AdditionalContentExclusionPolicies = additionalContentExclusionPolicies?.Select(static v => CopilotClient.ToJsonElementForWire(v)!.Value).ToList(), ManageScheduleEnabled = manageScheduleEnabled, SkipEmbeddingRetrieval = skipEmbeddingRetrieval, OrganizationCustomInstructions = organizationCustomInstructions, EnableFileHooks = enableFileHooks, EnableHostGitOperations = enableHostGitOperations, EnableSessionStore = enableSessionStore, EnableSkills = enableSkills };
         return await CopilotClient.InvokeRpcAsync<SessionUpdateOptionsResult>(_session.Rpc, "session.options.update", [request], cancellationToken);
     }
 }
@@ -14603,6 +14850,17 @@ public sealed class ToolsApi
 
         var request = new SessionToolsInitializeAndValidateRequest { SessionId = _session.SessionId };
         return await CopilotClient.InvokeRpcAsync<ToolsInitializeAndValidateResult>(_session.Rpc, "session.tools.initializeAndValidate", [request], cancellationToken);
+    }
+
+    /// <summary>Returns lightweight metadata for the session's currently initialized tools.</summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
+    /// <returns>Current lightweight tool metadata snapshot for the session.</returns>
+    public async Task<ToolsGetCurrentMetadataResult> GetCurrentMetadataAsync(CancellationToken cancellationToken = default)
+    {
+        _session.ThrowIfDisposed();
+
+        var request = new SessionToolsGetCurrentMetadataRequest { SessionId = _session.SessionId };
+        return await CopilotClient.InvokeRpcAsync<ToolsGetCurrentMetadataResult>(_session.Rpc, "session.tools.getCurrentMetadata", [request], cancellationToken);
     }
 }
 
@@ -16120,6 +16378,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshotsCompletions))]
 [JsonSerializable(typeof(CopilotUserResponseQuotaSnapshotsPremiumInteractions))]
 [JsonSerializable(typeof(CurrentModel))]
+[JsonSerializable(typeof(CurrentToolMetadata))]
 [JsonSerializable(typeof(DiscoveredCanvas))]
 [JsonSerializable(typeof(DiscoveredMcpServer))]
 [JsonSerializable(typeof(EnqueueCommandParams))]
@@ -16219,6 +16478,8 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(ModelCapabilitiesOverrideSupports))]
 [JsonSerializable(typeof(ModelCapabilitiesSupports))]
 [JsonSerializable(typeof(ModelList))]
+[JsonSerializable(typeof(ModelListRequest))]
+[JsonSerializable(typeof(ModelListRequestWithSession))]
 [JsonSerializable(typeof(ModelPolicy))]
 [JsonSerializable(typeof(ModelSetReasoningEffortRequest))]
 [JsonSerializable(typeof(ModelSetReasoningEffortResult))]
@@ -16368,6 +16629,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionMetadataSnapshotWorkspace))]
 [JsonSerializable(typeof(SessionModeGetRequest))]
 [JsonSerializable(typeof(SessionModelGetCurrentRequest))]
+[JsonSerializable(typeof(SessionModelList))]
 [JsonSerializable(typeof(SessionNameGetRequest))]
 [JsonSerializable(typeof(SessionPlanDeleteRequest))]
 [JsonSerializable(typeof(SessionPlanReadRequest))]
@@ -16391,6 +16653,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(SessionTasksPromoteCurrentToBackgroundRequest))]
 [JsonSerializable(typeof(SessionTasksRefreshRequest))]
 [JsonSerializable(typeof(SessionTasksWaitForPendingRequest))]
+[JsonSerializable(typeof(SessionToolsGetCurrentMetadataRequest))]
 [JsonSerializable(typeof(SessionToolsInitializeAndValidateRequest))]
 [JsonSerializable(typeof(SessionUiRegisterDirectAutoModeSwitchHandlerRequest))]
 [JsonSerializable(typeof(SessionUpdateOptionsParams))]
@@ -16470,6 +16733,7 @@ internal static class ClientSessionApiRegistration
 [JsonSerializable(typeof(TelemetrySetFeatureOverridesRequest))]
 [JsonSerializable(typeof(Tool))]
 [JsonSerializable(typeof(ToolList))]
+[JsonSerializable(typeof(ToolsGetCurrentMetadataResult))]
 [JsonSerializable(typeof(ToolsInitializeAndValidateResult))]
 [JsonSerializable(typeof(ToolsListRequest))]
 [JsonSerializable(typeof(UIElicitationRequest))]

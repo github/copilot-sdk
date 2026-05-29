@@ -17,10 +17,10 @@ Java SDK for programmatic control of GitHub Copilot CLI, enabling you to build A
 
 ## Installation
 
-### Requirements
+### Runtime requirements
 
-- Java 17 or later. **JDK 21 or later recommended** for virtual thread support, as shown in the [Quick Start](#quick-start).
-- GitHub Copilot CLI 1.0.17 or later installed and in `PATH` (or provide custom `cliPath`)
+- Java 17 or later. **JDK 25 recommended**. The distributed jar is a multi-release jar (MR-JAR) and is compiled on JDK 25 with `maven.compiler.release` set to 17. This means, when run on JDK 25 and later, the SDK automatically uses virtual threads for its default internal executor.
+- GitHub Copilot CLI 1.0.55-5. or later installed and in `PATH` (or provide custom `cliPath`)
 
 ### Maven
 
@@ -30,8 +30,14 @@ Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>${copilot.sdk.version}</version>
+    <version>1.0.0-beta-10-java.4</version>
 </dependency>
+```
+
+### Gradle
+
+```groovy
+implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.4'
 ```
 
 #### Snapshot Builds
@@ -50,7 +56,7 @@ Snapshot builds of the next development version are published to Maven Central S
 <dependency>
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.5-SNAPSHOT</version>
+    <version>1.0.0-beta-10-java.5-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -59,7 +65,7 @@ Snapshot builds of the next development version are published to Maven Central S
 Replace `${copilot.sdk.version}` with the latest release from Maven Central.
 
 ```groovy
-implementation 'com.github:copilot-sdk-java:${copilot.sdk.version}'
+implementation 'com.github:copilot-sdk-java:1.0.0-beta-10-java.4-SNAPSHOT'
 ```
 
 ## Quick Start
@@ -68,23 +74,16 @@ implementation 'com.github:copilot-sdk-java:${copilot.sdk.version}'
 import com.github.copilot.CopilotClient;
 import com.github.copilot.generated.AssistantMessageEvent;
 import com.github.copilot.generated.SessionUsageInfoEvent;
-import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.PermissionHandler;
 import com.github.copilot.rpc.SessionConfig;
-
-import java.util.concurrent.Executors;
 
 public class CopilotSDK {
     public static void main(String[] args) throws Exception {
         var lastMessage = new String[]{null};
 
         // Create and start client
-        try (var client = new CopilotClient()) {  // JDK 21+: comment out this line
-        // JDK 21+: uncomment the following 3 lines for virtual thread support
-        // var options = new CopilotClientOptions()
-        //     .setExecutor(Executors.newVirtualThreadPerTaskExecutor());
-        // try (var client = new CopilotClient(options)) {
+        try (var client = new CopilotClient()) {
             client.start().get();
 
             // Create a session
@@ -162,6 +161,8 @@ This SDK tracks the official [Copilot SDK](https://github.com/github/copilot-sdk
 
 ### Development Setup
 
+Requires JDK 25 or later for development.
+
 ```bash
 # Clone the repository
 git clone https://github.com/github/copilot-sdk.git
@@ -170,8 +171,12 @@ cd copilot-sdk/java
 # Enable git hooks for code formatting
 git config core.hooksPath .githooks
 
-# Build and test
+# Build and test with JDK 25
 mvn clean verify
+
+# Set your paths for JDK 17
+# Run the JDK 25 built jar with JDK 17 JVM for tests. Do not re-compile the jar.
+mvn jacoco:prepare-agent@wire-up-coverage-instrumentation antrun:run@print-test-jdk-banner surefire:test failsafe:integration-test failsafe:verify jacoco:report@build-coverage-report-from-tests -Denforcer.skip=true
 ```
 
 The tests require the official [copilot-sdk](https://github.com/github/copilot-sdk) test harness, which is automatically cloned during build.
@@ -192,6 +197,3 @@ See [SECURITY.md](SECURITY.md) for reporting security vulnerabilities.
 
 MIT — see [LICENSE](LICENSE) for details.
 
-## Acknowledgement
-
-- Initially developed with Copilot and [Bruno Borges](https://www.linkedin.com/in/brunocborges/).

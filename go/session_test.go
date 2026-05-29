@@ -26,6 +26,10 @@ func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
 }
 
+func ptr[T any](value T) *T {
+	return &value
+}
+
 func TestSession_On(t *testing.T) {
 	t.Run("multiple handlers all receive events", func(t *testing.T) {
 		session, cleanup := newTestSession()
@@ -433,6 +437,89 @@ func TestSession_Capabilities(t *testing.T) {
 		}, 2*time.Second)
 		if caps.UI == nil || caps.UI.Elicitation {
 			t.Error("Expected UI.Elicitation to be false after second capabilities.changed event")
+		}
+	})
+
+	t.Run("session.canvas.opened event updates open canvas snapshots", func(t *testing.T) {
+		session, cleanup := newTestSession()
+		defer cleanup()
+
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				InstanceID:   "missing-canvas-id",
+				ExtensionID:  "project:counter",
+				Availability: CanvasOpenedAvailabilityReady,
+			},
+		})
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:   "project:counter",
+				ExtensionName: ptr("Counter Provider"),
+				CanvasID:      "counter",
+				InstanceID:    "counter-1",
+				Title:         ptr("Counter"),
+				Status:        ptr("ready"),
+				URL:           ptr("https://example.test/counter"),
+				Input:         map[string]any{"seed": float64(1)},
+				Reopen:        false,
+				Availability:  CanvasOpenedAvailabilityReady,
+			},
+		})
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:  "project:logs",
+				CanvasID:     "logs",
+				InstanceID:   "logs-1",
+				Title:        ptr("Logs"),
+				Reopen:       false,
+				Availability: CanvasOpenedAvailabilityStale,
+			},
+		})
+
+		open := session.OpenCanvases()
+		if len(open) != 2 {
+			t.Fatalf("expected 2 open canvases, got %d", len(open))
+		}
+		if open[0].InstanceID != "counter-1" || open[1].InstanceID != "logs-1" {
+			t.Fatalf("unexpected open canvas order: %+v", open)
+		}
+
+		session.dispatchEvent(SessionEvent{
+			Data: &SessionCanvasOpenedData{
+				ExtensionID:   "project:counter",
+				ExtensionName: ptr("Counter Provider"),
+				CanvasID:      "counter",
+				InstanceID:    "counter-1",
+				Title:         ptr("Counter Updated"),
+				Status:        ptr("reconnected"),
+				URL:           ptr("https://example.test/counter-updated"),
+				Input:         map[string]any{"seed": float64(2)},
+				Reopen:        true,
+				Availability:  CanvasOpenedAvailabilityStale,
+			},
+		})
+
+		open = session.OpenCanvases()
+		if len(open) != 2 {
+			t.Fatalf("expected 2 open canvases after upsert, got %d", len(open))
+		}
+		if open[0].InstanceID != "counter-1" || open[1].InstanceID != "logs-1" {
+			t.Fatalf("upsert should preserve order, got %+v", open)
+		}
+		if open[0].Title == nil || *open[0].Title != "Counter Updated" {
+			t.Fatalf("expected updated title, got %+v", open[0].Title)
+		}
+		if open[0].Status == nil || *open[0].Status != "reconnected" {
+			t.Fatalf("expected updated status, got %+v", open[0].Status)
+		}
+		if open[0].URL == nil || *open[0].URL != "https://example.test/counter-updated" {
+			t.Fatalf("expected updated URL, got %+v", open[0].URL)
+		}
+		if !open[0].Reopen {
+			t.Fatal("expected reopen to be true")
+		}
+		if string(open[0].Availability) != string(CanvasOpenedAvailabilityStale) {
+			t.Fatalf("expected stale availability, got %q", open[0].Availability)
 		}
 	})
 }

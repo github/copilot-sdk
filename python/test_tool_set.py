@@ -6,10 +6,17 @@ import pytest
 
 from copilot import BUILTIN_TOOLS_ISOLATED, CopilotClient, ToolSet, UriRuntimeConnection
 from copilot._mode import (
+    _embedding_cache_storage_default,
+    _enable_file_hooks_default,
+    _enable_host_git_operations_default,
+    _enable_on_demand_instruction_discovery_default,
+    _enable_session_store_default,
     _enable_session_telemetry_default,
+    _enable_skills_default,
     _post_create_options_patch,
     _require_available_tools_for_empty_mode,
     _require_storage_for_empty_mode,
+    _skip_embedding_retrieval_default,
     _system_message_for_mode,
     _validate_tool_filter_list,
 )
@@ -167,15 +174,65 @@ class TestSystemMessageForMode:
         assert out["sections"]["environment_context"] == {"action": "remove"}
 
 
-class TestTelemetryDefault:
-    def test_empty_mode_defaults_to_false(self):
-        assert _enable_session_telemetry_default("empty", None) is False
+class TestEmptyModeEmbeddingCacheStorageDefaults:
+    def test_empty_mode_defaults_to_in_memory(self):
+        assert _embedding_cache_storage_default("empty", None) == "in-memory"
 
-    def test_empty_mode_caller_wins(self):
-        assert _enable_session_telemetry_default("empty", True) is True
+    def test_caller_wins(self):
+        assert _embedding_cache_storage_default("empty", "persistent") == "persistent"
+        assert _embedding_cache_storage_default("empty", "in-memory") == "in-memory"
 
     def test_copilot_cli_does_not_change(self):
-        assert _enable_session_telemetry_default("copilot-cli", None) is None
+        assert _embedding_cache_storage_default("copilot-cli", None) is None
+        assert _embedding_cache_storage_default("copilot-cli", "persistent") == "persistent"
+
+
+class TestEmptyModeBooleanDefaults:
+    @pytest.mark.parametrize(
+        ("helper", "empty_default"),
+        [
+            (_enable_session_telemetry_default, False),
+            (_skip_embedding_retrieval_default, True),
+            (_enable_on_demand_instruction_discovery_default, False),
+            (_enable_file_hooks_default, False),
+            (_enable_host_git_operations_default, False),
+            (_enable_session_store_default, False),
+            (_enable_skills_default, False),
+        ],
+    )
+    def test_empty_mode_defaults(self, helper, empty_default):
+        assert helper("empty", None) is empty_default
+
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            _enable_session_telemetry_default,
+            _skip_embedding_retrieval_default,
+            _enable_on_demand_instruction_discovery_default,
+            _enable_file_hooks_default,
+            _enable_host_git_operations_default,
+            _enable_session_store_default,
+            _enable_skills_default,
+        ],
+    )
+    def test_caller_wins(self, helper):
+        assert helper("empty", True) is True
+        assert helper("empty", False) is False
+
+    @pytest.mark.parametrize(
+        "helper",
+        [
+            _enable_session_telemetry_default,
+            _skip_embedding_retrieval_default,
+            _enable_on_demand_instruction_discovery_default,
+            _enable_file_hooks_default,
+            _enable_host_git_operations_default,
+            _enable_session_store_default,
+            _enable_skills_default,
+        ],
+    )
+    def test_copilot_cli_does_not_change(self, helper):
+        assert helper("copilot-cli", None) is None
 
 
 class TestPostCreatePatch:

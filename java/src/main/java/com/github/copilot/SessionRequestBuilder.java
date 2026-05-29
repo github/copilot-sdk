@@ -106,6 +106,7 @@ final class SessionRequestBuilder {
         request.setModel(config.getModel());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
+        request.setReasoningSummary(config.getReasoningSummary());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -124,15 +125,30 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setPluginDirectories(config.getPluginDirectories());
+        request.setLargeOutput(config.getLargeOutput());
         request.setDisabledSkills(config.getDisabledSkills());
-        request.setConfigDir(config.getConfigDir());
+        request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
+        config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
+        if (config.getOrganizationCustomInstructions() != null) {
+            request.setOrganizationCustomInstructions(config.getOrganizationCustomInstructions());
+        }
+        config.getEnableOnDemandInstructionDiscovery().ifPresent(request::setEnableOnDemandInstructionDiscovery);
+        config.getEnableFileHooks().ifPresent(request::setEnableFileHooks);
+        config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
+        config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
+        config.getEnableSkills().ifPresent(request::setEnableSkills);
+        if (config.getEmbeddingCacheStorage() != null) {
+            request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
+        }
         request.setModelCapabilities(config.getModelCapabilities());
 
         if (config.getCommands() != null && !config.getCommands().isEmpty()) {
@@ -143,6 +159,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
+        }
+        if (config.isEnableMcpApps()) {
+            request.setRequestMcpApps(true);
         }
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);
@@ -197,6 +216,7 @@ final class SessionRequestBuilder {
         request.setModel(config.getModel());
         request.setClientName(config.getClientName());
         request.setReasoningEffort(config.getReasoningEffort());
+        request.setReasoningSummary(config.getReasoningSummary());
         request.setTools(config.getTools());
         request.setSystemMessage(config.getSystemMessage());
         request.setAvailableTools(config.getAvailableTools());
@@ -210,8 +230,20 @@ final class SessionRequestBuilder {
             request.setHooks(true);
         }
         request.setWorkingDirectory(config.getWorkingDirectory());
-        request.setConfigDir(config.getConfigDir());
+        request.setConfigDirectory(config.getConfigDirectory());
         config.getEnableConfigDiscovery().ifPresent(request::setEnableConfigDiscovery);
+        config.getSkipEmbeddingRetrieval().ifPresent(request::setSkipEmbeddingRetrieval);
+        if (config.getOrganizationCustomInstructions() != null) {
+            request.setOrganizationCustomInstructions(config.getOrganizationCustomInstructions());
+        }
+        config.getEnableOnDemandInstructionDiscovery().ifPresent(request::setEnableOnDemandInstructionDiscovery);
+        config.getEnableFileHooks().ifPresent(request::setEnableFileHooks);
+        config.getEnableHostGitOperations().ifPresent(request::setEnableHostGitOperations);
+        config.getEnableSessionStore().ifPresent(request::setEnableSessionStore);
+        config.getEnableSkills().ifPresent(request::setEnableSkills);
+        if (config.getEmbeddingCacheStorage() != null) {
+            request.setEmbeddingCacheStorage(config.getEmbeddingCacheStorage());
+        }
         if (config.isDisableResume()) {
             request.setDisableResume(true);
         }
@@ -220,11 +252,14 @@ final class SessionRequestBuilder {
         }
         config.getIncludeSubAgentStreamingEvents().ifPresent(request::setIncludeSubAgentStreamingEvents);
         request.setMcpServers(config.getMcpServers());
+        request.setMcpOAuthTokenStorage(config.getMcpOAuthTokenStorage());
         request.setCustomAgents(config.getCustomAgents());
         request.setDefaultAgent(config.getDefaultAgent());
         request.setAgent(config.getAgent());
         request.setSkillDirectories(config.getSkillDirectories());
         request.setInstructionDirectories(config.getInstructionDirectories());
+        request.setPluginDirectories(config.getPluginDirectories());
+        request.setLargeOutput(config.getLargeOutput());
         request.setDisabledSkills(config.getDisabledSkills());
         request.setInfiniteSessions(config.getInfiniteSessions());
         request.setModelCapabilities(config.getModelCapabilities());
@@ -237,6 +272,9 @@ final class SessionRequestBuilder {
         }
         if (config.getOnElicitationRequest() != null) {
             request.setRequestElicitation(true);
+        }
+        if (config.isEnableMcpApps()) {
+            request.setRequestMcpApps(true);
         }
         if (config.getOnExitPlanMode() != null) {
             request.setRequestExitPlanMode(true);

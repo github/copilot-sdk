@@ -915,6 +915,26 @@ type CurrentModel struct {
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 }
 
+// Lightweight metadata for a currently initialized session tool
+// Experimental: CurrentToolMetadata is part of an experimental API and may change or be
+// removed.
+type CurrentToolMetadata struct {
+	// Whether the tool is loaded on demand via tool search
+	DeferLoading *bool `json:"deferLoading,omitempty"`
+	// Tool description
+	Description string `json:"description"`
+	// JSON Schema for tool input
+	InputSchema map[string]any `json:"input_schema,omitempty"`
+	// MCP server name for MCP-backed tools
+	McpServerName *string `json:"mcpServerName,omitempty"`
+	// Raw MCP tool name for MCP-backed tools
+	McpToolName *string `json:"mcpToolName,omitempty"`
+	// Model-facing tool name
+	Name string `json:"name"`
+	// Optional MCP/config namespaced tool name
+	NamespacedName *string `json:"namespacedName,omitempty"`
+}
+
 // Canvas available in the current session.
 // Experimental: DiscoveredCanvas is part of an experimental API and may change or be
 // removed.
@@ -1843,6 +1863,9 @@ type McpConfigList struct {
 	Servers map[string]McpServerConfig `json:"servers"`
 }
 
+type McpConfigReloadResult struct {
+}
+
 // MCP server name to remove from user configuration.
 type McpConfigRemoveRequest struct {
 	// Name of the MCP server to remove
@@ -2393,6 +2416,14 @@ type ModelList struct {
 	Models []Model `json:"models"`
 }
 
+// Optional listing options.
+// Experimental: ModelListRequest is part of an experimental API and may change or be
+// removed.
+type ModelListRequest struct {
+	// If true, bypasses the per-session model list cache and re-fetches from CAPI.
+	SkipCache *bool `json:"skipCache,omitempty"`
+}
+
 // Policy state (if applicable)
 type ModelPolicy struct {
 	// Current policy state for this model
@@ -2426,10 +2457,15 @@ type ModelsListRequest struct {
 	GitHubToken *string `json:"gitHubToken,omitempty"`
 }
 
-// Target model identifier and optional reasoning effort, summary, and capability overrides.
+// Target model identifier and optional reasoning effort, summary, capability overrides, and
+// context tier.
 // Experimental: ModelSwitchToRequest is part of an experimental API and may change or be
 // removed.
 type ModelSwitchToRequest struct {
+	// Explicit context tier for the selected model. `"default"` / `"long_context"` pin the
+	// tier; `null` clears any previous explicit choice; `undefined` leaves the existing tier
+	// untouched.
+	ContextTier *ModelSwitchToRequestContextTier `json:"contextTier,omitempty"`
 	// Override individual model capabilities resolved by the runtime
 	ModelCapabilities *ModelCapabilitiesOverride `json:"modelCapabilities,omitempty"`
 	// Model identifier to switch to
@@ -4149,6 +4185,9 @@ type SessionContextInfo struct {
 	// Total context limit for /context display. promptTokenLimit + min(32k or 64k,
 	// outputTokenLimit) depending on model.
 	Limit int64 `json:"limit"`
+	// Tokens consumed by MCP tool definitions (subset of toolDefinitionsTokens, excludes
+	// deferred tools)
+	McpToolsTokens int64 `json:"mcpToolsTokens"`
 	// The model used for token counting
 	ModelName string `json:"modelName"`
 	// Maximum prompt tokens allowed by the model (or DEFAULT_TOKEN_LIMIT if unspecified)
@@ -4654,6 +4693,16 @@ type SessionMetadataSnapshot struct {
 	WorkspacePath *string `json:"workspacePath"`
 }
 
+// The list of models available to this session.
+// Experimental: SessionModelList is part of an experimental API and may change or be
+// removed.
+type SessionModelList struct {
+	// Available models, ordered with the most preferred default first.
+	List []any `json:"list"`
+	// Per-quota snapshots returned alongside the model list, keyed by quota type.
+	QuotaSnapshots map[string]any `json:"quotaSnapshots,omitempty"`
+}
+
 // Experimental: SessionModeSetResult is part of an experimental API and may change or be
 // removed.
 type SessionModeSetResult struct {
@@ -5049,6 +5098,12 @@ type SessionUpdateOptionsParams struct {
 	DisabledInstructionSources []string `json:"disabledInstructionSources,omitempty"`
 	// Skill IDs that should be excluded from this session.
 	DisabledSkills []string `json:"disabledSkills,omitempty"`
+	// Whether to enable loading of `.github/hooks/` filesystem hooks. Separate from the SDK
+	// callback hook mechanism.
+	EnableFileHooks *bool `json:"enableFileHooks,omitempty"`
+	// Whether to enable host git operations (context resolution, child repo scanning, git info
+	// in system prompt).
+	EnableHostGitOperations *bool `json:"enableHostGitOperations,omitempty"`
 	// Whether to discover custom instructions on demand after successful file views (AGENTS.md
 	// / CLAUDE.md / .github/copilot-instructions.md surfacing). Combined with
 	// `skipCustomInstructions` and the runtime-side `ON_DEMAND_INSTRUCTIONS` feature flag.
@@ -5057,6 +5112,11 @@ type SessionUpdateOptionsParams struct {
 	EnableReasoningSummaries *bool `json:"enableReasoningSummaries,omitempty"`
 	// Whether shell-script safety heuristics are enabled.
 	EnableScriptSafety *bool `json:"enableScriptSafety,omitempty"`
+	// Whether to enable cross-session store writes and reads.
+	EnableSessionStore *bool `json:"enableSessionStore,omitempty"`
+	// Whether to enable skill directory scanning and loading. Falls back to
+	// enableConfigDiscovery when unset.
+	EnableSkills *bool `json:"enableSkills,omitempty"`
 	// Whether to stream model responses.
 	EnableStreaming *bool `json:"enableStreaming,omitempty"`
 	// How env values are passed to MCP servers (`direct` inlines literal values; `indirect`
@@ -5086,6 +5146,8 @@ type SessionUpdateOptionsParams struct {
 	ManageScheduleEnabled *bool `json:"manageScheduleEnabled,omitempty"`
 	// The model ID to use for assistant turns.
 	Model *string `json:"model,omitempty"`
+	// Organization-level custom instructions to inject into the system prompt.
+	OrganizationCustomInstructions *string `json:"organizationCustomInstructions,omitempty"`
 	// Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the
 	// runtime.
 	// Experimental: Provider is part of an experimental API and may change or be removed.
@@ -5105,6 +5167,8 @@ type SessionUpdateOptionsParams struct {
 	SkillDirectories []string `json:"skillDirectories,omitempty"`
 	// Whether to skip loading custom instruction sources.
 	SkipCustomInstructions *bool `json:"skipCustomInstructions,omitempty"`
+	// Whether to skip embedding retrieval pipeline initialization and execution.
+	SkipEmbeddingRetrieval *bool `json:"skipEmbeddingRetrieval,omitempty"`
 	// Controls how availableTools (allowlist) and excludedTools (denylist) combine when both
 	// are set.
 	ToolFilterPrecedence *OptionsUpdateToolFilterPrecedence `json:"toolFilterPrecedence,omitempty"`
@@ -5776,6 +5840,14 @@ type ToolList struct {
 	Tools []Tool `json:"tools"`
 }
 
+// Current lightweight tool metadata snapshot for the session.
+// Experimental: ToolsGetCurrentMetadataResult is part of an experimental API and may change
+// or be removed.
+type ToolsGetCurrentMetadataResult struct {
+	// Current tool metadata, or null when tools have not been initialized yet
+	Tools []CurrentToolMetadata `json:"tools"`
+}
+
 // Resolve, build, and validate the runtime tool list for this session. Subagent sessions
 // and consumer flows that need an initialized tool set before `send` invoke this. Default
 // base-class implementation is a no-op for sessions that don't support tool validation.
@@ -6294,6 +6366,9 @@ type UsageMetricsModelMetricUsage struct {
 type UsageMetricsTokenDetail struct {
 	// Accumulated token count for this token type
 	TokenCount int64 `json:"tokenCount"`
+}
+
+type UserSettingsReloadResult struct {
 }
 
 // The approval to add as a session-scoped rule
@@ -7273,6 +7348,15 @@ const (
 	ModelPolicyStateUnconfigured ModelPolicyState = "unconfigured"
 )
 
+type ModelSwitchToRequestContextTier string
+
+const (
+	// Use the model's default context window.
+	ModelSwitchToRequestContextTierDefault ModelSwitchToRequestContextTier = "default"
+	// Pin the session to the long-context tier when supported.
+	ModelSwitchToRequestContextTierLongContext ModelSwitchToRequestContextTier = "long_context"
+)
+
 // How env values are passed to MCP servers (`direct` inlines literal values; `indirect`
 // resolves at launch).
 // Experimental: OptionsUpdateEnvValueMode is part of an experimental API and may change or
@@ -8082,6 +8166,22 @@ func (a *ServerMcpConfigApi) List(ctx context.Context) (*McpConfigList, error) {
 	return &result, nil
 }
 
+// Reload drops this runtime process's in-memory MCP server-definition cache so the next MCP
+// config read observes disk.
+//
+// RPC method: mcp.config.reload.
+func (a *ServerMcpConfigApi) Reload(ctx context.Context) (*McpConfigReloadResult, error) {
+	raw, err := a.client.Request("mcp.config.reload", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result McpConfigReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // Removes an MCP server from user configuration.
 //
 // RPC method: mcp.config.remove.
@@ -8645,6 +8745,30 @@ func (a *ServerToolsApi) List(ctx context.Context, params *ToolsListRequest) (*T
 	return &result, nil
 }
 
+type ServerUserApi serverApi
+
+type ServerUserSettingsApi serverApi
+
+// Reload drops this runtime process's in-memory user settings cache so the next settings
+// read observes disk.
+//
+// RPC method: user.settings.reload.
+func (a *ServerUserSettingsApi) Reload(ctx context.Context) (*UserSettingsReloadResult, error) {
+	raw, err := a.client.Request("user.settings.reload", nil)
+	if err != nil {
+		return nil, err
+	}
+	var result UserSettingsReloadResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (s *ServerUserApi) Settings() *ServerUserSettingsApi {
+	return (*ServerUserSettingsApi)(s)
+}
+
 // ServerRpc provides typed server-scoped RPC methods.
 type ServerRpc struct {
 	// Reuse a single struct instead of allocating one for each service on the heap.
@@ -8659,6 +8783,7 @@ type ServerRpc struct {
 	Sessions      *ServerSessionsApi
 	Skills        *ServerSkillsApi
 	Tools         *ServerToolsApi
+	User          *ServerUserApi
 }
 
 // Ping checks server responsiveness and returns protocol information.
@@ -8693,6 +8818,7 @@ func NewServerRpc(client *jsonrpc2.Client) *ServerRpc {
 	r.Sessions = (*ServerSessionsApi)(&r.common)
 	r.Skills = (*ServerSkillsApi)(&r.common)
 	r.Tools = (*ServerToolsApi)(&r.common)
+	r.User = (*ServerUserApi)(&r.common)
 	return r
 }
 
@@ -10141,6 +10267,37 @@ func (a *ModelApi) GetCurrent(ctx context.Context) (*CurrentModel, error) {
 	return &result, nil
 }
 
+// Lists models available to this session using its own auth and integration context.
+// Connected hosts (CLI TUI, GitHub App) should call this through the session client so
+// remote sessions return the remote CLI's available models rather than the caller's.
+//
+// RPC method: session.model.list.
+//
+// Parameters: Optional listing options.
+//
+// Returns: The list of models available to this session.
+func (a *ModelApi) List(ctx context.Context, params ...*ModelListRequest) (*SessionModelList, error) {
+	var requestParams *ModelListRequest
+	if len(params) > 0 {
+		requestParams = params[0]
+	}
+	req := map[string]any{"sessionId": a.sessionID}
+	if requestParams != nil {
+		if requestParams.SkipCache != nil {
+			req["skipCache"] = *requestParams.SkipCache
+		}
+	}
+	raw, err := a.client.Request("session.model.list", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SessionModelList
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // SetReasoningEffort updates the session's reasoning effort without changing the selected
 // model.
 //
@@ -10171,13 +10328,16 @@ func (a *ModelApi) SetReasoningEffort(ctx context.Context, params *ModelSetReaso
 //
 // RPC method: session.model.switchTo.
 //
-// Parameters: Target model identifier and optional reasoning effort, summary, and
-// capability overrides.
+// Parameters: Target model identifier and optional reasoning effort, summary, capability
+// overrides, and context tier.
 //
 // Returns: The model identifier active on the session after the switch.
 func (a *ModelApi) SwitchTo(ctx context.Context, params *ModelSwitchToRequest) (*ModelSwitchToResult, error) {
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
+		if params.ContextTier != nil {
+			req["contextTier"] = *params.ContextTier
+		}
 		if params.ModelCapabilities != nil {
 			req["modelCapabilities"] = *params.ModelCapabilities
 		}
@@ -10313,6 +10473,12 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.DisabledSkills != nil {
 			req["disabledSkills"] = params.DisabledSkills
 		}
+		if params.EnableFileHooks != nil {
+			req["enableFileHooks"] = *params.EnableFileHooks
+		}
+		if params.EnableHostGitOperations != nil {
+			req["enableHostGitOperations"] = *params.EnableHostGitOperations
+		}
 		if params.EnableOnDemandInstructionDiscovery != nil {
 			req["enableOnDemandInstructionDiscovery"] = *params.EnableOnDemandInstructionDiscovery
 		}
@@ -10321,6 +10487,12 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.EnableScriptSafety != nil {
 			req["enableScriptSafety"] = *params.EnableScriptSafety
+		}
+		if params.EnableSessionStore != nil {
+			req["enableSessionStore"] = *params.EnableSessionStore
+		}
+		if params.EnableSkills != nil {
+			req["enableSkills"] = *params.EnableSkills
 		}
 		if params.EnableStreaming != nil {
 			req["enableStreaming"] = *params.EnableStreaming
@@ -10358,6 +10530,9 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		if params.Model != nil {
 			req["model"] = *params.Model
 		}
+		if params.OrganizationCustomInstructions != nil {
+			req["organizationCustomInstructions"] = *params.OrganizationCustomInstructions
+		}
 		if params.Provider != nil {
 			req["provider"] = params.Provider
 		}
@@ -10381,6 +10556,9 @@ func (a *OptionsApi) Update(ctx context.Context, params *SessionUpdateOptionsPar
 		}
 		if params.SkipCustomInstructions != nil {
 			req["skipCustomInstructions"] = *params.SkipCustomInstructions
+		}
+		if params.SkipEmbeddingRetrieval != nil {
+			req["skipEmbeddingRetrieval"] = *params.SkipEmbeddingRetrieval
 		}
 		if params.ToolFilterPrecedence != nil {
 			req["toolFilterPrecedence"] = *params.ToolFilterPrecedence
@@ -11674,6 +11852,25 @@ func (a *TelemetryApi) SetFeatureOverrides(ctx context.Context, params *Telemetr
 
 // Experimental: ToolsApi contains experimental APIs that may change or be removed.
 type ToolsApi sessionApi
+
+// GetCurrentMetadata returns lightweight metadata for the session's currently initialized
+// tools.
+//
+// RPC method: session.tools.getCurrentMetadata.
+//
+// Returns: Current lightweight tool metadata snapshot for the session.
+func (a *ToolsApi) GetCurrentMetadata(ctx context.Context) (*ToolsGetCurrentMetadataResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	raw, err := a.client.Request("session.tools.getCurrentMetadata", req)
+	if err != nil {
+		return nil, err
+	}
+	var result ToolsGetCurrentMetadataResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // HandlePendingToolCall provides the result for a pending external tool call.
 //

@@ -11,6 +11,7 @@ use github_copilot_sdk::generated::api_types::{
     CanvasInstanceAvailability, CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest,
     CanvasProviderOpenResult, OpenCanvasInstance,
 };
+use github_copilot_sdk::generated::session_events::ReasoningSummary;
 use github_copilot_sdk::handler::{
     ApproveAllHandler, AutoModeSwitchHandler, AutoModeSwitchResponse, ElicitationHandler,
     ExitPlanModeHandler, ExitPlanModeResult, UserInputHandler, UserInputResponse,
@@ -18,7 +19,7 @@ use github_copilot_sdk::handler::{
 use github_copilot_sdk::types::{
     CommandContext, CommandDefinition, CommandHandler, DeliveryMode, ElicitationRequest,
     ElicitationResult, ExitPlanModeData, ExtensionInfo, MessageOptions, RequestId, SessionConfig,
-    SessionId, Tool, ToolInvocation, ToolResult,
+    SessionId, SetModelOptions, Tool, ToolInvocation, ToolResult,
 };
 use github_copilot_sdk::{Client, tool};
 use serde_json::Value;
@@ -1283,12 +1284,24 @@ async fn set_model_sends_switch_to_request() {
 
     let handle = tokio::spawn({
         let session = session.clone();
-        async move { session.set_model("claude-sonnet-4", None).await.unwrap() }
+        async move {
+            session
+                .set_model(
+                    "claude-sonnet-4",
+                    Some(
+                        SetModelOptions::default()
+                            .with_reasoning_summary(ReasoningSummary::Detailed),
+                    ),
+                )
+                .await
+                .unwrap()
+        }
     });
 
     let request = server.read_request().await;
     assert_eq!(request["method"], "session.model.switchTo");
     assert_eq!(request["params"]["modelId"], "claude-sonnet-4");
+    assert_eq!(request["params"]["reasoningSummary"], "detailed");
     server
         .respond(
             &request,
@@ -2631,6 +2644,103 @@ async fn resume_session_sends_canvas_fields_and_captures_open_canvases() {
 }
 
 #[tokio::test]
+async fn session_canvas_opened_updates_open_canvas_snapshots() {
+    let (session, mut server) = create_session_pair().await;
+    assert!(session.open_canvases().is_empty());
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "instanceId": "missing-required-fields",
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "extensionName": "Counter Provider",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter",
+                "status": "ready",
+                "url": "https://example.test/counter",
+                "input": { "seed": 1 },
+                "reopen": false,
+                "availability": "ready"
+            }),
+        )
+        .await;
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:logs",
+                "canvasId": "logs",
+                "instanceId": "logs-1",
+                "title": "Logs",
+                "reopen": false,
+                "availability": "stale"
+            }),
+        )
+        .await;
+
+    let mut open = Vec::new();
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].title.as_deref(), Some("Counter"));
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Ready);
+    assert_eq!(open[1].instance_id, "logs-1");
+
+    server
+        .send_event(
+            "session.canvas.opened",
+            serde_json::json!({
+                "extensionId": "project:counter",
+                "extensionName": "Counter Provider",
+                "canvasId": "counter",
+                "instanceId": "counter-1",
+                "title": "Counter Updated",
+                "status": "reconnected",
+                "url": "https://example.test/counter-updated",
+                "input": { "seed": 2 },
+                "reopen": true,
+                "availability": "stale"
+            }),
+        )
+        .await;
+
+    for _ in 0..50 {
+        open = session.open_canvases();
+        if open.len() == 2 && open[0].title.as_deref() == Some("Counter Updated") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(open.len(), 2);
+    assert_eq!(open[0].instance_id, "counter-1");
+    assert_eq!(open[0].title.as_deref(), Some("Counter Updated"));
+    assert_eq!(open[0].status.as_deref(), Some("reconnected"));
+    assert_eq!(
+        open[0].url.as_deref(),
+        Some("https://example.test/counter-updated")
+    );
+    assert_eq!(open[0].input, Some(serde_json::json!({ "seed": 2 })));
+    assert!(open[0].reopen);
+    assert_eq!(open[0].availability, CanvasInstanceAvailability::Stale);
+    assert_eq!(open[1].instance_id, "logs-1");
+}
+
+#[tokio::test]
 async fn elicitation_methods_fail_without_capability() {
     let (session, _server) = create_session_pair().await;
 
@@ -3075,7 +3185,7 @@ fn session_config_serializes_bucket_b_fields() {
 
     let mut cfg = SessionConfig::default();
     cfg.session_id = Some(SessionId::from("custom-id"));
-    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(false);
@@ -3102,7 +3212,7 @@ fn resume_session_config_serializes_bucket_b_fields() {
 
     let mut cfg = ResumeSessionConfig::new(SessionId::from("sess-1"));
     cfg.working_directory = Some(PathBuf::from("/tmp/work"));
-    cfg.config_dir = Some(PathBuf::from("/tmp/cfg"));
+    cfg.config_directory = Some(PathBuf::from("/tmp/cfg"));
     cfg.github_token = Some("ghs_secret".to_string());
     cfg.include_sub_agent_streaming_events = Some(true);
     cfg.enable_session_telemetry = Some(false);

@@ -1130,6 +1130,16 @@ public sealed class SessionUiCapabilities
     /// Whether the host supports interactive elicitation dialogs.
     /// </summary>
     public bool? Elicitation { get; set; }
+
+    /// <summary>
+    /// Whether the runtime has accepted the session's MCP Apps (SEP-1865) opt-in.
+    /// <c>true</c> when the consumer set <see cref="SessionConfigBase.EnableMcpApps"/>
+    /// to <c>true</c> on create/resume <b>and</b> the runtime's <c>MCP_APPS</c> feature flag
+    /// (or <c>COPILOT_MCP_APPS=true</c> env override) is on. Otherwise absent or
+    /// <c>false</c>, indicating the runtime silently dropped the opt-in.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool? McpApps { get; set; }
 }
 
 // ============================================================================
@@ -2072,6 +2082,36 @@ public enum McpHttpServerConfigOauthGrantType
 }
 
 /// <summary>
+/// Controls how MCP OAuth tokens are stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<McpOAuthTokenStorageMode>))]
+public enum McpOAuthTokenStorageMode
+{
+    /// <summary>Tokens are stored in the OS keychain, shared across sessions.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Tokens are stored in memory and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
+/// Controls how the embedding cache is stored for a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<EmbeddingCacheStorageMode>))]
+public enum EmbeddingCacheStorageMode
+{
+    /// <summary>Embeddings are cached on disk, shared across sessions and restarts.</summary>
+    [JsonStringEnumMemberName("persistent")]
+    Persistent,
+
+    /// <summary>Embeddings are cached in memory only and discarded when the session ends.</summary>
+    [JsonStringEnumMemberName("in-memory")]
+    InMemory
+}
+
+/// <summary>
 /// Abstract base class for MCP server configurations.
 /// </summary>
 [JsonPolymorphic(
@@ -2294,6 +2334,37 @@ public sealed class InfiniteSessionConfig
 }
 
 /// <summary>
+/// Configuration for handling large tool outputs.
+/// </summary>
+/// <remarks>
+/// When a tool produces output exceeding the configured size, the output is
+/// written to a temp file and a reference is returned to the model instead of
+/// returning to it the full payload.
+/// </remarks>
+public sealed class LargeToolOutputConfig
+{
+    /// <summary>
+    /// Whether large output handling is enabled.
+    /// </summary>
+    /// <remarks>The default value is <see langword="true"/>.</remarks>
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>
+    /// Maximum size in bytes before output is written to a temp file.
+    /// </summary>
+    [JsonPropertyName("maxSizeBytes")]
+    public long? MaxSizeBytes { get; set; }
+
+    /// <summary>
+    /// Directory to write temp files to.
+    /// </summary>
+    /// <remarks>The default value is the OS temp directory.</remarks>
+    [JsonPropertyName("outputDir")]
+    public string? OutputDirectory { get; set; }
+}
+
+/// <summary>
 /// GitHub repository metadata to associate with a cloud session.
 /// </summary>
 public sealed class CloudSessionRepository
@@ -2340,20 +2411,31 @@ public abstract class SessionConfigBase
         AvailableTools = other.AvailableTools is not null ? [.. other.AvailableTools] : null;
         ClientName = other.ClientName;
         Commands = other.Commands is not null ? [.. other.Commands] : null;
-        ConfigDir = other.ConfigDir;
+        ConfigDirectory = other.ConfigDirectory;
         CustomAgents = other.CustomAgents is not null ? [.. other.CustomAgents] : null;
         DefaultAgent = other.DefaultAgent;
         Agent = other.Agent;
         DisabledSkills = other.DisabledSkills is not null ? [.. other.DisabledSkills] : null;
         EnableConfigDiscovery = other.EnableConfigDiscovery;
+        SkipEmbeddingRetrieval = other.SkipEmbeddingRetrieval;
+        EmbeddingCacheStorage = other.EmbeddingCacheStorage;
+        OrganizationCustomInstructions = other.OrganizationCustomInstructions;
+        EnableOnDemandInstructionDiscovery = other.EnableOnDemandInstructionDiscovery;
+        EnableFileHooks = other.EnableFileHooks;
+        EnableHostGitOperations = other.EnableHostGitOperations;
+        EnableSessionStore = other.EnableSessionStore;
+        EnableSkills = other.EnableSkills;
+        EnableMcpApps = other.EnableMcpApps;
         ExcludedTools = other.ExcludedTools is not null ? [.. other.ExcludedTools] : null;
         Hooks = other.Hooks;
         InfiniteSessions = other.InfiniteSessions;
+        LargeOutput = other.LargeOutput;
         McpServers = other.McpServers is not null
             ? (other.McpServers is Dictionary<string, McpServerConfig> dict
                 ? new Dictionary<string, McpServerConfig>(dict, dict.Comparer)
                 : new Dictionary<string, McpServerConfig>(other.McpServers))
             : null;
+        McpOAuthTokenStorage = other.McpOAuthTokenStorage;
         Model = other.Model;
         ModelCapabilities = other.ModelCapabilities;
         OnAutoModeSwitchRequest = other.OnAutoModeSwitchRequest;
@@ -2369,6 +2451,7 @@ public abstract class SessionConfigBase
         CoauthorEnabled = other.CoauthorEnabled;
         ManageScheduleEnabled = other.ManageScheduleEnabled;
         ReasoningEffort = other.ReasoningEffort;
+        ReasoningSummary = other.ReasoningSummary;
         CreateSessionFsProvider = other.CreateSessionFsProvider;
         GitHubToken = other.GitHubToken;
         RemoteSession = other.RemoteSession;
@@ -2380,6 +2463,7 @@ public abstract class SessionConfigBase
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
         SkillDirectories = other.SkillDirectories is not null ? [.. other.SkillDirectories] : null;
+        PluginDirectories = other.PluginDirectories is not null ? [.. other.PluginDirectories] : null;
         InstructionDirectories = other.InstructionDirectories is not null ? [.. other.InstructionDirectories] : null;
         Streaming = other.Streaming;
         IncludeSubAgentStreamingEvents = other.IncludeSubAgentStreamingEvents;
@@ -2401,6 +2485,14 @@ public abstract class SessionConfigBase
     /// </summary>
     public string? ReasoningEffort { get; set; }
 
+    /// <summary>
+    /// Reasoning summary mode for models that support configurable reasoning summaries.
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="ReasoningSummary.None"/> to suppress summary output regardless of whether reasoning is enabled.
+    /// </remarks>
+    public ReasoningSummary? ReasoningSummary { get; set; }
+
     /// <summary>Per-property overrides for model capabilities, deep-merged over runtime defaults.</summary>
     public ModelCapabilitiesOverride? ModelCapabilities { get; set; }
 
@@ -2408,7 +2500,7 @@ public abstract class SessionConfigBase
     /// Override the default configuration directory location.
     /// When specified, the session will use this directory for storing config and state.
     /// </summary>
-    public string? ConfigDir { get; set; }
+    public string? ConfigDirectory { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, automatically discovers MCP server configurations
@@ -2422,6 +2514,63 @@ public abstract class SessionConfigBase
     /// </para>
     /// </summary>
     public bool? EnableConfigDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, skips embedding-based retrieval for this session.
+    /// Use in multitenant deployments to prevent cross-session information leakage
+    /// through the shared embedding cache.
+    /// </summary>
+    public bool? SkipEmbeddingRetrieval { get; set; }
+
+    /// <summary>
+    /// Controls how the embedding cache is stored for this session.
+    /// <see cref="EmbeddingCacheStorageMode.Persistent"/>: Embeddings are cached on disk and shared across sessions/restarts.
+    /// <see cref="EmbeddingCacheStorageMode.InMemory"/>: Embeddings are cached in memory only and discarded when the session ends.
+    /// </summary>
+    public EmbeddingCacheStorageMode? EmbeddingCacheStorage { get; set; }
+
+    /// <summary>
+    /// Organization-level custom instructions to include in the system prompt.
+    /// Allows hosts to inject organization-specific guidance without relying on
+    /// filesystem-based instruction discovery.
+    /// </summary>
+    public string? OrganizationCustomInstructions { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables on-demand discovery of instruction files
+    /// (for example <c>AGENTS.md</c> and <c>.github/copilot-instructions.md</c>)
+    /// after successful file views.
+    /// </summary>
+    public bool? EnableOnDemandInstructionDiscovery { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables loading of file-based hooks from
+    /// <c>.github/hooks/</c>. This is separate from <see cref="Hooks"/>, which
+    /// controls SDK hook callback registration.
+    /// </summary>
+    public bool? EnableFileHooks { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables git operations on the host filesystem
+    /// such as branch detection, file status, and commit history. When
+    /// <see langword="false"/>, no git context is surfaced in the system prompt.
+    /// </summary>
+    public bool? EnableHostGitOperations { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables the cross-session store for search and
+    /// retrieval across sessions. When <see langword="false"/>, session content is
+    /// not written to or read from the shared session store.
+    /// </summary>
+    public bool? EnableSessionStore { get; set; }
+
+    /// <summary>
+    /// When <see langword="true"/>, enables skill loading, including built-in
+    /// skills and discovered skill directories. When <see langword="false"/>, no
+    /// skills are loaded regardless of <see cref="SkillDirectories"/> or
+    /// <see cref="EnableConfigDiscovery"/>.
+    /// </summary>
+    public bool? EnableSkills { get; set; }
 
     /// <summary>
     /// Custom tool declarations available to the language model during the session.
@@ -2507,6 +2656,31 @@ public abstract class SessionConfigBase
     /// <summary>Handler for auto-mode-switch requests from the server.</summary>
     public Func<AutoModeSwitchRequest, AutoModeSwitchInvocation, Task<AutoModeSwitchResponse>>? OnAutoModeSwitchRequest { get; set; }
 
+    /// <summary>
+    /// Enable MCP Apps (SEP-1865) UI passthrough on this session.
+    /// <para>
+    /// When <c>true</c> <b>and</b> the runtime has MCP Apps enabled (via the
+    /// <c>MCP_APPS</c> feature flag or <c>COPILOT_MCP_APPS=true</c> environment override), the
+    /// runtime adds the <c>mcp-apps</c> capability to the session, which causes it to advertise
+    /// the <c>extensions.io.modelcontextprotocol/ui</c> extension to MCP servers (so they expose
+    /// <c>_meta.ui.resourceUri</c> on tools) and to expose the
+    /// <c>session.rpc.mcp.apps.{listTools,callTool,readResource,setHostContext,getHostContext,diagnose}</c>
+    /// JSON-RPC methods.
+    /// </para>
+    /// <para>
+    /// If the runtime gate is off, the opt-in is silently dropped server-side (the runtime logs a
+    /// warning); the session is created normally but the MCP Apps surface is unavailable. Inspect
+    /// the runtime's <c>capabilities.ui.mcpApps</c> on the create/resume response to detect this.
+    /// </para>
+    /// <para>
+    /// SDK consumers MUST set this to <c>true</c> only when they have an iframe renderer that can
+    /// display <c>ui://</c> MCP App bundles. Setting it without a renderer will cause MCP servers
+    /// to register UI-enabled tool variants the consumer cannot display.
+    /// </para>
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public bool EnableMcpApps { get; set; }
+
     /// <summary>Hook handlers for session lifecycle events.</summary>
     public SessionHooks? Hooks { get; set; }
 
@@ -2538,6 +2712,12 @@ public abstract class SessionConfigBase
     /// </summary>
     public IDictionary<string, McpServerConfig>? McpServers { get; set; }
 
+    /// <summary>
+    /// Controls how MCP OAuth tokens are stored for this session.
+    /// Default: <see cref="McpOAuthTokenStorageMode.InMemory"/> for safe multitenant behavior.
+    /// </summary>
+    public McpOAuthTokenStorageMode? McpOAuthTokenStorage { get; set; }
+
     /// <summary>Custom agent configurations for the session.</summary>
     public IList<CustomAgentConfig>? CustomAgents { get; set; }
 
@@ -2557,6 +2737,17 @@ public abstract class SessionConfigBase
     /// <summary>Directories to load skills from.</summary>
     public IList<string>? SkillDirectories { get; set; }
 
+    /// <summary>
+    /// Local filesystem paths to Open Plugins-format directories
+    /// (https://open-plugins.com/) to load for this session.
+    /// </summary>
+    /// <remarks>
+    /// Relative paths resolve against <see cref="WorkingDirectory"/> (or the
+    /// runtime cwd if unset). Treated as an explicit opt-in: plugin agents
+    /// and rules load even when <see cref="EnableConfigDiscovery"/> is false.
+    /// </remarks>
+    public IList<string>? PluginDirectories { get; set; }
+
     /// <summary>Additional directories to search for custom instruction files.</summary>
     public IList<string>? InstructionDirectories { get; set; }
 
@@ -2568,6 +2759,14 @@ public abstract class SessionConfigBase
     /// When enabled (default), sessions automatically manage context limits and persist state.
     /// </summary>
     public InfiniteSessionConfig? InfiniteSessions { get; set; }
+
+    /// <summary>
+    /// Configuration for handling large tool outputs. When a tool produces
+    /// output exceeding the configured size, the output is written to a temp
+    /// file and a reference is returned to the model instead of the full
+    /// payload.
+    /// </summary>
+    public LargeToolOutputConfig? LargeOutput { get; set; }
 
     /// <summary>
     /// Optional event handler registered on the session before the session.create / session.resume

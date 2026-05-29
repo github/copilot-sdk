@@ -36,6 +36,9 @@ public final class CreateSessionRequest {
     @JsonProperty("reasoningEffort")
     private String reasoningEffort;
 
+    @JsonProperty("reasoningSummary")
+    private String reasoningSummary;
+
     @JsonProperty("tools")
     private List<ToolDefinition> tools;
 
@@ -78,6 +81,9 @@ public final class CreateSessionRequest {
     @JsonProperty("mcpServers")
     private Map<String, McpServerConfig> mcpServers;
 
+    @JsonProperty("mcpOAuthTokenStorage")
+    private String mcpOAuthTokenStorage;
+
     @JsonProperty("envValueMode")
     private String envValueMode;
 
@@ -99,20 +105,61 @@ public final class CreateSessionRequest {
     @JsonProperty("instructionDirectories")
     private List<String> instructionDirectories;
 
+    @JsonProperty("pluginDirectories")
+    private List<String> pluginDirectories;
+
+    @JsonProperty("largeOutput")
+    private LargeToolOutputConfig largeOutput;
+
     @JsonProperty("disabledSkills")
     private List<String> disabledSkills;
 
     @JsonProperty("configDir")
-    private String configDir;
+    private String configDirectory;
 
     @JsonProperty("enableConfigDiscovery")
     private Boolean enableConfigDiscovery;
+
+    @JsonProperty("skipEmbeddingRetrieval")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean skipEmbeddingRetrieval;
+
+    @JsonProperty("organizationCustomInstructions")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String organizationCustomInstructions;
+
+    @JsonProperty("enableOnDemandInstructionDiscovery")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableOnDemandInstructionDiscovery;
+
+    @JsonProperty("enableFileHooks")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableFileHooks;
+
+    @JsonProperty("enableHostGitOperations")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableHostGitOperations;
+
+    @JsonProperty("enableSessionStore")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableSessionStore;
+
+    @JsonProperty("enableSkills")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Boolean enableSkills;
+
+    @JsonProperty("embeddingCacheStorage")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String embeddingCacheStorage;
 
     @JsonProperty("commands")
     private List<CommandWireDefinition> commands;
 
     @JsonProperty("requestElicitation")
     private Boolean requestElicitation;
+
+    @JsonProperty("requestMcpApps")
+    private Boolean requestMcpApps;
 
     @JsonProperty("requestExitPlanMode")
     private Boolean requestExitPlanMode;
@@ -172,6 +219,19 @@ public final class CreateSessionRequest {
      */
     public void setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+    }
+
+    /** Gets the reasoning summary mode. @return the reasoning summary mode */
+    public String getReasoningSummary() {
+        return reasoningSummary;
+    }
+
+    /**
+     * Sets the reasoning summary mode. @param reasoningSummary the reasoning
+     * summary mode
+     */
+    public void setReasoningSummary(String reasoningSummary) {
+        this.reasoningSummary = reasoningSummary;
     }
 
     /** Gets the tools. @return the tool definitions */
@@ -344,6 +404,19 @@ public final class CreateSessionRequest {
         this.mcpServers = mcpServers;
     }
 
+    /** Gets MCP OAuth token storage mode. @return the storage mode */
+    public String getMcpOAuthTokenStorage() {
+        return mcpOAuthTokenStorage;
+    }
+
+    /**
+     * Sets MCP OAuth token storage mode. @param mcpOAuthTokenStorage the storage
+     * mode
+     */
+    public void setMcpOAuthTokenStorage(String mcpOAuthTokenStorage) {
+        this.mcpOAuthTokenStorage = mcpOAuthTokenStorage;
+    }
+
     /** Gets MCP environment variable value mode. @return the mode */
     public String getEnvValueMode() {
         return envValueMode;
@@ -418,6 +491,26 @@ public final class CreateSessionRequest {
         this.instructionDirectories = instructionDirectories;
     }
 
+    /** Gets plugin directories. @return the plugin directories */
+    public List<String> getPluginDirectories() {
+        return pluginDirectories == null ? null : Collections.unmodifiableList(pluginDirectories);
+    }
+
+    /** Sets plugin directories. @param pluginDirectories the directories */
+    public void setPluginDirectories(List<String> pluginDirectories) {
+        this.pluginDirectories = pluginDirectories;
+    }
+
+    /** Gets large output config. @return the large output config */
+    public LargeToolOutputConfig getLargeOutput() {
+        return largeOutput;
+    }
+
+    /** Sets large output config. @param largeOutput the large output config */
+    public void setLargeOutput(LargeToolOutputConfig largeOutput) {
+        this.largeOutput = largeOutput;
+    }
+
     /** Gets disabled skills. @return the disabled skill names */
     public List<String> getDisabledSkills() {
         return disabledSkills == null ? null : Collections.unmodifiableList(disabledSkills);
@@ -429,13 +522,13 @@ public final class CreateSessionRequest {
     }
 
     /** Gets config directory. @return the config directory path */
-    public String getConfigDir() {
-        return configDir;
+    public String getConfigDirectory() {
+        return configDirectory;
     }
 
-    /** Sets config directory. @param configDir the config directory path */
-    public void setConfigDir(String configDir) {
-        this.configDir = configDir;
+    /** Sets config directory. @param configDirectory the config directory path */
+    public void setConfigDirectory(String configDirectory) {
+        this.configDirectory = configDirectory;
     }
 
     /** Gets enable config discovery flag. @return the flag */
@@ -453,6 +546,141 @@ public final class CreateSessionRequest {
      */
     public void clearEnableConfigDiscovery() {
         this.enableConfigDiscovery = null;
+    }
+
+    /** Gets skip embedding retrieval flag. @return the flag */
+    public Boolean getSkipEmbeddingRetrieval() {
+        return skipEmbeddingRetrieval;
+    }
+
+    /**
+     * Sets skip embedding retrieval flag. @param skipEmbeddingRetrieval the flag
+     */
+    public void setSkipEmbeddingRetrieval(boolean skipEmbeddingRetrieval) {
+        this.skipEmbeddingRetrieval = skipEmbeddingRetrieval;
+    }
+
+    /**
+     * Clears the skipEmbeddingRetrieval setting, reverting to the default behavior.
+     */
+    public void clearSkipEmbeddingRetrieval() {
+        this.skipEmbeddingRetrieval = null;
+    }
+
+    /** Gets organization custom instructions. @return the instructions */
+    public String getOrganizationCustomInstructions() {
+        return organizationCustomInstructions;
+    }
+
+    /**
+     * Sets organization custom instructions. @param organizationCustomInstructions
+     * the instructions
+     */
+    public void setOrganizationCustomInstructions(String organizationCustomInstructions) {
+        this.organizationCustomInstructions = organizationCustomInstructions;
+    }
+
+    /** Gets enable on-demand instruction discovery flag. @return the flag */
+    public Boolean getEnableOnDemandInstructionDiscovery() {
+        return enableOnDemandInstructionDiscovery;
+    }
+
+    /**
+     * Sets enable on-demand instruction discovery flag. @param
+     * enableOnDemandInstructionDiscovery the flag
+     */
+    public void setEnableOnDemandInstructionDiscovery(boolean enableOnDemandInstructionDiscovery) {
+        this.enableOnDemandInstructionDiscovery = enableOnDemandInstructionDiscovery;
+    }
+
+    /**
+     * Clears the enableOnDemandInstructionDiscovery setting, reverting to the
+     * default behavior.
+     */
+    public void clearEnableOnDemandInstructionDiscovery() {
+        this.enableOnDemandInstructionDiscovery = null;
+    }
+
+    /** Gets enable file hooks flag. @return the flag */
+    public Boolean getEnableFileHooks() {
+        return enableFileHooks;
+    }
+
+    /** Sets enable file hooks flag. @param enableFileHooks the flag */
+    public void setEnableFileHooks(boolean enableFileHooks) {
+        this.enableFileHooks = enableFileHooks;
+    }
+
+    /** Clears the enableFileHooks setting, reverting to the default behavior. */
+    public void clearEnableFileHooks() {
+        this.enableFileHooks = null;
+    }
+
+    /** Gets enable host git operations flag. @return the flag */
+    public Boolean getEnableHostGitOperations() {
+        return enableHostGitOperations;
+    }
+
+    /**
+     * Sets enable host git operations flag. @param enableHostGitOperations the flag
+     */
+    public void setEnableHostGitOperations(boolean enableHostGitOperations) {
+        this.enableHostGitOperations = enableHostGitOperations;
+    }
+
+    /**
+     * Clears the enableHostGitOperations setting, reverting to the default
+     * behavior.
+     */
+    public void clearEnableHostGitOperations() {
+        this.enableHostGitOperations = null;
+    }
+
+    /** Gets enable session store flag. @return the flag */
+    public Boolean getEnableSessionStore() {
+        return enableSessionStore;
+    }
+
+    /** Sets enable session store flag. @param enableSessionStore the flag */
+    public void setEnableSessionStore(boolean enableSessionStore) {
+        this.enableSessionStore = enableSessionStore;
+    }
+
+    /** Clears the enableSessionStore setting, reverting to the default behavior. */
+    public void clearEnableSessionStore() {
+        this.enableSessionStore = null;
+    }
+
+    /** Gets enable skills flag. @return the flag */
+    public Boolean getEnableSkills() {
+        return enableSkills;
+    }
+
+    /** Sets enable skills flag. @param enableSkills the flag */
+    public void setEnableSkills(boolean enableSkills) {
+        this.enableSkills = enableSkills;
+    }
+
+    /** Clears the enableSkills setting, reverting to the default behavior. */
+    public void clearEnableSkills() {
+        this.enableSkills = null;
+    }
+
+    /** Gets embedding cache storage mode. @return the mode */
+    public String getEmbeddingCacheStorage() {
+        return embeddingCacheStorage;
+    }
+
+    /** Sets embedding cache storage mode. @param embeddingCacheStorage the mode */
+    public void setEmbeddingCacheStorage(String embeddingCacheStorage) {
+        this.embeddingCacheStorage = embeddingCacheStorage;
+    }
+
+    /**
+     * Clears the embeddingCacheStorage setting, reverting to the default behavior.
+     */
+    public void clearEmbeddingCacheStorage() {
+        this.embeddingCacheStorage = null;
     }
 
     /** Gets include sub-agent streaming events flag. @return the flag */
@@ -501,6 +729,21 @@ public final class CreateSessionRequest {
      */
     public void clearRequestElicitation() {
         this.requestElicitation = null;
+    }
+
+    /** Gets the requestMcpApps flag. @return the flag */
+    public Boolean getRequestMcpApps() {
+        return requestMcpApps;
+    }
+
+    /** Sets the requestMcpApps flag. @param requestMcpApps the flag */
+    public void setRequestMcpApps(boolean requestMcpApps) {
+        this.requestMcpApps = requestMcpApps;
+    }
+
+    /** Clears the requestMcpApps setting, reverting to the default behavior. */
+    public void clearRequestMcpApps() {
+        this.requestMcpApps = null;
     }
 
     /** Gets the requestExitPlanMode flag. @return the flag */

@@ -126,6 +126,37 @@ func (c *Client) applyConfigDefaultsForMode(config *SessionConfig) {
 		f := false
 		config.EnableSessionTelemetry = &f
 	}
+	if config.SkipEmbeddingRetrieval == nil {
+		t := true
+		config.SkipEmbeddingRetrieval = &t
+	}
+	if config.EmbeddingCacheStorage == nil {
+		inMemory := "in-memory"
+		config.EmbeddingCacheStorage = &inMemory
+	}
+	if config.EnableOnDemandInstructionDiscovery == nil {
+		f := false
+		config.EnableOnDemandInstructionDiscovery = &f
+	}
+	if config.EnableFileHooks == nil {
+		f := false
+		config.EnableFileHooks = &f
+	}
+	if config.EnableHostGitOperations == nil {
+		f := false
+		config.EnableHostGitOperations = &f
+	}
+	if config.EnableSessionStore == nil {
+		f := false
+		config.EnableSessionStore = &f
+	}
+	if config.EnableSkills == nil {
+		f := false
+		config.EnableSkills = &f
+	}
+	if config.MCPOAuthTokenStorage == "" {
+		config.MCPOAuthTokenStorage = "in-memory"
+	}
 }
 
 func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
@@ -135,6 +166,37 @@ func (c *Client) applyResumeDefaultsForMode(config *ResumeSessionConfig) {
 	if config.EnableSessionTelemetry == nil {
 		f := false
 		config.EnableSessionTelemetry = &f
+	}
+	if config.SkipEmbeddingRetrieval == nil {
+		t := true
+		config.SkipEmbeddingRetrieval = &t
+	}
+	if config.EmbeddingCacheStorage == nil {
+		inMemory := "in-memory"
+		config.EmbeddingCacheStorage = &inMemory
+	}
+	if config.EnableOnDemandInstructionDiscovery == nil {
+		f := false
+		config.EnableOnDemandInstructionDiscovery = &f
+	}
+	if config.EnableFileHooks == nil {
+		f := false
+		config.EnableFileHooks = &f
+	}
+	if config.EnableHostGitOperations == nil {
+		f := false
+		config.EnableHostGitOperations = &f
+	}
+	if config.EnableSessionStore == nil {
+		f := false
+		config.EnableSessionStore = &f
+	}
+	if config.EnableSkills == nil {
+		f := false
+		config.EnableSkills = &f
+	}
+	if config.MCPOAuthTokenStorage == "" {
+		config.MCPOAuthTokenStorage = "in-memory"
 	}
 }
 

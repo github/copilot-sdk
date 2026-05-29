@@ -1,4 +1,4 @@
-﻿/*---------------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
@@ -178,6 +178,82 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
     }
 
     [Fact]
+    public async Task Should_Forward_Granular_Multitenancy_Fields_In_Create_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            SkipEmbeddingRetrieval = false,
+            OrganizationCustomInstructions = "Follow org policy.",
+            EnableOnDemandInstructionDiscovery = true,
+            EmbeddingCacheStorage = EmbeddingCacheStorageMode.Persistent,
+            EnableFileHooks = true,
+            EnableHostGitOperations = false,
+            EnableSessionStore = true,
+            EnableSkills = false,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.False(createRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
+        Assert.Equal("Follow org policy.", createRequest.GetProperty("organizationCustomInstructions").GetString());
+        Assert.True(createRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("persistent", createRequest.GetProperty("embeddingCacheStorage").GetString());
+        Assert.True(createRequest.GetProperty("enableFileHooks").GetBoolean());
+        Assert.False(createRequest.GetProperty("enableHostGitOperations").GetBoolean());
+        Assert.True(createRequest.GetProperty("enableSessionStore").GetBoolean());
+        Assert.False(createRequest.GetProperty("enableSkills").GetBoolean());
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Apply_Empty_Mode_Defaults_To_CreateSession_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Ctx.WorkDir,
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        var session = await client.CreateSessionAsync(new SessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var createRequest = GetCapturedRequestParams(capture.RootElement, "session.create");
+        Assert.False(createRequest.GetProperty("enableSessionTelemetry").GetBoolean());
+        Assert.True(createRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
+        Assert.False(createRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("in-memory", createRequest.GetProperty("embeddingCacheStorage").GetString());
+        Assert.False(createRequest.GetProperty("enableFileHooks").GetBoolean());
+        Assert.False(createRequest.GetProperty("enableHostGitOperations").GetBoolean());
+        Assert.False(createRequest.GetProperty("enableSessionStore").GetBoolean());
+        Assert.False(createRequest.GetProperty("enableSkills").GetBoolean());
+        Assert.False(createRequest.TryGetProperty("organizationCustomInstructions", out _));
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Should_Propagate_Activity_TraceContext_To_Session_Create_And_Send()
     {
         var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
@@ -289,6 +365,82 @@ public class ClientOptionsE2ETests(E2ETestFixture fixture, ITestOutputHelper out
 
         Assert.Equal(activity.Id, resumeRequest.GetProperty("traceparent").GetString());
         Assert.Equal("vendor=resume", resumeRequest.GetProperty("tracestate").GetString());
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Forward_Granular_Multitenancy_Fields_In_Resume_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        var session = await client.ResumeSessionAsync("resume-session", new ResumeSessionConfig
+        {
+            SkipEmbeddingRetrieval = false,
+            OrganizationCustomInstructions = "Resume org policy.",
+            EnableOnDemandInstructionDiscovery = true,
+            EmbeddingCacheStorage = EmbeddingCacheStorageMode.Persistent,
+            EnableFileHooks = true,
+            EnableHostGitOperations = false,
+            EnableSessionStore = true,
+            EnableSkills = false,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var resumeRequest = GetCapturedRequestParams(capture.RootElement, "session.resume");
+        Assert.False(resumeRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
+        Assert.Equal("Resume org policy.", resumeRequest.GetProperty("organizationCustomInstructions").GetString());
+        Assert.True(resumeRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("persistent", resumeRequest.GetProperty("embeddingCacheStorage").GetString());
+        Assert.True(resumeRequest.GetProperty("enableFileHooks").GetBoolean());
+        Assert.False(resumeRequest.GetProperty("enableHostGitOperations").GetBoolean());
+        Assert.True(resumeRequest.GetProperty("enableSessionStore").GetBoolean());
+        Assert.False(resumeRequest.GetProperty("enableSkills").GetBoolean());
+
+        await session.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Should_Apply_Empty_Mode_Defaults_To_ResumeSession_Wire_Request()
+    {
+        var (cliPath, capturePath) = await CreateFakeCliCaptureAsync();
+
+        await using var client = Ctx.CreateClient(options: new CopilotClientOptions
+        {
+            Connection = RuntimeConnection.ForStdio(path: cliPath, args: ["--capture-file", capturePath]),
+            Mode = CopilotClientMode.Empty,
+            BaseDirectory = Ctx.WorkDir,
+            UseLoggedInUser = false,
+        });
+
+        await client.StartAsync();
+
+        var session = await client.ResumeSessionAsync("resume-empty-session", new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll,
+            AvailableTools = new ToolSet().AddBuiltIn(BuiltInTools.Isolated),
+        });
+
+        using var capture = JsonDocument.Parse(await File.ReadAllTextAsync(capturePath));
+        var resumeRequest = GetCapturedRequestParams(capture.RootElement, "session.resume");
+        Assert.False(resumeRequest.GetProperty("enableSessionTelemetry").GetBoolean());
+        Assert.True(resumeRequest.GetProperty("skipEmbeddingRetrieval").GetBoolean());
+        Assert.False(resumeRequest.GetProperty("enableOnDemandInstructionDiscovery").GetBoolean());
+        Assert.Equal("in-memory", resumeRequest.GetProperty("embeddingCacheStorage").GetString());
+        Assert.False(resumeRequest.GetProperty("enableFileHooks").GetBoolean());
+        Assert.False(resumeRequest.GetProperty("enableHostGitOperations").GetBoolean());
+        Assert.False(resumeRequest.GetProperty("enableSessionStore").GetBoolean());
+        Assert.False(resumeRequest.GetProperty("enableSkills").GetBoolean());
+        Assert.False(resumeRequest.TryGetProperty("organizationCustomInstructions", out _));
 
         await session.DisposeAsync();
     }

@@ -49,6 +49,7 @@ import type {
     GetAuthStatusResponse,
     GetStatusResponse,
     InternalRuntimeConnection,
+    LargeToolOutputConfig,
     MCPServerConfig,
     ModelInfo,
     ResumeSessionConfig,
@@ -131,6 +132,22 @@ function toWireCustomAgents(agents: CustomAgentConfig[] | undefined): unknown[] 
         const { mcpServers, ...rest } = agent;
         return { ...rest, mcpServers: toWireMcpServers(mcpServers) };
     });
+}
+
+/**
+ * Convert a {@link LargeToolOutputConfig} from the public API shape
+ * (`outputDirectory`) to the wire shape (`outputDir`).
+ */
+function toWireLargeOutput(
+    config: LargeToolOutputConfig | undefined
+): Record<string, unknown> | undefined {
+    if (!config) return undefined;
+    const { outputDirectory, ...rest } = config;
+    const wire: Record<string, unknown> = { ...rest };
+    if (outputDirectory !== undefined) {
+        wire.outputDir = outputDirectory;
+    }
+    return wire;
 }
 
 function toolFilterListToArray(value: string[] | ToolSet | undefined): string[] | undefined {
@@ -891,7 +908,17 @@ export class CopilotClient {
     /** Mode-specific defaults spread under the caller's config (app values win). */
     private configDefaultsForMode(): Partial<SessionConfigBase> {
         if (this.options.mode === "empty") {
-            return { enableSessionTelemetry: false };
+            return {
+                enableSessionTelemetry: false,
+                mcpOAuthTokenStorage: "in-memory",
+                skipEmbeddingRetrieval: true,
+                embeddingCacheStorage: "in-memory",
+                enableOnDemandInstructionDiscovery: false,
+                enableFileHooks: false,
+                enableHostGitOperations: false,
+                enableSessionStore: false,
+                enableSkills: false,
+            };
         }
         return {};
     }
@@ -1072,6 +1099,7 @@ export class CopilotClient {
                 sessionId: localSessionId,
                 clientName: config.clientName,
                 reasoningEffort: config.reasoningEffort,
+                reasoningSummary: config.reasoningSummary,
                 tools: config.tools?.map((tool) => ({
                     name: tool.name,
                     description: tool.description,
@@ -1094,9 +1122,11 @@ export class CopilotClient {
                 provider: config.provider,
                 enableSessionTelemetry: config.enableSessionTelemetry,
                 modelCapabilities: config.modelCapabilities,
+                largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission: !!config.onPermissionRequest,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
@@ -1104,13 +1134,23 @@ export class CopilotClient {
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),
+                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
-                configDir: config.configDir,
+                configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
+                embeddingCacheStorage: config.embeddingCacheStorage,
+                organizationCustomInstructions: config.organizationCustomInstructions,
+                enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
+                enableFileHooks: config.enableFileHooks,
+                enableHostGitOperations: config.enableHostGitOperations,
+                enableSessionStore: config.enableSessionStore,
+                enableSkills: config.enableSkills,
                 skillDirectories: config.skillDirectories,
+                pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,
@@ -1238,6 +1278,7 @@ export class CopilotClient {
                 clientName: config.clientName,
                 model: config.model,
                 reasoningEffort: config.reasoningEffort,
+                reasoningSummary: config.reasoningSummary,
                 systemMessage: wireSystemMessage,
                 availableTools: toolFilterOptions.availableTools,
                 excludedTools: toolFilterOptions.excludedTools,
@@ -1260,24 +1301,36 @@ export class CopilotClient {
                 })),
                 provider: config.provider,
                 modelCapabilities: config.modelCapabilities,
+                largeOutput: toWireLargeOutput(config.largeOutput),
                 requestPermission:
                     config.onPermissionRequest !== defaultJoinSessionPermissionHandler,
                 requestUserInput: !!config.onUserInputRequest,
                 requestElicitation: !!config.onElicitationRequest,
+                ...(config.enableMcpApps ? { requestMcpApps: true } : {}),
                 requestExitPlanMode: !!config.onExitPlanModeRequest,
                 requestAutoModeSwitch: !!config.onAutoModeSwitchRequest,
                 hooks: !!(config.hooks && Object.values(config.hooks).some(Boolean)),
                 workingDirectory: config.workingDirectory,
-                configDir: config.configDir,
+                configDir: config.configDirectory,
                 enableConfigDiscovery: config.enableConfigDiscovery,
+                skipEmbeddingRetrieval: config.skipEmbeddingRetrieval,
+                embeddingCacheStorage: config.embeddingCacheStorage,
+                organizationCustomInstructions: config.organizationCustomInstructions,
+                enableOnDemandInstructionDiscovery: config.enableOnDemandInstructionDiscovery,
+                enableFileHooks: config.enableFileHooks,
+                enableHostGitOperations: config.enableHostGitOperations,
+                enableSessionStore: config.enableSessionStore,
+                enableSkills: config.enableSkills,
                 streaming: config.streaming,
                 includeSubAgentStreamingEvents: config.includeSubAgentStreamingEvents ?? true,
                 mcpServers: toWireMcpServers(config.mcpServers),
+                mcpOAuthTokenStorage: config.mcpOAuthTokenStorage,
                 envValueMode: "direct",
                 customAgents: toWireCustomAgents(config.customAgents),
                 defaultAgent: config.defaultAgent,
                 agent: config.agent,
                 skillDirectories: config.skillDirectories,
+                pluginDirectories: config.pluginDirectories,
                 instructionDirectories: config.instructionDirectories,
                 disabledSkills: config.disabledSkills,
                 infiniteSessions: config.infiniteSessions,

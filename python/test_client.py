@@ -104,6 +104,89 @@ class TestCreateSessionConfig:
         finally:
             await client.force_stop()
 
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_reasoning_summary(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                reasoning_summary="concise",
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                reasoning_summary="none",
+            )
+
+            assert captured["session.create"]["reasoningSummary"] == "concise"
+            assert captured["session.resume"]["reasoningSummary"] == "none"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_and_resume_session_forward_plugin_directories_and_large_output(self):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+        try:
+            captured = {}
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method in ("session.create", "session.resume"):
+                    result = {"sessionId": params.get("sessionId") or "session-1"}
+                    callback = kwargs.get("on_response_inline")
+                    if callback is not None:
+                        callback(result)
+                    return result
+                return {}
+
+            client._client.request = mock_request
+
+            plugin_dirs = ["/tmp/plugins/a", "/tmp/plugins/b"]
+            large_output = {
+                "enabled": True,
+                "max_size_bytes": 1024,
+                "output_directory": "/tmp/large-output",
+            }
+            expected_large_output_wire = {
+                "enabled": True,
+                "maxSizeBytes": 1024,
+                "outputDir": "/tmp/large-output",
+            }
+
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                plugin_directories=plugin_dirs,
+                large_output=large_output,
+            )
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                plugin_directories=plugin_dirs,
+                large_output=large_output,
+            )
+
+            assert captured["session.create"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.create"]["largeOutput"] == expected_large_output_wire
+            assert captured["session.resume"]["pluginDirectories"] == plugin_dirs
+            assert captured["session.resume"]["largeOutput"] == expected_large_output_wire
+        finally:
+            await client.force_stop()
+
 
 class TestURLParsing:
     def test_parse_port_only_url(self):
@@ -965,9 +1048,161 @@ class TestSessionConfigForwarding:
                 return await original_request(method, params, **kwargs)
 
             client._client.request = mock_request
-            await session.set_model("gpt-4.1")
+            await session.set_model("gpt-4.1", reasoning_summary="detailed")
             assert captured["session.model.switchTo"]["sessionId"] == session.session_id
             assert captured["session.model.switchTo"]["modelId"] == "gpt-4.1"
+            assert captured["session.model.switchTo"]["reasoningSummary"] == "detailed"
+        finally:
+            await client.force_stop()
+
+
+class TestMcpOAuthTokenStorage:
+    @pytest.mark.asyncio
+    async def test_create_session_defaults_mcp_oauth_token_storage_to_in_memory_in_empty_mode(
+        self,
+    ):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+            assert captured["session.create"]["mcpOAuthTokenStorage"] == "in-memory"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_does_not_send_mcp_oauth_token_storage_in_copilot_cli_mode(
+        self,
+    ):
+        client = CopilotClient(connection=RuntimeConnection.for_stdio(path=CLI_PATH))
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+            )
+            assert "mcpOAuthTokenStorage" not in captured["session.create"]
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_create_session_forwards_explicit_mcp_oauth_token_storage(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+                mcp_oauth_token_storage="persistent",
+            )
+            assert captured["session.create"]["mcpOAuthTokenStorage"] == "persistent"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_defaults_mcp_oauth_token_storage_to_in_memory_in_empty_mode(
+        self,
+    ):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+            assert captured["session.resume"]["mcpOAuthTokenStorage"] == "in-memory"
+        finally:
+            await client.force_stop()
+
+    @pytest.mark.asyncio
+    async def test_resume_session_forwards_explicit_mcp_oauth_token_storage(self):
+        client = CopilotClient(
+            connection=RuntimeConnection.for_stdio(path=CLI_PATH),
+            mode="empty",
+            base_directory="/tmp/copilot-test",
+        )
+        await client.start()
+
+        try:
+            session = await client.create_session(
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+            )
+
+            captured = {}
+            original_request = client._client.request
+
+            async def mock_request(method, params, **kwargs):
+                captured[method] = params
+                if method == "session.resume":
+                    return {"sessionId": session.session_id}
+                return await original_request(method, params, **kwargs)
+
+            client._client.request = mock_request
+            await client.resume_session(
+                session.session_id,
+                on_permission_request=PermissionHandler.approve_all,
+                available_tools=[],
+                mcp_oauth_token_storage="persistent",
+            )
+            assert captured["session.resume"]["mcpOAuthTokenStorage"] == "persistent"
         finally:
             await client.force_stop()
 

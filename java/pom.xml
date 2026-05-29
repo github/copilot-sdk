@@ -7,7 +7,7 @@
 
     <groupId>com.github</groupId>
     <artifactId>copilot-sdk-java</artifactId>
-    <version>1.0.0-beta-java.5-SNAPSHOT</version>
+    <version>1.0.0-beta-10-java.5-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>GitHub Copilot SDK :: Java</name>
@@ -245,6 +245,18 @@
                             </target>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>print-test-jdk-banner</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo level="warning" message="⚠⚠⚠ Using Java ${java.version} (${java.vendor}) to run tests." />
+                            </target>
+                        </configuration>
+                    </execution>
                 </executions>
                 <dependencies>
                     <!-- Required for if:set and unless:set -->
@@ -306,6 +318,33 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!--
+                Failsafe runs integration tests against the actually packaged
+                JAR (after the package phase). Used to validate multi-release
+                JAR behaviour end-to-end without reflecting on private fields
+                or hand-rolling a synthetic JAR. See
+                src/test/java/com/github/copilot/InternalExecutorProviderIT.java.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <project.build.directory>${project.build.directory}</project.build.directory>
+                        <project.build.finalName>${project.build.finalName}</project.build.finalName>
+                        <project.build.testOutputDirectory>${project.build.testOutputDirectory}</project.build.testOutputDirectory>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -447,6 +486,10 @@
                         <configuration>
                             <dataFile>${project.build.directory}/jacoco-test-results/sdk-tests.exec</dataFile>
                             <outputDirectory>${project.reporting.outputDirectory}/jacoco-coverage</outputDirectory>
+                            <excludes>
+                                <!-- Exclude multi-release classes to avoid duplicate class analysis. -->
+                                <exclude>META-INF/versions/**/*.class</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
@@ -489,6 +532,44 @@
                     <autoPublish>true</autoPublish>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-jdk25</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[25,)</version>
+                                    <message>JDK 25+ is required to build the Multi-Release JAR with the virtual-thread overlay.</message>
+                                </requireJavaVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>verify-multi-release-overlay</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireFilesExist>
+                                    <files>
+                                        <file>${project.build.outputDirectory}/META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class</file>
+                                    </files>
+                                    <message>Multi-Release JAR overlay missing: META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class was not compiled. Ensure the build runs on JDK 25+.</message>
+                                </requireFilesExist>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
@@ -506,6 +587,87 @@
             <properties>
                 <surefire.jvm.args>-XX:+EnableDynamicAgentLoading</surefire.jvm.args>
             </properties>
+        </profile>
+        <profile>
+            <id>java25-multi-release</id>
+            <activation>
+                <jdk>[25,)</jdk>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>compile-java25</id>
+                                <phase>compile</phase>
+                                <goals>
+                                    <goal>compile</goal>
+                                </goals>
+                                <configuration>
+                                    <release>25</release>
+                                    <useIncrementalCompilation>false</useIncrementalCompilation>
+                                    <compileSourceRoots>
+                                        <compileSourceRoot>${project.basedir}/src/main/java25</compileSourceRoot>
+                                    </compileSourceRoots>
+                                    <multiReleaseOutput>true</multiReleaseOutput>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <archive>
+                                <manifestEntries>
+                                    <Multi-Release>true</Multi-Release>
+                                </manifestEntries>
+                            </archive>
+                        </configuration>
+                    </plugin>
+                    <!--
+                        Structural guard: when this profile is active (JDK 25+
+                        builds), assert that the packaged JAR contains the
+                        JDK 25 multi-release overlay class. Catches accidental
+                        profile-disable / classifier / shading regressions
+                        before the failsafe IT runs.
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>verify-java25-overlay</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <condition property="java25.overlay.present">
+                                            <resourceexists>
+                                                <zipentry zipfile="${project.build.directory}/${project.build.finalName}.jar" name="META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class" />
+                                            </resourceexists>
+                                        </condition>
+                                        <fail unless="java25.overlay.present">
+JDK 25 multi-release overlay class is missing from the packaged JAR.
+Expected entry: META-INF/versions/25/com/github/copilot/InternalExecutorProvider.class
+JAR: ${project.build.directory}/${project.build.finalName}.jar
+
+This usually means the 'java25-multi-release' Maven profile did not activate
+(e.g. the build is running on a JDK older than 25) or maven-compiler-plugin
+did not produce the multi-release output. Re-build on JDK 25+ and verify the
+'compile-java25' execution ran during the 'compile' phase.
+                                        </fail>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
         <!-- Skip git-clone + npm install of the copilot-sdk test harness -->
         <profile>

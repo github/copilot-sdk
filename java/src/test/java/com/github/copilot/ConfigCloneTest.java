@@ -21,6 +21,7 @@ import com.github.copilot.rpc.CopilotClientOptions;
 import com.github.copilot.rpc.DefaultAgentConfig;
 import com.github.copilot.rpc.ExitPlanModeResult;
 import com.github.copilot.rpc.InfiniteSessionConfig;
+import com.github.copilot.rpc.LargeToolOutputConfig;
 import com.github.copilot.rpc.MessageOptions;
 import com.github.copilot.rpc.ModelInfo;
 import com.github.copilot.rpc.ResumeSessionConfig;
@@ -114,6 +115,10 @@ class ConfigCloneTest {
         original.setSessionId("my-session");
         original.setClientName("my-app");
         original.setModel("gpt-4o");
+        original.setReasoningSummary("detailed");
+        original.setPluginDirectories(List.of("/plugins/a", "/plugins/b"));
+        original.setLargeOutput(
+                new LargeToolOutputConfig().setEnabled(true).setMaxSizeBytes(1024L).setOutputDirectory("/tmp/out"));
         original.setStreaming(true);
 
         SessionConfig cloned = original.clone();
@@ -121,6 +126,9 @@ class ConfigCloneTest {
         assertEquals(original.getSessionId(), cloned.getSessionId());
         assertEquals(original.getClientName(), cloned.getClientName());
         assertEquals(original.getModel(), cloned.getModel());
+        assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
+        assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
+        assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.isStreaming(), cloned.isStreaming());
     }
 
@@ -162,11 +170,18 @@ class ConfigCloneTest {
     void resumeSessionConfigCloneBasic() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setModel("o1");
+        original.setReasoningSummary("none");
+        original.setPluginDirectories(List.of("/plugins/r"));
+        original.setLargeOutput(
+                new LargeToolOutputConfig().setEnabled(false).setMaxSizeBytes(2048L).setOutputDirectory("/tmp/resume"));
         original.setStreaming(false);
 
         ResumeSessionConfig cloned = original.clone();
 
         assertEquals(original.getModel(), cloned.getModel());
+        assertEquals(original.getReasoningSummary(), cloned.getReasoningSummary());
+        assertEquals(original.getPluginDirectories(), cloned.getPluginDirectories());
+        assertEquals(original.getLargeOutput(), cloned.getLargeOutput());
         assertEquals(original.isStreaming(), cloned.isStreaming());
     }
 
@@ -216,6 +231,25 @@ class ConfigCloneTest {
     }
 
     @Test
+    void sessionConfigGranularMultitenancyFieldsCopied() {
+        SessionConfig original = new SessionConfig().setSkipEmbeddingRetrieval(true)
+                .setOrganizationCustomInstructions("Org instructions").setEnableOnDemandInstructionDiscovery(false)
+                .setEmbeddingCacheStorage("persistent").setEnableFileHooks(true).setEnableHostGitOperations(false)
+                .setEnableSessionStore(true).setEnableSkills(false);
+
+        SessionConfig cloned = original.clone();
+
+        assertTrue(cloned.getSkipEmbeddingRetrieval().orElse(false));
+        assertEquals("Org instructions", cloned.getOrganizationCustomInstructions());
+        assertFalse(cloned.getEnableOnDemandInstructionDiscovery().orElse(true));
+        assertEquals("persistent", cloned.getEmbeddingCacheStorage());
+        assertTrue(cloned.getEnableFileHooks().orElse(false));
+        assertFalse(cloned.getEnableHostGitOperations().orElse(true));
+        assertTrue(cloned.getEnableSessionStore().orElse(false));
+        assertFalse(cloned.getEnableSkills().orElse(true));
+    }
+
+    @Test
     void resumeSessionConfigEnableSessionTelemetryCopied() {
         ResumeSessionConfig original = new ResumeSessionConfig();
         original.setEnableSessionTelemetry(false);
@@ -232,6 +266,26 @@ class ConfigCloneTest {
         ResumeSessionConfig cloned = original.clone();
 
         assertTrue(cloned.getEnableSessionTelemetry().isEmpty());
+    }
+
+    @Test
+    void resumeSessionConfigGranularMultitenancyFieldsCopied() {
+        ResumeSessionConfig original = new ResumeSessionConfig().setSkipEmbeddingRetrieval(false)
+                .setOrganizationCustomInstructions("Resume org instructions")
+                .setEnableOnDemandInstructionDiscovery(true).setEmbeddingCacheStorage("persistent")
+                .setEnableFileHooks(false).setEnableHostGitOperations(true).setEnableSessionStore(false)
+                .setEnableSkills(true);
+
+        ResumeSessionConfig cloned = original.clone();
+
+        assertFalse(cloned.getSkipEmbeddingRetrieval().orElse(true));
+        assertEquals("Resume org instructions", cloned.getOrganizationCustomInstructions());
+        assertTrue(cloned.getEnableOnDemandInstructionDiscovery().orElse(false));
+        assertEquals("persistent", cloned.getEmbeddingCacheStorage());
+        assertFalse(cloned.getEnableFileHooks().orElse(true));
+        assertTrue(cloned.getEnableHostGitOperations().orElse(false));
+        assertFalse(cloned.getEnableSessionStore().orElse(true));
+        assertTrue(cloned.getEnableSkills().orElse(false));
     }
 
     @Test
@@ -328,8 +382,8 @@ class ConfigCloneTest {
         config.setWorkingDirectory("/project/src");
         assertEquals("/project/src", config.getWorkingDirectory());
 
-        config.setConfigDir("/home/user/.config/copilot");
-        assertEquals("/home/user/.config/copilot", config.getConfigDir());
+        config.setConfigDirectory("/home/user/.config/copilot");
+        assertEquals("/home/user/.config/copilot", config.getConfigDirectory());
 
         config.setSkillDirectories(List.of("/skills/custom"));
         assertEquals(List.of("/skills/custom"), config.getSkillDirectories());
