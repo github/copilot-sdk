@@ -2460,6 +2460,7 @@ public abstract class SessionConfigBase
         Canvases = other.Canvases is not null ? [.. other.Canvases] : null;
         RequestCanvasRenderer = other.RequestCanvasRenderer;
         RequestExtensions = other.RequestExtensions;
+        ExtensionSdkPath = other.ExtensionSdkPath;
         ExtensionInfo = other.ExtensionInfo;
         CanvasHandler = other.CanvasHandler;
 #pragma warning restore GHCP001
@@ -2826,6 +2827,16 @@ public abstract class SessionConfigBase
     /// </summary>
     [Experimental(Diagnostics.Experimental)]
     public bool? RequestExtensions { get; set; }
+
+    /// <summary>
+    /// Optional override path to a <c>copilot-sdk/</c> folder to inject into
+    /// extension subprocesses for this session in place of the bundled SDK.
+    /// When unset or invalid (missing folder, or missing <c>index.js</c> /
+    /// <c>extension.js</c>), the runtime falls back to the bundled SDK
+    /// without throwing. Takes precedence over any server-level default.
+    /// </summary>
+    [Experimental(Diagnostics.Experimental)]
+    public string? ExtensionSdkPath { get; set; }
 
     /// <summary>
     /// Stable extension identity for canvas/tool providers on this connection.
