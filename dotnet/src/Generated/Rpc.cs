@@ -6321,6 +6321,10 @@ internal sealed class PermissionsSetAllowAllRequest
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
     public string SessionId { get; set; } = string.Empty;
+
+    /// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
+    [JsonPropertyName("source")]
+    public PermissionsSetAllowAllSource? Source { get; set; }
 }
 
 /// <summary>Current full allow-all permission state.</summary>
@@ -11778,6 +11782,75 @@ public readonly struct PermissionsSetApproveAllSource : IEquatable<PermissionsSe
 }
 
 
+/// <summary>Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</summary>
+[Experimental(Diagnostics.Experimental)]
+[JsonConverter(typeof(Converter))]
+[DebuggerDisplay("{Value,nq}")]
+public readonly struct PermissionsSetAllowAllSource : IEquatable<PermissionsSetAllowAllSource>
+{
+    private readonly string? _value;
+
+    /// <summary>Initializes a new instance of the <see cref="PermissionsSetAllowAllSource"/> struct.</summary>
+    /// <param name="value">The value to associate with this <see cref="PermissionsSetAllowAllSource"/>.</param>
+    [JsonConstructor]
+    public PermissionsSetAllowAllSource(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        _value = value;
+    }
+
+    /// <summary>Gets the value associated with this <see cref="PermissionsSetAllowAllSource"/>.</summary>
+    public string Value => _value ?? string.Empty;
+
+    /// <summary>Allow-all was enabled from a CLI command-line flag.</summary>
+    public static PermissionsSetAllowAllSource CliFlag { get; } = new("cli_flag");
+
+    /// <summary>Allow-all was enabled by a slash command.</summary>
+    public static PermissionsSetAllowAllSource SlashCommand { get; } = new("slash_command");
+
+    /// <summary>Allow-all was enabled by confirming autopilot behavior.</summary>
+    public static PermissionsSetAllowAllSource AutopilotConfirmation { get; } = new("autopilot_confirmation");
+
+    /// <summary>Allow-all was enabled through an RPC caller.</summary>
+    public static PermissionsSetAllowAllSource Rpc { get; } = new("rpc");
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionsSetAllowAllSource"/> instances are equivalent.</summary>
+    public static bool operator ==(PermissionsSetAllowAllSource left, PermissionsSetAllowAllSource right) => left.Equals(right);
+
+    /// <summary>Returns a value indicating whether two <see cref="PermissionsSetAllowAllSource"/> instances are not equivalent.</summary>
+    public static bool operator !=(PermissionsSetAllowAllSource left, PermissionsSetAllowAllSource right) => !(left == right);
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is PermissionsSetAllowAllSource other && Equals(other);
+
+    /// <inheritdoc />
+    public bool Equals(PermissionsSetAllowAllSource other) => string.Equals(Value, other.Value, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => StringComparer.OrdinalIgnoreCase.GetHashCode(Value);
+
+    /// <inheritdoc />
+    public override string ToString() => Value;
+
+    /// <summary>Provides a <see cref="JsonConverter{PermissionsSetAllowAllSource}"/> for serializing <see cref="PermissionsSetAllowAllSource"/> instances.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public sealed class Converter : JsonConverter<PermissionsSetAllowAllSource>
+    {
+        /// <inheritdoc />
+        public override PermissionsSetAllowAllSource Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            return new(GeneratedStringEnumJson.ReadValue(ref reader, typeToConvert));
+        }
+
+        /// <inheritdoc />
+        public override void Write(Utf8JsonWriter writer, PermissionsSetAllowAllSource value, JsonSerializerOptions options)
+        {
+            GeneratedStringEnumJson.WriteValue(writer, value.Value, typeof(PermissionsSetAllowAllSource));
+        }
+    }
+}
+
+
 /// <summary>Whether the change applies to ephemeral session-scoped rules (cleared at session end) or to location-scoped rules persisted via the location-permissions config file.</summary>
 [Experimental(Diagnostics.Experimental)]
 [JsonConverter(typeof(Converter))]
@@ -15176,13 +15249,14 @@ public sealed class PermissionsApi
 
     /// <summary>Enables or disables full allow-all permissions (tools, paths, and URLs) for the session. Used by attach-mode clients (e.g. LocalRpcSession's `/allow-all` forwarder) to flip the target session's permission state. Unlike `setApproveAll`, this swaps in the unrestricted path and URL managers and emits `session.permissions_changed` on transition. The result returns the authoritative post-mutation state so callers can update their local mirrors without racing the `session.permissions_changed` notification on the same wire.</summary>
     /// <param name="enabled">Whether to enable full allow-all permissions.</param>
+    /// <param name="source">Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the operation succeeded and reports the post-mutation state.</returns>
-    public async Task<AllowAllPermissionSetResult> SetAllowAllAsync(bool enabled, CancellationToken cancellationToken = default)
+    public async Task<AllowAllPermissionSetResult> SetAllowAllAsync(bool enabled, PermissionsSetAllowAllSource? source = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
-        var request = new PermissionsSetAllowAllRequest { SessionId = _session.SessionId, Enabled = enabled };
+        var request = new PermissionsSetAllowAllRequest { SessionId = _session.SessionId, Enabled = enabled, Source = source };
         return await CopilotClient.InvokeRpcAsync<AllowAllPermissionSetResult>(_session.Rpc, "session.permissions.setAllowAll", [request], cancellationToken);
     }
 

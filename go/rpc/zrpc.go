@@ -3566,6 +3566,8 @@ type PermissionsResetSessionApprovalsResult struct {
 type PermissionsSetAllowAllRequest struct {
 	// Whether to enable full allow-all permissions
 	Enabled bool `json:"enabled"`
+	// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
+	Source *PermissionsSetAllowAllSource `json:"source,omitempty"`
 }
 
 // Allow-all toggle for tool permission requests, with an optional telemetry source.
@@ -7491,6 +7493,22 @@ const (
 )
 
 // Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
+// Experimental: PermissionsSetAllowAllSource is part of an experimental API and may change
+// or be removed.
+type PermissionsSetAllowAllSource string
+
+const (
+	// Allow-all was enabled by confirming autopilot behavior.
+	PermissionsSetAllowAllSourceAutopilotConfirmation PermissionsSetAllowAllSource = "autopilot_confirmation"
+	// Allow-all was enabled from a CLI command-line flag.
+	PermissionsSetAllowAllSourceCliFlag PermissionsSetAllowAllSource = "cli_flag"
+	// Allow-all was enabled through an RPC caller.
+	PermissionsSetAllowAllSourceRPC PermissionsSetAllowAllSource = "rpc"
+	// Allow-all was enabled by a slash command.
+	PermissionsSetAllowAllSourceSlashCommand PermissionsSetAllowAllSource = "slash_command"
+)
+
+// Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
 // Experimental: PermissionsSetApproveAllSource is part of an experimental API and may
 // change or be removed.
 type PermissionsSetApproveAllSource string
@@ -10783,6 +10801,9 @@ func (a *PermissionsApi) SetAllowAll(ctx context.Context, params *PermissionsSet
 	req := map[string]any{"sessionId": a.sessionID}
 	if params != nil {
 		req["enabled"] = params.Enabled
+		if params.Source != nil {
+			req["source"] = *params.Source
+		}
 	}
 	raw, err := a.client.Request("session.permissions.setAllowAll", req)
 	if err != nil {

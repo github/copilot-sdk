@@ -907,6 +907,22 @@ export type PermissionsModifyRulesScope =
  * Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "PermissionsSetAllowAllSource".
+ */
+/** @experimental */
+export type PermissionsSetAllowAllSource =
+  /** Allow-all was enabled from a CLI command-line flag. */
+  | "cli_flag"
+  /** Allow-all was enabled by a slash command. */
+  | "slash_command"
+  /** Allow-all was enabled by confirming autopilot behavior. */
+  | "autopilot_confirmation"
+  /** Allow-all was enabled through an RPC caller. */
+  | "rpc";
+/**
+ * Optional source for allow-all telemetry. Defaults to `rpc` when omitted for SDK callers.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
  * via the `definition` "PermissionsSetApproveAllSource".
  */
 /** @experimental */
@@ -6223,6 +6239,7 @@ export interface PermissionsSetAllowAllRequest {
    * Whether to enable full allow-all permissions
    */
   enabled: boolean;
+  source?: PermissionsSetAllowAllSource;
 }
 /**
  * Allow-all toggle for tool permission requests, with an optional telemetry source.
