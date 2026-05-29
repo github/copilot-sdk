@@ -69,6 +69,7 @@ public class CloneTests
             Model = "gpt-4",
             ReasoningEffort = "high",
             ReasoningSummary = ReasoningSummary.Detailed,
+            ContextTier = "long_context",
             ConfigDirectory = "/config",
             AvailableTools = ["tool1", "tool2"],
             ExcludedTools = ["tool3"],
@@ -107,6 +108,7 @@ public class CloneTests
         Assert.Equal(original.Model, clone.Model);
         Assert.Equal(original.ReasoningEffort, clone.ReasoningEffort);
         Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
+        Assert.Equal(original.ContextTier, clone.ContextTier);
         Assert.Equal(original.ConfigDirectory, clone.ConfigDirectory);
         Assert.Equal(original.AvailableTools, clone.AvailableTools);
         Assert.Equal(original.ExcludedTools, clone.ExcludedTools);
@@ -377,6 +379,19 @@ public class CloneTests
         var clone = original.Clone();
 
         Assert.Equal(original.ReasoningSummary, clone.ReasoningSummary);
+    }
+
+    [Fact]
+    public void ResumeSessionConfig_Clone_CopiesContextTier()
+    {
+        var original = new ResumeSessionConfig
+        {
+            ContextTier = "long_context",
+        };
+
+        var clone = original.Clone();
+
+        Assert.Equal(original.ContextTier, clone.ContextTier);
     }
 
     [Fact]

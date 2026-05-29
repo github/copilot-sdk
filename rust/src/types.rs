@@ -4576,6 +4576,7 @@ mod tests {
             .with_client_name("test-app")
             .with_reasoning_effort("medium")
             .with_reasoning_summary(ReasoningSummary::Concise)
+            .with_context_tier("long_context")
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
@@ -4599,6 +4600,7 @@ mod tests {
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
         assert_eq!(cfg.reasoning_effort.as_deref(), Some("medium"));
         assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::Concise));
+        assert_eq!(cfg.context_tier.as_deref(), Some("long_context"));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(
@@ -4640,6 +4642,7 @@ mod tests {
         let cfg = ResumeSessionConfig::new(SessionId::from("sess-2"))
             .with_client_name("test-app")
             .with_reasoning_summary(ReasoningSummary::None)
+            .with_context_tier("default")
             .with_streaming(true)
             .with_tools([Tool::new("greet")])
             .with_available_tools(["bash", "view"])
@@ -4663,6 +4666,7 @@ mod tests {
         assert_eq!(cfg.session_id.as_str(), "sess-2");
         assert_eq!(cfg.client_name.as_deref(), Some("test-app"));
         assert_eq!(cfg.reasoning_summary, Some(ReasoningSummary::None));
+        assert_eq!(cfg.context_tier.as_deref(), Some("default"));
         assert_eq!(cfg.streaming, Some(true));
         assert_eq!(cfg.tools.as_ref().map(|t| t.len()), Some(1));
         assert_eq!(

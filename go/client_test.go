@@ -434,6 +434,38 @@ func TestSessionRequests_ReasoningSummary(t *testing.T) {
 	})
 }
 
+func TestSessionRequests_ContextTier(t *testing.T) {
+	t.Run("create includes contextTier in JSON when set", func(t *testing.T) {
+		req := createSessionRequest{ContextTier: "long_context"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["contextTier"] != "long_context" {
+			t.Errorf("Expected contextTier to be 'long_context', got %v", m["contextTier"])
+		}
+	})
+
+	t.Run("resume includes contextTier in JSON when set", func(t *testing.T) {
+		req := resumeSessionRequest{SessionID: "s1", ContextTier: "default"}
+		data, err := json.Marshal(req)
+		if err != nil {
+			t.Fatalf("Failed to marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("Failed to unmarshal: %v", err)
+		}
+		if m["contextTier"] != "default" {
+			t.Errorf("Expected contextTier to be 'default', got %v", m["contextTier"])
+		}
+	})
+}
+
 func TestSessionRequests_PluginDirectoriesAndLargeOutput(t *testing.T) {
 	pluginDirs := []string{"/tmp/plugins/a", "/tmp/plugins/b"}
 	enabled := true
