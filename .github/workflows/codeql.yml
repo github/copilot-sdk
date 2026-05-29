@@ -15,6 +15,7 @@ permissions:
 jobs:
   changes:
     name: Detect changed paths
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,10 +39,13 @@ jobs:
             js:
               - 'nodejs/**'
               - 'scripts/**'
+              - 'test/harness/**'
             python:
               - 'python/**'
             go:
               - 'go/**'
+            rust:
+              - 'rust/**'
             csharp:
               - 'dotnet/**'
             actions:
@@ -70,6 +74,8 @@ jobs:
             gate: python
           - language: go
             gate: go
+          - language: rust
+            gate: rust
           - language: csharp
             gate: csharp
           - language: actions
